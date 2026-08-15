@@ -1,12 +1,15 @@
+import { Link } from "@tanstack/react-router";
 import { Bell } from "lucide-react";
 
 import { Eyebrow } from "@compozy/ui";
 
 import { isOpenWait, type LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import type { LoopNodeInventoryState } from "../../types";
 
 interface LoopRunWaitsRailProps {
   /** Every node the daemon reports lifecycle state for, from the run detail. */
   nodes: readonly LoopNodeLifecycle[];
+  runId: string;
 }
 
 /**
@@ -18,7 +21,7 @@ interface LoopRunWaitsRailProps {
  * panel answers "is anything parked?", and the answer "nothing" is information
  * the operator came here for (DESIGN-LESSONS L5 governs badges, not readouts).
  */
-export function LoopRunWaitsRail({ nodes }: LoopRunWaitsRailProps) {
+export function LoopRunWaitsRail({ nodes, runId }: LoopRunWaitsRailProps) {
   let waiting = 0;
   let attention = 0;
   let quarantined = 0;
@@ -27,20 +30,28 @@ export function LoopRunWaitsRail({ nodes }: LoopRunWaitsRailProps) {
     if (node.attentionFlag !== "") attention += 1;
     if (node.quarantined) quarantined += 1;
   }
-  const rows: { label: string; value: number; nodeId?: string }[] = [
+  const rows: {
+    label: string;
+    value: number;
+    nodes: LoopNodeInventoryState;
+    nodeId?: string;
+  }[] = [
     {
       label: "Open waits",
       value: waiting,
+      nodes: "waiting",
       nodeId: waiting === 1 ? nodes.find(node => node.waits.some(isOpenWait))?.nodeId : undefined,
     },
     {
       label: "Needs attention",
       value: attention,
+      nodes: "attention",
       nodeId: attention === 1 ? nodes.find(node => node.attentionFlag !== "")?.nodeId : undefined,
     },
     {
       label: "Quarantined",
       value: quarantined,
+      nodes: "quarantined",
       nodeId: quarantined === 1 ? nodes.find(node => node.quarantined)?.nodeId : undefined,
     },
   ];
@@ -60,7 +71,17 @@ export function LoopRunWaitsRail({ nodes }: LoopRunWaitsRailProps) {
               }`}
               data-testid={`loop-run-waits-${row.label.toLowerCase().replaceAll(" ", "-")}`}
             >
-              {row.value}
+              {row.value > 0 ? (
+                <Link
+                  className="text-warning hover:text-fg-strong"
+                  search={{ nodes: row.nodes, nodes_run: runId }}
+                  to="/loop-runs"
+                >
+                  {row.value}
+                </Link>
+              ) : (
+                row.value
+              )}
               {row.nodeId ? <span className="ml-1.5 text-faint">· {row.nodeId}</span> : null}
             </dd>
           </div>

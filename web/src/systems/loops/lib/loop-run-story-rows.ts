@@ -253,6 +253,20 @@ function terminalTransition(
             ? "The same open points kept coming back round after round."
             : failureCause,
       };
+    case "canceled":
+      return cause === "operator_kill"
+        ? {
+            tone: "danger",
+            icon: "killed",
+            title: "Run killed",
+            sub: "Stopped immediately; in-flight work was interrupted.",
+          }
+        : {
+            tone: "neutral",
+            icon: "circle-slash",
+            title: "Run canceled",
+            sub: "Requested by you; every in-flight lane drained before the run closed.",
+          };
     default:
       return null;
   }
@@ -264,9 +278,6 @@ function statusTransition(
   cause: string,
   failureCause: string | undefined
 ): Transition | null {
-  if (cause === "operator_stop") {
-    return { tone: "neutral", icon: "stopped", title: "Stopped by you" };
-  }
   const terminal = terminalTransition(to, cause, failureCause);
   if (terminal) return terminal;
   switch (to) {

@@ -82,6 +82,8 @@ export interface LoopNodeLifecycle {
   disposition: string;
   outputStatus: string;
   generation: number;
+  /** Fan-out item from the latest output; null when the node has no item-scoped cell. */
+  itemIndex: number | null;
   /** ACP session bound to the node's latest cell run; null when none bound yet. */
   sessionId: string | null;
 }
@@ -216,6 +218,7 @@ export function projectNodeLifecycles(input: LoopNodeLifecycleInput): LoopNodeLi
       disposition: output?.disposition ?? "",
       outputStatus: output?.status ?? "",
       generation: Number(output?.generation ?? input.runGeneration),
+      itemIndex: typeof output?.item_index === "number" ? output.item_index : null,
       sessionId: output?.session_id ? output.session_id : null,
     });
   }

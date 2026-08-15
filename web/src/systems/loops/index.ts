@@ -191,6 +191,9 @@ export type {
   UseLoopEditorResult,
 } from "./hooks/use-loop-editor";
 export { LoopEditor } from "./components/editor/loop-editor";
+export { LoopEditorFold } from "./components/editor/loop-editor-fold";
+export { loopNodeCardRows } from "./lib/loop-node-card-rows";
+export type { LoopNodeCardRow } from "./lib/loop-node-card-rows";
 
 // Limits & budget
 export type { LoopLimitRow } from "./lib/loop-limits";
@@ -222,10 +225,13 @@ export {
 // Run-form model
 export type { LoopRunInputs } from "./lib/loop-run-form";
 export {
+  declaredInputCountsGist,
+  environmentGist,
   hasInputValue,
   initialRunInputs,
   isRunFormValid,
   missingRequiredInputs,
+  participationGist,
   serializeRunInputs,
 } from "./lib/loop-run-form";
 export type {
@@ -376,7 +382,7 @@ export {
   isLoopNodeInventoryState,
   LOOP_NODE_INVENTORY_LABELS,
   LOOP_NODE_INVENTORY_STATES,
-  type LoopNodeInventorySort,
+  LOOP_NODE_INVENTORY_TONES,
 } from "./lib/loop-node-inventory";
 
 // Run-form view-model hook
@@ -448,7 +454,6 @@ export { LoopRunOverflowMenu } from "./components/run-page/loop-run-overflow-men
 export { LoopRunPageBody } from "./components/run-page/loop-run-page-body";
 export type { LoopRunPageBodyProps } from "./components/run-page/loop-run-page-body";
 export { LoopRunProgressPanel } from "./components/run-page/loop-run-progress-panel";
-export { LoopRunSection } from "./components/run-page/loop-run-section";
 export { LoopRunStoryTimeline } from "./components/run-page/loop-run-story-timeline";
 export { LoopRunSubhead } from "./components/run-page/loop-run-subhead";
 export { LoopRunTurnsDisclosure } from "./components/run-page/loop-run-turns-disclosure";

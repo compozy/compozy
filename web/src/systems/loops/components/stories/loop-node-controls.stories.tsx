@@ -47,6 +47,7 @@ function node(overrides: Partial<LoopNodeLifecycle> & { nodeId: string }): LoopN
     generation: 2,
     sessionId: null,
     ...overrides,
+    itemIndex: overrides.itemIndex ?? null,
   };
 }
 
@@ -300,7 +301,7 @@ export const RunCancelVsKill: Story = {
           onResume={() => {}}
           status="running"
         />
-        <LoopRunOverflowMenu loopName="review-and-fix" onInspect={() => {}} onKill={() => {}} />
+        <LoopRunOverflowMenu loopName="review-and-fix" onKill={() => {}} />
       </div>
     </div>
   ),

@@ -16,6 +16,7 @@ import {
   attentionScenario,
   canceledScenario,
   killedScenario,
+  parkedProgressScenario,
   pausedByRuleScenario,
   pausedNodeScenario,
   quarantinedScenario,
@@ -56,7 +57,7 @@ function ScenarioPage({
     onBack: () => {},
     crumbs: [
       { id: "loops", label: "Loops", onSelect: () => {} },
-      { id: "runs", label: "Runs", onSelect: () => {} },
+      { id: "loop", label: props.run.loop_name, onSelect: () => {} },
     ],
     crumb: props.run.id,
   };
@@ -73,11 +74,7 @@ function ScenarioPage({
           onResume={() => {}}
           onCancel={() => {}}
         />
-        <LoopRunOverflowMenu
-          loopName={props.run.loop_name}
-          onInspect={() => setInspectOpen(true)}
-          onKill={() => {}}
-        />
+        <LoopRunOverflowMenu loopName={props.run.loop_name} onKill={() => {}} />
       </div>
     ),
   });
@@ -217,4 +214,9 @@ export const Canceled: Story = {
 export const Killed: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={killedScenario()} />,
+};
+
+export const ParkedProgress: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={parkedProgressScenario()} />,
 };

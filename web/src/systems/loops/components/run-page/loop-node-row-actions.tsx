@@ -3,7 +3,7 @@ import { Play, Redo2 } from "lucide-react";
 import { Button } from "@compozy/ui";
 
 import { type LoopNodeVerb, loopNodeVerbs } from "../../lib/loop-node-controls";
-import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import { isOpenWait, type LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 import { LoopNodeControlMenu } from "./loop-node-control-menu";
 
 interface LoopNodeRowActionsProps {
@@ -29,11 +29,14 @@ export function LoopNodeRowActions({
   onVerb,
 }: LoopNodeRowActionsProps) {
   const verbs = loopNodeVerbs(node, runStatus);
+  const openWait = node.waits.find(isOpenWait);
   const primary: LoopNodeVerb | null = verbs.includes("resume")
     ? "resume"
     : verbs.includes("requeue")
       ? "requeue"
-      : null;
+      : verbs.includes("resume-wait") && openWait?.claimState === "intervention_required"
+        ? "resume-wait"
+        : null;
   return (
     <span className="flex shrink-0 items-center gap-1.5">
       {primary ? (
@@ -46,12 +49,16 @@ export function LoopNodeRowActions({
           type="button"
           variant="outline"
         >
-          {primary === "resume" ? (
-            <Play aria-hidden="true" className="size-3" />
-          ) : (
+          {primary === "requeue" ? (
             <Redo2 aria-hidden="true" className="size-3" />
+          ) : (
+            <Play aria-hidden="true" className="size-3" />
           )}
-          {primary === "resume" ? "Resume" : "Requeue…"}
+          {primary === "resume"
+            ? "Resume"
+            : primary === "resume-wait"
+              ? "Resume with payload…"
+              : "Requeue…"}
         </Button>
       ) : null}
       <LoopNodeControlMenu

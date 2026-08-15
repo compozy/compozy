@@ -4,6 +4,7 @@ import {
   Bell,
   Check,
   CircleCheck,
+  CircleSlash,
   CopyX,
   Eye,
   Hourglass,
@@ -14,7 +15,6 @@ import {
   RotateCcw,
   Send,
   ShieldAlert,
-  Square,
   TriangleAlert,
   VolumeOff,
   X,
@@ -26,7 +26,7 @@ import type { LoopStoryIcon } from "./loop-run-story-types";
 
 /**
  * One Lucide glyph per story concept (DESIGN-BACKLOG §2.1 / L7).
- * `stopped` stays until Packet G retires the deleted `stop` verb.
+ * Run-canceled uses `circle-slash`; node cancel stays `canceled` → Ban.
  */
 export const LOOP_STORY_ICONS: Record<LoopStoryIcon, LucideIcon> = {
   round: Play,
@@ -39,8 +39,8 @@ export const LOOP_STORY_ICONS: Record<LoopStoryIcon, LucideIcon> = {
   paused: Pause,
   resumed: Play,
   started: Play,
-  stopped: Square,
   done: Check,
+  "circle-slash": CircleSlash,
   retry: RotateCcw,
   canceled: Ban,
   killed: Zap,

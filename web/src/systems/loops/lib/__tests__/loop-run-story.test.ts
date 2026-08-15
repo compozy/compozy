@@ -445,6 +445,40 @@ describe("buildRunStory", () => {
     });
     expect(story.now).toBeNull();
   });
+
+  it("Should narrate a canceled run and a killed run from the terminal cause", () => {
+    const canceled = buildRunStory(
+      [
+        frame(
+          "status_changed",
+          { from: "running", to: "canceled", status: "canceled", cause: "operator_cancel" },
+          1
+        ),
+      ],
+      { status: "canceled", graph: null }
+    );
+    expect(canceled.rows[0]).toMatchObject({
+      title: "Run canceled",
+      tone: "neutral",
+      icon: "circle-slash",
+      micro: "status_changed · running → canceled",
+    });
+    const killed = buildRunStory(
+      [
+        frame(
+          "status_changed",
+          { from: "running", to: "canceled", status: "canceled", cause: "operator_kill" },
+          1
+        ),
+      ],
+      { status: "canceled", graph: null }
+    );
+    expect(killed.rows[0]).toMatchObject({
+      title: "Run killed",
+      tone: "danger",
+      icon: "killed",
+    });
+  });
 });
 
 describe("buildNextNote", () => {

@@ -17,7 +17,14 @@ import { parkedNodeIds } from "./loop-node-lifecycle";
  * that nothing is spending attempts on.
  */
 
-export type LoopProgressSegmentState = "clean" | "active" | "redo" | "failed" | "parked" | "idle";
+export type LoopProgressSegmentState =
+  | "clean"
+  | "active"
+  | "redo"
+  | "failed"
+  | "parked"
+  | "quarantined"
+  | "idle";
 
 export interface LoopRunProgressModel {
   /** One entry per fan-out branch; null hides the bar (no fan-out in this run). */
@@ -176,10 +183,15 @@ export function buildRunProgress(
   }
   const terminal = isTerminalLoopStatus(run.status);
   const runFailed = run.status === "failed";
+  const ownerState = nodes.find(node => node.nodeId === fanOut.nodeId)?.state;
+  const parkedState: LoopProgressSegmentState =
+    ownerState === "quarantined" ? "quarantined" : "parked";
   const segments = fanOut.parked
-    ? fanOut.statuses.map<LoopProgressSegmentState>(() => "parked")
+    ? fanOut.statuses.map<LoopProgressSegmentState>(() => parkedState)
     : fanOut.statuses.map(status => segmentState(status, terminal, runFailed));
-  const parkedCount = segments.filter(state => state === "parked").length;
+  const parkedCount = segments.filter(
+    state => state === "parked" || state === "quarantined"
+  ).length;
   const counted = segments.length - parkedCount;
   const cleanCount = segments.filter(state => state === "clean").length;
   const activeCount = segments.filter(state => state === "active" || state === "redo").length;

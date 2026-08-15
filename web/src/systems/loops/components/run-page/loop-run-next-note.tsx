@@ -1,7 +1,6 @@
-import { ArrowRight } from "lucide-react";
+import { Route } from "lucide-react";
 
 import { LoopRunQuietNote } from "./loop-run-quiet-note";
-import { LoopRunSection } from "./loop-run-section";
 
 interface LoopRunNextNoteProps {
   /** The graph-derived sentence from `buildNextNote`; null renders nothing. */
@@ -15,8 +14,8 @@ interface LoopRunNextNoteProps {
 export function LoopRunNextNote({ note }: LoopRunNextNoteProps) {
   if (!note) return null;
   return (
-    <LoopRunSection label="What happens next" data-testid="loop-run-next">
-      <LoopRunQuietNote icon={ArrowRight}>{note}</LoopRunQuietNote>
-    </LoopRunSection>
+    <LoopRunQuietNote data-testid="loop-run-next" icon={Route}>
+      {note}
+    </LoopRunQuietNote>
   );
 }

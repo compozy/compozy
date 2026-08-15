@@ -67,6 +67,7 @@ export function LoopRunDetailLocation({ runId }: { runId: string }) {
       workspaceId={workspaceId}
       runId={runId}
       liveDataEnabled={liveDataEnabled}
+      navigate={navigate}
       topbarIdentity={topbarIdentity}
       workspaceName={activeWorkspace?.id === runtimeWorkspaceId ? activeWorkspace.name : undefined}
     />
@@ -79,6 +80,7 @@ interface LoopRunDetailProps {
   topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">;
   workspaceName?: string;
   liveDataEnabled: boolean;
+  navigate: ReturnType<typeof useNavigate>;
 }
 
 function LoopRunDetail({
@@ -87,6 +89,7 @@ function LoopRunDetail({
   topbarIdentity,
   workspaceName,
   liveDataEnabled,
+  navigate,
 }: LoopRunDetailProps) {
   const page = useLoopRunPage(workspaceId, runId, { liveDataEnabled });
   const nodeControls = useLoopNodeControls(workspaceId, runId);
@@ -107,8 +110,27 @@ function LoopRunDetail({
       ? null
       : (page.nodesById.get(nodeControls.quarantineNodeId) ?? null);
 
+  const loopName = page.run?.loop_name;
   useTopbarSlot({
     ...topbarIdentity,
+    crumbs: loopName
+      ? [
+          {
+            id: "loops",
+            label: "Loops",
+            onSelect: () => {
+              void navigate({ to: "/loops" });
+            },
+          },
+          {
+            id: "loop",
+            label: loopName,
+            onSelect: () => {
+              void navigate({ to: "/loops/$name", params: { name: loopName } });
+            },
+          },
+        ]
+      : topbarIdentity.crumbs,
     status: page.run ? (
       <LoopStatusPill status={page.run.status} data-testid="loop-run-status-pill" />
     ) : undefined,
@@ -125,7 +147,6 @@ function LoopRunDetail({
         <LoopRunOverflowMenu
           isKillPending={page.isKillPending}
           loopName={page.run.loop_name}
-          onInspect={() => setInspectOpen(true)}
           // Kill is offered only while the run is live; a terminal run gets the
           // views but no verb the daemon would reject.
           onKill={page.canKillRun ? () => openRunControl("kill") : undefined}

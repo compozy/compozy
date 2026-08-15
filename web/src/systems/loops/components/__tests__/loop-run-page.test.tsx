@@ -24,7 +24,8 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 const { LoopRunProgressPanel } = await import("../run-page/loop-run-progress-panel");
 const { LoopRunStoryTimeline } = await import("../run-page/loop-run-story-timeline");
 const { LoopRunNowCard } = await import("../run-page/loop-run-now-card");
-const { LoopRunAttentionPanel } = await import("../run-page/loop-run-parked-panels");
+const { LoopRunAttentionPanel, LoopRunWaitingPanel } =
+  await import("../run-page/loop-run-parked-panels");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
@@ -183,6 +184,34 @@ describe("LoopRunStoryTimeline", () => {
     render(<LoopRunStoryTimeline rows={[]} isLive goalNodeIds={EMPTY_GOAL_IDS} goalTurns={[]} />);
     expect(screen.getByText("Nothing yet")).toBeInTheDocument();
   });
+
+  it("Should keep the newest generation flat and fold older generations", () => {
+    render(
+      <LoopRunStoryTimeline
+        rows={[
+          storyRow({
+            key: "g2",
+            generation: 2,
+            title: "Newest beat",
+            micro: "generation_started · gen 2",
+          }),
+          storyRow({
+            key: "g1",
+            generation: 1,
+            title: "Older beat",
+            micro: "generation_started · gen 1",
+          }),
+        ]}
+        isLive={false}
+        goalNodeIds={EMPTY_GOAL_IDS}
+        goalTurns={[]}
+      />
+    );
+    expect(screen.getByText("Newest beat")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-story-generation-1")).toHaveTextContent(
+      "Generation 1 · 1 event"
+    );
+  });
 });
 
 describe("LoopRunNowCard", () => {
@@ -329,6 +358,84 @@ describe("LoopRunAttentionPanel", () => {
     expect(screen.getByTestId("loop-run-attention-collect")).toBeInTheDocument();
     expect(screen.getByTestId("loop-run-attention-review")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-attention-producer-unknown")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-attention-inventory-link")).toBeInTheDocument();
+  });
+});
+
+describe("LoopRunWaitingPanel", () => {
+  it("Should show the ladder strip only when cursor or next stamp exist", () => {
+    render(
+      <LoopRunWaitingPanel
+        runId="r-7c4e19"
+        nodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "approve_fix",
+            label: "approve fix",
+            state: "waiting",
+            parked: true,
+            waits: [
+              {
+                nodeId: "approve_fix",
+                generation: 2,
+                itemIndex: 0,
+                kind: "approval_escalation",
+                claimState: "intervention_required",
+                escalationCursor: 1,
+                nextEscalationAt: "2026-08-03T15:02:00Z",
+                admissionFailures: 0,
+                ageSeconds: 120,
+                createdAt: "2026-08-03T14:00:00Z",
+                expect: { env: "staging" },
+              },
+            ],
+          }),
+        ]}
+      />
+    );
+    expect(screen.getByTestId("loop-run-wait-ladder-approve_fix-0")).toHaveTextContent(
+      "step 1 done"
+    );
+    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
+      "The ladder walks its steps"
+    );
+    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
+      '{"env":"staging"}'
+    );
+  });
+
+  it("Should not describe a ladder that is not on screen", () => {
+    render(
+      <LoopRunWaitingPanel
+        runId="r-7c4e19"
+        nodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "approve_fix",
+            label: "approve fix",
+            state: "waiting",
+            parked: true,
+            waits: [
+              {
+                nodeId: "approve_fix",
+                generation: 2,
+                itemIndex: 0,
+                kind: "approval_escalation",
+                claimState: "waiting",
+                escalationCursor: 0,
+                admissionFailures: 0,
+                ageSeconds: 30,
+                createdAt: "2026-08-03T14:00:00Z",
+                expect: undefined,
+              },
+            ],
+          }),
+        ]}
+      />
+    );
+    expect(screen.queryByTestId("loop-run-wait-ladder-approve_fix-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
+      "Waiting for your decision"
+    );
+    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).not.toHaveTextContent("ladder");
   });
 });
 
@@ -371,6 +478,33 @@ describe("LoopRunNeedsYouCard", () => {
     const facts = screen.getAllByTestId("loop-run-fact");
     expect(facts).toHaveLength(2);
     expect(facts[0]).toHaveTextContent("45m 00s of 45m");
+  });
+
+  it("Should render a quarantine row without the approval block", () => {
+    const onOpenQuarantine = vi.fn();
+    render(
+      <LoopRunNeedsYouCard
+        run={run({ status: "running" })}
+        request={null}
+        fallbackFacts={[]}
+        showApproval={false}
+        quarantinedNodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "fix_batch",
+            label: "fix batch",
+            state: "quarantined",
+            parked: true,
+            quarantined: true,
+          }),
+        ]}
+        onOpenQuarantine={onOpenQuarantine}
+        onDecision={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-needs-approval")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch"));
+    expect(onOpenQuarantine).toHaveBeenCalledWith("fix_batch");
   });
 });
 
@@ -643,7 +777,7 @@ describe("LoopRunOverflowMenu kill", () => {
   it("Should offer Kill inside the overflow and report the click", async () => {
     const user = userEvent.setup();
     const onKill = vi.fn();
-    render(<LoopRunOverflowMenu loopName="review-and-fix" onInspect={vi.fn()} onKill={onKill} />);
+    render(<LoopRunOverflowMenu loopName="review-and-fix" onKill={onKill} />);
     const trigger = screen.getByTestId("loop-run-more");
     fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
     await user.click(trigger);
@@ -653,11 +787,12 @@ describe("LoopRunOverflowMenu kill", () => {
 
   it("Should omit Kill entirely when the run can no longer be killed", async () => {
     const user = userEvent.setup();
-    render(<LoopRunOverflowMenu loopName="review-and-fix" onInspect={vi.fn()} />);
+    render(<LoopRunOverflowMenu loopName="review-and-fix" />);
     const trigger = screen.getByTestId("loop-run-more");
     fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
     await user.click(trigger);
-    expect(await screen.findByTestId("loop-run-inspect")).toBeInTheDocument();
+    expect(await screen.findByTestId("loop-run-view-definition")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-inspect")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-kill")).not.toBeInTheDocument();
   });
 });
@@ -788,6 +923,31 @@ describe("buildNodeNowLines", () => {
     expect(line.provenance).toBe("paused by system autopause · reason “retry storm”");
     expect(line.provenance).not.toContain("at ");
   });
+
+  it("Should omit waiting and quarantined lanes from Happening now", () => {
+    const lines = buildNodeNowLines(
+      [
+        loopNodeLifecycleFixture({ state: "waiting", parked: true }),
+        loopNodeLifecycleFixture({
+          nodeId: "task_04",
+          state: "quarantined",
+          parked: true,
+          quarantined: true,
+        }),
+        loopNodeLifecycleFixture({
+          nodeId: "task_05",
+          state: "paused",
+          parked: true,
+          paused: true,
+          itemIndex: 1,
+        }),
+      ],
+      null,
+      {}
+    );
+    expect(lines.map(line => line.state)).toEqual(["paused"]);
+    expect(lines[0]?.micro).toContain("task_05[1] · gen 2");
+  });
 });
 
 describe("LoopNodeControlDialog", () => {
@@ -914,6 +1074,36 @@ describe("LoopNodeRowActions", () => {
     expect(button.querySelector(".lucide-redo-2")).toBeInTheDocument();
     expect(button.querySelector(".lucide-play")).not.toBeInTheDocument();
   });
+
+  it("Should promote resume-wait when the open wait needs a decision", () => {
+    render(
+      <LoopNodeRowActions
+        node={loopNodeLifecycleFixture({
+          state: "waiting",
+          parked: true,
+          waits: [
+            {
+              nodeId: "task_03",
+              generation: 2,
+              itemIndex: 0,
+              kind: "approval_escalation",
+              claimState: "intervention_required",
+              escalationCursor: 1,
+              admissionFailures: 0,
+              ageSeconds: 120,
+              createdAt: "2026-08-03T14:00:00Z",
+              expect: undefined,
+            },
+          ],
+        })}
+        onVerb={vi.fn()}
+        runStatus="running"
+      />
+    );
+    expect(screen.getByTestId("loop-node-primary-resume-wait-task_03")).toHaveTextContent(
+      "Resume with payload…"
+    );
+  });
 });
 
 describe("loopNodeVerbConfirmCopy", () => {
@@ -1001,6 +1191,7 @@ describe("LoopRunWaitsRail", () => {
   it("Should count every open wait truthfully and identify its sole node", () => {
     render(
       <LoopRunWaitsRail
+        runId="r-7c4e19"
         nodes={[
           loopNodeLifecycleFixture({
             nodeId: "await_deploy",
@@ -1141,5 +1332,34 @@ describe("LoopRunSubhead", () => {
     );
     expect(screen.getByTestId("loop-run-subhead")).toHaveTextContent("Ended");
     expect(screen.getByTestId("loop-run-elapsed")).toHaveTextContent("26m 41s");
+  });
+
+  it("Should add Started by and Round N of M as dot-separated segments", () => {
+    render(
+      <LoopRunSubhead
+        run={run({ status: "running", generation: 2, iteration_cap: 5 })}
+        subject={null}
+        hasWatchSource={false}
+        elapsedLabel="22m 14s"
+        startedBy="The CLI"
+      />
+    );
+    expect(screen.getByTestId("loop-run-started-by")).toHaveTextContent("Started by The CLI");
+    expect(screen.getByTestId("loop-run-round")).toHaveTextContent("Round 2 of 5");
+  });
+
+  it("Should omit of M when the iteration cap is off", () => {
+    render(
+      <LoopRunSubhead
+        run={run({ status: "running", generation: 2, iteration_cap: 0 })}
+        subject={null}
+        hasWatchSource={false}
+        elapsedLabel="22m 14s"
+        startedBy="Started by hand"
+      />
+    );
+    expect(screen.getByTestId("loop-run-started-by")).toHaveTextContent("Started by hand");
+    expect(screen.getByTestId("loop-run-round")).toHaveTextContent("Round 2");
+    expect(screen.getByTestId("loop-run-round")).not.toHaveTextContent("of");
   });
 });

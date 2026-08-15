@@ -1,12 +1,15 @@
 import type { LoopNodeRetrySchedule } from "./loop-events";
 import { nodeRetryMaxAttempts, type LoopGraph } from "./loop-graph";
-import { isOpenWait, type LoopNodeLifecycle, type LoopNodeWaitView } from "./loop-node-lifecycle";
+import type { LoopNodeLifecycle } from "./loop-node-lifecycle";
 
 /**
  * The lifecycle half of "Happening now" (VC-R1/VC-R2). A node the daemon parked
  * or scheduled a retry for gets its own line inside the existing card anatomy —
  * headline, one plain-language sentence, an optional state chip, and the mono
  * identity trail — rather than a parallel card of its own.
+ *
+ * Waiting and quarantined lanes are not happening: they render in Waiting and
+ * Needs-you. This card keeps only working lanes — running/retrying/paused/canceling.
  *
  * Every clause is conditional on a payload field: no attempt ceiling unless the
  * author declared `retry.max_attempts`, no due time unless the daemon wrote
@@ -46,19 +49,10 @@ function clockTime(value: string): string {
   });
 }
 
-function waitClause(wait: LoopNodeWaitView): string {
-  switch (wait.kind) {
-    case "timer":
-      return wait.resumeAt
-        ? `Sleeping until ${clockTime(wait.resumeAt)} — it resumes by itself.`
-        : "Sleeping on a timer — it resumes by itself.";
-    case "event":
-      return "Waiting for a matching event. A lane's wait is its own; nothing else is held up.";
-    case "approval_escalation":
-      return "Waiting for your decision. Deciding at any point resolves it.";
-    default:
-      return "Waiting. A lane's wait is its own; nothing else is held up.";
-  }
+/** `nodeId[item] · gen N` — same helper shape the story rows use. */
+function nodeIdentity(node: LoopNodeLifecycle): string {
+  const item = node.itemIndex === null ? "" : `[${node.itemIndex}]`;
+  return `${node.nodeId}${item} · gen ${node.generation}`;
 }
 
 function retryLine(
@@ -89,7 +83,7 @@ function retryLine(
     micro: [
       failureClass === "" ? null : `failure_class ${failureClass}`,
       node.disposition === "" ? null : node.disposition,
-      `${node.nodeId} · gen ${node.generation}`,
+      nodeIdentity(node),
     ]
       .filter(Boolean)
       .join(" · "),
@@ -117,43 +111,7 @@ function pausedLine(node: LoopNodeLifecycle): LoopNodeNowLine {
           .filter(Boolean)
           .join(" · ")
       : null,
-    micro: `node_controls.paused true · ${node.nodeId} · gen ${node.generation}`,
-  };
-}
-
-function waitingLine(node: LoopNodeLifecycle): LoopNodeNowLine | null {
-  const wait = node.waits.find(isOpenWait);
-  if (!wait) return null;
-  return {
-    nodeId: node.nodeId,
-    state: "waiting",
-    headline: `${node.label} is waiting on ${wait.kind === "timer" ? "a timer" : wait.kind === "event" ? "an event" : "a decision"}`,
-    body: waitClause(wait),
-    chip: null,
-    provenance: null,
-    micro: [
-      wait.kind,
-      wait.resumeAt ? `resumes ${clockTime(wait.resumeAt)}` : null,
-      `${node.nodeId}[${wait.itemIndex}] · gen ${wait.generation}`,
-    ]
-      .filter(Boolean)
-      .join(" · "),
-  };
-}
-
-function quarantinedLine(node: LoopNodeLifecycle): LoopNodeNowLine {
-  const attempts = node.quarantineEntry?.attemptCount ?? 0;
-  return {
-    nodeId: node.nodeId,
-    state: "quarantined",
-    headline: `${node.label} is set aside`,
-    body:
-      (attempts > 0 ? `Quarantined after ${attempts} attempts — ` : "Quarantined — ") +
-      "its clock is suspended and no attempts are being spent. The rest of the run keeps going; " +
-      "requeue it from the entry once it is repaired.",
-    chip: null,
-    provenance: node.quarantinedAt ? `quarantined ${clockTime(node.quarantinedAt)}` : null,
-    micro: `node_controls.quarantined true · ${node.nodeId} · gen ${node.generation}`,
+    micro: `node_controls.paused true · ${nodeIdentity(node)}`,
   };
 }
 
@@ -167,13 +125,13 @@ function cancelingLine(node: LoopNodeLifecycle): LoopNodeNowLine {
     body: `Cancellation is in progress${actor === "" ? "" : ` — requested by ${actor}`}. Its in-flight work drains before the lane closes.`,
     chip: null,
     provenance: null,
-    micro: `node_controls.cancel_state ${node.cancelState} · ${node.nodeId} · gen ${node.generation}`,
+    micro: `node_controls.cancel_state ${node.cancelState} · ${nodeIdentity(node)}`,
   };
 }
 
 /**
  * The lifecycle lines the "Happening now" card renders, in daemon precedence
- * order. A node with no declared lifecycle state contributes nothing.
+ * order. Waiting and quarantined are parked elsewhere; a settled cancel is story.
  */
 export function buildNodeNowLines(
   nodes: readonly LoopNodeLifecycle[],
@@ -189,18 +147,9 @@ export function buildNodeNowLines(
       case "paused":
         lines.push(pausedLine(node));
         break;
-      case "waiting": {
-        const line = waitingLine(node);
-        if (line) lines.push(line);
-        break;
-      }
-      case "quarantined":
-        lines.push(quarantinedLine(node));
-        break;
       case "canceling":
         lines.push(cancelingLine(node));
         break;
-      // `canceled` is settled, not happening — it belongs to the story, not here.
       default:
         break;
     }
