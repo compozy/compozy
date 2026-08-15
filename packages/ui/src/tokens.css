@@ -365,6 +365,9 @@
   --width-menu-sub-min: 96px;
   --width-worktree-submenu: 320px;
   --height-worktree-submenu-max: 420px;
+  /* Inert-row reason lane cap: the functional label truncates before it can
+     squeeze the name column out of a 320–340px nest row. */
+  --max-width-worktree-nest-reason: 18ch;
 
   /* Workspaces overview geometry — one source for the Command-Tab strip,
      focused tile physics, caption, and subordinate worktree menu. */
@@ -373,16 +376,20 @@
   --width-workspaces-tile: 94px;
   --width-workspaces-tile-wide: 86px;
   --width-workspaces-menu: 340px;
-  --width-workspaces-menu-max: calc(100vw - 48px);
+  --max-width-workspaces-menu-max: calc(100vw - 48px);
   --width-workspaces-edge: 56px;
   --width-workspaces-edge-wide: 72px;
-  --width-workspaces-notice: 42ch;
-  --width-workspaces-empty-copy: 28ch;
+  --max-width-workspaces-notice: 42ch;
+  --max-width-workspaces-empty-copy: 28ch;
   --size-workspaces-well: 56px;
   --size-workspaces-well-wide: 52px;
   --height-workspaces-caption: 48px;
   --height-workspaces-caption-wide: 52px;
-  --basis-workspaces-reserved: clamp(160px, 30vh, 300px);
+  --flex-basis-workspaces-reserved: clamp(160px, 30vh, 300px);
+  /* Worktree-menu scroll cap, derived from the reserved band: half the
+     leftover viewport below the ~200px stage plus half the band, minus the
+     pinned hints and the sep + New worktree footer. Long nests scroll. */
+  --height-workspaces-menu-max: min(420px, calc(50vh + clamp(80px, 15vh, 150px) - 265px));
   --spacing-workspaces-tile-gap: 7px;
   --spacing-workspaces-caption-gap: 3px;
   --spacing-workspaces-menu-gap: 5px;

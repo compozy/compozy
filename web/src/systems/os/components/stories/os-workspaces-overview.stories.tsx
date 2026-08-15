@@ -3,6 +3,7 @@ import { fn, userEvent, within } from "storybook/test";
 
 import type { WorkspacePayload, WorktreeListingByWorkspace } from "@/systems/workspace";
 import {
+  discoveredBrokenWorktreeFixture,
   discoveredWorktreeFixture,
   emptyWorktreeListingFixture,
   nonGitWorktreeListingFixture,
@@ -41,7 +42,10 @@ const THREE_LISTINGS: WorktreeListingByWorkspace = {
   [NOTES.id]: nonGitWorktreeListingFixture,
 };
 
-/** Non-ready vocabulary: one flagged ready, then pending/discovered/missing/error. */
+/**
+ * Non-ready vocabulary: one flagged ready, then pending/discovered/missing/
+ * error, plus a broken checkout whose long git reason truncates in its lane.
+ */
 const MIXED_LISTINGS: WorktreeListingByWorkspace = {
   [COMPOZY.id]: {
     worktrees: [
@@ -50,7 +54,7 @@ const MIXED_LISTINGS: WorktreeListingByWorkspace = {
       worktreeMissingFixture,
       worktreeErrorFixture,
     ],
-    discovered: [discoveredWorktreeFixture],
+    discovered: [discoveredWorktreeFixture, discoveredBrokenWorktreeFixture],
     repo: { git_backed: true, git_available: true },
   },
   [BRANAS.id]: emptyWorktreeListingFixture,
@@ -226,8 +230,8 @@ export const WorktreeMenuMixedStates: Story = {
   render: () => <OsWorkspacesOverview {...baseProps()} worktreesByWorkspace={MIXED_LISTINGS} />,
 };
 
-/** Truncation at five rows; the footer keeps only the real create destination. */
-export const WorktreeMenuTruncated: Story = {
+/** Eighteen rows all stay listed; the nest scrolls under its cap, create pinned. */
+export const WorktreeMenuScrolls: Story = {
   args: {},
   render: () => (
     <OsWorkspacesOverview

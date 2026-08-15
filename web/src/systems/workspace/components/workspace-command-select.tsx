@@ -52,7 +52,6 @@ export interface WorkspaceCommandSelectProps {
   /** Selecting a discovered entry is the adoption gesture (ADR-002). */
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
-  onShowAllWorktrees?: (workspaceId: string) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
@@ -74,7 +73,6 @@ export function WorkspaceCommandSelect({
   selectedWorktreeId,
   onSelectWorktree,
   onCreateWorktree,
-  onShowAllWorktrees,
   onRemoveWorktree,
 }: WorkspaceCommandSelectProps) {
   const state = useWorkspaceCommandSelectState({
@@ -218,9 +216,6 @@ export function WorkspaceCommandSelect({
                     }
                     onCreateWorktree={
                       onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
-                    }
-                    onShowAllWorktrees={
-                      onShowAllWorktrees ? () => onShowAllWorktrees(workspace.id) : undefined
                     }
                     onRemoveWorktree={
                       onRemoveWorktree ? entry => onRemoveWorktree(workspace.id, entry) : undefined

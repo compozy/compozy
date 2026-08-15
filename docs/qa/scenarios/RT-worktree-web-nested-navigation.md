@@ -4,9 +4,9 @@ area: RT
 title: Navigate nested worktrees and scope work to one from the desktop shell
 persona: Ada
 journey: J-worktree-management
-expected: The command switcher, menubar workspace menu, workspaces overview, and shared row/status component render the same nested worktree tree from one query — same rows, locked order, full state vocabulary, adopted-only counts, discovered rows marked and selectable, and pending, missing, or error rows inert with their reason. Hover or ArrowRight opens a side submenu of that nest on S1, S2, and S3; a pointer click on a workspace selects it. Keyboard-only traversal reaches nested entries. Selecting a worktree scopes session and task reads server-side and the menubar chip reads `workspace / worktree`. A window opened after the pick inherits the selection — the chip never resets to the parent on window open or focus. A window that makes its own pick keeps it independently of later shell gestures; re-selecting the active workspace roots only the acting scope, leaving other windows' picks intact.
+expected: The command switcher, menubar workspace menu, workspaces overview, and the shared nest row component render the same worktree nest from one query — same rows, locked order, full state vocabulary, adopted-only counts, discovered rows marked and selectable, and pending, missing, or error rows inert with their reason held in a capped trailing lane that never collides with the name, chip, or path. Every worktree of the workspace in view stays in the nest — no control folds rows behind an "All N worktrees" jump anywhere; past the host cap the rows region scrolls inside the shared ScrollArea (topbar submenu, switcher side panel, and the overview's vertical menu alike) while the hairline + New worktree footer stays pinned and reachable below the scroll. Hover or ArrowRight opens the side submenu on S1 and S2; a pointer click on a workspace selects it. Keyboard-only traversal reaches every nested entry — arrowing past the cap scrolls the focused row into view. Selecting a worktree scopes session and task reads server-side and the menubar chip reads `workspace / worktree`. A window opened after the pick inherits the selection — the chip never resets to the parent on window open or focus. A window that makes its own pick keeps it independently of later shell gestures; re-selecting the active workspace roots only the acting scope, leaving other windows' picks intact.
 entry_points: S1 command switcher workspace row (hover/ArrowRight side submenu); S2 OS menubar workspace menu/chip; S3 Workspaces overview Worktrees control; S5 Worktree row/status chip
-qa_status: pass
+qa_status: blocked-verify
 bug_ids: BUG-20260813-desktop-shell-context-order; BUG-20260813-pending-worktree-marked-missing
 fix_status: fixed
 retest_status: pass
@@ -62,3 +62,24 @@ OsWorkspacesOverview story captures.
 matched the structured CLI catalog. The S3 submenu used a 380px `ScrollArea` for 864px of content,
 reached `scrollTop=484` without moving the document, and kept New worktree fixed and visible.
 Pointer hover, ArrowRight entry, ArrowLeft return focus, and a full-page refresh all passed.
+
+2026-08-15 behavior change (one nest, scroll everywhere — reset to untested): the truncation
+path is deleted end to end. `truncateWorktreeNest` and the "All N worktrees" overflow rows are
+gone from every host (topbar submenu, command switcher panel, workspaces overview); the topbar
+overflow no longer jumps to the overview. All hosts render the shared `WorktreeNestRow` anatomy
+(dot + name, then sm chip + path) inside the shared `WorktreeNest` scroll frame with the create
+footer pinned below the scroll; the topbar submenu gains the same `ScrollArea` cap the panel
+already had. Inert reasons now truncate in a capped mono lane (`--max-width-worktree-nest-reason`)
+with the full text in the row description — a long git reason (e.g. "gitdir file points to
+non-existent location") can no longer crush the name column and paint over the state chip. The
+walk must confirm: >5-worktree nest shows every name via scroll on S1, S2, and the overview; no
+overflow control anywhere; create row reachable after scrolling; inert reason readable and
+truncated; scope selection still lands `workspace / worktree` on the chip.
+
+2026-08-15 blocked-verify: the formal walk is reserved to the operator-invoked `/qa-execution`
+(disable-model-invocation); recorded the block instead of a verdict. Pre-staged evidence: unit
+suites green (workspace-menu scroll/no-overflow assertions, overview scroll-slot assertions,
+sort suite without the truncation half — web lane 604 files / 4983 tests); visual-contract
+bundles VC-01..03 under `.compozy/tasks/unify-worktree-nest-scroll/evidence/visual/`; live
+operator confirmation of the overview nest listing adopted + all discovered rows against the
+real daemon.

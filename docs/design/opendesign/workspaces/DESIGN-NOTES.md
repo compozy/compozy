@@ -54,9 +54,10 @@ stays in `os/`. This set is workspace *identity* switching.
   never shifts as menus change size between workspaces; and the stage sits
   **above dead center** — a reserved band (`clamp(160px, 30vh, 300px)`)
   below it keeps room for the tallest menu plus breathing space before the
-  bottom-pinned shortcut hints. Truncate at 5 + quiet
-  `All N worktrees` row (adopted-only count → worktree overview); `New
-  worktree` is the last row after a hairline. Git-backed + zero worktrees →
+  bottom-pinned shortcut hints. Every worktree stays listed: past the menu
+  cap (derived from the reserved band) the rows region scrolls — no
+  overflow fold, no `All N worktrees` jump. `New worktree` is the last row
+  after a hairline, pinned below the scroll. Git-backed + zero worktrees →
   **only the dashed New worktree button**, no empty panel. Non-git: nothing —
   absent, never disabled.
 - **Row actions (kebab).** Every worktree row carries a `⋮` button, revealed
@@ -68,9 +69,10 @@ stays in `os/`. This set is workspace *identity* switching.
 - **Menu keyboard.** `↓` moves focus from the strip into the first menu row;
   `↑` at the top row and `esc` return to the strip (esc closes the overlay
   only from the strip layer); `↑` `↓` move, inert rows (pending/missing) are
-  skipped; `↵` scopes. Discovered rows are selectable — `↵` reaches the same
-  Adopt confirm as S1/S3 (US-009/ADR-002); `All` / `New` are real cross-links
-  into the `worktree/` set.
+  skipped; `↵` scopes. Arrowing past the cap scrolls the rows region —
+  focus never lands on a hidden row. Discovered rows are selectable — `↵`
+  reaches the same Adopt confirm as S1/S3 (US-009/ADR-002); `New` is a real
+  cross-link into the `worktree/` set.
 - **Worktree scope (US-011).** `↵` on a menu row scopes to
   `workspace / worktree` and closes; `↵` on a workspace tile always lands on
   the root. The check sits on the menu row — one selection marker per layer —

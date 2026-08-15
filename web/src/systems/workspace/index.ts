@@ -122,10 +122,7 @@ export {
   adoptedWorktreeCount,
   runningAgentCount,
   sortWorktreeNestEntries,
-  truncateWorktreeNest,
-  WORKTREE_NEST_VISIBLE_LIMIT,
 } from "./lib/worktree-sort";
-export type { TruncatedNest } from "./lib/worktree-sort";
 export {
   decodeWorktreeRefusal,
   refusalBranchHolder,
@@ -279,6 +276,12 @@ export {
   WorktreeSubmenuPanel,
 } from "./components/worktree-submenu-panel";
 export type { WorktreeSubmenuPanelProps } from "./components/worktree-submenu-panel";
+export { WorktreeNest } from "./components/worktree-nest";
+export type { WorktreeNestProps } from "./components/worktree-nest";
+export { worktreeNestPresence } from "./lib/workspace-tree";
+export type { WorktreeNestPresence } from "./lib/workspace-tree";
+export { WorktreeNestRow } from "./components/worktree-nest-row";
+export type { WorktreeNestRowProps } from "./components/worktree-nest-row";
 export { WorktreeHoverSubmenu } from "./components/worktree-hover-submenu";
 export type { WorktreeHoverSubmenuProps } from "./components/worktree-hover-submenu";
 export { WorkspaceSetupDialog } from "./components/workspace-setup";

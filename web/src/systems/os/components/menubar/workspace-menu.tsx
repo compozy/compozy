@@ -17,6 +17,7 @@ import {
   groupWorkspaceTree,
   WorktreeAggregate,
   WorktreeSubmenuPanel,
+  worktreeNestPresence,
   WORKTREE_SUBMENU_FRAME_CLASS,
   type WorkspacePayload,
   type WorktreeListingByWorkspace,
@@ -114,8 +115,9 @@ export function WorkspaceMenu({
         ) : null}
         {orderedWorkspaces.map(workspace => {
           const node = nodeByWorkspaceId.get(workspace.id);
-          // A non-git workspace gets no worktree affordance — absent, never disabled.
-          const gitBacked = Boolean(node?.gitBacked);
+          // Shared absence rule: a non-git workspace gets no worktree
+          // affordance — absent, never disabled.
+          const presence = node ? worktreeNestPresence(node, Boolean(onCreateWorktree)) : "absent";
           const isActive = !globalScopeOn && workspace.id === activeWorkspaceId;
           const rowLabel = (
             <WorkspaceRowLabel
@@ -124,7 +126,7 @@ export function WorkspaceMenu({
               runningAgents={node?.runningAgents ?? 0}
             />
           );
-          if (!gitBacked || !node) {
+          if (!node || presence === "absent") {
             return (
               <MenubarItem
                 key={workspace.id}
@@ -182,7 +184,6 @@ export function WorkspaceMenu({
                       ? entry => onOpenWorktreeContext(workspace.id, entry)
                       : undefined
                   }
-                  onShowAllWorktrees={onOpenWorkspaces}
                   onRemoveWorktree={
                     onRemoveWorktree ? entry => onRemoveWorktree(workspace.id, entry) : undefined
                   }

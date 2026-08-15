@@ -4,6 +4,7 @@ export { worktreeHandlers } from "./worktree-handlers";
 export {
   LONG_WORKTREE_PATH,
   buildWorktreeFixture,
+  discoveredBrokenWorktreeFixture,
   discoveredOnlyWorktreeListingFixture,
   discoveredStaleWorktreeFixture,
   discoveredWorktreeFixture,

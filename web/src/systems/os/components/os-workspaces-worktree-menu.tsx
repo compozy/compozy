@@ -8,7 +8,7 @@ import {
   type OsWorkspacesWorktreeMenuModel,
 } from "../lib/workspaces-overview-model";
 import { OsWorkspacesWorktreeRow } from "./os-workspaces-worktree-row";
-import { canRemoveWorktree, type WorktreeNestEntry } from "@/systems/workspace";
+import { canRemoveWorktree, WorktreeNest, type WorktreeNestEntry } from "@/systems/workspace";
 
 const MENU_GLASS_CLASS = cn(
   "w-workspaces-menu max-w-workspaces-menu-max rounded-window border border-line-strong",
@@ -75,7 +75,7 @@ export function OsWorkspacesWorktreeMenu({
   }
 
   return (
-    <div
+    <WorktreeNest
       role="menu"
       aria-label={`Worktrees of ${model.node.workspace.name}`}
       data-slot="os-workspaces-worktree-menu"
@@ -85,6 +85,43 @@ export function OsWorkspacesWorktreeMenu({
         "mt-1 p-workspaces-menu-gap",
         !reducedMotion && "os-wsov-menu-in"
       )}
+      viewportClassName="max-h-workspaces-menu-max"
+      footer={
+        canCreate ? (
+          <>
+            <hr className="mx-1.5 my-1 h-px border-0 bg-line-soft" />
+            <div
+              ref={registerRow(WORKSPACES_MENU_CREATE_KEY)}
+              role="menuitem"
+              aria-label="New worktree"
+              tabIndex={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
+              data-testid="os-workspaces-worktree-create"
+              data-on={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? "true" : undefined}
+              className={cn(
+                "group/wsov-foot grid min-h-7.5 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-1",
+                "text-left outline-none select-none",
+                "transition-colors duration-base ease-out hover:bg-row-hover",
+                "focus-visible:outline-none",
+                focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "bg-row-selected"
+              )}
+              onClick={
+                createNavIndex === undefined ? undefined : rowHandlers(createNavIndex).onClick
+              }
+            >
+              <Plus aria-hidden="true" className="size-3 justify-self-center text-subtle" />
+              <b
+                className={cn(
+                  "truncate text-form-label font-medium text-muted",
+                  "group-hover/wsov-foot:text-fg-strong",
+                  focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "text-fg-strong"
+                )}
+              >
+                New worktree
+              </b>
+            </div>
+          </>
+        ) : null
+      }
     >
       {model.visible.map(entry => {
         const navIndex = navIndexByKey.get(entry.key);
@@ -107,38 +144,6 @@ export function OsWorkspacesWorktreeMenu({
           />
         );
       })}
-      {canCreate ? (
-        <>
-          <hr className="mx-1.5 my-1 h-px border-0 bg-line-soft" />
-          <div
-            ref={registerRow(WORKSPACES_MENU_CREATE_KEY)}
-            role="menuitem"
-            aria-label="New worktree"
-            tabIndex={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
-            data-testid="os-workspaces-worktree-create"
-            data-on={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? "true" : undefined}
-            className={cn(
-              "group/wsov-foot grid min-h-7.5 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-1",
-              "text-left outline-none select-none",
-              "transition-colors duration-base ease-out hover:bg-row-hover",
-              "focus-visible:outline-none",
-              focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "bg-row-selected"
-            )}
-            onClick={createNavIndex === undefined ? undefined : rowHandlers(createNavIndex).onClick}
-          >
-            <Plus aria-hidden="true" className="size-3 justify-self-center text-subtle" />
-            <b
-              className={cn(
-                "truncate text-form-label font-medium text-muted",
-                "group-hover/wsov-foot:text-fg-strong",
-                focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "text-fg-strong"
-              )}
-            >
-              New worktree
-            </b>
-          </div>
-        </>
-      ) : null}
-    </div>
+    </WorktreeNest>
   );
 }

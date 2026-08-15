@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { Check, Copy, EllipsisVertical, Trash2 } from "lucide-react";
+import { Copy, EllipsisVertical, Trash2 } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -9,74 +9,12 @@ import {
   cn,
 } from "@compozy/ui";
 
-import {
-  contractHomePath,
-  copyWorktreePath,
-  WorktreePath,
-  WorktreeSignals,
-  WorktreeStateChip,
-  WorktreeStateDot,
-  type WorktreeNestEntry,
-} from "@/systems/workspace";
+import { copyWorktreePath, WorktreeNestRow, type WorktreeNestEntry } from "@/systems/workspace";
 
 const ROW_CLASS = cn(
-  "group/wsov-row grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-0.5 rounded-md",
+  "group/wtnest grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-0.5 rounded-md",
   "transition-colors duration-base ease-out"
 );
-
-function RowDot({ entry }: { entry: WorktreeNestEntry }) {
-  if (entry.displayState === "ready") {
-    return (
-      <span
-        aria-hidden="true"
-        data-slot="worktree-state-dot"
-        data-state="ready"
-        className="inline-block size-status-dot shrink-0 rounded-full bg-success"
-      />
-    );
-  }
-  return <WorktreeStateDot state={entry.displayState} />;
-}
-
-function RowTrailing({ entry, scoped }: { entry: WorktreeNestEntry; scoped: boolean }) {
-  const worktree = entry.worktree;
-  return (
-    <>
-      {entry.inertReason ? (
-        // Functional reason in its own lane — never hover-only.
-        <span data-slot="os-worktree-row-reason" className="font-mono text-micro text-faint">
-          {entry.inertReason}
-        </span>
-      ) : entry.adoptable ? (
-        <span
-          className={cn(
-            "text-mono-id font-semibold text-info opacity-0 transition-opacity duration-base",
-            "group-hover/wsov-row:opacity-100 group-focus-within/wsov-row:opacity-100",
-            "group-data-[on=true]/wsov-row:opacity-100"
-          )}
-        >
-          Adopt
-        </span>
-      ) : (
-        <WorktreeSignals
-          density="nest"
-          dirty={worktree?.dirty ?? null}
-          ahead={worktree?.ahead ?? null}
-          behind={worktree?.behind ?? null}
-          agentActivity={worktree?.agent_activity ?? "idle"}
-          origin={worktree?.origin ?? ""}
-          setupState={worktree?.setup_state ?? "none"}
-          setupError={worktree?.setup_error}
-        />
-      )}
-      {scoped ? (
-        // One selection marker per layer: the check lives on the menu row
-        // while the parent tile carries the branch badge.
-        <Check aria-hidden="true" className="size-deck-glyph shrink-0 text-fg-strong" />
-      ) : null}
-    </>
-  );
-}
 
 export interface OsWorkspacesWorktreeRowProps {
   entry: WorktreeNestEntry;
@@ -95,9 +33,9 @@ export interface OsWorkspacesWorktreeRowProps {
 }
 
 /**
- * Two-line worktree menu row: name, then state chip + path. One trailing
- * signal (worktree-signals priority), the scope check, and a kebab with
- * Copy path / Delete worktree… — S1 nest vocabulary at menu scale.
+ * Overlay chrome around the shared `WorktreeNestRow` anatomy: roving
+ * menuitemradio focus plus a kebab with Copy path / Delete worktree… —
+ * the same nest vocabulary as the menubar submenu, at overlay scale.
  */
 export function OsWorkspacesWorktreeRow({
   entry,
@@ -140,41 +78,16 @@ export function OsWorkspacesWorktreeRow({
         aria-describedby={descriptionId}
         tabIndex={focused ? 0 : -1}
         data-testid={`os-workspaces-worktree-row-${entry.key}`}
-        className="grid min-h-11 min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 py-1.5 pl-2 text-left outline-none select-none focus-visible:outline-none"
+        className="grid min-h-11 min-w-0 items-center py-1.5 pl-2 text-left outline-none select-none focus-visible:outline-none"
         onClick={inert ? undefined : onSelect}
         onKeyDown={openActionsFromKeyboard}
       >
-        <span id={descriptionId} className="sr-only">
-          {entry.displayState}. {contractHomePath(entry.path, userHomeDir)}.{" "}
-          {entry.inertReason ?? ""}
-        </span>
-        <span className="mt-1 flex justify-center self-start">
-          <RowDot entry={entry} />
-        </span>
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <b
-            className={cn(
-              "min-w-0 truncate text-small-body font-medium tracking-tight",
-              entry.displayState === "missing" ? "text-muted" : "text-fg-strong"
-            )}
-          >
-            {entry.name}
-          </b>
-          <span className="flex min-w-0 items-center gap-1.5">
-            {entry.displayState === "ready" ? null : (
-              <WorktreeStateChip className="h-3.5" size="sm" state={entry.displayState} />
-            )}
-            <WorktreePath
-              focusable={false}
-              path={entry.path}
-              userHomeDir={userHomeDir}
-              className="text-mono-id tabular-nums"
-            />
-          </span>
-        </span>
-        <span className="flex flex-none items-center gap-workspaces-tile-gap pr-1">
-          <RowTrailing entry={entry} scoped={scoped} />
-        </span>
+        <WorktreeNestRow
+          entry={entry}
+          userHomeDir={userHomeDir}
+          checked={scoped}
+          descriptionId={descriptionId}
+        />
       </div>
       <DropdownMenu open={actionsOpen} onOpenChange={onActionsOpenChange}>
         <DropdownMenuTrigger
@@ -184,8 +97,8 @@ export function OsWorkspacesWorktreeRow({
           className={cn(
             "mr-1 grid size-button-icon-xs flex-none place-items-center rounded-sm text-faint opacity-0",
             "transition-[opacity,background-color,color] duration-base ease-out",
-            "group-hover/wsov-row:opacity-100 group-focus-within/wsov-row:opacity-100",
-            "group-data-[on=true]/wsov-row:opacity-100 aria-expanded:opacity-100",
+            "group-hover/wtnest:opacity-100 group-focus-within/wtnest:opacity-100",
+            "group-data-[on=true]/wtnest:opacity-100 aria-expanded:opacity-100",
             "hover:bg-btn-default-fill hover:text-fg-strong",
             "focus-visible:bg-btn-default-fill focus-visible:text-fg-strong focus-visible:opacity-100 focus-visible:outline-none"
           )}

@@ -576,7 +576,7 @@ describe("OsWorkspacesOverview", () => {
     expect(screen.queryByTestId("os-workspaces-worktree-menu")).not.toBeInTheDocument();
   });
 
-  it("Should expose every worktree in the overview without inventing another destination", () => {
+  it("Should expose every worktree inside the scrolling nest without an overflow jump", () => {
     renderOverview({
       worktreesByWorkspace: {
         [COMPOZY.id]: scrollableWorktreesListingFixture,
@@ -586,13 +586,15 @@ describe("OsWorkspacesOverview", () => {
     });
 
     const menu = screen.getByTestId("os-workspaces-worktree-menu");
-    expect(menu.querySelectorAll('[data-slot="os-workspaces-worktree-row"]')).toHaveLength(
-      scrollableWorktreesListingFixture.worktrees.length
-    );
-    expect(screen.getByTestId("os-workspaces-worktree-create")).toBeInTheDocument();
-    // No "All N worktrees" row: production has no worktree-overview surface,
-    // and this overlay must not invent a destination.
+    const rows = menu.querySelectorAll('[data-slot="os-workspaces-worktree-row"]');
+    expect(rows).toHaveLength(scrollableWorktreesListingFixture.worktrees.length);
+    // Long nests scroll inside the shared frame — the stage never grows past
+    // its cap, and no row folds behind an "All N worktrees" overflow jump.
+    expect(rows[0]?.closest('[data-slot="scroll-area"]')).not.toBeNull();
     expect(screen.queryByText(/^All \d+ worktrees$/)).not.toBeInTheDocument();
+    // The create row stays reachable below the scroll region, never inside it.
+    const create = screen.getByTestId("os-workspaces-worktree-create");
+    expect(create.closest('[data-slot="scroll-area"]')).toBeNull();
   });
 
   it("Should render the one primary and the Global identity at zero workspaces", async () => {

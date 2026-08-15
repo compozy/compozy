@@ -147,6 +147,18 @@ export const discoveredStaleWorktreeFixture: DiscoveredWorktreePayload = {
   reason: "prunable",
 };
 
+/** Broken checkout carrying git's own long reason — the capped reason lane case. */
+export const discoveredBrokenWorktreeFixture: DiscoveredWorktreePayload = {
+  name: "imersao-aovivo",
+  branch: "main",
+  path: "/Users/ada/Desktop/imersao-aovivo",
+  detached: false,
+  selectable: false,
+  stale: false,
+  unavailable: true,
+  reason: "gitdir file points to non-existent location",
+};
+
 export const worktreeFixtures: WorktreePayload[] = [
   worktreeReadyDirtyRunningFixture,
   worktreeBehindFixture,

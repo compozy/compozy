@@ -161,7 +161,11 @@ export function useWorkspacesSwitcher({
     if (!row) return;
     setLayer("menu");
     setMenuFocusPosition({ key: row.key, index: navIndex });
-    rowElsRef.current.get(row.key)?.focus({ preventScroll: true });
+    const element = rowElsRef.current.get(row.key);
+    // preventScroll keeps the overlay page still; the nest scrolls its own
+    // viewport so rows past the menu's cap stay reachable by arrow keys.
+    element?.focus({ preventScroll: true });
+    element?.scrollIntoView({ block: "nearest" });
   };
 
   const reconcileDOMFocus = useEffectEvent(
@@ -169,6 +173,9 @@ export function useWorkspacesSwitcher({
       element.focus({ preventScroll: true });
       if (resolvedLayer === "strip") {
         keepInView(element, { instant: reducedMotion });
+      } else {
+        // Menu rows live inside the nest's own scroll viewport.
+        element.scrollIntoView({ block: "nearest" });
       }
     }
   );

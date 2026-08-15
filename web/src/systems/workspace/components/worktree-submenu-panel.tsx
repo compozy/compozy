@@ -1,4 +1,4 @@
-import { Check, Ellipsis, Plus } from "lucide-react";
+import { Ellipsis, Plus } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -12,15 +12,14 @@ import {
   MenubarSub,
   MenubarSubContent,
   MenubarSubTrigger,
-  ScrollArea,
   cn,
 } from "@compozy/ui";
 
 import type { WorkspaceTreeNode } from "../lib/workspace-tree";
 import { canRemoveWorktree, type WorktreeNestEntry } from "../lib/worktree-display";
 import { copyWorktreePath } from "../lib/copy-worktree-path";
-import { truncateWorktreeNest } from "../lib/worktree-sort";
-import { WorktreeRow } from "./worktree-row";
+import { WorktreeNest } from "./worktree-nest";
+import { WorktreeNestRow } from "./worktree-nest-row";
 
 /** One-line action rows keep the nest rhythm beside two-line worktree rows. */
 const FOOTER_ROW_CLASS = "min-h-control-compact";
@@ -28,6 +27,13 @@ const FOOTER_ROW_CLASS = "min-h-control-compact";
 /** Locked nest frame. Paths truncate inside; they never size the popup. */
 export const WORKTREE_SUBMENU_FRAME_CLASS =
   "w-(--width-worktree-submenu) max-w-[calc(100vw-2rem)] overflow-x-hidden";
+
+/** Panel-variant scroll caps: frame minus the pinned create footer. */
+const PANEL_FRAME_MAX_CLASS = "max-h-[min(var(--height-worktree-submenu-max),calc(100dvh-2rem))]";
+const PANEL_VIEWPORT_MAX_CLASS =
+  "max-h-[calc(min(var(--height-worktree-submenu-max),calc(100dvh-2rem))-2.5rem)]";
+/** Menu variant renders under the menubar; the cap keeps the popup on screen. */
+const MENU_VIEWPORT_MAX_CLASS = "max-h-[min(var(--height-worktree-submenu-max),calc(100dvh-8rem))]";
 
 export interface WorktreeSubmenuPanelProps {
   node: WorkspaceTreeNode<{ id: string; name: string }>;
@@ -37,31 +43,10 @@ export interface WorktreeSubmenuPanelProps {
   variant?: "menu" | "panel";
   onSelectWorktree?: (entry: WorktreeNestEntry) => void;
   onCreateWorktree?: () => void;
-  onShowAllWorktrees?: () => void;
   onRemoveWorktree?: (entry: WorktreeNestEntry) => void;
   onResolveMissing?: (entry: WorktreeNestEntry) => void;
   onOpenContext?: (entry: WorktreeNestEntry) => void;
   onClose?: () => void;
-  limit?: number;
-}
-
-function WorktreeSubmenuTrailing({
-  entry,
-  checked,
-}: {
-  entry: WorktreeNestEntry;
-  checked: boolean;
-}) {
-  return (
-    <>
-      {entry.adoptable ? (
-        <span className="text-mono-id font-semibold text-info opacity-0 transition-opacity duration-fast group-hover/worktree-item:opacity-100 group-focus/worktree-item:opacity-100">
-          Adopt
-        </span>
-      ) : null}
-      {checked ? <Check className="size-3 text-accent" /> : null}
-    </>
-  );
 }
 
 function WorktreeSubmenuRowActions({
@@ -191,20 +176,11 @@ function ActionItem({
   );
 }
 
-function WorktreeSubmenuRow({ entry, checked }: { entry: WorktreeNestEntry; checked: boolean }) {
-  return (
-    <WorktreeRow
-      entry={entry}
-      density="nest"
-      className="w-full min-w-0 overflow-hidden px-0 hover:bg-transparent"
-      trailing={<WorktreeSubmenuTrailing entry={entry} checked={checked} />}
-    />
-  );
-}
-
 /**
- * Locked worktree nest for every host submenu. Sort and truncation stay in the
- * shared lib; hosts only wrap this panel (MenubarSub vs hover Popover).
+ * Locked worktree nest for every host submenu. Every worktree of the
+ * workspace stays in the list — long nests scroll inside the shared frame,
+ * never fold behind an overflow jump. Hosts only wrap this panel
+ * (MenubarSub vs hover Popover).
  */
 export function WorktreeSubmenuPanel({
   node,
@@ -213,23 +189,20 @@ export function WorktreeSubmenuPanel({
   variant = "panel",
   onSelectWorktree,
   onCreateWorktree,
-  onShowAllWorktrees,
   onRemoveWorktree,
   onResolveMissing,
   onOpenContext,
   onClose,
-  limit,
 }: WorktreeSubmenuPanelProps) {
-  const nest = truncateWorktreeNest(node.worktrees, limit);
   const workspaceId = node.workspace.id;
-  const hasListRows = nest.visible.length > 0 || nest.overflowCount > 0;
+  const hasListRows = node.worktrees.length > 0;
   const selectEntry = (entry: WorktreeNestEntry) => {
     if (!entry.selectable) return;
     onSelectWorktree?.(entry);
     onClose?.();
   };
 
-  const rows = nest.visible.map(entry => {
+  const rows = node.worktrees.map(entry => {
     const checked = entry.worktree != null && entry.worktree.id === selectedWorktreeId;
     const actions = (
       <WorktreeSubmenuRowActions
@@ -241,6 +214,7 @@ export function WorktreeSubmenuPanel({
         onOpenContext={onOpenContext}
       />
     );
+    const body = <WorktreeNestRow entry={entry} checked={checked} />;
     if (variant === "menu") {
       return (
         <div
@@ -251,11 +225,11 @@ export function WorktreeSubmenuPanel({
             value={entry.worktree?.id ?? entry.key}
             disabled={!entry.selectable}
             closeOnClick
-            className="group/worktree-item min-w-0 overflow-hidden pr-1.5 *:data-[slot=dropdown-menu-radio-item-indicator]:hidden"
+            className="group/wtnest min-w-0 overflow-hidden pr-1.5 *:data-[slot=dropdown-menu-radio-item-indicator]:hidden"
             data-testid={`${testIdPrefix}-worktree-option-${entry.key}`}
             onClick={() => selectEntry(entry)}
           >
-            <WorktreeSubmenuRow entry={entry} checked={checked} />
+            {body}
           </MenubarRadioItem>
           <span className="flex size-6 shrink-0 items-center justify-center">{actions}</span>
         </div>
@@ -272,51 +246,18 @@ export function WorktreeSubmenuPanel({
           disabled={!entry.selectable}
           data-testid={`${testIdPrefix}-worktree-option-${entry.key}`}
           className={cn(
-            "group/worktree-item flex min-h-control-compact min-w-0 items-center overflow-hidden rounded-md px-1.5 py-1 text-left",
+            "group/wtnest flex min-h-control-compact min-w-0 items-center overflow-hidden rounded-md px-1.5 py-1 text-left",
             "hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none focus-visible:shadow-focus-ring",
             !entry.selectable && "pointer-events-none opacity-50"
           )}
           onClick={() => selectEntry(entry)}
         >
-          <WorktreeSubmenuRow entry={entry} checked={checked} />
+          {body}
         </button>
         <span className="flex size-6 shrink-0 items-center justify-center">{actions}</span>
       </div>
     );
   });
-
-  const overflow =
-    nest.overflowCount > 0 && onShowAllWorktrees ? (
-      variant === "menu" ? (
-        <MenubarItem
-          className={FOOTER_ROW_CLASS}
-          data-testid={`${testIdPrefix}-worktree-overflow-${workspaceId}`}
-          onClick={() => {
-            onShowAllWorktrees();
-            onClose?.();
-          }}
-        >
-          <Ellipsis className="size-3 text-faint" />
-          All {node.adoptedCount} worktrees
-        </MenubarItem>
-      ) : (
-        <button
-          type="button"
-          data-testid={`${testIdPrefix}-worktree-overflow-${workspaceId}`}
-          className={cn(
-            FOOTER_ROW_CLASS,
-            "flex w-full items-center gap-2 rounded-md px-1.5 text-form-label text-subtle hover:bg-elevated"
-          )}
-          onClick={() => {
-            onShowAllWorktrees();
-            onClose?.();
-          }}
-        >
-          <Ellipsis className="size-3 text-faint" />
-          All {node.adoptedCount} worktrees
-        </button>
-      )
-    ) : null;
 
   const create = onCreateWorktree ? (
     variant === "menu" ? (
@@ -358,33 +299,27 @@ export function WorktreeSubmenuPanel({
 
   if (variant === "menu") {
     return (
-      <>
+      <WorktreeNest viewportClassName={MENU_VIEWPORT_MAX_CLASS} footer={create}>
         <MenubarRadioGroup
           value={selectedWorktreeId ?? ""}
           aria-label={`Worktrees in ${node.workspace.name}`}
         >
           {rows}
         </MenubarRadioGroup>
-        {overflow}
-        {create}
-      </>
+      </WorktreeNest>
     );
   }
 
   return (
-    <div
+    <WorktreeNest
       role="group"
       aria-label={`Worktrees in ${node.workspace.name}`}
-      className="flex max-h-[min(var(--height-worktree-submenu-max),calc(100dvh-2rem))] flex-col"
+      className={PANEL_FRAME_MAX_CLASS}
+      viewportClassName={PANEL_VIEWPORT_MAX_CLASS}
+      listClassName="pr-2"
+      footer={create}
     >
-      <ScrollArea
-        className="min-h-0"
-        viewportClassName="max-h-[calc(min(var(--height-worktree-submenu-max),calc(100dvh-2rem))-2.5rem)]"
-      >
-        <div className="pr-2">{rows}</div>
-      </ScrollArea>
-      {overflow}
-      {create}
-    </div>
+      {rows}
+    </WorktreeNest>
   );
 }

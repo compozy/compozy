@@ -16,6 +16,7 @@ import {
 } from "@/systems/workspace/mocks";
 
 import { toWorktreeNestEntries } from "../../lib/worktree-display";
+import { WorktreeNestRow } from "../worktree-nest-row";
 import { WorktreeRow } from "../worktree-row";
 import { WorktreeSignals } from "../worktree-signals";
 import { WorktreeStateChip } from "../worktree-state-chip";
@@ -272,9 +273,7 @@ export const NestDotsAndDetached: Story = {
         ))}
         {detached ? <WorktreeRow entry={detached} detachedSha="9ec3d15aa1b2" /> : null}
         <Row label="nested density">
-          <div className="w-96">
-            {nested ? <WorktreeRow entry={nested} density="nest" /> : null}
-          </div>
+          <div className="w-96">{nested ? <WorktreeNestRow entry={nested} /> : null}</div>
         </Row>
       </Sheet>
     );

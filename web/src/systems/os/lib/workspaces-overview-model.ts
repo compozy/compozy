@@ -1,4 +1,9 @@
-import type { WorkspacePayload, WorkspaceTreeNode, WorktreeNestEntry } from "@/systems/workspace";
+import {
+  worktreeNestPresence,
+  type WorkspacePayload,
+  type WorkspaceTreeNode,
+  type WorktreeNestEntry,
+} from "@/systems/workspace";
 
 /** Footer "New worktree" nav-row key (no worktree record behind it). */
 export const WORKSPACES_MENU_CREATE_KEY = "__create";
@@ -20,7 +25,7 @@ export type WorkspacesMenuNavRow = WorkspacesMenuWorktreeNavRow | WorkspacesMenu
 
 export interface OsWorkspacesWorktreeMenuModel {
   node: WorkspaceTreeNode<WorkspacePayload>;
-  /** Complete locked-order list; compact host menus own truncation. */
+  /** Complete locked-order list — every host lists every row; long nests scroll. */
   visible: WorktreeNestEntry[];
   /** Arrow-reachable rows in render order (inert rows excluded). */
   navRows: WorkspacesMenuNavRow[];
@@ -35,7 +40,7 @@ export function buildWorkspacesWorktreeMenuModel(
   node: WorkspaceTreeNode<WorkspacePayload> | null | undefined,
   canCreate: boolean
 ): OsWorkspacesWorktreeMenuModel | null {
-  if (!node?.gitBacked) return null;
+  if (!node || worktreeNestPresence(node, canCreate) === "absent") return null;
   const visible = node.worktrees;
   const navRows: WorkspacesMenuNavRow[] = [];
   for (const entry of visible) {

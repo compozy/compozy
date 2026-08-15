@@ -134,20 +134,26 @@ describe("WorkspaceMenu", () => {
 
     await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
 
-    await screen.findByTestId(`os-worktree-submenu-${gitAlpha.id}`);
+    const submenu = await screen.findByTestId(`os-worktree-submenu-${gitAlpha.id}`);
     const row = screen.getByTestId("os-worktree-option-wt_payments_retry");
     // Nothing is bound yet, so no row is checked.
     expect(row).toHaveAttribute("aria-checked", "false");
-    // 7 adopted records overflow the five-row nest behind the overview row.
-    const overflow = screen.getByTestId(`os-worktree-overflow-${gitAlpha.id}`);
-    expect(overflow).toHaveTextContent("All 7 worktrees");
-    expect(screen.getByTestId(`os-worktree-create-${gitAlpha.id}`)).toBeInTheDocument();
+    // Every worktree of the workspace stays in the list — adopted and
+    // discovered alike — inside the nest's scroll region; long nests scroll
+    // instead of folding rows behind an overflow jump to the overview.
+    const options = within(submenu).getAllByTestId(/^os-worktree-option-/);
+    expect(options).toHaveLength(
+      worktreeListingFixture.worktrees.length + worktreeListingFixture.discovered.length
+    );
+    expect(within(submenu).queryByTestId(/os-worktree-overflow/)).not.toBeInTheDocument();
+    expect(row.closest('[data-slot="scroll-area"]')).not.toBeNull();
+    // The create row stays reachable below the scroll region, never inside it.
+    const create = screen.getByTestId(`os-worktree-create-${gitAlpha.id}`);
+    expect(create.closest('[data-slot="scroll-area"]')).toBeNull();
     // Traversal alone neither selects nor closes.
     expect(onSelectWorkspace).not.toHaveBeenCalled();
     expect(openChangeFlags(onOpenChange)).not.toContain(false);
-
-    await user.click(overflow);
-    expect(onOpenWorkspaces).toHaveBeenCalledOnce();
+    expect(onOpenWorkspaces).not.toHaveBeenCalled();
   });
 
   it("Should check the bound worktree, select rows, and close the menu on selection", async () => {
