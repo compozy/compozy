@@ -98,22 +98,13 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
     );
   }
 
-  if (loopCount === 0 && !page.hasActiveFilters) {
-    return (
-      <CatalogState
-        description="No Loop definitions are available in this workspace yet."
-        testId="loops-empty"
-        title="No loops yet"
-      />
-    );
-  }
-
   return (
     <ListingPage data-testid="loops-catalog">
       <LoopCatalogLede total={loopCount} workspaceLabel={page.activeWorkspace?.name} />
       <LoopCatalog
         entries={loops}
         errorMessage={page.loopsQuery.error?.message}
+        facets={page.facets}
         hasActiveFilters={page.hasActiveFilters}
         hasNextPage={page.loopsQuery.hasNextPage}
         isFetchingNextPage={page.loopsQuery.isFetchingNextPage}

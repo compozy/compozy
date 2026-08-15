@@ -66,6 +66,11 @@ function CatalogHarness({
         <LoopCatalogLede total={entries.length} workspaceLabel="launch-hq" />
         <LoopCatalog
           entries={entries}
+          facets={{
+            categories: {},
+            kinds: { read_only: entries.length },
+            statuses: {},
+          }}
           hasActiveFilters={searchQuery.trim() !== "" || status !== null}
           onClearFilters={() => {
             setStatus(null);
@@ -80,14 +85,36 @@ function CatalogHarness({
 }
 
 export const Default: Story = {
+  args: {},
   render: () => <CatalogHarness />,
 };
 
 export const Cards: Story = {
+  args: {},
   render: () => <CatalogHarness initialView="cards" />,
 };
 
 /** A status the roster has none of: the truthful empty state plus Clear filters (EC-1). */
 export const NoMatchingStatus: Story = {
+  args: {},
   render: () => <CatalogHarness initialStatus="canceled" />,
+};
+
+/** Zero loops: lede stays up; the catalog Empty is the only roster empty. */
+export const EmptyRoster: Story = {
+  args: {},
+  render: () => (
+    <LoopsStoryShell crumb="Loops" glyph={<Repeat2 />}>
+      <ListingPage data-testid="loops-catalog">
+        <LoopCatalogLede total={0} workspaceLabel="launch-hq" />
+        <LoopCatalog
+          entries={[]}
+          hasActiveFilters={false}
+          onClearFilters={() => {}}
+          onRun={() => {}}
+          view="rows"
+        />
+      </ListingPage>
+    </LoopsStoryShell>
+  ),
 };

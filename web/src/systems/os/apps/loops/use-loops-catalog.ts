@@ -97,6 +97,7 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
       filter.status !== null,
     clearFilters,
     filter,
+    facets: loopsQuery.facets,
     handleRefresh,
     handleRun,
     loopsQuery,

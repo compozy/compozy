@@ -3,10 +3,10 @@ import { Repeat2 } from "lucide-react";
 
 import { CatalogCard } from "@compozy/ui";
 
-import { loopCategory, loopSourceLabel, successRateLabel } from "../../lib/loop-catalog";
-import { loopFactsSegments } from "../../lib/loop-catalog-presentation";
+import { successRateLabel } from "../../lib/loop-catalog";
 import type { LoopCatalogEntry } from "../../types";
 import { LoopStatusPill } from "../loop-status-pill";
+import { LoopCatalogFacts } from "./loop-catalog-facts";
 import { LoopRunButton } from "./loop-run-button";
 
 interface LoopCatalogCardProps {
@@ -15,8 +15,6 @@ interface LoopCatalogCardProps {
 }
 
 export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
-  const category = loopCategory(entry);
-  const sourceLabel = loopSourceLabel(entry);
   return (
     <CatalogCard actionable data-loop={entry.name} data-testid={`loop-catalog-card-${entry.name}`}>
       <Link
@@ -33,15 +31,17 @@ export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
             <CatalogCard.Title>{entry.name}</CatalogCard.Title>
             <CatalogCard.Meta>
               <span className="font-mono">{`v${entry.version}`}</span>
-              <span>{sourceLabel}</span>
-              {category ? <span>{category}</span> : null}
             </CatalogCard.Meta>
           </div>
         </div>
         {entry.contract.goal ? (
-          <CatalogCard.Description>{entry.contract.goal}</CatalogCard.Description>
+          <CatalogCard.Description className="line-clamp-2">
+            {entry.contract.goal}
+          </CatalogCard.Description>
         ) : null}
-        <p className="font-mono text-mono-id text-subtle">{loopFactsSegments(entry).join(" · ")}</p>
+        <p className="flex flex-wrap items-center text-eyebrow text-faint">
+          <LoopCatalogFacts entry={entry} separator="middot" />
+        </p>
       </Link>
       <CatalogCard.Actions className={entry.last_run ? "justify-between gap-3" : "justify-end"}>
         {entry.last_run ? <LoopStatusPill status={entry.last_run.status} /> : null}

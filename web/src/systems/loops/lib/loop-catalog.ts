@@ -96,6 +96,25 @@ const GROUP_LABEL: Record<LoopKind, string> = {
   workspace: "Custom",
 };
 
+/** Server facet keys use underscore (`read_only`); UI groups use hyphen (`read-only`). */
+export function loopKindFacetKey(kind: LoopKind): string {
+  return kind === "read-only" ? "read_only" : kind;
+}
+
+/**
+ * Server-owned per-kind count when `facets.kinds` is present; otherwise the
+ * loaded-page length. Empty groups still drop from loaded entries, not facets.
+ */
+export function loopKindFacetCount(
+  kind: LoopKind,
+  loaded: number,
+  kinds?: Record<string, number>
+): number {
+  if (!kinds) return loaded;
+  const count = kinds[loopKindFacetKey(kind)];
+  return typeof count === "number" ? count : loaded;
+}
+
 /**
  * Splits the filtered catalog into built-in and custom groups, dropping empty
  * groups so a catalog with no copies never renders an empty custom section.

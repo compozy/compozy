@@ -11,7 +11,10 @@ interface LoopRunButtonProps extends ComponentProps<typeof Button> {
 export function LoopRunButton({ loopName, onRun, className, ...props }: LoopRunButtonProps) {
   return (
     <Button
-      className={cn("shrink-0", className)}
+      className={cn(
+        "shrink-0 hover:border-transparent hover:bg-accent hover:text-accent-ink",
+        className
+      )}
       data-testid={`loop-catalog-run-${loopName}`}
       onClick={onRun}
       size="sm"
