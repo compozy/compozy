@@ -1,17 +1,18 @@
 import { useAutomationTriggerDetailPage } from "../automation/use-automation-page";
-import { AutomationDetailPanel, AutomationEditorDialog } from "@/systems/automation";
+import { AutomationEditorDialog, TriggerDetailPanel } from "@/systems/automation";
 
 export function TriggerDetailLocation({ triggerId }: { triggerId: string }) {
   const page = useAutomationTriggerDetailPage(triggerId);
 
   return (
     <>
-      <AutomationDetailPanel
+      <TriggerDetailPanel
         error={page.error}
-        item={page.trigger}
-        kind="triggers"
+        loopWorkspaceName={page.loopWorkspaceName}
+        onBack={page.handleBack}
         onDelete={page.handleDelete}
         onEdit={page.handleEdit}
+        onRetryRuns={page.handleRetryRuns}
         onToggleEnabled={page.handleToggleEnabled}
         runs={page.runs}
         runsError={page.runsError}
@@ -20,8 +21,9 @@ export function TriggerDetailLocation({ triggerId }: { triggerId: string }) {
           isDeleting: page.isDeleting,
           isLoading: page.isLoading,
           isTogglePending: page.isTogglePending,
-          isTriggerPending: false,
         }}
+        trigger={page.trigger}
+        workspaceName={page.workspaceName}
       />
 
       <AutomationEditorDialog {...page.editorDialogProps} />

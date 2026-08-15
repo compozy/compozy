@@ -5,13 +5,17 @@ import {
   automationJobFixtures,
   automationRunFixtures,
   automationSuggestionFixtures,
+  automationTriggerDetailFixtures,
+  automationTriggerDetailRunFixtures,
   automationTriggerFixtures,
   primaryAutomationJobFixture,
   primaryAutomationTriggerFixture,
 } from "./fixtures";
 
+const allTriggerFixtures = [...automationTriggerFixtures, ...automationTriggerDetailFixtures];
+const allRunFixtures = [...automationRunFixtures, ...automationTriggerDetailRunFixtures];
 const jobById = new Map(automationJobFixtures.map(job => [job.id, job]));
-const triggerById = new Map(automationTriggerFixtures.map(trigger => [trigger.id, trigger]));
+const triggerById = new Map(allTriggerFixtures.map(trigger => [trigger.id, trigger]));
 
 export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/automation/jobs", () =>
@@ -101,9 +105,9 @@ export const handlers: HttpHandler[] = [
       page: {
         has_more: false,
         limit: 50,
-        total: automationTriggerFixtures.length,
+        total: allTriggerFixtures.length,
       },
-      triggers: automationTriggerFixtures,
+      triggers: allTriggerFixtures,
     })
   ),
   compozyApiMock.get("/api/automation/triggers/{id}", ({ params }) => {
@@ -159,12 +163,10 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json({
-      runs: automationRunFixtures.filter(run => run.trigger_id === id),
+      runs: allRunFixtures.filter(run => run.trigger_id === id),
     });
   }),
-  compozyApiMock.get("/api/automation/runs", () =>
-    HttpResponse.json({ runs: automationRunFixtures })
-  ),
+  compozyApiMock.get("/api/automation/runs", () => HttpResponse.json({ runs: allRunFixtures })),
   compozyApiMock.get(
     "/api/workspaces/{workspace_id}/automation/suggestions",
     ({ params, request }) => {

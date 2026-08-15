@@ -18,9 +18,9 @@ import { useActiveWorkspace } from "@/systems/workspace";
 const RECENT_RUNS_LIMIT = 5;
 
 /** View-model for the Loop detail route: definition, 30d aggregate, recent runs, bindings, nav. */
-export function useLoopDetail(name: string) {
+export function useLoopDetail(name: string, routeWorkspaceId?: string) {
   const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  const workspaceId = routeWorkspaceId ?? runtimeWorkspaceId ?? "";
   const navigate = useNavigate();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const active = workspaceId !== "" && liveDataEnabled;

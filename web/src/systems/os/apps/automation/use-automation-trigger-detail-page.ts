@@ -5,6 +5,7 @@ import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-dat
 import {
   automationMatchesActiveWorkspace,
   automationWorkspaceAccessError,
+  projectAutomationTarget,
   useAutomationTrigger,
   useAutomationTriggerEditor,
   useAutomationTriggerRuns,
@@ -49,6 +50,13 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
 
+  // The detail page prefers workspace names and falls back to the persisted id.
+  const workspaceNameById = (id: string | undefined): string | null => {
+    if (!id) return null;
+    return workspaces.find(workspace => workspace.id === id)?.name ?? id;
+  };
+  const loopTarget = trigger ? projectAutomationTarget(trigger) : null;
+
   const handleToggleEnabled = async (enabled: boolean) => {
     if (!trigger) return;
     try {
@@ -74,15 +82,21 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
     handleEdit: () => {
       if (trigger) editor.openEdit(trigger);
     },
+    handleRetryRuns: () => {
+      void triggerRunsQuery.refetch();
+    },
     handleToggleEnabled: (enabled: boolean) => {
       void handleToggleEnabled(enabled);
     },
     isDeleting: deleteMutation.isPending,
     isLoading: (triggerDetailQuery.isLoading || workspaceLoading) && !trigger && !accessError,
     isTogglePending: updateMutation.isPending,
+    loopWorkspaceName:
+      loopTarget?.kind === "loop" ? workspaceNameById(loopTarget.workspaceId) : null,
     runs: trigger ? (triggerRunsQuery.data ?? []) : [],
     runsError: trigger ? triggerRunsQuery.error : null,
     runsLoading: trigger ? triggerRunsQuery.isLoading : false,
     trigger,
+    workspaceName: workspaceNameById(trigger?.workspace_id),
   };
 }

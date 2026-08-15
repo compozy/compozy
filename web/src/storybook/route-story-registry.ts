@@ -178,7 +178,7 @@ export const routeStoryRegistry = [
   {
     system: "automation",
     routePath: "/triggers/$triggerId",
-    storybookPath: "/triggers/trg_support_sla_breach",
+    storybookPath: "/triggers/trg_summarize_failures",
     title: "systems/automation/routes/Triggers",
     storyName: "TriggerDetail",
   },

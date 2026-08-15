@@ -633,6 +633,7 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopDetailRoute, {
         ...context(queryClient),
+        deps: { workspace: undefined },
         location: { pathname: "/loops/review" },
         params: { name: "review" },
       }),
@@ -717,6 +718,7 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopRunDetailRoute, {
         ...context(queryClient),
+        deps: { workspace: undefined },
         params: { runId: "run-1" },
       }),
     mountConsumer: queryClient =>
@@ -943,6 +945,30 @@ describe("route query preloading", () => {
     }
 
     unmount();
+    queryClient.clear();
+  });
+
+  it("Should preload loop destinations in the workspace carried by a trigger link", async () => {
+    const queryClient = createQueryClient();
+    const targetWorkspaceId = "ws_target";
+
+    await invokeLoader(LoopRunDetailRoute, {
+      ...context(queryClient),
+      deps: { workspace: targetWorkspaceId },
+      params: { runId: "run-1" },
+    });
+
+    expect(adapterMocks.getLoopRun).toHaveBeenCalledWith(
+      targetWorkspaceId,
+      "run-1",
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.getLoop).toHaveBeenCalledWith(
+      targetWorkspaceId,
+      "review",
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.fetchWorkspaces).not.toHaveBeenCalled();
     queryClient.clear();
   });
 

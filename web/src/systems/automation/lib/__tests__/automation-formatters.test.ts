@@ -14,6 +14,8 @@ import {
   describeRetry,
   describeSchedule,
   describeTrigger,
+  describeTriggerFireLimit,
+  describeTriggerRetry,
   formatAutomationListSummary,
   formatDate,
   formatDateTime,
@@ -21,6 +23,8 @@ import {
   formatRelativeTime,
   formatRunDuration,
   formatRunTitle,
+  humanizeFireWindow,
+  summarizeTriggerReliability,
 } from "../automation-formatters";
 
 const triggerFixture = {
@@ -127,6 +131,25 @@ describe("automation formatter helpers", () => {
     expect(automationSourceLabel("config")).toBe("CONFIG");
     expect(automationSourceLabel("package")).toBe("PACKAGE");
     expect(automationSourceLabel("dynamic")).toBe("DYNAMIC");
+  });
+
+  it("Should format trigger reliability across singular, plural, and unknown windows", () => {
+    expect(humanizeFireWindow("1h")).toBe("hour");
+    expect(humanizeFireWindow("30m")).toBe("30 minutes");
+    expect(humanizeFireWindow("calendar-day")).toBe("calendar-day");
+    expect(describeTriggerRetry({ strategy: "none", max_retries: 0, base_delay: "" })).toBe(
+      "No retries"
+    );
+    expect(describeTriggerRetry({ strategy: "backoff", max_retries: 1, base_delay: "5s" })).toBe(
+      "Backoff · 1 time"
+    );
+    expect(describeTriggerFireLimit({ max: 1, window: "1h" })).toBe("1 time / hour");
+    expect(
+      summarizeTriggerReliability(
+        { strategy: "backoff", max_retries: 2, base_delay: "5s" },
+        { max: 4, window: "1h" }
+      )
+    ).toBe("Backoff · 4 / hour");
   });
 
   it("formats exact totals while disclosing partially loaded pages", () => {

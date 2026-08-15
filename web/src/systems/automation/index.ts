@@ -94,6 +94,8 @@ export {
 } from "./lib/automation-drafts";
 export type { AutomationDialogHandle } from "./lib/dialog-handle";
 export { createAutomationDialogHandle } from "./lib/dialog-handle";
+// Shared target projection for agent- and loop-backed automation surfaces.
+export { projectAutomationTarget, type AutomationTargetProjection } from "./lib/automation-target";
 export {
   automationSourceLabel,
   automationScopeLabel,
@@ -163,6 +165,8 @@ export { useAutomationSuggestions } from "./hooks/use-automation-suggestions";
 
 // Components
 export { AutomationDetailPanel } from "./components/automation-detail-panel";
+export { TriggerDetailPanel } from "./components/trigger-detail/trigger-detail-panel";
+export type { TriggerDetailPanelProps } from "./components/trigger-detail/trigger-detail-panel";
 export { AutomationEditorDialog } from "./components/automation-editor-dialog";
 export { AutomationJobForm } from "./components/automation-job-form";
 export { AutomationListFilters } from "./components/automation-list-filters";

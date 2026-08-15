@@ -23,6 +23,13 @@ async function withActiveWorkspace(
   await settleRouteQueries(preload(workspaceId));
 }
 
+async function resolveRouteWorkspaceId(
+  queryClient: QueryClient,
+  routeWorkspaceId?: string
+): Promise<string | null> {
+  return routeWorkspaceId?.trim() || (await resolveActiveWorkspaceId(queryClient));
+}
+
 export function preloadLoopsRoute(
   queryClient: QueryClient,
   filters: LoopCatalogStableFilter
@@ -32,8 +39,14 @@ export function preloadLoopsRoute(
   ]);
 }
 
-export function preloadLoopDetailRoute(queryClient: QueryClient, name: string): Promise<void> {
-  return withActiveWorkspace(queryClient, workspaceId => [
+export async function preloadLoopDetailRoute(
+  queryClient: QueryClient,
+  name: string,
+  routeWorkspaceId?: string
+): Promise<void> {
+  const workspaceId = await resolveRouteWorkspaceId(queryClient, routeWorkspaceId);
+  if (!workspaceId) return;
+  await settleRouteQueries([
     queryClient.ensureQueryData(loopDetailOptions(workspaceId, name)),
     queryClient.ensureQueryData(loopConfigOptions(workspaceId, name)),
     queryClient.ensureInfiniteQueryData(
@@ -76,9 +89,10 @@ export function preloadLoopRunsRoute(
 
 export async function preloadLoopRunDetailRoute(
   queryClient: QueryClient,
-  runId: string
+  runId: string,
+  routeWorkspaceId?: string
 ): Promise<void> {
-  const workspaceId = await resolveActiveWorkspaceId(queryClient);
+  const workspaceId = await resolveRouteWorkspaceId(queryClient, routeWorkspaceId);
   if (!workspaceId) {
     return;
   }

@@ -150,6 +150,12 @@ export const automationOperatorTestIds = {
   toggleAutomationButton: "toggle-automation-btn",
   triggerJobButton: "trigger-job-btn",
   triggerNameInput: "trigger-name-input",
+  triggerEnableSwitch: "trigger-enable-switch",
+  triggerEnableLabel: "trigger-enable-label",
+  triggerInspectButton: "trigger-inspect-btn",
+  triggerRailReliability: "trigger-rail-reliability",
+  triggerDetailRail: "trigger-detail-rail",
+  editTriggerButton: "edit-trigger-btn",
 } as const;
 
 export const bridgeOperatorTestIds = {
@@ -389,6 +395,14 @@ export interface AutomationOperatorSelectors {
   toggleAutomationButton: Locator;
   triggerJobButton: Locator;
   triggerNameInput: Locator;
+  triggerDetailRail: Locator;
+  triggerEnableLabel: Locator;
+  triggerEnableSwitch: Locator;
+  triggerInspectButton: Locator;
+  triggerRailReliability: Locator;
+  editTriggerButton: Locator;
+  runDrawer(runId: string): Locator;
+  runOpenLink(runId: string): Locator;
 }
 
 export interface BridgeOperatorSelectors {
@@ -1309,8 +1323,12 @@ export function automationOperatorSelectors(
     jobsListRows: page.getByTestId(automationOperatorTestIds.jobsListRows),
     jobsShell: page.getByTestId(automationOperatorTestIds.jobsShell),
     run: (id: string) => page.getByTestId(`automation-run-${id}`),
+    runDrawer: (runId: string) => page.getByTestId(`trigger-run-drawer-${runId}`),
     runHistory: page.getByTestId(automationOperatorTestIds.automationRunHistory),
     runNow: (id: string) => page.getByTestId(`automation-run-now-${id}`),
+    // Trigger runs open from the expanded drawer; a link exists only when the daemon
+    // recorded the id it points at.
+    runOpenLink: (runId: string) => page.getByTestId(`trigger-run-open-${runId}`),
     runSessionLink: (runId: string) => page.getByTestId(`automation-run-${runId}`),
     submitJobForm: page.getByTestId(automationOperatorTestIds.submitJobForm),
     submitTriggerForm: page.getByTestId(automationOperatorTestIds.submitTriggerForm),
@@ -1341,6 +1359,12 @@ export function automationOperatorSelectors(
     ),
     triggerJobButton: page.getByTestId(automationOperatorTestIds.triggerJobButton),
     triggerNameInput: page.getByTestId(automationOperatorTestIds.triggerNameInput),
+    triggerDetailRail: page.getByTestId(automationOperatorTestIds.triggerDetailRail),
+    triggerEnableLabel: page.getByTestId(automationOperatorTestIds.triggerEnableLabel),
+    triggerEnableSwitch: page.getByTestId(automationOperatorTestIds.triggerEnableSwitch),
+    triggerInspectButton: page.getByTestId(automationOperatorTestIds.triggerInspectButton),
+    triggerRailReliability: page.getByTestId(automationOperatorTestIds.triggerRailReliability),
+    editTriggerButton: page.getByTestId(automationOperatorTestIds.editTriggerButton),
   };
 }
 

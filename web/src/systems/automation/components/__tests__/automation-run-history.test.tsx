@@ -13,15 +13,16 @@ interface MockLinkParams {
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   params?: MockLinkParams;
+  search?: { workspace?: string };
   to?: string;
 }
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, params, to, ...props }: MockLinkProps) => (
+  Link: ({ children, params, search, to, ...props }: MockLinkProps) => (
     <a
       href={
         to === "/loop-runs/$runId"
-          ? `/loop-runs/${params?.runId ?? ""}`
+          ? `/loop-runs/${params?.runId ?? ""}${search?.workspace ? `?workspace=${encodeURIComponent(search.workspace)}` : ""}`
           : `/session/${params?.id ?? ""}`
       }
       {...props}
@@ -150,11 +151,18 @@ describe("AutomationRunHistory", () => {
       started_at: "2026-04-11T12:00:00Z",
     };
 
-    render(<AutomationRunHistory error={null} isLoading={false} runs={[loopRun]} />);
+    render(
+      <AutomationRunHistory
+        error={null}
+        isLoading={false}
+        loopWorkspaceId="ws_target"
+        runs={[loopRun]}
+      />
+    );
 
     const row = screen.getByTestId("automation-run-run_loop");
     expect(row.tagName).toBe("A");
-    expect(row).toHaveAttribute("href", "/loop-runs/looprun_aeb24d4f17cf1feb");
+    expect(row).toHaveAttribute("href", "/loop-runs/looprun_aeb24d4f17cf1feb?workspace=ws_target");
     expect(within(row).getByText("looprun_aeb24d4f17cf1feb")).toBeInTheDocument();
     expect(within(row).queryByText("pending")).not.toBeInTheDocument();
   });

@@ -21,11 +21,18 @@ import {
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-export function LoopRunDetailLocation({ runId }: { runId: string }) {
+export function LoopRunDetailLocation({
+  runId,
+  routeWorkspaceId,
+}: {
+  runId: string;
+  routeWorkspaceId?: string;
+}) {
   const navigate = useNavigate();
-  const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspace, runtimeWorkspaceId, workspaces } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  const workspaceId = routeWorkspaceId ?? runtimeWorkspaceId ?? "";
+  const workspaceName = workspaces.find(workspace => workspace.id === workspaceId)?.name;
   const backToRuns = () => {
     void navigate({ to: "/loop-runs" });
   };
@@ -69,7 +76,9 @@ export function LoopRunDetailLocation({ runId }: { runId: string }) {
       liveDataEnabled={liveDataEnabled}
       navigate={navigate}
       topbarIdentity={topbarIdentity}
-      workspaceName={activeWorkspace?.id === runtimeWorkspaceId ? activeWorkspace.name : undefined}
+      workspaceName={
+        workspaceName ?? (activeWorkspace?.id === workspaceId ? activeWorkspace.name : undefined)
+      }
     />
   );
 }

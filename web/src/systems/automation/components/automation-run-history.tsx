@@ -12,6 +12,7 @@ import {
   formatDateTime,
   formatRunDuration,
 } from "../lib/automation-formatters";
+import { automationRunDestination } from "../lib/automation-run-destination";
 import type { AutomationRun } from "../types";
 
 interface AutomationRunHistoryProps {
@@ -19,6 +20,7 @@ interface AutomationRunHistoryProps {
   emptyTitle?: string;
   error: Error | null;
   isLoading: boolean;
+  loopWorkspaceId?: string;
   runs: AutomationRun[];
   title?: string;
 }
@@ -28,10 +30,11 @@ function runStatusLabel(run: AutomationRun): string {
 }
 
 interface AutomationRunRowProps {
+  loopWorkspaceId?: string;
   run: AutomationRun;
 }
 
-function AutomationRunRow({ run }: AutomationRunRowProps) {
+function AutomationRunRow({ loopWorkspaceId, run }: AutomationRunRowProps) {
   const tone = automationStatusTone(run.status);
   const pulse = run.status === "running";
   const startedAt = formatDateTime(run.started_at);
@@ -45,6 +48,7 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
   const ariaLabel = skipReason
     ? `${statusLabel} run · attempt ${run.attempt} · ${automationSkipReasonDetail(skipReason)}`
     : `${statusLabel} run · attempt ${run.attempt} · started ${startedAt} · duration ${duration}`;
+  const destination = automationRunDestination(run, loopWorkspaceId);
 
   const body = (
     <>
@@ -93,13 +97,14 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
     </>
   );
 
-  if (run.loop_run_id) {
+  if (destination?.kind === "loop-run") {
     return (
       <Link
-        aria-label={`${ariaLabel} · Loop run ${run.loop_run_id}`}
+        aria-label={`${ariaLabel} · Loop run ${destination.id}`}
         className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:shadow-focus-inset"
         data-testid={testId}
-        params={{ runId: run.loop_run_id }}
+        params={{ runId: destination.id }}
+        search={destination.workspaceId ? { workspace: destination.workspaceId } : {}}
         to="/loop-runs/$runId"
       >
         {body}
@@ -114,13 +119,13 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
     );
   }
 
-  if (run.session_id) {
+  if (destination?.kind === "session") {
     return (
       <Link
         aria-label={ariaLabel}
         className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:shadow-focus-inset"
         data-testid={testId}
-        params={{ id: run.session_id }}
+        params={{ id: destination.id }}
         to="/session/$id"
       >
         {body}
@@ -159,6 +164,7 @@ export function AutomationRunHistory({
   emptyTitle = "No runs recorded yet",
   error,
   isLoading,
+  loopWorkspaceId,
   runs,
   title = "Runs",
 }: AutomationRunHistoryProps) {
@@ -195,7 +201,7 @@ export function AutomationRunHistory({
         >
           {runs.map(run => (
             <li className="border-b border-line last:border-b-0" key={run.id}>
-              <AutomationRunRow run={run} />
+              <AutomationRunRow loopWorkspaceId={loopWorkspaceId} run={run} />
             </li>
           ))}
         </ul>

@@ -12,7 +12,6 @@ import {
   useTopbarSlot,
   type MetricTone,
 } from "@compozy/ui";
-import { useNavigate } from "@tanstack/react-router";
 
 import {
   automationScopeLabel,
@@ -25,12 +24,7 @@ import {
   formatRelativeTime,
 } from "../lib/automation-formatters";
 import { automationTargetLabel, projectAutomationTarget } from "../lib/automation-target";
-import type {
-  AutomationJob,
-  AutomationRun,
-  AutomationRunStatus,
-  AutomationTrigger,
-} from "../types";
+import type { AutomationJob, AutomationRun, AutomationRunStatus } from "../types";
 import { AutomationRunHistory } from "./automation-run-history";
 import { AutomationDeleteAction } from "./automation-delete-action";
 import {
@@ -41,7 +35,6 @@ import {
   AutomationTargetSection,
   GovernanceSection,
   PromptSection,
-  TriggerHookSection,
 } from "./automation-detail-sections";
 
 interface AutomationDetailState {
@@ -55,8 +48,8 @@ interface AutomationDetailState {
 interface AutomationDetailPanelProps {
   error: Error | null;
   state: AutomationDetailState;
-  item: AutomationJob | AutomationTrigger | undefined;
-  kind: "jobs" | "triggers";
+  item: AutomationJob | undefined;
+  onBack: () => void;
   onDelete: () => void | Promise<void>;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
@@ -233,11 +226,12 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
   );
 }
 
+/** Jobs and triggers use separate detail surfaces; trigger details use `TriggerDetailPanel`. */
 export function AutomationDetailPanel({
   error,
   state,
   item,
-  kind,
+  onBack,
   onDelete,
   onEdit,
   onToggleEnabled,
@@ -281,9 +275,9 @@ export function AutomationDetailPanel({
       >
         <Empty
           className="max-w-md"
-          description={`This ${kind === "jobs" ? "job" : "trigger"} is no longer available.`}
+          description="This job is no longer available."
           icon={Search}
-          title={kind === "jobs" ? "Job unavailable" : "Trigger unavailable"}
+          title="Job unavailable"
         />
       </div>
     );
@@ -292,7 +286,7 @@ export function AutomationDetailPanel({
   return (
     <AutomationDetailLoadedPanel
       item={item}
-      kind={kind}
+      onBack={onBack}
       onDelete={onDelete}
       onEdit={onEdit}
       onToggleEnabled={onToggleEnabled}
@@ -334,8 +328,8 @@ function AutomationDetailSkeleton() {
 }
 
 interface AutomationDetailLoadedPanelProps {
-  item: AutomationJob | AutomationTrigger;
-  kind: "jobs" | "triggers";
+  item: AutomationJob;
+  onBack: () => void;
   onDelete: () => void | Promise<void>;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
@@ -348,7 +342,7 @@ interface AutomationDetailLoadedPanelProps {
 
 function AutomationDetailLoadedPanel({
   item,
-  kind,
+  onBack,
   onDelete,
   onEdit,
   onToggleEnabled,
@@ -358,27 +352,18 @@ function AutomationDetailLoadedPanel({
   runsLoading,
   state,
 }: AutomationDetailLoadedPanelProps) {
-  const navigate = useNavigate();
   const { isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending } = state;
-  const isJob = kind === "jobs";
   const isDynamic = item.source === "dynamic";
-  const job = isJob ? (item as AutomationJob) : null;
-  const trigger = !isJob ? (item as AutomationTrigger) : null;
   const target = projectAutomationTarget(item);
   const enabledTone = automationStatusTone(item.enabled ? "enabled" : "disabled");
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const catalogLabel = isJob ? "Jobs" : "Triggers";
-  const catalogPath = isJob ? "/jobs" : "/triggers";
-  const backToCatalog = () => {
-    void navigate({ to: catalogPath });
-  };
-  const showRunNow = isJob && Boolean(onTriggerNow);
+  const showRunNow = Boolean(onTriggerNow);
   const showOverflow = isDynamic || showRunNow;
   const detailActions = (
     <AutomationDetailActions
       item={item}
       onToggleEnabled={onToggleEnabled}
-      onTriggerNow={showRunNow ? onTriggerNow : undefined}
+      onTriggerNow={onTriggerNow}
       state={{
         togglePending: isTogglePending,
         triggerDisabled: isTriggerDisabled,
@@ -390,7 +375,6 @@ function AutomationDetailLoadedPanel({
     <AutomationDetailOverflow
       isTogglePending={isTogglePending}
       item={item}
-      kind={kind}
       onDelete={() => setDeleteOpen(true)}
       onEdit={onEdit}
       onToggleEnabled={onToggleEnabled}
@@ -411,8 +395,8 @@ function AutomationDetailLoadedPanel({
   );
 
   useTopbarSlot({
-    onBack: backToCatalog,
-    crumbs: [{ id: "catalog", label: catalogLabel, onSelect: backToCatalog }],
+    onBack,
+    crumbs: [{ id: "catalog", label: "Jobs", onSelect: onBack }],
     crumb: item.name,
     status: (
       <Pill mono tone={enabledTone}>
@@ -433,7 +417,7 @@ function AutomationDetailLoadedPanel({
         <AutomationDeleteAction
           hideTrigger
           isPending={isDeleting}
-          kind={kind}
+          kind="jobs"
           name={item.name}
           onConfirm={onDelete}
           onOpenChange={setDeleteOpen}
@@ -457,30 +441,20 @@ function AutomationDetailLoadedPanel({
           </div>
         ) : null}
 
-        {job ? <JobScheduleSection job={job} /> : null}
-        {job ? <JobStatsSection job={job} runs={runs} /> : null}
-        {job ? <JobSchedulerSection job={job} /> : null}
-        {trigger ? (
-          <TriggerHookSection target={target.kind === "agent" ? target : null} trigger={trigger} />
-        ) : null}
+        <JobScheduleSection job={item} />
+        <JobStatsSection job={item} runs={runs} />
+        <JobSchedulerSection job={item} />
 
-        {target.kind === "loop" ? (
-          <AutomationTargetSection showInputMapping={!isJob} target={target} />
-        ) : null}
-        {target.kind === "agent" ? (
-          <PromptSection isTrigger={!isJob} prompt={target.prompt} />
-        ) : null}
+        {target.kind === "loop" ? <AutomationTargetSection target={target} /> : null}
+        {target.kind === "agent" ? <PromptSection prompt={target.prompt} /> : null}
         <GovernanceSection item={item} />
 
         <AutomationRunHistory
-          emptyDescription={
-            isJob
-              ? "Runs will appear here after the first scheduled or manual execution."
-              : "Runs will appear here after the first matching activation."
-          }
+          emptyDescription="Runs will appear here after the first scheduled or manual execution."
           emptyTitle="No runs recorded yet"
           error={runsError}
           isLoading={runsLoading}
+          loopWorkspaceId={target.kind === "loop" ? target.workspaceId : undefined}
           runs={runs}
           title="Runs"
         />

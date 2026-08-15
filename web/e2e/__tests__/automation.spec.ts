@@ -92,10 +92,9 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
     browserAutomationOperatorFlowScenario.trigger.webhookID
   );
 
-  await triggersUI.detailOverflow.click();
-  const editTrigger = appPage.getByTestId("edit-automation-btn");
-  await expect(editTrigger).toBeEnabled();
-  await editTrigger.click();
+  // Edit is a route-chrome action for a trigger the operator owns.
+  await expect(triggersUI.editTriggerButton).toBeEnabled();
+  await triggersUI.editTriggerButton.click();
   await expect(triggersUI.triggerNameInput).toHaveValue(seeded.trigger.name);
   const triggerDialog = triggersUI.editorDialog;
   await expect(triggerDialog).toHaveAttribute("data-frame", "unframed");

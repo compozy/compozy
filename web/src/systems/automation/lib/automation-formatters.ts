@@ -126,6 +126,39 @@ export function describeFireLimit(limit: AutomationFireLimit): string {
   return `${limit.max} fires / ${limit.window}`;
 }
 
+/** `1h` → `hour`, `30m` → `30 minutes`; unknown formats stay verbatim. */
+export function humanizeFireWindow(window: string): string {
+  const match = /^(\d+)([smh])$/.exec(window.trim());
+  if (!match) return window;
+  const count = Number(match[1]);
+  const unit = { h: "hour", m: "minute", s: "second" }[match[2] as "h" | "m" | "s"];
+  return count === 1 ? unit : `${count} ${unit}s`;
+}
+
+function pluralizeTimes(count: number): string {
+  return count === 1 ? "1 time" : `${count} times`;
+}
+
+/** Rail Reliability row: `Backoff · 2 times` / `No retries`. */
+export function describeTriggerRetry(retry: AutomationRetry): string {
+  if (retry.strategy === "none") return "No retries";
+  return `Backoff · ${pluralizeTimes(retry.max_retries)}`;
+}
+
+/** Rail Reliability row: `4 times / hour`. */
+export function describeTriggerFireLimit(limit: AutomationFireLimit): string {
+  return `${pluralizeTimes(limit.max)} / ${humanizeFireWindow(limit.window)}`;
+}
+
+/** Rail Reliability summary: `Backoff · 4 / hour`. */
+export function summarizeTriggerReliability(
+  retry: AutomationRetry,
+  limit: AutomationFireLimit
+): string {
+  const strategy = retry.strategy === "backoff" ? "Backoff" : "No retry";
+  return `${strategy} · ${limit.max} / ${humanizeFireWindow(limit.window)}`;
+}
+
 export function formatRunTitle(run: AutomationRun): string {
   return `${run.status.toUpperCase()} · attempt ${run.attempt}`;
 }

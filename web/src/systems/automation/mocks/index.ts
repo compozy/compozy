@@ -4,6 +4,8 @@ export {
   automationRunFixtures,
   automationRunSkipFixtures,
   automationSuggestionFixtures,
+  automationTriggerDetailFixtures,
+  automationTriggerDetailRunFixtures,
   automationTriggerFixtures,
   primaryAutomationJobFixture,
   primaryAutomationTriggerFixture,
