@@ -75,6 +75,7 @@ type sessionOverlay struct {
 	Supervision sessionSupervisionOverlay `toml:"supervision"`
 	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
 	Compaction  sessionCompactionOverlay  `toml:"compaction"`
+	Attachments sessionAttachmentsOverlay `toml:"attachments"`
 }
 
 type sessionLimitsOverlay struct {

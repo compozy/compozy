@@ -176,7 +176,8 @@ var (
 		toolSurfaceToolsArtifactsMaxBytesPath:                      ConfigValueInt64,
 		toolSurfaceToolsArtifactsMaxCountPath:                      ConfigValueInt,
 	}, roleMutableConfigKinds, automationToolPathKinds(), loopAndGoalToolPathKinds(),
-		taskToolSurfaceMutableConfigKinds(), worktreeToolSurfaceMutableConfigKinds())
+		taskToolSurfaceMutableConfigKinds(), worktreeToolSurfaceMutableConfigKinds(),
+		sessionAttachmentsToolPathKinds())
 )
 
 // RedactedConfigMap converts config to the same redacted map shape used by operator-facing CLI output.

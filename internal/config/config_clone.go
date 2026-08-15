@@ -25,6 +25,7 @@ func CloneConfig(source *Config) Config {
 		source.Extensions.Resources.AllowedKinds...,
 	)
 	cloned.Tools.Policy.TrustedSources = cloneStrings(source.Tools.Policy.TrustedSources)
+	cloned.Session.Attachments.AllowedMIME = cloneStrings(source.Session.Attachments.AllowedMIME)
 	cloned.Automation = cloneAutomationConfig(source.Automation)
 	cloned.Gateway.Connections = append(
 		[]GatewayConnectionConfig(nil),

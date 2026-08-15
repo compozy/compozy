@@ -127,6 +127,7 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		paths.LoopsDir,
 		paths.MemoryDir,
 		paths.SessionsDir,
+		paths.SessionAttachmentsDir,
 		paths.RestartsDir,
 		paths.LogsDir,
 	} {

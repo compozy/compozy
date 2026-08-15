@@ -31,6 +31,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Supervision: DefaultSessionSupervisionConfig(),
 			BusyInput:   DefaultSessionBusyInputConfig(),
 			Compaction:  DefaultSessionCompactionConfig(),
+			Attachments: DefaultSessionAttachmentsConfig(),
 		},
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,

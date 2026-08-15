@@ -44,6 +44,22 @@ type SessionConfig struct {
 	Supervision SessionSupervisionConfig `toml:"supervision"`
 	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
 	Compaction  SessionCompactionConfig  `toml:"compaction"`
+	Attachments SessionAttachmentsConfig `toml:"attachments"`
+}
+
+// SessionAttachmentsConfig controls persisted session-attachment admission and retention.
+type SessionAttachmentsConfig struct {
+	MaxFileBytes      int64                             `toml:"max_file_bytes"`
+	MaxFilesPerPrompt int                               `toml:"max_files_per_prompt"`
+	AllowedMIME       []string                          `toml:"allowed_mime"`
+	Retention         SessionAttachmentsRetentionConfig `toml:"retention"`
+}
+
+// SessionAttachmentsRetentionConfig controls disk bounds for stored attachments.
+type SessionAttachmentsRetentionConfig struct {
+	MaxCount int           `toml:"max_count"`
+	MaxBytes int64         `toml:"max_bytes"`
+	MaxAge   time.Duration `toml:"max_age"`
 }
 
 // SessionLimitsConfig defines runtime limits applied to every session.

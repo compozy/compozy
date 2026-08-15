@@ -10,6 +10,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
@@ -108,6 +109,7 @@ type bootState struct {
 	toolRegistry          toolspkg.Registry
 	mcpToolProvider       daemonMCPToolProvider
 	toolArtifacts         toolspkg.ToolArtifactStore
+	sessionAttachments    attachmentspkg.Store
 	toolsets              core.ToolsetRegistry
 	toolApprovals         toolspkg.ApprovalTokenIssuer
 	clarify               *clarifyBridge
