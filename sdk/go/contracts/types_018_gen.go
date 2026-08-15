@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type RunStatus string
+
 type RuntimeSelectionPayload struct {
 	Provider        string      `json:"provider"`
 	Model           string      `json:"model,omitempty"`
@@ -243,5 +245,3 @@ type ScheduleSpec struct {
 }
 
 type SchedulerCatchUpPolicy string
-
-type Scope string

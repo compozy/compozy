@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type PermissionOption struct {
+	Decision string `json:"decision,omitempty"`
+	OptionID string `json:"option_id,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	Label    string `json:"label,omitempty"`
+}
+
 type PermissionRequestPatch struct {
 	Deny          bool    `json:"deny,omitempty"`
 	DenyReason    string  `json:"deny_reason,omitempty"`
@@ -226,10 +233,4 @@ type Request struct {
 	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
 	ChannelID       *string          `json:"channel_id,omitempty"`
 	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
-}
-
-type Resolution struct {
-	Requested Speed            `json:"requested"`
-	Status    ResolutionStatus `json:"status"`
-	Reason    ResolutionReason `json:"reason,omitempty"`
 }

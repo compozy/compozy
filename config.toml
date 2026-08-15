@@ -48,7 +48,14 @@ max_concurrent_agents = 20
 [session.attachments]
 max_file_bytes = 10485760
 max_files_per_prompt = 10
-allowed_mime = ["image/png", "image/jpeg", "image/webp", "application/pdf", "text/markdown", "text/plain"]
+allowed_mime = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/pdf",
+  "text/markdown",
+  "text/plain",
+]
 
 [session.attachments.retention]
 max_count = 200
