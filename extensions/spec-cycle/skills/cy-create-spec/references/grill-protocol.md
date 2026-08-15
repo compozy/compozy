@@ -11,7 +11,7 @@ How every `cy-create-spec` grill runs — product, surface, and technical alike.
 
 ## Round format
 
-Present the round as one plain message and stop generating until the user answers; use an interactive question tool only when it can carry the full round. Format each question:
+A round lives on one surface. When every question in the round is closed-choice and the runtime's interactive question tool can carry them all without loss — bodies, option labels, and recommendations intact (in practice: ≤4 short multiple-choice questions) — ask the round through the tool, recommended option first and marked as recommended, with its one-line why. Otherwise present the round as one plain message and stop generating until the user answers, formatting each question:
 
 ```
 ❓ **Q1 — <question title>**: <question body; labeled choices when the options can be predetermined, with a fallback "Other — describe">
@@ -19,7 +19,7 @@ Present the round as one plain message and stop generating until the user answer
 ➡️ <your recommended answer and the one-line why>
 ```
 
-Leading with a recommendation lets the user react to a position instead of facing a blank menu.
+Leading with a recommendation lets the user react to a position instead of facing a blank menu — on either surface.
 
 ## Conduct
 
