@@ -41,7 +41,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if got, want := len(views), 1; got != want {
 			t.Fatalf("len(bootstrap tools) = %d, want %d: %#v", got, want, views)
 		}
-		if got, want := views[0].Descriptor.ID, devCycleImportTasksToolID; got != want {
+		if got, want := views[0].Descriptor.ID, specCycleImportTasksToolID; got != want {
 			t.Fatalf("bootstrap tool = %q, want %q", got, want)
 		}
 	})
@@ -95,7 +95,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should attach resolved workspace authority to workspace-bound dev-cycle calls", func(t *testing.T) {
+	t.Run("Should attach resolved workspace authority to workspace-bound spec-cycle calls", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -108,8 +108,8 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
 		for _, toolID := range []toolspkg.ToolID{
-			devCycleWriteReviewArtifactsToolID,
-			devCycleFinalizeReviewRoundToolID,
+			specCycleWriteReviewArtifactsToolID,
+			specCycleFinalizeReviewRoundToolID,
 		} {
 			handle, ok, err := provider.Resolve(
 				t.Context(),
@@ -144,7 +144,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
 		provider := newDaemonScopedExtensionToolProvider(inner, &daemonExtensionWorkspaceResolverStub{})
-		handle, ok, err := provider.Resolve(t.Context(), toolspkg.Scope{}, devCycleFinalizeReviewRoundToolID)
+		handle, ok, err := provider.Resolve(t.Context(), toolspkg.Scope{}, specCycleFinalizeReviewRoundToolID)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
@@ -152,7 +152,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 			t.Fatal("Resolve() ok = false, want true")
 		}
 		_, err = handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID: devCycleFinalizeReviewRoundToolID,
+			ToolID: specCycleFinalizeReviewRoundToolID,
 			Input:  json.RawMessage(`{"task_name":"delivery","round":1}`),
 		})
 		if err == nil {
@@ -167,7 +167,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should anchor dev cycle import task patterns to workspace root", func(t *testing.T) {
+	t.Run("Should anchor spec-cycle import task patterns to workspace root", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -182,7 +182,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		handle, ok, err := provider.Resolve(
 			t.Context(),
 			toolspkg.Scope{WorkspaceID: "ws-1"},
-			devCycleImportTasksToolID,
+			specCycleImportTasksToolID,
 		)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -192,7 +192,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 
 		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      devCycleImportTasksToolID,
+			ToolID:      specCycleImportTasksToolID,
 			WorkspaceID: "ws-1",
 			Input:       json.RawMessage(`{"pattern":".compozy/tasks/loops-refac/task_*.md"}`),
 		})
@@ -215,7 +215,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject relative dev cycle import task patterns that escape the workspace root", func(t *testing.T) {
+	t.Run("Should reject relative spec-cycle import task patterns that escape the workspace root", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -230,7 +230,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		handle, ok, err := provider.Resolve(
 			t.Context(),
 			toolspkg.Scope{WorkspaceID: "ws-1"},
-			devCycleImportTasksToolID,
+			specCycleImportTasksToolID,
 		)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -240,7 +240,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 
 		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      devCycleImportTasksToolID,
+			ToolID:      specCycleImportTasksToolID,
 			WorkspaceID: "ws-1",
 			Input:       json.RawMessage(`{"pattern":"../outside/task_*.md"}`),
 		})
@@ -263,7 +263,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject dev cycle import task patterns that escape through a workspace symlink", func(t *testing.T) {
+	t.Run("Should reject spec-cycle import task patterns that escape through a workspace symlink", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -289,7 +289,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		handle, ok, err := provider.Resolve(
 			t.Context(),
 			toolspkg.Scope{WorkspaceID: "ws-1"},
-			devCycleImportTasksToolID,
+			specCycleImportTasksToolID,
 		)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -299,7 +299,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 
 		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      devCycleImportTasksToolID,
+			ToolID:      specCycleImportTasksToolID,
 			WorkspaceID: "ws-1",
 			Input:       json.RawMessage(`{"pattern":".compozy/tasks/delivery/task_*.md"}`),
 		})
@@ -319,7 +319,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject empty dev cycle import task patterns before extension dispatch", func(t *testing.T) {
+	t.Run("Should reject empty spec-cycle import task patterns before extension dispatch", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -334,7 +334,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		handle, ok, err := provider.Resolve(
 			t.Context(),
 			toolspkg.Scope{WorkspaceID: "ws-1"},
-			devCycleImportTasksToolID,
+			specCycleImportTasksToolID,
 		)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -344,7 +344,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 
 		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      devCycleImportTasksToolID,
+			ToolID:      specCycleImportTasksToolID,
 			WorkspaceID: "ws-1",
 			Input:       json.RawMessage(`{"pattern":""}`),
 		})
@@ -364,7 +364,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject absolute dev cycle import task patterns", func(t *testing.T) {
+	t.Run("Should reject absolute spec-cycle import task patterns", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -379,7 +379,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		handle, ok, err := provider.Resolve(
 			t.Context(),
 			toolspkg.Scope{WorkspaceID: "ws-1"},
-			devCycleImportTasksToolID,
+			specCycleImportTasksToolID,
 		)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -389,7 +389,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 
 		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      devCycleImportTasksToolID,
+			ToolID:      specCycleImportTasksToolID,
 			WorkspaceID: "ws-1",
 			Input:       json.RawMessage(fmt.Sprintf(`{"pattern":%q}`, filepath.Join(root, "task_*.md"))),
 		})
@@ -412,7 +412,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject dev cycle import task calls without workspace scope", func(t *testing.T) {
+	t.Run("Should reject spec-cycle import task calls without workspace scope", func(t *testing.T) {
 		t.Parallel()
 
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
@@ -421,7 +421,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		handle, ok, err := provider.Resolve(
 			t.Context(),
 			toolspkg.Scope{},
-			devCycleImportTasksToolID,
+			specCycleImportTasksToolID,
 		)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -431,7 +431,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 
 		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID: devCycleImportTasksToolID,
+			ToolID: specCycleImportTasksToolID,
 			Input:  json.RawMessage(`{"pattern":".compozy/tasks/task_*.md"}`),
 		})
 		if err == nil {
@@ -463,7 +463,7 @@ type daemonExtensionProviderStub struct {
 var _ toolspkg.Provider = (*daemonExtensionProviderStub)(nil)
 
 func (p *daemonExtensionProviderStub) ID() toolspkg.SourceRef {
-	return toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "dev-cycle"}
+	return toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "spec-cycle"}
 }
 
 func (p *daemonExtensionProviderStub) List(
@@ -492,14 +492,14 @@ var _ toolspkg.Handle = (*daemonExtensionHandleStub)(nil)
 
 func (h *daemonExtensionHandleStub) Descriptor() toolspkg.Descriptor {
 	return toolspkg.Descriptor{
-		ID: devCycleImportTasksToolID,
+		ID: specCycleImportTasksToolID,
 		Source: toolspkg.SourceRef{
 			Kind:  toolspkg.SourceExtension,
-			Owner: "dev-cycle",
+			Owner: "spec-cycle",
 		},
 		Backend: toolspkg.BackendRef{
 			Kind:        toolspkg.BackendExtensionHost,
-			ExtensionID: "dev-cycle",
+			ExtensionID: "spec-cycle",
 			Handler:     "import_tasks",
 		},
 		DisplayTitle: "Import tasks",

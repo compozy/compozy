@@ -19,7 +19,7 @@ charter:
       - "Enter through every scenario's named public surface and capture the final observable from a fresh read."
       - "Exercise one failure, interruption, or invalid-input branch without masking it through an alternate surface."
       - "Compare public surfaces wherever parity is part of the expected behavior."
-      - "Prioritize these representative observables first: Disable and enable dev-cycle extension."
+      - "Prioritize these representative observables first: Disable and enable spec-cycle extension."
     must_avoid:
       - "Do not inherit a verdict from the historical charter or static implementation evidence."
       - "Do not rewrite the historical charter; record this run only in the current report."

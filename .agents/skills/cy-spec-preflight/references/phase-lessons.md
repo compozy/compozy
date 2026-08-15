@@ -2,11 +2,13 @@
 
 Read the matching lessons before authoring. All paths relative to `docs/_memory/lessons/`.
 
-## Phase: `prd`
+## Phase: `spec`
 
-- `L-013-prd-must-not-name-implementation.md` — strip frameworks/storage/error codes/file formats.
+Stage 1 — Part I (Product):
 
-## Phase: `techspec`
+- `L-013-prd-must-not-name-implementation.md` — Part I strips frameworks/storage/error codes/file formats.
+
+Stage 2 — Surface + Part II (Technical):
 
 - `L-001-detached-prompt-lifetime.md` — request lifetime ≠ execution lifetime.
 - `L-003-task-runs-single-queue.md` — no parallel queue alongside `task_runs`.

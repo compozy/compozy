@@ -1,13 +1,13 @@
 ---
 name: cy-spec-peer-review
-description: Cross-LLM peer review of a TechSpec via compozy exec — scoped Markdown findings for user-directed incorporation. Use when a TechSpec draft has already been approved and the user wants an external review round, especially for autonomy/network/memory-impacting designs. Do not use for PRDs, automatic approval gates, code review batches, or auto-looped review cycles.
+description: Cross-LLM peer review of a Spec's technical design via compozy exec — scoped Markdown findings for user-directed incorporation. Use when a spec has already been approved and the user wants an external review round, especially for autonomy/network/memory-impacting designs. Do not use for Stage 1 product drafts, automatic approval gates, code review batches, or auto-looped review cycles.
 trigger: explicit
-argument-hint: "[techspec-path] [--ide] [--model] [--reasoning]"
+argument-hint: "[spec-path] [--ide] [--model] [--reasoning]"
 ---
 
 # Spec Peer Review
 
-An independent reviewer runtime pressure-tests an approved TechSpec via `compozy exec`. This skill runs that pressure-test only when the user explicitly asks for a review round after approving the current draft. It does not auto-run, auto-incorporate findings, or auto-loop additional rounds.
+An independent reviewer runtime pressure-tests an approved Spec (Part II focus) via `compozy exec`. This skill runs that pressure-test only when the user explicitly asks for a review round after approving the current draft. It does not auto-run, auto-incorporate findings, or auto-loop additional rounds.
 
 The review result is a direct-written Markdown findings file. `compozy exec` stdout/stderr is operational evidence only; never parse it as the review source of truth.
 
@@ -22,14 +22,14 @@ If the runtime does not provide such a tool, present the question as the complet
 Resolve bundled helper paths relative to the directory that contains this `SKILL.md`. When invoking the validator from a repository root, use the full repo-relative path:
 
 ```bash
-bash .agents/skills/cy-spec-peer-review/scripts/validate-findings.sh --kind techspec --round <N> --path <findings-path>
+bash .agents/skills/cy-spec-peer-review/scripts/validate-findings.sh --kind spec --round <N> --path <findings-path>
 ```
 
 The validator is a read-only helper: it inspects the findings artifact and exits non-zero on structural contract violations.
 
 ## Required Inputs
 
-- **techspec-path** (optional): explicit path to the `_techspec.md` under review. When omitted, resolve to the most recently modified `.compozy/tasks/<slug>/_techspec.md` whose sibling `_meta.md` shows `Pending: > 0` or no `_meta.md` exists yet.
+- **spec-path** (optional): explicit path to the `_spec.md` under review. When omitted, resolve to the most recently modified `.compozy/tasks/<slug>/_spec.md` whose sibling `_meta.md` shows `Pending: > 0` or no `_meta.md` exists yet.
 - `--ide <ide>` (default `codex`) — forwarded to `compozy exec --ide`. Secondary option: `--ide claude --model opus --reasoning max`.
 - `--model <model>` (default `gpt-5.6-sol`) — forwarded to `compozy exec --model`.
 - `--reasoning <effort>` (default `xhigh`) — forwarded to `compozy exec --reasoning-effort`. Accepted: `low`, `medium`, `high`, `xhigh`, `max`.
@@ -49,7 +49,7 @@ The findings file MUST use this structure:
 ```markdown
 ---
 schema_version: 1
-review_kind: techspec
+review_kind: spec
 round: N
 readiness: READY|BLOCKED|NEEDS_REWORK
 reviewer_runtime: <resolved --ide>
@@ -74,9 +74,9 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 
 **Step 1: Validate Input and Context**
 
-1. Resolve `techspec-path`. If omitted, list candidate paths and pick the freshest.
+1. Resolve `spec-path`. If omitted, list candidate paths and pick the freshest.
 2. Confirm the user has already approved the current draft or explicitly asked to review the saved spec as-is.
-3. Read the spec and confirm it is a final-shape TechSpec (has `Architectural Boundaries`, `Implementation Steps`, `Test Strategy` sections) — not a draft.
+3. Read the spec and confirm it is final-shape (complete Part I and Part II, with `Architectural Boundaries`, `Development Sequencing`, and `Testing Approach` sections) — not a draft.
 4. Read `references/quality-markers.md` and verify the spec carries the six markers (boundary statement, listed boundaries, Go interface signatures, data-model field rationale, side-table-vs-JSON decisions, lease/safety invariants enumerated). If any marker is missing, abort and report the missing markers — external review is wasted on incomplete specs.
 5. Resolve the slug from the path; ensure `.compozy/tasks/<slug>/` exists and is writable.
 6. Ensure `.compozy/tasks/<slug>/qa/` exists before dispatch.
@@ -93,7 +93,8 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
    - Post-run status snapshot: `.compozy/tasks/<slug>/qa/peer-review-status-after-roundN.txt`.
    - Validation error, only when needed: `.compozy/tasks/<slug>/qa/peer-review-validation-error-roundN.md`.
 3. Substitute the placeholders:
-   - `{techspec_path}` — exact path to the TechSpec under review.
+   - `{spec_path}` — exact path to the `_spec.md` under review.
+   - `{surface_paths}` — any `_dx.md`/`_uiux.md` siblings, or `none`.
    - `{adr_paths}` — any `adrs/*.md` siblings, or `none`.
    - `{related_research}` — any `analysis/*.md` siblings, or `none`.
    - `{findings_path}` — exact absolute path to `.compozy/tasks/<slug>/qa/peer-review-findings-roundN.md`.
@@ -131,7 +132,7 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 1. Run the bundled read-only validator:
 
    ```bash
-   bash .agents/skills/cy-spec-peer-review/scripts/validate-findings.sh --kind techspec --round N --path .compozy/tasks/<slug>/qa/peer-review-findings-roundN.md
+   bash .agents/skills/cy-spec-peer-review/scripts/validate-findings.sh --kind spec --round N --path .compozy/tasks/<slug>/qa/peer-review-findings-roundN.md
    ```
 
 2. Manually inspect the findings file and verify the semantic contract:
@@ -147,7 +148,7 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
    - recommended sections and ADRs likely affected;
    - operational artifact paths.
 5. Present a concise user-facing summary of the review. Include the verdict, blocker/nit counts, the main themes, and the artifact paths written for the round.
-6. Do NOT modify the TechSpec or ADRs yet.
+6. Do NOT modify the spec or ADRs yet.
 
 **Step 5: User-Directed Incorporation**
 
@@ -167,7 +168,7 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 **Step 6: Optional Additional Rounds**
 
 1. Ask whether the user wants another peer-review round or wants to stop with the current saved spec.
-2. If the user requests another round, re-run from Step 2 against the updated TechSpec and create a fresh `roundN+1` artifact set.
+2. If the user requests another round, re-run from Step 2 against the updated spec and create a fresh `roundN+1` artifact set.
 3. Do not auto-loop. The user explicitly requests further rounds.
 
 ## Critical Rules

@@ -84,7 +84,7 @@ e2e_backbone:
     - "E2E-web-13: clear the issue + enable Publish when fan-out ≤ ceiling; surface a 422 per-node error on a cycle; keep Publish disabled while issues exist."
     - "E2E-web-14: toggle Graph/DSL (offending field highlighted), preserve unknown fields through open→edit→publish, persist positions via the sidecar."
     - "E2E-web-15: draft/published version selector; write a new version on publish (diff deferred)."
-    - "E2E-web-16: fork a dev-cycle Loop → edit → publish → run → land on the run page end-to-end."
+    - "E2E-web-16: fork a spec-cycle Loop → edit → publish → run → land on the run page end-to-end."
   integration:
     - "Integration-13: 422 per-node {node_id, code, message, severity} on PATCH for a cycle, unreachable node, fan-out-ceiling violation."
     - "Integration-16: copy a forked extension Loop by name into a writable FS def; re-project an editor-published FS file on file-watch."

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -154,10 +154,10 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 	})
 }
 
-func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
+func TestDaemonE2ESpecCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should auto-enroll dev-cycle and remove or restore its loops when disabled or enabled", func(t *testing.T) {
+	t.Run("Should auto-enroll spec-cycle and remove or restore its loops when disabled or enabled", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -169,12 +169,12 @@ func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
 			return &fakeExtensionRuntime{
 				getFn: func(name string) (*extensionpkg.Extension, error) {
-					return loadRegisteredDevCycleExtensionSnapshot(name, extRegistry)
+					return loadRegisteredSpecCycleExtensionSnapshot(name, extRegistry)
 				},
 			}
 		}
 
-		state := newDevCycleLoopE2EState(t, d, db, cfg)
+		state := newSpecCycleLoopE2EState(t, d, db, cfg)
 		cleanup := &bootCleanup{}
 		if err := d.bootResourceReconcile(ctx, state, cleanup); err != nil {
 			t.Fatalf("bootResourceReconcile() error = %v", err)
@@ -190,7 +190,7 @@ func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		if err := d.bootExtensions(ctx, state, cleanup); err != nil {
 			t.Fatalf("bootExtensions() error = %v", err)
 		}
-		enableDevCycle := func() {
+		enableSpecCycle := func() {
 			t.Helper()
 
 			actor, err := taskpkg.DeriveHumanActorContext(
@@ -203,36 +203,36 @@ func TestDaemonE2EDevCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 			}
 			if _, err := state.deps.Extensions.Enable(
 				ctx,
-				devcycle.Name,
+				speccycle.Name,
 				contract.EnableExtensionRequest{},
 				actor,
 			); err != nil {
-				t.Fatalf("Extensions.Enable(%s) error = %v", devcycle.Name, err)
+				t.Fatalf("Extensions.Enable(%s) error = %v", speccycle.Name, err)
 			}
 		}
-		enableDevCycle()
+		enableSpecCycle()
 		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
 			t.Fatalf("RunBoot(after initial enable) error = %v", err)
 		}
-		assertDevCycleLoopCatalog(t, state.loopCatalog, true)
+		assertSpecCycleLoopCatalog(t, state.loopCatalog, true)
 
 		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "compozy extension disable")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext(disable) error = %v", err)
 		}
-		if _, err := state.deps.Extensions.Disable(ctx, devcycle.Name, actor); err != nil {
-			t.Fatalf("Extensions.Disable(%s) error = %v", devcycle.Name, err)
+		if _, err := state.deps.Extensions.Disable(ctx, speccycle.Name, actor); err != nil {
+			t.Fatalf("Extensions.Disable(%s) error = %v", speccycle.Name, err)
 		}
 		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
 			t.Fatalf("RunBoot(after disable) error = %v", err)
 		}
-		assertDevCycleLoopCatalog(t, state.loopCatalog, false)
+		assertSpecCycleLoopCatalog(t, state.loopCatalog, false)
 
-		enableDevCycle()
+		enableSpecCycle()
 		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
 			t.Fatalf("RunBoot(after enable) error = %v", err)
 		}
-		assertDevCycleLoopCatalog(t, state.loopCatalog, true)
+		assertSpecCycleLoopCatalog(t, state.loopCatalog, true)
 	})
 }
 
@@ -357,7 +357,7 @@ func loopIntegrationHome(t *testing.T) compozyconfig.HomePaths {
 	return homePaths
 }
 
-func newDevCycleLoopE2EState(
+func newSpecCycleLoopE2EState(
 	t *testing.T,
 	d *Daemon,
 	db *globaldb.GlobalDB,
@@ -386,7 +386,7 @@ func newDevCycleLoopE2EState(
 	}
 }
 
-func assertDevCycleLoopCatalog(
+func assertSpecCycleLoopCatalog(
 	t *testing.T,
 	catalog *resourceCatalog[looppkg.ResourceSpec],
 	wantPresent bool,
@@ -399,25 +399,26 @@ func assertDevCycleLoopCatalog(
 	records := looppkg.ResolveEffectiveResources(catalog.Snapshot(), "")
 	found := map[string]looppkg.ResourceSpec{}
 	for _, record := range records {
-		if record.Spec.InstalledFromExtension == devcycle.Name {
+		if record.Spec.InstalledFromExtension == speccycle.Name {
 			found[record.Spec.Name] = record.Spec
 		}
 	}
 	if !wantPresent {
 		if len(found) != 0 {
-			t.Fatalf("dev-cycle loops = %#v, want none after disable", found)
+			t.Fatalf("spec-cycle loops = %#v, want none after disable", found)
 		}
 		return
 	}
-	if got, want := len(found), 2; got != want {
-		t.Fatalf("dev-cycle loops = %#v, want exactly %d bundled loops", found, want)
+	wantNames := []string{"implement-tasks", "orchestrate-tasks", "review-and-fix"}
+	if got, want := len(found), len(wantNames); got != want {
+		t.Fatalf("spec-cycle loops = %#v, want exactly %d bundled loops", found, want)
 	}
-	for _, name := range []string{"implement-tasks", "review-and-fix"} {
+	for _, name := range wantNames {
 		spec, ok := found[name]
 		if !ok {
-			t.Fatalf("dev-cycle loop %q missing from catalog; found %#v", name, found)
+			t.Fatalf("spec-cycle loop %q missing from catalog; found %#v", name, found)
 		}
-		if got, want := spec.InstalledFromExtension, devcycle.Name; got != want {
+		if got, want := spec.InstalledFromExtension, speccycle.Name; got != want {
 			t.Fatalf("%s installed_from_extension = %q, want %q", name, got, want)
 		}
 		if got, want := spec.Source, looppkg.SourceMarketplace; got != want {
@@ -426,14 +427,14 @@ func assertDevCycleLoopCatalog(
 	}
 }
 
-func loadRegisteredDevCycleExtensionSnapshot(
+func loadRegisteredSpecCycleExtensionSnapshot(
 	name string,
 	registry *extensionpkg.Registry,
 ) (*extensionpkg.Extension, error) {
-	if name != devcycle.Name {
+	if name != speccycle.Name {
 		return nil, extensionpkg.ErrExtensionNotFound
 	}
-	info, err := registry.Get(devcycle.Name)
+	info, err := registry.Get(speccycle.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +443,7 @@ func loadRegisteredDevCycleExtensionSnapshot(
 	if err != nil {
 		return nil, err
 	}
-	loops, err := loadDevCycleLoopResourceSpecs(rootDir, manifest)
+	loops, err := loadSpecCycleLoopResourceSpecs(rootDir, manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -461,7 +462,7 @@ func loadRegisteredDevCycleExtensionSnapshot(
 	}, nil
 }
 
-func loadDevCycleLoopResourceSpecs(
+func loadSpecCycleLoopResourceSpecs(
 	rootDir string,
 	manifest *extensionpkg.Manifest,
 ) ([]looppkg.ResourceSpec, error) {
@@ -477,7 +478,7 @@ func loadDevCycleLoopResourceSpecs(
 			}
 			spec, _, err := looppkg.ParseResourceFile(path, looppkg.ResourceParseOptions{
 				Source:                 looppkg.SourceMarketplace,
-				InstalledFromExtension: devcycle.Name,
+				InstalledFromExtension: speccycle.Name,
 			})
 			if err != nil {
 				return err

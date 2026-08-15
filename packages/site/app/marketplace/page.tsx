@@ -26,7 +26,7 @@ export default function MarketplacePage() {
 
       {/*
         Section order follows the reference marketplace: the highest-value first-party material leads
-        (there it was a Dev Cycle spotlight; here the honest equivalent is what already ships in the
+        (there it was a Spec Cycle spotlight; here the honest equivalent is what already ships in the
         binary), then bridge providers, then the three catalog feeds.
       */}
       <div className="mx-auto flex w-full max-w-site-layout-width flex-col gap-14 px-4 pt-14">

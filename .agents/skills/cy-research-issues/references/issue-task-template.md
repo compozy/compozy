@@ -29,8 +29,8 @@ complexity: [low | medium | high | critical]
 it matters. This is the issue's "Problem" statement.]
 
 <critical>
-- ALWAYS READ `_techspec.md` and `analysis/summary.md` before starting
-- REFERENCE the TechSpec section named below for the target design — do not re-derive it
+- ALWAYS READ `_spec.md` and `analysis/summary.md` before starting
+- REFERENCE the Spec section named below for the target design — do not re-derive it
 - FOCUS ON "WHAT" — subtasks describe outcomes, not implementation steps
 - MINIMIZE CODE in this file — evidence snippets only
 - TESTS REQUIRED — the Tests section below is the executor's test checklist; tests exist to find
@@ -62,7 +62,7 @@ it matters. This is the issue's "Problem" statement.]
 - [ ] NN.3 [Verification subtask when the task changes visible UI: capture screenshots]
 
 ## Implementation Details
-[Integration points and constraints. Reference `_techspec.md §<section>` for the design.
+[Integration points and constraints. Reference `_spec.md §<section>` for the design.
 List delete targets explicitly when replacing code — zero-legacy, no compat shims.]
 
 ### Relevant Files
@@ -95,14 +95,14 @@ List delete targets explicitly when replacing code — zero-legacy, no compat sh
 - All tests passing; coverage >=80% on touched packages
 - [Measurable outcome, e.g., "8 consecutive identical tool calls render as one grouped cluster"]
 - [For UI tasks: screenshot captured via the repo's UI-screenshot skill and cited]
-- [Observability/telemetry hooks landed when the parent techspec requires them]
+- [Observability/telemetry hooks landed when the parent spec requires them]
 ```
 
 ## Parser Rules
 
 - File name matches `task_\d+\.md` with zero-padded numbers (`task_01.md` … `task_99.md`). The
   `task_` prefix has no leading underscore; underscore-prefixed names are reserved for meta
-  documents (`_prd.md`, `_techspec.md`, `_tasks.md`).
+  documents (`_spec.md`, `_tasks.md`).
 - The file MUST start with YAML frontmatter containing **only** `status`, `title`, `type`,
   `complexity`. Never put `dependencies` in task frontmatter.
 - `title` must match the first H1 in the body.
@@ -168,6 +168,6 @@ graph:
   *issues*; the remaining sections make them *executable*. Both are mandatory.
 - Cross-surface work (backend contract changes) must name the codegen co-ship duty (OpenAPI + TS
   types + E2E mocks) inside Implementation Details.
-- Severity is expressed through `_tasks.md` ordering + the techspec waves, not a frontmatter field
+- Severity is expressed through `_tasks.md` ordering + the spec waves, not a frontmatter field
   (the parser does not know "severity"). Mention severity in Overview prose when useful.
-- Minimize code in task bodies; reference the TechSpec for patterns instead of duplicating them.
+- Minimize code in task bodies; reference the Spec for patterns instead of duplicating them.

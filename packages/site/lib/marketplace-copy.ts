@@ -5,6 +5,6 @@ export function marketplaceBridgesDescription(providerCount: number): string {
   return `Chat and tracker platforms your agents can live in: the ${providerCount} in-tree CompozyOS bridge providers, their secret slots, and their setup guides.`;
 }
 
-export function bundledDevCycleDescription(description: string): string {
+export function bundledSpecCycleDescription(description: string): string {
   return `${description} Bundled with the CompozyOS runtime and enrolled at first boot.`;
 }

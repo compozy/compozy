@@ -4,7 +4,7 @@ set -euo pipefail
 # Keep sibling peer-review validator copies in sync.
 
 usage() {
-  printf 'usage: %s --kind implementation|techspec --round N --path FILE\n' "$0" >&2
+  printf 'usage: %s --kind implementation|spec --round N --path FILE\n' "$0" >&2
 }
 
 kind=""
@@ -42,7 +42,7 @@ if [[ -z "$kind" || -z "$round" || -z "$path" ]]; then
   exit 2
 fi
 
-if [[ "$kind" != "implementation" && "$kind" != "techspec" ]]; then
+if [[ "$kind" != "implementation" && "$kind" != "spec" ]]; then
   printf 'invalid --kind: %s\n' "$kind" >&2
   exit 2
 fi
@@ -127,7 +127,7 @@ if [[ "$kind" == "implementation" ]]; then
   require_line '^# Risks[[:space:]]*$' '# Risks'
   require_section_item_or_none '# Risks' 'R'
 else
-  require_line '^readiness:[[:space:]]*(READY|BLOCKED|NEEDS_REWORK)[[:space:]]*$' 'techspec readiness'
+  require_line '^readiness:[[:space:]]*(READY|BLOCKED|NEEDS_REWORK)[[:space:]]*$' 'spec readiness'
 fi
 
 require_section_item_or_none '# Blockers' 'B'

@@ -5,9 +5,9 @@ import type { ChangelogRelease } from "@/lib/changelog/types";
 import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind-meta";
 import { docsGroupForUrl } from "@/lib/docs-navigation";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
-import { devCycleExtension } from "@/lib/marketplace-bundled";
+import { BUNDLED_SPEC_CYCLE_PATH, specCycleExtension } from "@/lib/marketplace-bundled";
 import {
-  bundledDevCycleDescription,
+  bundledSpecCycleDescription,
   MARKETPLACE_DESCRIPTION,
   marketplaceBridgesDescription,
 } from "@/lib/marketplace-copy";
@@ -248,10 +248,10 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
 
   const bundled: AdvancedIndex[] = [
     {
-      id: "/marketplace/bundled/dev-cycle",
-      url: "/marketplace/bundled/dev-cycle",
-      title: `${devCycleExtension.displayName} — Marketplace`,
-      description: bundledDevCycleDescription(devCycleExtension.description),
+      id: BUNDLED_SPEC_CYCLE_PATH,
+      url: BUNDLED_SPEC_CYCLE_PATH,
+      title: `${specCycleExtension.displayName} — Marketplace`,
+      description: bundledSpecCycleDescription(specCycleExtension.description),
       breadcrumbs: ["Marketplace"],
       tag: "Marketplace",
       structuredData: {
@@ -260,10 +260,10 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
           {
             heading: undefined,
             content: joinContent(
-              devCycleExtension.description,
-              devCycleExtension.statusCommand,
-              devCycleExtension.loops.map(loop => loop.name).join(", "),
-              devCycleExtension.skills.join(", ")
+              specCycleExtension.description,
+              specCycleExtension.statusCommand,
+              specCycleExtension.loops.map(loop => loop.name).join(", "),
+              specCycleExtension.skills.join(", ")
             ),
           },
         ],

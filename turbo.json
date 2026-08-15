@@ -62,10 +62,10 @@
                 "$TURBO_DEFAULT$",
                 "$TURBO_ROOT$/catalog/*.json",
                 "$TURBO_ROOT$/extensions/bridges/*/extension.toml",
-                "$TURBO_ROOT$/extensions/dev-cycle/extension.json",
-                "$TURBO_ROOT$/extensions/dev-cycle/loops/*/loop.yaml",
-                "$TURBO_ROOT$/extensions/dev-cycle/agents/*",
-                "$TURBO_ROOT$/extensions/dev-cycle/skills/*",
+                "$TURBO_ROOT$/extensions/spec-cycle/extension.json",
+                "$TURBO_ROOT$/extensions/spec-cycle/loops/*/loop.yaml",
+                "$TURBO_ROOT$/extensions/spec-cycle/agents/*",
+                "$TURBO_ROOT$/extensions/spec-cycle/skills/*",
                 "$TURBO_ROOT$/skills/*/SKILL.md"
             ],
             "outputs": ["out/**", ".next/**", "!.next/cache/**"]
@@ -93,10 +93,10 @@
                 "$TURBO_ROOT$/openapi/compozy.json",
                 "$TURBO_ROOT$/catalog/*.json",
                 "$TURBO_ROOT$/extensions/bridges/*/extension.toml",
-                "$TURBO_ROOT$/extensions/dev-cycle/extension.json",
-                "$TURBO_ROOT$/extensions/dev-cycle/loops/*/loop.yaml",
-                "$TURBO_ROOT$/extensions/dev-cycle/agents/*",
-                "$TURBO_ROOT$/extensions/dev-cycle/skills/*",
+                "$TURBO_ROOT$/extensions/spec-cycle/extension.json",
+                "$TURBO_ROOT$/extensions/spec-cycle/loops/*/loop.yaml",
+                "$TURBO_ROOT$/extensions/spec-cycle/agents/*",
+                "$TURBO_ROOT$/extensions/spec-cycle/skills/*",
                 "$TURBO_ROOT$/skills/*/SKILL.md"
             ],
             "outputs": []

@@ -55,7 +55,7 @@ Phase-specific addenda (append after the canonical sections):
   PASS evidence under `## Ready for Next Run`. A final FAIL appears only with
   a proven external blocker.
 - **Phase B mode=free**: add `## Slice Picked` (the exact text added to
-  `progress.checklist[]`) and `## Acceptance Mapping` (which techspec
+  `progress.checklist[]`) and `## Acceptance Mapping` (which spec
   acceptance criterion this slice advances).
 - **Phase C**: add `## QA Artifacts Produced` (paths under `docs/qa/`).
 - **Phase D**: each `## Round <N>` section records the verdict, the findings
@@ -75,7 +75,7 @@ A finding gets promoted to `MEMORY.md` `## Shared Decisions` or
 
 1. Another iteration would need this info to avoid the same mistake.
 2. It is durable across multiple iterations (not just this slice).
-3. It is not already obvious from `_techspec.md` or the repo.
+3. It is not already obvious from `_spec.md` or the repo.
 
 ## Compaction
 

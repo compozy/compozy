@@ -34,7 +34,7 @@ persona:
 persona:
   name: Lea
   base: New User
-  goal: "Evaluate whether Loops replaces my manual orchestration — run a default dev-cycle Loop once and decide if it's worth adopting."
+  goal: "Evaluate whether Loops replaces my manual orchestration — run a default spec-cycle Loop once and decide if it's worth adopting."
   device: laptop
   network: wifi-fast
   modality: mouse-keyboard
@@ -42,7 +42,7 @@ persona:
   patience_seconds: 60
 ```
 
-- **Who:** a Compozy user meeting Loops for the first time. Arrives at the catalog, expects arrive-and-use to be **no harder than Compozy today** — if running a default-enrolled `dev-cycle` Loop is one step harder, she abandons and the design failed (use-cases §2, PRD Time-to-value).
+- **Who:** a Compozy user meeting Loops for the first time. Arrives at the catalog, expects arrive-and-use to be **no harder than Compozy today** — if running a default-enrolled `spec-cycle` Loop is one step harder, she abandons and the design failed (use-cases §2, PRD Time-to-value).
 - **What they reveal:** onboarding friction on the catalog → run-form → run path, unclear primary action, confusing input form, the "what will this cost / how do I stop it" first-run anxiety, empty states.
 - **Owns journeys:** J-01 arrive-and-use, J-02 dry-run; **J-26 first conversational Goal/replace/draft**.
 

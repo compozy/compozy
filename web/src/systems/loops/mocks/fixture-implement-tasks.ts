@@ -1,4 +1,5 @@
 import type { LoopDefinitionGraph } from "../types";
+import { SPEC_CYCLE_IMPORT_TASKS_KIND } from "./fixture-action-kinds";
 
 const executeTaskPrompt = `Kickoff directive:
 Begin work on {{ .item.title }} immediately. This run is the operator's authorization
@@ -27,7 +28,7 @@ Workflow memory:
 
 Scope and tracking:
 - Read repository AGENTS.md/CLAUDE.md and surface-specific instructions before editing.
-- Read .compozy/tasks/{{ .inputs.slug }}/_techspec.md and _tasks.md when present and
+- Read .compozy/tasks/{{ .inputs.slug }}/_spec.md and _tasks.md when present and
   treat them plus the task body below as the source of truth.
 - Keep scope tight to this task; record meaningful follow-up work instead of expanding
   scope silently.
@@ -64,7 +65,7 @@ export const implementTasksGraph = {
     {
       id: "load_tasks",
       class: "action",
-      kind: "ext__dev_cycle__import_tasks",
+      kind: SPEC_CYCLE_IMPORT_TASKS_KIND,
       params: { pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md" },
       produces: { tasks: "array" },
     },

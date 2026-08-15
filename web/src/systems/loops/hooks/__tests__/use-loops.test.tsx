@@ -70,16 +70,19 @@ describe("loop read hooks", () => {
   });
 
   it("Should fetch the catalog through useLoops", async () => {
+    // Invariant: the hook returns every catalog row and derives totals/facets from the server page.
+    // The read-hook suite owns this boundary; adapter fixture shape stays covered in loops-api.test.
     const { result } = renderHook(() => useLoops(WS), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.loops.map(loop => loop.name)).toEqual([
       "implement-tasks",
+      "orchestrate-tasks",
       "review-and-fix",
     ]);
-    expect(result.current.total).toBe(2);
+    expect(result.current.total).toBe(3);
     expect(result.current.facets).toEqual({
-      categories: { Engineering: 2 },
-      kinds: { read_only: 2 },
+      categories: { Engineering: 3 },
+      kinds: { read_only: 3 },
       statuses: { running: 2 },
     });
   });

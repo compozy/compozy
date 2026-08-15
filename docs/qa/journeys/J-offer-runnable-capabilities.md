@@ -5,7 +5,7 @@ skills truthfully listed as inactive-with-reason — and a dead extension/bridge
 stop being hammered, stay diagnosable, and auto-recover on success without a daemon restart.
 Covers US-011 (ADR-009 §2 + ADR-010 §5, Safety Invariant 20).
 
-The v0.3 migration adds one exact immutable dev-cycle bundle: eight `cy-*` workflow skills plus
+The v0.3 migration adds one exact immutable spec-cycle bundle: eight `cy-*` workflow skills plus
 `git-rebase`. They publish globally into managed sessions, allow workspace-local shadowing without
 mutating the global source, and never recreate an extension-owned `compozy` skill or external CLI
 installer.
@@ -16,7 +16,7 @@ flowchart TD
     CB --> ABS[Skill absent from the advertised set and agent prompt]
     CB --> LST[Management surfaces list it as inactive with the unmet gate named]
     E2[Entry: skill requires_tools naming an unavailable tool] --> CB
-    E4[Entry: enroll dev-cycle] --> NINE[Publish exactly nine immutable bundled skills globally]
+    E4[Entry: enroll spec-cycle] --> NINE[Publish exactly nine immutable bundled skills globally]
     NINE --> PROJ[Managed session projects all nine; workspace override shadows locally only]
     PROJ --> TE
     LST --> FIX[Operator makes the required tool available]
@@ -48,7 +48,7 @@ journey:
       origin: direct
     - url: "HTTP/UDS: GET /api/skills; GET /api/settings/mcp-servers; web /skills and /mcp"
       origin: in-app-nav
-    - url: "dev-cycle extension resources; compozy extension list; managed-session prompt"
+    - url: "spec-cycle extension resources; compozy extension list; managed-session prompt"
       origin: direct
   actions:
     - step: 1
@@ -64,12 +64,12 @@ journey:
       verb: "Repair the sidecar and wait for one due probe"
       expected_observable: "Success auto-clears the mark and restores normal cadence — no daemon restart, no manual revive control"
     - step: 5
-      verb: "Enroll dev-cycle and inspect its managed-session skills"
-      expected_observable: "Exactly cy-create-prd, cy-create-techspec, cy-create-tasks, cy-execute-task, cy-workflow-memory, cy-review-round, cy-fix-reviews, cy-final-verify, and git-rebase project from immutable global resources; one workspace override does not change another workspace"
+      verb: "Enroll spec-cycle and inspect its managed-session skills"
+      expected_observable: "Exactly cy-create-spec, cy-create-tasks, cy-execute-task, cy-workflow-memory, cy-orchestrate-tasks, cy-review-round, cy-fix-reviews, cy-final-verify, and git-rebase project from immutable global resources; one workspace override does not change another workspace"
   goal:
     observable: "Advertised set = runnable set; dead entity suppressed then self-recovered"
     side_effects: [dead-entity-mark-clear-events, catalog-rebuild]
-  true_end_state: "Fresh catalog, status, doctor, extension, and managed-session reads agree: gated skills are inactive-with-reason, the revived sidecar is ready, the exact nine dev-cycle skills remain immutable and workspace-isolated, no duplicate official skill exists, and the measured advertised-token count dropped on the gated fixture."
+  true_end_state: "Fresh catalog, status, doctor, extension, and managed-session reads agree: gated skills are inactive-with-reason, the revived sidecar is ready, the exact nine spec-cycle skills remain immutable and workspace-isolated, no duplicate official skill exists, and the measured advertised-token count dropped on the gated fixture."
   exit:
     natural: "The agent proceeds with a truthful capability set; the operator trusts diagnostics over restarts."
   abandonment:
@@ -82,6 +82,6 @@ journey:
 ## Migration coverage
 
 - Safety invariant 12 and ADR-004 own the exact nine-skill bundle and immutable global source.
-- `ET-dev-cycle-skill-bundle` and `ET-dev-cycle-legacy-skill-retired` are the candidate rows.
+- `ET-spec-cycle-skill-bundle` and `ET-spec-cycle-legacy-skill-retired` are the candidate rows.
 - `cy-capture-decisions`, every tenth skill, external CLI home writes, and an extension-owned
   `compozy` skill are explicit negative controls.

@@ -18,7 +18,7 @@ provider and command selected for their agents.
 
 ## Reproduction
 
-1. Enable the bundled `dev-cycle` extension.
+1. Enable the bundled `spec-cycle` extension.
 2. Update one of its published agents through `PUT /api/agents/:name` with the current definition
    digest and a deterministic ACP fixture command.
 3. Trigger extension resource reconcile, then read or execute the agent again.

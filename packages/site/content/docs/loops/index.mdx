@@ -67,17 +67,20 @@ Loop domain lives entirely in the runtime.
 
 ## Arrive and use
 
-The common path never touches a graph. On a fresh CompozyOS home, the bundled `dev-cycle` extension
-is installed enabled, so its two first-party Loops can run directly — supply a couple of inputs and
+The common path never touches a graph. On a fresh CompozyOS home, the bundled `spec-cycle` extension
+is installed enabled, so its three first-party Loops can run directly — supply a couple of inputs and
 go:
 
 - **`implement-tasks`** — implements already-authored tasks in dependency order. Each task run
   performs its focused validation and tracking updates before the Loop collects the results.
+- **`orchestrate-tasks`** — delegates the same authored tasks instead of fanning out over them: an
+  orchestrator agent spawns one bounded worker session per task, waits for it, checks the task file
+  on disk, and stops the session before moving on.
 - **`review-and-fix`** — asks the configured reviewer agent to inspect a named task, records its
   structured findings as `.compozy/tasks/<task>/reviews-NNN/issue_NNN.md` files, remediates complete
   artifact batches, and repeats until a new review generation returns no issues.
 
-If you disable `dev-cycle`, those Loops, their default agents, and their artifact tools leave the
+If you disable `spec-cycle`, those Loops, their default agents, and their artifact tools leave the
 catalog together. Later daemon starts and extension updates preserve that choice; CompozyOS does not
 silently re-enable it. Enabling it restores the package.
 

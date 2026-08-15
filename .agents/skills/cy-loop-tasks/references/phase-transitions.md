@@ -39,7 +39,7 @@ filesystem truth.
 - Phase 0 exits once `init-state.py` has written `state.yaml`; the next
   iteration enters B (via **continue**, not a restart).
 - Phase B covers exactly one task or slice per iteration. In free mode,
-  `--deliverables-complete` (set only when every techspec acceptance
+  `--deliverables-complete` (set only when every spec acceptance
   criterion has a completed checklist entry) moves the loop to C.
 - Phase C produces exactly one QA artifact per iteration, `qa_report` first.
   In mode=tasks the corresponding QA task is also marked completed so

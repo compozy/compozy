@@ -192,7 +192,7 @@ the unavailable result as terminal and read the catalog again.
 
 The bundled `compozy` skill ships `SKILL.md` plus flat `references/*.md` resources.
 
-Bundled `dev-cycle` globally publishes exactly `cy-create-prd`, `cy-create-techspec`, `cy-create-tasks`, `cy-execute-task`, `cy-workflow-memory`, `cy-review-round`, `cy-fix-reviews`, `cy-final-verify`, and `git-rebase` to managed sessions. Operators inspect them with `compozy skill list|view`; managed sessions use the native skill tools. Workspace definitions shadow only locally.
+Bundled `spec-cycle` globally publishes exactly `cy-create-spec`, `cy-create-tasks`, `cy-execute-task`, `cy-orchestrate-tasks`, `cy-workflow-memory`, `cy-review-round`, `cy-fix-reviews`, `cy-final-verify`, and `git-rebase` to managed sessions. Operators inspect them with `compozy skill list|view`; managed sessions use the native skill tools. Workspace definitions shadow only locally.
 
 ## Skill Provenance And Shadows
 

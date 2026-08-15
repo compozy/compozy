@@ -4,6 +4,7 @@ import { expectFetchRequest, fetchRequest, mockJsonResponse } from "@/test/fetch
 import { createMswFetch } from "@/test/msw-fetch";
 import { handlers } from "@/systems/loops/mocks";
 import { loopEffectiveConfigFixture } from "@/systems/loops/mocks/fixtures";
+import { SPEC_CYCLE_IMPORT_TASKS_KIND } from "@/systems/loops/mocks/fixture-action-kinds";
 import {
   LoopsApiError,
   approveLoopRun,
@@ -337,8 +338,14 @@ describe("loops-api (against MSW mock handlers)", () => {
   });
 
   it("Should resolve the catalog, a definition, runs and a run detail from the fixtures", async () => {
+    // Invariant: the adapter fixture catalog mirrors every bundled spec-cycle Loop and exposes
+    // each real graph. This adapter suite owns the public mock HTTP boundary.
     const loops = await listLoops(WS);
-    expect(loops.loops.map(loop => loop.name)).toEqual(["implement-tasks", "review-and-fix"]);
+    expect(loops.loops.map(loop => loop.name)).toEqual([
+      "implement-tasks",
+      "orchestrate-tasks",
+      "review-and-fix",
+    ]);
 
     const detail = await getLoop(WS, "implement-tasks");
     expect(detail.definition.meta.name).toBe("implement-tasks");
@@ -350,6 +357,11 @@ describe("loops-api (against MSW mock handlers)", () => {
       "implement",
       "execute_task",
       "collect",
+    ]);
+    const orchestrateDetail = await getLoop(WS, "orchestrate-tasks");
+    expect(orchestrateDetail.definition.graph.nodes.map(node => node.id)).toEqual([
+      "slug_input",
+      "orchestrate",
     ]);
 
     const runs = await listLoopRuns(WS, { loop: "implement-tasks" });
@@ -428,7 +440,7 @@ describe("loops-api (against MSW mock handlers)", () => {
       {
         id: "load_tasks",
         class: "action",
-        kind: "ext__dev_cycle__import_tasks",
+        kind: SPEC_CYCLE_IMPORT_TASKS_KIND,
         depends_on: ["slug_input"],
       },
       {

@@ -43,7 +43,7 @@ import { BRIDGE_LOGOS } from "../marketplace-bridge-logos";
 import { bridgeProviders, findBridgeProvider, readBridgeProviders } from "../marketplace-bridges";
 import {
   bundledSkills,
-  devCycleExtension,
+  specCycleExtension,
   parseBundledSkillFrontmatter,
 } from "../marketplace-bundled";
 import {
@@ -614,9 +614,9 @@ describe("marketplace bridge providers", () => {
 });
 
 describe("marketplace bundled resources", () => {
-  it("derives the dev-cycle inventory from its manifest and directories", () => {
-    const devCycleRoot = resolve(repoRoot, "extensions", "dev-cycle");
-    const manifest = JSON.parse(readFileSync(resolve(devCycleRoot, "extension.json"), "utf8")) as {
+  it("derives the spec-cycle inventory from its manifest and directories", () => {
+    const specCycleRoot = resolve(repoRoot, "extensions", "spec-cycle");
+    const manifest = JSON.parse(readFileSync(resolve(specCycleRoot, "extension.json"), "utf8")) as {
       extension: {
         name: string;
         version: string;
@@ -632,13 +632,13 @@ describe("marketplace bundled resources", () => {
       };
     };
     const loopDirectories = manifest.resources.loops.flatMap(parent =>
-      readdirSync(resolve(devCycleRoot, parent), { withFileTypes: true })
+      readdirSync(resolve(specCycleRoot, parent), { withFileTypes: true })
         .filter(entry => entry.isDirectory())
         .map(entry => ({ parent, name: entry.name }))
     );
     const loops = loopDirectories.map(({ parent, name }) => {
       const loop = parseYaml(
-        readFileSync(resolve(devCycleRoot, parent, name, "loop.yaml"), "utf8")
+        readFileSync(resolve(specCycleRoot, parent, name, "loop.yaml"), "utf8")
       ) as {
         meta: {
           name: string;
@@ -654,26 +654,26 @@ describe("marketplace bundled resources", () => {
       };
     });
 
-    expect(devCycleExtension).toMatchObject({
+    expect(specCycleExtension).toMatchObject({
       name: manifest.extension.name,
       version: manifest.extension.version,
       description: manifest.extension.description,
       minCompozyVersion: manifest.extension.min_compozy_version,
       provides: manifest.capabilities.provides,
       loops,
-      skills: manifestDirectories(devCycleRoot, manifest.resources.skills),
-      agents: manifestDirectories(devCycleRoot, manifest.resources.agents),
+      skills: manifestDirectories(specCycleRoot, manifest.resources.skills),
+      agents: manifestDirectories(specCycleRoot, manifest.resources.agents),
     });
-    expect(devCycleExtension.tools).toHaveLength(Object.keys(manifest.resources.tools).length);
+    expect(specCycleExtension.tools).toHaveLength(Object.keys(manifest.resources.tools).length);
   });
 
   it("offers inspection instead of an install command for bundled resources", () => {
-    // dev-cycle is enrolled from the binary at first boot (SourceBundled), so an install command
+    // spec-cycle is enrolled from the binary at first boot (SourceBundled), so an install command
     // would be false and a feed entry would collide with that managed install.
-    expect(devCycleExtension.statusCommand).toBe(
-      `compozy extension status ${devCycleExtension.name}`
+    expect(specCycleExtension.statusCommand).toBe(
+      `compozy extension status ${specCycleExtension.name}`
     );
-    expect(findEntry("extensions", devCycleExtension.name)).toBeUndefined();
+    expect(findEntry("extensions", specCycleExtension.name)).toBeUndefined();
   });
 
   it("reads every bundled skill's identity from its SKILL.md", () => {

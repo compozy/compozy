@@ -37,7 +37,7 @@ Model/harness rules (non-negotiable):
 - **Escalate a slice to Opus** — `--ide claude --model opus --reasoning-effort xhigh` — only when it
   needs maximal citation precision (a subtle multi-file bug trace whose fix hinges on exact lines).
 - GLM output can carry cosmetic identifier typos (dropped letters, e.g. `atempt`, `Qued`); the
-  parent MUST spot-check every cited `path:line` before promoting a finding into the techspec/tasks.
+  parent MUST spot-check every cited `path:line` before promoting a finding into the spec/tasks.
 
 ### Scoped-write contract (embed in every dispatch prompt)
 
@@ -80,7 +80,7 @@ Gaps & Risks · 6. Recommendations · 7. Reference Index.
 
 Artifact in English. Cite evidence as repo-relative paths with line numbers (path:line). The
 Reference Index must be an exhaustive table (path + one-line role). Be exhaustive and concrete —
-this document feeds a techspec and task files authored without re-reading the code.
+this document feeds a spec and task files authored without re-reading the code.
 
 Scoped-write contract: you are read-only over source. Write EXACTLY ONE file — the target path
 above — and nothing else. Never edit any other file, never write outside the analysis directory,

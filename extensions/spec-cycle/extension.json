@@ -1,0 +1,228 @@
+{
+    "extension": {
+        "name": "spec-cycle",
+        "version": "0.4.0",
+        "description": "First-party developer Loops for task delivery and review remediation.",
+        "min_compozy_version": "0.0.9"
+    },
+    "capabilities": {
+        "provides": ["tool.provider"]
+    },
+    "permissions": {
+        "requires": []
+    },
+    "resources": {
+        "skills": ["skills"],
+        "loops": ["loops"],
+        "agents": ["agents"],
+        "tools": {
+            "import_tasks": {
+                "display_title": "Import CompozyOS task files",
+                "description": "Parse a CompozyOS task manifest and task markdown files into ordered pending task payloads.",
+                "handler": "import_tasks",
+                "risk": "read",
+                "read_only": true,
+                "concurrency_safe": true,
+                "visibility": "model",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["pattern"],
+                    "properties": {
+                        "pattern": { "type": "string", "minLength": 1 }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["tasks", "count"],
+                    "properties": {
+                        "tasks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                    "id",
+                                    "number",
+                                    "title",
+                                    "type",
+                                    "complexity",
+                                    "path",
+                                    "body",
+                                    "body_ref",
+                                    "blocks"
+                                ],
+                                "properties": {
+                                    "id": { "type": "string" },
+                                    "number": { "type": "integer" },
+                                    "title": { "type": "string" },
+                                    "type": { "type": "string" },
+                                    "complexity": { "type": "string" },
+                                    "runtime": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "provider": { "type": "string" },
+                                            "model": { "type": "string" },
+                                            "reasoning": { "type": "string" }
+                                        }
+                                    },
+                                    "path": { "type": "string" },
+                                    "body": { "type": "string" },
+                                    "body_ref": { "type": "string" },
+                                    "blocks": {
+                                        "type": "array",
+                                        "items": { "type": "string" }
+                                    }
+                                }
+                            }
+                        },
+                        "count": { "type": "integer", "minimum": 0 }
+                    }
+                },
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "import_tasks"
+                }
+            },
+            "write_review_artifacts": {
+                "display_title": "Write review artifacts",
+                "description": "Write agent-authored review issues to a new workspace-scoped review round.",
+                "handler": "write_review_artifacts",
+                "risk": "mutating",
+                "read_only": false,
+                "concurrency_safe": true,
+                "visibility": "model",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["task_name", "issues"],
+                    "properties": {
+                        "task_name": { "type": "string", "minLength": 1 },
+                        "issues": {
+                            "type": "array",
+                            "items": { "$ref": "#/$defs/review_issue" }
+                        }
+                    },
+                    "$defs": {
+                        "review_issue": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["title", "body", "severity"],
+                            "properties": {
+                                "title": { "type": "string", "minLength": 1 },
+                                "body": { "type": "string", "minLength": 1 },
+                                "severity": { "type": "string", "minLength": 1 },
+                                "file": { "type": "string" },
+                                "line": { "type": "integer", "minimum": 1 },
+                                "author": { "type": "string" }
+                            }
+                        }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["task_name", "round", "files", "batches", "issues", "count"],
+                    "properties": {
+                        "task_name": { "type": "string" },
+                        "round": { "type": "integer", "minimum": 0 },
+                        "round_dir": { "type": "string" },
+                        "files": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["path", "file"],
+                                "properties": {
+                                    "path": { "type": "string" },
+                                    "file": { "type": "string" }
+                                }
+                            }
+                        },
+                        "batches": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["file", "issue_files"],
+                                "properties": {
+                                    "file": { "type": "string" },
+                                    "issue_files": {
+                                        "type": "array",
+                                        "items": { "type": "string" }
+                                    }
+                                }
+                            }
+                        },
+                        "issues": {
+                            "type": "array",
+                            "items": { "$ref": "#/$defs/review_issue" }
+                        },
+                        "count": { "type": "integer", "minimum": 0 }
+                    },
+                    "$defs": {
+                        "review_issue": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["title", "body", "severity"],
+                            "properties": {
+                                "title": { "type": "string" },
+                                "body": { "type": "string" },
+                                "severity": { "type": "string" },
+                                "file": { "type": "string" },
+                                "line": { "type": "integer" },
+                                "author": { "type": "string" }
+                            }
+                        }
+                    }
+                },
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "write_review_artifacts"
+                }
+            },
+            "finalize_review_round": {
+                "display_title": "Finalize review round",
+                "description": "Finalize triaged issue statuses in one workspace-scoped review round.",
+                "handler": "finalize_review_round",
+                "risk": "mutating",
+                "read_only": false,
+                "concurrency_safe": false,
+                "visibility": "model",
+                "input_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["task_name", "round"],
+                    "properties": {
+                        "task_name": { "type": "string", "minLength": 1 },
+                        "round": { "type": "integer", "minimum": 1 }
+                    }
+                },
+                "output_schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["task_name", "round", "resolved", "invalid", "pending"],
+                    "properties": {
+                        "task_name": { "type": "string" },
+                        "round": { "type": "integer", "minimum": 1 },
+                        "resolved": { "type": "integer", "minimum": 0 },
+                        "invalid": { "type": "integer", "minimum": 0 },
+                        "pending": { "type": "integer", "minimum": 0 }
+                    }
+                },
+                "backend": {
+                    "kind": "extension_host",
+                    "handler": "finalize_review_round"
+                }
+            }
+        }
+    },
+    "subprocess": {
+        "command": "{{compozy_executable}}",
+        "args": ["__internal", "extension-provider", "spec-cycle"],
+        "health_check_interval": "30s",
+        "shutdown_timeout": "5s"
+    }
+}

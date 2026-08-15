@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
@@ -71,7 +71,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		if _, ok := source.Snapshot("not a valid tool id"); ok {
 			t.Fatal("Snapshot(invalid id) ok = true, want false")
 		}
-		if _, ok := source.Snapshot("ext__dev_cycle__missing"); ok {
+		if _, ok := source.Snapshot("ext__spec_cycle__missing"); ok {
 			t.Fatal("Snapshot(unknown id) ok = true, want false")
 		}
 	})
@@ -105,11 +105,11 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		}
 	})
 
-	t.Run("Should compile implement-tasks through registry backed dev-cycle schemas", func(t *testing.T) {
+	t.Run("Should compile implement-tasks through registry backed spec-cycle schemas", func(t *testing.T) {
 		t.Parallel()
 
-		source := newBundledDevCycleLoopSchemaSource(t)
-		data, err := fs.ReadFile(devcycle.FS(), "loops/implement-tasks/loop.yaml")
+		source := newBundledSpecCycleLoopSchemaSource(t)
+		data, err := fs.ReadFile(speccycle.FS(), "loops/implement-tasks/loop.yaml")
 		if err != nil {
 			t.Fatalf("ReadFile(implement-tasks loop) error = %v", err)
 		}
@@ -118,7 +118,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 			Source:                 looppkg.SourceMarketplace,
 			Dir:                    "loops/implement-tasks",
 			FilePath:               "loops/implement-tasks/loop.yaml",
-			InstalledFromExtension: devcycle.Name,
+			InstalledFromExtension: speccycle.Name,
 			Linter:                 linter,
 		})
 		if err != nil {
@@ -138,22 +138,22 @@ func TestLoopToolSchemaSource(t *testing.T) {
 	})
 }
 
-type devCycleLoopSchemaRuntime struct {
+type specCycleLoopSchemaRuntime struct {
 	extension   *extensionpkg.Extension
 	descriptors []toolspkg.ExtensionToolRuntimeDescriptor
 }
 
-var _ extensionpkg.ExtensionToolRuntime = (*devCycleLoopSchemaRuntime)(nil)
+var _ extensionpkg.ExtensionToolRuntime = (*specCycleLoopSchemaRuntime)(nil)
 
-func (r *devCycleLoopSchemaRuntime) Get(name string) (*extensionpkg.Extension, error) {
-	if name != devcycle.Name {
+func (r *specCycleLoopSchemaRuntime) Get(name string) (*extensionpkg.Extension, error) {
+	if name != speccycle.Name {
 		return nil, extensionpkg.ErrExtensionNotFound
 	}
 	extension := *r.extension
 	return &extension, nil
 }
 
-func (r *devCycleLoopSchemaRuntime) ProvideTools(
+func (r *specCycleLoopSchemaRuntime) ProvideTools(
 	context.Context,
 	string,
 ) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
@@ -165,15 +165,15 @@ func (r *devCycleLoopSchemaRuntime) ProvideTools(
 	return descriptors, nil
 }
 
-func (r *devCycleLoopSchemaRuntime) CallTool(
+func (r *specCycleLoopSchemaRuntime) CallTool(
 	context.Context,
 	string,
 	toolspkg.ExtensionToolCallRequest,
 ) (toolspkg.ToolResult, error) {
-	return toolspkg.ToolResult{}, errors.New("unexpected dev-cycle tool call")
+	return toolspkg.ToolResult{}, errors.New("unexpected spec-cycle tool call")
 }
 
-func newBundledDevCycleLoopSchemaSource(t *testing.T) looppkg.ToolSchemaSource {
+func newBundledSpecCycleLoopSchemaSource(t *testing.T) looppkg.ToolSchemaSource {
 	t.Helper()
 
 	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -191,13 +191,13 @@ func newBundledDevCycleLoopSchemaSource(t *testing.T) looppkg.ToolSchemaSource {
 	})
 
 	extensionRegistry := extensionpkg.NewRegistry(globalDB.DB())
-	if err := devcycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
+	if err := speccycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
 		t.Fatalf("EnsureManagedInstall() error = %v", err)
 	}
-	if err := extensionRegistry.Enable(devcycle.Name); err != nil {
-		t.Fatalf("registry.Enable(%q) error = %v", devcycle.Name, err)
+	if err := extensionRegistry.Enable(speccycle.Name); err != nil {
+		t.Fatalf("registry.Enable(%q) error = %v", speccycle.Name, err)
 	}
-	runtime := newDevCycleLoopSchemaRuntime(t, extensionRegistry)
+	runtime := newSpecCycleLoopSchemaRuntime(t, extensionRegistry)
 	provider, err := extensionpkg.NewExtensionToolProvider(extensionRegistry, func() extensionpkg.ExtensionToolRuntime {
 		return runtime
 	})
@@ -214,15 +214,15 @@ func newBundledDevCycleLoopSchemaSource(t *testing.T) looppkg.ToolSchemaSource {
 	return newLoopToolSchemaSource(t.Context(), toolRegistry)
 }
 
-func newDevCycleLoopSchemaRuntime(
+func newSpecCycleLoopSchemaRuntime(
 	t *testing.T,
 	registry *extensionpkg.Registry,
-) *devCycleLoopSchemaRuntime {
+) *specCycleLoopSchemaRuntime {
 	t.Helper()
 
-	info, err := registry.Get(devcycle.Name)
+	info, err := registry.Get(speccycle.Name)
 	if err != nil {
-		t.Fatalf("registry.Get(%q) error = %v", devcycle.Name, err)
+		t.Fatalf("registry.Get(%q) error = %v", speccycle.Name, err)
 	}
 	manifest, err := extensionpkg.LoadManifest(filepath.Dir(info.ManifestPath))
 	if err != nil {
@@ -237,7 +237,7 @@ func newDevCycleLoopSchemaRuntime(
 		runtimeDescriptors = append(runtimeDescriptors, toolDescriptors[i].RuntimeDescriptor)
 	}
 
-	return &devCycleLoopSchemaRuntime{
+	return &specCycleLoopSchemaRuntime{
 		extension: &extensionpkg.Extension{
 			Info:     *info,
 			Manifest: manifest,
@@ -252,7 +252,7 @@ func newDevCycleLoopSchemaRuntime(
 				},
 			},
 			Status: extensionpkg.ExtensionStatus{
-				Name:    devcycle.Name,
+				Name:    speccycle.Name,
 				Version: info.Version,
 				Source:  info.Source,
 				Enabled: true,
@@ -319,7 +319,7 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 	t.Helper()
 
 	descriptor := toolspkg.Descriptor{
-		ID:           "ext__dev_cycle__finalize_review_round",
+		ID:           "ext__spec_cycle__finalize_review_round",
 		DisplayTitle: "Finalize review round",
 		Description:  "Resolve triaged review issue artifacts.",
 		InputSchema: json.RawMessage(
@@ -334,7 +334,7 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 		},
 		Source: toolspkg.SourceRef{
 			Kind:  toolspkg.SourceExtension,
-			Owner: "dev-cycle",
+			Owner: "spec-cycle",
 		},
 		Visibility:      toolspkg.VisibilityModel,
 		Risk:            toolspkg.RiskMutating,

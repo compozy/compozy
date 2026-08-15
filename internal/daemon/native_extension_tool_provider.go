@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	devCycleImportTasksToolID          toolspkg.ToolID = "ext__dev_cycle__import_tasks"
-	devCycleWriteReviewArtifactsToolID toolspkg.ToolID = "ext__dev_cycle__write_review_artifacts"
-	devCycleFinalizeReviewRoundToolID  toolspkg.ToolID = "ext__dev_cycle__finalize_review_round"
+	specCycleImportTasksToolID          toolspkg.ToolID = "ext__spec_cycle__import_tasks"
+	specCycleWriteReviewArtifactsToolID toolspkg.ToolID = "ext__spec_cycle__write_review_artifacts"
+	specCycleFinalizeReviewRoundToolID  toolspkg.ToolID = "ext__spec_cycle__finalize_review_round"
 )
 
 type daemonExtensionToolProvider struct {
@@ -157,9 +157,9 @@ func (h *daemonExtensionToolHandle) workspaceScopedCallRequest(
 	req toolspkg.CallRequest,
 ) (toolspkg.CallRequest, error) {
 	switch req.ToolID {
-	case devCycleImportTasksToolID:
+	case specCycleImportTasksToolID:
 		return h.workspaceScopedImportTasksCallRequest(ctx, req)
-	case devCycleWriteReviewArtifactsToolID, devCycleFinalizeReviewRoundToolID:
+	case specCycleWriteReviewArtifactsToolID, specCycleFinalizeReviewRoundToolID:
 		return h.attachTrustedWorkspace(ctx, req)
 	default:
 		if strings.TrimSpace(req.WorkspaceID) == "" {

@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status: blocked-verify
 fix_commits:
-evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-skill-disabled.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-dev-cycle-trust.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-mcp-playwright-installed.png
+evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-skill-disabled.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-spec-cycle-trust.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-mcp-playwright-installed.png
 last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
 overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-matrix
 ---
@@ -72,7 +72,7 @@ of install copy. This scenario remains untested for a fresh Skill toggle, Extens
 refresh, and exact-scope management walk.
 
 QA completion: blocked-verify 2026-08-10 — Bruno toggled the bundled `compozy` skill, confirmed the `Disabled` label
-survived reload, and restored `Enabled`; disabled and restored `dev-cycle` while runtime health and
+survived reload, and restored `Enabled`; disabled and restored `spec-cycle` while runtime health and
 official trust stayed truthful; then installed Playwright in workspace scope and inspected its
 installed stdio detail. The isolated catalog exposed no extension update candidate, so the remaining
 update branch could not be walked without fabricated state; its detail contract is tracked by

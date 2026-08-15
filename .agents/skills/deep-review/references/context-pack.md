@@ -67,7 +67,7 @@ With `--pr`: title, description, linked issues (`gh pr view N --json title,body,
 
 ## 5. Spec contract (`--spec`)
 
-Resolve the conformance baseline: a file path is itself the artifact; a directory contributes its contract-bearing documents — `_prd.md`, `_techspec.md`, `_tests.md`, `_examples.md`, `_qa.md`, `_user_stories.md`, parity maps, requirement/UX docs, plus any document the spec's own files name as canonical. List every resolved artifact as `path → one-line role`. These are the baseline the `spec-parity` sweep judges against — do NOT extract rubric rules from them: §1 sources are review law, the spec is the contract under test.
+Resolve the conformance baseline: a file path is itself the artifact; a directory contributes its contract-bearing documents — `_spec.md`, `_dx.md`, `_uiux.md`, `_tests.md`, `_examples.md`, `_qa.md`, `_user_stories.md`, parity maps, requirement/UX docs, plus any document the spec's own files name as canonical. List every resolved artifact as `path → one-line role`. These are the baseline the `spec-parity` sweep judges against — do NOT extract rubric rules from them: §1 sources are review law, the spec is the contract under test.
 
 ## 6. context-pack.md layout
 

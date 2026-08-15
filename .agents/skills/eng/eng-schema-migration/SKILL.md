@@ -20,5 +20,5 @@ trigger: implicit
 
 - Stop on any `atlas.sum` mismatch or edited historical byte. Restore the exact unpublished history or append a new migration; never weaken validation or edit a Goose version table.
 - Resolve destructive Atlas diagnostics in the design. Do not suppress sqlcheck to force generation.
-- Document every greenfield hard cut and delete target in the TechSpec/ADR. Do not ship aliases, dual schemas, or open-ended repair branches.
+- Document every greenfield hard cut and delete target in the spec/ADR. Do not ship aliases, dual schemas, or open-ended repair branches.
 - Treat a pre-Goose marker as `legacy_database` and a recorded version above the embedded head as `schema_ahead`; neither condition authorizes in-place mutation.

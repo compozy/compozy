@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -44,8 +44,8 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
-		requireDevCycleExtensionEnabled(t, ctx, harness)
-		assertDevCycleE2ECatalogPresence(t, ctx, harness, true)
+		requireSpecCycleExtensionEnabled(t, ctx, harness)
+		assertSpecCycleE2ECatalogPresence(t, ctx, harness, true)
 
 		const agentName = "code_implementer"
 		var before compozycontract.AgentResponse
@@ -148,18 +148,18 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 			!reflect.DeepEqual(afterRestart.Agent.CategoryPath, []string{"CompozyOS"}) {
 			t.Fatalf("post-restart extension agent = %#v, want persisted update %#v", afterRestart.Agent, updated.Agent)
 		}
-		disabled, err := restarted.DisableExtension(ctx, devcycle.Name)
+		disabled, err := restarted.DisableExtension(ctx, speccycle.Name)
 		if err != nil {
-			t.Fatalf("DisableExtension(%s) error = %v", devcycle.Name, err)
+			t.Fatalf("DisableExtension(%s) error = %v", speccycle.Name, err)
 		}
 		if disabled.Enabled {
-			t.Fatalf("DisableExtension(%s) = %#v, want disabled", devcycle.Name, disabled)
+			t.Fatalf("DisableExtension(%s) = %#v, want disabled", speccycle.Name, disabled)
 		}
-		assertDevCycleE2ECatalogPresence(t, ctx, restarted, false)
+		assertSpecCycleE2ECatalogPresence(t, ctx, restarted, false)
 	})
 }
 
-func assertDevCycleE2ECatalogPresence(
+func assertSpecCycleE2ECatalogPresence(
 	t *testing.T,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
@@ -175,7 +175,7 @@ func assertDevCycleE2ECatalogPresence(
 		nil,
 		&skills,
 	); err != nil {
-		t.Fatalf("list dev-cycle skills error = %v", err)
+		t.Fatalf("list spec-cycle skills error = %v", err)
 	}
 	skillPresent := false
 	for _, skill := range skills.Skills {
@@ -192,7 +192,7 @@ func assertDevCycleE2ECatalogPresence(
 		nil,
 		&loops,
 	); err != nil {
-		t.Fatalf("list dev-cycle loops error = %v", err)
+		t.Fatalf("list spec-cycle loops error = %v", err)
 	}
 	loopPresent := false
 	for _, loop := range loops.Loops {
@@ -209,7 +209,7 @@ func assertDevCycleE2ECatalogPresence(
 		nil,
 		&agents,
 	); err != nil {
-		t.Fatalf("list dev-cycle agents error = %v", err)
+		t.Fatalf("list spec-cycle agents error = %v", err)
 	}
 	agentPresent := false
 	for _, agent := range agents.Agents {
@@ -218,9 +218,9 @@ func assertDevCycleE2ECatalogPresence(
 		}
 	}
 
-	toolID, err := toolspkg.CanonicalToolID("ext", devcycle.Name, "import_tasks")
+	toolID, err := toolspkg.CanonicalToolID("ext", speccycle.Name, "import_tasks")
 	if err != nil {
-		t.Fatalf("CanonicalToolID(dev-cycle import_tasks) error = %v", err)
+		t.Fatalf("CanonicalToolID(spec-cycle import_tasks) error = %v", err)
 	}
 	var tools compozycontract.ToolsResponse
 	if err := harness.HTTPJSON(
@@ -230,7 +230,7 @@ func assertDevCycleE2ECatalogPresence(
 		nil,
 		&tools,
 	); err != nil {
-		t.Fatalf("list dev-cycle tools error = %v", err)
+		t.Fatalf("list spec-cycle tools error = %v", err)
 	}
 	toolPresent := false
 	for _, tool := range tools.Tools {
@@ -242,7 +242,7 @@ func assertDevCycleE2ECatalogPresence(
 	if skillPresent != wantPresent || loopPresent != wantPresent ||
 		agentPresent != wantPresent || toolPresent != wantPresent {
 		t.Fatalf(
-			"dev-cycle catalogs skill=%t loop=%t agent=%t tool=%t, want all=%t",
+			"spec-cycle catalogs skill=%t loop=%t agent=%t tool=%t, want all=%t",
 			skillPresent,
 			loopPresent,
 			agentPresent,

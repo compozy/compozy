@@ -640,7 +640,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 				Name:       "coder",
 				Prompt:     "Use canonical tools.",
 				Tools:      []string{"compozy__lookup"},
-				SourcePath: "/extensions/dev-cycle/agents/coder/AGENT.md",
+				SourcePath: "/extensions/spec-cycle/agents/coder/AGENT.md",
 			},
 		}},
 		skills: []skillPublicationInput{{
@@ -689,7 +689,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetAgent(coder) error = %v", err)
 		}
-		if projected.Def.SourcePath != "/extensions/dev-cycle/agents/coder/AGENT.md" {
+		if projected.Def.SourcePath != "/extensions/spec-cycle/agents/coder/AGENT.md" {
 			t.Fatalf("GetAgent(coder).Def.SourcePath = %q, want authored extension path", projected.Def.SourcePath)
 		}
 	})

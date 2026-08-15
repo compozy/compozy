@@ -2,7 +2,7 @@ import { Eyebrow } from "@compozy/ui";
 import { ArrowRight, Terminal } from "lucide-react";
 import Link from "next/link";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
-import { bundledSkills, devCycleExtension } from "@/lib/marketplace-bundled";
+import { bundledSkills, specCycleExtension } from "@/lib/marketplace-bundled";
 import {
   MARKETPLACE_FEED_FILENAMES,
   MARKETPLACE_SEARCH_COMMAND,
@@ -19,10 +19,10 @@ import { MarketplaceInstallCommand } from "./marketplace-install-command";
  */
 function heroStats() {
   const bundledResources =
-    devCycleExtension.loops.length +
-    devCycleExtension.skills.length +
-    devCycleExtension.agents.length +
-    devCycleExtension.tools.length +
+    specCycleExtension.loops.length +
+    specCycleExtension.skills.length +
+    specCycleExtension.agents.length +
+    specCycleExtension.tools.length +
     bundledSkills.length;
 
   return [

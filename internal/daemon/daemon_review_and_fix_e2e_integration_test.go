@@ -28,7 +28,7 @@ const (
 	reviewAndFixTaskName    = "review-e2e"
 	reviewInvalidTaskName   = "review-invalid"
 	reviewInvalidAgentName  = "reviewer-invalid"
-	reviewArtifactWriterID  = toolspkg.ToolID("ext__dev_cycle__write_review_artifacts")
+	reviewArtifactWriterID  = toolspkg.ToolID("ext__spec_cycle__write_review_artifacts")
 	reviewExpectedTimestamp = "2026-07-26T12:00:00Z"
 )
 
@@ -56,7 +56,7 @@ func TestDaemonE2EReviewAndFixShouldRemediateAgentAuthoredArtifacts(t *testing.T
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	requireDevCycleExtensionEnabled(t, ctx, harness)
+	requireSpecCycleExtensionEnabled(t, ctx, harness)
 	for _, agent := range []struct {
 		name    string
 		fixture string
@@ -583,7 +583,7 @@ func reviewGoldenPath(t testing.TB, name string) string {
 		"..",
 		"..",
 		"extensions",
-		"dev-cycle",
+		"spec-cycle",
 		"testdata",
 		"review_artifacts",
 		name,

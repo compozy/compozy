@@ -21,7 +21,7 @@ final iteration.
 
 ## Phase 0 (bootstrap) only
 
-- [ ] `_techspec.md` existence was confirmed before writing `state.yaml`.
+- [ ] `_spec.md` existence was confirmed before writing `state.yaml`.
 - [ ] `mode` was decided by filesystem, not by guess (`tasks` if `_tasks.md` AND a `task_*.md` exist, else `free`).
 - [ ] `goal_signature` was copied verbatim from the user's prompt (CODEX_LOOP `goal=` value or manual reason).
 - [ ] `--frontend` was passed to `init-state.py` if and only if the invocation text carried it, and `state.frontend_agent` matches.
@@ -44,7 +44,7 @@ final iteration.
 - [ ] The slice was added to `progress.checklist[]` BEFORE implementation started.
 - [ ] If the slice was delegated, its owned paths were exclusively frontend surfaces per `references/herdr-delegation.md`.
 - [ ] Focused validation ran (task/slice-named commands + scoped tests; no project-wide gate), every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
-- [ ] If `deliverables_complete` was set true: every techspec acceptance criterion has at least one matching `progress.checklist[]` entry with `status=completed`. Self-quote each criterion → its checklist entry in the iteration summary.
+- [ ] If `deliverables_complete` was set true: every spec acceptance criterion has at least one matching `progress.checklist[]` entry with `status=completed`. Self-quote each criterion → its checklist entry in the iteration summary.
 - [ ] `commit-checkpoint.py <slug> --slice "<slice text>"` ran after `update-state.py` and printed a commit SHA or `SKIP: no changes`, captured in the summary's checkpoint field.
 
 ## Phase C only

@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-implement-tasks-import-parity
-  mission: "As Ada, call ext__dev_cycle__import_tasks through a public structured surface and prove implement-tasks consumes the same task graph."
+  mission: "As Ada, call ext__spec_cycle__import_tasks through a public structured surface and prove implement-tasks consumes the same task graph."
   mode: scenario-based
   persona:
     name: Ada

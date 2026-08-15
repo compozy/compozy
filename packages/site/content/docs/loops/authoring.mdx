@@ -46,7 +46,7 @@ is wrong before it ever costs anything.
 ## Two write paths
 
 A definition lives on the filesystem (`$COMPOZY_HOME/loops`, a workspace's `.compozy/loops`, plus
-read-only extension resources such as `dev-cycle`). There are two ways to change one:
+read-only extension resources such as `spec-cycle`). There are two ways to change one:
 
 - **HTTP `PATCH` / native tool** — the atomic, compare-and-swap path. `expected_version` guards it,
   so concurrent or multi-agent editing is safe. **Use this for anything programmatic.**

@@ -1,11 +1,11 @@
 ---
 name: cy-loop-tasks
-description: Task-graph execution loop for Compozy specs — self-healing checkpoint driver that ships a techspec end to end by executing its authored task graph (_tasks.md + task_NN.md), one atomic commit per Phase B task, QA, then deep-review peer-review rounds until SHIP. Use for continuous codex-loop goal runs over a .compozy/tasks/<slug> whose work is decomposed into task files, or with --frontend to delegate frontend tasks to herdr workers. Do not use for one-off tasks, PRD/TechSpec authoring, or a slug with spec documents but no task graph (use cy-implement-spec).
+description: Task-graph execution loop for Compozy specs — self-healing checkpoint driver that ships a spec end to end by executing its authored task graph (_tasks.md + task_NN.md), one atomic commit per Phase B task, QA, then deep-review peer-review rounds until SHIP. Use for continuous codex-loop goal runs over a .compozy/tasks/<slug> whose work is decomposed into task files, or with --frontend to delegate frontend tasks to herdr workers. Do not use for one-off tasks, PRD/Spec authoring, or a slug with spec documents but no task graph (use cy-implement-spec).
 ---
 
 # Loop Tasks Driver
 
-Drive a Compozy techspec to completion as a **self-healing continue** loop: each
+Drive a Compozy spec to completion as a **self-healing continue** loop: each
 iteration detects the current phase, runs exactly one phase action,
 writes memory, updates `state.yaml`, and prints the iteration summary —
 then **continues** at detect unless the outcome is an evidence-backed external
@@ -42,7 +42,7 @@ Stop→restart — restarts are a resume safety net, not the driver.
   once at bootstrap into `state.yaml.stacked`. When present, read
   `references/stacked-prs.md` in full during bootstrap and verify its
   prerequisites before the first Phase B iteration.
-- A pre-authored `.compozy/tasks/<slug>/_techspec.md`. Without it, bootstrap
+- A pre-authored `.compozy/tasks/<slug>/_spec.md`. Without it, bootstrap
   stops with a blocker.
 
 ## Helper scripts
@@ -106,7 +106,7 @@ the matching branch below is selected.
 
 ### Phase 0 — Bootstrap
 
-1. Confirm `.compozy/tasks/<slug>/_techspec.md` exists. Missing → scaffold
+1. Confirm `.compozy/tasks/<slug>/_spec.md` exists. Missing → scaffold
    `memory/MEMORY.md` from `references/memory-protocol.md`, record the
    blocker under `## Open Risks`, print the iteration summary with
    `outcome=blocked`, and stop (`state.yaml` does not exist yet, so there is
@@ -170,7 +170,7 @@ all reflect the same completed task.
 
 ### Phase B mode=free — execute one slice
 
-1. Re-read `_techspec.md` deliverables and acceptance in full; compare
+1. Re-read `_spec.md` deliverables and acceptance in full; compare
    against `state.progress.checklist[]`.
 2. Pick the smallest coherent slice (≤ ~4 hours) that advances at least one
    acceptance criterion; capture its text exactly.
@@ -189,7 +189,7 @@ all reflect the same completed task.
    `cy-final-verify` with the narrow per-slice claim.
 7. Confirm memory is updated and `cy-final-verify` evidence is PASS. For the
    frontend lane, verify the worker's evidence instead of re-running verify.
-8. Acceptance self-check: when every techspec criterion has a completed
+8. Acceptance self-check: when every spec criterion has a completed
    checklist entry, add `--deliverables-complete` to the step 9 call.
 9. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase B --complete-progress "<slice text>" [--deliverables-complete] --action "slice <text>" --outcome completed --memory-written "memory/free-iter-<NNN>.md,memory/MEMORY.md" --verify-pass`.
 10. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --slice "<slice text>"`
@@ -359,14 +359,14 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
 - Phase E requires `qa.report_done=true`, `qa.execution_done=true`,
   `review.ship=true`, and `verify.last_status=PASS`.
 - Do not regenerate the loop's input graph with `cy-create-tasks`,
-  `cy-create-techspec`, `cy-tasks-tail-qa-pair`, or `cy-web-docs-impact`.
+  `cy-create-spec`, `cy-tasks-tail-qa-pair`, or `cy-web-docs-impact`.
 
 ## Error Handling
 
 - **Any failure** — read `references/recovery-loop.md` in full and execute it
   before mutating iteration state. Failed commands are repair work, not
   blockers. Use `outcome=blocked` only after its external-blocker test passes.
-- **`_techspec.md` missing at bootstrap** — record the blocker in
+- **`_spec.md` missing at bootstrap** — record the blocker in
   `memory/MEMORY.md` `## Open Risks`, print the iteration summary with
   `outcome=blocked`, stop. No update-state call: `state.yaml` does not exist
   yet.

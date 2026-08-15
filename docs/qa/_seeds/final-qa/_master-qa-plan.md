@@ -463,7 +463,7 @@ References add 1,542 lines. Master plan + README add the connective tissue. Plan
 
 When a new feature lands:
 
-1. Write its TechSpec per `cy-spec-preflight` + `cy-create-techspec`.
+1. Write its spec per `cy-spec-preflight` + `cy-create-spec`.
 2. Generate tasks per `cy-create-tasks` + `cy-tasks-tail-qa-pair` (the tail QA pair is the seed of this plan's next child).
 3. Fold the new child into `_children/` with the next number; update the README table; update §2 module map; add scenarios to §3 if they're live-LLM; add forbidden needles to §7 if they introduce new secret classes.
 4. Re-run §11 gate. The plan is a living artifact, not a one-shot.

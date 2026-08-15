@@ -32,7 +32,7 @@ Prose-only descriptions produce N implementations, where N is the number of agen
 
 ## Operationalization
 
-`cy-spec-peer-review` invokes Opus with a six-marker checklist embedded in the prompt. `cy-spec-preflight` blocks `cy-create-techspec` from completing until the six markers are present.
+`cy-spec-peer-review` invokes Opus with a six-marker checklist embedded in the prompt. `cy-spec-preflight` blocks `cy-create-spec` from completing until the six markers are present in Part II.
 
 When a spec is missing a marker, fix the spec — do not start tasks against the gap.
 

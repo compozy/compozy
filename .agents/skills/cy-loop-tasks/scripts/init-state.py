@@ -15,7 +15,7 @@ Exits:
     0 success
     1 generic error (stderr)
     2 state.yaml already exists
-    3 _techspec.md missing
+    3 _spec.md missing
     4 mode override conflicts with filesystem, or --stacked outside tasks mode
 """
 
@@ -63,9 +63,9 @@ def main() -> int:
         print(f"init-state: slug directory not found: {slug_dir}", file=sys.stderr)
         return 1
 
-    if not (slug_dir / "_techspec.md").exists():
+    if not (slug_dir / "_spec.md").exists():
         print(
-            f"init-state: _techspec.md missing under {slug_dir}; author it first",
+            f"init-state: _spec.md missing under {slug_dir}; author it first",
             file=sys.stderr,
         )
         return 3

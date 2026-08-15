@@ -24,7 +24,7 @@ The daemon projects each definition as a `loop` resource carrying **matchable me
 name, scope, catalog, and start bindings — while the full `compozy.loop/v1` YAML stays on the
 filesystem. Loop definitions resolve through marketplace, user, additional, and workspace layers
 (workspace wins). A shipped Loop appears in the [catalog](/docs/loops/catalog) next to the
-default `dev-cycle` Loops.
+default `spec-cycle` Loops.
 
 ## Actions and tools
 
@@ -104,7 +104,7 @@ Once a Loop with a `watch-source` starts, its lifecycle differs from a delivery 
   (reason `watch_source_silence`), not `done`. Silence is measured against `last_progress_at` plus
   the source's window.
 
-The bundled `dev-cycle` Loops do not publish a watch-source kind. Its `review-and-fix` Loop starts
+The bundled `spec-cycle` Loops do not publish a watch-source kind. Its `review-and-fix` Loop starts
 an agent-authored review directly and uses ordinary actions, branching, fan-out, and collection.
 Extensions can still publish their own watch-source kinds for external signals that need polling.
 

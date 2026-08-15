@@ -1907,121 +1907,125 @@ func TestCloneSkillDeepCopiesExtendedFields(t *testing.T) {
 func TestRegistryLoadContent(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	userDir := filepath.Join(root, "user")
-	workspaceDir := filepath.Join(root, "workspace")
-	writeSkillFile(
-		t,
-		userDir,
-		filepath.Join("global-skill", skillFileName),
-		skillWithBody("global-skill", "Global skill", "Global body"),
-	)
-	writeSkillFile(
-		t,
-		filepath.Join(workspaceDir, ".compozy", "skills"),
-		filepath.Join("workspace-skill", skillFileName),
-		skillWithBody("workspace-skill", "Workspace skill", "Workspace body"),
-	)
+	t.Run("Should load content from all skill sources", func(t *testing.T) {
+		t.Parallel()
 
-	registry := newTestRegistry(t, RegistryConfig{
-		BundledFS: fstest.MapFS{
-			"bundled/SKILL.md": {
-				Data: []byte(skillWithBody("bundled", "Bundled skill", "Bundled body")),
+		root := t.TempDir()
+		userDir := filepath.Join(root, "user")
+		workspaceDir := filepath.Join(root, "workspace")
+		writeSkillFile(
+			t,
+			userDir,
+			filepath.Join("global-skill", skillFileName),
+			skillWithBody("global-skill", "Global skill", "Global body"),
+		)
+		writeSkillFile(
+			t,
+			filepath.Join(workspaceDir, ".compozy", "skills"),
+			filepath.Join("workspace-skill", skillFileName),
+			skillWithBody("workspace-skill", "Workspace skill", "Workspace body"),
+		)
+
+		registry := newTestRegistry(t, RegistryConfig{
+			BundledFS: fstest.MapFS{
+				"bundled/SKILL.md": {
+					Data: []byte(skillWithBody("bundled", "Bundled skill", "Bundled body")),
+				},
 			},
-		},
-		UserSkillsDir: userDir,
-	})
-	if err := registry.LoadAll(context.Background()); err != nil {
-		t.Fatalf("LoadAll() error = %v", err)
-	}
+			UserSkillsDir: userDir,
+		})
+		if err := registry.LoadAll(context.Background()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
 
-	globalSkill, ok := registry.Get("global-skill")
-	if !ok {
-		t.Fatal("Get(global-skill) ok = false, want true")
-	}
-	globalContent, err := registry.LoadContent(context.Background(), globalSkill)
-	if err != nil {
-		t.Fatalf("LoadContent(global) error = %v", err)
-	}
-	if globalContent != "Global body" {
-		t.Fatalf("LoadContent(global) = %q, want %q", globalContent, "Global body")
-	}
+		globalSkill, ok := registry.Get("global-skill")
+		if !ok {
+			t.Fatal("Get(global-skill) ok = false, want true")
+		}
+		globalContent, err := registry.LoadContent(context.Background(), globalSkill)
+		if err != nil {
+			t.Fatalf("LoadContent(global) error = %v", err)
+		}
+		if globalContent != "Global body" {
+			t.Fatalf("LoadContent(global) = %q, want %q", globalContent, "Global body")
+		}
 
-	bundledSkill, ok := registry.Get("bundled")
-	if !ok {
-		t.Fatal("Get(bundled) ok = false, want true")
-	}
-	bundledContent, err := registry.LoadContent(context.Background(), bundledSkill)
-	if err != nil {
-		t.Fatalf("LoadContent(bundled) error = %v", err)
-	}
-	if bundledContent != "Bundled body" {
-		t.Fatalf("LoadContent(bundled) = %q, want %q", bundledContent, "Bundled body")
-	}
+		bundledSkill, ok := registry.Get("bundled")
+		if !ok {
+			t.Fatal("Get(bundled) ok = false, want true")
+		}
+		bundledContent, err := registry.LoadContent(context.Background(), bundledSkill)
+		if err != nil {
+			t.Fatalf("LoadContent(bundled) error = %v", err)
+		}
+		if bundledContent != "Bundled body" {
+			t.Fatalf("LoadContent(bundled) = %q, want %q", bundledContent, "Bundled body")
+		}
 
-	extensionSkillDir := filepath.Join(root, "extensions", "dev-cycle", "skills", "extension-bundled")
-	writeSkillFile(
-		t,
-		filepath.Dir(extensionSkillDir),
-		filepath.Join(filepath.Base(extensionSkillDir), skillFileName),
-		skillWithBody("extension-bundled", "Extension bundled skill", "Extension bundled body"),
-	)
-	writeSkillFile(
-		t,
-		extensionSkillDir,
-		filepath.Join("references", "guide.md"),
-		"Extension bundled guide",
-	)
-	extensionSkill, err := ParseSkillFileWithSource(
-		filepath.Join(extensionSkillDir, skillFileName),
-		SourceBundled,
-	)
-	if err != nil {
-		t.Fatalf("ParseSkillFileWithSource(extension bundled) error = %v", err)
-	}
-	extensionSkill.InstalledFromExtension = "dev-cycle"
-	extensionContent, err := registry.LoadContent(context.Background(), extensionSkill)
-	if err != nil {
-		t.Fatalf("LoadContent(extension bundled) error = %v", err)
-	}
-	if extensionContent != "Extension bundled body" {
-		t.Fatalf("LoadContent(extension bundled) = %q, want %q", extensionContent, "Extension bundled body")
-	}
-	extensionResource, err := registry.LoadResource(context.Background(), extensionSkill, "references/guide.md")
-	if err != nil {
-		t.Fatalf("LoadResource(extension bundled) error = %v", err)
-	}
-	if extensionResource != "Extension bundled guide" {
-		t.Fatalf(
-			"LoadResource(extension bundled) = %q, want %q",
-			extensionResource,
+		extensionSkillDir := filepath.Join(root, "extensions", "spec-cycle", "skills", "extension-bundled")
+		writeSkillFile(
+			t,
+			filepath.Dir(extensionSkillDir),
+			filepath.Join(filepath.Base(extensionSkillDir), skillFileName),
+			skillWithBody("extension-bundled", "Extension bundled skill", "Extension bundled body"),
+		)
+		writeSkillFile(
+			t,
+			extensionSkillDir,
+			filepath.Join("references", "guide.md"),
 			"Extension bundled guide",
 		)
-	}
+		extensionSkill, err := ParseSkillFileWithSource(
+			filepath.Join(extensionSkillDir, skillFileName),
+			SourceBundled,
+		)
+		if err != nil {
+			t.Fatalf("ParseSkillFileWithSource(extension bundled) error = %v", err)
+		}
+		extensionSkill.InstalledFromExtension = "spec-cycle"
+		extensionContent, err := registry.LoadContent(context.Background(), extensionSkill)
+		if err != nil {
+			t.Fatalf("LoadContent(extension bundled) error = %v", err)
+		}
+		if extensionContent != "Extension bundled body" {
+			t.Fatalf("LoadContent(extension bundled) = %q, want %q", extensionContent, "Extension bundled body")
+		}
+		extensionResource, err := registry.LoadResource(context.Background(), extensionSkill, "references/guide.md")
+		if err != nil {
+			t.Fatalf("LoadResource(extension bundled) error = %v", err)
+		}
+		if extensionResource != "Extension bundled guide" {
+			t.Fatalf(
+				"LoadResource(extension bundled) = %q, want %q",
+				extensionResource,
+				"Extension bundled guide",
+			)
+		}
 
-	workspaceSkills, err := registry.ForWorkspace(
-		context.Background(),
-		resolvedWorkspacePtr(
-			"ws-content",
-			workspaceDir,
-			resolvedSkillPath(
-				filepath.Join(workspaceDir, ".compozy", "skills", "workspace-skill"),
-				"workspace",
+		workspaceSkills, err := registry.ForWorkspace(
+			context.Background(),
+			resolvedWorkspacePtr(
+				"ws-content",
+				workspaceDir,
+				resolvedSkillPath(
+					filepath.Join(workspaceDir, ".compozy", "skills", "workspace-skill"),
+					"workspace",
+				),
 			),
-		),
-	)
-	if err != nil {
-		t.Fatalf("ForWorkspace() error = %v", err)
-	}
+		)
+		if err != nil {
+			t.Fatalf("ForWorkspace() error = %v", err)
+		}
 
-	workspaceSkill := findSkill(t, workspaceSkills, "workspace-skill")
-	workspaceContent, err := registry.LoadContent(context.Background(), workspaceSkill)
-	if err != nil {
-		t.Fatalf("LoadContent(workspace) error = %v", err)
-	}
-	if workspaceContent != "Workspace body" {
-		t.Fatalf("LoadContent(workspace) = %q, want %q", workspaceContent, "Workspace body")
-	}
+		workspaceSkill := findSkill(t, workspaceSkills, "workspace-skill")
+		workspaceContent, err := registry.LoadContent(context.Background(), workspaceSkill)
+		if err != nil {
+			t.Fatalf("LoadContent(workspace) error = %v", err)
+		}
+		if workspaceContent != "Workspace body" {
+			t.Fatalf("LoadContent(workspace) = %q, want %q", workspaceContent, "Workspace body")
+		}
+	})
 }
 
 func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) {

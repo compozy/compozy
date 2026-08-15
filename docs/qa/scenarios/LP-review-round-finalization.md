@@ -5,7 +5,7 @@ title: Finalize a review round only after complete triage
 persona: Bruno
 journey: J-08
 expected: Finalization rejects any round with pending or malformed issue files without partial writes, then monotonically changes valid issues to resolved while preserving invalid triage and returning exact resolved, invalid, and pending counts.
-entry_points: workspace .compozy/tasks/<task>/reviews-NNN; loop run status; ext__dev_cycle__finalize_review_round
+entry_points: workspace .compozy/tasks/<task>/reviews-NNN; loop run status; ext__spec_cycle__finalize_review_round
 qa_status: pass
 bug_ids:
 fix_status:

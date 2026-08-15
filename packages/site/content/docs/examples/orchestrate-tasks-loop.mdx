@@ -1,0 +1,209 @@
+---
+title: Orchestrate-tasks loop
+description: Hand every authored task under one slug to an orchestrator agent that runs each one in its own bounded worker session and proves completion on disk.
+maturity: shipped
+---
+
+## What you build
+
+The same set of task files, delivered by delegation instead of fan-out. One orchestrator agent reads
+`.compozy/tasks/<slug>`, then for each task spawns a bounded worker session, sends it the briefing,
+waits for that turn to finish, re-reads the task file, and stops the session before moving on.
+
+Use it when you want per-task isolation you can name, watch, and stop — one session per task,
+visible in `compozy session list` while it runs.
+
+## The artifact
+
+This is the complete definition, exactly as it ships in the CompozyOS repository at
+`extensions/spec-cycle/loops/orchestrate-tasks/loop.yaml`. It runs against a current release.
+
+```yaml title="extensions/spec-cycle/loops/orchestrate-tasks/loop.yaml"
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: orchestrate-tasks
+  description: Delegate every authored task for one slug to a dedicated worker session conducted by an orchestrator agent.
+  catalog:
+    use_when: "You have authored tasks under .compozy/tasks/<slug> and want one orchestrator agent to conduct them — spawning a bounded worker session per task and proving completion on disk — instead of the loop fanning out per task itself."
+    keywords: [tasks, orchestrate, sessions, engineering]
+    category: Engineering
+
+concurrency: forbid
+
+inputs:
+  slug:
+    type: string
+    required: true
+  orchestrator:
+    type: agent
+    default: general
+
+contract:
+  goal: >
+    Drive every authored task under .compozy/tasks/{{ .inputs.slug }} to completed by delegating
+    each task to its own worker session.
+  definition_of_done: >
+    Every task file for the slug carries status completed and no worker session created by the
+    orchestrator is still active.
+  iteration_cap: 3
+  no_progress:
+    window: 2
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: slug_input
+      class: source
+      kind: input
+      input_ref: slug
+
+    - id: orchestrate
+      class: action
+      kind: goal
+      session:
+        mode: continuous
+      params:
+        agent: "{{ .inputs.orchestrator }}"
+        objective: |
+          Activate the `cy-orchestrate-tasks` skill and follow it strictly for the spec
+          `.compozy/tasks/{{ .inputs.slug }}`.
+
+          Conduct only. Read the task graph and spawn one bounded worker session per task,
+          in dependency order. For each task: dispatch the briefing, wait for the turn to end,
+          re-read the task frontmatter as proof, and stop the worker session before advancing.
+          Implementation belongs to the workers — leave every code edit to them.
+
+          Return `status`, `summary`, and `tasks`, naming each task with the worker session id that
+          executed it. Use `completed` only when every task file carries `status: completed` in its
+          frontmatter and no orchestrator-created worker is starting, active, or stopping. If any
+          worker cannot be stopped, return `blocked`.
+        judge:
+          - id: tasks_completed
+            type: command
+            check: >-
+              slug={{ .inputs.slug | shellQuote }};
+              task_dir=".compozy/tasks/$slug";
+              set -- "$task_dir"/task_*.md;
+              [ -e "$1" ] || exit 1;
+              for f in "$@"; do
+              awk '
+              NR == 1 { if ($0 != "---") exit 1; frontmatter = 1; next }
+              frontmatter && $0 == "---" { frontmatter = 0; found_end = 1; next }
+              frontmatter && /^status:/ { status_count++; completed = ($0 == "status: completed") }
+              END { if (!found_end || status_count != 1 || !completed) exit 1 }
+              ' "$f" || exit 1;
+              done;
+              for state in starting active stopping; do
+              sessions="$(compozy session list --type spawned --state "$state" --query "orchestrate-${slug}-" --limit 1 -o jsonl)" || exit 1;
+              if printf '%s\n' "$sessions" | grep -q '"id"[[:space:]]*:'; then exit 1; fi;
+              done
+        max_turns: 12
+        output_schema:
+          type: object
+          required: [status, summary]
+          properties:
+            status:
+              enum: [completed, blocked]
+            summary:
+              type: string
+            tasks:
+              type: array
+
+  edges:
+    - from: slug_input
+      to: orchestrate
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+```
+
+## Run it
+
+`slug` is the one required input. `orchestrator` defaults to the `general` agent.
+
+```bash
+# check the definition against compozy.loop/v1
+compozy loop validate loop.yaml
+
+# publish it to your runtime
+compozy loop create loop.yaml
+
+# rehearse a generation without side effects, then run it
+compozy loop run --name orchestrate-tasks --input slug=<slug> --dry-run
+compozy loop run --name orchestrate-tasks --input slug=<slug>
+```
+
+The definition ships inside the bundled `spec-cycle` extension, so the Loop is already published in
+your runtime. Validate and create are for when you copy the file out and adapt it.
+
+Its start surfaces are manual, CLI, HTTP, UDS, and native tool. It declares no schedule and no
+webhook start, so neither a timer nor a signed HTTP delivery can begin the run.
+
+The Loop pins no provider or model. Workers inherit the runtime of the agent they are spawned with,
+and operators set the delivery-wide defaults through `[loops.defaults.delivery.runtime_defaults]`.
+
+## How it works
+
+<Workflow>
+  <WorkflowStep title="Read the slug — `slug_input`">
+    A source node binds the required `slug` input, which the objective and the judge both template
+    against.
+  </WorkflowStep>
+  <WorkflowStep title="Conduct the spec — `orchestrate`">
+    A Goal node runs the orchestrator agent in one continuous session for up to 12 turns. Its
+    objective is to activate the `cy-orchestrate-tasks` skill and follow it: one worker session per
+    task, in graph order, each spawned with a TTL and stopped on every path out.
+  </WorkflowStep>
+  <WorkflowStep title="Prove it on disk — the `tasks_completed` judge">
+    A command judge runs from the workspace root and fails unless every `task_*.md` under the slug
+    carries `status: completed` in its frontmatter and every orchestrator worker has stopped. The
+    orchestrator's own report never closes the Goal — task files and session state do.
+  </WorkflowStep>
+  <WorkflowStep title="The daemon enforces the exit">
+    `iteration_cap: 3`, a no-progress window of 2 generations, `concurrency: forbid`, and
+    `on_exceeded: halt` on the budget remain in force. A run that cannot finish returns `blocked`
+    with the worker log cited, and ends in a named terminal state.
+  </WorkflowStep>
+</Workflow>
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/examples/implement-tasks-loop"
+    label="Example"
+    title="Implement-tasks loop"
+    description="The structural sibling: the Loop itself fans out over the same task files instead of delegating them to sessions."
+    meta="compozy.loop/v1"
+  />
+  <GuideCard
+    href="/docs/loops/goal-node"
+    label="Concept"
+    title="Goal nodes"
+    description="How a Goal node converges: turns, judges, and the checkpoint the daemon keeps between them."
+    meta="Loops"
+  />
+  <GuideCard
+    href="/docs/loops/guardrails"
+    label="Concept"
+    title="Guardrails"
+    description="How iteration, no-progress, budgets, concurrency, and named terminal outcomes bound a Loop run."
+    meta="Loops"
+  />
+  <GuideCard
+    href="/marketplace/bundled/spec-cycle"
+    label="Marketplace"
+    title="The spec-cycle extension"
+    description="The implementer and reviewer agents, the task-import tool, and the skills these Loops load."
+    meta="Bundled"
+  />
+</GuideGrid>

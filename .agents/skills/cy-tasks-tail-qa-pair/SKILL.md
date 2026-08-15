@@ -1,6 +1,6 @@
 ---
 name: cy-tasks-tail-qa-pair
-description: Appends a qa-report planning task and a qa-execution task at the end of every cy-create-tasks output, wired to the living docs/qa contract (scenario files, journeys, charters, bug registry, dated reports). Adds e2e coverage (Playwright or browser-use) for UI-bearing features. Use after cy-create-tasks finishes generating _tasks.md and the file lacks the trailing QA pair. Do not use for tasks generated outside the Compozy PRD pipeline, for ideation/brainstorming output, or for review-round task lists.
+description: Appends a qa-report planning task and a qa-execution task at the end of every cy-create-tasks output, wired to the living docs/qa contract (scenario files, journeys, charters, bug registry, dated reports). Adds e2e coverage (Playwright or browser-use) for UI-bearing features. Use after cy-create-tasks finishes generating _tasks.md and the file lacks the trailing QA pair. Do not use for tasks generated outside the Compozy spec pipeline, for ideation/brainstorming output, or for review-round task lists.
 trigger: explicit
 ---
 
@@ -18,9 +18,9 @@ Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_ta
 
 **Step 2: Detect UI-Bearing Features**
 
-1. Parse the task list for any task that touches `web/`, `packages/site`, `web/e2e/`, Storybook, or any frontend-facing surface.
-2. If at least one task touches user-facing UI, set `requires_e2e=true`.
-3. If no task touches UI but the techspec covers public API/CLI, agent-manageability, extensibility, or config lifecycle surfaces, set `requires_cli_e2e=true`.
+1. If the slug directory contains `_uiux.md`, set `requires_e2e=true` — the spec marked the feature UI-bearing.
+2. Otherwise parse the task list for any task that touches `web/`, `packages/site`, `web/e2e/`, Storybook, or any frontend-facing surface; if at least one does, set `requires_e2e=true`.
+3. If no task touches UI but the spec covers public API/CLI, agent-manageability, extensibility, or config lifecycle surfaces, set `requires_cli_e2e=true`.
 4. Otherwise `requires_e2e=false` (rare — backend-only refactors).
 
 **Step 3: Read the Tail Template**

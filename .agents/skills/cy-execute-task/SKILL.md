@@ -1,25 +1,25 @@
 ---
 name: cy-execute-task
-description: Executes one PRD task end-to-end uninterrupted — resolves spec conflicts autonomously, implements, validates, and updates tracking without pausing for questions. Use when a prompt includes a task specification that must be implemented, validated, and reflected in task tracking files. Do not use for PR review batches, generic coding tasks without a PRD task file, or standalone verification-only work.
+description: Executes one spec task end-to-end uninterrupted — resolves spec conflicts autonomously, implements, validates, and updates tracking without pausing for questions. Use when a prompt includes a task specification that must be implemented, validated, and reflected in task tracking files. Do not use for PR review batches, generic coding tasks without a spec task file, or standalone verification-only work.
 ---
 
-# Execute PRD Task
+# Execute Spec Task
 
-Execute one PRD task from exploration through tracking updates — **uninterrupted**.
+Execute one spec task from exploration through tracking updates — **uninterrupted**.
 
 ## Uninterrupted execution
 
 Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
 
 - Never ask the user a question, present option menus, or wait for confirmation while executing a task.
-- Never stop because TechSpec, ADRs, task file, or sibling catalogs disagree — resolve the conflict with the Authority and Contract Precedence rules below, record the chosen interpretation, and continue.
+- Never stop because the spec, ADRs, task file, or sibling catalogs disagree — resolve the conflict with the Authority and Contract Precedence rules below, record the chosen interpretation, and continue.
 - Ambiguity is a decision to make, not a reason to halt. Prefer the interpretation that is most consistent with machine-checkable contracts and assigned test IDs, then implement it.
 - Surface decisions only as brief notes in the checklist, workflow memory (when provided), or follow-up notes — never as a blocking prompt.
 
 ## Required Inputs
 
 - Task specification markdown.
-- PRD directory path.
+- Spec directory path.
 - Task file path.
 - `_tasks.md` task graph manifest path.
 - Auto-commit mode.
@@ -29,15 +29,15 @@ Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
 
 ## Workflow
 
-1. Ground in repository and PRD context.
+1. Ground in repository and spec context.
    - Read the provided task specification.
    - Read the repository guidance files named by the caller.
    - Run the Spec Corpus Survey (section below) with a native read-only subagent. This is mandatory before any edit — the task file is never the whole contract.
-   - Read the PRD documents under the provided directory, especially `_techspec.md`, `_tasks.md`, and the contract catalogs `_user_stories.md` and `_tests.md` when present.
-   - Read ADRs from the `adrs/` subdirectory of the PRD directory to understand the architectural decision context for this task.
+   - Read the spec documents under the provided directory, especially `_spec.md`, `_tasks.md`, and the contract catalogs `_user_stories.md` and `_tests.md` when present.
+   - Read ADRs from the `adrs/` subdirectory of the spec directory to understand the architectural decision context for this task.
    - Read in full every sibling artifact the survey flags as contract-bearing for this task, and the `analysis/` summaries for decision context.
    - Resolve every local artifact path or glob cited by those sources, including repo-relative and absolute paths outside the spec directory. Read text contracts in full and render visual contracts; never substitute a same-named artifact from another worktree.
-   - After reading all sources, check for conflicts between the task specification, techspec, ADRs, and the contract-bearing siblings. When sources contradict, apply Authority and Contract Precedence, pick one canonical interpretation, note it in one checklist line, and proceed to step 2 — do not pause.
+   - After reading all sources, check for conflicts between the task specification, the spec, ADRs, and the contract-bearing siblings. When sources contradict, apply Authority and Contract Precedence, pick one canonical interpretation, note it in one checklist line, and proceed to step 2 — do not pause.
    - If the caller provides workflow memory paths, use the installed `cy-workflow-memory` skill before editing code.
    - Reconcile the current workspace state before new edits.
 
@@ -82,7 +82,7 @@ Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
 
 Task files paraphrase the spec, and paraphrases drift. Real incident: a task was implemented straight from its task file while the spec directory contained the canonical, complete definition of the deliverable (`_examples.md`) and the QA input contract (`_qa.md`); neither was read, seven review rounds validated engineering quality only, and the shipped result contradicted the product contract wholesale. This survey exists so that can never repeat.
 
-1. Dispatch the agent's NATIVE read-only subagent facility (e.g. `Explore` in Claude Code, or the closest scoped read-only subagent the current harness offers) to inventory the ENTIRE spec directory — every file, not a subset: all `_*.md` siblings (`_prd.md`, `_user_stories.md`, `_techspec.md`, `_tests.md`, `_tasks.md`, `_examples.md`, `_qa.md`, and any others present), loose siblings such as `requirements.md` and `product-ux.md`, plus the `adrs/`, `analysis/` (including `summary*.md`), `handoffs/`, and `memory/` subdirectories.
+1. Dispatch the agent's NATIVE read-only subagent facility (e.g. `Explore` in Claude Code, or the closest scoped read-only subagent the current harness offers) to inventory the ENTIRE spec directory — every file, not a subset: all `_*.md` siblings (`_spec.md`, `_user_stories.md`, `_dx.md`, `_uiux.md`, `_tests.md`, `_tasks.md`, `_examples.md`, `_qa.md`, and any others present), loose siblings such as `requirements.md` and `product-ux.md`, plus the `adrs/`, `analysis/` (including `summary*.md`), `handoffs/`, and `memory/` subdirectories.
 2. Require the subagent to return, per file: a one-line description and a CONTRACT-BEARING verdict — does this file pin concrete facts about this task's deliverables (canonical example documents, input/schema tables, parity maps, visual references, test contracts, CLI/UX surfaces)? Also return every referenced local path/glob and whether it resolves.
 3. If the harness has no subagent facility, perform the same inventory inline before any edit. Skipping the survey because the task file "looks complete" is forbidden — looking complete is exactly how the incident happened.
 4. Read in full, on the main thread, every contract-bearing file for this task. Read the `analysis/` summaries (at minimum the newest `summary*.md`) for the decision context behind the spec.
@@ -92,14 +92,14 @@ Task files paraphrase the spec, and paraphrases drift. Real incident: a task was
 
 Resolve contradictions autonomously with this ladder (highest wins). Record the pick; continue.
 
-1. Machine-checkable TechSpec constraints (schemas, SQL `CHECK`s, typed tables, enumerated states) beat conflicting prose in the same TechSpec.
+1. Machine-checkable spec constraints (schemas, SQL `CHECK`s, typed tables, enumerated states) beat conflicting prose in the same spec.
 2. Contract-bearing sibling catalogs and resolved local artifacts that pin concrete form for this task (`_tests.md` assigned cases, `_examples.md`, `_qa.md` input tables, `_user_stories.md` acceptance criteria, parity maps, approved visual contracts) beat a task-file paraphrase of the same fact.
-3. When TechSpec and a contract artifact disagree on concrete form: prefer the artifact for facts it owns (assigned test IDs, canonical examples, QA inputs, rendered anatomy/layout/state); prefer the TechSpec machine-checkable constraint for storage/schema/state-machine facts.
+3. When the spec and a contract artifact disagree on concrete form: prefer the artifact for facts it owns (assigned test IDs, canonical examples, QA inputs, rendered anatomy/layout/state); prefer the spec's machine-checkable constraint for storage/schema/state-machine facts.
 4. ADRs beat informal `analysis/` notes when they address the same decision.
 5. Among remaining ties, prefer the interpretation that satisfies the most assigned `_tests.md` cases and remains implementable against the winning schema/state constraints.
 6. A task-file paraphrase never overrides a higher rung — implementing the paraphrase against a higher-rung contract is the error.
 
-Authority for WHAT to build remains the task file + PRD + TechSpec + ADRs, read through this ladder.
+Authority for WHAT to build remains the task file + `_spec.md` + ADRs, read through this ladder.
 
 The existing runtime shape is never the contract. If the current code cannot express what the resolved contract requires, extend or adapt the runtime within task scope; if that is truly out of scope, implement the closest faithful solution, record the gap as a follow-up note, and continue — never pause to ask, and never mold the deliverable to whatever the runtime happens to support today without recording the gap.
 

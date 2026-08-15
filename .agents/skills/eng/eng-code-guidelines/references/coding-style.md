@@ -23,7 +23,7 @@ Verbatim canonical rules — the Compozy delta. `golang-master` owns the generic
 - Never hardcode operational values. Use TOML config (`internal/config`) or functional options (`NewManager(opts ...Option)`).
 - Disable / zero-value semantics must be explicit. Document whether `0` means "off" or "use default".
 - Resolution chains (env → flag → config → default) are documented as ordered fallbacks ending in actionable errors.
-- Config lifecycle is part of the feature lifecycle: structs, defaults, merge/overlay behavior, validation, examples, `config.toml` docs, generated CLI/site docs, and tests update in the same change. If no config change is needed, the TechSpec says why explicitly.
+- Config lifecycle is part of the feature lifecycle: structs, defaults, merge/overlay behavior, validation, examples, `config.toml` docs, generated CLI/site docs, and tests update in the same change. If no config change is needed, the spec says why explicitly.
 
 ## CLI Boundary
 

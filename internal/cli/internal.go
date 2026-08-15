@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/extensions/connectivity/tailscale"
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/spf13/cobra"
 )
 
@@ -32,8 +32,6 @@ func newInternalExtensionProviderCommand() *cobra.Command {
 					cmd.OutOrStdout(),
 					cmd.ErrOrStderr(),
 				)
-			case devcycle.Name:
-				return devcycle.RunProvider(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout())
 			case forgegithub.Name:
 				return forgegithub.RunProvider(
 					cmd.Context(),
@@ -41,6 +39,8 @@ func newInternalExtensionProviderCommand() *cobra.Command {
 					cmd.OutOrStdout(),
 					cmd.ErrOrStderr(),
 				)
+			case speccycle.Name:
+				return speccycle.RunProvider(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout())
 			default:
 				return fmt.Errorf("unknown internal extension provider %q", args[0])
 			}

@@ -432,7 +432,7 @@ Evidence was recorded at catalog or documentation level, not as a full technical
 
 | Code | Source | Verified fact used here |
 | --- | --- | --- |
-| V:Compozy | [Extension manifest](../../internal/extension/manifest.go), [extension grants](../../internal/extension/capability.go), and [dev-cycle reference extension](../../extensions/dev-cycle/extension.json) | Current resource fields, subprocess lifecycle, provider contracts, Host API grants, and tool/watch-source precedent. |
+| V:Compozy | [Extension manifest](../../internal/extension/manifest.go), [extension grants](../../internal/extension/capability.go), and [spec-cycle reference extension](../../extensions/spec-cycle/extension.json) | Current resource fields, subprocess lifecycle, provider contracts, Host API grants, and tool/watch-source precedent. |
 | V:Compozy | [Extension development guide](../../packages/site/content/docs/extensions/develop.mdx), [install and trust guide](../../packages/site/content/docs/extensions/install.mdx), and [extensions reference](../../skills/compozy/references/extensions.md) | Publicly documented extension lifecycle, kit publication, stricter Marketplace grants, and agent manageability. |
 | V:Compozy | [Bridge provider baseline](../../extensions/bridges/README.md) | Eight production in-tree providers and the explicit build/install process; released artifacts do not include or auto-install their executables. |
 

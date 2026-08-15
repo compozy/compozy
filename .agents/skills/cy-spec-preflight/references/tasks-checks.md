@@ -28,13 +28,13 @@ Run after `cy-create-tasks` produces a draft, before handing off to execution.
 - [ ] Last two rows: `qa-report` (high) and `qa-execution` (critical), per the `cy-tasks-tail-qa-pair` tail template (living `docs/qa/` contract).
 - [ ] `qa-report` depends on the last implementation task.
 - [ ] `qa-execution` depends on `qa-report` and relies on implementation completion transitively.
-- [ ] UI-bearing features: `qa-execution` body cites Playwright via `browser-use:browser` (fallback `agent-browser`).
+- [ ] UI-bearing features (the slug has `_uiux.md`): `qa-execution` body cites Playwright via `browser-use:browser` (fallback `agent-browser`).
 - [ ] CLI/API features: `qa-execution` body cites `make test-e2e-runtime` and CLI/HTTP cross-surface comparison.
 - [ ] Activate `cy-tasks-tail-qa-pair` to enforce the shape.
 
 ## Test density
 
-- [ ] Per-task test plan is proportional to behaviors documented in the TechSpec section it implements.
+- [ ] Per-task test plan is proportional to behaviors documented in the `_spec.md` Part II section it implements.
 - [ ] Reject "fraco" plans: 1-2 tests for many behaviors.
 - [ ] Critical-complexity tasks list happy + failure-path + concurrency-stress + contract/redaction cases.
 - [ ] CLI/HTTP/UDS changes include agent-operability tests: structured output, status/config discovery, deterministic errors, and cross-surface state comparison when applicable.
@@ -43,7 +43,7 @@ Run after `cy-create-tasks` produces a draft, before handing off to execution.
 
 ## Competitor refs
 
-- [ ] When the TechSpec drew on `.resources/<repo>`, each task body lists exact file paths so the implementer reads them.
+- [ ] When the spec drew on `.resources/<repo>`, each task body lists exact file paths so the implementer reads them.
 - [ ] Reference paths stay relative to `.resources/` and are not paraphrased.
 
 ## Hygiene

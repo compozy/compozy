@@ -18,6 +18,6 @@ overlaps: LP-operator-lifecycle-ui;ET-021
 
 story: As an operator, I can finish an already-open wait even if the extension used by a later node is temporarily unavailable.
 
-Task 08 reproduced the original HTTP 500 with `dev-cycle` disabled, repaired the service to load the run's immutable definition snapshot, rebuilt the daemon, and re-walked the same public sequence. Resume returned HTTP 200 while the extension remained disabled; the later extension action entered the ordinary node failure lifecycle.
+Task 08 reproduced the original HTTP 500 with `spec-cycle` disabled, repaired the service to load the run's immutable definition snapshot, rebuilt the daemon, and re-walked the same public sequence. Resume returned HTTP 200 while the extension remained disabled; the later extension action entered the ordinary node failure lifecycle.
 
 src: .compozy/tasks/loop-node-lifecycle/task_08.md

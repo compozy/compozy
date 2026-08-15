@@ -7,8 +7,8 @@ nothing in `~/.codex/codex-loop/config.toml` needs to change.
 
 ## Canonical header (copy-paste)
 
-For a feature with slug `<slug>` whose techspec lives at
-`.compozy/tasks/<slug>/_techspec.md`:
+For a feature with slug `<slug>` whose spec lives at
+`.compozy/tasks/<slug>/_spec.md`:
 
 ```text
 [[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; every Phase B checkpoint runs its focused task validation then cy-final-verify before commit; continue until qa-report and qa-execution are complete, consecutive deep-review rounds reach SHIP, and make verify is PASS"]]
@@ -70,6 +70,6 @@ the same session. Filesystem state still resumes if the session ends early.
 ## When NOT to use the goal header
 
 Do not paste the `[[CODEX_LOOP ...]]` header for the bootstrap iteration if
-`_techspec.md` does not exist yet — `cy-loop-tasks` will refuse and record a
-blocker. Author the techspec first via `cy-create-techspec`, then start the
+`_spec.md` does not exist yet — `cy-loop-tasks` will refuse and record a
+blocker. Author the spec first via `cy-create-spec`, then start the
 loop.

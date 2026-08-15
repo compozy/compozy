@@ -17,7 +17,7 @@ accepted by the agent-scoped settings read, so the entire settings page was repl
 
 ## Reproduction
 
-1. Start the isolated daemon with the bundled `dev-cycle` extension active.
+1. Start the isolated daemon with the bundled `spec-cycle` extension active.
 2. Open `/settings/skills` and select **Agent** scope.
 3. Observe the selected agent and the resulting page state.
 

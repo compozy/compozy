@@ -8,8 +8,8 @@ how to approach a job; examples hand you the definition and the commands to run 
 
 <OperatorNote label="What makes something an example">
   Each page carries the whole artifact — no fragments, no pseudo-config — and a maturity label. The
-  two Loop examples ship inside the runtime as `extensions/dev-cycle`, so the definition you copy is
-  the one CompozyOS runs.
+  three Loop examples ship inside the runtime as `extensions/spec-cycle`, so the definition you copy
+  is the one CompozyOS runs.
 </OperatorNote>
 
 ## Loops
@@ -27,6 +27,13 @@ how to approach a job; examples hand you the definition and the commands to run 
     label="Ships with the runtime"
     title="Implement-tasks loop"
     description="Implement every authored task under one slug in dependency order, with task-level validation and tracking updates."
+    meta="compozy.loop/v1"
+  />
+  <GuideCard
+    href="/docs/examples/orchestrate-tasks-loop"
+    label="Ships with the runtime"
+    title="Orchestrate-tasks loop"
+    description="Hand the same authored tasks to an orchestrator agent that runs each one in its own bounded worker session and proves completion on disk."
     meta="compozy.loop/v1"
   />
 </GuideGrid>
