@@ -4797,6 +4797,9 @@ export interface SessionConfigOptionPayload {
 
 export interface ACPCapsPayload {
   supports_load_session: boolean;
+  prompt_image: boolean;
+  prompt_audio: boolean;
+  prompt_embedded_context: boolean;
   supported_modes?: string[];
   config_options?: SessionConfigOptionPayload[];
 }

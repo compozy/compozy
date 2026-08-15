@@ -19004,6 +19004,15 @@
                                       },
                                       "type": "array"
                                     },
+                                    "prompt_audio": {
+                                      "type": "boolean"
+                                    },
+                                    "prompt_embedded_context": {
+                                      "type": "boolean"
+                                    },
+                                    "prompt_image": {
+                                      "type": "boolean"
+                                    },
                                     "supported_modes": {
                                       "items": {
                                         "type": "string"
@@ -19015,6 +19024,9 @@
                                     }
                                   },
                                   "required": [
+                                    "prompt_audio",
+                                    "prompt_embedded_context",
+                                    "prompt_image",
                                     "supports_load_session"
                                   ],
                                   "type": "object"
@@ -121813,6 +121825,15 @@
                                     },
                                     "type": "array"
                                   },
+                                  "prompt_audio": {
+                                    "type": "boolean"
+                                  },
+                                  "prompt_embedded_context": {
+                                    "type": "boolean"
+                                  },
+                                  "prompt_image": {
+                                    "type": "boolean"
+                                  },
                                   "supported_modes": {
                                     "items": {
                                       "type": "string"
@@ -121824,6 +121845,9 @@
                                   }
                                 },
                                 "required": [
+                                  "prompt_audio",
+                                  "prompt_embedded_context",
+                                  "prompt_image",
                                   "supports_load_session"
                                 ],
                                 "type": "object"
@@ -123218,6 +123242,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -123229,6 +123262,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -124583,6 +124619,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -124594,6 +124639,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -218538,6 +218586,15 @@
                                     },
                                     "type": "array"
                                   },
+                                  "prompt_audio": {
+                                    "type": "boolean"
+                                  },
+                                  "prompt_embedded_context": {
+                                    "type": "boolean"
+                                  },
+                                  "prompt_image": {
+                                    "type": "boolean"
+                                  },
                                   "supported_modes": {
                                     "items": {
                                       "type": "string"
@@ -218549,6 +218606,9 @@
                                   }
                                 },
                                 "required": [
+                                  "prompt_audio",
+                                  "prompt_embedded_context",
+                                  "prompt_image",
                                   "supports_load_session"
                                 ],
                                 "type": "object"
@@ -261915,6 +261975,15 @@
                                         },
                                         "type": "array"
                                       },
+                                      "prompt_audio": {
+                                        "type": "boolean"
+                                      },
+                                      "prompt_embedded_context": {
+                                        "type": "boolean"
+                                      },
+                                      "prompt_image": {
+                                        "type": "boolean"
+                                      },
                                       "supported_modes": {
                                         "items": {
                                           "type": "string"
@@ -261926,6 +261995,9 @@
                                       }
                                     },
                                     "required": [
+                                      "prompt_audio",
+                                      "prompt_embedded_context",
+                                      "prompt_image",
                                       "supports_load_session"
                                     ],
                                     "type": "object"
@@ -263206,6 +263278,15 @@
                                         },
                                         "type": "array"
                                       },
+                                      "prompt_audio": {
+                                        "type": "boolean"
+                                      },
+                                      "prompt_embedded_context": {
+                                        "type": "boolean"
+                                      },
+                                      "prompt_image": {
+                                        "type": "boolean"
+                                      },
                                       "supported_modes": {
                                         "items": {
                                           "type": "string"
@@ -263217,6 +263298,9 @@
                                       }
                                     },
                                     "required": [
+                                      "prompt_audio",
+                                      "prompt_embedded_context",
+                                      "prompt_image",
                                       "supports_load_session"
                                     ],
                                     "type": "object"
@@ -264520,6 +264604,15 @@
                                         },
                                         "type": "array"
                                       },
+                                      "prompt_audio": {
+                                        "type": "boolean"
+                                      },
+                                      "prompt_embedded_context": {
+                                        "type": "boolean"
+                                      },
+                                      "prompt_image": {
+                                        "type": "boolean"
+                                      },
                                       "supported_modes": {
                                         "items": {
                                           "type": "string"
@@ -264531,6 +264624,9 @@
                                       }
                                     },
                                     "required": [
+                                      "prompt_audio",
+                                      "prompt_embedded_context",
+                                      "prompt_image",
                                       "supports_load_session"
                                     ],
                                     "type": "object"
@@ -273620,6 +273716,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -273631,6 +273736,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -274597,6 +274705,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -274608,6 +274725,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -276002,6 +276122,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -276013,6 +276142,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -277152,6 +277284,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -277163,6 +277304,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -277764,6 +277908,1245 @@
           }
         },
         "summary": "Attach to a resumable live session",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments": {
+      "post": {
+        "operationId": "uploadSessionAttachment",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "Multipart upload with one required binary file field",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attachment": {
+                      "properties": {
+                        "bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "created_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "height": {
+                          "type": "integer"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "mime_type": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        },
+                        "width": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "bytes",
+                        "created_at",
+                        "height",
+                        "id",
+                        "kind",
+                        "mime_type",
+                        "name",
+                        "sha256",
+                        "width"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "attachment"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid attachment upload"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Attachment exceeds configured size limit"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Attachment MIME type is not allowed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Upload a session attachment",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}": {
+      "delete": {
+        "operationId": "deleteSessionAttachment",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Attachment id",
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid attachment id"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Delete a session attachment",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes": {
+      "get": {
+        "operationId": "readSessionAttachmentBytes",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Attachment id",
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Attachment bytes"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid attachment id"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Read session attachment bytes",
         "tags": [
           "sessions"
         ],
@@ -278953,6 +280336,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -278964,6 +280356,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -282383,6 +283778,49 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "attachments": {
+                    "items": {
+                      "properties": {
+                        "bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "height": {
+                          "type": "integer"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "mime_type": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        },
+                        "width": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "bytes",
+                        "height",
+                        "id",
+                        "kind",
+                        "mime_type",
+                        "name",
+                        "sha256",
+                        "width"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
                   "expected_turn_id": {
                     "type": "string"
                   },
@@ -287190,10 +288628,16 @@
                                     "errorText": {
                                       "type": "string"
                                     },
+                                    "filename": {
+                                      "type": "string"
+                                    },
                                     "id": {
                                       "type": "string"
                                     },
                                     "input": {},
+                                    "mediaType": {
+                                      "type": "string"
+                                    },
                                     "output": {},
                                     "preliminary": {
                                       "type": "boolean"
@@ -287215,6 +288659,9 @@
                                       "type": "string"
                                     },
                                     "type": {
+                                      "type": "string"
+                                    },
+                                    "url": {
                                       "type": "string"
                                     }
                                   },
@@ -287768,6 +289215,15 @@
                                       },
                                       "type": "array"
                                     },
+                                    "prompt_audio": {
+                                      "type": "boolean"
+                                    },
+                                    "prompt_embedded_context": {
+                                      "type": "boolean"
+                                    },
+                                    "prompt_image": {
+                                      "type": "boolean"
+                                    },
                                     "supported_modes": {
                                       "items": {
                                         "type": "string"
@@ -287779,6 +289235,9 @@
                                     }
                                   },
                                   "required": [
+                                    "prompt_audio",
+                                    "prompt_embedded_context",
+                                    "prompt_image",
                                     "supports_load_session"
                                   ],
                                   "type": "object"
@@ -289293,6 +290752,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -289304,6 +290772,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -290483,6 +291954,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -290494,6 +291974,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -291642,6 +293125,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -291653,6 +293145,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -294766,10 +296261,16 @@
                                         "errorText": {
                                           "type": "string"
                                         },
+                                        "filename": {
+                                          "type": "string"
+                                        },
                                         "id": {
                                           "type": "string"
                                         },
                                         "input": {},
+                                        "mediaType": {
+                                          "type": "string"
+                                        },
                                         "output": {},
                                         "preliminary": {
                                           "type": "boolean"
@@ -294791,6 +296292,9 @@
                                           "type": "string"
                                         },
                                         "type": {
+                                          "type": "string"
+                                        },
+                                        "url": {
                                           "type": "string"
                                         }
                                       },
@@ -294885,10 +296389,16 @@
                                         "errorText": {
                                           "type": "string"
                                         },
+                                        "filename": {
+                                          "type": "string"
+                                        },
                                         "id": {
                                           "type": "string"
                                         },
                                         "input": {},
+                                        "mediaType": {
+                                          "type": "string"
+                                        },
                                         "output": {},
                                         "preliminary": {
                                           "type": "boolean"
@@ -294910,6 +296420,9 @@
                                           "type": "string"
                                         },
                                         "type": {
+                                          "type": "string"
+                                        },
+                                        "url": {
                                           "type": "string"
                                         }
                                       },
@@ -297220,10 +298733,16 @@
                                     "errorText": {
                                       "type": "string"
                                     },
+                                    "filename": {
+                                      "type": "string"
+                                    },
                                     "id": {
                                       "type": "string"
                                     },
                                     "input": {},
+                                    "mediaType": {
+                                      "type": "string"
+                                    },
                                     "output": {},
                                     "preliminary": {
                                       "type": "boolean"
@@ -297245,6 +298764,9 @@
                                       "type": "string"
                                     },
                                     "type": {
+                                      "type": "string"
+                                    },
+                                    "url": {
                                       "type": "string"
                                     }
                                   },
@@ -298183,6 +299705,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -298194,6 +299725,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"
@@ -299499,6 +301033,15 @@
                                   },
                                   "type": "array"
                                 },
+                                "prompt_audio": {
+                                  "type": "boolean"
+                                },
+                                "prompt_embedded_context": {
+                                  "type": "boolean"
+                                },
+                                "prompt_image": {
+                                  "type": "boolean"
+                                },
                                 "supported_modes": {
                                   "items": {
                                     "type": "string"
@@ -299510,6 +301053,9 @@
                                 }
                               },
                               "required": [
+                                "prompt_audio",
+                                "prompt_embedded_context",
+                                "prompt_image",
                                 "supports_load_session"
                               ],
                               "type": "object"

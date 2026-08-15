@@ -1499,6 +1499,7 @@ type SessionInputQueue struct {
 	Delivery                 string         `json:"delivery"`
 	Text                     string         `json:"text"`
 	SkillInvocationsJson     string         `json:"skill_invocations_json"`
+	AttachmentsJson          string         `json:"attachments_json"`
 	RuntimeProvider          string         `json:"runtime_provider"`
 	RuntimeModel             string         `json:"runtime_model"`
 	RuntimeReasoningEffort   string         `json:"runtime_reasoning_effort"`
@@ -1553,6 +1554,7 @@ type SessionPromptAdmission struct {
 	Mode                   string         `json:"mode"`
 	AuthoredText           string         `json:"authored_text"`
 	SkillInvocationsJson   string         `json:"skill_invocations_json"`
+	AttachmentsJson        string         `json:"attachments_json"`
 	RuntimeProvider        string         `json:"runtime_provider"`
 	RuntimeModel           string         `json:"runtime_model"`
 	RuntimeReasoningEffort string         `json:"runtime_reasoning_effort"`
