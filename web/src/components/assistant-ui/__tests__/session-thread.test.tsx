@@ -2852,7 +2852,7 @@ describe("SessionThread composer attachments", () => {
     expect(overlay).toHaveAttribute("aria-hidden", "false");
 
     view.rerender({ canPrompt: false, promptImage: true });
-    await waitFor(() => expect(overlay).toHaveAttribute("aria-hidden", "true"));
+    expect(overlay).toHaveAttribute("aria-hidden", "true");
   });
 
   it("Should turn a picker file into a draft tile", async () => {
@@ -2949,7 +2949,16 @@ describe("SessionThread composer attachments", () => {
     expect(send).toHaveAttribute("title", "This model does not accept PDF files");
   });
 
-  it("Should remove a draft tile from the strip", async () => {
+  it("Should remove a draft tile and release its image preview", async () => {
+    const previewUrls: string[] = [];
+    const MockURL = class extends URL {};
+    MockURL.createObjectURL = vi.fn(() => {
+      const url = `blob:session-attachment-${previewUrls.length}`;
+      previewUrls.push(url);
+      return url;
+    });
+    MockURL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", MockURL);
     const user = userEvent.setup();
     renderComposer({ promptImage: true });
     await screen.findByTestId("composer-input");
@@ -2961,6 +2970,11 @@ describe("SessionThread composer attachments", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
     });
+    expect(previewUrls.length).toBeGreaterThan(0);
+    expect(MockURL.revokeObjectURL).toHaveBeenCalledTimes(previewUrls.length);
+    for (const url of previewUrls) {
+      expect(MockURL.revokeObjectURL).toHaveBeenCalledWith(url);
+    }
   });
 
   it("Should summarize queued attachments when the queue payload includes them", async () => {

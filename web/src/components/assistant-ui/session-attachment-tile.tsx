@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useState, type ComponentProps } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -33,22 +33,21 @@ export function SessionAttachmentTile({
   ...props
 }: SessionAttachmentTileProps) {
   const isImage = isImageAttachmentMime(model.mimeType) && Boolean(model.file);
-  const [preview, setPreview] = useState<{ file: File; url: string } | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(
     model.width && model.height ? { width: model.width, height: model.height } : null
   );
+  const previewRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
-    if (!isImage || !model.file || typeof URL.createObjectURL !== "function") return;
-    const file = model.file;
-    const url = URL.createObjectURL(file);
-    setPreview({ file, url });
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [isImage, model.file]);
+    const node = previewRef.current;
+    if (!node || !model.file || typeof URL.createObjectURL !== "function") return;
+    // oxlint-disable-next-line react-doctor/no-create-object-url-without-revoke -- the effect cleanup revokes this exact URL; Strict Mode coverage proves every allocation is released.
+    const url = URL.createObjectURL(model.file);
+    node.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [model.file]);
 
-  const previewUrl = preview && preview.file === model.file ? preview.url : null;
+  const canPreview = isImage && typeof URL.createObjectURL === "function";
 
   const nameTitle =
     isImage && dimensions ? `${model.name} · ${dimensions.width}×${dimensions.height}` : model.name;
@@ -73,9 +72,9 @@ export function SessionAttachmentTile({
           isImage ? null : "grid place-items-center"
         )}
       >
-        {isImage && previewUrl ? (
+        {canPreview ? (
           <img
-            src={previewUrl}
+            ref={previewRef}
             alt=""
             onLoad={event => {
               setDimensions({

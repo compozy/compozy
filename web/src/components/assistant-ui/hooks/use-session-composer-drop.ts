@@ -1,5 +1,5 @@
 import { useAui } from "@assistant-ui/react";
-import { useEffect, useState, type DragEvent } from "react";
+import { useState, type DragEvent } from "react";
 
 import { ATTACHMENT_MAX_COUNT } from "@/systems/session/lib/attachment-kinds";
 
@@ -11,10 +11,6 @@ export function useSessionComposerDrop({ disabled = false }: { disabled?: boolea
   const aui = useAui();
   const [dragDepth, setDragDepth] = useState(0);
   const isDragging = dragDepth > 0;
-
-  useEffect(() => {
-    if (disabled) setDragDepth(0);
-  }, [disabled]);
 
   const addFiles = (files: File[]) => {
     const currentCount = aui.composer.getState().attachments.length;
