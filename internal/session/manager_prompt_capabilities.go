@@ -11,17 +11,10 @@ func (m *Manager) preflightAdmittedPromptAttachments(
 	if len(attachments) == 0 || session.IsPrompting() {
 		return nil
 	}
-	proc, err := session.beginExclusivePromptSetup()
+	proc, err := m.reservePromptSlot(ctx, session, runtime)
 	if err != nil {
 		return err
 	}
 	defer session.finishPromptSetup()
-	if err := m.validateReservedRuntimeModel(session, proc, runtime); err != nil {
-		return err
-	}
-	proc, err = m.ensurePromptRuntime(ctx, session, runtime, proc)
-	if err != nil {
-		return err
-	}
 	return validatePromptAttachmentCaps(attachments, proc.CapsSnapshot())
 }

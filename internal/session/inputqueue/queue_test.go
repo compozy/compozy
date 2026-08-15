@@ -3,7 +3,6 @@ package inputqueue
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -45,112 +44,38 @@ func TestServiceNewInsertAttachments(t *testing.T) {
 			mode:      store.SessionInputQueueModeQueue,
 			delivery:  store.SessionInputDeliveryAfterTurn,
 		})
-		if err == nil || !strings.Contains(err.Error(), "text is required") {
-			t.Fatalf("newInsert() error = %v, want text is required", err)
+		if !errors.Is(err, ErrInputTextRequired) {
+			t.Fatalf("newInsert() error = %v, want %v", err, ErrInputTextRequired)
 		}
 	})
 
 	t.Run("Should reject every steer insert that carries attachments", func(t *testing.T) {
 		t.Parallel()
 
-		for _, text := range []string{"", "steer with text"} {
-			service := newTestQueueService(t)
-			_, err := service.newInsert(insertSpec{
-				sessionID:    "sess-queue-steer",
-				mode:         store.SessionInputQueueModeSteer,
-				delivery:     store.SessionInputDeliveryInterruptThenPrompt,
-				targetTurnID: "turn-active",
-				text:         text,
-				attachments:  []store.SessionInputAttachment{testQueueAttachment()},
+		tests := []struct {
+			name string
+			text string
+		}{
+			{name: "Should reject attachment-only steer input", text: ""},
+			{name: "Should reject text and attachment steer input", text: "steer with text"},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				service := newTestQueueService(t)
+				_, err := service.newInsert(insertSpec{
+					sessionID:    "sess-queue-steer",
+					mode:         store.SessionInputQueueModeSteer,
+					delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+					targetTurnID: "turn-active",
+					text:         test.text,
+					attachments:  []store.SessionInputAttachment{testQueueAttachment()},
+				})
+				if !errors.Is(err, store.ErrSessionInputSteerTextOnly) {
+					t.Fatalf("newInsert(%q) error = %v, want ErrSessionInputSteerTextOnly", test.text, err)
+				}
 			})
-			if !errors.Is(err, store.ErrSessionInputSteerTextOnly) {
-				t.Fatalf("newInsert(%q) error = %v, want ErrSessionInputSteerTextOnly", text, err)
-			}
-		}
-	})
-}
-
-func TestSameMutationAttachments(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should treat equal attachment snapshots as the same mutation", func(t *testing.T) {
-		t.Parallel()
-
-		attachment := testQueueAttachment()
-		entry := store.SessionInputQueueEntry{
-			Text:           "queued",
-			MessageID:      "msg-1",
-			IdempotencyKey: "idem-1",
-			Mode:           store.SessionInputQueueModeQueue,
-			Delivery:       store.SessionInputDeliveryAfterTurn,
-			Attachments:    []store.SessionInputAttachment{attachment},
-		}
-		if !sameMutation(
-			&entry,
-			"queued",
-			"msg-1",
-			"idem-1",
-			store.SessionInputQueueModeQueue,
-			store.SessionInputDeliveryAfterTurn,
-			"",
-			nil,
-			[]store.SessionInputAttachment{attachment},
-		) {
-			t.Fatal("sameMutation() = false, want true for identical attachments")
-		}
-	})
-
-	t.Run("Should skip attachment comparison when the mutation does not assert attachments", func(t *testing.T) {
-		t.Parallel()
-
-		entry := store.SessionInputQueueEntry{
-			Text:           "queued",
-			MessageID:      "msg-1",
-			IdempotencyKey: "idem-1",
-			Mode:           store.SessionInputQueueModeQueue,
-			Delivery:       store.SessionInputDeliveryAfterTurn,
-			Attachments:    []store.SessionInputAttachment{testQueueAttachment()},
-		}
-		if !sameMutation(
-			&entry,
-			"queued",
-			"msg-1",
-			"idem-1",
-			store.SessionInputQueueModeQueue,
-			store.SessionInputDeliveryAfterTurn,
-			"",
-			nil,
-			nil,
-		) {
-			t.Fatal("sameMutation() = false, want true when attachments are not asserted")
-		}
-	})
-
-	t.Run("Should treat a changed attachment set as a different mutation", func(t *testing.T) {
-		t.Parallel()
-
-		entry := store.SessionInputQueueEntry{
-			Text:           "queued",
-			MessageID:      "msg-1",
-			IdempotencyKey: "idem-1",
-			Mode:           store.SessionInputQueueModeQueue,
-			Delivery:       store.SessionInputDeliveryAfterTurn,
-			Attachments:    []store.SessionInputAttachment{testQueueAttachment()},
-		}
-		changed := testQueueAttachment()
-		changed.SHA256 = "different-digest"
-		if sameMutation(
-			&entry,
-			"queued",
-			"msg-1",
-			"idem-1",
-			store.SessionInputQueueModeQueue,
-			store.SessionInputDeliveryAfterTurn,
-			"",
-			nil,
-			[]store.SessionInputAttachment{changed},
-		) {
-			t.Fatal("sameMutation() = true, want false after the attachment digest changed")
 		}
 	})
 }

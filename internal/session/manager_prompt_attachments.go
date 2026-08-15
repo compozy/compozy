@@ -3,10 +3,7 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
-
-	"github.com/compozy/compozy/internal/acp"
 )
 
 func (m *Manager) parseSendPromptRequest(
@@ -40,37 +37,30 @@ func (m *Manager) parseAttachmentOnlyPromptRequest(
 	opts SendPromptOpts,
 	attachments []AttachmentMeta,
 ) (promptRequest, error) {
-	if ctx == nil {
-		return promptRequest{}, errors.New("session: prompt context is required")
-	}
-	target := strings.TrimSpace(id)
-	if target == "" {
-		return promptRequest{}, errors.New("session: session id is required")
-	}
-	turnSource := normalizeTurnSource(TurnSourceUser)
-	if turnSource == "" {
-		return promptRequest{}, fmt.Errorf(
-			"session: invalid turn source %q",
-			strings.TrimSpace(string(TurnSourceUser)),
-		)
-	}
-	meta, err := normalizePromptMeta(turnSource, acp.PromptMeta{}, promptSubmissionPathUserFacing)
+	req, err := m.parsePromptRequestWithMessagePolicy(ctx, id, PromptOpts{
+		TurnSource:      TurnSourceUser,
+		DeliveryContext: opts.DeliveryContext,
+	}, true)
 	if err != nil {
 		return promptRequest{}, err
 	}
-	turnID, err := m.newPromptTurnID()
-	if err != nil {
-		return promptRequest{}, err
+	req.attachments = attachments
+	return req, nil
+}
+
+func (m *Manager) canonicalizePromptRequestAttachments(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	req *promptRequest,
+) error {
+	if req == nil {
+		return errors.New("session: prompt request is required")
 	}
-	return promptRequest{
-		turnID:          turnID,
-		target:          target,
-		message:         "",
-		authoredMessage: "",
-		turnSource:      turnSource,
-		meta:            meta,
-		resumeStopped:   true,
-		deliveryCtx:     opts.DeliveryContext,
-		attachments:     attachments,
-	}, nil
+	attachments, err := m.canonicalPromptAttachments(ctx, workspaceID, sessionID, req.attachments)
+	if err != nil {
+		return err
+	}
+	req.attachments = attachments
+	return nil
 }

@@ -2230,6 +2230,7 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			t.Fatalf("os.WriteFile() error = %v", err)
 		}
 		transportErr := errors.New("injected upload transport failure")
+		var multipartBody *sessionAttachmentMultipartBody
 		client := &daemonClient{
 			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -2238,6 +2239,11 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 						http.StatusOK,
 						`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
 					), nil
+				}
+				var ok bool
+				multipartBody, ok = req.Body.(*sessionAttachmentMultipartBody)
+				if !ok {
+					t.Fatalf("upload request body = %T, want *sessionAttachmentMultipartBody", req.Body)
 				}
 				return nil, transportErr
 			})},
@@ -2248,6 +2254,39 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 		_, err := client.UploadSessionAttachment(ctx, "sess-1", filePath)
 		if !errors.Is(err, transportErr) {
 			t.Fatalf("UploadSessionAttachment() error = %v, want transport failure", err)
+		}
+		if multipartBody == nil {
+			t.Fatal("upload transport did not receive the multipart body")
+		}
+		select {
+		case _, open := <-multipartBody.done:
+			if open {
+				t.Fatal("multipart producer completion was not joined")
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for multipart producer completion")
+		}
+	})
+
+	t.Run("Should drain an upload response when multipart cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		requestErr := errors.New("upload request failed")
+		bodyErr := errors.New("multipart cleanup failed")
+		reader := &stagedResponseReader{chunks: [][]byte{[]byte("cleanup response")}}
+		responseBody := &responseBodyProbe{reader: reader}
+		response := newHTTPResponse(http.StatusCreated, "")
+		response.Body = responseBody
+
+		err := cleanupSessionAttachmentUpload("unread-frame.png", requestErr, bodyErr, response)
+		if !errors.Is(err, requestErr) || !errors.Is(err, bodyErr) {
+			t.Fatalf("cleanupSessionAttachmentUpload() error = %v, want request and cleanup errors", err)
+		}
+		if got := len(reader.chunks); got != 0 {
+			t.Fatalf("cleanup response chunks = %d, want 0", got)
+		}
+		if got, want := responseBody.closeCalls.Load(), int32(1); got != want {
+			t.Fatalf("cleanup response Close() calls = %d, want %d", got, want)
 		}
 	})
 

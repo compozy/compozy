@@ -2,22 +2,27 @@ import { ComposerPrimitive, useAuiState } from "@assistant-ui/react";
 import { ArrowUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 
 import { sessionComposerSendBlocker } from "./hooks/use-session-composer-send-gate";
 import { sessionAttachmentTileState } from "./session-attachment-tile-model";
 
 export function SessionComposerSendButton({
   canPrompt,
-  promptEmbeddedContext,
-  promptImage,
+  promptEmbeddedContextCapability,
+  promptImageCapability,
 }: {
   canPrompt: boolean;
-  promptEmbeddedContext: boolean;
-  promptImage: boolean;
+  promptEmbeddedContextCapability: SessionPromptCapability;
+  promptImageCapability: SessionPromptCapability;
 }) {
   const attachments = useAuiState(state => state.composer.attachments);
   const text = useAuiState(state => state.composer.text);
-  const blocker = sessionComposerSendBlocker({ attachments, promptEmbeddedContext, promptImage });
+  const blocker = sessionComposerSendBlocker({
+    attachments,
+    promptEmbeddedContextCapability,
+    promptImageCapability,
+  });
   const hasReadyAttachment = attachments.some(
     attachment => sessionAttachmentTileState(attachment) === "ready"
   );

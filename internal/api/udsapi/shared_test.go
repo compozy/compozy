@@ -67,7 +67,7 @@ func observeEventAfterCursor(event store.EventSummary, cursor logsCursor) bool {
 }
 
 func acpCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
-	return core.ACPCapsPayloadFromInfo(caps)
+	return contract.ACPCapsPayloadFromACP(caps, true)
 }
 
 func tokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePayload {

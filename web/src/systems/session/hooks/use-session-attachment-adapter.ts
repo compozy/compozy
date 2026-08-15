@@ -4,18 +4,15 @@ import type {
   CompleteAttachment,
   PendingAttachment,
 } from "@assistant-ui/react";
+import { useState } from "react";
 
 import {
   deleteSessionAttachment,
   SessionAttachmentApiError,
   uploadSessionAttachment,
 } from "../adapters/session-attachment-api";
-import {
-  ATTACHMENT_ALLOWED_REASON,
-  attachmentOversizeMessage,
-  SESSION_ATTACHMENT_PART_NAME,
-  sniffAttachmentFile,
-} from "../lib/attachment-kinds";
+import { ATTACHMENT_ALLOWED_REASON, SESSION_ATTACHMENT_PART_NAME } from "../lib/attachment-kinds";
+import { consumeSubmittedComposerAttachment } from "../lib/session-composer-attachment-ownership";
 import type { SessionAttachment } from "../types";
 
 export const SESSION_ATTACHMENT_ADAPTER_ACCEPT = "*";
@@ -49,15 +46,26 @@ function persistFailureMessage(error: unknown): string {
   return "Couldn't save";
 }
 
+function registerFileAliases(
+  files: Map<string, File>,
+  pendingID: string,
+  uploadedID: string,
+  file: File
+): void {
+  files.set(pendingID, file);
+  files.set(uploadedID, file);
+}
+
 export class SessionAttachmentAdapter implements AttachmentAdapter {
   /**
-   * Wildcard so drop/paste of unsupported types still enter `add()` and become
-   * in-place rejected tiles. The paperclip picker allows every file so this
-   * content-based check stays authoritative on the client.
+   * Wildcard lets the daemon apply its configured admission policy consistently
+   * to picker, drop, and paste input.
    */
   public accept = SESSION_ATTACHMENT_ADAPTER_ACCEPT;
 
   private readonly uploads = new Map<string, SessionAttachment>();
+  private readonly sentFiles = new Map<string, File>();
+  private readonly uploadedFiles = new Map<string, File>();
   private readonly inFlightUploads = new Map<string, Promise<SessionAttachment>>();
   private readonly removedWhileUploading = new Set<string>();
   private readonly workspaceId: string;
@@ -70,38 +78,16 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
 
   public async *add({ file }: { file: File }): AsyncGenerator<PendingAttachment, void> {
     const id = pendingId();
-    const sniff = await sniffAttachmentFile(file);
-    const type = sniff.ok && sniff.kind === "image" ? "image" : "file";
     const base: Omit<PendingAttachment, "status"> = {
       id,
-      type,
+      type: file.type.startsWith("image/") ? "image" : "file",
       name: file.name,
-      contentType: sniff.ok ? sniff.mimeType : file.type,
+      contentType: file.type,
       file,
     };
 
-    if (!sniff.ok && sniff.reason === "too-large") {
-      yield {
-        ...base,
-        status: {
-          type: "incomplete",
-          reason: "error",
-          message: attachmentOversizeMessage(file.size),
-        },
-      };
-      return;
-    }
-    if (!sniff.ok) {
-      yield {
-        ...base,
-        status: { type: "incomplete", reason: "error", message: ATTACHMENT_ALLOWED_REASON },
-      };
-      return;
-    }
-
     yield {
       ...base,
-      contentType: sniff.mimeType,
       status: { type: "running", reason: "uploading", progress: 0 },
     };
 
@@ -111,6 +97,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       const uploaded = await upload;
       if (this.removedWhileUploading.has(id)) return;
       this.uploads.set(id, uploaded);
+      registerFileAliases(this.uploadedFiles, id, uploaded.id, file);
       yield {
         ...base,
         contentType: uploaded.mime_type,
@@ -124,6 +111,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
         ],
       };
     } catch (error) {
+      if (this.removedWhileUploading.has(id)) return;
       yield {
         ...base,
         status: {
@@ -138,6 +126,12 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
   }
 
   public async remove(attachment: Attachment): Promise<void> {
+    if (consumeSubmittedComposerAttachment(attachment)) {
+      const uploaded = this.uploads.get(attachment.id);
+      this.uploads.delete(attachment.id);
+      if (uploaded) this.forgetUploadedFile(uploaded.id);
+      return;
+    }
     const pending = this.inFlightUploads.get(attachment.id);
     if (pending) {
       this.removedWhileUploading.add(attachment.id);
@@ -145,6 +139,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
         const uploaded = await pending;
         try {
           await deleteSessionAttachment(this.workspaceId, this.sessionId, uploaded.id);
+          this.forgetUploadedFile(uploaded.id);
         } catch (error) {
           this.uploads.set(attachment.id, uploaded);
           throw error;
@@ -159,9 +154,9 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     }
     const uploaded = this.uploads.get(attachment.id);
     if (!uploaded) return;
-    if (attachment.status.type === "complete") return;
     await deleteSessionAttachment(this.workspaceId, this.sessionId, uploaded.id);
     this.uploads.delete(attachment.id);
+    this.forgetUploadedFile(uploaded.id);
   }
 
   public async send(attachment: PendingAttachment): Promise<CompleteAttachment> {
@@ -170,6 +165,9 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       throw new Error(`Attachment "${attachment.name}" is not ready to send`);
     }
     this.uploads.delete(attachment.id);
+    if (attachment.file) {
+      registerFileAliases(this.sentFiles, attachment.id, uploaded.id, attachment.file);
+    }
     return {
       ...attachment,
       id: uploaded.id,
@@ -193,11 +191,39 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       ],
     };
   }
+
+  public acknowledgeSentFiles(): void {
+    this.sentFiles.clear();
+    this.uploadedFiles.clear();
+  }
+
+  public recoverSentFiles(): File[] {
+    const files = new Set([...this.sentFiles.values(), ...this.uploadedFiles.values()]);
+    for (const file of files) {
+      this.forgetFile(file);
+    }
+    return [...files];
+  }
+
+  private forgetUploadedFile(uploadedID: string): void {
+    const file = this.uploadedFiles.get(uploadedID);
+    if (file) this.forgetFile(file);
+  }
+
+  private forgetFile(file: File): void {
+    for (const [id, candidate] of this.sentFiles) {
+      if (candidate === file) this.sentFiles.delete(id);
+    }
+    for (const [id, candidate] of this.uploadedFiles) {
+      if (candidate === file) this.uploadedFiles.delete(id);
+    }
+  }
 }
 
 export function useSessionAttachmentAdapter(
   workspaceId: string,
   sessionId: string
 ): SessionAttachmentAdapter {
-  return new SessionAttachmentAdapter({ workspaceId, sessionId });
+  const [adapter] = useState(() => new SessionAttachmentAdapter({ workspaceId, sessionId }));
+  return adapter;
 }

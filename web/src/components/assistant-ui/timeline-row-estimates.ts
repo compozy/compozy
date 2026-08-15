@@ -7,17 +7,17 @@
 // once a row is on screen — these estimates only seed off-screen rows, so a closer
 // guess reduces scroll drift on long, heterogeneous threads without pixel accuracy.
 
-import { userMessageHasAttachments } from "@/systems/session/lib/session-attachment-items";
+import {
+  isImageMediaType,
+  sessionAttachmentMediaType,
+  userMessageHasAttachments,
+  userMessageHasText,
+} from "@/systems/session/lib/session-attachment-items";
 import {
   SESSION_ATTACHMENT_FILE_HEIGHT,
   SESSION_ATTACHMENT_GALLERY_GAP,
   SESSION_ATTACHMENT_IMAGE_MAX_HEIGHT,
 } from "@/systems/session/lib/session-attachment-geometry";
-import {
-  isSessionAttachmentRef,
-  SESSION_ATTACHMENT_DATA_TYPE,
-  SESSION_ATTACHMENT_PART_NAME,
-} from "@/systems/session/lib/attachment-kinds";
 
 import { deriveSessionRows, type SessionRow } from "./session-timeline.logic";
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
@@ -28,6 +28,7 @@ export const VIRTUAL_MESSAGE_ESTIMATE = 144;
 
 // A right-aligned user prompt is typically one or two lines.
 const USER_MESSAGE_ESTIMATE = 64;
+const USER_MESSAGE_ATTACHMENT_ONLY_TEXT_ESTIMATE = 28;
 
 // Vertical rhythm around an assistant message (`pt-1` + content-aware `pb-2`/`pb-4`).
 const MESSAGE_VERTICAL_PADDING = 28;
@@ -68,27 +69,13 @@ function rowEstimate(row: SessionRow): number {
   return ROW_KIND_ESTIMATE[row.kind];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function userGalleryEstimate(content: unknown): number {
   if (!Array.isArray(content)) {
     return SESSION_ATTACHMENT_FILE_HEIGHT;
   }
   const hasImage = content.some(part => {
-    if (!isRecord(part)) return false;
-    const type = part.type;
-    if (type === "image") return true;
-    if (
-      type === SESSION_ATTACHMENT_DATA_TYPE ||
-      (type === "data" && part.name === SESSION_ATTACHMENT_PART_NAME)
-    ) {
-      return isSessionAttachmentRef(part.data) && part.data.mime_type.startsWith("image/");
-    }
-    if (type !== "file") return false;
-    const mime = typeof part.mimeType === "string" ? part.mimeType : "";
-    return mime.startsWith("image/");
+    const attachmentMediaType = sessionAttachmentMediaType(part);
+    return attachmentMediaType !== null && isImageMediaType(attachmentMediaType);
   });
   return hasImage ? SESSION_ATTACHMENT_IMAGE_MAX_HEIGHT : SESSION_ATTACHMENT_FILE_HEIGHT;
 }
@@ -102,16 +89,9 @@ function computeMessageEstimate(message: {
     if (!userMessageHasAttachments(message.content)) {
       return USER_MESSAGE_ESTIMATE;
     }
-    const hasText =
-      Array.isArray(message.content) &&
-      message.content.some(
-        part =>
-          isRecord(part) &&
-          part.type === "text" &&
-          typeof part.text === "string" &&
-          part.text.trim()
-      );
-    const textHeight = hasText ? USER_MESSAGE_ESTIMATE : 28;
+    const textHeight = userMessageHasText(message.content)
+      ? USER_MESSAGE_ESTIMATE
+      : USER_MESSAGE_ATTACHMENT_ONLY_TEXT_ESTIMATE;
     return userGalleryEstimate(message.content) + SESSION_ATTACHMENT_GALLERY_GAP + textHeight;
   }
   const parts = toTimelineParts(message);

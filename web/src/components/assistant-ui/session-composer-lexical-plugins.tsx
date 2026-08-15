@@ -16,8 +16,6 @@ import {
 } from "lexical";
 import { useEffect, useEffectEvent } from "react";
 
-import { ATTACHMENT_MAX_COUNT } from "@/systems/session/lib/attachment-kinds";
-
 export interface SessionComposerInputHandle {
   focus: () => void;
 }
@@ -248,11 +246,7 @@ export function SessionComposerPastePlugin() {
   const aui = useAui();
 
   const addFiles = useEffectEvent((files: File[]) => {
-    const remaining = Math.max(
-      0,
-      ATTACHMENT_MAX_COUNT - aui.composer.getState().attachments.length
-    );
-    for (const file of files.slice(0, remaining)) {
+    for (const file of files) {
       void aui.composer.addAttachment(file);
     }
   });
@@ -261,9 +255,8 @@ export function SessionComposerPastePlugin() {
     return editor.registerCommand(
       PASTE_COMMAND,
       event => {
-        if (event == null || !("clipboardData" in event)) return false;
-        const clipboard = event.clipboardData as DataTransfer | null;
-        const files = Array.from(clipboard?.files ?? []);
+        if (!isClipboardEvent(event)) return false;
+        const files = Array.from(event.clipboardData?.files ?? []);
         if (files.length === 0) return false;
         event.preventDefault();
         addFiles(files);
@@ -274,4 +267,8 @@ export function SessionComposerPastePlugin() {
   }, [editor]);
 
   return null;
+}
+
+function isClipboardEvent(event: unknown): event is ClipboardEvent {
+  return typeof event === "object" && event !== null && "clipboardData" in event;
 }

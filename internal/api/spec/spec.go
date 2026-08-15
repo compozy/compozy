@@ -244,7 +244,7 @@ type OperationSpec struct {
 	RequestBody any
 	// RequestBodyOptional keeps a request body schema documented while allowing empty requests.
 	RequestBodyOptional bool
-	// RequestContentType overrides the request media type; empty means application/json.
+	// RequestContentType overrides the request media type; an empty value uses application/json when RequestBody is set.
 	// RequestUploadForm is the only non-JSON value accepted today.
 	RequestContentType string
 	Responses          []ResponseSpec

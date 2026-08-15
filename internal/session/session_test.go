@@ -78,6 +78,34 @@ func TestSessionInvalidTransitionRejected(t *testing.T) {
 func TestSessionInfoCopiesCapabilities(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve known empty ACP capabilities in Info", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Now().UTC()
+		session := &Session{
+			ID:        "sess-1",
+			AgentName: "coder",
+			Workspace: t.TempDir(),
+			State:     StateStarting,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		proc := NewAgentProcess(AgentProcessOptions{Caps: acp.Caps{}})
+		if err := session.activateWithProcess(proc, now, false, false); err != nil {
+			t.Fatalf("activateWithProcess() error = %v", err)
+		}
+
+		info := session.Info()
+		if !info.ACPCapsKnown {
+			t.Fatal("Info().ACPCapsKnown = false, want true for negotiated empty capabilities")
+		}
+		if info.ACPCaps.PromptImage ||
+			info.ACPCaps.PromptAudio ||
+			info.ACPCaps.PromptEmbeddedContext {
+			t.Fatalf("Info().ACPCaps = %#v, want negotiated all-false capabilities", info.ACPCaps)
+		}
+	})
+
 	t.Run("Should return deep-copied ACP capabilities from Info", func(t *testing.T) {
 		t.Parallel()
 

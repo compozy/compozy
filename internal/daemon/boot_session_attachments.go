@@ -9,7 +9,11 @@ import (
 )
 
 type sessionAttachmentRetentionPins struct {
-	queue store.SessionInputQueueStore
+	queue sessionInputAttachmentPinStore
+}
+
+type sessionInputAttachmentPinStore interface {
+	ListPendingSessionInputs(ctx context.Context, sessionID string) ([]store.SessionInputQueueEntry, error)
 }
 
 func (p sessionAttachmentRetentionPins) PinnedAttachmentIDs(
@@ -21,8 +25,7 @@ func (p sessionAttachmentRetentionPins) PinnedAttachmentIDs(
 		return nil, err
 	}
 	pins := make(map[string]struct{})
-	for i := range entries {
-		entry := &entries[i]
+	for _, entry := range entries {
 		for _, attachment := range entry.Attachments {
 			pins[attachment.ID] = struct{}{}
 		}
@@ -45,21 +48,20 @@ func (d *Daemon) bootSessionAttachments(
 		AllowedMIME:  state.cfg.Session.Attachments.AllowedMIME,
 	}
 	var retentionPins attachmentspkg.RetentionPinSource
-	if queueStore := sessionInputQueueStoreDependency(state.registry); queueStore != nil {
+	if queueStore := sessionInputAttachmentPinStoreDependency(state.registry); queueStore != nil {
 		retentionPins = sessionAttachmentRetentionPins{queue: queueStore}
 	}
-	store, err := attachmentspkg.OpenFilesystemAttachmentStore(
-		ctx,
-		d.homePaths.SessionAttachmentsDir,
-		retention,
-		limits,
-		retentionPins,
-	)
+	attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(ctx, attachmentspkg.FilesystemStoreConfig{
+		Root:          d.homePaths.SessionAttachmentsDir,
+		Retention:     retention,
+		Limits:        limits,
+		RetentionPins: retentionPins,
+	})
 	if err != nil {
 		return fmt.Errorf("daemon: open session attachment store: %w", err)
 	}
 	sweeper := attachmentspkg.NewSweeper(
-		store,
+		attachmentStore,
 		attachmentspkg.SweepInterval,
 		func(err error) {
 			state.logger.Error("session attachment retention sweep failed", "error", err)
@@ -69,7 +71,15 @@ func (d *Daemon) bootSessionAttachments(
 		return fmt.Errorf("daemon: start session attachment retention: %w", err)
 	}
 	cleanup.add(sweeper.Shutdown)
-	state.sessionAttachments = store
+	state.sessionAttachments = attachmentStore
 	state.runtimeWorkers.sessionAttachments = sweeper
 	return nil
+}
+
+func sessionInputAttachmentPinStoreDependency(registry Registry) sessionInputAttachmentPinStore {
+	queueStore, ok := registry.(sessionInputAttachmentPinStore)
+	if !ok {
+		return nil
+	}
+	return queueStore
 }

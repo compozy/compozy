@@ -285094,7 +285094,7 @@
                 }
               }
             },
-            "description": "Session not found"
+            "description": "Session or attachment not found"
           },
           "409": {
             "content": {

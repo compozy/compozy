@@ -19,16 +19,20 @@ import (
 )
 
 func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	if err := d.bootLockAndSocket(ctx, state, cleanup); err != nil {
-		return err
-	}
-	if err := d.bootRegistryState(ctx, state, cleanup); err != nil {
-		return err
-	}
 	if err := d.bootRuntimeServices(ctx, state, cleanup); err != nil {
 		return err
 	}
 	if err := d.attachRuntimeObserver(ctx, state); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Daemon) bootRuntimeFoundation(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if err := d.bootLockAndSocket(ctx, state, cleanup); err != nil {
+		return err
+	}
+	if err := d.bootRegistryState(ctx, state, cleanup); err != nil {
 		return err
 	}
 	return nil

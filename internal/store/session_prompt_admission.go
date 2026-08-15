@@ -98,7 +98,7 @@ type SessionPromptAdmissionRequest struct {
 	Now                time.Time
 }
 
-// Normalize trims identity fields and normalizes the request clock.
+// Normalize trims scalar and attachment fields, clones slices, and normalizes the request clock to UTC.
 func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest {
 	normalized := r
 	normalized.ID = strings.TrimSpace(normalized.ID)

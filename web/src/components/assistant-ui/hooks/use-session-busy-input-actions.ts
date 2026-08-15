@@ -12,7 +12,7 @@ export type { SessionBusyInputHandler } from "@/systems/session";
 
 interface UseSessionBusyInputActionsOptions {
   canSubmitBusyInput: boolean;
-  clearComposer: () => void;
+  clearComposer: (options?: { retainAttachments?: boolean }) => void;
   onInterruptPrompt?: SessionBusyInputHandler;
   onQueuePrompt?: SessionBusyInputHandler;
   onRemoveQueuedPrompt?: (id: string) => void;

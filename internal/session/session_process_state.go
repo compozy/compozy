@@ -18,6 +18,7 @@ func (s *Session) updateFromProcessLocked(proc *AgentProcess, now time.Time, ado
 		caps := proc.CapsSnapshot()
 		s.ACPSessionID = strings.TrimSpace(proc.SessionID)
 		s.ACPCaps = cloneCaps(caps)
+		s.ACPCapsKnown = true
 		s.SpeedResolution = speedpkg.CloneResolution(caps.SpeedResolution)
 		if currentModel := currentACPModel(caps.ConfigOptions); adoptCurrentModel && currentModel != "" {
 			s.Model = currentModel

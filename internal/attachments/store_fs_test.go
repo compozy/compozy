@@ -26,7 +26,9 @@ func TestFilesystemAttachmentStoreRoundTrip(t *testing.T) {
 		)
 		payload := encodeTestPNG(t, 2, 2)
 
-		ref, err := store.Put(t.Context(), "ws_a", "sess_1", "shot.png", payload)
+		ref, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "shot.png", Data: payload,
+		})
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
 		}
@@ -95,11 +97,15 @@ func TestFilesystemAttachmentStoreRoundTrip(t *testing.T) {
 		)
 		payload := []byte("same markdown body")
 
-		first, err := store.Put(t.Context(), "ws_a", "sess_1", "notes.md", payload)
+		first, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.md", Data: payload,
+		})
 		if err != nil {
 			t.Fatalf("Put(first) error = %v", err)
 		}
-		second, err := store.Put(t.Context(), "ws_a", "sess_1", "other.md", payload)
+		second, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "other.md", Data: payload,
+		})
 		if err != nil {
 			t.Fatalf("Put(second) error = %v", err)
 		}
@@ -135,7 +141,9 @@ func TestFilesystemAttachmentStorePathSanitization(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			if tc.id == "" {
-				_, err := store.Put(t.Context(), tc.workspaceID, tc.sessionID, "notes.txt", payload)
+				_, err := store.Put(t.Context(), PutRequest{
+					WorkspaceID: tc.workspaceID, SessionID: tc.sessionID, Name: "notes.txt", Data: payload,
+				})
 				if !errors.Is(err, ErrInvalidID) {
 					t.Fatalf("Put() error = %v, want invalid id", err)
 				}
@@ -156,17 +164,16 @@ func TestFilesystemAttachmentStoreSizeLimit(t *testing.T) {
 		t.Parallel()
 
 		root := filepath.Join(t.TempDir(), "session-attachments")
-		store, err := OpenFilesystemAttachmentStore(
-			t.Context(),
-			root,
-			testAttachmentRetention(),
-			StoreLimits{MaxFileBytes: 4, AllowedMIME: DefaultAllowedMIME},
-			nil,
-		)
+		store, err := OpenFilesystemAttachmentStore(t.Context(), FilesystemStoreConfig{
+			Root: root, Retention: testAttachmentRetention(),
+			Limits: StoreLimits{MaxFileBytes: 4, AllowedMIME: DefaultAllowedMIMEs()},
+		})
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
 		}
-		_, err = store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("hello"))
+		_, err = store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: []byte("hello"),
+		})
 		if !errors.Is(err, ErrTooLarge) {
 			t.Fatalf("Put() error = %v, want too large", err)
 		}
@@ -177,17 +184,16 @@ func TestFilesystemAttachmentStoreSizeLimit(t *testing.T) {
 
 		retention := testAttachmentRetention()
 		retention.MaxBytes = 4
-		store, err := OpenFilesystemAttachmentStore(
-			t.Context(),
-			filepath.Join(t.TempDir(), "session-attachments"),
-			retention,
-			StoreLimits{MaxFileBytes: 8, AllowedMIME: DefaultAllowedMIME},
-			nil,
-		)
+		store, err := OpenFilesystemAttachmentStore(t.Context(), FilesystemStoreConfig{
+			Root: filepath.Join(t.TempDir(), "session-attachments"), Retention: retention,
+			Limits: StoreLimits{MaxFileBytes: 8, AllowedMIME: DefaultAllowedMIMEs()},
+		})
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
 		}
-		_, err = store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("hello"))
+		_, err = store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: []byte("hello"),
+		})
 		if !errors.Is(err, ErrTooLarge) {
 			t.Fatalf("Put() error = %v, want too large", err)
 		}
@@ -196,17 +202,16 @@ func TestFilesystemAttachmentStoreSizeLimit(t *testing.T) {
 	t.Run("Should reject MIME outside the configured allowlist", func(t *testing.T) {
 		t.Parallel()
 
-		store, err := OpenFilesystemAttachmentStore(
-			t.Context(),
-			filepath.Join(t.TempDir(), "session-attachments"),
-			testAttachmentRetention(),
-			StoreLimits{MaxFileBytes: 1024, AllowedMIME: []string{MIMETextPlain}},
-			nil,
-		)
+		store, err := OpenFilesystemAttachmentStore(t.Context(), FilesystemStoreConfig{
+			Root: filepath.Join(t.TempDir(), "session-attachments"), Retention: testAttachmentRetention(),
+			Limits: StoreLimits{MaxFileBytes: 1024, AllowedMIME: []string{MIMETextPlain}},
+		})
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
 		}
-		_, err = store.Put(t.Context(), "ws_a", "sess_1", "notes.md", []byte("# notes"))
+		_, err = store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.md", Data: []byte("# notes"),
+		})
 		if !errors.Is(err, ErrUnsupportedMIME) {
 			t.Fatalf("Put() error = %v, want unsupported MIME", err)
 		}
@@ -216,43 +221,51 @@ func TestFilesystemAttachmentStoreSizeLimit(t *testing.T) {
 func TestFilesystemAttachmentStoreRedactsPersistedFilename(t *testing.T) {
 	t.Parallel()
 
-	store := openTestAttachmentStore(
-		t,
-		filepath.Join(t.TempDir(), "session-attachments"),
-		testAttachmentRetention(),
-	)
-	const leakedName = "token=attachment-name-secret compozy_claim_attachment_123.txt"
+	t.Run("Should redact sensitive values from persisted filenames", func(t *testing.T) {
+		t.Parallel()
 
-	stored, err := store.Put(t.Context(), "ws_a", "sess_1", leakedName, []byte("plain notes"))
-	if err != nil {
-		t.Fatalf("Put() error = %v", err)
-	}
-	if strings.Contains(stored.Name, "attachment-name-secret") ||
-		strings.Contains(stored.Name, "compozy_claim_attachment_123") {
-		t.Fatalf("Put() Name = %q, leaked filename credentials", stored.Name)
-	}
-	reopened, err := store.Stat(t.Context(), "ws_a", "sess_1", stored.ID)
-	if err != nil {
-		t.Fatalf("Stat() error = %v", err)
-	}
-	if reopened.Name != stored.Name {
-		t.Fatalf("Stat() Name = %q, want persisted redacted name %q", reopened.Name, stored.Name)
-	}
+		store := openTestAttachmentStore(
+			t,
+			filepath.Join(t.TempDir(), "session-attachments"),
+			testAttachmentRetention(),
+		)
+		const leakedName = "token=attachment-name-secret compozy_claim_attachment_123.txt"
+
+		stored, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: leakedName, Data: []byte("plain notes"),
+		})
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+		if strings.Contains(stored.Name, "attachment-name-secret") ||
+			strings.Contains(stored.Name, "compozy_claim_attachment_123") {
+			t.Fatalf("Put() Name = %q, leaked filename credentials", stored.Name)
+		}
+		reopened, err := store.Stat(t.Context(), "ws_a", "sess_1", stored.ID)
+		if err != nil {
+			t.Fatalf("Stat() error = %v", err)
+		}
+		if reopened.Name != stored.Name {
+			t.Fatalf("Stat() Name = %q, want persisted redacted name %q", reopened.Name, stored.Name)
+		}
+	})
 }
 
 func TestOpenFilesystemAttachmentStoreValidation(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name      string
-		root      string
-		retention AttachmentRetention
-		limits    StoreLimits
+		name        string
+		root        string
+		retention   AttachmentRetention
+		limits      StoreLimits
+		wantMessage string
 	}{
 		{
-			name:      "Should reject an empty root",
-			retention: testAttachmentRetention(),
-			limits:    testAttachmentLimits(),
+			name:        "Should reject an empty root",
+			retention:   testAttachmentRetention(),
+			limits:      testAttachmentLimits(),
+			wantMessage: "attachment root is required",
 		},
 		{
 			name: "Should reject invalid retention",
@@ -262,19 +275,22 @@ func TestOpenFilesystemAttachmentStoreValidation(t *testing.T) {
 				MaxBytes: 1024,
 				MaxAge:   time.Hour,
 			},
-			limits: testAttachmentLimits(),
+			limits:      testAttachmentLimits(),
+			wantMessage: "attachment max count must be greater than zero: 0",
 		},
 		{
-			name:      "Should reject a non-positive file limit",
-			root:      filepath.Join(t.TempDir(), "invalid-file-limit"),
-			retention: testAttachmentRetention(),
-			limits:    StoreLimits{AllowedMIME: DefaultAllowedMIME},
+			name:        "Should reject a non-positive file limit",
+			root:        filepath.Join(t.TempDir(), "invalid-file-limit"),
+			retention:   testAttachmentRetention(),
+			limits:      StoreLimits{AllowedMIME: DefaultAllowedMIMEs()},
+			wantMessage: "attachment max_file_bytes must be greater than zero: 0",
 		},
 		{
-			name:      "Should reject an empty MIME allowlist",
-			root:      filepath.Join(t.TempDir(), "empty-allowlist"),
-			retention: testAttachmentRetention(),
-			limits:    StoreLimits{MaxFileBytes: 1024},
+			name:        "Should reject an empty MIME allowlist",
+			root:        filepath.Join(t.TempDir(), "empty-allowlist"),
+			retention:   testAttachmentRetention(),
+			limits:      StoreLimits{MaxFileBytes: 1024},
+			wantMessage: "attachment allowed_mime must not be empty",
 		},
 		{
 			name:      "Should reject a MIME outside the v1 allowlist",
@@ -284,20 +300,31 @@ func TestOpenFilesystemAttachmentStoreValidation(t *testing.T) {
 				MaxFileBytes: 1024,
 				AllowedMIME:  []string{"image/gif"},
 			},
+			wantMessage: "attachments: unsupported mime type \"image/gif\"",
+		},
+		{
+			name:      "Should reject duplicate MIME entries after normalization",
+			root:      filepath.Join(t.TempDir(), "duplicate-allowlist"),
+			retention: testAttachmentRetention(),
+			limits: StoreLimits{
+				MaxFileBytes: 1024,
+				AllowedMIME:  []string{MIMETextPlain, " TEXT/PLAIN "},
+			},
+			wantMessage: "attachment allowed_mime duplicates \"text/plain\"",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := OpenFilesystemAttachmentStore(
-				t.Context(),
-				tc.root,
-				tc.retention,
-				tc.limits,
-				nil,
-			); err == nil {
-				t.Fatal("OpenFilesystemAttachmentStore() error = nil, want validation error")
+			if _, err := OpenFilesystemAttachmentStore(t.Context(), FilesystemStoreConfig{
+				Root: tc.root, Retention: tc.retention, Limits: tc.limits,
+			}); err == nil || !strings.Contains(err.Error(), tc.wantMessage) {
+				t.Fatalf(
+					"OpenFilesystemAttachmentStore() error = %v, want validation detail %q",
+					err,
+					tc.wantMessage,
+				)
 			}
 		})
 	}
@@ -312,28 +339,25 @@ func TestFilesystemAttachmentStoreRetention(t *testing.T) {
 		now := time.Date(2026, time.August, 14, 4, 0, 0, 0, time.UTC)
 		retention := testAttachmentRetention()
 		retention.MaxCount = 2
-		store, err := OpenFilesystemAttachmentStore(
-			t.Context(),
-			filepath.Join(t.TempDir(), "session-attachments"),
-			retention,
-			testAttachmentLimits(),
-			nil,
-			withAttachmentStoreNow(func() time.Time { return now }),
-		)
-		if err != nil {
-			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
-		}
-		first, err := store.Put(t.Context(), "ws_a", "sess_1", "a.txt", []byte("first"))
+		store := openTestAttachmentStore(t, filepath.Join(t.TempDir(), "session-attachments"), retention)
+		store.now = func() time.Time { return now }
+		first, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "a.txt", Data: []byte("first"),
+		})
 		if err != nil {
 			t.Fatalf("Put(first) error = %v", err)
 		}
 		now = now.Add(time.Second)
-		second, err := store.Put(t.Context(), "ws_a", "sess_1", "b.txt", []byte("second"))
+		second, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "b.txt", Data: []byte("second"),
+		})
 		if err != nil {
 			t.Fatalf("Put(second) error = %v", err)
 		}
 		now = now.Add(time.Second)
-		third, err := store.Put(t.Context(), "ws_a", "sess_1", "c.txt", []byte("third"))
+		third, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "c.txt", Data: []byte("third"),
+		})
 		if err != nil {
 			t.Fatalf("Put(third) error = %v", err)
 		}
@@ -349,23 +373,18 @@ func TestFilesystemAttachmentStoreRetention(t *testing.T) {
 		retention := testAttachmentRetention()
 		retention.MaxBytes = 9
 		retention.MaxAge = time.Hour
-		store, err := OpenFilesystemAttachmentStore(
-			t.Context(),
-			filepath.Join(t.TempDir(), "session-attachments"),
-			retention,
-			testAttachmentLimits(),
-			nil,
-			withAttachmentStoreNow(func() time.Time { return now }),
-		)
-		if err != nil {
-			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
-		}
-		old, err := store.Put(t.Context(), "ws_a", "sess_1", "old.txt", []byte("12345"))
+		store := openTestAttachmentStore(t, filepath.Join(t.TempDir(), "session-attachments"), retention)
+		store.now = func() time.Time { return now }
+		old, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "old.txt", Data: []byte("12345"),
+		})
 		if err != nil {
 			t.Fatalf("Put(old) error = %v", err)
 		}
 		now = now.Add(time.Second)
-		current, err := store.Put(t.Context(), "ws_b", "sess_2", "new.txt", []byte("67890"))
+		current, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_b", SessionID: "sess_2", Name: "new.txt", Data: []byte("67890"),
+		})
 		if err != nil {
 			t.Fatalf("Put(current) error = %v", err)
 		}
@@ -376,6 +395,37 @@ func TestFilesystemAttachmentStoreRetention(t *testing.T) {
 		assertAttachmentMissing(t, store, "ws_b", "sess_2", current.ID)
 	})
 
+	t.Run("Should replace an expired attachment when the same bytes are put again", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 14, 6, 0, 0, 0, time.UTC)
+		retention := testAttachmentRetention()
+		retention.MaxAge = time.Hour
+		store := openTestAttachmentStore(t, filepath.Join(t.TempDir(), "session-attachments"), retention)
+		store.now = func() time.Time { return now }
+		payload := []byte("same retained content")
+		first, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: payload,
+		})
+		if err != nil {
+			t.Fatalf("Put(first) error = %v", err)
+		}
+
+		now = now.Add(retention.MaxAge + time.Second)
+		second, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: payload,
+		})
+		if err != nil {
+			t.Fatalf("Put(second) error = %v", err)
+		}
+		if second.ID != first.ID {
+			t.Fatalf("Put(second).ID = %q, want content-addressed ID %q", second.ID, first.ID)
+		}
+		if !second.CreatedAt.Equal(now) {
+			t.Fatalf("Put(second).CreatedAt = %s, want %s", second.CreatedAt, now)
+		}
+	})
+
 	t.Run("Should preserve pending-input pins until the queue releases them", func(t *testing.T) {
 		t.Parallel()
 
@@ -383,18 +433,11 @@ func TestFilesystemAttachmentStoreRetention(t *testing.T) {
 		retention := testAttachmentRetention()
 		retention.MaxAge = time.Hour
 		pins := &testRetentionPinSource{bySession: map[string]map[string]struct{}{}}
-		store, err := OpenFilesystemAttachmentStore(
-			t.Context(),
-			filepath.Join(t.TempDir(), "session-attachments"),
-			retention,
-			testAttachmentLimits(),
-			pins,
-			withAttachmentStoreNow(func() time.Time { return now }),
-		)
-		if err != nil {
-			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
-		}
-		ref, err := store.Put(t.Context(), "ws_a", "sess_queued", "queued.txt", []byte("queued"))
+		store := openTestAttachmentStoreWithPins(t, filepath.Join(t.TempDir(), "session-attachments"), retention, pins)
+		store.now = func() time.Time { return now }
+		ref, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_queued", Name: "queued.txt", Data: []byte("queued"),
+		})
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
 		}
@@ -420,23 +463,16 @@ func TestFilesystemAttachmentStoreFailureCleanup(t *testing.T) {
 		t.Parallel()
 
 		root := filepath.Join(t.TempDir(), "session-attachments")
-		store, err := OpenFilesystemAttachmentStore(
-			t.Context(),
-			root,
-			testAttachmentRetention(),
-			testAttachmentLimits(),
-			nil,
-			withAttachmentStoreWriteFile(func(path string, content []byte, perm os.FileMode) error {
-				if writeErr := os.WriteFile(path, content, perm); writeErr != nil {
-					return writeErr
-				}
-				return errors.New("injected sync failure")
-			}),
-		)
-		if err != nil {
-			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
+		store := openTestAttachmentStore(t, root, testAttachmentRetention())
+		store.writeFile = func(path string, content []byte, perm os.FileMode) error {
+			if writeErr := os.WriteFile(path, content, perm); writeErr != nil {
+				return writeErr
+			}
+			return errors.New("injected sync failure")
 		}
-		_, err = store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("payload"))
+		_, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: []byte("payload"),
+		})
 		if !errors.Is(err, ErrPersistence) || !strings.Contains(err.Error(), "injected sync failure") {
 			t.Fatalf("Put() error = %v, want typed injected persistence failure", err)
 		}
@@ -446,6 +482,42 @@ func TestFilesystemAttachmentStoreFailureCleanup(t *testing.T) {
 		}
 		if len(matches) != 0 {
 			t.Fatalf("published attachments after failure = %#v, want none", matches)
+		}
+	})
+
+	t.Run("Should recover incomplete attachment pairs when reopening", func(t *testing.T) {
+		t.Parallel()
+
+		root := filepath.Join(t.TempDir(), "session-attachments")
+		sessionPath := filepath.Join(root, "ws_a", "sess_1")
+		if err := os.MkdirAll(sessionPath, 0o700); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+		content := []byte("interrupted publish content")
+		contentPath := filepath.Join(sessionPath, attachmentID(content))
+		if err := os.WriteFile(contentPath, content, attachmentFileMode); err != nil {
+			t.Fatalf("WriteFile(content) error = %v", err)
+		}
+		orphanMetaPath := metaPath(filepath.Join(sessionPath, attachmentID([]byte("interrupted deletion metadata"))))
+		if err := os.WriteFile(orphanMetaPath, []byte("{}"), attachmentFileMode); err != nil {
+			t.Fatalf("WriteFile(sidecar) error = %v", err)
+		}
+
+		store, err := OpenFilesystemAttachmentStore(t.Context(), FilesystemStoreConfig{
+			Root: root, Retention: testAttachmentRetention(), Limits: testAttachmentLimits(),
+		})
+		if err != nil {
+			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
+		}
+		for _, path := range []string{contentPath, metaPath(contentPath), orphanMetaPath} {
+			if _, statErr := os.Lstat(path); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("Lstat(%q) error = %v, want missing recovered artifact", path, statErr)
+			}
+		}
+		if _, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: content,
+		}); err != nil {
+			t.Fatalf("Put() error = %v, want usable recovered store", err)
 		}
 	})
 }
@@ -461,7 +533,9 @@ func TestFilesystemAttachmentStoreMetadataIntegrity(t *testing.T) {
 			filepath.Join(t.TempDir(), "session-attachments"),
 			testAttachmentRetention(),
 		)
-		ref, err := store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("payload"))
+		ref, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: []byte("payload"),
+		})
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
 		}
@@ -485,7 +559,9 @@ func TestFilesystemAttachmentStoreMetadataIntegrity(t *testing.T) {
 			filepath.Join(t.TempDir(), "session-attachments"),
 			testAttachmentRetention(),
 		)
-		ref, err := store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("payload"))
+		ref, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: []byte("payload"),
+		})
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
 		}
@@ -519,7 +595,9 @@ func TestFilesystemAttachmentStoreMetadataIntegrity(t *testing.T) {
 			filepath.Join(t.TempDir(), "session-attachments"),
 			testAttachmentRetention(),
 		)
-		ref, err := store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("payload"))
+		ref, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_1", Name: "notes.txt", Data: []byte("payload"),
+		})
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
 		}
@@ -545,8 +623,19 @@ func openTestAttachmentStore(
 	root string,
 	retention AttachmentRetention,
 ) *FilesystemAttachmentStore {
+	return openTestAttachmentStoreWithPins(t, root, retention, nil)
+}
+
+func openTestAttachmentStoreWithPins(
+	t *testing.T,
+	root string,
+	retention AttachmentRetention,
+	retentionPins RetentionPinSource,
+) *FilesystemAttachmentStore {
 	t.Helper()
-	store, err := OpenFilesystemAttachmentStore(t.Context(), root, retention, testAttachmentLimits(), nil)
+	store, err := OpenFilesystemAttachmentStore(t.Context(), FilesystemStoreConfig{
+		Root: root, Retention: retention, Limits: testAttachmentLimits(), RetentionPins: retentionPins,
+	})
 	if err != nil {
 		t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
 	}
@@ -569,7 +658,7 @@ func (s *testRetentionPinSource) PinnedAttachmentIDs(
 }
 
 func testAttachmentLimits() StoreLimits {
-	return StoreLimits{MaxFileBytes: 1 << 20, AllowedMIME: DefaultAllowedMIME}
+	return StoreLimits{MaxFileBytes: 1 << 20, AllowedMIME: DefaultAllowedMIMEs()}
 }
 
 func assertAttachmentMissing(

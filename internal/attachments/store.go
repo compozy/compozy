@@ -6,13 +6,36 @@ import (
 	"time"
 )
 
-// Store persists content-addressed session attachments on a durable root.
-type Store interface {
-	Put(ctx context.Context, workspaceID string, sessionID string, name string, data []byte) (AttachmentRef, error)
+// PutRequest supplies one attachment write and its session scope.
+type PutRequest struct {
+	WorkspaceID string
+	SessionID   string
+	Name        string
+	Data        []byte
+}
+
+// AttachmentReader reads retained attachments within a workspace session scope.
+type AttachmentReader interface {
 	Open(ctx context.Context, workspaceID string, sessionID string, id string) (io.ReadCloser, AttachmentRef, error)
 	Stat(ctx context.Context, workspaceID string, sessionID string, id string) (AttachmentRef, error)
+}
+
+// AttachmentWriter mutates retained attachments within a workspace session scope.
+type AttachmentWriter interface {
+	Put(ctx context.Context, request PutRequest) (AttachmentRef, error)
 	Delete(ctx context.Context, workspaceID string, sessionID string, id string) error
+}
+
+// AttachmentSweeper applies retention to durable attachments.
+type AttachmentSweeper interface {
 	Sweep(ctx context.Context) error
+}
+
+// Store persists content-addressed session attachments on a durable root.
+type Store interface {
+	AttachmentReader
+	AttachmentWriter
+	AttachmentSweeper
 }
 
 // ScopeLease serializes attachment mutations with session and workspace deletion.
@@ -31,6 +54,14 @@ type ScopeLeaseGuard interface {
 type StoreLimits struct {
 	MaxFileBytes int64
 	AllowedMIME  []string
+}
+
+// FilesystemStoreConfig supplies filesystem attachment store dependencies.
+type FilesystemStoreConfig struct {
+	Root          string
+	Retention     AttachmentRetention
+	Limits        StoreLimits
+	RetentionPins RetentionPinSource
 }
 
 // RetentionPinSource returns durable attachment IDs that retention must preserve.

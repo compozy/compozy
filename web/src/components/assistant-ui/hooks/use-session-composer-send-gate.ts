@@ -1,17 +1,18 @@
 import type { Attachment } from "@assistant-ui/react";
 
 import { isImageAttachmentMime } from "@/systems/session/lib/attachment-kinds";
+import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 
 import { sessionAttachmentTileState } from "../session-attachment-tile-model";
 
 export function sessionComposerSendBlocker({
   attachments,
-  promptEmbeddedContext,
-  promptImage,
+  promptEmbeddedContextCapability,
+  promptImageCapability,
 }: {
   attachments: readonly Attachment[];
-  promptEmbeddedContext: boolean;
-  promptImage: boolean;
+  promptEmbeddedContextCapability: SessionPromptCapability;
+  promptImageCapability: SessionPromptCapability;
 }): string | null {
   const uploading = attachments.find(
     attachment => sessionAttachmentTileState(attachment) === "uploading"
@@ -23,28 +24,22 @@ export function sessionComposerSendBlocker({
   );
   if (rejected) return "Remove files that are not supported";
 
-  const persistFailed = attachments.find(attachment => {
-    if (sessionAttachmentTileState(attachment) !== "error") return false;
-    return attachment.status.type === "incomplete" && attachment.status.message === "Couldn't save";
-  });
-  if (persistFailed) return `Couldn't save ${persistFailed.name}`;
-
-  const oversized = attachments.some(attachment => {
-    if (sessionAttachmentTileState(attachment) !== "error") return false;
-    return (
-      attachment.status.type === "incomplete" &&
-      (attachment.status.message?.includes("over 10 MB") ?? false)
-    );
-  });
-  if (oversized) return "A file is over 10 MB";
+  const failed = attachments.find(attachment => sessionAttachmentTileState(attachment) === "error");
+  if (failed?.status.type === "incomplete") {
+    return failed.status.message ?? `Couldn't save ${failed.name}`;
+  }
 
   const hasImages = attachments.some(
     attachment => attachment.type === "image" || isImageAttachmentMime(attachment.contentType)
   );
-  if (hasImages && !promptImage) return "This model does not accept images";
+  if (hasImages && promptImageCapability === "unsupported") {
+    return "This agent does not accept images";
+  }
 
   const hasPDF = attachments.some(attachment => attachment.contentType === "application/pdf");
-  if (hasPDF && !promptEmbeddedContext) return "This model does not accept PDF files";
+  if (hasPDF && promptEmbeddedContextCapability === "unsupported") {
+    return "This agent does not accept PDF files";
+  }
 
   const notReady = attachments.find(
     attachment => sessionAttachmentTileState(attachment) !== "ready"

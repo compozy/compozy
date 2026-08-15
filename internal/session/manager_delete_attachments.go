@@ -30,6 +30,15 @@ type stagedAttachmentDelete struct {
 	lease         attachmentspkg.ScopeLeaseGuard
 }
 
+type attachmentDeleteStageSpec struct {
+	workspaceID   string
+	sessionID     string
+	parentPath    string
+	target        string
+	stagedName    string
+	committedName string
+}
+
 func (m *Manager) stageSessionAttachmentDelete(
 	ctx context.Context,
 	workspaceID string,
@@ -37,15 +46,14 @@ func (m *Manager) stageSessionAttachmentDelete(
 	deletionID string,
 ) (*stagedAttachmentDelete, error) {
 	parentPath := filepath.Join(m.homePaths.SessionAttachmentsDir, workspaceID)
-	return m.stageAttachmentDirectoryDeleteWithLease(
-		ctx,
-		workspaceID,
-		sessionID,
-		parentPath,
-		sessionID,
-		sessionDeleteTombstoneName(sessionDeleteStagedPrefix, sessionID, deletionID),
-		sessionDeleteTombstoneName(sessionDeleteCommittedPrefix, sessionID, deletionID),
-	)
+	return m.stageAttachmentDirectoryDeleteWithLease(ctx, attachmentDeleteStageSpec{
+		workspaceID:   workspaceID,
+		sessionID:     sessionID,
+		parentPath:    parentPath,
+		target:        sessionID,
+		stagedName:    sessionDeleteTombstoneName(sessionDeleteStagedPrefix, sessionID, deletionID),
+		committedName: sessionDeleteTombstoneName(sessionDeleteCommittedPrefix, sessionID, deletionID),
+	})
 }
 
 func (m *Manager) stageWorkspaceAttachmentDelete(
@@ -53,39 +61,37 @@ func (m *Manager) stageWorkspaceAttachmentDelete(
 	workspaceID string,
 	deletionID string,
 ) (*stagedAttachmentDelete, error) {
-	return m.stageAttachmentDirectoryDeleteWithLease(
-		ctx,
-		workspaceID,
-		"",
-		m.homePaths.SessionAttachmentsDir,
-		workspaceID,
-		attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteStagedPrefix, workspaceID, deletionID),
-		attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteCommittedPrefix, workspaceID, deletionID),
-	)
+	return m.stageAttachmentDirectoryDeleteWithLease(ctx, attachmentDeleteStageSpec{
+		workspaceID:   workspaceID,
+		parentPath:    m.homePaths.SessionAttachmentsDir,
+		target:        workspaceID,
+		stagedName:    attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteStagedPrefix, workspaceID, deletionID),
+		committedName: attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteCommittedPrefix, workspaceID, deletionID),
+	})
 }
 
 func (m *Manager) stageAttachmentDirectoryDeleteWithLease(
 	ctx context.Context,
-	workspaceID string,
-	sessionID string,
-	parentPath string,
-	target string,
-	stagedName string,
-	committedName string,
+	spec attachmentDeleteStageSpec,
 ) (*stagedAttachmentDelete, error) {
 	var lease attachmentspkg.ScopeLeaseGuard
 	if m.attachmentScopeLease != nil {
 		var err error
 		lease, err = m.attachmentScopeLease.AcquireScopeLease(
 			ctx,
-			workspaceID,
-			sessionID,
+			spec.workspaceID,
+			spec.sessionID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("session: acquire attachment deletion lease: %w", err)
 		}
 	}
-	entry, err := m.stageAttachmentDirectoryDelete(parentPath, target, stagedName, committedName)
+	entry, err := m.stageAttachmentDirectoryDelete(
+		spec.parentPath,
+		spec.target,
+		spec.stagedName,
+		spec.committedName,
+	)
 	if err != nil {
 		if lease != nil {
 			lease.Release()

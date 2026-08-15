@@ -16,7 +16,13 @@ func TestSessionInputQueueInsertAttachments(t *testing.T) {
 
 		req := validSessionInputQueueInsert()
 		req.Text = "  "
-		req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
+		attachment := validSessionInputAttachment()
+		attachment.ID = " " + attachment.ID + " "
+		attachment.Name = " " + attachment.Name + " "
+		attachment.MIMEType = " " + attachment.MIMEType + " "
+		attachment.SHA256 = " " + attachment.SHA256 + " "
+		attachment.Kind = " " + attachment.Kind + " "
+		req.Attachments = []SessionInputAttachment{attachment}
 		if err := req.Validate(); err != nil {
 			t.Fatalf("Validate() error = %v", err)
 		}
@@ -24,8 +30,9 @@ func TestSessionInputQueueInsertAttachments(t *testing.T) {
 		if normalized.Text != "" {
 			t.Fatalf("Normalize().Text = %q, want empty", normalized.Text)
 		}
-		if len(normalized.Attachments) != 1 || normalized.Attachments[0].ID != testStoreAttachmentID {
-			t.Fatalf("Normalize().Attachments = %#v", normalized.Attachments)
+		wantAttachment := validSessionInputAttachment()
+		if len(normalized.Attachments) != 1 || normalized.Attachments[0] != wantAttachment {
+			t.Fatalf("Normalize().Attachments = %#v, want %#v", normalized.Attachments, []SessionInputAttachment{wantAttachment})
 		}
 	})
 

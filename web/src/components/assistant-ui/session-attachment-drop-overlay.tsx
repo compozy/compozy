@@ -8,13 +8,13 @@ export function SessionComposerDropRoot({
   children,
   disabled = false,
 }: {
-  children: (state: { isDragging: boolean }) => ReactNode;
+  children: ReactNode;
   disabled?: boolean;
 }) {
   const { isDragging, dropProps } = useSessionComposerDrop({ disabled });
   return (
-    <div className="relative" data-dragging={isDragging || undefined} {...dropProps}>
-      {children({ isDragging })}
+    <div className="group/drop relative" data-dragging={isDragging || undefined} {...dropProps}>
+      {children}
       <SessionAttachmentDropOverlay visible={isDragging} />
     </div>
   );
@@ -26,18 +26,14 @@ export function SessionAttachmentDropOverlay({ visible }: { visible: boolean }) 
       data-testid="composer-drop-overlay"
       aria-hidden={!visible}
       className={cn(
-        "pointer-events-none absolute inset-0 z-2 grid place-items-center rounded-[inherit]",
-        "p-4 text-center",
-        "bg-[color-mix(in_oklch,var(--elevated)_88%,transparent)]",
-        "shadow-[inset_0_0_0_1px_var(--accent-dim)]",
-        visible ? "grid" : "hidden"
+        "pointer-events-none absolute inset-0 z-2 hidden place-items-center rounded-lg",
+        "border border-accent-dim bg-elevated/90 p-4 text-center",
+        "group-data-[dragging=true]/drop:grid"
       )}
     >
       <div>
-        <b className="block text-[13px] font-medium text-fg-strong">Drop files</b>
-        <span className="mt-[3px] block text-[11px] text-subtle">
-          Images, PDF, Markdown, or text
-        </span>
+        <b className="block text-small-body font-medium text-fg-strong">Drop files</b>
+        <span className="mt-1 block text-micro text-subtle">Images, PDF, Markdown, or text</span>
       </div>
     </div>
   );

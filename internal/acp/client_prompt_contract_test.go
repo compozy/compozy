@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -372,59 +373,124 @@ func TestBuildWirePromptRequestAppendsAttachments(t *testing.T) {
 func TestPromptAttachmentBuildFailurePreservesFirstTurnSystemPrompt(t *testing.T) {
 	t.Parallel()
 
-	proc := &AgentProcess{
-		SessionID:    "sess-system-after-attachment-error",
-		systemPrompt: "Keep this first-turn guidance.",
-	}
-	_, err := buildWirePromptRequest(proc, PromptRequest{
-		TurnID: "turn-invalid-attachment",
-		Attachments: []PromptAttachment{{
-			Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
-		}},
-	})
-	if !errors.Is(err, ErrPromptImagesUnsupported) {
-		t.Fatalf("buildWirePromptRequest(invalid attachment) error = %v, want ErrPromptImagesUnsupported", err)
-	}
+	t.Run("Should preserve the first-turn system prompt after attachment failure", func(t *testing.T) {
+		t.Parallel()
 
-	request, err := buildWirePromptRequest(proc, PromptRequest{
-		TurnID:  "turn-first-delivered",
-		Message: "first accepted request",
+		proc := &AgentProcess{
+			SessionID:    "sess-system-after-attachment-error",
+			systemPrompt: "Keep this first-turn guidance.",
+		}
+		_, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID: "turn-invalid-attachment",
+			Attachments: []PromptAttachment{{
+				Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
+			}},
+		})
+		if !errors.Is(err, ErrPromptImagesUnsupported) {
+			t.Fatalf("buildWirePromptRequest(invalid attachment) error = %v, want ErrPromptImagesUnsupported", err)
+		}
+
+		request, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID:  "turn-first-delivered",
+			Message: "first accepted request",
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest(first accepted) error = %v", err)
+		}
+		if len(request.Prompt) != 1 || request.Prompt[0].Text == nil {
+			t.Fatalf("Prompt = %#v, want first-turn text block", request.Prompt)
+		}
+		if !strings.Contains(request.Prompt[0].Text.Text, "Keep this first-turn guidance.") {
+			t.Fatalf("first accepted prompt = %q, want preserved system guidance", request.Prompt[0].Text.Text)
+		}
 	})
-	if err != nil {
-		t.Fatalf("buildWirePromptRequest(first accepted) error = %v", err)
-	}
-	if len(request.Prompt) != 1 || request.Prompt[0].Text == nil {
-		t.Fatalf("Prompt = %#v, want first-turn text block", request.Prompt)
-	}
-	if !strings.Contains(request.Prompt[0].Text.Text, "Keep this first-turn guidance.") {
-		t.Fatalf("first accepted prompt = %q, want preserved system guidance", request.Prompt[0].Text.Text)
-	}
 }
 
 func TestPromptSendsAttachmentBlocksThroughACPSubprocess(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	proc := startHelperProcess(t, driver, "echo_prompt_blocks", "", StartOpts{})
-	defer stopProcess(t, driver, proc)
+	t.Run("Should send typed image blocks through the ACP subprocess", func(t *testing.T) {
+		t.Parallel()
 
-	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
-		TurnID: "turn-subprocess-attachment",
-		Attachments: []PromptAttachment{{
-			Name: "diagram.png", MIMEType: "image/png", Data: []byte("image-through-acp"),
-		}},
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt_blocks", "", StartOpts{})
+		t.Cleanup(func() {
+			stopProcess(t, driver, proc)
+		})
+
+		attachmentData := []byte("image-through-acp")
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID: "turn-subprocess-attachment",
+			Attachments: []PromptAttachment{{
+				Name: "diagram.png", MIMEType: "image/png", Data: attachmentData,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+
+		var blocks []acpsdk.ContentBlock
+		if err := json.Unmarshal([]byte(events[0].Text), &blocks); err != nil {
+			t.Fatalf("json.Unmarshal(echoed prompt blocks) error = %v", err)
+		}
+		if len(blocks) != 1 || blocks[0].Image == nil {
+			t.Fatalf("echoed prompt blocks = %#v, want one image block", blocks)
+		}
+		if got, want := blocks[0].Image.MimeType, "image/png"; got != want {
+			t.Fatalf("image MIME type = %q, want %q", got, want)
+		}
+		if got, want := blocks[0].Image.Data, base64.StdEncoding.EncodeToString(attachmentData); got != want {
+			t.Fatalf("image data = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-	events := collectEvents(t, eventsCh)
-	if len(events) == 0 {
-		t.Fatal("Prompt() returned no events")
-	}
-	if !strings.Contains(events[0].Text, "image/png") ||
-		!strings.Contains(events[0].Text, "aW1hZ2UtdGhyb3VnaC1hY3A=") {
-		t.Fatalf("subprocess prompt blocks = %q, want encoded image block", events[0].Text)
-	}
+}
+
+func TestPromptSendsZeroByteTextAttachmentThroughACPSubprocess(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send an attachment-only zero-byte text resource through the ACP subprocess", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt_blocks", "", StartOpts{})
+		t.Cleanup(func() {
+			stopProcess(t, driver, proc)
+		})
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID: "turn-subprocess-empty-text-attachment",
+			Attachments: []PromptAttachment{{
+				Name: "empty.txt", MIMEType: "text/plain",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+
+		var blocks []acpsdk.ContentBlock
+		if err := json.Unmarshal([]byte(events[0].Text), &blocks); err != nil {
+			t.Fatalf("json.Unmarshal(echoed prompt blocks) error = %v", err)
+		}
+		if len(blocks) != 1 || blocks[0].Resource == nil ||
+			blocks[0].Resource.Resource.TextResourceContents == nil {
+			t.Fatalf("echoed prompt blocks = %#v, want one empty text resource block", blocks)
+		}
+		resource := blocks[0].Resource.Resource.TextResourceContents
+		if resource.MimeType == nil || *resource.MimeType != "text/plain" {
+			t.Fatalf("text resource MIME type = %#v, want text/plain", resource.MimeType)
+		}
+		if resource.Text != "" {
+			t.Fatalf("text resource text = %q, want empty", resource.Text)
+		}
+	})
 }
 
 func TestPromptSkipsFirstTurnPrefixForNativeSystemPromptDelivery(t *testing.T) {

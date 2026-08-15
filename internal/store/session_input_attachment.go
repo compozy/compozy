@@ -1,10 +1,14 @@
 package store
 
-import "strings"
+import (
+	"strings"
+
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
+)
 
 const (
-	SessionInputAttachmentKindImage = "image"
-	SessionInputAttachmentKindFile  = "file"
+	SessionInputAttachmentKindImage = attachmentspkg.KindImage
+	SessionInputAttachmentKindFile  = attachmentspkg.KindFile
 )
 
 // SessionInputAttachment is the storage-native attachment snapshot on queued

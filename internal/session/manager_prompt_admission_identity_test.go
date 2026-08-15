@@ -3,12 +3,14 @@ package session
 import (
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestPromptAdmissionFingerprintAttachments(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should change the v3 fingerprint when the attachment set changes", func(t *testing.T) {
+	t.Run("Should change the v4 fingerprint when the attachment set changes", func(t *testing.T) {
 		t.Parallel()
 
 		base := promptRequest{messageID: "msg-fingerprint", authoredMessage: "look at this"}
@@ -22,11 +24,11 @@ func TestPromptAdmissionFingerprintAttachments(t *testing.T) {
 			{ID: "att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", SHA256: "digest-a"},
 			{ID: "att_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", SHA256: "digest-b"},
 		}
-		first, err := promptAdmissionFingerprint(storePromptOperation(), BusyInputModeQueue, one)
+		first, err := promptAdmissionFingerprint(store.SessionPromptOperationPrompt, BusyInputModeQueue, one)
 		if err != nil {
 			t.Fatalf("promptAdmissionFingerprint(one) error = %v", err)
 		}
-		second, err := promptAdmissionFingerprint(storePromptOperation(), BusyInputModeQueue, two)
+		second, err := promptAdmissionFingerprint(store.SessionPromptOperationPrompt, BusyInputModeQueue, two)
 		if err != nil {
 			t.Fatalf("promptAdmissionFingerprint(two) error = %v", err)
 		}
@@ -49,11 +51,11 @@ func TestPromptAdmissionFingerprintAttachments(t *testing.T) {
 			{SHA256: "digest-a"},
 			{SHA256: "digest-b"},
 		}
-		first, err := promptAdmissionFingerprint(storePromptOperation(), BusyInputModeQueue, forward)
+		first, err := promptAdmissionFingerprint(store.SessionPromptOperationPrompt, BusyInputModeQueue, forward)
 		if err != nil {
 			t.Fatalf("promptAdmissionFingerprint(forward) error = %v", err)
 		}
-		second, err := promptAdmissionFingerprint(storePromptOperation(), BusyInputModeQueue, reverse)
+		second, err := promptAdmissionFingerprint(store.SessionPromptOperationPrompt, BusyInputModeQueue, reverse)
 		if err != nil {
 			t.Fatalf("promptAdmissionFingerprint(reverse) error = %v", err)
 		}
@@ -76,11 +78,11 @@ func TestPromptAdmissionFingerprintAttachments(t *testing.T) {
 		canonical.attachments = []AttachmentMeta{{
 			ID: attachmentID, SHA256: strings.Repeat("a", 64), Name: "notes.txt", MIMEType: "text/plain",
 		}}
-		before, err := promptAdmissionFingerprint(storePromptOperation(), BusyInputModeQueue, raw)
+		before, err := promptAdmissionFingerprint(store.SessionPromptOperationPrompt, BusyInputModeQueue, raw)
 		if err != nil {
 			t.Fatalf("promptAdmissionFingerprint(raw) error = %v", err)
 		}
-		after, err := promptAdmissionFingerprint(storePromptOperation(), BusyInputModeQueue, canonical)
+		after, err := promptAdmissionFingerprint(store.SessionPromptOperationPrompt, BusyInputModeQueue, canonical)
 		if err != nil {
 			t.Fatalf("promptAdmissionFingerprint(canonical) error = %v", err)
 		}
@@ -88,8 +90,4 @@ func TestPromptAdmissionFingerprintAttachments(t *testing.T) {
 			t.Fatalf("fingerprint = %q before canonicalization, %q after", before, after)
 		}
 	})
-}
-
-func storePromptOperation() string {
-	return "prompt"
 }

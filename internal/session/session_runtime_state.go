@@ -19,6 +19,7 @@ type runtimeBindingSnapshot struct {
 	failure         string
 	acpSessionID    string
 	acpCaps         acp.Caps
+	acpCapsKnown    bool
 	speedResolution *speedpkg.Resolution
 	liveness        *store.SessionLivenessMeta
 	agentDef        compozyconfig.AgentDef
@@ -43,6 +44,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		failure:         s.RuntimeFailure,
 		acpSessionID:    s.ACPSessionID,
 		acpCaps:         cloneCaps(s.ACPCaps),
+		acpCapsKnown:    s.ACPCapsKnown,
 		speedResolution: speedpkg.CloneResolution(s.SpeedResolution),
 		liveness:        store.CloneSessionLivenessMeta(s.Liveness),
 		agentDef:        compozyconfig.CloneAgentDef(s.agentDef),
@@ -110,6 +112,7 @@ func (s *Session) restoreRuntimeBinding(snapshot *runtimeBindingSnapshot, failur
 	s.RuntimeFailure = strings.TrimSpace(failure)
 	s.ACPSessionID = snapshot.acpSessionID
 	s.ACPCaps = cloneCaps(snapshot.acpCaps)
+	s.ACPCapsKnown = snapshot.acpCapsKnown
 	s.SpeedResolution = speedpkg.CloneResolution(snapshot.speedResolution)
 	s.Liveness = store.CloneSessionLivenessMeta(snapshot.liveness)
 	s.agentDef = compozyconfig.CloneAgentDef(snapshot.agentDef)

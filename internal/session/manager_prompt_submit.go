@@ -55,6 +55,16 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err := validatePromptAttachmentCaps(req.attachments, proc.CapsSnapshot()); err != nil {
 		return nil, err
 	}
+	resolvedAttachments, err := m.resolvePromptAttachments(
+		ctx,
+		session.WorkspaceID,
+		session.ID,
+		req.attachments,
+		proc.CapsSnapshot(),
+	)
+	if err != nil {
+		return nil, err
+	}
 	if err := commitPromptDispatch(ctx, req.commitDispatch); err != nil {
 		return nil, err
 	}
@@ -80,16 +90,6 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 			return nil, err
 		}
 		slotReserved = true
-	}
-	resolvedAttachments, err := m.resolvePromptAttachments(
-		ctx,
-		session.WorkspaceID,
-		session.ID,
-		req.attachments,
-		proc.CapsSnapshot(),
-	)
-	if err != nil {
-		return nil, err
 	}
 	releasePromptState := claimPromptState(session, req)
 	stateOwned := true

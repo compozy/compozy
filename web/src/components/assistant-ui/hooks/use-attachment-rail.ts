@@ -15,10 +15,12 @@ function fadePad(rail: HTMLElement): number {
 function measureOverflow(track: HTMLElement): AttachmentRailOverflow {
   const max = track.scrollWidth - track.clientWidth;
   if (max <= 2) return "none";
-  const bits: string[] = [];
-  if (track.scrollLeft > 2) bits.push("start");
-  if (track.scrollLeft < max - 2) bits.push("end");
-  return bits.length > 0 ? (bits.join(" ") as AttachmentRailOverflow) : "none";
+  const showStart = track.scrollLeft > 2;
+  const showEnd = track.scrollLeft < max - 2;
+  if (showStart && showEnd) return "start end";
+  if (showStart) return "start";
+  if (showEnd) return "end";
+  return "none";
 }
 
 function keepInView(rail: HTMLElement, track: HTMLElement, item: HTMLElement) {
@@ -63,9 +65,7 @@ export function useAttachmentRail(itemCount: number) {
       const handleFocusIn = (event: FocusEvent) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const item = target.closest(
-          "[data-testid='composer-attachment-tile'], [data-attachment-rail-item]"
-        );
+        const item = target.closest("[data-attachment-rail-item]");
         if (item instanceof HTMLElement && rail.contains(item)) {
           keepInView(rail, track, item);
           paint();

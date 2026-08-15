@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -170,6 +171,7 @@ func statusForSessionLookupError(err error) (int, bool) {
 		errors.Is(err, store.ErrSessionNotFound),
 		errors.Is(err, store.ErrConversationRewindTargetNotFound),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotFound),
+		errors.Is(err, attachmentspkg.ErrNotFound),
 		errors.Is(err, os.ErrNotExist),
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound, true

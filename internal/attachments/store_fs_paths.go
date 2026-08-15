@@ -1,6 +1,7 @@
 package attachments
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -45,16 +46,28 @@ func metaPath(contentPath string) string {
 	return contentPath + ".json"
 }
 
-func (s *FilesystemAttachmentStore) ensureRoot() error {
-	if err := os.MkdirAll(s.root, 0o700); err != nil {
+func (s *FilesystemAttachmentStore) ensureRoot(ctx context.Context) error {
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(s.root, attachmentDirMode); err != nil {
 		return fmt.Errorf("%w: create attachment root: %w", ErrPersistence, err)
 	}
-	if err := os.Chmod(s.root, 0o700); err != nil {
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
+	}
+	if err := os.Chmod(s.root, attachmentDirMode); err != nil {
 		return fmt.Errorf("%w: secure attachment root: %w", ErrPersistence, err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
 	}
 	info, err := os.Lstat(s.root)
 	if err != nil {
 		return fmt.Errorf("%w: stat attachment root: %w", ErrPersistence, err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%w: attachment root is not a private directory", ErrPersistence)
@@ -62,41 +75,60 @@ func (s *FilesystemAttachmentStore) ensureRoot() error {
 	return nil
 }
 
-func (s *FilesystemAttachmentStore) ensureSessionDir(workspaceID string, sessionID string) (string, error) {
+func (s *FilesystemAttachmentStore) ensureSessionDir(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (string, error) {
 	workspaceDir := filepath.Join(s.root, workspaceID)
-	if err := ensurePrivateDir(workspaceDir, "attachment workspace"); err != nil {
+	if err := ensurePrivateDir(ctx, workspaceDir, "attachment workspace"); err != nil {
 		return "", err
 	}
 	sessionDir := filepath.Join(workspaceDir, sessionID)
-	if err := ensurePrivateDir(sessionDir, "attachment session"); err != nil {
+	if err := ensurePrivateDir(ctx, sessionDir, "attachment session"); err != nil {
 		return "", err
 	}
 	return sessionDir, nil
 }
 
-func ensurePrivateDir(dir string, label string) error {
-	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+func ensurePrivateDir(ctx context.Context, dir string, label string) error {
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
+	}
+	if err := os.Mkdir(dir, attachmentDirMode); err != nil && !errors.Is(err, os.ErrExist) {
 		return fmt.Errorf("%w: create %s: %w", ErrPersistence, label, err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
 	}
 	info, err := os.Lstat(dir)
 	if err != nil {
 		return fmt.Errorf("%w: stat %s: %w", ErrPersistence, label, err)
 	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
+	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%w: %s is not a directory", ErrPersistence, label)
 	}
-	if err := os.Chmod(dir, 0o700); err != nil {
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
+	}
+	if err := os.Chmod(dir, attachmentDirMode); err != nil {
 		return fmt.Errorf("%w: secure %s: %w", ErrPersistence, label, err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (s *FilesystemAttachmentStore) readMeta(contentPath string, id string) (attachmentMeta, error) {
-	content, err := readAttachmentFile(contentPath, id)
+func (s *FilesystemAttachmentStore) readMeta(ctx context.Context, contentPath string, id string) (attachmentMeta, error) {
+	content, err := readAttachmentFile(ctx, contentPath, id)
 	if err != nil {
 		return attachmentMeta{}, err
 	}
-	meta, err := readSidecar(contentPath)
+	meta, err := readSidecar(ctx, contentPath)
 	if err != nil {
 		return attachmentMeta{}, err
 	}
@@ -116,8 +148,8 @@ func (s *FilesystemAttachmentStore) readMeta(contentPath string, id string) (att
 	return meta, nil
 }
 
-func readSidecar(contentPath string) (attachmentMeta, error) {
-	encoded, err := readMetadataFile(metaPath(contentPath))
+func readSidecar(ctx context.Context, contentPath string) (attachmentMeta, error) {
+	encoded, err := readMetadataFile(ctx, metaPath(contentPath))
 	if err != nil {
 		return attachmentMeta{}, err
 	}
@@ -128,7 +160,10 @@ func readSidecar(contentPath string) (attachmentMeta, error) {
 	return meta, nil
 }
 
-func readMetadataFile(path string) ([]byte, error) {
+func readMetadataFile(ctx context.Context, path string) ([]byte, error) {
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
+	}
 	info, err := os.Lstat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -139,16 +174,22 @@ func readMetadataFile(path string) ([]byte, error) {
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, fmt.Errorf("%w: sidecar is not a regular file", ErrCorrupt)
 	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
+	}
 	encoded, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read attachment metadata: %w", err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
 	}
 	return encoded, nil
 }
 
 func (s *FilesystemAttachmentStore) removePair(contentPath string) error {
-	contentErr := fileutilRemove(contentPath)
-	metaErr := fileutilRemove(metaPath(contentPath))
+	contentErr := fileutil.AtomicRemoveFile(contentPath)
+	metaErr := fileutil.AtomicRemoveFile(metaPath(contentPath))
 	if contentErr != nil && !errors.Is(contentErr, os.ErrNotExist) {
 		return contentErr
 	}
@@ -161,11 +202,10 @@ func (s *FilesystemAttachmentStore) removePair(contentPath string) error {
 	return nil
 }
 
-func fileutilRemove(path string) error {
-	return fileutil.AtomicRemoveFile(path)
-}
-
-func readAttachmentFile(path string, id string) ([]byte, error) {
+func readAttachmentFile(ctx context.Context, path string, id string) ([]byte, error) {
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
+	}
 	info, err := os.Lstat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -176,9 +216,15 @@ func readAttachmentFile(path string, id string) ([]byte, error) {
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, fmt.Errorf("%w: attachment is not a regular file", ErrCorrupt)
 	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
+	}
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read attachment: %w", err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
 	}
 	if attachmentID(content) != id {
 		return nil, fmt.Errorf("%w: content digest mismatch", ErrCorrupt)
@@ -186,10 +232,16 @@ func readAttachmentFile(path string, id string) ([]byte, error) {
 	return content, nil
 }
 
-func verifyAttachmentDigest(reader io.Reader, id string) error {
+func verifyAttachmentDigest(ctx context.Context, reader io.Reader, id string) error {
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
+	}
 	digest := sha256.New()
 	if _, err := io.Copy(digest, reader); err != nil {
 		return fmt.Errorf("hash attachment: %w", err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
 	}
 	got := "att_" + hex.EncodeToString(digest.Sum(nil))
 	if got != id {

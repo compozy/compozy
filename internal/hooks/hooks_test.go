@@ -728,12 +728,13 @@ func TestDispatchInputPreSubmitAppliesMatchingHooksInOrder(t *testing.T) {
 		t.Fatalf("Rebuild() error = %v, want nil", err)
 	}
 
+	wantAttachments := []InputAttachmentMetadata{{
+		ID: "att_readonly", Name: "input.png", MIME: "image/png", Bytes: 12, Kind: "image",
+	}}
 	result, err := hooks.DispatchInputPreSubmit(t.Context(), InputPreSubmitPayload{
 		PayloadBase: PayloadBase{Event: HookInputPreSubmit},
 		Message:     "seed-",
-		Attachments: []InputAttachmentMetadata{{
-			ID: "att_readonly", Name: "input.png", MIME: "image/png", Bytes: 12, Kind: "image",
-		}},
+		Attachments: wantAttachments,
 	})
 	if err != nil {
 		t.Fatalf("DispatchInputPreSubmit() error = %v, want nil", err)
@@ -741,9 +742,8 @@ func TestDispatchInputPreSubmitAppliesMatchingHooksInOrder(t *testing.T) {
 	if result.Message != "seed-ab" {
 		t.Fatalf("result.Message = %q, want %q", result.Message, "seed-ab")
 	}
-	if len(result.Attachments) != 1 || result.Attachments[0].ID != "att_readonly" ||
-		result.Attachments[0].Name != "input.png" {
-		t.Fatalf("result.Attachments = %#v, want unchanged read-only metadata", result.Attachments)
+	if !reflect.DeepEqual(result.Attachments, wantAttachments) {
+		t.Fatalf("result.Attachments = %#v, want %#v", result.Attachments, wantAttachments)
 	}
 	if got, want := len(seen), 2; got != want {
 		t.Fatalf("len(seen) = %d, want %d", got, want)

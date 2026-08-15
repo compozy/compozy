@@ -2,9 +2,7 @@ import {
   attachmentExtensionMark,
   formatAttachmentSize,
   isImageAttachmentMime,
-  isSessionAttachmentRef,
-  SESSION_ATTACHMENT_DATA_TYPE,
-  SESSION_ATTACHMENT_PART_NAME,
+  isSessionAttachmentDataPart,
 } from "./attachment-kinds";
 import { sessionAttachmentBytesURL, sessionAttachmentIdFromURI } from "./attachment-url";
 
@@ -92,13 +90,8 @@ function filePartFields(part: Record<string, unknown>): {
   filename: string;
   meta?: AttachmentRecordMeta;
 } | null {
-  const type = stringField(part, "type");
-  if (
-    type === SESSION_ATTACHMENT_DATA_TYPE ||
-    (type === "data" && stringField(part, "name") === SESSION_ATTACHMENT_PART_NAME)
-  ) {
+  if (isSessionAttachmentDataPart(part)) {
     const ref = part.data;
-    if (!isSessionAttachmentRef(ref)) return null;
     return {
       uri: `compozy://session-attachments/${ref.id}`,
       mediaType: ref.mime_type,
@@ -110,6 +103,7 @@ function filePartFields(part: Record<string, unknown>): {
       },
     };
   }
+  const type = stringField(part, "type");
   if (type === "file") {
     const uri = stringField(part, "data") ?? stringField(part, "url");
     const mediaType = stringField(part, "mimeType") ?? stringField(part, "mediaType");
@@ -123,6 +117,12 @@ function filePartFields(part: Record<string, unknown>): {
     return { uri, mediaType: "image/png", filename: stringField(part, "filename") ?? "image" };
   }
   return null;
+}
+
+/** Shared transcript classification for the gallery and virtual-row estimate. */
+export function sessionAttachmentMediaType(part: unknown): string | null {
+  if (!isRecord(part)) return null;
+  return filePartFields(part)?.mediaType ?? null;
 }
 
 export function userMessageHasText(content: unknown): boolean {
@@ -146,11 +146,7 @@ export function userMessageHasAttachments(content: unknown): boolean {
     if (!isRecord(part)) return false;
     const type = stringField(part, "type");
     if (type === "file" || type === "image") return true;
-    return (
-      (type === SESSION_ATTACHMENT_DATA_TYPE ||
-        (type === "data" && stringField(part, "name") === SESSION_ATTACHMENT_PART_NAME)) &&
-      isSessionAttachmentRef(part.data)
-    );
+    return isSessionAttachmentDataPart(part);
   });
 }
 

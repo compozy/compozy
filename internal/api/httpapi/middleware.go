@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	ipv4WildcardBind                       = "0.0.0.0"
-	maxInt64                         int64 = 1<<63 - 1
-	sessionAttachmentUploadRoutePath       = "/api/workspaces/:workspace_id/sessions/:session_id/attachments"
+	ipv4WildcardBind                 = "0.0.0.0"
+	sessionAttachmentUploadRoutePath = "/api/workspaces/:workspace_id/sessions/:session_id/attachments"
 )
 
 var errLoopbackMutationRequired = errors.New(
@@ -375,16 +374,6 @@ func requestBodyLimitMiddlewareWithUploadLimit(maxBytes int64, uploadMaxBytes in
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		c.Next()
 	}
-}
-
-func sessionAttachmentRequestBodyLimit(maxFileBytes int64) int64 {
-	if maxFileBytes <= 0 {
-		return 0
-	}
-	if maxFileBytes > maxInt64-core.SessionAttachmentMultipartOverheadBytes {
-		return maxInt64
-	}
-	return maxFileBytes + core.SessionAttachmentMultipartOverheadBytes
 }
 
 func loopbackAPIGuard(boundHost string) gin.HandlerFunc {

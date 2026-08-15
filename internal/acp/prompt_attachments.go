@@ -23,12 +23,6 @@ var (
 	ErrPromptAttachmentMIMEUnsupported = errors.New("acp: prompt attachment mime type unsupported")
 )
 
-const (
-	mimeTypePDF       = "application/pdf"
-	mimeTypeMarkdown  = "text/markdown"
-	mimeTypePlainText = "text/plain"
-)
-
 type promptAttachmentClass uint8
 
 const (
@@ -38,9 +32,9 @@ const (
 	promptAttachmentText
 )
 
-func attachmentContentBlocks(req PromptRequest, caps Caps) ([]acpsdk.ContentBlock, error) {
-	blocks := make([]acpsdk.ContentBlock, 0, len(req.Attachments))
-	for index, attachment := range req.Attachments {
+func attachmentContentBlocks(attachments []PromptAttachment, caps Caps) ([]acpsdk.ContentBlock, error) {
+	blocks := make([]acpsdk.ContentBlock, 0, len(attachments))
+	for index, attachment := range attachments {
 		mimeType := strings.ToLower(strings.TrimSpace(attachment.MIMEType))
 		name := strings.TrimSpace(attachment.Name)
 		if name == "" {
@@ -100,9 +94,9 @@ func classifyPromptAttachmentMIME(mimeType string) promptAttachmentClass {
 	switch {
 	case strings.HasPrefix(normalized, "image/"):
 		return promptAttachmentImage
-	case normalized == mimeTypePDF:
+	case normalized == attachments.MIMEApplicationPDF:
 		return promptAttachmentPDF
-	case normalized == mimeTypeMarkdown, normalized == mimeTypePlainText:
+	case normalized == attachments.MIMETextMarkdown, normalized == attachments.MIMETextPlain:
 		return promptAttachmentText
 	default:
 		return promptAttachmentUnsupported

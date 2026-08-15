@@ -12,8 +12,7 @@ const (
 	PromptAttachmentKindImage = session.AttachmentKindImage
 	PromptAttachmentKindFile  = session.AttachmentKindFile
 
-	// DefaultPromptAttachmentLimit is the v1 cap until config wires in.
-	// seam: config [session.attachments].max_files_per_prompt
+	// DefaultPromptAttachmentLimit applies when no configured cap is supplied.
 	DefaultPromptAttachmentLimit = 10
 )
 

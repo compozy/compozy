@@ -173,7 +173,9 @@ func TestToUIMessagesPreservesUserMessageIdentity(t *testing.T) {
 	})
 }
 
-func TestToUIMessagesProjectsUserAttachments(t *testing.T) {
+func TestToUIMessagesProjectsMixedUserAttachments(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should project attachment file parts before authored text", func(t *testing.T) {
 		t.Parallel()
 
@@ -258,6 +260,11 @@ func TestToUIMessagesProjectsUserAttachments(t *testing.T) {
 		}
 	})
 
+}
+
+func TestToUIMessagesProjectsImageOnlyUserAttachment(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should omit the text part for an image-only user message", func(t *testing.T) {
 		t.Parallel()
 
@@ -270,13 +277,19 @@ func TestToUIMessagesProjectsUserAttachments(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ToUIMessages() error = %v", err)
 		}
-		if len(messages) != 1 || len(messages[0].Parts) != 1 {
-			t.Fatalf("messages = %#v, want one message with one file part", messages)
-		}
-		if got, want := messages[0].Parts[0].Type, UIMessagePartTypeFile; got != want {
-			t.Fatalf("part type = %q, want %q", got, want)
+		want := []UIMessagePart{{
+			Type: UIMessagePartTypeFile, MediaType: "image/png",
+			URL: "compozy://session-attachments/att-only", Filename: "only.png",
+		}}
+		if len(messages) != 1 || !reflect.DeepEqual(messages[0].Parts, want) {
+			t.Fatalf("messages = %#v, want image-only parts %#v", messages, want)
 		}
 	})
+
+}
+
+func TestToUIMessagesProjectsTextOnlyUserMessage(t *testing.T) {
+	t.Parallel()
 
 	t.Run("Should leave text-only user messages unchanged", func(t *testing.T) {
 		t.Parallel()

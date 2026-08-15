@@ -1,19 +1,19 @@
 ---
 id: ET-session-attachment-model-gate
 area: ET
-title: Gate attachments by negotiated model capability
-persona: Bruno
+title: Gate attachments by negotiated agent capability
+persona: Théo
 journey: J-session-attachments
-expected: Images are refused without ACP image input and PDFs are refused without embedded context, while Markdown and plain text still dispatch as text blocks; rejected drafts and previews remain available for correction.
+expected: Images and PDFs pass the composer gate and reach backend admission when the bound agent capability is unknown. Only an explicitly unsupported capability for the targeted runtime refuses image or PDF input; Markdown and plain text still dispatch as text blocks, and rejected drafts and previews remain available for correction.
 entry_points: web session composer runtime selector; prompt API
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
-evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412/01-image-capability-refused.png
-last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412.md
+evidence:
+last_report:
 overlaps: ET-web-runtime-selector-minimal-slider
 ---
 
-QA impact 2026-08-15: attachment lifecycle implementation added this user-visible behavior. Flag only; the orchestrator's QA tail owns the persona walk and evidence.
+QA impact 2026-08-15: the attachment gate now distinguishes an unknown bound-agent capability from an explicit agent refusal. Flag only; the orchestrator's QA tail owns the persona walk and evidence.

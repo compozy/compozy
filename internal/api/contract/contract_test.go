@@ -616,8 +616,9 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 				State:      "prepared",
 				InstanceID: "instance-json",
 			},
-			CreatedAt: now,
-			UpdatedAt: now,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			ACPCapsKnown: true,
 			ACPCaps: acp.Caps{
 				SupportsLoadSession: true,
 				SupportedModes:      []string{"chat"},
@@ -723,6 +724,48 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			t.Fatalf("sandbox JSON = %#v", sandboxPayload)
 		}
 	})
+}
+
+func TestACPCapsPayloadFromACP(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		caps  acp.Caps
+		known bool
+		want  *contract.ACPCapsPayload
+	}{
+		{
+			name: "Should omit capabilities before ACP negotiation",
+		},
+		{
+			name:  "Should preserve negotiated all-false capabilities",
+			known: true,
+			want:  &contract.ACPCapsPayload{},
+		},
+		{
+			name:  "Should preserve each negotiated prompt capability independently",
+			known: true,
+			caps: acp.Caps{
+				PromptImage:           true,
+				PromptEmbeddedContext: true,
+			},
+			want: &contract.ACPCapsPayload{
+				PromptImage:           true,
+				PromptEmbeddedContext: true,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := contract.ACPCapsPayloadFromACP(test.caps, test.known)
+			if !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("ACPCapsPayloadFromACP() = %#v, want %#v", got, test.want)
+			}
+		})
+	}
 }
 
 func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {

@@ -70,13 +70,15 @@ func (m *Manager) submitAdmittedGoalByTarget(
 		return *replayed, nil
 	}
 	if !found {
-		preparation.request.attachments, err = m.canonicalPromptAttachments(
-			ctx, target.workspaceID, preparation.request.target, preparation.request.attachments,
-		)
-		if err != nil {
+		if err := m.canonicalizeAdmissionPromptAttachments(
+			ctx,
+			target.workspaceID,
+			preparation.request.target,
+			&preparation.request,
+			&admissionReq,
+		); err != nil {
 			return SendPromptResult{}, err
 		}
-		admissionReq.Attachments = storeAttachments(preparation.request.attachments)
 	}
 	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime); err != nil {
 		return SendPromptResult{}, err
@@ -112,13 +114,15 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		return *replayed, nil
 	}
 	if !found {
-		preparation.request.attachments, err = m.canonicalPromptAttachments(
-			ctx, target.workspaceID, preparation.request.target, preparation.request.attachments,
-		)
-		if err != nil {
+		if err := m.canonicalizeAdmissionPromptAttachments(
+			ctx,
+			target.workspaceID,
+			preparation.request.target,
+			&preparation.request,
+			&admissionReq,
+		); err != nil {
 			return SendPromptResult{}, err
 		}
-		admissionReq.Attachments = storeAttachments(preparation.request.attachments)
 	}
 	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime); err != nil {
 		return SendPromptResult{}, err
@@ -141,6 +145,23 @@ type promptAdmissionTarget struct {
 	session     *Session
 	workspaceID string
 	runtime     *RuntimeSelection
+}
+
+func (m *Manager) canonicalizeAdmissionPromptAttachments(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	req *promptRequest,
+	admission *store.SessionPromptAdmissionRequest,
+) error {
+	if admission == nil {
+		return errors.New("session: prompt admission request is required")
+	}
+	if err := m.canonicalizePromptRequestAttachments(ctx, workspaceID, sessionID, req); err != nil {
+		return err
+	}
+	admission.Attachments = storeAttachments(req.attachments)
+	return nil
 }
 
 func (m *Manager) resolvePromptAdmissionTarget(

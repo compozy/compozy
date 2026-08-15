@@ -140,10 +140,17 @@ export {
 // Query infrastructure
 export { sessionAttachmentBytesURL, sessionAttachmentIdFromURI } from "./lib/attachment-url";
 export { attachmentsFromPromptMessageParts } from "./lib/attachment-kinds";
+export { sessionPromptCapability } from "./lib/session-prompt-capability";
+export type { SessionPromptCapability } from "./lib/session-prompt-capability";
+export {
+  consumeSubmittedComposerAttachment,
+  retainSubmittedComposerAttachments,
+} from "./lib/session-composer-attachment-ownership";
 export {
   attachmentExtensionMark,
   formatAttachmentBytes,
   isImageMediaType,
+  sessionAttachmentMediaType,
   userMessageAttachmentItems,
   userMessageHasAttachments,
   userMessageHasText,

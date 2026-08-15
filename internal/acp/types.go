@@ -157,10 +157,11 @@ func (r PromptRequest) Validate() error {
 		return errors.New("acp: prompt message is required")
 	}
 	for index, attachment := range r.Attachments {
-		if len(attachment.Data) == 0 {
+		attachmentClass := classifyPromptAttachmentMIME(attachment.MIMEType)
+		if len(attachment.Data) == 0 && attachmentClass != promptAttachmentText {
 			return fmt.Errorf("acp: prompt attachment %d: %w", index, ErrPromptAttachmentDataRequired)
 		}
-		if classifyPromptAttachmentMIME(attachment.MIMEType) == promptAttachmentUnsupported {
+		if attachmentClass == promptAttachmentUnsupported {
 			return fmt.Errorf(
 				"acp: prompt attachment %d mime type %q: %w",
 				index,

@@ -21,14 +21,9 @@ func TestEnsureHomeLayoutPermissionsContract(t *testing.T) {
 			t.Fatalf("EnsureHomeLayout() error = %v", err)
 		}
 
-		assertConfigPathMode(t, paths.HomeDir, 0o700)
-		assertConfigPathMode(t, paths.AgentsDir, 0o700)
-		assertConfigPathMode(t, paths.SkillsDir, 0o700)
-		assertConfigPathMode(t, paths.LoopsDir, 0o700)
-		assertConfigPathMode(t, paths.MemoryDir, 0o700)
-		assertConfigPathMode(t, paths.SessionsDir, 0o700)
-		assertConfigPathMode(t, paths.RestartsDir, 0o700)
-		assertConfigPathMode(t, paths.LogsDir, 0o700)
+		for _, dir := range configRuntimeDirectories(paths) {
+			assertConfigPathMode(t, dir, 0o700)
+		}
 	})
 
 	t.Run("Should tighten existing Compozy-owned runtime directories to private mode", func(t *testing.T) {

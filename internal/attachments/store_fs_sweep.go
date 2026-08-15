@@ -2,12 +2,15 @@ package attachments
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 type retainedAttachment struct {
@@ -82,6 +85,9 @@ func (s *FilesystemAttachmentStore) sweepLocked(
 }
 
 func (s *FilesystemAttachmentStore) listAttachments(ctx context.Context) ([]retainedAttachment, error) {
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
+	}
 	workspaceEntries, err := os.ReadDir(s.root)
 	if err != nil {
 		return nil, fmt.Errorf("%w: list attachment root: %w", ErrPersistence, err)
@@ -95,11 +101,17 @@ func (s *FilesystemAttachmentStore) listAttachments(ctx context.Context) ([]reta
 			continue
 		}
 		workspacePath := filepath.Join(s.root, workspaceEntry.Name())
+		if err := attachmentContextErr(ctx); err != nil {
+			return nil, err
+		}
 		sessionEntries, err := os.ReadDir(workspacePath)
 		if err != nil {
 			return nil, fmt.Errorf("%w: list attachment workspace: %w", ErrPersistence, err)
 		}
 		for _, sessionEntry := range sessionEntries {
+			if err := attachmentContextErr(ctx); err != nil {
+				return nil, err
+			}
 			if !sessionEntry.IsDir() || !scopeIDPattern.MatchString(sessionEntry.Name()) {
 				continue
 			}
@@ -118,6 +130,9 @@ func (s *FilesystemAttachmentStore) listSessionAttachments(
 	ctx context.Context,
 	sessionPath string,
 ) ([]retainedAttachment, error) {
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(sessionPath)
 	if err != nil {
 		return nil, fmt.Errorf("%w: list attachment session: %w", ErrPersistence, err)
@@ -128,7 +143,22 @@ func (s *FilesystemAttachmentStore) listSessionAttachments(
 			return nil, err
 		}
 		id := entry.Name()
-		if entry.IsDir() || !attachmentIDPattern.MatchString(id) {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(id, ".json") && attachmentIDPattern.MatchString(strings.TrimSuffix(id, ".json")) {
+			contentPath := filepath.Join(sessionPath, strings.TrimSuffix(id, ".json"))
+			if _, statErr := os.Lstat(contentPath); errors.Is(statErr, os.ErrNotExist) {
+				if err := attachmentContextErr(ctx); err != nil {
+					return nil, err
+				}
+				if removeErr := fileutil.AtomicRemoveFile(filepath.Join(sessionPath, id)); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+					return nil, fmt.Errorf("%w: remove incomplete attachment sidecar: %w", ErrPersistence, removeErr)
+				}
+			}
+			continue
+		}
+		if !attachmentIDPattern.MatchString(id) {
 			continue
 		}
 		contentPath := filepath.Join(sessionPath, id)
@@ -136,11 +166,22 @@ func (s *FilesystemAttachmentStore) listSessionAttachments(
 		if err != nil {
 			return nil, fmt.Errorf("%w: stat retained attachment: %w", ErrPersistence, err)
 		}
+		if err := attachmentContextErr(ctx); err != nil {
+			return nil, err
+		}
 		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("%w: retained attachment is not a regular file", ErrCorrupt)
 		}
-		meta, err := readSidecar(contentPath)
+		meta, err := readSidecar(ctx, contentPath)
 		if err != nil {
+			if errors.Is(err, ErrCorrupt) {
+				if _, statErr := os.Lstat(metaPath(contentPath)); errors.Is(statErr, os.ErrNotExist) {
+					if removeErr := s.removePair(contentPath); removeErr != nil && !errors.Is(removeErr, ErrNotFound) {
+						return nil, fmt.Errorf("%w: remove incomplete attachment: %w", ErrPersistence, removeErr)
+					}
+					continue
+				}
+			}
 			return nil, err
 		}
 		if meta.SHA256 != attachmentSHA256(id) || meta.Bytes != info.Size() || meta.CreatedAt.IsZero() {

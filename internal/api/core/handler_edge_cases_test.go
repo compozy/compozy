@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -587,8 +588,53 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
 		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, recorder, &payload)
+		if !strings.Contains(payload.Error, "attachments exceed max count 1") {
+			t.Fatalf("error = %q, want configured attachment-count rejection", payload.Error)
+		}
 		if managerCalled {
 			t.Fatal("SendPrompt() called after configured attachment-count rejection")
+		}
+	})
+
+	t.Run("Should return not found when prompt attachment resolution fails", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{ID: id, WorkspaceID: "ws-workspace"}, nil
+			},
+			SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+				return session.SendPromptResult{}, fmt.Errorf("open prompt attachment: %w", attachmentspkg.ErrNotFound)
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
+			fixture.Handlers.DispatchSessionPrompt(c)
+		})
+
+		recorder := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-123/prompt",
+			[]byte(`{"message":"inspect attachment","message_id":"msg-missing-attachment","idempotency_key":"idem-missing-attachment"}`),
+		)
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, recorder, &payload)
+		if !strings.Contains(payload.Error, attachmentspkg.ErrNotFound.Error()) {
+			t.Fatalf("error = %q, want %q", payload.Error, attachmentspkg.ErrNotFound.Error())
 		}
 	})
 }

@@ -15,5 +15,3 @@ evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412/03-attachment-q
 last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412.md
 overlaps: RT-019
 ---
-
-QA impact 2026-08-15: attachment lifecycle implementation added this user-visible behavior. Flag only; the orchestrator's QA tail owns the persona walk and evidence.

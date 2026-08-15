@@ -30,6 +30,20 @@ type Config struct {
 	MaxTextBytes int
 }
 
+// InputRequest carries the common fields for a non-admitted busy input.
+type InputRequest struct {
+	SessionID        string
+	Text             string
+	TargetTurnID     string
+	Generation       int64
+	Runtime          store.SessionInputRuntime
+	SkillInvocations []commandpkg.Invocation
+	Attachments      []store.SessionInputAttachment
+}
+
+// ErrInputTextRequired reports a queued input without text or attachments.
+var ErrInputTextRequired = errors.New("inputqueue: text is required")
+
 // Service owns validation and admission policy for session busy input.
 type Service struct {
 	store Store
@@ -105,22 +119,17 @@ func New(store Store, cfg Config, opts ...Option) (*Service, error) {
 // Enqueue appends operator input behind the active prompt turn.
 func (s *Service) Enqueue(
 	ctx context.Context,
-	sessionID string,
-	text string,
-	generation int64,
-	runtime store.SessionInputRuntime,
-	skillInvocations []commandpkg.Invocation,
-	attachments []store.SessionInputAttachment,
+	req InputRequest,
 ) (store.SessionInputQueueEntry, int, error) {
 	insert, err := s.newInsert(insertSpec{
-		sessionID:        sessionID,
-		text:             text,
+		sessionID:        req.SessionID,
+		text:             req.Text,
 		mode:             store.SessionInputQueueModeQueue,
 		delivery:         store.SessionInputDeliveryAfterTurn,
-		generation:       generation,
-		runtime:          runtime,
-		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
-		attachments:      append([]store.SessionInputAttachment(nil), attachments...),
+		generation:       req.Generation,
+		runtime:          req.Runtime,
+		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
+		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
@@ -167,22 +176,17 @@ func (s *Service) EnqueueAdmitted(
 // EnqueueInterrupt persists replacement input before the active turn is canceled.
 func (s *Service) EnqueueInterrupt(
 	ctx context.Context,
-	sessionID string,
-	text string,
-	targetTurnID string,
-	runtime store.SessionInputRuntime,
-	skillInvocations []commandpkg.Invocation,
-	attachments []store.SessionInputAttachment,
+	req InputRequest,
 ) (store.SessionInputQueueEntry, int, error) {
 	insert, err := s.newInsert(insertSpec{
-		sessionID:        sessionID,
-		text:             text,
+		sessionID:        req.SessionID,
+		text:             req.Text,
 		mode:             store.SessionInputQueueModeInterrupt,
 		delivery:         store.SessionInputDeliveryInterruptThenPrompt,
-		targetTurnID:     targetTurnID,
-		runtime:          runtime,
-		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
-		attachments:      append([]store.SessionInputAttachment(nil), attachments...),
+		targetTurnID:     req.TargetTurnID,
+		runtime:          req.Runtime,
+		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
+		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
@@ -211,24 +215,18 @@ func (s *Service) EnqueueAdmittedInterrupt(
 // StageSteer persists replacement steering guidance while a turn is active.
 func (s *Service) StageSteer(
 	ctx context.Context,
-	sessionID string,
-	text string,
-	targetTurnID string,
-	generation int64,
-	runtime store.SessionInputRuntime,
-	skillInvocations []commandpkg.Invocation,
-	attachments []store.SessionInputAttachment,
+	req InputRequest,
 ) (store.SessionInputQueueEntry, error) {
 	insert, err := s.newInsert(insertSpec{
-		sessionID:        sessionID,
-		text:             text,
+		sessionID:        req.SessionID,
+		text:             req.Text,
 		mode:             store.SessionInputQueueModeSteer,
 		delivery:         store.SessionInputDeliveryInterruptThenPrompt,
-		targetTurnID:     targetTurnID,
-		generation:       generation,
-		runtime:          runtime,
-		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
-		attachments:      append([]store.SessionInputAttachment(nil), attachments...),
+		targetTurnID:     req.TargetTurnID,
+		generation:       req.Generation,
+		runtime:          req.Runtime,
+		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
+		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
@@ -374,7 +372,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 		return store.SessionInputQueueInsert{}, store.ErrSessionInputSteerTextOnly
 	}
 	if message == "" && (spec.mode == store.SessionInputQueueModeSteer || len(spec.attachments) == 0) {
-		return store.SessionInputQueueInsert{}, errors.New("inputqueue: text is required")
+		return store.SessionInputQueueInsert{}, ErrInputTextRequired
 	}
 	if len([]byte(message)) > s.cfg.MaxTextBytes {
 		return store.SessionInputQueueInsert{}, fmt.Errorf(

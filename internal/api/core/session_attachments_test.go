@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -285,6 +286,42 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 	})
 }
 
+func TestSessionAttachmentRequestBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		maxFileBytes int64
+		want         int64
+	}{
+		{
+			name:         "Should disable the body limit when the file ceiling is non-positive",
+			maxFileBytes: 0,
+			want:         0,
+		},
+		{
+			name:         "Should disable the body limit when the file ceiling is negative",
+			maxFileBytes: -1,
+			want:         0,
+		},
+		{
+			name:         "Should saturate the body limit before it overflows",
+			maxFileBytes: math.MaxInt64,
+			want:         math.MaxInt64,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := core.SessionAttachmentRequestBodyLimit(tt.maxFileBytes); got != tt.want {
+				t.Fatalf("SessionAttachmentRequestBodyLimit(%d) = %d, want %d", tt.maxFileBytes, got, tt.want)
+			}
+		})
+	}
+}
+
 func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 	t.Helper()
 	const maxFileBytes int64 = 64
@@ -293,10 +330,14 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 	cfg.Session.Attachments.MaxFileBytes = maxFileBytes
 	store, err := attachmentspkg.OpenFilesystemAttachmentStore(
 		t.Context(),
-		filepath.Join(t.TempDir(), "session-attachments"),
-		attachmentspkg.AttachmentRetention{MaxCount: 16, MaxBytes: 1 << 20, MaxAge: time.Hour},
-		attachmentspkg.StoreLimits{MaxFileBytes: maxFileBytes, AllowedMIME: cfg.Session.Attachments.AllowedMIME},
-		nil,
+		attachmentspkg.FilesystemStoreConfig{
+			Root:      filepath.Join(t.TempDir(), "session-attachments"),
+			Retention: attachmentspkg.AttachmentRetention{MaxCount: 16, MaxBytes: 1 << 20, MaxAge: time.Hour},
+			Limits: attachmentspkg.StoreLimits{
+				MaxFileBytes: maxFileBytes,
+				AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)

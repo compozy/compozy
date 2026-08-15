@@ -81,17 +81,39 @@ function zipFile() {
   });
 }
 
-function attachmentUploadPayload(name = "shot.png") {
+let attachmentUploadSequence = 0;
+
+function nextAttachmentUploadIdentity(): { id: string; sha256: string } {
+  attachmentUploadSequence += 1;
+  const digest = attachmentUploadSequence.toString(16).padStart(64, "0");
+  return { id: `att_${digest}`, sha256: digest };
+}
+
+function attachmentUploadPayload({
+  id,
+  kind,
+  mimeType,
+  name = "shot.png",
+  sha256,
+}: {
+  id?: string;
+  kind?: "file" | "image";
+  mimeType?: string;
+  name?: string;
+  sha256?: string;
+} = {}) {
+  const identity = nextAttachmentUploadIdentity();
+  const isPNG = name.endsWith(".png");
   return {
     attachment: {
       bytes: 32,
       created_at: "2026-08-15T00:00:00Z",
       height: 10,
-      id: `att_${"a".repeat(64)}`,
-      kind: name.endsWith(".png") ? "image" : "file",
-      mime_type: name.endsWith(".png") ? "image/png" : "application/pdf",
+      id: id ?? identity.id,
+      kind: kind ?? (isPNG ? "image" : "file"),
+      mime_type: mimeType ?? (isPNG ? "image/png" : "application/pdf"),
       name,
-      sha256: "b".repeat(64),
+      sha256: sha256 ?? identity.sha256,
       width: 10,
     },
   };
@@ -107,6 +129,34 @@ function getPathname(input: RequestInfo | URL): string {
   }
 
   return new URL(input.url, "http://localhost").pathname;
+}
+
+interface UploadedFileMetadata {
+  name: string;
+  type: string;
+}
+
+function uploadedFileMetadata(entry: FormDataEntryValue | null): UploadedFileMetadata | null {
+  if (entry === null || typeof entry === "string") {
+    return null;
+  }
+  return { name: entry.name, type: entry.type };
+}
+
+async function uploadedFileFromRequest(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<UploadedFileMetadata | null> {
+  if (init?.body instanceof FormData) {
+    return uploadedFileMetadata(init.body.get("file"));
+  }
+  if (!(input instanceof Request)) {
+    return null;
+  }
+  const body = await input.clone().text();
+  const filename = body.match(/filename="([^"]+)"/)?.[1];
+  const type = body.match(/\r?\nContent-Type:\s*([^\r\n]+)/i)?.[1];
+  return filename && type ? { name: filename, type } : null;
 }
 
 function fixtureWorkspaceId(): string {
@@ -182,15 +232,40 @@ function createPromptRecordingFetchMock(promptCalls: string[]) {
       promptCalls.push(String(init?.body ?? ""));
       return sseResponse([]);
     }
-    return base(input);
+    return base(input, init);
+  });
+}
+
+function createPromptRejectedFetchMock() {
+  const base = createFetchMock();
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const pathname = getPathname(input);
+    if (pathname === "/api/status") {
+      return new Response(JSON.stringify({}), {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Compozy-Gateway-Tier": "local",
+        },
+      });
+    }
+    if (pathname.endsWith("/prompt")) {
+      return jsonResponse(
+        {
+          code: "acp_prompt_image_unsupported",
+          error: "The selected agent does not accept images",
+        },
+        { status: 422 }
+      );
+    }
+    return base(input, init);
   });
 }
 
 function createFetchMock(options?: {
-  attachmentUploadName?: string;
+  attachmentUpload?: Parameters<typeof attachmentUploadPayload>[0];
   beforeAttachmentUpload?: () => Promise<void>;
 }) {
-  return vi.fn(async (input: RequestInfo | URL) => {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const pathname = getPathname(input);
 
     if (pathname === "/api/sessions") {
@@ -232,7 +307,23 @@ function createFetchMock(options?: {
       if (options?.beforeAttachmentUpload) {
         await options.beforeAttachmentUpload();
       }
-      return jsonResponse(attachmentUploadPayload(options?.attachmentUploadName), { status: 201 });
+      const uploaded = await uploadedFileFromRequest(input, init);
+      if (uploaded === null) {
+        return jsonResponse({ error: "file is required" }, { status: 400 });
+      }
+      if (uploaded.type === "application/zip") {
+        return jsonResponse({ error: "unsupported mime type" }, { status: 415 });
+      }
+      return jsonResponse(
+        attachmentUploadPayload(
+          options?.attachmentUpload ?? {
+            kind: uploaded.type.startsWith("image/") ? "image" : "file",
+            mimeType: uploaded.type,
+            name: uploaded.name,
+          }
+        ),
+        { status: 201 }
+      );
     }
 
     if (
@@ -335,6 +426,7 @@ describe("SessionThread transcript states", () => {
   });
 
   beforeEach(() => {
+    attachmentUploadSequence = 0;
     resetSessionDebugTelemetry();
     vi.stubGlobal("fetch", createFetchMock());
   });
@@ -2415,13 +2507,14 @@ describe("SessionThread composer running semantics", () => {
     const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() => Promise.resolve());
     const onSteerPrompt = vi.fn(() => Promise.resolve());
-    vi.stubGlobal("fetch", createFetchMock({ attachmentUploadName: "queued.png" }));
+    const fetch = createFetchMock({ attachmentUpload: { name: "queued.png" } });
+    vi.stubGlobal("fetch", fetch);
     renderComposer({
       isSessionRunning: true,
       allowBusyInput: true,
       onQueuePrompt,
       onSteerPrompt,
-      promptImage: true,
+      promptImageCapability: "supported",
     });
 
     await screen.findByTestId("composer-input");
@@ -2440,13 +2533,21 @@ describe("SessionThread composer running semantics", () => {
       message: "review this image",
       attachments: [
         expect.objectContaining({
-          id: `att_${"a".repeat(64)}`,
+          id: expect.stringMatching(/^att_[a-f0-9]{64}$/),
           name: "queued.png",
           mime_type: "image/png",
         }),
       ],
     });
     expect(onSteerPrompt).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+    });
+    expect(
+      fetch.mock.calls.some(([input]) =>
+        /\/attachments\/att_[a-f0-9]{64}$/.test(getPathname(input))
+      )
+    ).toBe(false);
   });
 
   it("Should show an error toast and preserve the draft when queue fails", async () => {
@@ -2762,6 +2863,9 @@ describe("SessionThread composer running semantics", () => {
   });
 });
 
+// Invariant: picker, paste, and drop create durable-ready composer tiles, while
+// queue/interrupt preserve daemon-owned refs and capability gates stay truthful.
+// Owning layer: SessionThread's public composer interaction boundary.
 describe("SessionThread composer attachments", () => {
   beforeEach(() => {
     composerAui = null;
@@ -2782,7 +2886,7 @@ describe("SessionThread composer attachments", () => {
   });
 
   it("Should turn a pasted image into a draft tile", async () => {
-    renderComposer({ promptImage: true });
+    renderComposer({ promptImageCapability: "supported" });
     await screen.findByTestId("composer-input");
     const editable = await findComposerEditable();
     const file = pngFile();
@@ -2801,7 +2905,7 @@ describe("SessionThread composer attachments", () => {
 
   it("Should add an attachment when browser crypto is unavailable", async () => {
     vi.stubGlobal("crypto", undefined);
-    renderComposer({ promptImage: true });
+    renderComposer({ promptImageCapability: "supported" });
     await screen.findByTestId("composer-input");
 
     await act(async () => {
@@ -2814,7 +2918,7 @@ describe("SessionThread composer attachments", () => {
   });
 
   it("Should prevent disabled file drops without adding an attachment", async () => {
-    renderComposer({ canPrompt: false, promptImage: true });
+    renderComposer({ canPrompt: false, promptImageCapability: "supported" });
     await screen.findByTestId("composer-input");
     const overlay = screen.getByTestId("composer-drop-overlay");
     const dropRoot = overlay.parentElement;
@@ -2834,8 +2938,28 @@ describe("SessionThread composer attachments", () => {
     expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
   });
 
-  it("Should clear an active file drag when prompt capability becomes unavailable", async () => {
-    const view = renderComposerRerenderable({ canPrompt: true, promptImage: true });
+  it("Should add a ready tile when an enabled drop contains a file", async () => {
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    const overlay = screen.getByTestId("composer-drop-overlay");
+    const dropRoot = overlay.parentElement;
+    if (!dropRoot) throw new Error("composer drop root is not mounted");
+    const file = pngFile("dropped.png");
+
+    fireEvent.drop(dropRoot, {
+      dataTransfer: { dropEffect: "copy", files: [file], types: ["Files"] },
+    });
+
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveTextContent("dropped.png");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should clear an active file drag when prompting becomes unavailable", async () => {
+    const view = renderComposerRerenderable({
+      canPrompt: true,
+      promptImageCapability: "supported",
+    });
     await screen.findByTestId("composer-input");
     const overlay = screen.getByTestId("composer-drop-overlay");
     const dropRoot = overlay.parentElement;
@@ -2851,18 +2975,16 @@ describe("SessionThread composer attachments", () => {
     fireEvent.dragEnter(dropRoot, { dataTransfer: transfer });
     expect(overlay).toHaveAttribute("aria-hidden", "false");
 
-    view.rerender({ canPrompt: false, promptImage: true });
+    view.rerender({ canPrompt: false, promptImageCapability: "supported" });
     expect(overlay).toHaveAttribute("aria-hidden", "true");
   });
 
   it("Should turn a picker file into a draft tile", async () => {
     const user = userEvent.setup();
-    renderComposer({ promptImage: true });
-    await screen.findByTestId("composer-attach-button");
-    const input = document.querySelector('input[type="file"]');
-    if (!(input instanceof HTMLInputElement)) {
-      throw new Error("composer file input is not mounted");
-    }
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByRole("button", { name: "Attach files" });
+    const input = screen.getByLabelText("Choose attachments");
+    if (!(input instanceof HTMLInputElement)) throw new Error("composer file input is not mounted");
     await user.upload(input, pngFile("picked.png"));
     const tile = await screen.findByTestId("composer-attachment-tile");
     expect(tile).toHaveTextContent("picked.png");
@@ -2875,21 +2997,26 @@ describe("SessionThread composer attachments", () => {
       release = resolve;
     });
     vi.stubGlobal("fetch", createFetchMock({ beforeAttachmentUpload: () => hold }));
-    renderComposer({ promptImage: true });
+    renderComposer({ promptImageCapability: "supported" });
     await screen.findByTestId("composer-input");
-    const add = act(() => requireComposerAui().composer.addAttachment(pngFile()));
+    let add!: Promise<void>;
+    act(() => {
+      add = requireComposerAui().composer.addAttachment(pngFile());
+    });
     const tile = await screen.findByTestId("composer-attachment-tile");
     expect(tile).toHaveAttribute("data-state", "uploading");
     const send = screen.getByTestId("composer-send-button");
     expect(send).toBeDisabled();
     expect(send).toHaveAttribute("title", "Saving shot.png");
-    release();
-    await add;
+    await act(async () => {
+      release();
+      await add;
+    });
     await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
   });
 
   it("Should enable image-only send when every tile is ready", async () => {
-    renderComposer({ promptImage: true });
+    renderComposer({ promptImageCapability: "supported" });
     await screen.findByTestId("composer-input");
     await act(async () => {
       await requireComposerAui().composer.addAttachment(pngFile());
@@ -2901,7 +3028,7 @@ describe("SessionThread composer attachments", () => {
   });
 
   it("Should refuse unsupported files in place and keep send disabled", async () => {
-    renderComposer({ promptImage: true });
+    renderComposer({ promptImageCapability: "supported" });
     await screen.findByTestId("composer-input");
     await act(async () => {
       await requireComposerAui().composer.addAttachment(zipFile());
@@ -2914,8 +3041,8 @@ describe("SessionThread composer attachments", () => {
     expect(send).toHaveAttribute("title", "Remove files that are not supported");
   });
 
-  it("Should show the capability gate for images when the model cannot accept them", async () => {
-    renderComposer({ promptImage: false });
+  it("Should show the capability gate for images when the targeted agent cannot accept them", async () => {
+    renderComposer({ promptImageCapability: "unsupported" });
     await screen.findByTestId("composer-input");
     await act(async () => {
       await requireComposerAui().composer.addAttachment(pngFile());
@@ -2924,16 +3051,19 @@ describe("SessionThread composer attachments", () => {
       expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
     );
     expect(screen.getByTestId("composer-attachment-gate")).toHaveTextContent(
-      "This model does not accept images."
+      "This agent does not accept images."
     );
     const send = screen.getByTestId("composer-send-button");
     expect(send).toBeDisabled();
-    expect(send).toHaveAttribute("title", "This model does not accept images");
+    expect(send).toHaveAttribute("title", "This agent does not accept images");
   });
 
   it("Should show the capability gate for PDF files without embedded context", async () => {
-    vi.stubGlobal("fetch", createFetchMock({ attachmentUploadName: "report.pdf" }));
-    renderComposer({ promptEmbeddedContext: false, promptImage: true });
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "report.pdf" } }));
+    renderComposer({
+      promptEmbeddedContextCapability: "unsupported",
+      promptImageCapability: "supported",
+    });
     await screen.findByTestId("composer-input");
     await act(async () => {
       await requireComposerAui().composer.addAttachment(pdfFile());
@@ -2942,11 +3072,93 @@ describe("SessionThread composer attachments", () => {
       expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
     );
     expect(screen.getByTestId("composer-attachment-gate")).toHaveTextContent(
-      "This model does not accept PDF files."
+      "This agent does not accept PDF files."
     );
     const send = screen.getByTestId("composer-send-button");
     expect(send).toBeDisabled();
-    expect(send).toHaveAttribute("title", "This model does not accept PDF files");
+    expect(send).toHaveAttribute("title", "This agent does not accept PDF files");
+  });
+
+  it("Should send a ready PDF while embedded-context capability is unknown", async () => {
+    const promptCalls: string[] = [];
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    renderComposer({
+      promptEmbeddedContextCapability: "unknown",
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pdfFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toMatch(/att_[a-f0-9]{64}/);
+  });
+
+  it("Should send a ready image while the target capability is unknown", async () => {
+    const promptCalls: string[] = [];
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    renderComposer({ promptImageCapability: "unknown" });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toMatch(/att_[a-f0-9]{64}/);
+  });
+
+  it("Should preserve uploaded attachment state through a session runtime rerender", async () => {
+    const promptCalls: string[] = [];
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    const view = renderComposerRerenderable({ promptImageCapability: "supported" });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    view.rerender({ promptImageCapability: "supported" });
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toMatch(/att_[a-f0-9]{64}/);
+  });
+
+  it("Should restore a rejected image and text to the composer", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRejectedFetchMock());
+    renderComposer({ promptImageCapability: "unknown" });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Retry this image");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(composerText()).toBe("Retry this image"));
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
   });
 
   it("Should remove a draft tile and release its image preview", async () => {
@@ -2960,13 +3172,13 @@ describe("SessionThread composer attachments", () => {
     MockURL.revokeObjectURL = vi.fn();
     vi.stubGlobal("URL", MockURL);
     const user = userEvent.setup();
-    renderComposer({ promptImage: true });
+    renderComposer({ promptImageCapability: "supported" });
     await screen.findByTestId("composer-input");
     await act(async () => {
       await requireComposerAui().composer.addAttachment(pngFile());
     });
     await screen.findByTestId("composer-attachment-tile");
-    await user.click(screen.getByTestId("composer-attachment-remove"));
+    await user.click(screen.getByRole("button", { name: "Remove shot.png" }));
     await waitFor(() => {
       expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
     });
@@ -3000,6 +3212,7 @@ describe("SessionThread composer attachments", () => {
     const row = await screen.findByTestId("composer-queued-prompt-row");
     expect(within(row).getByTestId("composer-queued-attachment-well")).toHaveTextContent("PDF");
     expect(row).toHaveTextContent("· 2 images · 1 file");
+    expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
   });
 });
 

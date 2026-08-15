@@ -56,10 +56,8 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		proc.emitPromptEvent(event)
 		return
 	}
-	if promptRequest.Meta != nil {
-		if _, included := promptRequest.Meta["system"]; included {
-			proc.markSystemPromptSent()
-		}
+	if _, included := promptRequest.Meta["system"]; included {
+		proc.markSystemPromptSent()
 	}
 
 	usage := proc.mergePromptUsage(tokenUsageFromPromptResponse(req.TurnID, response.Usage))
@@ -136,7 +134,7 @@ func (d *Driver) sendPromptCancellationNotification(
 }
 
 func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, error) {
-	attachmentBlocks, err := attachmentContentBlocks(req, proc.CapsSnapshot())
+	attachmentBlocks, err := attachmentContentBlocks(req.Attachments, proc.CapsSnapshot())
 	if err != nil {
 		return acpsdk.PromptRequest{}, err
 	}

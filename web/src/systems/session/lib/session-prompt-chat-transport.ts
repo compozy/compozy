@@ -4,22 +4,19 @@ import type { UIMessage } from "ai";
 import { createClientId } from "@/lib/client-id";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { attachmentsFromPromptMessageParts } from "./attachment-kinds";
-import type { SessionPromptAttachment } from "../types";
+import type { SessionPromptRequest } from "../types";
 
 interface SessionPromptChatTransportOptions {
   api: string;
   fetch: typeof globalThis.fetch;
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
   idempotencyKeys?: Map<string, string>;
+  onPromptPrepared?: (request: { messages: readonly UIMessage[] }) => void;
 }
 
-interface SessionPromptRequestBody {
-  attachments?: SessionPromptAttachment[];
-  idempotency_key: string;
-  message_id: string;
+type SessionPromptRequestBody = Omit<SessionPromptRequest, "messages"> & {
   messages: UIMessage[];
-  runtime?: SessionPromptRuntimeSnapshot;
-}
+};
 
 function latestUserMessage(messages: readonly UIMessage[]): UIMessage {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -42,6 +39,7 @@ export function createSessionPromptChatTransport({
   fetch,
   getRuntimeSnapshot,
   idempotencyKeys = new Map<string, string>(),
+  onPromptPrepared,
 }: SessionPromptChatTransportOptions): AssistantChatTransport<UIMessage> {
   return new AssistantChatTransport<UIMessage>({
     api,
@@ -60,6 +58,7 @@ export function createSessionPromptChatTransport({
         ...(attachments.length > 0 ? { attachments } : {}),
         ...(runtime ? { runtime } : {}),
       };
+      onPromptPrepared?.({ messages });
       return { body };
     },
   });

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,20 +17,23 @@ func TestSessionAttachmentRequestBodyLimitUsesConfiguredFileCeiling(t *testing.T
 	t.Parallel()
 
 	const maxFileBytes int64 = 256
+	wantBodyLimit := maxFileBytes + core.SessionAttachmentMultipartOverheadBytes
 	tests := []struct {
 		name       string
 		bodyBytes  int64
 		wantStatus int
+		wantError  string
 	}{
 		{
 			name:       "Should accept the configured file ceiling plus multipart overhead",
-			bodyBytes:  sessionAttachmentRequestBodyLimit(maxFileBytes),
+			bodyBytes:  wantBodyLimit,
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:       "Should reject a body above the configured file ceiling plus multipart overhead",
-			bodyBytes:  sessionAttachmentRequestBodyLimit(maxFileBytes) + 1,
+			bodyBytes:  wantBodyLimit + 1,
 			wantStatus: http.StatusRequestEntityTooLarge,
+			wantError:  errRequestBodyTooLarge.Error(),
 		},
 	}
 
@@ -59,6 +63,13 @@ func TestSessionAttachmentRequestBodyLimitUsesConfiguredFileCeiling(t *testing.T
 
 			if recorder.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, tt.wantStatus, recorder.Body.String())
+			}
+			if tt.wantError != "" {
+				var payload contract.ErrorPayload
+				decodeJSONResponse(t, recorder, &payload)
+				if payload.Error != tt.wantError {
+					t.Fatalf("error = %q, want %q", payload.Error, tt.wantError)
+				}
 			}
 		})
 	}

@@ -260,7 +260,7 @@ func TestDocumentDescribesSessionAttachmentContracts(t *testing.T) {
 		t.Fatalf("Document() error = %v", err)
 	}
 
-	t.Run("Should describe multipart upload and binary attachment reads", func(t *testing.T) {
+	t.Run("Should describe multipart upload, binary attachment reads, and deletion", func(t *testing.T) {
 		t.Parallel()
 
 		upload := operationFor(

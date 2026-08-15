@@ -14,7 +14,13 @@ func TestSessionPromptAdmissionRequestAttachments(t *testing.T) {
 
 		req := validSessionPromptAdmissionRequest()
 		req.AuthoredText = "  "
-		req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
+		attachment := validSessionInputAttachment()
+		attachment.ID = " " + attachment.ID + " "
+		attachment.Name = " " + attachment.Name + " "
+		attachment.MIMEType = " " + attachment.MIMEType + " "
+		attachment.SHA256 = " " + attachment.SHA256 + " "
+		attachment.Kind = " " + attachment.Kind + " "
+		req.Attachments = []SessionInputAttachment{attachment}
 		if err := req.Validate(); err != nil {
 			t.Fatalf("Validate() error = %v", err)
 		}
@@ -22,8 +28,9 @@ func TestSessionPromptAdmissionRequestAttachments(t *testing.T) {
 		if normalized.AuthoredText != "" {
 			t.Fatalf("Normalize().AuthoredText = %q, want empty", normalized.AuthoredText)
 		}
-		if len(normalized.Attachments) != 1 || normalized.Attachments[0].Name != "shot.png" {
-			t.Fatalf("Normalize().Attachments = %#v", normalized.Attachments)
+		wantAttachment := validSessionInputAttachment()
+		if len(normalized.Attachments) != 1 || normalized.Attachments[0] != wantAttachment {
+			t.Fatalf("Normalize().Attachments = %#v, want %#v", normalized.Attachments, []SessionInputAttachment{wantAttachment})
 		}
 	})
 
@@ -40,14 +47,24 @@ func TestSessionPromptAdmissionRequestAttachments(t *testing.T) {
 	t.Run("Should reject every steer request that carries attachments", func(t *testing.T) {
 		t.Parallel()
 
-		for _, authoredText := range []string{"", "steer with text"} {
-			req := validSessionPromptAdmissionRequest()
-			req.Operation = SessionPromptOperationSteer
-			req.AuthoredText = authoredText
-			req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
-			if err := req.Validate(); !errors.Is(err, ErrSessionInputSteerTextOnly) {
-				t.Fatalf("Validate(%q) error = %v, want ErrSessionInputSteerTextOnly", authoredText, err)
-			}
+		for _, tc := range []struct {
+			name         string
+			authoredText string
+		}{
+			{name: "Should reject an empty-text steer attachment", authoredText: ""},
+			{name: "Should reject a non-empty-text steer attachment", authoredText: "steer with text"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				req := validSessionPromptAdmissionRequest()
+				req.Operation = SessionPromptOperationSteer
+				req.AuthoredText = tc.authoredText
+				req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
+				if err := req.Validate(); !errors.Is(err, ErrSessionInputSteerTextOnly) {
+					t.Fatalf("Validate(%q) error = %v, want ErrSessionInputSteerTextOnly", tc.authoredText, err)
+				}
+			})
 		}
 	})
 }

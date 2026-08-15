@@ -18,7 +18,7 @@ func TestExtractPromptInputAttachments(t *testing.T) {
 		input, err := contract.ExtractPromptInput(contract.SendPromptRequest{
 			MessageID:      "msg-image-only",
 			IdempotencyKey: "idem-image-only",
-			Attachments:    []contract.PromptAttachmentRef{validPromptAttachmentRef()},
+			Attachments:    []contract.PromptAttachmentRef{validPromptAttachmentRef(t)},
 		})
 		if err != nil {
 			t.Fatalf("ExtractPromptInput() error = %v", err)
@@ -34,7 +34,7 @@ func TestExtractPromptInputAttachments(t *testing.T) {
 	t.Run("Should populate attachments from the explicit request field", func(t *testing.T) {
 		t.Parallel()
 
-		ref := validPromptAttachmentRef()
+		ref := validPromptAttachmentRef(t)
 		input, err := contract.ExtractPromptInput(contract.SendPromptRequest{
 			Message:        "Review this screenshot.",
 			MessageID:      "msg-with-attachment",
@@ -66,7 +66,7 @@ func TestExtractPromptInputAttachments(t *testing.T) {
 					{Type: "text", Text: "visible text"},
 				},
 			}},
-			Attachments: []contract.PromptAttachmentRef{validPromptAttachmentRef()},
+			Attachments: []contract.PromptAttachmentRef{validPromptAttachmentRef(t)},
 		})
 		if err != nil {
 			t.Fatalf("ExtractPromptInput() error = %v", err)
@@ -86,24 +86,20 @@ func TestExtractPromptInputAttachments(t *testing.T) {
 			MessageID:      "msg-empty",
 			IdempotencyKey: "idem-empty",
 		})
-		if err == nil || !strings.Contains(err.Error(), "message is required") {
-			t.Fatalf("ExtractPromptInput() error = %v, want message is required", err)
-		}
+		assertErrorContains(t, err, "message is required")
 	})
 
 	t.Run("Should reject a bad attachment id", func(t *testing.T) {
 		t.Parallel()
 
-		ref := validPromptAttachmentRef()
+		ref := validPromptAttachmentRef(t)
 		ref.ID = "att_not-hex"
 		_, err := contract.ExtractPromptInput(contract.SendPromptRequest{
 			MessageID:      "msg-bad-id",
 			IdempotencyKey: "idem-bad-id",
 			Attachments:    []contract.PromptAttachmentRef{ref},
 		})
-		if err == nil || !strings.Contains(err.Error(), "att_<64-hex>") {
-			t.Fatalf("ExtractPromptInput() error = %v, want att_<64-hex>", err)
-		}
+		assertErrorContains(t, err, "att_<64-hex>")
 	})
 
 	t.Run("Should reject attachments that exceed the default count cap", func(t *testing.T) {
@@ -111,16 +107,14 @@ func TestExtractPromptInputAttachments(t *testing.T) {
 
 		refs := make([]contract.PromptAttachmentRef, contract.DefaultPromptAttachmentLimit+1)
 		for index := range refs {
-			refs[index] = validPromptAttachmentRef()
+			refs[index] = validPromptAttachmentRef(t)
 		}
 		_, err := contract.ExtractPromptInput(contract.SendPromptRequest{
 			MessageID:      "msg-too-many",
 			IdempotencyKey: "idem-too-many",
 			Attachments:    refs,
 		})
-		if err == nil || !strings.Contains(err.Error(), "max count") {
-			t.Fatalf("ExtractPromptInput() error = %v, want max count", err)
-		}
+		assertErrorContains(t, err, "max count")
 	})
 }
 
@@ -131,31 +125,27 @@ func TestValidatePromptAttachments(t *testing.T) {
 		t.Parallel()
 
 		err := contract.ValidatePromptAttachments(
-			[]contract.PromptAttachmentRef{validPromptAttachmentRef(), validPromptAttachmentRef()},
+			[]contract.PromptAttachmentRef{validPromptAttachmentRef(t), validPromptAttachmentRef(t)},
 			1,
 		)
-		if err == nil || !strings.Contains(err.Error(), "max count 1") {
-			t.Fatalf("ValidatePromptAttachments() error = %v, want max count 1", err)
-		}
+		assertErrorContains(t, err, "max count 1")
 	})
 
 	t.Run("Should reject an empty name and unknown kind", func(t *testing.T) {
 		t.Parallel()
 
-		missingName := validPromptAttachmentRef()
+		missingName := validPromptAttachmentRef(t)
 		missingName.Name = "  "
-		if err := missingName.Validate(); err == nil || !strings.Contains(err.Error(), "name is required") {
-			t.Fatalf("Validate() error = %v, want name is required", err)
-		}
-		badKind := validPromptAttachmentRef()
+		assertErrorContains(t, missingName.Validate(), "name is required")
+		badKind := validPromptAttachmentRef(t)
 		badKind.Kind = "video"
-		if err := badKind.Validate(); err == nil || !strings.Contains(err.Error(), "kind") {
-			t.Fatalf("Validate() error = %v, want kind rejection", err)
-		}
+		assertErrorContains(t, badKind.Validate(), "kind")
 	})
 }
 
-func validPromptAttachmentRef() contract.PromptAttachmentRef {
+func validPromptAttachmentRef(t *testing.T) contract.PromptAttachmentRef {
+	t.Helper()
+
 	return contract.PromptAttachmentRef{
 		ID:       testPromptAttachmentID,
 		Name:     "shot.png",
@@ -165,5 +155,13 @@ func validPromptAttachmentRef() contract.PromptAttachmentRef {
 		Kind:     contract.PromptAttachmentKindImage,
 		Width:    320,
 		Height:   240,
+	}
+}
+
+func assertErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want substring %q", err, want)
 	}
 }

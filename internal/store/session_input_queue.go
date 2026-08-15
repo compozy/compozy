@@ -47,8 +47,8 @@ var (
 	ErrSessionInputQueueEntryNotQueued = errors.New("store: session input queue entry is not queued")
 	// ErrSessionInputMutationConflict reports reuse of a mutation identity with different input.
 	ErrSessionInputMutationConflict = errors.New("store: session input mutation identity conflict")
-	// ErrSessionInputSteerTextOnly reports that attachment-bearing input cannot become steer input.
-	ErrSessionInputSteerTextOnly = errors.New("store: steer is text-only; queued attachments cannot be promoted")
+	// ErrSessionInputSteerTextOnly reports that steer input cannot include attachments.
+	ErrSessionInputSteerTextOnly = errors.New("store: steer input cannot include attachments")
 )
 
 // SessionInputRuntime is the immutable runtime selection captured when busy
@@ -157,7 +157,7 @@ type SessionInputQueueInsert struct {
 	Now               time.Time
 }
 
-// Normalize returns a trimmed, UTC-normalized insert request.
+// Normalize trims scalar and attachment fields, clones slices, and normalizes the request clock to UTC.
 func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized := r
 	normalized.ID = strings.TrimSpace(normalized.ID)

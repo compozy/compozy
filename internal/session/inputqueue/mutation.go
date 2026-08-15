@@ -30,7 +30,6 @@ type mutationSpec struct {
 	mode             string
 	delivery         string
 	skillInvocations []commandpkg.Invocation
-	attachments      []store.SessionInputAttachment
 	apply            mutationApply
 }
 
@@ -100,7 +99,6 @@ func (s *Service) mutate(
 		spec.delivery,
 		spec.targetTurnID,
 		spec.skillInvocations,
-		spec.attachments,
 	); err != nil || ok {
 		return replayed, false, err
 	}
@@ -115,9 +113,10 @@ func (s *Service) mutate(
 			targetEntryID,
 		)
 	}
-	// nil = the caller did not assert attachments; a replace keeps the source entry's set.
-	if spec.attachments == nil && spec.mode == store.SessionInputQueueModeQueue {
-		spec.attachments = append([]store.SessionInputAttachment(nil), existing.Attachments...)
+	attachments := []store.SessionInputAttachment(nil)
+	if spec.mode == store.SessionInputQueueModeQueue {
+		// A replace keeps the source entry's attachment snapshot.
+		attachments = append([]store.SessionInputAttachment(nil), existing.Attachments...)
 	}
 	replacement, err := s.newInsert(insertSpec{
 		sessionID:        targetSessionID,
@@ -128,7 +127,7 @@ func (s *Service) mutate(
 		generation:       existing.SessionGeneration,
 		runtime:          existing.Runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), spec.skillInvocations...),
-		attachments:      append([]store.SessionInputAttachment(nil), spec.attachments...),
+		attachments:      attachments,
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
@@ -161,7 +160,6 @@ func (s *Service) ReplayPromotion(
 		store.SessionInputDeliveryInterruptThenPrompt,
 		targetTurnID,
 		skillInvocations,
-		nil,
 	)
 	if err != nil || !found {
 		return entry, found, err
@@ -189,7 +187,6 @@ func (s *Service) replayMutation(
 	delivery string,
 	targetTurnID string,
 	skillInvocations []commandpkg.Invocation,
-	attachments []store.SessionInputAttachment,
 ) (store.SessionInputQueueEntry, bool, error) {
 	entry, err := s.store.GetSessionInputQueueEntry(ctx, sessionID, mutationID)
 	if errors.Is(err, store.ErrSessionInputQueueEntryNotFound) {
@@ -199,7 +196,7 @@ func (s *Service) replayMutation(
 		return store.SessionInputQueueEntry{}, false, err
 	}
 	if !sameMutation(
-		&entry, text, messageID, idempotencyKey, mode, delivery, targetTurnID, skillInvocations, attachments,
+		&entry, text, messageID, idempotencyKey, mode, delivery, targetTurnID, skillInvocations,
 	) {
 		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
 			"%w: %s",
@@ -228,11 +225,7 @@ func sameMutation(
 	delivery string,
 	targetTurnID string,
 	skillInvocations []commandpkg.Invocation,
-	attachments []store.SessionInputAttachment,
 ) bool {
-	if attachments != nil && !slices.Equal(entry.Attachments, attachments) {
-		return false
-	}
 	return entry.Text == strings.TrimSpace(text) &&
 		entry.MessageID == strings.TrimSpace(messageID) &&
 		entry.IdempotencyKey == strings.TrimSpace(idempotencyKey) &&

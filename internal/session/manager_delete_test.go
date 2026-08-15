@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,69 +24,120 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func TestManagerAttachmentDeleteFencesConcurrentUpload(t *testing.T) {
-	t.Parallel()
+type signalingAttachmentScopeLease struct {
+	permits              chan struct{}
+	uploadLeaseAttempted chan struct{}
+	mu                   sync.Mutex
+	acquisitions         int
+	deleted              bool
+}
 
-	ctx := testutil.Context(t)
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+func newSignalingAttachmentScopeLease() *signalingAttachmentScopeLease {
+	lease := &signalingAttachmentScopeLease{
+		permits:              make(chan struct{}, 1),
+		uploadLeaseAttempted: make(chan struct{}),
 	}
-	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
-	attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(
-		ctx,
-		homePaths.SessionAttachmentsDir,
-		attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: 24 * time.Hour},
-		attachmentspkg.StoreLimits{MaxFileBytes: 1 << 20, AllowedMIME: attachmentspkg.DefaultAllowedMIME},
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
-	}
-	const workspaceID = "ws-delete-race"
-	const sessionID = "sess-delete-race"
-	if _, err := attachmentStore.Put(ctx, workspaceID, sessionID, "before.txt", []byte("before")); err != nil {
-		t.Fatalf("Put(before delete) error = %v", err)
-	}
-	manager := &Manager{homePaths: homePaths, attachmentScopeLease: attachmentStore}
-	staged, err := manager.stageSessionAttachmentDelete(ctx, workspaceID, sessionID, "delete-race")
-	if err != nil {
-		t.Fatalf("stageSessionAttachmentDelete() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if releaseErr := staged.Release(); releaseErr != nil {
-			t.Errorf("Release(staged attachment delete) error = %v", releaseErr)
-		}
-	})
+	lease.permits <- struct{}{}
+	return lease
+}
 
-	putStarted := make(chan struct{})
-	putDone := make(chan error, 1)
-	go func() {
-		close(putStarted)
-		_, putErr := attachmentStore.Put(ctx, workspaceID, sessionID, "after.txt", []byte("after"))
-		putDone <- putErr
-	}()
-	<-putStarted
+func (s *signalingAttachmentScopeLease) AcquireScopeLease(
+	ctx context.Context,
+	_ string,
+	_ string,
+) (attachmentspkg.ScopeLeaseGuard, error) {
+	s.mu.Lock()
+	s.acquisitions++
+	if s.acquisitions == 2 {
+		close(s.uploadLeaseAttempted)
+	}
+	s.mu.Unlock()
+
 	select {
-	case putErr := <-putDone:
-		t.Fatalf("Put(concurrent) returned before deletion commit: %v", putErr)
-	case <-time.After(20 * time.Millisecond):
-	}
-
-	if err := commitStagedAttachmentDelete(staged); err != nil {
-		t.Fatalf("commitStagedAttachmentDelete() error = %v", err)
-	}
-	select {
-	case putErr := <-putDone:
-		if !errors.Is(putErr, attachmentspkg.ErrNotFound) {
-			t.Fatalf("Put(after committed delete) error = %v, want attachment not found", putErr)
-		}
 	case <-ctx.Done():
-		t.Fatalf("Put(concurrent) did not finish after delete released the lease: %v", ctx.Err())
+		return nil, ctx.Err()
+	case <-s.permits:
+		return &signalingAttachmentScopeLeaseGuard{lease: s}, nil
 	}
 }
+
+func (s *signalingAttachmentScopeLease) Put(ctx context.Context) error {
+	guard, err := s.AcquireScopeLease(ctx, "ws-delete-race", "sess-delete-race")
+	if err != nil {
+		return err
+	}
+	defer guard.Release()
+
+	s.mu.Lock()
+	deleted := s.deleted
+	s.mu.Unlock()
+	if deleted {
+		return attachmentspkg.ErrNotFound
+	}
+	return nil
+}
+
+type signalingAttachmentScopeLeaseGuard struct {
+	lease *signalingAttachmentScopeLease
+	once  sync.Once
+}
+
+func (g *signalingAttachmentScopeLeaseGuard) Release() {
+	if g == nil || g.lease == nil {
+		return
+	}
+	g.once.Do(func() { g.lease.permits <- struct{}{} })
+}
+
+func (g *signalingAttachmentScopeLeaseGuard) MarkDeleted() {
+	if g == nil || g.lease == nil {
+		return
+	}
+	g.lease.mu.Lock()
+	g.lease.deleted = true
+	g.lease.mu.Unlock()
+}
+
+var _ attachmentScopeLease = (*signalingAttachmentScopeLease)(nil)
+
+type nonReentrantAttachmentScopeLease struct {
+	mu     sync.Mutex
+	active bool
+}
+
+func (s *nonReentrantAttachmentScopeLease) AcquireScopeLease(
+	_ context.Context,
+	_ string,
+	_ string,
+) (attachmentspkg.ScopeLeaseGuard, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active {
+		return nil, errors.New("nested attachment scope lease")
+	}
+	s.active = true
+	return &nonReentrantAttachmentScopeLeaseGuard{lease: s}, nil
+}
+
+type nonReentrantAttachmentScopeLeaseGuard struct {
+	lease *nonReentrantAttachmentScopeLease
+	once  sync.Once
+}
+
+func (g *nonReentrantAttachmentScopeLeaseGuard) Release() {
+	if g == nil || g.lease == nil {
+		return
+	}
+	g.once.Do(func() {
+		g.lease.mu.Lock()
+		g.lease.active = false
+		g.lease.mu.Unlock()
+	})
+}
+
+func (*nonReentrantAttachmentScopeLeaseGuard) MarkDeleted() {}
+
+var _ attachmentScopeLease = (*nonReentrantAttachmentScopeLease)(nil)
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
@@ -93,6 +146,126 @@ func TestManagerDelete(t *testing.T) {
 		name string
 		run  func(*testing.T)
 	}{
+		{
+			name: "Should fence a concurrent attachment upload until deletion commits",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t)
+				homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+				if err != nil {
+					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+				}
+				if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+					t.Fatalf("EnsureHomeLayout() error = %v", err)
+				}
+				const workspaceID = "ws-delete-race"
+				const sessionID = "sess-delete-race"
+				attachmentPath := filepath.Join(
+					homePaths.SessionAttachmentsDir,
+					workspaceID,
+					sessionID,
+					"before.txt",
+				)
+				if err := os.MkdirAll(filepath.Dir(attachmentPath), 0o700); err != nil {
+					t.Fatalf("MkdirAll(attachment fixture) error = %v", err)
+				}
+				if err := os.WriteFile(attachmentPath, []byte("before"), 0o600); err != nil {
+					t.Fatalf("WriteFile(attachment fixture) error = %v", err)
+				}
+
+				lease := newSignalingAttachmentScopeLease()
+				manager := &Manager{homePaths: homePaths, attachmentScopeLease: lease}
+				staged, err := manager.stageSessionAttachmentDelete(ctx, workspaceID, sessionID, "delete-race")
+				if err != nil {
+					t.Fatalf("stageSessionAttachmentDelete() error = %v", err)
+				}
+				t.Cleanup(func() {
+					if releaseErr := staged.Release(); releaseErr != nil {
+						t.Errorf("Release(staged attachment delete) error = %v", releaseErr)
+					}
+				})
+
+				putDone := make(chan error, 1)
+				go func() { putDone <- lease.Put(ctx) }()
+				select {
+				case <-lease.uploadLeaseAttempted:
+				case <-ctx.Done():
+					t.Fatalf("concurrent upload did not reach scope lease acquisition: %v", ctx.Err())
+				}
+				select {
+				case putErr := <-putDone:
+					t.Fatalf("Put(concurrent) returned before deletion commit: %v", putErr)
+				default:
+				}
+
+				if err := commitStagedAttachmentDelete(staged); err != nil {
+					t.Fatalf("commitStagedAttachmentDelete() error = %v", err)
+				}
+				select {
+				case putErr := <-putDone:
+					if !errors.Is(putErr, attachmentspkg.ErrNotFound) {
+						t.Fatalf("Put(after committed delete) error = %v, want attachment not found", putErr)
+					}
+				case <-ctx.Done():
+					t.Fatalf("Put(concurrent) did not finish after delete released the lease: %v", ctx.Err())
+				}
+			},
+		},
+		{
+			name: "Should reject malformed session deletion tombstones at the parser boundary",
+			run: func(t *testing.T) {
+				tests := []struct {
+					name  string
+					value string
+				}{
+					{
+						name:  "Should reject an unknown tombstone prefix",
+						value: ".compozy-delete-unknown-c2Vzcw.delete-1",
+					},
+					{
+						name: "Should reject a tombstone without a target separator",
+						value: sessionDeleteStagedPrefix +
+							base64.RawURLEncoding.EncodeToString([]byte("sess-1")),
+					},
+					{
+						name:  "Should reject a tombstone without a deletion identifier",
+						value: sessionDeleteStagedPrefix + base64.RawURLEncoding.EncodeToString([]byte("sess-1")) + ".",
+					},
+					{
+						name:  "Should reject an invalid encoded session identifier",
+						value: sessionDeleteCommittedPrefix + "%%%" + ".delete-1",
+					},
+					{
+						name: "Should reject an invalid stored session identifier",
+						value: sessionDeleteStagedPrefix +
+							base64.RawURLEncoding.EncodeToString([]byte("../sess-1")) + ".delete-1",
+					},
+				}
+				for _, test := range tests {
+					t.Run(test.name, func(t *testing.T) {
+						t.Parallel()
+
+						state, target, deletionID, err := parseSessionDeleteTombstoneParts(test.value)
+						if !errors.Is(err, errInvalidSessionDeleteTombstone) {
+							t.Fatalf(
+								"parseSessionDeleteTombstoneParts(%q) error = %v, want %v",
+								test.value,
+								err,
+								errInvalidSessionDeleteTombstone,
+							)
+						}
+						if state != 0 || target != "" || deletionID != "" {
+							t.Fatalf(
+								"parseSessionDeleteTombstoneParts(%q) = (%d, %q, %q), want zero values",
+								test.value,
+								state,
+								target,
+								deletionID,
+							)
+						}
+					})
+				}
+			},
+		},
 		{
 			name: "Should remove a stopped user session from durable counts",
 			run: func(t *testing.T) {
@@ -805,6 +978,7 @@ func TestManagerDelete(t *testing.T) {
 					}
 				})
 				h := newHarness(t, WithSessionCatalog(db))
+				h.manager.attachmentScopeLease = &nonReentrantAttachmentScopeLease{}
 				now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 				if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
 					ID:        h.workspaceID,

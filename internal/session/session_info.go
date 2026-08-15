@@ -21,8 +21,10 @@ func (s *Session) Info() *Info {
 // infoLocked returns a session snapshot; the caller must hold s.mu for reading or writing.
 func (s *Session) infoLocked() *Info {
 	acpCaps := cloneCaps(s.ACPCaps)
+	acpCapsKnown := s.ACPCapsKnown
 	if s.process != nil {
 		acpCaps = cloneCaps(s.process.CapsSnapshot())
+		acpCapsKnown = true
 	}
 	pendingPermission := s.process != nil && s.process.HasPendingPermission()
 
@@ -55,6 +57,7 @@ func (s *Session) infoLocked() *Info {
 		Failure:                  store.CloneSessionFailure(s.failure),
 		ACPSessionID:             s.ACPSessionID,
 		ACPCaps:                  acpCaps,
+		ACPCapsKnown:             acpCapsKnown,
 		AdvertisedCommands:       store.CloneSessionAdvertisedCommands(s.AdvertisedCommands),
 		Liveness:                 store.CloneSessionLivenessMeta(s.Liveness),
 		Sandbox:                  cloneSessionSandboxMeta(s.Sandbox),

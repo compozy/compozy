@@ -2,6 +2,7 @@ import type { Attachment } from "@assistant-ui/react";
 
 import {
   ATTACHMENT_ALLOWED_REASON,
+  attachmentsFromPromptMessageParts,
   formatAttachmentSize,
 } from "@/systems/session/lib/attachment-kinds";
 
@@ -33,6 +34,7 @@ export function sessionAttachmentTileState(attachment: Attachment): SessionAttac
 
 export function sessionAttachmentTileModel(attachment: Attachment): SessionAttachmentTileModel {
   const state = sessionAttachmentTileState(attachment);
+  const [uploaded] = attachmentsFromPromptMessageParts(attachment.content);
   const bytes = attachment.file?.size;
   let sizeLabel = bytes === undefined ? "" : formatAttachmentSize(bytes);
   if (state === "uploading") sizeLabel = "Saving…";
@@ -49,6 +51,9 @@ export function sessionAttachmentTileModel(attachment: Attachment): SessionAttac
     mimeType: attachment.contentType,
     bytes,
     file: attachment.file,
+    ...(uploaded?.width && uploaded?.height
+      ? { height: uploaded.height, width: uploaded.width }
+      : {}),
     state,
     sizeLabel,
     retryable: state === "error" && sizeLabel === "Couldn't save",

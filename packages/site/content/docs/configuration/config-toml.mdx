@@ -1096,6 +1096,29 @@ access, and periodically. Archiving or clearing a conversation keeps its attachm
 session removes its attachment directory, and unregistering a workspace removes that workspace's
 complete attachment subtree. Support bundles exclude attachment files and their home-tree entries.
 
+### Manage attachment settings
+
+All six `session.attachments.*` paths are agent-mutable. Use `compozy config get|set|unset` with
+`-o json` to inspect, change, or remove a global value; add `--scope workspace --workspace <workspace>`
+to write the workspace overlay. The same paths are available through the typed
+`compozy__config_get`, `compozy__config_set`, and `compozy__config_unset` tools; resolve the live
+descriptor before a native-tool mutation so its scope and input type are explicit.
+
+```bash
+compozy config get session.attachments.max_file_bytes --workspace <workspace> -o json
+compozy config set session.attachments.max_file_bytes 20971520 --scope workspace --workspace <workspace> -o json
+compozy config set session.attachments.allowed_mime '["image/png","application/pdf","text/plain"]' --scope workspace --workspace <workspace> -o json
+compozy config unset session.attachments.max_file_bytes --scope workspace --workspace <workspace> -o json
+```
+
+The other mutable paths are `session.attachments.max_files_per_prompt`,
+`session.attachments.retention.max_count`, `session.attachments.retention.max_bytes`, and
+`session.attachments.retention.max_age`. Each bound must stay positive; `allowed_mime` must be a
+non-empty, duplicate-free subset of the six v1 MIME types. A rejected write reports validation rather
+than changing the desired state. A successful structured response reports `lifecycle="restart-required"`
+and `next_action="restart-daemon"`; restart the daemon, then read the path again to confirm the active
+generation.
+
 ## `[session.supervision]`
 
 Session supervision keeps long-running prompts observable without turning every heartbeat into a

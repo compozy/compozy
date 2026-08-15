@@ -15,18 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
-const attachmentFileMode = 0o600
+const (
+	attachmentFileMode = 0o600
+	attachmentDirMode  = 0o700
+)
 
 type attachmentWriteFile func(path string, content []byte, perm os.FileMode) error
-
-type attachmentStoreOptions struct {
-	now       func() time.Time
-	writeFile attachmentWriteFile
-}
 
 // FilesystemAttachmentStore retains immutable content-addressed session attachments.
 type FilesystemAttachmentStore struct {
@@ -107,127 +104,38 @@ func attachmentScopeKey(workspaceID string, sessionID string) string {
 // OpenFilesystemAttachmentStore opens the canonical store and applies retention before use.
 func OpenFilesystemAttachmentStore(
 	ctx context.Context,
-	root string,
-	retention AttachmentRetention,
-	limits StoreLimits,
-	retentionPins RetentionPinSource,
-	opts ...func(*attachmentStoreOptions),
+	config FilesystemStoreConfig,
 ) (*FilesystemAttachmentStore, error) {
-	if strings.TrimSpace(root) == "" {
+	if strings.TrimSpace(config.Root) == "" {
 		return nil, fmt.Errorf("attachment root is required")
 	}
-	if err := retention.Validate(); err != nil {
+	if err := config.Retention.Validate(); err != nil {
 		return nil, err
 	}
-	if err := ValidateSize(0, limits.MaxFileBytes); err != nil {
+	if err := ValidateSize(0, config.Limits.MaxFileBytes); err != nil {
 		return nil, err
 	}
-	allowed, err := normalizeAllowedMIME(limits.AllowedMIME)
+	allowed, err := NormalizeAllowedMIME(config.Limits.AllowedMIME)
 	if err != nil {
 		return nil, err
 	}
-	settings := attachmentStoreOptions{now: time.Now, writeFile: fileutil.AtomicWriteFile}
-	for _, opt := range opts {
-		opt(&settings)
-	}
 	store := &FilesystemAttachmentStore{
-		root:          filepath.Clean(root),
-		retention:     retention,
-		maxFileBytes:  limits.MaxFileBytes,
+		root:          filepath.Clean(config.Root),
+		retention:     config.Retention,
+		maxFileBytes:  config.Limits.MaxFileBytes,
 		allowedMIME:   allowed,
-		now:           settings.now,
-		writeFile:     settings.writeFile,
-		retentionPins: retentionPins,
+		now:           time.Now,
+		writeFile:     fileutil.AtomicWriteFile,
+		retentionPins: config.RetentionPins,
 		deletedScopes: make(map[string]struct{}),
 	}
-	if err := store.ensureRoot(); err != nil {
+	if err := store.ensureRoot(ctx); err != nil {
 		return nil, err
 	}
 	if err := store.Sweep(ctx); err != nil {
 		return nil, err
 	}
 	return store, nil
-}
-
-// Put publishes canonical bytes once and returns their opaque reference.
-func (s *FilesystemAttachmentStore) Put(
-	ctx context.Context,
-	workspaceID string,
-	sessionID string,
-	name string,
-	data []byte,
-) (AttachmentRef, error) {
-	if err := attachmentContextErr(ctx); err != nil {
-		return AttachmentRef{}, err
-	}
-	workspaceID, sessionID, err := sanitizeScopeIDs(workspaceID, sessionID)
-	if err != nil {
-		return AttachmentRef{}, err
-	}
-	if err := ValidateSize(int64(len(data)), s.maxFileBytes); err != nil {
-		return AttachmentRef{}, err
-	}
-	if int64(len(data)) > s.retention.MaxBytes {
-		return AttachmentRef{}, fmt.Errorf(
-			"%w: %d exceeds retention max_bytes %d",
-			ErrTooLarge,
-			len(data),
-			s.retention.MaxBytes,
-		)
-	}
-	mime, kind, width, height, err := SniffMIME(data, name)
-	if err != nil {
-		return AttachmentRef{}, err
-	}
-	if err := mimeAllowed(mime, s.allowedMIME); err != nil {
-		return AttachmentRef{}, err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, deleted := s.deletedScopes[attachmentScopeKey(workspaceID, sessionID)]; deleted {
-		return AttachmentRef{}, ErrNotFound
-	}
-	if _, deleted := s.deletedScopes[attachmentScopeKey(workspaceID, "")]; deleted {
-		return AttachmentRef{}, ErrNotFound
-	}
-
-	id := attachmentID(data)
-	sessionDir, err := s.ensureSessionDir(workspaceID, sessionID)
-	if err != nil {
-		return AttachmentRef{}, err
-	}
-	contentPath := filepath.Join(sessionDir, id)
-	if existing, readErr := s.readMeta(contentPath, id); readErr == nil {
-		stored, storedErr := readAttachmentFile(contentPath, id)
-		if storedErr != nil {
-			return AttachmentRef{}, storedErr
-		}
-		if !bytes.Equal(stored, data) {
-			return AttachmentRef{}, fmt.Errorf("%w: digest collision for %s", ErrCorrupt, id)
-		}
-		return attachmentRef(id, existing), nil
-	} else if !errors.Is(readErr, ErrNotFound) {
-		return AttachmentRef{}, readErr
-	}
-
-	if err := s.sweepLocked(ctx, 1, int64(len(data))); err != nil {
-		return AttachmentRef{}, err
-	}
-	meta := attachmentMeta{
-		Name:      diagnostics.Redact(strings.TrimSpace(name)),
-		MIMEType:  mime,
-		Bytes:     int64(len(data)),
-		SHA256:    attachmentSHA256(id),
-		Kind:      kind,
-		Width:     width,
-		Height:    height,
-		CreatedAt: s.now().UTC(),
-	}
-	if err := s.publish(contentPath, data, meta); err != nil {
-		return AttachmentRef{}, err
-	}
-	return attachmentRef(id, meta), nil
 }
 
 // Open returns a reader for retained bytes after enforcing workspace and session scope.
@@ -245,7 +153,14 @@ func (s *FilesystemAttachmentStore) Open(
 	if err != nil {
 		return nil, AttachmentRef{}, fmt.Errorf("open attachment: %w", err)
 	}
-	if err := verifyAttachmentDigest(file, id); err != nil {
+	if err := attachmentContextErr(ctx); err != nil {
+		closeErr := file.Close()
+		if closeErr != nil {
+			return nil, AttachmentRef{}, errors.Join(err, fmt.Errorf("close attachment: %w", closeErr))
+		}
+		return nil, AttachmentRef{}, err
+	}
+	if err := verifyAttachmentDigest(ctx, file, id); err != nil {
 		closeErr := file.Close()
 		if closeErr != nil {
 			return nil, AttachmentRef{}, errors.Join(err, fmt.Errorf("close attachment: %w", closeErr))
@@ -261,6 +176,13 @@ func (s *FilesystemAttachmentStore) Open(
 			)
 		}
 		return nil, AttachmentRef{}, fmt.Errorf("rewind attachment: %w", err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		closeErr := file.Close()
+		if closeErr != nil {
+			return nil, AttachmentRef{}, errors.Join(err, fmt.Errorf("close attachment: %w", closeErr))
+		}
+		return nil, AttachmentRef{}, err
 	}
 	return file, ref, nil
 }
@@ -297,7 +219,7 @@ func (s *FilesystemAttachmentStore) Delete(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	contentPath := s.contentPath(workspaceID, sessionID, id)
-	if _, err := s.readMeta(contentPath, id); err != nil {
+	if _, err := s.readMeta(ctx, contentPath, id); err != nil {
 		return err
 	}
 	return s.removePair(contentPath)
@@ -336,25 +258,39 @@ func (s *FilesystemAttachmentStore) statLocked(
 		return AttachmentRef{}, "", err
 	}
 	contentPath := s.contentPath(workspaceID, sessionID, id)
-	meta, err := s.readMeta(contentPath, id)
+	meta, err := s.readMeta(ctx, contentPath, id)
 	if err != nil {
 		return AttachmentRef{}, "", err
 	}
 	return attachmentRef(id, meta), contentPath, nil
 }
 
-func (s *FilesystemAttachmentStore) publish(contentPath string, data []byte, meta attachmentMeta) error {
+func (s *FilesystemAttachmentStore) publish(
+	ctx context.Context,
+	contentPath string,
+	data []byte,
+	meta attachmentMeta,
+) error {
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
+	}
 	if err := s.writeFile(contentPath, data, attachmentFileMode); err != nil {
+		return s.cleanupFailedPublish(contentPath, err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
 		return s.cleanupFailedPublish(contentPath, err)
 	}
 	encoded, err := json.Marshal(meta)
 	if err != nil {
 		return s.cleanupFailedPublish(contentPath, err)
 	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return s.cleanupFailedPublish(contentPath, err)
+	}
 	if err := s.writeFile(metaPath(contentPath), encoded, attachmentFileMode); err != nil {
 		return s.cleanupFailedPublish(contentPath, err)
 	}
-	stored, err := readAttachmentFile(contentPath, filepath.Base(contentPath))
+	stored, err := readAttachmentFile(ctx, contentPath, filepath.Base(contentPath))
 	if err != nil {
 		return s.cleanupFailedPublish(contentPath, err)
 	}
@@ -389,17 +325,5 @@ func attachmentContextErr(ctx context.Context) error {
 		return ctx.Err()
 	default:
 		return nil
-	}
-}
-
-func withAttachmentStoreNow(now func() time.Time) func(*attachmentStoreOptions) {
-	return func(options *attachmentStoreOptions) {
-		options.now = now
-	}
-}
-
-func withAttachmentStoreWriteFile(writeFile attachmentWriteFile) func(*attachmentStoreOptions) {
-	return func(options *attachmentStoreOptions) {
-		options.writeFile = writeFile
 	}
 }

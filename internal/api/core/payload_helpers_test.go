@@ -502,6 +502,7 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 			RuntimeStatus: session.RuntimeStatusReady,
 			WorkspaceID:   " ws-1 ",
 			Workspace:     " /tmp/ws ",
+			ACPCapsKnown:  true,
 			ACPCaps: acp.Caps{
 				SupportsLoadSession: true,
 				SupportedModes:      []string{"edit"},

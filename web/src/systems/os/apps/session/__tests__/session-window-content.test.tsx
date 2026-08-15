@@ -2,7 +2,7 @@
 // Invariant: a terminal process-exited session forks a child in the same workspace
 // and preserves the original as the child's durable parent.
 // Owning layer: the session-window recovery action.
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,11 +11,17 @@ import type { SessionPayload } from "@/systems/session";
 const mocks = vi.hoisted(() => ({
   forkMutation: { isPending: false, mutate: vi.fn() },
   selectSession: vi.fn(),
+  sessionThreadProps: vi.fn(),
   toastError: vi.fn(),
 }));
 
 vi.mock("../session-window-module-loader", () => ({
-  loadSessionThread: async () => ({ SessionThread: () => null }),
+  loadSessionThread: async () => ({
+    SessionThread: (props: Record<string, unknown>) => {
+      mocks.sessionThreadProps(props);
+      return null;
+    },
+  }),
 }));
 
 vi.mock("../use-session-window-controller", () => ({
@@ -36,6 +42,7 @@ vi.mock("../use-session-window-controller", () => ({
     inspectorMemory: {},
     inspectorUsage: null,
     refreshCommandCatalog: vi.fn(),
+    promptRuntimeSnapshot: null,
     renameDialog: { open: false },
     sessionVault: { data: [], error: null, isLoading: false },
     sidebar: {
@@ -105,6 +112,7 @@ describe("SessionWindowContent", () => {
     mocks.forkMutation.isPending = false;
     mocks.forkMutation.mutate.mockReset();
     mocks.selectSession.mockReset();
+    mocks.sessionThreadProps.mockReset();
     mocks.toastError.mockReset();
   });
 
@@ -138,5 +146,87 @@ describe("SessionWindowContent", () => {
     callbacks?.onSuccess(child);
 
     expect(mocks.selectSession).toHaveBeenCalledWith(child);
+  });
+
+  it("Should treat absent ACP capabilities as unknown", async () => {
+    const session = {
+      ...deadSession,
+      failure: undefined,
+      health: undefined,
+      runtime: {
+        effective: { model: "active-model", provider: "codex" },
+        selected: { model: "active-model", provider: "codex" },
+        selection_revision: 1,
+        status: "ready",
+      },
+      state: "active",
+    } satisfies SessionPayload;
+
+    render(
+      <Suspense fallback={null}>
+        <SessionWindowContent
+          agentName="codex-agent"
+          liveDataEnabled={false}
+          onDeleteSuccess={vi.fn()}
+          session={session}
+          sessionId={session.id}
+          windowId={`session:${session.id}`}
+          workspaceId="ws-alpha"
+        />
+      </Suspense>
+    );
+
+    await waitFor(() => {
+      expect(mocks.sessionThreadProps).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          promptEmbeddedContextCapability: "unknown",
+          promptImageCapability: "unknown",
+        })
+      );
+    });
+  });
+
+  it("Should treat stale ACP capabilities as unknown", async () => {
+    const session = {
+      ...deadSession,
+      failure: undefined,
+      health: undefined,
+      runtime: {
+        acp_caps: {
+          prompt_audio: false,
+          prompt_embedded_context: false,
+          prompt_image: false,
+          supports_load_session: false,
+        },
+        effective: { model: "previous-model", provider: "codex" },
+        selected: { model: "next-model", provider: "codex" },
+        selection_revision: 1,
+        status: "ready",
+      },
+      state: "active",
+    } satisfies SessionPayload;
+
+    render(
+      <Suspense fallback={null}>
+        <SessionWindowContent
+          agentName="codex-agent"
+          liveDataEnabled={false}
+          onDeleteSuccess={vi.fn()}
+          session={session}
+          sessionId={session.id}
+          windowId={`session:${session.id}`}
+          workspaceId="ws-alpha"
+        />
+      </Suspense>
+    );
+
+    await waitFor(() => {
+      expect(mocks.sessionThreadProps).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          promptEmbeddedContextCapability: "unknown",
+          promptImageCapability: "unknown",
+        })
+      );
+    });
   });
 });

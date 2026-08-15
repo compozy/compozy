@@ -1456,7 +1456,7 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 
 func assertNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descriptor, payload string) {
 	t.Helper()
-	compiled := compileNativeOutputSchema(t, descriptor)
+	compiled := compileNativeSchema(t, descriptor, descriptor.OutputSchema, "output")
 	instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
 	if err != nil {
 		t.Fatalf("%s valid output parse error = %v", descriptor.ID, err)
@@ -1468,7 +1468,7 @@ func assertNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descripto
 
 func assertNativeOutputSchemaRejects(t *testing.T, descriptor toolspkg.Descriptor, payload string) {
 	t.Helper()
-	compiled := compileNativeOutputSchema(t, descriptor)
+	compiled := compileNativeSchema(t, descriptor, descriptor.OutputSchema, "output")
 	instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
 	if err != nil {
 		t.Fatalf("%s invalid output parse error = %v", descriptor.ID, err)
@@ -1478,38 +1478,25 @@ func assertNativeOutputSchemaRejects(t *testing.T, descriptor toolspkg.Descripto
 	}
 }
 
-func compileNativeOutputSchema(t *testing.T, descriptor toolspkg.Descriptor) *jsonschema.Schema {
+func compileNativeSchema(
+	t *testing.T,
+	descriptor toolspkg.Descriptor,
+	schema json.RawMessage,
+	schemaKind string,
+) *jsonschema.Schema {
 	t.Helper()
-	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(descriptor.OutputSchema))
+	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(schema))
 	if err != nil {
-		t.Fatalf("%s output schema parse error = %v", descriptor.ID, err)
+		t.Fatalf("%s %s schema parse error = %v", descriptor.ID, schemaKind, err)
 	}
 	compiler := jsonschema.NewCompiler()
-	resource := descriptor.ID.String() + "-output.json"
+	resource := descriptor.ID.String() + "-" + schemaKind + ".json"
 	if err := compiler.AddResource(resource, schemaValue); err != nil {
-		t.Fatalf("%s output schema add error = %v", descriptor.ID, err)
+		t.Fatalf("%s %s schema add error = %v", descriptor.ID, schemaKind, err)
 	}
 	compiled, err := compiler.Compile(resource)
 	if err != nil {
-		t.Fatalf("%s output schema compile error = %v", descriptor.ID, err)
-	}
-	return compiled
-}
-
-func compileNativeInputSchema(t *testing.T, descriptor toolspkg.Descriptor) *jsonschema.Schema {
-	t.Helper()
-	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(descriptor.InputSchema))
-	if err != nil {
-		t.Fatalf("%s input schema parse error = %v", descriptor.ID, err)
-	}
-	compiler := jsonschema.NewCompiler()
-	resource := descriptor.ID.String() + "-input.json"
-	if err := compiler.AddResource(resource, schemaValue); err != nil {
-		t.Fatalf("%s input schema add error = %v", descriptor.ID, err)
-	}
-	compiled, err := compiler.Compile(resource)
-	if err != nil {
-		t.Fatalf("%s input schema compile error = %v", descriptor.ID, err)
+		t.Fatalf("%s %s schema compile error = %v", descriptor.ID, schemaKind, err)
 	}
 	return compiled
 }
@@ -1741,11 +1728,13 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	if expectedTurn.Type != "string" || expectedTurn.MinLength != 1 {
 		t.Fatalf("%s expected_turn_id schema = %#v, want non-empty string", descriptor.ID, expectedTurn)
 	}
-	compiled := compileNativeInputSchema(t, descriptor)
+	compiled := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
 	for _, tc := range []struct {
-		name    string
-		payload string
-		valid   bool
+		name         string
+		payload      string
+		valid        bool
+		matchesKind  func(jsonschema.ErrorKind) bool
+		expectedKind string
 	}{
 		{
 			name:    "Should accept a text prompt",
@@ -1758,16 +1747,28 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 			valid:   true,
 		},
 		{
-			name:    "Should reject missing prompt content",
-			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k"}`,
+			name:         "Should reject missing prompt content",
+			payload:      `{"session_id":"s","message_id":"m","idempotency_key":"k"}`,
+			matchesKind:  validationErrorKindIsNot,
+			expectedKind: "not",
 		},
 		{
-			name:    "Should reject an empty message",
-			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","message":""}`,
+			name:         "Should reject an empty message",
+			payload:      `{"session_id":"s","message_id":"m","idempotency_key":"k","message":""}`,
+			matchesKind:  validationErrorKindIsNot,
+			expectedKind: "not",
 		},
 		{
-			name:    "Should reject empty attachments",
-			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","attachments":[]}`,
+			name:         "Should reject empty attachments",
+			payload:      `{"session_id":"s","message_id":"m","idempotency_key":"k","attachments":[]}`,
+			matchesKind:  validationErrorKindIsNot,
+			expectedKind: "not",
+		},
+		{
+			name:         "Should reject an attachment with an empty ID",
+			payload:      `{"session_id":"s","message_id":"m","idempotency_key":"k","attachments":[""]}`,
+			matchesKind:  validationErrorKindIsMinLength,
+			expectedKind: "minLength",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1791,19 +1792,34 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 			if !errors.As(err, &validationErr) {
 				t.Fatalf("%s validation error = %T, want *jsonschema.ValidationError", descriptor.ID, err)
 			}
-			if !validationErrorHasNotCause(validationErr) {
-				t.Fatalf("%s validation cause = %#v, want not", descriptor.ID, validationErr)
+			if !validationErrorContainsKind(validationErr, tc.matchesKind) {
+				t.Fatalf("%s validation cause = %#v, want %s", descriptor.ID, validationErr, tc.expectedKind)
 			}
 		})
 	}
 	assertSessionPromptMutationOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
 }
 
-func validationErrorHasNotCause(err *jsonschema.ValidationError) bool {
-	if _, ok := err.ErrorKind.(*jsonschemakind.Not); ok {
+func validationErrorContainsKind(
+	err *jsonschema.ValidationError,
+	matches func(jsonschema.ErrorKind) bool,
+) bool {
+	if matches(err.ErrorKind) {
 		return true
 	}
-	return slices.ContainsFunc(err.Causes, validationErrorHasNotCause)
+	return slices.ContainsFunc(err.Causes, func(cause *jsonschema.ValidationError) bool {
+		return validationErrorContainsKind(cause, matches)
+	})
+}
+
+func validationErrorKindIsNot(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Not)
+	return ok
+}
+
+func validationErrorKindIsMinLength(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.MinLength)
+	return ok
 }
 
 func assertSessionRuntimeMutationSchemas(

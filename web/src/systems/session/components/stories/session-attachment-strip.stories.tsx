@@ -60,14 +60,11 @@ function StripPreview({ showGate = false }: { showGate?: boolean }) {
     <div className="flex w-[28rem] flex-col gap-1.5 rounded-lg border border-line bg-elevated p-3">
       {showGate ? (
         <SessionAttachmentCapabilityGate
-          message="This model can't read image attachments."
+          message="This agent does not accept images."
           onRemove={() => {}}
         />
       ) : null}
-      <div
-        data-overflow="end"
-        className="relative min-w-0 isolate [--att-fade:56px] [--att-fade-bg:var(--elevated)]"
-      >
+      <div data-overflow="end" className="relative min-w-0 isolate">
         <div
           role="list"
           className="flex flex-nowrap items-start gap-2 overflow-x-auto overflow-y-hidden py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -78,7 +75,7 @@ function StripPreview({ showGate = false }: { showGate?: boolean }) {
         </div>
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 z-2 w-(--att-fade) bg-[linear-gradient(270deg,rgb(from_var(--att-fade-bg)_r_g_b_/_1)_0%,rgb(from_var(--att-fade-bg)_r_g_b_/_0.7)_32%,rgb(from_var(--att-fade-bg)_r_g_b_/_0)_100%)]"
+          className="pointer-events-none absolute inset-y-0 end-0 z-2 w-14 bg-linear-to-l from-elevated via-elevated/70 to-transparent rtl:bg-linear-to-r"
         />
       </div>
     </div>

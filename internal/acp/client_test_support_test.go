@@ -459,10 +459,10 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
 				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options",
 			PromptCapabilities: acpsdk.PromptCapabilities{
-				Image: a.scenario == "prompt_capabilities" ||
+				Image: a.scenario == "prompt_capabilities_image" ||
 					a.scenario == "echo_prompt_blocks",
-				Audio: a.scenario == "prompt_capabilities",
-				EmbeddedContext: a.scenario == "prompt_capabilities" ||
+				Audio: a.scenario == "prompt_capabilities_audio",
+				EmbeddedContext: a.scenario == "prompt_capabilities_embedded_context" ||
 					a.scenario == "echo_prompt_blocks",
 			},
 		},

@@ -26,22 +26,22 @@ func TestParseAttachmentURI(t *testing.T) {
 		{
 			name:    "Should reject surrounding whitespace",
 			uri:     " " + AttachmentURIPrefix + validID,
-			wantErr: true, wantDetail: "invalid attachment URI",
+			wantErr: true, wantDetail: "invalid attachment uri",
 		},
 		{
 			name:    "Should reject a foreign URI prefix",
 			uri:     "compozy://tool-artifacts/" + validID,
-			wantErr: true, wantDetail: "invalid attachment URI",
+			wantErr: true, wantDetail: "invalid attachment uri",
 		},
 		{
 			name:    "Should reject a non-hex identity",
 			uri:     AttachmentURIPrefix + "att_" + strings.Repeat("zz", 32),
-			wantErr: true, wantDetail: "invalid attachment URI",
+			wantErr: true, wantDetail: "invalid attachment uri",
 		},
 		{
 			name:    "Should reject a path traversal identity",
 			uri:     AttachmentURIPrefix + "../secret",
-			wantErr: true, wantDetail: "invalid attachment URI",
+			wantErr: true, wantDetail: "invalid attachment uri",
 		},
 	}
 
@@ -50,8 +50,8 @@ func TestParseAttachmentURI(t *testing.T) {
 			t.Parallel()
 			got, err := ParseAttachmentURI(tc.uri)
 			if tc.wantErr {
-				if err == nil || err.Error() != tc.wantDetail {
-					t.Fatalf("ParseAttachmentURI() error = %v, want %q", err, tc.wantDetail)
+				if !errors.Is(err, ErrInvalidID) || !strings.Contains(err.Error(), tc.wantDetail) {
+					t.Fatalf("ParseAttachmentURI() error = %v, want invalid ID with %q", err, tc.wantDetail)
 				}
 				return
 			}
@@ -126,6 +126,8 @@ func TestValidateSize(t *testing.T) {
 			wantDetail: "9 exceeds max_file_bytes 8"},
 		{name: "Should reject a non-positive ceiling", bytes: 1, maxFileBytes: 0,
 			wantDetail: "attachment max_file_bytes must be greater than zero: 0"},
+		{name: "Should reject a negative byte count", bytes: -1, maxFileBytes: 8,
+			wantDetail: "attachment bytes must be greater than or equal to zero: -1"},
 	}
 
 	for _, tc := range cases {
@@ -138,7 +140,7 @@ func TestValidateSize(t *testing.T) {
 				}
 				return
 			}
-			if tc.maxFileBytes <= 0 {
+			if tc.maxFileBytes <= 0 || tc.bytes < 0 {
 				if err == nil || err.Error() != tc.wantDetail {
 					t.Fatalf("ValidateSize() error = %v, want %q", err, tc.wantDetail)
 				}

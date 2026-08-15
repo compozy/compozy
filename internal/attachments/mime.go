@@ -22,14 +22,13 @@ const (
 )
 
 var (
-	pngMagic  = []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
-	jpegMagic = []byte{0xff, 0xd8, 0xff}
-	pdfMagic  = []byte("%PDF")
-	riffMagic = []byte("RIFF")
-	webpMagic = []byte("WEBP")
+	pngMagic  = [...]byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a}
+	jpegMagic = [...]byte{0xff, 0xd8, 0xff}
+	pdfMagic  = [...]byte{'%', 'P', 'D', 'F'}
+	riffMagic = [...]byte{'R', 'I', 'F', 'F'}
+	webpMagic = [...]byte{'W', 'E', 'B', 'P'}
 
-	// DefaultAllowedMIME is the v1 sniff allowlist. Client Content-Type is ignored.
-	DefaultAllowedMIME = []string{
+	defaultAllowedMIME = [...]string{
 		MIMEImagePNG,
 		MIMEImageJPEG,
 		MIMEImageWebP,
@@ -43,6 +42,13 @@ var (
 type UnsupportedMIMEError struct {
 	MIME    string
 	Allowed []string
+}
+
+var _ error = (*UnsupportedMIMEError)(nil)
+
+// DefaultAllowedMIMEs returns the v1 sniff allowlist. Client Content-Type is ignored.
+func DefaultAllowedMIMEs() []string {
+	return slices.Clone(defaultAllowedMIME[:])
 }
 
 func (e *UnsupportedMIMEError) Error() string {
@@ -64,7 +70,7 @@ func SniffMIME(data []byte, filename string) (string, string, int, int, error) {
 		return mime, kind, width, height, nil
 	}
 	if isRejectedBinary(data, filename) {
-		return "", "", 0, 0, &UnsupportedMIMEError{Allowed: slices.Clone(DefaultAllowedMIME)}
+		return "", "", 0, 0, newUnsupportedMIMEError("")
 	}
 	if isUTF8Text(data) {
 		mime := MIMETextPlain
@@ -73,21 +79,21 @@ func SniffMIME(data []byte, filename string) (string, string, int, int, error) {
 		}
 		return mime, KindFile, 0, 0, nil
 	}
-	return "", "", 0, 0, &UnsupportedMIMEError{Allowed: slices.Clone(DefaultAllowedMIME)}
+	return "", "", 0, 0, newUnsupportedMIMEError("")
 }
 
 func sniffBinaryMIME(data []byte) (string, string, int, int, bool) {
 	switch {
-	case bytes.HasPrefix(data, pngMagic):
+	case bytes.HasPrefix(data, pngMagic[:]):
 		width, height := pngDimensions(data)
 		return MIMEImagePNG, KindImage, width, height, true
-	case bytes.HasPrefix(data, jpegMagic):
+	case bytes.HasPrefix(data, jpegMagic[:]):
 		width, height := jpegDimensions(data)
 		return MIMEImageJPEG, KindImage, width, height, true
 	case isWebP(data):
 		width, height := webpDimensions(data)
 		return MIMEImageWebP, KindImage, width, height, true
-	case bytes.HasPrefix(data, pdfMagic):
+	case bytes.HasPrefix(data, pdfMagic[:]):
 		return MIMEApplicationPDF, KindFile, 0, 0, true
 	default:
 		return "", "", 0, 0, false
@@ -123,7 +129,7 @@ func isUTF8Text(data []byte) bool {
 }
 
 func isWebP(data []byte) bool {
-	return len(data) >= 12 && bytes.Equal(data[:4], riffMagic) && bytes.Equal(data[8:12], webpMagic)
+	return len(data) >= 12 && bytes.Equal(data[:4], riffMagic[:]) && bytes.Equal(data[8:12], webpMagic[:])
 }
 
 func isRejectedBinary(data []byte, filename string) bool {
@@ -132,7 +138,7 @@ func isRejectedBinary(data []byte, filename string) bool {
 		return true
 	case bytes.HasPrefix(data, []byte("PK")):
 		return true
-	case bytes.HasPrefix(data, riffMagic):
+	case bytes.HasPrefix(data, riffMagic[:]):
 		return true
 	case strings.EqualFold(filepath.Ext(strings.TrimSpace(filename)), ".svg"):
 		return true
@@ -160,7 +166,8 @@ func isMarkdownFilename(filename string) bool {
 	}
 }
 
-func normalizeAllowedMIME(allowed []string) ([]string, error) {
+// NormalizeAllowedMIME validates and canonicalizes the attachment MIME allowlist.
+func NormalizeAllowedMIME(allowed []string) ([]string, error) {
 	if len(allowed) == 0 {
 		return nil, fmt.Errorf("attachment allowed_mime must not be empty")
 	}
@@ -171,11 +178,11 @@ func normalizeAllowedMIME(allowed []string) ([]string, error) {
 		if mime == "" {
 			return nil, fmt.Errorf("attachment allowed_mime contains a blank entry")
 		}
-		if !slices.Contains(DefaultAllowedMIME, mime) {
-			return nil, &UnsupportedMIMEError{MIME: mime, Allowed: slices.Clone(DefaultAllowedMIME)}
+		if !slices.Contains(defaultAllowedMIME[:], mime) {
+			return nil, newUnsupportedMIMEError(mime)
 		}
 		if _, exists := seen[mime]; exists {
-			continue
+			return nil, fmt.Errorf("attachment allowed_mime duplicates %q", mime)
 		}
 		seen[mime] = struct{}{}
 		normalized = append(normalized, mime)
@@ -190,5 +197,12 @@ func mimeAllowed(mime string, allowed []string) error {
 	if slices.Contains(allowed, mime) {
 		return nil
 	}
-	return &UnsupportedMIMEError{MIME: mime, Allowed: slices.Clone(allowed)}
+	return newUnsupportedMIMEError(mime, allowed)
+}
+
+func newUnsupportedMIMEError(mime string, allowed ...[]string) *UnsupportedMIMEError {
+	if len(allowed) == 0 {
+		return &UnsupportedMIMEError{MIME: mime, Allowed: DefaultAllowedMIMEs()}
+	}
+	return &UnsupportedMIMEError{MIME: mime, Allowed: slices.Clone(allowed[0])}
 }

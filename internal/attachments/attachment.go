@@ -74,11 +74,11 @@ func (r AttachmentRetention) Validate() error {
 func ParseAttachmentURI(uri string) (string, error) {
 	trimmed := strings.TrimSpace(uri)
 	if trimmed != uri || !strings.HasPrefix(trimmed, AttachmentURIPrefix) {
-		return "", fmt.Errorf("invalid attachment URI")
+		return "", fmt.Errorf("%w: invalid attachment uri", ErrInvalidID)
 	}
 	id := strings.TrimPrefix(trimmed, AttachmentURIPrefix)
 	if !attachmentIDPattern.MatchString(id) {
-		return "", fmt.Errorf("invalid attachment URI")
+		return "", fmt.Errorf("%w: invalid attachment uri", ErrInvalidID)
 	}
 	return id, nil
 }

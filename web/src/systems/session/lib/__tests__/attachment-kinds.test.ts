@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ATTACHMENT_ALLOWED_REASON,
-  ATTACHMENT_MAX_FILE_BYTES,
   attachmentExtensionMark,
-  attachmentOversizeMessage,
   attachmentsFromPromptMessageParts,
   formatAttachmentSize,
   SESSION_ATTACHMENT_DATA_TYPE,
@@ -78,16 +76,18 @@ describe("attachment-kinds", () => {
     expect(utf8Log).toEqual({ ok: true, kind: "file", mimeType: "text/plain", mark: "TXT" });
   });
 
-  it("Should pre-check oversized files before reading bytes", async () => {
+  it("Should classify a file regardless of its browser-reported size", async () => {
     const oversized = new File([new Uint8Array(8)], "huge.png", { type: "image/png" });
-    Object.defineProperty(oversized, "size", { value: ATTACHMENT_MAX_FILE_BYTES + 1 });
-    expect(await sniffAttachmentFile(oversized)).toEqual({ ok: false, reason: "too-large" });
+    Object.defineProperty(oversized, "size", { value: 100 * 1024 * 1024 });
+    expect(await sniffAttachmentFile(oversized)).toEqual({
+      ok: false,
+      reason: "unsupported",
+    });
   });
 
   it("Should format sizes with the mono tile grammar", () => {
     expect(formatAttachmentSize(240 * 1024)).toBe("240 KB");
     expect(formatAttachmentSize(18.2 * 1024 * 1024)).toBe("18.2 MB");
-    expect(attachmentOversizeMessage(18.2 * 1024 * 1024)).toBe("18.2 MB · over 10 MB");
     expect(attachmentExtensionMark("flatten-spec.pdf", "application/pdf")).toBe("PDF");
     expect(ATTACHMENT_ALLOWED_REASON).toBe("PNG, JPEG, WebP, PDF, Markdown, or text");
   });

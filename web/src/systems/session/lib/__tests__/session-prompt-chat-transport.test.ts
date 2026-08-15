@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SESSION_ATTACHMENT_DATA_TYPE } from "../attachment-kinds";
 import { createSessionPromptChatTransport } from "../session-prompt-chat-transport";
+import type { SessionPromptAttachment } from "../../types";
 
 const userMessage = (id: string, text = "Continue the durable transcript") => ({
   id,
@@ -166,7 +167,7 @@ describe("session prompt chat transport", () => {
       async () => streamResponse()
     );
     const transport = createSessionPromptChatTransport({ api: "/prompt", fetch });
-    const attachment = {
+    const attachment: SessionPromptAttachment = {
       bytes: 32,
       height: 10,
       id: "att_deadbeef",

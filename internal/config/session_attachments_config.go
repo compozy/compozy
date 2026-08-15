@@ -2,8 +2,7 @@ package config
 
 import (
 	"fmt"
-	"slices"
-	"strings"
+	"time"
 
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 )
@@ -13,6 +12,12 @@ const (
 	DefaultSessionAttachmentMaxFileBytes int64 = 10 << 20
 	// DefaultSessionAttachmentMaxFilesPerPrompt is the per-prompt attachment count ceiling.
 	DefaultSessionAttachmentMaxFilesPerPrompt = 10
+	// DefaultSessionAttachmentRetentionMaxCount is the retained attachment count ceiling.
+	DefaultSessionAttachmentRetentionMaxCount = 200
+	// DefaultSessionAttachmentRetentionMaxBytes is the retained attachment byte ceiling.
+	DefaultSessionAttachmentRetentionMaxBytes int64 = 1 << 30
+	// DefaultSessionAttachmentRetentionMaxAge is the retained attachment age ceiling.
+	DefaultSessionAttachmentRetentionMaxAge = 720 * time.Hour
 )
 
 // DefaultSessionAttachmentsConfig returns v1 admission and retention defaults.
@@ -20,11 +25,11 @@ func DefaultSessionAttachmentsConfig() SessionAttachmentsConfig {
 	return SessionAttachmentsConfig{
 		MaxFileBytes:      DefaultSessionAttachmentMaxFileBytes,
 		MaxFilesPerPrompt: DefaultSessionAttachmentMaxFilesPerPrompt,
-		AllowedMIME:       slices.Clone(attachmentspkg.DefaultAllowedMIME),
+		AllowedMIME:       attachmentspkg.DefaultAllowedMIMEs(),
 		Retention: SessionAttachmentsRetentionConfig{
-			MaxCount: DefaultToolsArtifactMaxCount,
-			MaxBytes: DefaultToolsArtifactMaxBytes,
-			MaxAge:   DefaultToolsArtifactMaxAge,
+			MaxCount: DefaultSessionAttachmentRetentionMaxCount,
+			MaxBytes: DefaultSessionAttachmentRetentionMaxBytes,
+			MaxAge:   DefaultSessionAttachmentRetentionMaxAge,
 		},
 	}
 }
@@ -43,24 +48,8 @@ func (c SessionAttachmentsConfig) Validate() error {
 	if len(c.AllowedMIME) == 0 {
 		return fmt.Errorf("session.attachments.allowed_mime must not be empty")
 	}
-	seen := make(map[string]struct{}, len(c.AllowedMIME))
-	for i, raw := range c.AllowedMIME {
-		mime := strings.ToLower(strings.TrimSpace(raw))
-		if mime == "" {
-			return fmt.Errorf("session.attachments.allowed_mime[%d] must not be blank", i)
-		}
-		if !slices.Contains(attachmentspkg.DefaultAllowedMIME, mime) {
-			return fmt.Errorf(
-				"session.attachments.allowed_mime[%d] must be one of %s: %q",
-				i,
-				strings.Join(attachmentspkg.DefaultAllowedMIME, ", "),
-				raw,
-			)
-		}
-		if _, exists := seen[mime]; exists {
-			return fmt.Errorf("session.attachments.allowed_mime[%d] duplicates %q", i, mime)
-		}
-		seen[mime] = struct{}{}
+	if _, err := attachmentspkg.NormalizeAllowedMIME(c.AllowedMIME); err != nil {
+		return fmt.Errorf("session.attachments.allowed_mime: %w", err)
 	}
 	return c.Retention.Validate()
 }

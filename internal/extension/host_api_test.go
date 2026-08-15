@@ -662,9 +662,13 @@ func TestHostAPIHandlerSessionRuntime(t *testing.T) {
 			Workspace:         "/tmp/runtime",
 			State:             session.StateActive,
 			ACPSessionID:      "acp-runtime",
+			ACPCapsKnown:      true,
 			ACPCaps: acp.Caps{
-				SupportsLoadSession: true,
-				SupportedModes:      []string{"edit"},
+				SupportsLoadSession:   true,
+				PromptImage:           true,
+				PromptAudio:           true,
+				PromptEmbeddedContext: true,
+				SupportedModes:        []string{"edit"},
 			},
 			CreatedAt: time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 7, 30, 12, 1, 0, 0, time.UTC),
@@ -786,6 +790,63 @@ func TestHostAPIHandlerSessionRuntime(t *testing.T) {
 			t.Fatalf("runtime selection process starts = %d, want unchanged %d", got, startsBeforeMutation)
 		}
 	})
+}
+
+func TestHostAPISessionRuntimePayloadFromInfoCapabilities(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		known bool
+		caps  acp.Caps
+		want  *apicontract.ACPCapsPayload
+	}{
+		{
+			name: "Should omit capabilities before ACP negotiation",
+		},
+		{
+			name:  "Should project negotiated all-false capabilities",
+			known: true,
+			want:  &apicontract.ACPCapsPayload{},
+		},
+		{
+			name:  "Should project an image-only prompt capability",
+			known: true,
+			caps:  acp.Caps{PromptImage: true},
+			want:  &apicontract.ACPCapsPayload{PromptImage: true},
+		},
+		{
+			name:  "Should project an embedded-context-only prompt capability",
+			known: true,
+			caps:  acp.Caps{PromptEmbeddedContext: true},
+			want:  &apicontract.ACPCapsPayload{PromptEmbeddedContext: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := hostAPISessionRuntimePayloadFromInfo(&session.Info{
+				ACPCaps:      tc.caps,
+				ACPCapsKnown: tc.known,
+			}).ACPCaps
+			if tc.want == nil {
+				if got != nil {
+					t.Fatalf("hostAPISessionRuntimePayloadFromInfo() capabilities = %#v, want nil", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("hostAPISessionRuntimePayloadFromInfo() capabilities = nil, want payload")
+			}
+			if got.SupportsLoadSession != tc.want.SupportsLoadSession ||
+				got.PromptImage != tc.want.PromptImage ||
+				got.PromptAudio != tc.want.PromptAudio ||
+				got.PromptEmbeddedContext != tc.want.PromptEmbeddedContext ||
+				len(got.SupportedModes) != 0 || len(got.ConfigOptions) != 0 {
+				t.Fatalf("hostAPISessionRuntimePayloadFromInfo() capabilities = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestHostAPIHandlerSessionsPromptReturnsInterruptRuntimeAdmission(t *testing.T) {
@@ -1021,6 +1082,8 @@ func assertHostAPISessionRuntimePayload(t testing.TB, runtime apicontract.Sessio
 		t.Fatalf("runtime effective payload = %#v", runtime.Effective)
 	}
 	if runtime.ACPCaps == nil || !runtime.ACPCaps.SupportsLoadSession ||
+		!runtime.ACPCaps.PromptImage || !runtime.ACPCaps.PromptAudio ||
+		!runtime.ACPCaps.PromptEmbeddedContext ||
 		len(runtime.ACPCaps.SupportedModes) != 1 || runtime.ACPCaps.SupportedModes[0] != "edit" {
 		t.Fatalf("runtime ACP caps payload = %#v", runtime.ACPCaps)
 	}

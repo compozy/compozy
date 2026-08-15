@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, Ref } from "react";
 
 import { useAttachmentRail } from "@/components/assistant-ui/hooks/use-attachment-rail";
 import { cn } from "@/lib/utils";
@@ -18,9 +18,18 @@ function imageTitle(item: Extract<SessionAttachmentItem, { kind: "image" }>): st
   return item.filename;
 }
 
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+  if (ref) ref.current = value;
+}
+
 export function SessionAttachmentGallery({
   items,
   className,
+  ref: externalRef,
   ...props
 }: SessionAttachmentGalleryProps) {
   const { overflow, railRef, trackRef } = useAttachmentRail(items.length);
@@ -33,11 +42,15 @@ export function SessionAttachmentGallery({
 
   return (
     <div
-      ref={railRef}
+      ref={node => {
+        railRef.current = node;
+        assignRef(externalRef, node);
+      }}
       data-testid="user-message-attachment-gallery"
       data-overflow={overflow}
       className={cn(
-        "relative isolate mb-1 min-w-0 self-end overflow-hidden [--att-fade:64px] [--att-fade-bg:var(--canvas)]",
+        "relative isolate mb-1 min-w-0 self-end overflow-hidden",
+        "[--att-fade:64px]",
         overflow === "none" ? "w-max max-w-full" : "w-full",
         className
       )}
@@ -46,8 +59,10 @@ export function SessionAttachmentGallery({
       <span
         aria-hidden="true"
         className={cn(
-          "att-rail__edge att-rail__edge--start pointer-events-none absolute inset-y-0 left-0 z-2 w-[var(--att-fade)]",
-          "bg-[linear-gradient(90deg,rgb(from_var(--att-fade-bg)_r_g_b_/_1)_0%,rgb(from_var(--att-fade-bg)_r_g_b_/_0.7)_32%,rgb(from_var(--att-fade-bg)_r_g_b_/_0)_100%)]",
+          "att-rail__edge att-rail__edge--start pointer-events-none absolute",
+          "inset-y-0 start-0 z-2 w-16",
+          "bg-linear-to-r from-canvas via-canvas/70 to-transparent",
+          "rtl:bg-linear-to-l",
           "opacity-0 transition-opacity duration-slow ease-out",
           showStart && "opacity-100"
         )}
@@ -56,9 +71,12 @@ export function SessionAttachmentGallery({
         ref={trackRef}
         aria-label="Attachments"
         className={cn(
-          "att-rail__track m-0 flex list-none flex-nowrap items-start justify-end gap-1.5 overflow-x-auto overflow-y-hidden px-0 py-0.5",
-          "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-          "overscroll-x-contain [scroll-padding-inline:var(--att-fade)] [touch-action:pan-x]"
+          "att-rail__track m-0 flex list-none flex-nowrap",
+          "items-start justify-end gap-1.5",
+          "overflow-x-auto overflow-y-hidden px-0 py-0.5",
+          "overscroll-x-contain [scroll-padding-inline:var(--att-fade)]",
+          "[scrollbar-width:none] [-ms-overflow-style:none]",
+          "[touch-action:pan-x] [&::-webkit-scrollbar]:hidden"
         )}
       >
         {items.map((item, occurrence) => (
@@ -86,8 +104,10 @@ export function SessionAttachmentGallery({
       <span
         aria-hidden="true"
         className={cn(
-          "att-rail__edge att-rail__edge--end pointer-events-none absolute inset-y-0 right-0 z-2 w-[var(--att-fade)]",
-          "bg-[linear-gradient(270deg,rgb(from_var(--att-fade-bg)_r_g_b_/_1)_0%,rgb(from_var(--att-fade-bg)_r_g_b_/_0.7)_32%,rgb(from_var(--att-fade-bg)_r_g_b_/_0)_100%)]",
+          "att-rail__edge att-rail__edge--end pointer-events-none absolute",
+          "inset-y-0 end-0 z-2 w-16",
+          "bg-linear-to-l from-canvas via-canvas/70 to-transparent",
+          "rtl:bg-linear-to-r",
           "opacity-0 transition-opacity duration-slow ease-out",
           showEnd && "opacity-100"
         )}

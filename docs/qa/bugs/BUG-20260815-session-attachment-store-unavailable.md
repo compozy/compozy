@@ -14,7 +14,7 @@ Every supported attachment upload returned HTTP `503`, so picker, paste, and dro
 
 ## Reproduction
 
-- **Charter:** CH-session-attachments · **Tour:** Feature Tour
+- **Charter:** CH-session-attachments · **Historical tour:** Feature Tour · **Required rerun tour:** Network Tour
 - **Environment:** macOS arm64, isolated daemon and web app, en-US
 
 1. Start the daemon with session attachments enabled.

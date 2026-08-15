@@ -2,15 +2,21 @@ package attachments
 
 import "encoding/binary"
 
+const (
+	webpRIFFHeaderSize  = 12
+	webpChunkHeaderSize = 8
+	webpChunkPadding    = 1
+)
+
 func webpDimensions(data []byte) (int, int) {
 	if !isWebP(data) {
 		return 0, 0
 	}
-	offset := 12
-	for offset+8 <= len(data) {
+	offset := webpRIFFHeaderSize
+	for offset+webpChunkHeaderSize <= len(data) {
 		chunk := string(data[offset : offset+4])
-		size := binary.LittleEndian.Uint32(data[offset+4 : offset+8])
-		payload := offset + 8
+		size := binary.LittleEndian.Uint32(data[offset+4 : offset+webpChunkHeaderSize])
+		payload := offset + webpChunkHeaderSize
 		end := payload + int(size)
 		if end > len(data) {
 			return 0, 0
@@ -23,7 +29,7 @@ func webpDimensions(data []byte) (int, int) {
 		case "VP8L":
 			return vp8lDimensions(data[payload:end])
 		}
-		offset = end + int(size&1)
+		offset = end + int(size&webpChunkPadding)
 	}
 	return 0, 0
 }

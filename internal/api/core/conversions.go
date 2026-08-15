@@ -69,7 +69,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
 		payload.Runtime.Effective = runtime
 	}
-	if caps := ACPCapsPayloadFromInfo(info.ACPCaps); caps != nil {
+	if caps := contract.ACPCapsPayloadFromACP(info.ACPCaps, info.ACPCapsKnown); caps != nil {
 		payload.Runtime.ACPCaps = caps
 	}
 	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {

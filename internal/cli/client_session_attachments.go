@@ -32,28 +32,17 @@ func (c *daemonClient) UploadSessionAttachment(
 	if err != nil {
 		return SessionAttachmentRecord{}, err
 	}
-	response, err := c.doRequestWithReaderAndClient(
-		ctx,
-		http.MethodPost,
-		path,
-		nil,
-		body,
-		contentType,
-		"",
-		agentidentity.Credentials{},
-		c.httpClient,
-	)
+	response, err := c.doRequestWithReaderAndClient(ctx, clientReaderRequest{
+		Method:      http.MethodPost,
+		Path:        path,
+		Body:        body,
+		ContentType: contentType,
+		Credentials: agentidentity.Credentials{},
+		Client:      c.httpClient,
+	})
 	bodyErr := body.Close()
 	if err != nil || bodyErr != nil {
-		var responseErr error
-		if response != nil && response.Body != nil {
-			responseErr = response.Body.Close()
-		}
-		return SessionAttachmentRecord{}, errors.Join(
-			err,
-			wrapSessionAttachmentBodyError(filePath, bodyErr),
-			wrapSessionAttachmentResponseCloseError(responseErr),
-		)
+		return SessionAttachmentRecord{}, cleanupSessionAttachmentUpload(filePath, err, bodyErr, response)
 	}
 	defer mergeResponseBodyCloseError(&err, response, http.MethodPost, path)
 
@@ -64,6 +53,25 @@ func (c *daemonClient) UploadSessionAttachment(
 		return SessionAttachmentRecord{}, decodeErr
 	}
 	return result.Attachment, nil
+}
+
+func cleanupSessionAttachmentUpload(
+	filePath string,
+	requestErr error,
+	bodyErr error,
+	response *http.Response,
+) error {
+	var responseDrainErr, responseCloseErr error
+	if response != nil && response.Body != nil {
+		responseDrainErr = discardResponseBodyBounded(response.Body)
+		responseCloseErr = response.Body.Close()
+	}
+	return errors.Join(
+		requestErr,
+		wrapSessionAttachmentBodyError(filePath, bodyErr),
+		wrapSessionAttachmentResponseDrainError(responseDrainErr),
+		wrapSessionAttachmentResponseCloseError(responseCloseErr),
+	)
 }
 
 type sessionAttachmentMultipartBody struct {
@@ -185,4 +193,11 @@ func wrapSessionAttachmentResponseCloseError(err error) error {
 		return nil
 	}
 	return fmt.Errorf("cli: close failed attachment upload response: %w", err)
+}
+
+func wrapSessionAttachmentResponseDrainError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("cli: drain failed attachment upload response: %w", err)
 }

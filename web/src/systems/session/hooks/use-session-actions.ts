@@ -28,6 +28,7 @@ import {
 import type {
   SessionPayload,
   SessionPromptPayload,
+  SessionPromptAttachment,
   SessionPromptRequest,
   SessionPromptResult,
   SessionRepairQuery,
@@ -277,6 +278,7 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
 }
 
 export interface SessionPromptActionParams {
+  attachments?: SessionPromptAttachment[];
   expectedTurnId?: string;
   idempotencyKey?: string;
   id: string;
@@ -347,6 +349,7 @@ function promptRequestFromAction(
 ): SessionPromptRequest {
   const identity = promptIdentityForAction(params);
   return {
+    ...(params.attachments?.length ? { attachments: params.attachments } : {}),
     idempotency_key: identity.idempotencyKey,
     message_id: identity.messageId,
     messages: [

@@ -20,12 +20,12 @@ func TestSessionAttachmentsConfigDefaultsAndValidation(t *testing.T) {
 			cfg.MaxFilesPerPrompt != DefaultSessionAttachmentMaxFilesPerPrompt {
 			t.Fatalf("DefaultSessionAttachmentsConfig() = %#v", cfg)
 		}
-		if !slices.Equal(cfg.AllowedMIME, attachmentspkg.DefaultAllowedMIME) {
+		if !slices.Equal(cfg.AllowedMIME, attachmentspkg.DefaultAllowedMIMEs()) {
 			t.Fatalf("DefaultSessionAttachmentsConfig().AllowedMIME = %#v", cfg.AllowedMIME)
 		}
-		if cfg.Retention.MaxCount != DefaultToolsArtifactMaxCount ||
-			cfg.Retention.MaxBytes != DefaultToolsArtifactMaxBytes ||
-			cfg.Retention.MaxAge != DefaultToolsArtifactMaxAge {
+		if cfg.Retention.MaxCount != DefaultSessionAttachmentRetentionMaxCount ||
+			cfg.Retention.MaxBytes != DefaultSessionAttachmentRetentionMaxBytes ||
+			cfg.Retention.MaxAge != DefaultSessionAttachmentRetentionMaxAge {
 			t.Fatalf("DefaultSessionAttachmentsConfig().Retention = %#v", cfg.Retention)
 		}
 		if err := cfg.Validate(); err != nil {
@@ -56,12 +56,32 @@ func TestSessionAttachmentsConfigDefaultsAndValidation(t *testing.T) {
 		{
 			name:    "Should reject a type outside the v1 allowlist",
 			mutate:  func(cfg *SessionAttachmentsConfig) { cfg.AllowedMIME = []string{"image/gif"} },
-			wantErr: "session.attachments.allowed_mime[0]",
+			wantErr: "session.attachments.allowed_mime",
+		},
+		{
+			name:    "Should reject a blank MIME",
+			mutate:  func(cfg *SessionAttachmentsConfig) { cfg.AllowedMIME = []string{" "} },
+			wantErr: "session.attachments.allowed_mime",
+		},
+		{
+			name:    "Should reject a duplicate MIME",
+			mutate:  func(cfg *SessionAttachmentsConfig) { cfg.AllowedMIME = []string{"image/png", "image/png"} },
+			wantErr: "session.attachments.allowed_mime",
 		},
 		{
 			name:    "Should reject a zero retention count",
 			mutate:  func(cfg *SessionAttachmentsConfig) { cfg.Retention.MaxCount = 0 },
 			wantErr: "session.attachments.retention.max_count",
+		},
+		{
+			name:    "Should reject zero retention bytes",
+			mutate:  func(cfg *SessionAttachmentsConfig) { cfg.Retention.MaxBytes = 0 },
+			wantErr: "session.attachments.retention.max_bytes",
+		},
+		{
+			name:    "Should reject zero retention age",
+			mutate:  func(cfg *SessionAttachmentsConfig) { cfg.Retention.MaxAge = 0 },
+			wantErr: "session.attachments.retention.max_age",
 		},
 	}
 

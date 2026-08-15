@@ -12,14 +12,16 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
 type promptAttachmentOpenerStub struct {
-	data  map[string][]byte
-	refs  map[string]attachmentspkg.AttachmentRef
-	calls int
+	data      map[string][]byte
+	refs      map[string]attachmentspkg.AttachmentRef
+	calls     int
+	afterOpen func(*promptAttachmentOpenerStub, string)
 }
 
 func (o *promptAttachmentOpenerStub) Open(
@@ -41,6 +43,9 @@ func (o *promptAttachmentOpenerStub) Open(
 			SHA256: fmt.Sprintf("%x", digest), Kind: attachmentspkg.KindFile,
 		}
 	}
+	if o.afterOpen != nil {
+		o.afterOpen(o, id)
+	}
 	return io.NopCloser(bytes.NewReader(data)), ref, nil
 }
 
@@ -59,7 +64,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 			context.Background(),
 			"ws-test",
 			"sess-test",
-			[]AttachmentMeta{promptAttachmentMeta("att-document", "notes.txt", "text/plain", data)},
+			[]AttachmentMeta{promptAttachmentMeta(t, "att-document", "notes.txt", "text/plain", data)},
 			acp.Caps{},
 		)
 		if err != nil {
@@ -84,7 +89,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 			},
 		}
 		manager := &Manager{attachmentOpener: opener}
-		meta := promptAttachmentMeta("att-secret", "secret.txt", "text/plain", []byte("different"))
+		meta := promptAttachmentMeta(t, "att-secret", "secret.txt", "text/plain", []byte("different"))
 		_, err := manager.resolvePromptAttachments(
 			context.Background(), "ws-test", "sess-test", []AttachmentMeta{meta}, acp.Caps{},
 		)
@@ -103,7 +108,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 		opener := &promptAttachmentOpenerStub{
 			data: map[string][]byte{"att-image": data},
 			refs: map[string]attachmentspkg.AttachmentRef{
-				"att-image": storedPromptAttachmentRef("att-image", "photo.png", "image/png", data),
+				"att-image": storedPromptAttachmentRef(t, "att-image", "photo.png", "image/png", data),
 			},
 		}
 		manager := &Manager{attachmentOpener: opener}
@@ -111,7 +116,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 			context.Background(),
 			"ws-test",
 			"sess-test",
-			[]AttachmentMeta{promptAttachmentMeta("att-image", "photo.png", "image/png", data)},
+			[]AttachmentMeta{promptAttachmentMeta(t, "att-image", "photo.png", "image/png", data)},
 			acp.Caps{},
 		)
 		if !errors.Is(err, ErrPromptImagesUnsupported) {
@@ -129,7 +134,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 		opener := &promptAttachmentOpenerStub{
 			data: map[string][]byte{"att-pdf": data},
 			refs: map[string]attachmentspkg.AttachmentRef{
-				"att-pdf": storedPromptAttachmentRef("att-pdf", "report.pdf", "application/pdf", data),
+				"att-pdf": storedPromptAttachmentRef(t, "att-pdf", "report.pdf", "application/pdf", data),
 			},
 		}
 		manager := &Manager{attachmentOpener: opener}
@@ -137,7 +142,7 @@ func TestResolvePromptAttachments(t *testing.T) {
 			context.Background(),
 			"ws-test",
 			"sess-test",
-			[]AttachmentMeta{promptAttachmentMeta("att-pdf", "report.pdf", "application/pdf", data)},
+			[]AttachmentMeta{promptAttachmentMeta(t, "att-pdf", "report.pdf", "application/pdf", data)},
 			acp.Caps{},
 		)
 		if !errors.Is(err, ErrPromptFilesUnsupported) {
@@ -149,7 +154,15 @@ func TestResolvePromptAttachments(t *testing.T) {
 	})
 }
 
-func storedPromptAttachmentRef(id string, name string, mimeType string, data []byte) attachmentspkg.AttachmentRef {
+func storedPromptAttachmentRef(
+	t *testing.T,
+	id string,
+	name string,
+	mimeType string,
+	data []byte,
+) attachmentspkg.AttachmentRef {
+	t.Helper()
+
 	digest := sha256.Sum256(data)
 	kind := attachmentspkg.KindFile
 	if strings.HasPrefix(mimeType, "image/") {
@@ -172,7 +185,7 @@ func TestSendPromptDispatchesAttachments(t *testing.T) {
 		opener := &promptAttachmentOpenerStub{
 			data: map[string][]byte{attachmentID: data},
 			refs: map[string]attachmentspkg.AttachmentRef{
-				attachmentID: storedPromptAttachmentRef(attachmentID, "notes.txt", "text/plain", data),
+				attachmentID: storedPromptAttachmentRef(t, attachmentID, "notes.txt", "text/plain", data),
 			},
 		}
 		admissionStore := openManagerInputQueueStore(t)
@@ -189,7 +202,7 @@ func TestSendPromptDispatchesAttachments(t *testing.T) {
 		opts := SendPromptOpts{
 			MessageID: "message-attachment-only", IdempotencyKey: "idempotency-attachment-only",
 			Attachments: []AttachmentMeta{
-				promptAttachmentMeta(attachmentID, "spoofed.md", "text/markdown", data),
+				promptAttachmentMeta(t, attachmentID, "spoofed.md", "text/markdown", data),
 			},
 		}
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
@@ -222,6 +235,65 @@ func TestSendPromptDispatchesAttachments(t *testing.T) {
 		assertPersistedPromptAttachment(t, sess, attachmentID, "notes.txt", "text/plain")
 	})
 
+	t.Run("Should retry an unreadable attachment before dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		attachmentID := "att_" + strings.Repeat("d", 64)
+		data := []byte("retryable attachment")
+		ref := storedPromptAttachmentRef(t, attachmentID, "notes.txt", "text/plain", data)
+		opener := &promptAttachmentOpenerStub{
+			data: map[string][]byte{attachmentID: data},
+			refs: map[string]attachmentspkg.AttachmentRef{attachmentID: ref},
+			afterOpen: func(stub *promptAttachmentOpenerStub, id string) {
+				if stub.calls == 1 {
+					delete(stub.data, id)
+					delete(stub.refs, id)
+				}
+			},
+		}
+		admissionStore := openManagerInputQueueStore(t)
+		h := newHarness(
+			t,
+			WithAttachmentOpener(opener),
+			WithSessionPromptAdmissionStore(admissionStore),
+		)
+		registerManagerInputQueueWorkspace(t, admissionStore, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, admissionStore, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+
+		opts := SendPromptOpts{
+			Message:        "read this attachment",
+			MessageID:      "message-attachment-read-retry",
+			IdempotencyKey: "idempotency-attachment-read-retry",
+			Attachments: []AttachmentMeta{
+				promptAttachmentMeta(t, attachmentID, "notes.txt", "text/plain", data),
+			},
+		}
+		_, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
+		if !errors.Is(err, attachmentspkg.ErrNotFound) {
+			t.Fatalf("SendPrompt(unreadable attachment) error = %v, want %v", err, attachmentspkg.ErrNotFound)
+		}
+		if errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+			t.Fatalf("SendPrompt(unreadable attachment) error = %v, want retryable failure", err)
+		}
+		if got := len(managerPromptCalls(h)); got != 0 {
+			t.Fatalf("driver prompt calls after unreadable attachment = %d, want 0", got)
+		}
+
+		opener.data[attachmentID] = data
+		opener.refs[attachmentID] = ref
+		opener.afterOpen = nil
+		retried, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
+		if err != nil {
+			t.Fatalf("SendPrompt(retry after attachment restore) error = %v", err)
+		}
+		collectEvents(t, retried.Events)
+		if got := len(managerPromptCalls(h)); got != 1 {
+			t.Fatalf("driver prompt calls after attachment restore = %d, want 1", got)
+		}
+	})
+
 	t.Run("Should reject unsupported image input before calling the driver", func(t *testing.T) {
 		t.Parallel()
 
@@ -230,7 +302,7 @@ func TestSendPromptDispatchesAttachments(t *testing.T) {
 		opener := &promptAttachmentOpenerStub{
 			data: map[string][]byte{attachmentID: data},
 			refs: map[string]attachmentspkg.AttachmentRef{
-				attachmentID: storedPromptAttachmentRef(attachmentID, "photo.png", "image/png", data),
+				attachmentID: storedPromptAttachmentRef(t, attachmentID, "photo.png", "image/png", data),
 			},
 		}
 		admissionStore := openManagerInputQueueStore(t)
@@ -248,7 +320,7 @@ func TestSendPromptDispatchesAttachments(t *testing.T) {
 			Message: "inspect this", MessageID: "message-capability-retry",
 			IdempotencyKey: "idempotency-capability-retry",
 			Attachments: []AttachmentMeta{
-				promptAttachmentMeta(attachmentID, "spoofed.txt", "text/plain", data),
+				promptAttachmentMeta(t, attachmentID, "spoofed.txt", "text/plain", data),
 			},
 		}
 		_, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
@@ -299,7 +371,15 @@ func assertPersistedPromptAttachment(
 	t.Fatal("persisted prompt attachment not found")
 }
 
-func promptAttachmentMeta(id string, name string, mimeType string, data []byte) AttachmentMeta {
+func promptAttachmentMeta(
+	t *testing.T,
+	id string,
+	name string,
+	mimeType string,
+	data []byte,
+) AttachmentMeta {
+	t.Helper()
+
 	digest := sha256.Sum256(data)
 	kind := AttachmentKindFile
 	if strings.HasPrefix(mimeType, "image/") {

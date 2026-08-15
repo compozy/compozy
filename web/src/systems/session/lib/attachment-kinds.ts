@@ -1,6 +1,4 @@
-/** Client pre-check only — server 413/415 is the authority. */
-export const ATTACHMENT_MAX_FILE_BYTES = 10 * 1024 * 1024;
-export const ATTACHMENT_MAX_COUNT = 10;
+import type { SessionPromptAttachment } from "../types";
 
 export const ATTACHMENT_ALLOWED_REASON = "PNG, JPEG, WebP, PDF, Markdown, or text";
 
@@ -25,18 +23,9 @@ export type AttachmentMIME =
 
 export type AttachmentSniffResult =
   | { ok: true; kind: AttachmentKind; mimeType: AttachmentMIME; mark?: AttachmentFileMark }
-  | { ok: false; reason: "unsupported" | "too-large" };
+  | { ok: false; reason: "unsupported" };
 
-export interface SessionAttachmentRef {
-  bytes: number;
-  height: number;
-  id: string;
-  kind: string;
-  mime_type: string;
-  name: string;
-  sha256: string;
-  width: number;
-}
+export type SessionAttachmentRef = SessionPromptAttachment;
 
 function bytesStartWith(bytes: Uint8Array, signature: readonly number[]): boolean {
   if (bytes.length < signature.length) return false;
@@ -88,9 +77,6 @@ function sniffTextFile(file: File): AttachmentSniffResult | null {
 }
 
 export async function sniffAttachmentFile(file: File): Promise<AttachmentSniffResult> {
-  if (file.size > ATTACHMENT_MAX_FILE_BYTES) {
-    return { ok: false, reason: "too-large" };
-  }
   const textHit = sniffTextFile(file);
   if (textHit) return textHit;
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -117,7 +103,7 @@ export function attachmentExtensionMark(name: string, mimeType?: string): string
   if (mimeType === "text/plain") return "TXT";
   const ext = extensionOf(name);
   if (ext === "pdf") return "PDF";
-  if (ext === "md" || ext === "markdown") return "MD";
+  if (ext === "md" || ext === "markdown" || ext === "mdown") return "MD";
   if (ext === "txt") return "TXT";
   if (ext.length === 0) return "FILE";
   return ext.slice(0, 4).toUpperCase();
@@ -139,10 +125,6 @@ export function formatAttachmentSize(bytes: number): string {
   return `${rounded} MB`;
 }
 
-export function attachmentOversizeMessage(bytes: number): string {
-  return `${formatAttachmentSize(bytes)} · over 10 MB`;
-}
-
 export function isSessionAttachmentRef(value: unknown): value is SessionAttachmentRef {
   if (value == null || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
@@ -158,17 +140,24 @@ export function isSessionAttachmentRef(value: unknown): value is SessionAttachme
   );
 }
 
+export function isSessionAttachmentDataPart(part: {
+  type?: string;
+  name?: string;
+  data?: unknown;
+}): part is { type: string; name?: string; data: SessionAttachmentRef } {
+  const isAttachmentPart =
+    part.type === SESSION_ATTACHMENT_DATA_TYPE ||
+    (part.type === "data" && part.name === SESSION_ATTACHMENT_PART_NAME);
+  return isAttachmentPart && isSessionAttachmentRef(part.data);
+}
+
 export function attachmentsFromPromptMessageParts(
   parts: readonly { type?: string; name?: string; data?: unknown }[] | undefined
 ): SessionAttachmentRef[] {
   if (!parts) return [];
   const attachments: SessionAttachmentRef[] = [];
   for (const part of parts) {
-    const isAttachmentPart =
-      part.type === SESSION_ATTACHMENT_DATA_TYPE ||
-      (part.type === "data" && part.name === SESSION_ATTACHMENT_PART_NAME);
-    if (!isAttachmentPart) continue;
-    if (!isSessionAttachmentRef(part.data)) continue;
+    if (!isSessionAttachmentDataPart(part)) continue;
     attachments.push(part.data);
   }
   return attachments;

@@ -817,14 +817,6 @@ describe("SessionChatRuntimeProvider", () => {
       }
 
       if (
-        pathname.startsWith(
-          `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments/`
-        )
-      ) {
-        return new Response(null, { status: 204 });
-      }
-
-      if (
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
       ) {
@@ -1146,6 +1138,65 @@ describe("SessionChatRuntimeProvider", () => {
     } finally {
       unsubscribe();
     }
+  });
+
+  it("Should not restore an attachment after the daemon accepted a stream that later fails", async () => {
+    const encoder = new TextEncoder();
+    promptResponsePromise = Promise.resolve(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode('data: {"type":"start","messageId":"accepted-stream"}\n\n')
+            );
+            controller.error(new Error("stream disconnected after acceptance"));
+          },
+        }),
+        {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "x-vercel-ai-ui-message-stream": "v1",
+          },
+        }
+      )
+    );
+    const user = userEvent.setup();
+    renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Accepted attachment");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(
+        new File(["notes"], "notes.txt", { type: "text/plain" })
+      );
+    });
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    await waitFor(() => expect(composerText()).toBe(""));
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+  });
+
+  it("Should preserve a newer draft when a rejected prompt restores its files", async () => {
+    const rejection = createDeferred<Response>();
+    promptResponsePromise = rejection.promise;
+    const user = userEvent.setup();
+    renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Rejected attachment");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(
+        new File(["notes"], "notes.txt", { type: "text/plain" })
+      );
+    });
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    await setComposerText("Newer draft");
+    rejection.resolve(jsonResponse({ error: "prompt rejected" }, { status: 422 }));
+
+    await waitFor(() => expect(composerText()).toBe("Newer draft"));
+    expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
   });
 
   it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {

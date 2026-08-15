@@ -2,20 +2,27 @@
 
 - **Scope:** PR #412 session attachment upload, preview, dispatch, persistence, queueing, capability gates, and cleanup
 - **Cadence tier:** targeted
-- **Build:** behavioral walk `2603eed`; reviewed head `87c02571` · **Environment:** isolated local daemon and web app from `session-attachments-pr-412-20260815-103704-955265`
-- **Started:** 2026-08-15T10:37:32Z · **Status:** PASS
+- **Build:** historical behavioral walk `2603eed`; reviewed head `87c02571` · **Environment:** isolated local daemon and web app from `session-attachments-pr-412-20260815-103704-955265`
+- **Started:** 2026-08-15T10:37:32Z · **Status:** HISTORICAL — superseded for the current capability correction
+
+This report records the attachment walk completed before the unknown-versus-explicitly-unsupported
+agent-capability correction. It is historical evidence only and cannot approve the current branch.
 
 ## Personas
 
-| Persona | Base | Device / Network / Locale | Sessions |
-|---|---|---|---|
-| Théo | Returning Session User | desktop / wifi-fast / en-US | CH-session-attachments |
+| Persona | Base | Goal | Device / Network / Modality / Locale | Patience | Sessions |
+|---|---|---|---|---|---|
+| Théo | Returning Session User | Return to a long-lived background agent session and immediately see my persisted conversation, current and truthful, with the live run resuming. | desktop / wifi-fast / mouse-keyboard / en-US | 15 seconds | CH-session-attachments |
 
 ## Flows in Scope
 
 - `J-session-attachments` — attach files once and trust their scope, order, retention, and cleanup (`../journeys/J-session-attachments.md`)
 
-## Session Matrix & Results
+## Historical Session Matrix & Results
+
+The matrix below records the pre-correction Feature Tour and retains the exact result of that historical
+walk. The current charter uses Network Tour; a current run must record a new matrix and report after the
+pending scenarios are walked.
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
@@ -33,6 +40,13 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 ## Session Debriefs
 
 Théo attached files through picker, paste, and drop; each path produced truthful previews. A pasted image persisted through a provider turn and cold reload, while its scoped bytes route returned the expected 68-byte PNG and SHA-256. A busy-session prompt retained its attachment ref, dispatched once, and remained visible in history. Removing the stopped session deleted only its attachment tree.
+
+## Current Follow-up
+
+`ET-session-attachment-model-gate` is `untested` after the capability correction. The adjacent canary
+`ET-web-session-composer-text-entry` is also `untested` because attachments now share its composer path.
+Walk both scenarios through their owning charters in a fresh isolated QA run before recording a current
+release verdict.
 
 ## What Was Fixed
 
@@ -63,11 +77,12 @@ None.
 
 ## Final Status
 
-- **Behavioral evidence:** `docs/qa/evidence/2026-08-15-session-attachments-pr-412/`
-- **Automated verify:** `/Users/pedronauck/dev/qa-labs/compozy-session-attachments-pr-412-20260815-103704-955265-lab/qa-artifacts/qa/final-make-verify.log`
-- **Exit gate (full automated suite):** `make gate-full`; the branch-close log is copied to the automated verify path above after the gate completes.
-- **React validation:** React Doctor 100/100 with no findings; root Bun lint, typecheck, and test gates passed.
-- **Teardown:** `/Users/pedronauck/dev/qa-labs/compozy-session-attachments-pr-412-20260815-103704-955265-lab/qa-artifacts/qa/teardown.json` records `"clean": true` with no survivors.
+- **Historical behavioral evidence:** `docs/qa/evidence/2026-08-15-session-attachments-pr-412/`
+- **Historical automated verify:** `/Users/pedronauck/dev/qa-labs/compozy-session-attachments-pr-412-20260815-103704-955265-lab/qa-artifacts/qa/final-make-verify.log`
+- **Historical exit gate:** `make gate-full` for the pre-correction walk.
+- **Historical React validation:** React Doctor 100/100 with no findings; root Bun lint, typecheck, and test gates passed.
+- **Historical teardown:** `/Users/pedronauck/dev/qa-labs/compozy-session-attachments-pr-412-20260815-103704-955265-lab/qa-artifacts/qa/teardown.json` records `"clean": true` with no survivors.
 - **Issues by user impact:** Blocks-Completion 1 fixed · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0
-- **Coverage:** 8/8 scenarios walked
-- **Verdict:** PASS — all attachment lifecycle scenarios passed after the daemon boot-order fix.
+- **Historical coverage:** 8/8 attachment scenarios walked before the capability correction.
+- **Current coverage:** 0/2 reset scenarios walked (`ET-session-attachment-model-gate`; `ET-web-session-composer-text-entry`).
+- **Verdict:** NOT READY — the current capability correction requires a fresh targeted QA run.

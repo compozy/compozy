@@ -26,8 +26,8 @@ func (h *BaseHandlers) UploadSessionAttachment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if h.SessionAttachments == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("session attachment store is not configured"))
+	store, ok := h.sessionAttachmentStoreOrRespond(c)
+	if !ok {
 		return
 	}
 	maxFileBytes := h.Config.Session.Attachments.MaxFileBytes
@@ -45,12 +45,14 @@ func (h *BaseHandlers) UploadSessionAttachment(c *gin.Context) {
 		h.respondError(c, statusForSessionAttachmentError(err), fmt.Errorf("read session attachment upload: %w", err))
 		return
 	}
-	ref, err := h.SessionAttachments.Put(
+	ref, err := store.Put(
 		c.Request.Context(),
-		scope.SessionWorkspaceID(),
-		sessionID,
-		name,
-		data,
+		attachmentspkg.PutRequest{
+			WorkspaceID: scope.SessionWorkspaceID(),
+			SessionID:   sessionID,
+			Name:        name,
+			Data:        data,
+		},
 	)
 	if err != nil {
 		err = sessionAttachmentUploadError(err, maxFileBytes)
@@ -68,8 +70,8 @@ func (h *BaseHandlers) ReadSessionAttachmentBytes(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if h.SessionAttachments == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("session attachment store is not configured"))
+	store, ok := h.sessionAttachmentStoreOrRespond(c)
+	if !ok {
 		return
 	}
 	id, err := sessionAttachmentID(c)
@@ -77,7 +79,7 @@ func (h *BaseHandlers) ReadSessionAttachmentBytes(c *gin.Context) {
 		h.respondError(c, statusForSessionAttachmentError(err), err)
 		return
 	}
-	reader, ref, err := h.SessionAttachments.Open(
+	reader, ref, err := store.Open(
 		c.Request.Context(), scope.SessionWorkspaceID(), sessionID, id,
 	)
 	if err != nil {
@@ -112,8 +114,8 @@ func (h *BaseHandlers) DeleteSessionAttachment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if h.SessionAttachments == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("session attachment store is not configured"))
+	store, ok := h.sessionAttachmentStoreOrRespond(c)
+	if !ok {
 		return
 	}
 	id, err := sessionAttachmentID(c)
@@ -121,7 +123,7 @@ func (h *BaseHandlers) DeleteSessionAttachment(c *gin.Context) {
 		h.respondError(c, statusForSessionAttachmentError(err), err)
 		return
 	}
-	if err := h.SessionAttachments.Delete(
+	if err := store.Delete(
 		c.Request.Context(), scope.SessionWorkspaceID(), sessionID, id,
 	); err != nil {
 		h.respondError(c, statusForSessionAttachmentError(err), fmt.Errorf("delete session attachment: %w", err))
@@ -142,24 +144,56 @@ func (h *BaseHandlers) authorizedSessionAttachmentRoute(c *gin.Context) (workspa
 	return scope, sessionID, true
 }
 
+func (h *BaseHandlers) sessionAttachmentStoreOrRespond(c *gin.Context) (SessionAttachmentStore, bool) {
+	if h.SessionAttachments == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("session attachment store is not configured"))
+		return nil, false
+	}
+	return h.SessionAttachments, true
+}
+
+// SessionAttachmentRequestBodyLimit returns the largest multipart body accepted for one file upload.
+func SessionAttachmentRequestBodyLimit(maxFileBytes int64) int64 {
+	if maxFileBytes <= 0 {
+		return 0
+	}
+	if maxFileBytes > math.MaxInt64-SessionAttachmentMultipartOverheadBytes {
+		return math.MaxInt64
+	}
+	return maxFileBytes + SessionAttachmentMultipartOverheadBytes
+}
+
 func readSessionAttachmentUpload(c *gin.Context, maxFileBytes int64) (string, []byte, error) {
+	reader, err := sessionAttachmentMultipartReader(c, maxFileBytes)
+	if err != nil {
+		return "", nil, err
+	}
+	name, data, err := readSessionAttachmentFile(reader, maxFileBytes)
+	if err != nil {
+		return "", nil, err
+	}
+	if err := rejectAdditionalSessionAttachmentParts(reader); err != nil {
+		return "", nil, err
+	}
+	return name, data, nil
+}
+
+func sessionAttachmentMultipartReader(c *gin.Context, maxFileBytes int64) (*multipart.Reader, error) {
 	mediaType, params, err := mime.ParseMediaType(c.GetHeader("Content-Type"))
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: parse content type: %w", errInvalidSessionAttachmentUpload, err)
+		return nil, fmt.Errorf("%w: parse content type: %w", errInvalidSessionAttachmentUpload, err)
 	}
 	if mediaType != "multipart/form-data" || strings.TrimSpace(params["boundary"]) == "" {
-		return "", nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"%w: attachment upload requires multipart/form-data with a boundary",
 			errInvalidSessionAttachmentUpload,
 		)
 	}
-	bodyLimit := int64(math.MaxInt64)
-	if maxFileBytes <= math.MaxInt64-SessionAttachmentMultipartOverheadBytes {
-		bodyLimit = maxFileBytes + SessionAttachmentMultipartOverheadBytes
-	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, bodyLimit)
-	reader := multipart.NewReader(c.Request.Body, params["boundary"])
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, SessionAttachmentRequestBodyLimit(maxFileBytes))
+	return multipart.NewReader(c.Request.Body, params["boundary"]), nil
+}
 
+func readSessionAttachmentFile(reader *multipart.Reader, maxFileBytes int64) (string, []byte, error) {
 	part, err := reader.NextPart()
 	if err != nil {
 		return "", nil, fmt.Errorf("%w: read attachment multipart field: %w", errInvalidSessionAttachmentUpload, err)
@@ -193,17 +227,21 @@ func readSessionAttachmentUpload(c *gin.Context, maxFileBytes int64) (string, []
 	if err := attachmentspkg.ValidateSize(int64(len(data)), maxFileBytes); err != nil {
 		return "", nil, err
 	}
+	return name, data, nil
+}
+
+func rejectAdditionalSessionAttachmentParts(reader *multipart.Reader) error {
 	if next, err := reader.NextPart(); !errors.Is(err, io.EOF) {
 		if err == nil {
 			closeErr := next.Close()
-			return "", nil, errors.Join(
+			return errors.Join(
 				fmt.Errorf("%w: exactly one attachment file field is required", errInvalidSessionAttachmentUpload),
 				closeErr,
 			)
 		}
-		return "", nil, fmt.Errorf("%w: finish multipart request: %w", errInvalidSessionAttachmentUpload, err)
+		return fmt.Errorf("%w: finish multipart request: %w", errInvalidSessionAttachmentUpload, err)
 	}
-	return name, data, nil
+	return nil
 }
 
 func sessionAttachmentTooLargeError(maxFileBytes int64) error {

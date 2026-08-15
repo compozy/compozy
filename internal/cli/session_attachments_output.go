@@ -15,7 +15,7 @@ func sessionAttachmentBundle(info SessionAttachmentRecord) outputBundle {
 				{Label: "Kind", Value: stringOrDash(info.Kind)},
 				{Label: "Width", Value: fmt.Sprint(info.Width)},
 				{Label: "Height", Value: fmt.Sprint(info.Height)},
-				{Label: "Created At", Value: info.CreatedAt.String()},
+				{Label: "Created At", Value: stringOrDash(formatTime(info.CreatedAt))},
 			}), nil
 		},
 		toon: func() (string, error) {
@@ -30,7 +30,7 @@ func sessionAttachmentBundle(info SessionAttachmentRecord) outputBundle {
 				info.Kind,
 				fmt.Sprint(info.Width),
 				fmt.Sprint(info.Height),
-				info.CreatedAt.String(),
+				formatTime(info.CreatedAt),
 			}), nil
 		},
 	}

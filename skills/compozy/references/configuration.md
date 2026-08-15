@@ -33,10 +33,15 @@ Read and write scalar keys with `compozy config show|list|get|set|unset|diff|pat
 
 ## Session Attachments
 
-`[session.attachments]` sets `max_file_bytes` (10 MiB), `max_files_per_prompt` (10), and the v1
-PNG/JPEG/WebP/PDF/Markdown/plain-text allowlist. `[session.attachments.retention]` bounds global
-count (200), bytes (1 GiB), and age (720h). Every key is restart-required. The v1 store preserves
-image bytes, including EXIF metadata; support bundles exclude the attachment tree.
+`session.attachments.max_file_bytes` (10 MiB), `session.attachments.max_files_per_prompt` (10), and
+`session.attachments.allowed_mime` (the v1 PNG/JPEG/WebP/PDF/Markdown/plain-text allowlist) control
+admission. `session.attachments.retention.max_count` (200),
+`session.attachments.retention.max_bytes` (1 GiB), and `session.attachments.retention.max_age` (720h)
+control retention. A workspace config overlay supplies the effective values. All six paths are
+agent-mutable and restart-required; inspect or change them with `compozy config get|set|unset -o json`
+or the typed `compozy__config_*` tools, then confirm the result through a structured read. The v1 store
+preserves image bytes, including EXIF metadata; support bundles exclude the attachment tree. Retention
+sweeps run at startup, during store access, and every hour while the daemon is running.
 
 ## Gateway
 

@@ -78,8 +78,12 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 		if got := len(stored); got != 0 {
 			t.Fatalf("stored events after clear = %d, want 0", got)
 		}
-		if payload, err := os.ReadFile(attachmentPath); err != nil || string(payload) != "preserve-on-clear" {
-			t.Fatalf("ReadFile(attachment after clear) = %q, %v", payload, err)
+		payload, err := os.ReadFile(attachmentPath)
+		if err != nil {
+			t.Fatalf("ReadFile(attachment after clear) error = %v", err)
+		}
+		if got, want := string(payload), "preserve-on-clear"; got != want {
+			t.Fatalf("attachment after clear = %q, want %q", got, want)
 		}
 
 		secondEvents, err := h.manager.Prompt(testutil.Context(t), cleared.ID, "after clear")

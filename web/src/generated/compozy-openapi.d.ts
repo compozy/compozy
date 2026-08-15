@@ -113603,7 +113603,7 @@ export interface operations {
           };
         };
       };
-      /** @description Session not found */
+      /** @description Session or attachment not found */
       404: {
         headers: {
           [name: string]: unknown;

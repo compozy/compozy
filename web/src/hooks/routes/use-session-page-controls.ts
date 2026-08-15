@@ -215,7 +215,12 @@ export function useSessionPageControls(
   };
 
   const handleSteerQueuedPrompt = (prompt: QueuedPrompt) => {
-    if (!promptControlsAvailable || busyInputPending || activeTurnId.length === 0) {
+    if (
+      !promptControlsAvailable ||
+      busyInputPending ||
+      activeTurnId.length === 0 ||
+      prompt.attachments
+    ) {
       return;
     }
     promoteSessionInput.mutate(

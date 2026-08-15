@@ -7,11 +7,30 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 
-import { handlers, seedSessionAttachmentMock } from "../handlers";
+import { handlers, resetSessionAttachmentMock, seedSessionAttachmentMock } from "../handlers";
 import { sessionFixtures } from "../fixtures";
 
 const server = setupServer(...handlers);
 const API = "http://localhost";
+
+function multipartUpload(filename: string, mimeType: string, contents: string) {
+  const boundary = "compozy-session-attachment-test";
+  const body = new TextEncoder().encode(
+    [
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="file"; filename="${filename}"`,
+      `Content-Type: ${mimeType}`,
+      "",
+      contents,
+      `--${boundary}--`,
+      "",
+    ].join("\r\n")
+  );
+  return {
+    body: body.buffer,
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+  };
+}
 
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
@@ -19,6 +38,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   server.resetHandlers();
+  resetSessionAttachmentMock();
 });
 
 afterAll(() => {
@@ -26,6 +46,53 @@ afterAll(() => {
 });
 
 describe("session MSW handlers", () => {
+  it("Should upload, read, and delete one attachment within its workspace", async () => {
+    const sample = sessionFixtures[0]!;
+    const workspaceId = sample.workspace_id;
+    if (!workspaceId) throw new Error("session fixture must include workspace_id");
+    const uploadBody = multipartUpload("notes.txt", "text/plain", "notes");
+
+    const upload = await fetch(
+      `${API}/api/workspaces/${workspaceId}/sessions/${sample.id}/attachments`,
+      { ...uploadBody, method: "POST" }
+    );
+    const uploaded = (await upload.json()) as { attachment: { id: string; mime_type: string } };
+
+    expect(upload.status).toBe(201);
+    expect(uploaded.attachment).toMatchObject({ mime_type: "text/plain" });
+    const bytes = await fetch(
+      `${API}/api/workspaces/${workspaceId}/sessions/${sample.id}/attachments/${uploaded.attachment.id}/bytes`
+    );
+    expect(bytes.status).toBe(200);
+    expect(bytes.headers.get("content-type")).toBe("text/plain");
+    await expect(bytes.text()).resolves.toBe("notes");
+
+    const remove = await fetch(
+      `${API}/api/workspaces/${workspaceId}/sessions/${sample.id}/attachments/${uploaded.attachment.id}`,
+      { method: "DELETE" }
+    );
+    expect(remove.status).toBe(204);
+    const missing = await fetch(
+      `${API}/api/workspaces/${workspaceId}/sessions/${sample.id}/attachments/${uploaded.attachment.id}/bytes`
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  it("Should reject unsupported attachment uploads", async () => {
+    const sample = sessionFixtures[0]!;
+    const workspaceId = sample.workspace_id;
+    if (!workspaceId) throw new Error("session fixture must include workspace_id");
+    const uploadBody = multipartUpload("archive.zip", "application/zip", "binary");
+
+    const response = await fetch(
+      `${API}/api/workspaces/${workspaceId}/sessions/${sample.id}/attachments`,
+      { ...uploadBody, method: "POST" }
+    );
+
+    expect(response.status).toBe(415);
+    await expect(response.json()).resolves.toEqual({ error: "unsupported mime type" });
+  });
+
   it("Should resolve omitted or Local participation to the canonical Local snapshot", async () => {
     const response = await fetch(`${API}/api/sessions`, {
       body: JSON.stringify({

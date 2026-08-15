@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -446,7 +448,8 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 
 		replacementRequest := store.SessionInputQueueInsert{
 			ID: "inq-replace-new", Text: "replacement input", MessageID: "message-replace",
-			IdempotencyKey: "idem-replace", QueueCap: 10, Now: now.Add(time.Second),
+			IdempotencyKey: "idem-replace", Attachments: []store.SessionInputAttachment{testSessionInputAttachment()},
+			QueueCap: 10, Now: now.Add(time.Second),
 		}
 		replacement, created, err := globalDB.ReplaceSessionInput(ctx, sessionID, original.ID, replacementRequest)
 		if err != nil {
@@ -458,6 +461,9 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if replacement.ID != "inq-replace-new" || replacement.Mode != store.SessionInputQueueModeQueue ||
 			replacement.Delivery != store.SessionInputDeliveryAfterTurn || replacement.Text != "replacement input" {
 			t.Fatalf("replacement = %#v, want new queued input", replacement)
+		}
+		if !slices.Equal(replacement.Attachments, replacementRequest.Attachments) {
+			t.Fatalf("replacement attachments = %#v, want %#v", replacement.Attachments, replacementRequest.Attachments)
 		}
 		canceled, err := globalDB.GetSessionInputQueueEntry(ctx, sessionID, original.ID)
 		if err != nil {
@@ -489,8 +495,12 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 				replayCreated,
 			)
 		}
+		if !slices.Equal(replayed.Attachments, replacementRequest.Attachments) {
+			t.Fatalf("replayed attachments = %#v, want %#v", replayed.Attachments, replacementRequest.Attachments)
+		}
 		conflictingRequest := replacementRequest
-		conflictingRequest.Text = "different replacement"
+		conflictingRequest.Attachments = append([]store.SessionInputAttachment(nil), replacementRequest.Attachments...)
+		conflictingRequest.Attachments[0].Name = "different-shot.png"
 		_, _, err = globalDB.ReplaceSessionInput(ctx, sessionID, original.ID, conflictingRequest)
 		if !errors.Is(err, store.ErrSessionInputMutationConflict) {
 			t.Fatalf("ReplaceSessionInput(conflict) error = %v, want ErrSessionInputMutationConflict", err)
@@ -1303,6 +1313,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		sessionID := registerInputQueueSession(t, globalDB)
 		now := time.Date(2026, 7, 31, 12, 5, 0, 0, time.UTC)
 		admissionReq := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "queue", now)
+		admissionReq.Attachments = []store.SessionInputAttachment{testSessionInputAttachment()}
 		queueReq := store.SessionInputQueueInsert{
 			ID: "inq-admitted", SessionID: sessionID, Text: "queued once",
 			SessionGeneration: 0, QueueCap: 1, Now: now,
@@ -1323,6 +1334,9 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 			entry.TurnID != admissionReq.TurnID || entry.EventID != admissionReq.EventID {
 			t.Fatalf("entry identity = %#v, want admission identity %#v", entry, admissionReq)
 		}
+		if !slices.Equal(entry.Attachments, admissionReq.Attachments) {
+			t.Fatalf("entry attachments = %#v, want %#v", entry.Attachments, admissionReq.Attachments)
+		}
 
 		replayed, replayedEntry, replayedPosition, created, err := globalDB.EnqueueAdmittedSessionInput(
 			ctx,
@@ -1340,6 +1354,9 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 				replayedPosition,
 				created,
 			)
+		}
+		if !slices.Equal(replayedEntry.Attachments, admissionReq.Attachments) {
+			t.Fatalf("replayed entry attachments = %#v, want %#v", replayedEntry.Attachments, admissionReq.Attachments)
 		}
 		summary, err := globalDB.SessionInputQueueSummary(ctx, sessionID)
 		if err != nil {
@@ -1563,9 +1580,9 @@ func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
 		if err := applyGlobalMigrationPrefix(
 			t,
 			prefixDB,
-			globalMigrationPrefixBefore(t, "00064_session_attachments_sentinel.sql"),
+			globalMigrationPrefixThrough(t, "00063_schema.sql"),
 		); err != nil {
-			t.Fatalf("Apply(00063) error = %v", err)
+			t.Fatalf("Apply(through 00063) error = %v", err)
 		}
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
@@ -1575,7 +1592,7 @@ func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
 		reopened, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixBefore(t, "00064_session_attachments_sentinel.sql"),
+			globalMigrationPrefixThrough(t, "00063_schema.sql"),
 		)
 		if err != nil {
 			t.Fatalf("reopen through 00063 error = %v", err)
@@ -1609,7 +1626,50 @@ func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
 		if admissionDefault != "[]" {
 			t.Fatalf("session_prompt_admissions.attachments_json = %q, want []", admissionDefault)
 		}
+		for _, mutation := range []struct {
+			name  string
+			query string
+			id    string
+		}{
+			{
+				name:  "session input queue",
+				query: `UPDATE session_input_queue SET attachments_json = ? WHERE id = ?`,
+				id:    "queue-before-63",
+			},
+			{
+				name:  "session prompt admissions",
+				query: `UPDATE session_prompt_admissions SET attachments_json = ? WHERE id = ?`,
+				id:    "admission-before-63",
+			},
+		} {
+			_, updateErr := reopened.ExecContext(testutil.Context(t), mutation.query, "not-json", mutation.id)
+			if updateErr == nil || !strings.Contains(updateErr.Error(), "CHECK constraint failed") {
+				t.Fatalf(
+					"invalid attachments_json update for %s error = %v, want CHECK constraint failure",
+					mutation.name,
+					updateErr,
+				)
+			}
+		}
 	})
+}
+
+func globalMigrationPrefixThrough(t *testing.T, lastMigration string) store.MigrationStream {
+	t.Helper()
+
+	fullStream := MigrationStream()
+	entries, err := fs.ReadDir(fullStream.FS, fullStream.Dir)
+	if err != nil {
+		t.Fatalf("read global migration directory: %v", err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") || entry.Name() > lastMigration {
+			continue
+		}
+		names = append(names, entry.Name())
+	}
+	return globalMigrationPrefix(t, names...)
 }
 
 func testSessionInputAttachment() store.SessionInputAttachment {

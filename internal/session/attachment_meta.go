@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	AttachmentKindImage = "image"
-	AttachmentKindFile  = "file"
+	AttachmentKindImage = attachmentspkg.KindImage
+	AttachmentKindFile  = attachmentspkg.KindFile
 )
 
 // AttachmentMeta is the session-owned attachment snapshot on a prompt.

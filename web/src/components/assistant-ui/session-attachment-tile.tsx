@@ -15,10 +15,6 @@ export type {
   SessionAttachmentTileState,
 } from "./session-attachment-tile-model";
 
-function isPersistFailureLabel(label: string): boolean {
-  return label === "Couldn't save" || label.startsWith("Couldn't save");
-}
-
 export interface SessionAttachmentTileProps extends ComponentProps<"li"> {
   model: SessionAttachmentTileModel;
   onRemove: () => void;
@@ -51,11 +47,12 @@ export function SessionAttachmentTile({
 
   const nameTitle =
     isImage && dimensions ? `${model.name} · ${dimensions.width}×${dimensions.height}` : model.name;
-  const showRetry = model.retryable && isPersistFailureLabel(model.sizeLabel) && onRetry;
+  const showRetry = model.retryable && Boolean(onRetry);
 
   return (
     <li
       {...props}
+      data-attachment-rail-item
       data-state={model.state}
       data-testid="composer-attachment-tile"
       className={cn(
@@ -105,12 +102,12 @@ export function SessionAttachmentTile({
         ) : null}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-px">
-        <span className="truncate text-[12px] font-medium text-fg" title={nameTitle}>
+        <span className="truncate text-small-body font-medium text-fg" title={nameTitle}>
           {model.name}
         </span>
         <span
           className={cn(
-            "font-mono text-[10.5px] tabular-nums",
+            "font-mono text-micro tabular-nums",
             model.state === "error" || model.state === "rejected" ? "text-danger" : "text-faint",
             model.state === "uploading" ? "text-subtle" : null
           )}
@@ -119,14 +116,8 @@ export function SessionAttachmentTile({
         </span>
       </span>
       {showRetry ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onRetry}
-          className="h-[22px] px-[7px] text-[11px]"
-        >
-          Retry
+        <Button type="button" variant="ghost" size="sm" onClick={onRetry} className="text-micro">
+          Retry upload
         </Button>
       ) : null}
       <Button
@@ -138,7 +129,7 @@ export function SessionAttachmentTile({
         onClick={onRemove}
         className="text-faint hover:bg-danger-tint hover:text-danger"
       >
-        <X className="size-[11.5px]" />
+        <X className="size-3" />
       </Button>
     </li>
   );

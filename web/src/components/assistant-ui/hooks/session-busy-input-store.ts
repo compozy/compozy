@@ -14,7 +14,7 @@ type SessionBusyInputEvents = {
   submissionFinished: Record<never, never>;
   submissionRequested: {
     canSubmit: boolean;
-    clearComposer: () => void;
+    clearComposer: (options?: { retainAttachments?: boolean }) => void;
     handler: SessionBusyInputHandler | undefined;
     draft: SessionBusyInputDraft;
     onFailure: (error: unknown) => void;
@@ -40,7 +40,7 @@ export const sessionBusyInputLogic = createStoreLogic<
       enqueue.effect(async ({ trigger }) => {
         try {
           await handler(event.draft);
-          event.clearComposer();
+          event.clearComposer({ retainAttachments: event.draft.attachments.length > 0 });
           event.onSuccess?.();
         } catch (error) {
           event.onFailure(error);

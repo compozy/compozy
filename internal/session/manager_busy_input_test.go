@@ -47,12 +47,10 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				call: func(ctx context.Context, queue *inputqueue.Service, sessionID string, _ store.SessionPromptAdmissionRequest) error {
 					_, _, err := queue.Enqueue(
 						ctx,
-						sessionID,
-						"queued prompt",
-						0,
-						store.SessionInputRuntime{},
-						nil,
-						nil,
+						inputqueue.InputRequest{
+							SessionID: sessionID,
+							Text:      "queued prompt",
+						},
 					)
 					return err
 				},
@@ -65,13 +63,11 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				call: func(ctx context.Context, queue *inputqueue.Service, sessionID string, _ store.SessionPromptAdmissionRequest) error {
 					_, err := queue.StageSteer(
 						ctx,
-						sessionID,
-						"steering prompt",
-						"turn-active",
-						0,
-						store.SessionInputRuntime{},
-						nil,
-						nil,
+						inputqueue.InputRequest{
+							SessionID:    sessionID,
+							Text:         "steering prompt",
+							TargetTurnID: "turn-active",
+						},
 					)
 					return err
 				},
@@ -283,6 +279,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 			Message: "queued prompt",
 			Mode:    BusyInputModeQueue,
 			Attachments: []AttachmentMeta{promptAttachmentMeta(
+				t,
 				"att-queued", "queued.txt", "text/plain", queuedAttachmentData,
 			)},
 		})
@@ -1740,6 +1737,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			data: map[string][]byte{attachmentID: attachmentData},
 			refs: map[string]attachmentspkg.AttachmentRef{
 				attachmentID: storedPromptAttachmentRef(
+					t,
 					attachmentID, "goal-context.txt", "text/plain", attachmentData,
 				),
 			},
@@ -1790,7 +1788,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			IdempotencyKey: "idem-goal-status",
 			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "http"},
 			Attachments: []AttachmentMeta{
-				promptAttachmentMeta(attachmentID, "goal-context.txt", "text/plain", attachmentData),
+				promptAttachmentMeta(t, attachmentID, "goal-context.txt", "text/plain", attachmentData),
 			},
 		}
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)

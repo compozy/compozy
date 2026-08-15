@@ -20,20 +20,26 @@ for those refs.
 
 ## Attach files to prompts
 
-Upload a file with `compozy session attachments upload <session-id> <file> -o json`. The response
-returns an opaque `att_...` ID and metadata. Prompt surfaces pass that reference; attachment bytes
-remain in the workspace/session-scoped store and are opened only when the selected ACP model accepts
-that attachment kind.
+Upload a file with [`compozy session attachments upload <session-id> <file>`](/docs/cli/session/attachments/upload)
+`-o json`. The response returns an opaque `att_...` ID and attachment metadata. HTTP and UDS prompt
+requests send that returned metadata as a `PromptAttachmentRef` in `attachments`; the native
+`compozy__session_prompt` tool accepts the `att_...` ID or a file path under the resolved workspace
+root or configured `additional_dirs`. Attachment bytes remain in the workspace/session-scoped store
+and are opened only when the bound ACP agent advertises the negotiated capability for that attachment
+kind.
 
 The v1 store accepts PNG, JPEG, WebP, PDF, Markdown, and plain text. Each file is limited to 10 MiB
-and each prompt to 10 files by default. CompozyOS detects the MIME type from the bytes and preserves
-image bytes as received, including EXIF metadata. Images require ACP image input and PDFs require
-embedded context. Markdown and plain text fall back to text blocks when embedded context is unavailable.
+and each prompt to 10 files by default. CompozyOS ignores client-supplied `Content-Type` and detects
+MIME from file bytes. For valid UTF-8 text, a `.md`, `.markdown`, or `.mdown` name selects Markdown;
+otherwise CompozyOS uses plain text. Image bytes are preserved as received, including EXIF metadata.
+Images require ACP image input and PDFs require embedded context. Markdown and plain text fall back to
+text blocks when embedded context is unavailable.
 
 Attachment metadata is durable in user-message events, so transcript and event reads can render the
-reference without embedding file contents. Archive and clear keep files for the same session;
-session deletion removes them, and workspace unregister removes the complete workspace attachment
-tree. Support bundles never include attachment bytes or paths.
+reference without embedding file contents. Archive and conversation clear keep files for the same
+session. [`compozy session remove`](/docs/cli/session/remove) removes that session's attachments, and
+[`compozy workspace remove`](/docs/cli/workspace/remove) removes the complete workspace attachment tree.
+Support bundles never include attachment bytes or paths.
 
 Use this section when a live run needs supervision or forensic detail: why it started, what state it
 entered, which events were persisted, whether it can be attached, and which permission checks apply while

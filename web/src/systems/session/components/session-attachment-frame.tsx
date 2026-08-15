@@ -27,7 +27,8 @@ export function SessionAttachmentFrame({
       data-testid="user-message-attachment-frame"
       title={title ?? filename}
       className={cn(
-        "att-frame group/att-frame relative block max-w-[280px] shrink-0 overflow-hidden rounded-lg border border-line bg-elevated",
+        "att-frame group/att-frame relative block max-w-70 shrink-0 overflow-hidden",
+        "rounded-lg border border-line bg-elevated",
         "transition-colors duration-base ease-out hover:border-line-strong",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
         className
@@ -48,11 +49,13 @@ export function SessionAttachmentFrame({
         className="block h-auto w-auto object-cover"
       />
       <span
+        aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-16px)] truncate rounded-xs px-[7px] py-[3px]",
-          "bg-[color-mix(in_oklch,var(--canvas)_88%,transparent)] font-mono text-[10px] text-muted",
+          "pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-16px)] truncate",
+          "rounded-xs bg-canvas/90 px-2 py-1 font-mono text-micro text-muted",
           "opacity-0 transition-opacity duration-base ease-out",
-          "group-hover/att-frame:opacity-100 group-focus-visible/att-frame:opacity-100"
+          "group-hover/att-frame:opacity-100",
+          "group-focus-visible/att-frame:opacity-100"
         )}
       >
         {filename}

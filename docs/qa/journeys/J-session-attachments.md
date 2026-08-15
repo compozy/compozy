@@ -10,10 +10,10 @@ flowchart TD
     A -->|CLI, HTTP, UDS, or native tool| U
     U --> V{MIME, size, and count valid?}
     V -->|no| FIX[Refuse before dispatch; preserve the draft]
-    V -->|yes| C{Selected model capability}
-    C -->|image or PDF unsupported| FIX
-    C -->|supported image/PDF or text fallback| B{Session busy?}
-    B -->|no| SEND[Dispatch attachment-only or text-plus-files prompt]
+    V -->|yes| C{Bound ACP agent capability}
+    C -->|explicitly unsupported image or file input| FIX
+    C -->|unknown or supported capability| B{Session busy?}
+    B -->|no| SEND[Send attachment-only or text-plus-files prompt to backend admission]
     B -->|yes, queue or interrupt| QUEUE[Persist ordered byte-free refs and retain their bytes]
     QUEUE --> SEND
     SEND --> EVENT[Persist user-message attachment metadata]
@@ -28,7 +28,7 @@ journey:
   id: J-session-attachments
   name: "Attach files to a session prompt"
   value_statement: "I can attach files once and trust their scope, order, retention, and cleanup across every session surface."
-  personas: [Rafa, Sol]
+  personas: [Théo]
   entry_points:
     - url: "web active session composer"
       origin: in-app-nav
@@ -40,7 +40,7 @@ journey:
       expected_observable: "Supported bytes receive ordered workspace/session-scoped refs; the web shows truthful removable previews."
     - step: 2
       verb: "Exercise MIME, size, count, image, and PDF capability branches"
-      expected_observable: "Invalid input is refused before dispatch without losing the draft; Markdown and plain text retain their text-block fallback."
+      expected_observable: "Invalid input is refused before dispatch without losing the draft; unknown capability reaches backend admission, explicit bound-agent refusal blocks the matching input, and Markdown and plain text retain their text-block fallback."
     - step: 3
       verb: "Submit an attachment-only and a text-plus-attachment prompt, including while busy"
       expected_observable: "Direct, queue, and interrupt preserve ordered byte-free refs; steer never drops or accepts attachments."
@@ -71,5 +71,5 @@ e2e_backbone:
   runtime:
     - "CLI/HTTP/UDS/native upload and prompt parity, durable queue retention, and deletion rollback."
   manual:
-    - "Verify image and PDF capability refusal separately from Markdown/plain-text fallback."
+    - "Verify image and PDF capability admission against the bound ACP agent separately from Markdown/plain-text fallback."
 ```

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/session/inputqueue"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -51,10 +52,9 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	preparation.request.attachments, err = m.canonicalPromptAttachments(
-		ctx, workspaceID, session.ID, preparation.request.attachments,
-	)
-	if err != nil {
+	if err := m.canonicalizePromptRequestAttachments(
+		ctx, workspaceID, session.ID, &preparation.request,
+	); err != nil {
 		return SendPromptResult{}, err
 	}
 	preparation.request.runtime, err = m.resolvePromptRuntimeAtAdmission(
@@ -311,12 +311,14 @@ func (m *Manager) enqueueBusyPrompt(
 	}
 	entry, position, err := m.inputQueue.Enqueue(
 		ctx,
-		session.ID,
-		req.message,
-		generation,
-		storeRuntimeSelection(req.runtime),
-		req.skillInvocations,
-		storeAttachments(req.attachments),
+		inputqueue.InputRequest{
+			SessionID:        session.ID,
+			Text:             req.message,
+			Generation:       generation,
+			Runtime:          storeRuntimeSelection(req.runtime),
+			SkillInvocations: req.skillInvocations,
+			Attachments:      storeAttachments(req.attachments),
+		},
 	)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionInputQueueFull) {
@@ -367,13 +369,15 @@ func (m *Manager) stageSteerPrompt(
 	}
 	entry, err := m.inputQueue.StageSteer(
 		ctx,
-		session.ID,
-		req.message,
-		targetTurnID,
-		generation,
-		storeRuntimeSelection(req.runtime),
-		req.skillInvocations,
-		storeAttachments(req.attachments),
+		inputqueue.InputRequest{
+			SessionID:        session.ID,
+			Text:             req.message,
+			TargetTurnID:     targetTurnID,
+			Generation:       generation,
+			Runtime:          storeRuntimeSelection(req.runtime),
+			SkillInvocations: req.skillInvocations,
+			Attachments:      storeAttachments(req.attachments),
+		},
 	)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -409,12 +413,14 @@ func (m *Manager) interruptAndSubmitPrompt(
 	}
 	entry, canceled, err := m.inputQueue.EnqueueInterrupt(
 		ctx,
-		session.ID,
-		req.message,
-		previousTurnID,
-		storeRuntimeSelection(req.runtime),
-		req.skillInvocations,
-		storeAttachments(req.attachments),
+		inputqueue.InputRequest{
+			SessionID:        session.ID,
+			Text:             req.message,
+			TargetTurnID:     previousTurnID,
+			Runtime:          storeRuntimeSelection(req.runtime),
+			SkillInvocations: req.skillInvocations,
+			Attachments:      storeAttachments(req.attachments),
+		},
 	)
 	if err != nil {
 		return SendPromptResult{}, err

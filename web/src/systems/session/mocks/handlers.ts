@@ -15,9 +15,8 @@ import {
   sessionRepairFixture,
   sessionTranscriptFixture,
 } from "./fixtures";
-import type { CreateSessionParams } from "../types";
-import type { SessionAttachment } from "../types";
-import { sniffAttachmentFile } from "../lib/attachment-kinds";
+import { uploadedAttachmentFromRequest } from "./session-attachment-upload";
+import type { CreateSessionParams, SessionAttachment } from "../types";
 
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
 const storyWorkspaceNameById = new Map(
@@ -41,6 +40,10 @@ export function seedSessionAttachmentMock(
   });
 }
 
+export function resetSessionAttachmentMock(): void {
+  attachmentBytes.clear();
+}
+
 function attachmentStoreKey(workspaceId: string, sessionId: string, attachmentId: string): string {
   return `${workspaceId}\u0000${sessionId}\u0000${attachmentId}`;
 }
@@ -48,6 +51,24 @@ function attachmentStoreKey(workspaceId: string, sessionId: string, attachmentId
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function mockAttachmentClassification(mimeType: string): {
+  kind: "file" | "image";
+  mimeType: string;
+} | null {
+  switch (mimeType) {
+    case "image/png":
+    case "image/jpeg":
+    case "image/webp":
+      return { kind: "image", mimeType };
+    case "application/pdf":
+    case "text/markdown":
+    case "text/plain":
+      return { kind: "file", mimeType };
+    default:
+      return null;
+  }
 }
 
 function createSessionCatalogStreamResponse(): Response {
@@ -232,30 +253,23 @@ export const handlers: HttpHandler[] = [
       if (!session || session.workspace_id !== workspaceId) {
         return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
       }
-      const form = await request.formData();
-      const uploaded = form.get("file");
-      if (uploaded === null || typeof uploaded === "string") {
+      const uploaded = await uploadedAttachmentFromRequest(request);
+      if (!uploaded) {
         return HttpResponse.json({ error: "file is required" }, { status: 400 });
       }
-      const sniff = await sniffAttachmentFile(uploaded);
-      if (!sniff.ok) {
-        return HttpResponse.json(
-          {
-            error:
-              sniff.reason === "too-large" ? "file exceeds upload limit" : "unsupported mime type",
-          },
-          { status: sniff.reason === "too-large" ? 413 : 415 }
-        );
+      const classification = mockAttachmentClassification(uploaded.mimeType);
+      if (!classification) {
+        return HttpResponse.json({ error: "unsupported mime type" }, { status: 415 });
       }
-      const bytes = new Uint8Array(await uploaded.arrayBuffer());
+      const bytes = uploaded.bytes;
       const digest = await sha256Hex(bytes);
       const attachment: SessionAttachment = {
         bytes: bytes.byteLength,
         created_at: "2026-04-17T18:11:00Z",
         height: 0,
         id: `att_${digest}`,
-        kind: sniff.kind,
-        mime_type: sniff.mimeType,
+        kind: classification.kind,
+        mime_type: classification.mimeType,
         name: uploaded.name,
         sha256: digest,
         width: 0,

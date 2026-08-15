@@ -33,6 +33,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -442,6 +443,140 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	if got, want := registry.networkAvailabilityWrites, []bool{false}; !slices.Equal(got, want) {
 		t.Fatalf("network availability boot writes = %#v, want %#v", got, want)
 	}
+}
+
+func TestBootSessionAttachmentRetentionPinsQueuedInputs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain queued attachments through the startup retention sweep", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+		cfg.Session.Attachments.Retention.MaxCount = 1
+		cfg.Session.Attachments.Retention.MaxBytes = 1 << 20
+		cfg.Session.Attachments.Retention.MaxAge = 24 * time.Hour
+
+		preBootStore, err := attachmentspkg.OpenFilesystemAttachmentStore(t.Context(), attachmentspkg.FilesystemStoreConfig{
+			Root:      homePaths.SessionAttachmentsDir,
+			Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: 24 * time.Hour},
+			Limits: attachmentspkg.StoreLimits{
+				MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
+				AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+			},
+		})
+		if err != nil {
+			t.Fatalf("OpenFilesystemAttachmentStore(pre-boot) error = %v", err)
+		}
+		queued, err := preBootStore.Put(t.Context(), attachmentspkg.PutRequest{
+			WorkspaceID: "ws-queued",
+			SessionID:   "sess-queued",
+			Name:        "queued.txt",
+			Data:        []byte("queued"),
+		})
+		if err != nil {
+			t.Fatalf("Put(queued attachment) error = %v", err)
+		}
+		unrelated, err := preBootStore.Put(t.Context(), attachmentspkg.PutRequest{
+			WorkspaceID: "ws-queued",
+			SessionID:   "sess-queued",
+			Name:        "unrelated.txt",
+			Data:        []byte("unrelated"),
+		})
+		if err != nil {
+			t.Fatalf("Put(unrelated attachment) error = %v", err)
+		}
+		if err := setAttachmentCreatedAt(
+			homePaths.SessionAttachmentsDir,
+			"ws-queued",
+			"sess-queued",
+			queued.ID,
+			time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+		); err != nil {
+			t.Fatalf("setAttachmentCreatedAt(queued attachment) error = %v", err)
+		}
+
+		registry := &queuedAttachmentRecordingRegistry{
+			recordingRegistry: &recordingRegistry{path: homePaths.DatabaseFile},
+			queuedAttachmentStore: queuedAttachmentStore{
+				entries: []store.SessionInputQueueEntry{{
+					SessionID: "sess-queued",
+					Attachments: []store.SessionInputAttachment{{
+						ID: queued.ID,
+					}},
+				}},
+			},
+		}
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.openRegistry = func(context.Context, string) (Registry, error) {
+			return registry, nil
+		}
+		var bootAttachments attachmentspkg.Store
+		d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+			attachmentStore, ok := deps.SessionAttachments.(attachmentspkg.Store)
+			if !ok {
+				return nil, fmt.Errorf("session attachment opener = %T, want attachment store", deps.SessionAttachments)
+			}
+			bootAttachments = attachmentStore
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+
+		if bootAttachments == nil {
+			t.Fatal("session manager dependencies omit session attachments")
+		}
+		if _, err := bootAttachments.Stat(t.Context(), "ws-queued", "sess-queued", queued.ID); err != nil {
+			t.Fatalf("Stat(queued attachment) error = %v", err)
+		}
+		if _, err := bootAttachments.Stat(t.Context(), "ws-queued", "sess-queued", unrelated.ID); !errors.Is(err, attachmentspkg.ErrNotFound) {
+			t.Fatalf("Stat(unrelated attachment) error = %v, want %v", err, attachmentspkg.ErrNotFound)
+		}
+	})
+}
+
+func setAttachmentCreatedAt(
+	root string,
+	workspaceID string,
+	sessionID string,
+	attachmentID string,
+	createdAt time.Time,
+) error {
+	path := filepath.Join(root, workspaceID, sessionID, attachmentID+".json")
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read attachment metadata: %w", err)
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal(payload, &metadata); err != nil {
+		return fmt.Errorf("decode attachment metadata: %w", err)
+	}
+	metadata["created_at"] = createdAt.UTC().Format(time.RFC3339Nano)
+	payload, err = json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("encode attachment metadata: %w", err)
+	}
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		return fmt.Errorf("write attachment metadata: %w", err)
+	}
+	return nil
 }
 
 func TestBootPublishesOperatingSystemProcessStartTime(t *testing.T) {
@@ -7926,6 +8061,22 @@ type recordingRegistry struct {
 	coordinationSettings      map[string]workspacepkg.CoordinationSetting
 	approvalGrants            map[toolspkg.ApprovalGrantKey]toolspkg.ApprovalGrant
 	gatewaySnapshot           gateway.Snapshot
+}
+
+type queuedAttachmentRecordingRegistry struct {
+	*recordingRegistry
+	queuedAttachmentStore
+}
+
+type queuedAttachmentStore struct {
+	entries []store.SessionInputQueueEntry
+}
+
+func (s queuedAttachmentStore) ListPendingSessionInputs(
+	context.Context,
+	string,
+) ([]store.SessionInputQueueEntry, error) {
+	return slices.Clone(s.entries), nil
 }
 
 func (r *recordingRegistry) Snapshot(context.Context) (gateway.Snapshot, error) {

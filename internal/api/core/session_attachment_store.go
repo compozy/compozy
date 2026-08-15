@@ -9,10 +9,7 @@ import (
 
 // SessionAttachmentStore is the attachment persistence surface consumed by API handlers.
 type SessionAttachmentStore interface {
-	Put(ctx context.Context, workspaceID string, sessionID string, name string, data []byte) (
-		attachmentspkg.AttachmentRef,
-		error,
-	)
+	Put(ctx context.Context, request attachmentspkg.PutRequest) (attachmentspkg.AttachmentRef, error)
 	Open(ctx context.Context, workspaceID string, sessionID string, id string) (
 		io.ReadCloser,
 		attachmentspkg.AttachmentRef,

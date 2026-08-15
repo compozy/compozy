@@ -12,7 +12,8 @@ import (
 func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 	text := decoded.parsed.Text
 	attachments := decoded.agent.Attachments()
-	if strings.TrimSpace(text) == "" && len(attachments) == 0 {
+	hasText := strings.TrimSpace(text) != ""
+	if !hasText && len(attachments) == 0 {
 		return nil
 	}
 	parts := make([]UIMessagePart, 0, len(attachments)+1)
@@ -24,7 +25,7 @@ func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 			Filename:  attachment.Name,
 		})
 	}
-	if strings.TrimSpace(text) != "" {
+	if hasText {
 		parts = append(parts, UIMessagePart{
 			Type:  uiPartText,
 			Text:  text,

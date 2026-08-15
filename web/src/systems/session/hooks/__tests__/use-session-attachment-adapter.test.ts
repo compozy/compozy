@@ -98,4 +98,23 @@ describe("SessionAttachmentAdapter upload removal", () => {
     await expect(adapter.remove(running.value)).resolves.toBeUndefined();
     expect(attachmentApiMocks.deleteSessionAttachment).toHaveBeenCalledTimes(2);
   });
+
+  it("Should not resurrect a failed tile after its in-flight upload is removed", async () => {
+    const upload = deferred<SessionAttachment>();
+    attachmentApiMocks.uploadSessionAttachment.mockReturnValue(upload.promise);
+    const adapter = new SessionAttachmentAdapter({ workspaceId: "ws-a", sessionId: "sess-a" });
+    const iterator = adapter.add({ file: pngFile() });
+    const running = await iterator.next();
+    if (running.done) throw new Error("attachment upload ended before yielding its pending state");
+
+    const completion = iterator.next();
+    await vi.waitFor(() =>
+      expect(attachmentApiMocks.uploadSessionAttachment).toHaveBeenCalledOnce()
+    );
+    const removal = adapter.remove(running.value);
+    upload.reject(new Error("upload unavailable"));
+
+    await expect(removal).resolves.toBeUndefined();
+    await expect(completion).resolves.toEqual({ done: true, value: undefined });
+  });
 });

@@ -83,7 +83,7 @@ const knownDataSchemas: Record<string, z.ZodType<unknown>> = {
 
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];
 
-interface PartTurnMeta {
+interface PartMetadata {
   turnId?: string;
   timestamp?: string;
   bytes?: number;
@@ -228,12 +228,12 @@ function restoreOriginalToolParts(
 }
 
 // `validateUIMessages` parses every part against the AI SDK's schema, which drops
-// unknown sibling keys — so CompozyOS's custom `turn_id`/`timestamp` fields never survive
-// validation. The turn-fold derivation needs them (turn boundaries + "Worked for Xs"
-// duration), so capture them before validation and re-attach afterward. Validation
+// unknown sibling keys — so CompozyOS's custom metadata fields never survive
+// validation. Turn folding and attachment rendering need their turn, time, and
+// attachment metadata, so capture it before validation and re-attach afterward. Validation
 // preserves part order/count (an invalid part fails the whole message and throws),
 // so index alignment is sound; the length guard is purely defensive.
-function capturePartTurnMeta(messages: unknown): PartTurnMeta[][] {
+function capturePartMetadata(messages: unknown): PartMetadata[][] {
   if (!Array.isArray(messages)) {
     return [];
   }
@@ -241,39 +241,39 @@ function capturePartTurnMeta(messages: unknown): PartTurnMeta[][] {
     if (!isRecord(message) || !Array.isArray(message.parts)) {
       return [];
     }
-    return message.parts.map((part): PartTurnMeta => {
+    return message.parts.map((part): PartMetadata => {
       if (!isRecord(part)) {
         return {};
       }
-      const meta: PartTurnMeta = {};
+      const metadata: PartMetadata = {};
       const turnId = stringField(part, "turnId") ?? stringField(part, "turn_id");
       if (turnId) {
-        meta.turnId = turnId;
+        metadata.turnId = turnId;
       }
       const timestamp = stringField(part, "timestamp");
       if (timestamp) {
-        meta.timestamp = timestamp;
+        metadata.timestamp = timestamp;
       }
       const bytes = numberField(part, "bytes");
       if (bytes !== undefined) {
-        meta.bytes = bytes;
+        metadata.bytes = bytes;
       }
       const width = numberField(part, "width");
       if (width !== undefined) {
-        meta.width = width;
+        metadata.width = width;
       }
       const height = numberField(part, "height");
       if (height !== undefined) {
-        meta.height = height;
+        metadata.height = height;
       }
-      return meta;
+      return metadata;
     });
   });
 }
 
-function reattachPartTurnMeta(
+function reattachPartMetadata(
   validated: SessionMessage[],
-  captured: PartTurnMeta[][]
+  captured: PartMetadata[][]
 ): SessionMessage[] {
   return validated.map((message, index) => {
     const parts = message.parts;
@@ -344,12 +344,12 @@ export async function normalizeTranscriptMessages(messages: unknown): Promise<Se
     return [];
   }
 
-  const capturedTurnMeta = capturePartTurnMeta(messages);
+  const capturedMetadata = capturePartMetadata(messages);
   const validationMessages = messagesForValidation(messages);
   const validated = await validateUIMessages<SessionMessage>({
     messages: validationMessages,
     dataSchemas: dataSchemasForMessages(validationMessages),
   });
-  const withTurnMeta = reattachPartTurnMeta(validated, capturedTurnMeta);
-  return restoreOriginalToolParts(withTurnMeta, messages);
+  const withMetadata = reattachPartMetadata(validated, capturedMetadata);
+  return restoreOriginalToolParts(withMetadata, messages);
 }

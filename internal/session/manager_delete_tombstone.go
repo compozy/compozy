@@ -22,6 +22,8 @@ const (
 	sessionDeleteTombstoneCommitted
 )
 
+var errInvalidSessionDeleteTombstone = errors.New("session: invalid deletion tombstone")
+
 func sessionDeleteTombstoneName(prefix string, target string, deletionID string) string {
 	encodedTarget := base64.RawURLEncoding.EncodeToString([]byte(target))
 	return prefix + encodedTarget + "." + deletionID
@@ -39,19 +41,29 @@ func parseSessionDeleteTombstoneParts(name string) (sessionDeleteTombstoneState,
 		state = sessionDeleteTombstoneCommitted
 		value = strings.TrimPrefix(cleanName, sessionDeleteCommittedPrefix)
 	default:
-		return 0, "", "", fmt.Errorf("session: invalid deletion tombstone name %q", name)
+		return 0, "", "", fmt.Errorf("%w name %q", errInvalidSessionDeleteTombstone, name)
 	}
 	separator := strings.LastIndexByte(value, '.')
 	if separator <= 0 || separator == len(value)-1 {
-		return 0, "", "", fmt.Errorf("session: invalid deletion tombstone name %q", name)
+		return 0, "", "", fmt.Errorf("%w name %q", errInvalidSessionDeleteTombstone, name)
 	}
 	decodedTarget, err := base64.RawURLEncoding.DecodeString(value[:separator])
 	if err != nil {
-		return 0, "", "", fmt.Errorf("session: decode deletion tombstone target %q: %w", name, err)
+		return 0, "", "", fmt.Errorf(
+			"%w target %q: %w",
+			errInvalidSessionDeleteTombstone,
+			name,
+			err,
+		)
 	}
 	target, err := normalizeStoredSessionID(string(decodedTarget))
 	if err != nil {
-		return 0, "", "", fmt.Errorf("session: normalize deletion tombstone target %q: %w", name, err)
+		return 0, "", "", fmt.Errorf(
+			"%w target %q: %w",
+			errInvalidSessionDeleteTombstone,
+			name,
+			err,
+		)
 	}
 	return state, target, value[separator+1:], nil
 }

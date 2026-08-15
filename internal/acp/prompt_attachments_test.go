@@ -14,9 +14,9 @@ func TestAttachmentContentBlocks(t *testing.T) {
 		t.Parallel()
 
 		data := []byte("image-bytes")
-		blocks, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{{
+		blocks, err := attachmentContentBlocks([]PromptAttachment{{
 			Name: "diagram.png", MIMEType: "image/png", Data: data,
-		}}}, Caps{PromptImage: true})
+		}}, Caps{PromptImage: true})
 		if err != nil {
 			t.Fatalf("attachmentContentBlocks() error = %v", err)
 		}
@@ -35,9 +35,9 @@ func TestAttachmentContentBlocks(t *testing.T) {
 		t.Parallel()
 
 		data := []byte("pdf-bytes")
-		blocks, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{{
+		blocks, err := attachmentContentBlocks([]PromptAttachment{{
 			Name: "report.pdf", MIMEType: "application/pdf", Data: data,
-		}}}, Caps{PromptEmbeddedContext: true})
+		}}, Caps{PromptEmbeddedContext: true})
 		if err != nil {
 			t.Fatalf("attachmentContentBlocks() error = %v", err)
 		}
@@ -57,9 +57,9 @@ func TestAttachmentContentBlocks(t *testing.T) {
 	t.Run("Should embed markdown text when embedded context is supported", func(t *testing.T) {
 		t.Parallel()
 
-		blocks, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{{
+		blocks, err := attachmentContentBlocks([]PromptAttachment{{
 			Name: "notes.md", MIMEType: "text/markdown", Data: []byte("# Notes"),
-		}}}, Caps{PromptEmbeddedContext: true})
+		}}, Caps{PromptEmbeddedContext: true})
 		if err != nil {
 			t.Fatalf("attachmentContentBlocks() error = %v", err)
 		}
@@ -75,9 +75,9 @@ func TestAttachmentContentBlocks(t *testing.T) {
 	t.Run("Should fall back to baseline text when embedded context is unavailable", func(t *testing.T) {
 		t.Parallel()
 
-		blocks, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{{
+		blocks, err := attachmentContentBlocks([]PromptAttachment{{
 			Name: "notes.txt", MIMEType: "text/plain", Data: []byte("plain notes"),
-		}}}, Caps{})
+		}}, Caps{})
 		if err != nil {
 			t.Fatalf("attachmentContentBlocks() error = %v", err)
 		}
@@ -113,7 +113,7 @@ func TestAttachmentContentBlocksCapabilityGate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{tt.item}}, Caps{})
+			_, err := attachmentContentBlocks([]PromptAttachment{tt.item}, Caps{})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("attachmentContentBlocks() error = %v, want %v", err, tt.wantErr)
 			}
@@ -135,14 +135,25 @@ func TestPromptRequestValidateAttachments(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept a zero-byte text attachment", func(t *testing.T) {
+		t.Parallel()
+
+		err := (PromptRequest{TurnID: "turn-empty-text", Attachments: []PromptAttachment{{
+			Name: "empty.txt", MIMEType: "text/plain",
+		}}}).Validate()
+		if err != nil {
+			t.Fatalf("PromptRequest.Validate() error = %v", err)
+		}
+	})
+
 	t.Run("Should reject empty attachment data", func(t *testing.T) {
 		t.Parallel()
 
 		err := (PromptRequest{TurnID: "turn-empty-data", Attachments: []PromptAttachment{{
 			Name: "photo.png", MIMEType: "image/png",
 		}}}).Validate()
-		if err == nil || !strings.Contains(err.Error(), "data is required") {
-			t.Fatalf("PromptRequest.Validate() error = %v, want missing data error", err)
+		if !errors.Is(err, ErrPromptAttachmentDataRequired) {
+			t.Fatalf("PromptRequest.Validate() error = %v, want ErrPromptAttachmentDataRequired", err)
 		}
 	})
 
@@ -153,8 +164,8 @@ func TestPromptRequestValidateAttachments(t *testing.T) {
 		err := (PromptRequest{TurnID: "turn-invalid", Attachments: []PromptAttachment{{
 			Name: "secret.bin", MIMEType: "application/octet-stream", Data: []byte(secret),
 		}}}).Validate()
-		if err == nil {
-			t.Fatal("PromptRequest.Validate() error = nil, want unsupported MIME error")
+		if !errors.Is(err, ErrPromptAttachmentMIMEUnsupported) {
+			t.Fatalf("PromptRequest.Validate() error = %v, want ErrPromptAttachmentMIMEUnsupported", err)
 		}
 		if strings.Contains(err.Error(), secret) {
 			t.Fatalf("PromptRequest.Validate() error exposed attachment data: %v", err)
