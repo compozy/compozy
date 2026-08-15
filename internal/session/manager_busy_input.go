@@ -129,11 +129,7 @@ func (m *Manager) prepareSendPrompt(
 	if err != nil {
 		return sendPromptPreparation{}, nil, err
 	}
-	req, err := m.parsePromptRequest(ctx, id, PromptOpts{
-		Message:         opts.Message,
-		TurnSource:      TurnSourceUser,
-		DeliveryContext: opts.DeliveryContext,
-	})
+	req, err := m.parseSendPromptRequest(ctx, id, opts)
 	if err != nil {
 		return sendPromptPreparation{}, nil, err
 	}
@@ -310,6 +306,7 @@ func (m *Manager) enqueueBusyPrompt(
 		generation,
 		storeRuntimeSelection(req.runtime),
 		req.skillInvocations,
+		storeAttachments(req.attachments),
 	)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionInputQueueFull) {
@@ -366,6 +363,7 @@ func (m *Manager) stageSteerPrompt(
 		generation,
 		storeRuntimeSelection(req.runtime),
 		req.skillInvocations,
+		storeAttachments(req.attachments),
 	)
 	if err != nil {
 		return SendPromptResult{}, err
@@ -406,6 +404,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 		previousTurnID,
 		storeRuntimeSelection(req.runtime),
 		req.skillInvocations,
+		storeAttachments(req.attachments),
 	)
 	if err != nil {
 		return SendPromptResult{}, err

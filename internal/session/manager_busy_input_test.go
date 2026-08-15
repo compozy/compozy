@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -43,7 +44,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				operation: store.SessionPromptOperationPrompt,
 				mode:      store.SessionInputQueueModeQueue,
 				call: func(ctx context.Context, queue *inputqueue.Service, sessionID string, _ store.SessionPromptAdmissionRequest) error {
-					_, _, err := queue.Enqueue(ctx, sessionID, "queued prompt", 0, store.SessionInputRuntime{}, nil)
+					_, _, err := queue.Enqueue(ctx, sessionID, "queued prompt", 0, store.SessionInputRuntime{}, nil, nil)
 					return err
 				},
 			},
@@ -60,6 +61,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 						"turn-active",
 						0,
 						store.SessionInputRuntime{},
+						nil,
 						nil,
 					)
 					return err
@@ -209,9 +211,14 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		t.Parallel()
 
 		queueStore := openManagerInputQueueStore(t)
+		queuedAttachmentData := []byte("queued attachment")
+		opener := &promptAttachmentOpenerStub{data: map[string][]byte{
+			"att-queued": queuedAttachmentData,
+		}}
 		h := newHarness(
 			t,
 			WithSessionInputQueueStore(queueStore),
+			WithAttachmentOpener(opener),
 			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
 				DefaultMode:  string(BusyInputModeQueue),
 				QueueCap:     3,
@@ -266,6 +273,9 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		queued, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
 			Message: "queued prompt",
 			Mode:    BusyInputModeQueue,
+			Attachments: []AttachmentMeta{promptAttachmentMeta(
+				"att-queued", "queued.txt", "text/plain", queuedAttachmentData,
+			)},
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(queue) error = %v", err)
@@ -291,6 +301,10 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		}
 		if got := promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceUser {
 			t.Fatalf("queued dispatch turn source = %q, want user", got)
+		}
+		if len(promptCalls[1].Attachments) != 1 ||
+			!bytes.Equal(promptCalls[1].Attachments[0].Data, queuedAttachmentData) {
+			t.Fatalf("queued dispatch attachments = %#v, want resolved attachment", promptCalls[1].Attachments)
 		}
 	})
 

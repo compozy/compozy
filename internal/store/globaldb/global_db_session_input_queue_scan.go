@@ -65,6 +65,11 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 	if err := json.Unmarshal([]byte(row.SkillInvocationsJson), &entry.SkillInvocations); err != nil {
 		return store.SessionInputQueueEntry{}, fmt.Errorf("store: decode session input skill invocations: %w", err)
 	}
+	attachments, err := decodeSessionInputAttachments(row.AttachmentsJson)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	entry.Attachments = attachments
 	if err := parseSessionInputQueueTimes(
 		&entry, row.EnqueuedAt, row.UpdatedAt, row.DispatchStartedAt, row.SentAt,
 		row.FailedAt, row.CanceledAt, sqlNullStringFromTime(row.ActivatedAt),

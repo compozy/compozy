@@ -11,6 +11,7 @@ type PromptInput struct {
 	Message        string
 	MessageID      string
 	IdempotencyKey string
+	Attachments    []PromptAttachmentRef
 }
 
 // ExtractPromptInput validates explicit command identity and AI SDK message correlation.
@@ -26,12 +27,22 @@ func ExtractPromptInput(req SendPromptRequest) (PromptInput, error) {
 	if idempotencyKey == "" {
 		return PromptInput{}, errors.New("idempotency_key is required")
 	}
+	attachments := append([]PromptAttachmentRef(nil), req.Attachments...)
+	// seam: config [session.attachments].max_files_per_prompt
+	if err := ValidatePromptAttachments(attachments, DefaultPromptAttachmentLimit); err != nil {
+		return PromptInput{}, err
+	}
 	topLevelMessage := strings.TrimSpace(req.Message)
 	if len(req.Messages) == 0 {
-		if topLevelMessage == "" {
+		if topLevelMessage == "" && len(attachments) == 0 {
 			return PromptInput{}, errors.New("message is required")
 		}
-		return PromptInput{Message: topLevelMessage, MessageID: messageID, IdempotencyKey: idempotencyKey}, nil
+		return PromptInput{
+			Message:        topLevelMessage,
+			MessageID:      messageID,
+			IdempotencyKey: idempotencyKey,
+			Attachments:    attachments,
+		}, nil
 	}
 
 	for _, message := range slices.Backward(req.Messages) {
@@ -42,13 +53,18 @@ func ExtractPromptInput(req SendPromptRequest) (PromptInput, error) {
 			return PromptInput{}, errors.New("latest user message id must equal message_id")
 		}
 		authored := promptUIMessageText(message)
-		if authored == "" {
+		if authored == "" && len(attachments) == 0 {
 			return PromptInput{}, errors.New("message is required")
 		}
 		if topLevelMessage != "" && topLevelMessage != authored {
 			return PromptInput{}, errors.New("message must equal the latest user message text")
 		}
-		return PromptInput{Message: authored, MessageID: messageID, IdempotencyKey: idempotencyKey}, nil
+		return PromptInput{
+			Message:        authored,
+			MessageID:      messageID,
+			IdempotencyKey: idempotencyKey,
+			Attachments:    attachments,
+		}, nil
 	}
 	return PromptInput{}, errors.New("latest user message is required")
 }

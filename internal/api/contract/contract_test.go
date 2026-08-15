@@ -955,6 +955,60 @@ func TestSendPromptRequestJSONShape(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should round-trip prompt attachment refs on the wire", func(t *testing.T) {
+		t.Parallel()
+
+		req := contract.SendPromptRequest{
+			MessageID:      "msg-prompt-attachments",
+			IdempotencyKey: "idem-prompt-attachments",
+			Attachments: []contract.PromptAttachmentRef{{
+				ID:       "att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Name:     "shot.png",
+				MIMEType: "image/png",
+				Bytes:    2048,
+				SHA256:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Kind:     contract.PromptAttachmentKindImage,
+				Width:    640,
+				Height:   480,
+			}},
+		}
+		raw, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var decoded contract.SendPromptRequest
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if len(decoded.Attachments) != 1 {
+			t.Fatalf("decoded attachments = %#v, want 1 ref", decoded.Attachments)
+		}
+		got := decoded.Attachments[0]
+		if got.ID != req.Attachments[0].ID || got.Name != "shot.png" ||
+			got.MIMEType != "image/png" || got.Bytes != 2048 ||
+			got.SHA256 != req.Attachments[0].SHA256 ||
+			got.Kind != contract.PromptAttachmentKindImage ||
+			got.Width != 640 || got.Height != 480 {
+			t.Fatalf("decoded attachment = %#v, want %#v", got, req.Attachments[0])
+		}
+		var shape map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &shape); err != nil {
+			t.Fatalf("json.Unmarshal(attachment shape) error = %v", err)
+		}
+		var attachments []map[string]json.RawMessage
+		if err := json.Unmarshal(shape["attachments"], &attachments); err != nil {
+			t.Fatalf("json.Unmarshal(attachments) error = %v", err)
+		}
+		if len(attachments) != 1 {
+			t.Fatalf("attachments shape = %#v, want 1 object", attachments)
+		}
+		for _, field := range []string{"id", "name", "mime_type", "bytes", "sha256", "kind", "width", "height"} {
+			if _, ok := attachments[0][field]; !ok {
+				t.Fatalf("attachment shape missing %q: %#v", field, attachments[0])
+			}
+		}
+	})
 }
 
 func TestPromptRuntimeSelectionFromPayload(t *testing.T) {

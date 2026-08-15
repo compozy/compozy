@@ -226,7 +226,8 @@ func sameSessionInputMutation(
 		entry.Mode == replacement.Mode &&
 		entry.Delivery == replacement.Delivery &&
 		entry.Text == replacement.Text &&
-		slices.Equal(entry.SkillInvocations, replacement.SkillInvocations)
+		slices.Equal(entry.SkillInvocations, replacement.SkillInvocations) &&
+		slices.Equal(entry.Attachments, replacement.Attachments)
 }
 
 func cancelPriorPendingSessionSteers(

@@ -339,6 +339,10 @@ func insertSessionInputQueueEntry(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, fmt.Errorf("store: encode session input skill invocations: %w", err)
 	}
+	attachmentsJSON, err := encodeSessionInputAttachments(normalized.Attachments)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
 	if err := sqlcgen.New(exec).InsertSessionInputQueueEntry(ctx, sqlcgen.InsertSessionInputQueueEntryParams{
 		ID: normalized.ID, SessionID: normalized.SessionID,
 		PromptAdmissionID: sql.NullString{
@@ -350,6 +354,7 @@ func insertSessionInputQueueEntry(
 		Status: store.SessionInputQueueStatusQueued,
 		Mode:   normalized.Mode, Delivery: normalized.Delivery, Text: normalized.Text,
 		SkillInvocationsJson: string(skillInvocationsJSON),
+		AttachmentsJson:      attachmentsJSON,
 		RuntimeProvider:      normalized.Runtime.Provider, RuntimeModel: normalized.Runtime.Model,
 		RuntimeReasoningEffort: normalized.Runtime.ReasoningEffort, RuntimeSpeed: normalized.Runtime.Speed,
 		SessionGeneration: normalized.SessionGeneration,

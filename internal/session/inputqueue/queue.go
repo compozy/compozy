@@ -47,6 +47,7 @@ type insertSpec struct {
 	generation       int64
 	runtime          store.SessionInputRuntime
 	skillInvocations []commandpkg.Invocation
+	attachments      []store.SessionInputAttachment
 }
 
 // Option customizes a Service.
@@ -109,6 +110,7 @@ func (s *Service) Enqueue(
 	generation int64,
 	runtime store.SessionInputRuntime,
 	skillInvocations []commandpkg.Invocation,
+	attachments []store.SessionInputAttachment,
 ) (store.SessionInputQueueEntry, int, error) {
 	insert, err := s.newInsert(insertSpec{
 		sessionID:        sessionID,
@@ -118,6 +120,7 @@ func (s *Service) Enqueue(
 		generation:       generation,
 		runtime:          runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
+		attachments:      append([]store.SessionInputAttachment(nil), attachments...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
@@ -169,6 +172,7 @@ func (s *Service) EnqueueInterrupt(
 	targetTurnID string,
 	runtime store.SessionInputRuntime,
 	skillInvocations []commandpkg.Invocation,
+	attachments []store.SessionInputAttachment,
 ) (store.SessionInputQueueEntry, int, error) {
 	insert, err := s.newInsert(insertSpec{
 		sessionID:        sessionID,
@@ -178,6 +182,7 @@ func (s *Service) EnqueueInterrupt(
 		targetTurnID:     targetTurnID,
 		runtime:          runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
+		attachments:      append([]store.SessionInputAttachment(nil), attachments...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
@@ -212,6 +217,7 @@ func (s *Service) StageSteer(
 	generation int64,
 	runtime store.SessionInputRuntime,
 	skillInvocations []commandpkg.Invocation,
+	attachments []store.SessionInputAttachment,
 ) (store.SessionInputQueueEntry, error) {
 	insert, err := s.newInsert(insertSpec{
 		sessionID:        sessionID,
@@ -222,6 +228,7 @@ func (s *Service) StageSteer(
 		generation:       generation,
 		runtime:          runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
+		attachments:      append([]store.SessionInputAttachment(nil), attachments...),
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
@@ -262,6 +269,7 @@ func (s *Service) prepareAdmittedEntry(
 	spec.text = admission.AuthoredText
 	spec.runtime = admission.Runtime
 	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
+	spec.attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
 	insert, err := s.newInsert(spec)
 	if err != nil {
 		return nil, store.SessionInputQueueInsert{}, err
@@ -362,7 +370,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 	if target == "" {
 		return store.SessionInputQueueInsert{}, errors.New("inputqueue: session id is required")
 	}
-	if message == "" {
+	if message == "" && (spec.mode == store.SessionInputQueueModeSteer || len(spec.attachments) == 0) {
 		return store.SessionInputQueueInsert{}, errors.New("inputqueue: text is required")
 	}
 	if len([]byte(message)) > s.cfg.MaxTextBytes {
@@ -388,6 +396,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 		Text:              message,
 		Runtime:           spec.runtime,
 		SkillInvocations:  append([]commandpkg.Invocation(nil), spec.skillInvocations...),
+		Attachments:       append([]store.SessionInputAttachment(nil), spec.attachments...),
 		SessionGeneration: spec.generation,
 		QueueCap:          s.cfg.QueueCap,
 		Now:               s.now(),

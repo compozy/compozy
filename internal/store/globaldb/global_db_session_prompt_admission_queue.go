@@ -351,5 +351,6 @@ func bindQueueAdmission(
 	req.Text = admission.AuthoredText
 	req.Runtime = admission.Runtime
 	req.SkillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
+	req.Attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
 	return req
 }

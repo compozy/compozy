@@ -64,6 +64,7 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 			Mode:            session.BusyInputMode(request.Mode),
 			ExpectedTurnID:  request.ExpectedTurnID,
 			Runtime:         PromptRuntimeSelectionFromPayload(request.Runtime),
+			Attachments:     contract.AttachmentMetaFromRefs(input.Attachments),
 			DeliveryContext: deliveryContext,
 			Caller:          caller,
 			AllowCommands:   true,

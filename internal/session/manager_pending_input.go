@@ -184,5 +184,6 @@ func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 		EnqueuedAt:       entry.EnqueuedAt,
 		Runtime:          runtime,
 		SkillInvocations: append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
+		Attachments:      attachmentMetaFromStore(entry.Attachments),
 	}
 }
