@@ -155,9 +155,9 @@ export function WorktreeCreateDialog({
               </p>
             ) : null}
 
-            {model.creationError ? (
+            {model.materializationError ? (
               <p className="mt-2 text-form-hint text-danger" data-testid="worktree-create-error">
-                {model.creationError}
+                {model.materializationError}
               </p>
             ) : null}
 

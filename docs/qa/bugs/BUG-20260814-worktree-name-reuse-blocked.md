@@ -4,7 +4,7 @@
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Ada
-- **Journey Step:** J-worktree-management, step 8
+- **Journey Step:** J-worktree-management, step 7
 - **Scenarios:** RT-worktree-cli-lifecycle
 - **Found:** 2026-08-14 · **Report:** docs/qa/reports/2026-08-14-worktree-lifecycle-fixes.md
 
@@ -46,3 +46,4 @@ Corrected evidence:
 - `/Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-recreate-same-name.json`
 - `/Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-new-name-ready.json`
 - `/Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-old-id-tombstone.json`
+- `/Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/teardown.json` (`clean: true`)

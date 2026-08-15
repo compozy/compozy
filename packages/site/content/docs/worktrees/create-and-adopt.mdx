@@ -72,7 +72,7 @@ With a non-empty `setup_command`, `setup_state` becomes `ok` after a successful 
 The Web dialog follows the accepted Worktree by ID through these phases. When that row reaches
 `ready`, the Web app selects it and closes the dialog. A failed `setup_command` still produces a
 usable `ready` Worktree with `setup_state: "failed"`; a checkout failure instead remains visible as
-a failed creation after rollback.
+an error in the Web dialog after the runtime removes the rolled-back pending row.
 
 Cancel only while it is pending:
 

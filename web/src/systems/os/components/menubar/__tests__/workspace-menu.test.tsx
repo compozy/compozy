@@ -18,6 +18,7 @@ import {
   emptyWorktreeListingFixture,
   nonGitWorktreeListingFixture,
   worktreeListingFixture,
+  worktreeMissingFixture,
   worktreeReadyDirtyRunningFixture,
 } from "@/systems/workspace/mocks";
 
@@ -45,6 +46,8 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
   const onSelectWorkspace = vi.fn();
   const onSelectWorktree = vi.fn();
   const onCreateWorktree = vi.fn();
+  const onResolveMissing = vi.fn();
+  const onContext = vi.fn();
   const onRemoveWorktree = vi.fn();
   const onOpenWorkspaces = vi.fn();
   render(
@@ -67,6 +70,8 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
           }}
           onSelectWorktree={onSelectWorktree}
           onCreateWorktree={onCreateWorktree}
+          onResolveMissing={onResolveMissing}
+          onContext={onContext}
           onRemoveWorktree={onRemoveWorktree}
           {...overrides}
         />
@@ -78,6 +83,8 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
     onSelectWorkspace,
     onSelectWorktree,
     onCreateWorktree,
+    onResolveMissing,
+    onContext,
     onRemoveWorktree,
     onOpenWorkspaces,
   };
@@ -186,7 +193,7 @@ describe("WorkspaceMenu", () => {
     expect(entry.kind).toBe("discovered");
   });
 
-  it("Should expose Copy path and Remove behind the row actions menu", async () => {
+  it("Should expose Copy path and Remove behind a ready row's actions", async () => {
     const user = userEvent.setup();
     const { onRemoveWorktree } = renderMenu();
 
@@ -206,6 +213,44 @@ describe("WorkspaceMenu", () => {
     const [workspaceId, entry] = onRemoveWorktree.mock.calls[0];
     expect(workspaceId).toBe(gitAlpha.id);
     expect(entry.key).toBe("wt_payments_retry");
+  });
+
+  it("Should expose Context behind a ready row's actions", async () => {
+    const user = userEvent.setup();
+    const { onContext } = renderMenu();
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+    await openSubmenuByKeyboard(user, "os-worktree-actions-wt_payments_retry");
+    act(() => screen.getByTestId("os-worktree-context-wt_payments_retry").focus());
+    await user.keyboard("{Enter}");
+
+    expect(onContext).toHaveBeenCalledTimes(1);
+    expect(onContext.mock.calls[0]?.[0]).toBe(gitAlpha.id);
+    expect(onContext.mock.calls[0]?.[1]?.key).toBe("wt_payments_retry");
+  });
+
+  it("Should expose Resolve behind a missing row's actions", async () => {
+    const user = userEvent.setup();
+    const { onResolveMissing } = renderMenu({
+      worktreesByWorkspace: {
+        [gitAlpha.id]: {
+          ...worktreeListingFixture,
+          worktrees: [worktreeMissingFixture],
+          discovered: [],
+        },
+        [gitBeta.id]: emptyWorktreeListingFixture,
+        [plainNotes.id]: nonGitWorktreeListingFixture,
+      },
+    });
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+    await openSubmenuByKeyboard(user, `os-worktree-actions-${worktreeMissingFixture.id}`);
+    act(() => screen.getByTestId(`os-worktree-resolve-${worktreeMissingFixture.id}`).focus());
+    await user.keyboard("{Enter}");
+
+    expect(onResolveMissing).toHaveBeenCalledTimes(1);
+    expect(onResolveMissing.mock.calls[0]?.[0]).toBe(gitAlpha.id);
+    expect(onResolveMissing.mock.calls[0]?.[1]?.key).toBe(worktreeMissingFixture.id);
   });
 
   it("Should omit Remove from a discovered row's actions", async () => {

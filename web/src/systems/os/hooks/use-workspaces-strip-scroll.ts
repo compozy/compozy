@@ -5,8 +5,6 @@ export type WorkspacesStripOverflow = "none" | "start" | "end" | "start end";
 
 /** Scroll deltas under this read as "at the edge" (sub-pixel jitter guard). */
 const EDGE_EPSILON = 2;
-/** Focused tiles stay this clear of the edge fades. */
-const KEEP_IN_VIEW_PAD = 56;
 /** Pointer travel before a press becomes a drag flick. */
 const DRAG_THRESHOLD_PX = 6;
 /** Free scroll settles after this pause, then focus snaps to the nearest tile. */
@@ -77,6 +75,11 @@ export function useWorkspacesStripScroll({
   const scrollingFromFocusRef = useRef(false);
   const settleTimerRef = useRef(0);
   const focusLockTimerRef = useRef(0);
+  const onSettleFocusRef = useRef(onSettleFocus);
+
+  useEffect(() => {
+    onSettleFocusRef.current = onSettleFocus;
+  }, [onSettleFocus]);
 
   const paintOverflow = () => {
     const track = trackRef.current;
@@ -113,20 +116,26 @@ export function useWorkspacesStripScroll({
     return best;
   };
 
-  const settleFocus = useEffectEvent(() => {
-    onSettleFocus(nearestIndex());
-  });
+  const settleFocus = () => onSettleFocusRef.current(nearestIndex());
+  const scheduleSettleFocus = () => {
+    window.clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = window.setTimeout(() => settleFocus(), SCROLL_SETTLE_MS);
+  };
 
   const keepInView = (element: HTMLElement, options: { instant?: boolean } = {}) => {
     const track = trackRef.current;
     if (!track) return;
     const rect = element.getBoundingClientRect();
     const trackRect = track.getBoundingClientRect();
+    const edge = track.parentElement?.querySelector<HTMLElement>(
+      '[data-slot="os-workspaces-strip-edge"]'
+    );
+    const keepInViewPad = edge?.getBoundingClientRect().width ?? 0;
     let delta = 0;
-    if (rect.left < trackRect.left + KEEP_IN_VIEW_PAD) {
-      delta = rect.left - (trackRect.left + KEEP_IN_VIEW_PAD);
-    } else if (rect.right > trackRect.right - KEEP_IN_VIEW_PAD) {
-      delta = rect.right - (trackRect.right - KEEP_IN_VIEW_PAD);
+    if (rect.left < trackRect.left + keepInViewPad) {
+      delta = rect.left - (trackRect.left + keepInViewPad);
+    } else if (rect.right > trackRect.right - keepInViewPad) {
+      delta = rect.right - (trackRect.right - keepInViewPad);
     }
     if (Math.abs(delta) < 1) {
       paintOverflow();
@@ -148,8 +157,7 @@ export function useWorkspacesStripScroll({
   const onScroll = () => {
     paintOverflow();
     if (scrollingFromFocusRef.current) return;
-    window.clearTimeout(settleTimerRef.current);
-    settleTimerRef.current = window.setTimeout(() => settleFocus(), SCROLL_SETTLE_MS);
+    scheduleSettleFocus();
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -193,6 +201,7 @@ export function useWorkspacesStripScroll({
     draggingRef.current = false;
     setDragging(false);
     if (!moved) return;
+    window.clearTimeout(settleTimerRef.current);
     dragClickRef.current = true;
     requestAnimationFrame(() => {
       dragClickRef.current = false;
@@ -214,11 +223,15 @@ export function useWorkspacesStripScroll({
         Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       if (dominant === 0) return;
       event.preventDefault();
+      window.clearTimeout(focusLockTimerRef.current);
+      scrollingFromFocusRef.current = false;
       track.scrollLeft += dominant;
+      paintOverflow();
+      scheduleSettleFocus();
     };
     overlay.addEventListener("wheel", onWheel, { passive: false });
     return () => overlay.removeEventListener("wheel", onWheel);
-  }, [overlayRef]);
+  }, [itemCount, overlayRef]);
 
   // Overflow tracks viewport resizes and tile population changes; the double
   // rAF waits out the open animation's first layout.
@@ -231,6 +244,11 @@ export function useWorkspacesStripScroll({
       window.removeEventListener("resize", onResize);
     };
   }, [itemCount]);
+
+  // A live row can change width without changing the number of tiles.
+  useEffect(() => {
+    paintOverflowEvent();
+  });
 
   useEffect(() => {
     return () => {

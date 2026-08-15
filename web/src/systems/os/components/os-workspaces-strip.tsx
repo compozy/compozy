@@ -1,6 +1,9 @@
 import { cn } from "@compozy/ui";
 
-import type { WorkspacesStripOverflow } from "../hooks/use-workspaces-strip-scroll";
+import type {
+  WorkspacesStripOverflow,
+  WorkspacesStripScroll,
+} from "../hooks/use-workspaces-strip-scroll";
 
 interface StripEdgeProps {
   side: "start" | "end";
@@ -15,7 +18,7 @@ function StripEdge({ side, visible }: StripEdgeProps) {
       data-slot="os-workspaces-strip-edge"
       data-side={side}
       className={cn(
-        "pointer-events-none absolute inset-y-0 z-2 w-14 opacity-0 transition-opacity duration-slow ease-out min-[960px]:w-[72px]",
+        "pointer-events-none absolute inset-y-0 z-2 w-workspaces-edge opacity-0 transition-opacity duration-slow ease-out shell-wide:w-workspaces-edge-wide",
         side === "start"
           ? "left-0 rounded-l-xl bg-(image:--shell-edge-fade-start)"
           : "right-0 rounded-r-xl bg-(image:--shell-edge-fade-end)",
@@ -25,12 +28,12 @@ function StripEdge({ side, visible }: StripEdgeProps) {
   );
 }
 
-export interface OsWorkspacesStripProps {
+export interface OsWorkspacesStripProps extends React.ComponentProps<"div"> {
   overflow: WorkspacesStripOverflow;
   dragging: boolean;
   reducedMotion: boolean;
   trackRef: React.RefObject<HTMLDivElement | null>;
-  trackProps: React.ComponentProps<"div">;
+  trackProps: WorkspacesStripScroll["trackProps"];
   /** Tile buttons; the row is the `listbox`, tiles are its options. */
   children: React.ReactNode;
 }
@@ -47,10 +50,13 @@ export function OsWorkspacesStrip({
   trackRef,
   trackProps,
   children,
+  className,
+  ...props
 }: OsWorkspacesStripProps) {
   const overflowing = overflow !== "none";
   return (
     <div
+      {...props}
       data-slot="os-workspaces-strip"
       data-testid="os-workspaces-strip"
       data-overflow={overflow}
@@ -58,30 +64,31 @@ export function OsWorkspacesStrip({
         "relative isolate flex max-w-full flex-nowrap items-stretch overflow-hidden",
         "rounded-xl border border-line-strong bg-shell-glass-pop",
         "shadow-shell-strip backdrop-blur-shell-strip backdrop-saturate-[1.25]",
-        overflowing ? "w-full" : "w-max"
+        overflowing ? "w-full" : "w-max",
+        className
       )}
     >
       <StripEdge side="start" visible={overflow === "start" || overflow === "start end"} />
       <StripEdge side="end" visible={overflow === "end" || overflow === "start end"} />
       <div
+        {...trackProps}
         ref={trackRef}
         data-slot="os-workspaces-track"
         className={cn(
-          "flex max-w-full min-w-0 flex-1 flex-nowrap items-start overflow-x-auto overflow-y-hidden",
+          "os-workspaces-track flex max-w-full min-w-0 flex-1 flex-nowrap items-start overflow-x-auto overflow-y-hidden",
           "px-5 pt-4 pb-3.5",
           "overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none]",
           "touch-pan-x [&::-webkit-scrollbar]:hidden",
           !reducedMotion && !dragging && "snap-x snap-proximity scroll-smooth",
           overflowing && (dragging ? "cursor-grabbing" : "cursor-grab")
         )}
-        {...trackProps}
       >
         <div
           role="listbox"
           aria-label="Workspaces"
           aria-orientation="horizontal"
           data-slot="os-workspaces-row"
-          className="flex w-max flex-nowrap items-start gap-[5px]"
+          className="flex w-max flex-nowrap items-start gap-workspaces-menu-gap"
         >
           {children}
         </div>

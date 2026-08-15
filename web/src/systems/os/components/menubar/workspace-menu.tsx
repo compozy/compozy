@@ -42,6 +42,8 @@ export interface WorkspaceMenuProps {
   selectedWorktreeId?: string | null;
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
+  onResolveMissing?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   /** Opens the remove dialog for an adopted worktree (row actions menu). */
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
@@ -84,6 +86,8 @@ export function WorkspaceMenu({
   selectedWorktreeId,
   onSelectWorktree,
   onCreateWorktree,
+  onResolveMissing,
+  onContext,
   onRemoveWorktree,
 }: WorkspaceMenuProps) {
   const notice = deletionNotice ?? (globalScopeOn ? GLOBAL_SCOPE_COPY.menuNotice : null);
@@ -168,6 +172,10 @@ export function WorkspaceMenu({
                   onCreateWorktree={
                     onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
                   }
+                  onResolveMissing={
+                    onResolveMissing ? entry => onResolveMissing(workspace.id, entry) : undefined
+                  }
+                  onOpenContext={onContext ? entry => onContext(workspace.id, entry) : undefined}
                   onShowAllWorktrees={onOpenWorkspaces}
                   onRemoveWorktree={
                     onRemoveWorktree ? entry => onRemoveWorktree(workspace.id, entry) : undefined

@@ -117,20 +117,23 @@ func (s *Service) RunExitAction(
 	return opID, nil
 }
 
-func (s *Service) CancelExitAction(ctx context.Context, workspaceID, id, opID string) error {
-	item, err := s.store.Get(ctx, workspaceID, id)
-	if errors.Is(err, ErrNotFound) || item == nil {
+func (s *Service) CancelExitAction(ctx context.Context, workspaceID, ref, opID string) error {
+	item, err := s.store.Get(ctx, workspaceID, ref)
+	if errors.Is(err, ErrNotFound) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("worktree: read exit cancellation target: %w", err)
 	}
-	id = item.ID
+	if item == nil {
+		return ErrNotFound
+	}
+	worktreeID := item.ID
 	opID = strings.TrimSpace(opID)
 	s.exitMu.Lock()
 	control := s.exits[opID]
 	s.exitMu.Unlock()
-	if control != nil && control.workspaceID == workspaceID && control.worktreeID == id {
+	if control != nil && control.workspaceID == workspaceID && control.worktreeID == worktreeID {
 		control.cancel()
 		select {
 		case <-control.done:
@@ -139,7 +142,7 @@ func (s *Service) CancelExitAction(ctx context.Context, workspaceID, id, opID st
 			return ctx.Err()
 		}
 	}
-	operation := ExitOperation{ID: opID, WorkspaceID: workspaceID, WorktreeID: id, State: exitOperationCanceled}
+	operation := ExitOperation{ID: opID, WorkspaceID: workspaceID, WorktreeID: worktreeID, State: exitOperationCanceled}
 	_, err = s.finishExitOperation(ctx, operation, exitOperationCanceled, EventExitActionCanceled, ExitEventPayload{
 		OperationID: opID, State: exitOperationCanceled, Message: "Exit action canceled.",
 	})

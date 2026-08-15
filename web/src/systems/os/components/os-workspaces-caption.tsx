@@ -25,11 +25,14 @@ export function OsWorkspacesCaption({ model, reducedMotion }: OsWorkspacesCaptio
     <div
       data-slot="os-workspaces-caption"
       data-testid="os-workspaces-caption"
-      className="mt-4 flex min-h-12 flex-col items-center text-center min-[960px]:min-h-13"
+      className="mt-4 flex min-h-workspaces-caption flex-col items-center text-center shell-wide:min-h-workspaces-caption-wide"
     >
       <div
         key={model.key}
-        className={cn("flex flex-col items-center gap-[3px]", !reducedMotion && "os-wsov-cap-swap")}
+        className={cn(
+          "flex flex-col items-center gap-workspaces-caption-gap",
+          !reducedMotion && "os-wsov-cap-swap"
+        )}
       >
         <b className="text-item-title font-semibold tracking-tight text-fg-strong">{model.title}</b>
         {model.meta ? <span className="text-form-label text-muted">{model.meta}</span> : null}

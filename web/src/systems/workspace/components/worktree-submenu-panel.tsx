@@ -1,5 +1,4 @@
 import { Check, Ellipsis, Plus } from "lucide-react";
-import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -18,7 +17,8 @@ import {
 } from "@compozy/ui";
 
 import type { WorkspaceTreeNode } from "../lib/workspace-tree";
-import type { WorktreeNestEntry } from "../lib/worktree-display";
+import { canRemoveWorktree, type WorktreeNestEntry } from "../lib/worktree-display";
+import { copyWorktreePath } from "../lib/copy-worktree-path";
 import { truncateWorktreeNest } from "../lib/worktree-sort";
 import { WorktreeRow } from "./worktree-row";
 
@@ -43,13 +43,6 @@ export interface WorktreeSubmenuPanelProps {
   onOpenContext?: (entry: WorktreeNestEntry) => void;
   onClose?: () => void;
   limit?: number;
-}
-
-function copyWorktreePath(path: string) {
-  navigator.clipboard.writeText(path).then(
-    () => toast.success("Path copied"),
-    () => toast.error("Could not copy the path")
-  );
 }
 
 function WorktreeSubmenuTrailing({
@@ -86,8 +79,7 @@ function WorktreeSubmenuRowActions({
   onResolveMissing?: (entry: WorktreeNestEntry) => void;
   onOpenContext?: (entry: WorktreeNestEntry) => void;
 }) {
-  const canRemove =
-    Boolean(onRemoveWorktree) && entry.worktree != null && entry.displayState === "ready";
+  const canRemove = Boolean(onRemoveWorktree) && canRemoveWorktree(entry);
   const canResolve = Boolean(onResolveMissing) && entry.displayState === "missing";
   const canOpenContext = Boolean(onOpenContext) && entry.displayState === "ready";
   const triggerClass =

@@ -1,5 +1,5 @@
+import { useId } from "react";
 import { Check, Copy, EllipsisVertical, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -10,24 +10,19 @@ import {
 } from "@compozy/ui";
 
 import {
+  contractHomePath,
   WorktreePath,
   WorktreeSignals,
   WorktreeStateChip,
   WorktreeStateDot,
   type WorktreeNestEntry,
 } from "@/systems/workspace";
+import { copyWorktreePath } from "@/systems/workspace/lib/copy-worktree-path";
 
 const ROW_CLASS = cn(
   "group/wsov-row grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-0.5 rounded-md",
   "transition-colors duration-base ease-out"
 );
-
-function copyWorktreePath(path: string) {
-  navigator.clipboard.writeText(path).then(
-    () => toast.success(`Path copied — ${path}`),
-    () => toast.error("Could not copy the path")
-  );
-}
 
 function RowDot({ entry }: { entry: WorktreeNestEntry }) {
   if (entry.displayState === "ready") {
@@ -36,7 +31,7 @@ function RowDot({ entry }: { entry: WorktreeNestEntry }) {
         aria-hidden="true"
         data-slot="worktree-state-dot"
         data-state="ready"
-        className="inline-block size-[7px] shrink-0 rounded-full bg-success"
+        className="inline-block size-status-dot shrink-0 rounded-full bg-success"
       />
     );
   }
@@ -77,7 +72,7 @@ function RowTrailing({ entry, scoped }: { entry: WorktreeNestEntry; scoped: bool
       {scoped ? (
         // One selection marker per layer: the check lives on the menu row
         // while the parent tile carries the branch badge.
-        <Check aria-hidden="true" className="size-[13px] shrink-0 text-fg-strong" />
+        <Check aria-hidden="true" className="size-deck-glyph shrink-0 text-fg-strong" />
       ) : null}
     </>
   );
@@ -95,7 +90,7 @@ export interface OsWorkspacesWorktreeRowProps {
   onActionsOpenChange: (open: boolean) => void;
   /** Delete stays gated to adopted, ready records — the remove flow's gate. */
   onDelete?: () => void;
-  registerRow?: (element: HTMLElement | null) => void;
+  registerRow: (element: HTMLElement | null) => void;
   onSelect?: () => void;
 }
 
@@ -116,6 +111,7 @@ export function OsWorkspacesWorktreeRow({
   onSelect,
 }: OsWorkspacesWorktreeRowProps) {
   const inert = !entry.selectable;
+  const descriptionId = useId();
   const openActionsFromKeyboard = (event: React.KeyboardEvent) => {
     if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
       event.preventDefault();
@@ -124,7 +120,7 @@ export function OsWorkspacesWorktreeRow({
   };
   return (
     <div
-      role="presentation"
+      role="group"
       data-slot="os-workspaces-worktree-row"
       data-state={entry.displayState}
       data-inert={inert ? "true" : undefined}
@@ -137,23 +133,28 @@ export function OsWorkspacesWorktreeRow({
     >
       <div
         ref={registerRow}
-        role="option"
-        aria-selected={inert ? undefined : scoped}
+        role="menuitemradio"
+        aria-checked={scoped}
         aria-disabled={inert || undefined}
         aria-label={entry.name}
+        aria-describedby={descriptionId}
         tabIndex={focused ? 0 : -1}
         data-testid={`os-workspaces-worktree-row-${entry.key}`}
         className="grid min-h-11 min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 py-1.5 pl-2 text-left outline-none select-none focus-visible:outline-none"
         onClick={inert ? undefined : onSelect}
         onKeyDown={openActionsFromKeyboard}
       >
+        <span id={descriptionId} className="sr-only">
+          {entry.displayState}. {contractHomePath(entry.path, userHomeDir)}.{" "}
+          {entry.inertReason ?? ""}
+        </span>
         <span className="mt-1 flex justify-center self-start">
           <RowDot entry={entry} />
         </span>
         <span className="flex min-w-0 flex-col gap-0.5">
           <b
             className={cn(
-              "min-w-0 truncate text-small-body font-[550] tracking-tight",
+              "min-w-0 truncate text-small-body font-medium tracking-tight",
               entry.displayState === "missing" ? "text-muted" : "text-fg-strong"
             )}
           >
@@ -171,16 +172,17 @@ export function OsWorkspacesWorktreeRow({
             />
           </span>
         </span>
-        <span className="flex flex-none items-center gap-[7px] pr-1">
+        <span className="flex flex-none items-center gap-workspaces-tile-gap pr-1">
           <RowTrailing entry={entry} scoped={scoped} />
         </span>
       </div>
       <DropdownMenu open={actionsOpen} onOpenChange={onActionsOpenChange}>
         <DropdownMenuTrigger
+          role="menuitem"
           aria-label={`Actions for ${entry.name}`}
           data-testid={`os-workspaces-worktree-actions-${entry.key}`}
           className={cn(
-            "mr-1 grid size-[22px] flex-none place-items-center rounded-sm text-faint opacity-0",
+            "mr-1 grid size-button-icon-xs flex-none place-items-center rounded-sm text-faint opacity-0",
             "transition-[opacity,background-color,color] duration-base ease-out",
             "group-hover/wsov-row:opacity-100 group-focus-within/wsov-row:opacity-100",
             "group-data-[on=true]/wsov-row:opacity-100 aria-expanded:opacity-100",
@@ -188,7 +190,7 @@ export function OsWorkspacesWorktreeRow({
             "focus-visible:bg-btn-default-fill focus-visible:text-fg-strong focus-visible:opacity-100 focus-visible:outline-none"
           )}
         >
-          <EllipsisVertical className="size-[13px]" />
+          <EllipsisVertical className="size-deck-glyph" />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
@@ -199,7 +201,7 @@ export function OsWorkspacesWorktreeRow({
             data-testid={`os-workspaces-worktree-copy-${entry.key}`}
             onClick={() => copyWorktreePath(entry.path)}
           >
-            <Copy className="size-[13px] text-subtle" />
+            <Copy className="size-deck-glyph text-subtle" />
             Copy path
           </DropdownMenuItem>
           {onDelete ? (
@@ -208,7 +210,7 @@ export function OsWorkspacesWorktreeRow({
               data-testid={`os-workspaces-worktree-delete-${entry.key}`}
               onClick={onDelete}
             >
-              <Trash2 className="size-[13px]" />
+              <Trash2 className="size-deck-glyph" />
               Delete worktree…
             </DropdownMenuItem>
           ) : null}

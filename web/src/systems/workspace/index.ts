@@ -111,7 +111,11 @@ export type {
   WorktreeStreamEventName,
 } from "./lib/worktree-events";
 export { reconcileWorktreeList, removeWorktreeFromList } from "./lib/worktree-list-reconciliation";
-export { toWorktreeDisplayState, toWorktreeNestEntries } from "./lib/worktree-display";
+export {
+  canRemoveWorktree,
+  toWorktreeDisplayState,
+  toWorktreeNestEntries,
+} from "./lib/worktree-display";
 export type { WorktreeNestEntry } from "./lib/worktree-display";
 export {
   adoptedWorktreeCount,

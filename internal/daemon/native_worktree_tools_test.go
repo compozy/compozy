@@ -20,6 +20,7 @@ import (
 type nativeWorktreeServiceStub struct {
 	create        func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	list          func(context.Context, string, bool) (*worktree.DetailedListing, error)
+	resolve       func(context.Context, string, string) (*worktree.Worktree, error)
 	inspect       func(context.Context, string, string) (*worktree.Inspection, error)
 	remove        func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	capabilityErr error
@@ -89,6 +90,17 @@ func (s *nativeWorktreeServiceStub) Inspect(
 		return nil, fmt.Errorf("unexpected Inspect call")
 	}
 	return s.inspect(ctx, workspaceID, ref)
+}
+
+func (s *nativeWorktreeServiceStub) Resolve(
+	ctx context.Context,
+	workspaceID string,
+	ref string,
+) (*worktree.Worktree, error) {
+	if s.resolve == nil {
+		return nil, fmt.Errorf("unexpected Resolve call")
+	}
+	return s.resolve(ctx, workspaceID, ref)
 }
 
 func (s *nativeWorktreeServiceStub) StatusDetails(
@@ -227,16 +239,16 @@ func TestNativeWorktreeTools(t *testing.T) {
 	t.Run("Should carry the exact removal refusal as a partial tool result", func(t *testing.T) {
 		t.Parallel()
 
-		service := &nativeWorktreeServiceStub{inspect: func(
+		service := &nativeWorktreeServiceStub{resolve: func(
 			_ context.Context,
 			workspaceID, ref string,
-		) (*worktree.Inspection, error) {
+		) (*worktree.Worktree, error) {
 			if workspaceID != "registry-a" || ref != "feature-a" {
-				t.Fatalf("Inspect() args = %q, %q", workspaceID, ref)
+				t.Fatalf("Resolve() args = %q, %q", workspaceID, ref)
 			}
-			return &worktree.Inspection{Worktree: worktree.Worktree{
+			return &worktree.Worktree{
 				ID: "wt-a", WorkspaceID: workspaceID, Name: ref, State: worktree.StateReady,
-			}}, nil
+			}, nil
 		}, remove: func(
 			_ context.Context,
 			workspaceID string,
@@ -276,13 +288,13 @@ func TestNativeWorktreeTools(t *testing.T) {
 
 	t.Run("Should report the canonical identity after removal by name", func(t *testing.T) {
 		t.Parallel()
-		service := &nativeWorktreeServiceStub{inspect: func(
+		service := &nativeWorktreeServiceStub{resolve: func(
 			_ context.Context,
 			workspaceID, ref string,
-		) (*worktree.Inspection, error) {
-			return &worktree.Inspection{Worktree: worktree.Worktree{
+		) (*worktree.Worktree, error) {
+			return &worktree.Worktree{
 				ID: "wt-a", WorkspaceID: workspaceID, Name: ref, State: worktree.StateReady,
-			}}, nil
+			}, nil
 		}, remove: func(
 			_ context.Context,
 			workspaceID, worktreeID string,
@@ -312,6 +324,35 @@ func TestNativeWorktreeTools(t *testing.T) {
 		}
 		if payload.WorktreeID != "wt-a" || payload.State != string(worktree.StateRemoved) {
 			t.Fatalf("worktree_remove payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should map resolve errors before attempting removal", func(t *testing.T) {
+		t.Parallel()
+		resolveErr := errors.New("resolve unavailable")
+		removeCalls := 0
+		service := &nativeWorktreeServiceStub{
+			resolve: func(context.Context, string, string) (*worktree.Worktree, error) {
+				return nil, resolveErr
+			},
+			remove: func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error) {
+				removeCalls++
+				return nil, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeWorktreeWorkspaceService(), Worktrees: service,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWorktreeRemove,
+			Input:  json.RawMessage(`{"workspace":"ws-a","ref":"feature-a"}`),
+		})
+		var toolErr *toolspkg.ToolError
+		if !errors.As(err, &toolErr) || !errors.Is(err, resolveErr) {
+			t.Fatalf("worktree_remove error = %T %v, want wrapped ToolError", err, err)
+		}
+		if removeCalls != 0 {
+			t.Fatalf("Remove() calls = %d, want none", removeCalls)
 		}
 	})
 

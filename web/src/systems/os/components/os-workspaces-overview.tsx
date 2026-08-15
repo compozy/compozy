@@ -6,7 +6,6 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, cn } fro
 import {
   useWorkspacesSwitcher,
   WORKSPACES_ADD_TILE_KEY,
-  type WorkspacesMenuNavRow,
   type WorkspacesSwitcherEntry,
 } from "../hooks/use-workspaces-switcher";
 import { useWorkspacesStripScroll } from "../hooks/use-workspaces-strip-scroll";
@@ -14,7 +13,10 @@ import { OsWorkspaceAddTile, OsWorkspaceTile } from "./os-workspace-tile";
 import { OsWorkspacesCaption, type OsWorkspacesCaptionModel } from "./os-workspaces-caption";
 import { OsWorkspacesHints } from "./os-workspaces-hints";
 import { OsWorkspacesStrip } from "./os-workspaces-strip";
-import { buildWorkspacesWorktreeMenuModel } from "../lib/workspaces-overview-model";
+import {
+  buildWorkspacesWorktreeMenuModel,
+  type WorkspacesMenuNavRow,
+} from "../lib/workspaces-overview-model";
 import { OsWorkspacesWorktreeMenu } from "./os-workspaces-worktree-menu";
 import {
   contractHomePath,
@@ -69,6 +71,7 @@ export function OsWorkspacesOverview({ open, onOpenChange, ...stage }: OsWorkspa
     >
       <DialogContent
         ref={contentRef}
+        finalFocus={() => document.querySelector<HTMLElement>('[data-slot="os-menubar-workspace"]')}
         unframed
         showCloseButton={false}
         data-testid="os-workspaces-overview"
@@ -137,10 +140,10 @@ function captionFor(
       path: "directory picker",
     };
   }
-  const rootDir = entry.node?.workspace.root_dir;
+  const rootDir = entry.node.workspace.root_dir;
   return {
     key: entry.key,
-    title: entry.node?.workspace.name ?? "",
+    title: entry.node.workspace.name,
     path: rootDir ? contractHomePath(rootDir, userHomeDir) : rootDir,
   };
 }
@@ -180,6 +183,14 @@ function OsWorkspacesStage({
         ADD_ENTRY,
       ];
   const totalWorktrees = tree.reduce((total, node) => total + node.adoptedCount, 0);
+  const readySelectedWorktreeKey =
+    scope === "workspace" && selectedWorktreeId
+      ? (tree
+          .find(node => node.workspace.id === activeWorkspaceId)
+          ?.worktrees.find(
+            entry => entry.displayState === "ready" && entry.worktree?.id === selectedWorktreeId
+          )?.key ?? null)
+      : null;
   const canCreate = Boolean(onCreateWorktree);
   const menuModelByKey = new Map(
     tree.map(node => [node.workspace.id, buildWorkspacesWorktreeMenuModel(node, canCreate)])
@@ -203,7 +214,6 @@ function OsWorkspacesStage({
       onCreateWorktree?.(entry.key);
       return;
     }
-    if (!row.entry) return;
     // A discovered row is the adoption gesture; anything else scopes — both
     // decisions live with the shell handler.
     onSelectWorktree?.(entry.key, row.entry);
@@ -225,7 +235,7 @@ function OsWorkspacesStage({
     menuNavRowsForKey: key => menuModelByKey.get(key)?.navRows ?? [],
     initialFocusKey: scope === "workspace" ? activeWorkspaceId : null,
     scopedRowKeyForKey: key =>
-      scope === "workspace" && key === activeWorkspaceId ? (selectedWorktreeId ?? null) : null,
+      scope === "workspace" && key === activeWorkspaceId ? readySelectedWorktreeKey : null,
     reducedMotion,
     onActivateEntry: activateEntry,
     onActivateMenuRow: activateMenuRow,
@@ -244,9 +254,7 @@ function OsWorkspacesStage({
   const menuModel = focusedMenuKey ? (menuModelByKey.get(focusedMenuKey) ?? null) : null;
   const menuNavRows = menuModel?.navRows ?? [];
   const scopedRowKey =
-    scope === "workspace" && focusedMenuKey === activeWorkspaceId
-      ? (selectedWorktreeId ?? null)
-      : null;
+    scope === "workspace" && focusedMenuKey === activeWorkspaceId ? readySelectedWorktreeKey : null;
   const focusedRowKey =
     switcher.layer === "menu" ? (menuNavRows[switcher.menuIndex]?.key ?? null) : null;
 
@@ -255,7 +263,7 @@ function OsWorkspacesStage({
       <div
         data-slot="os-workspaces-stage"
         className={cn(
-          "flex w-[min(1080px,calc(100%-32px))] flex-col items-center",
+          "flex w-workspaces-stage flex-col items-center",
           !reducedMotion && "os-wsov-in"
         )}
         onKeyDown={switcher.onStageKeyDown}
@@ -270,7 +278,7 @@ function OsWorkspacesStage({
         {!empty && scope === "global" ? (
           <p
             data-testid="os-workspaces-notice"
-            className="-mt-1.5 mb-3.5 max-w-[42ch] text-center text-form-label text-muted"
+            className="-mt-1.5 mb-3.5 max-w-workspaces-notice text-center text-form-label text-muted"
           >
             Global scope is on — picking a workspace turns it off.
           </p>
@@ -281,10 +289,10 @@ function OsWorkspacesStage({
             data-testid="os-workspaces-strip"
             className={cn(
               "flex flex-col items-center gap-2.5 rounded-xl border border-line-strong px-6 py-5",
-              "bg-shell-glass-pop text-center shadow-shell-strip backdrop-blur-shell-strip backdrop-saturate-[1.25]"
+              "bg-shell-glass-pop text-center shadow-shell-strip backdrop-blur-shell-strip backdrop-saturate-shell-glass"
             )}
           >
-            <p className="max-w-[28ch] text-small-body text-muted">
+            <p className="max-w-workspaces-empty-copy text-small-body text-muted">
               No project folders yet. Sessions run in Global until you add one.
             </p>
             {/* The one primary on this surface — there is nothing to switch to. */}
@@ -321,7 +329,7 @@ function OsWorkspacesStage({
                   />
                 );
               }
-              const name = entry.node?.workspace.name ?? "";
+              const name = entry.node.workspace.name;
               return (
                 <OsWorkspaceTile
                   key={entry.key}
@@ -334,7 +342,7 @@ function OsWorkspacesStage({
                   tabIndex={focused ? 0 : -1}
                   current={
                     scope === "workspace" && entry.key === activeWorkspaceId
-                      ? selectedWorktreeId
+                      ? readySelectedWorktreeKey
                         ? "wt"
                         : "root"
                       : null
@@ -358,6 +366,7 @@ function OsWorkspacesStage({
         >
           {menuModel ? (
             <OsWorkspacesWorktreeMenu
+              key={menuModel.node.workspace.id}
               model={menuModel}
               userHomeDir={userHomeDir}
               focusedRowKey={focusedRowKey}
@@ -378,7 +387,7 @@ function OsWorkspacesStage({
       <span
         aria-hidden="true"
         data-os-wsov-dismiss=""
-        className="w-full flex-none basis-[clamp(160px,30vh,300px)]"
+        className="w-full flex-none basis-workspaces-reserved"
       />
       <OsWorkspacesHints
         layer={switcher.layer === "menu" ? "menu" : "strip"}

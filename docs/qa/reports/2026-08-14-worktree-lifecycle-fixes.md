@@ -68,7 +68,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 ## Paper Cuts
 
-None observed yet.
+The QA lab contains many generated runtime paths, which makes direct directory navigation dense. The chartered flows and evidence index remained usable.
 
 ## Runtime Errors Observed
 
@@ -87,9 +87,20 @@ None identified.
 - Catalog identity and Git branch identity have different lifecycles: dismissal releases the former, while removal preserves the latter.
 - Mutation receipts must come from the resolved canonical row; reconstructing them from an operator-entered reference corrupts structured output even when the state transition succeeds.
 
+## Compozy Impact Audit
+
+- **Native tools:** `compozy__worktree_remove` was checked with a name reference and returned the canonical worktree ID; its descriptor, input schema, risk flags, and capability gate are unchanged.
+- **Extensibility and hooks:** worktree pre-create, setup, pre-remove, and exit hooks remain on the same canonical-ID lifecycle. No extension registry, bridge SDK, MCP sidecar, or `config.toml` key changed.
+- **Workspace data isolation:** worktree records remain workspace-scoped. CLI, HTTP, UDS, native-tool, event-stream, session-binding, and cache reads were checked with explicit `workspace_id`; no cross-workspace row or event was exposed.
+- **Official Compozy skill:** `skills/compozy/references/worktrees.md` documents the ID-or-name reference contract and retained-branch recreation path used in this replay.
+
+## Teardown
+
+The isolated runtime was reaped through the bootstrap manifest. Evidence: `/Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/teardown.json` records `"clean": true` and no survivors.
+
 ## Final Status
 
-- **Exit gate (full automated suite):** scheduled as the final immutable step after this QA report and teardown are frozen.
+- **Exit gate (full automated suite):** delegated to PR CI for this remediation workstream; local focused checks run after the report and teardown are frozen.
 - **Issues by user impact:** 1 Trust-Damage finding fixed and verified; 1 Blocks-Completion finding invalidated after contract review; 0 open findings.
 - **Coverage:** Web creation and refresh; CLI/UDS name-addressed status/remove/dismiss/recreate; direct HTTP lifecycle and tombstone checks; runtime checkout inventory; adjacent workspace-picker canary.
 - **Verdict:** **PASS** for behavioral QA; ready for the final full gate with no QA blocker remaining.

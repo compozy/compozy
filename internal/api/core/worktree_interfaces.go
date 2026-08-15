@@ -12,6 +12,7 @@ type WorktreeService interface {
 	CancelCreate(context.Context, string, string) error
 	Adopt(context.Context, string, string) (*worktree.Worktree, error)
 	ListDetails(context.Context, string, bool) (*worktree.DetailedListing, error)
+	Resolve(context.Context, string, string) (*worktree.Worktree, error)
 	Inspect(context.Context, string, string) (*worktree.Inspection, error)
 	StatusDetails(context.Context, string, string, bool, bool) (*worktree.StatusDetails, error)
 	ExitPlan(context.Context, string, string) (*worktree.ExitPlan, error)

@@ -130,11 +130,9 @@ func isLiveWorktreeState(state State) bool {
 func (s *memoryWorktreeStore) Get(_ context.Context, workspaceID, ref string) (*Worktree, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, item := range s.items {
-		if item.WorkspaceID == workspaceID && item.ID == ref {
-			cloned := item
-			return &cloned, nil
-		}
+	if item, ok := s.items[worktreeStoreKey(workspaceID, ref)]; ok {
+		cloned := item
+		return &cloned, nil
 	}
 	for _, item := range s.items {
 		if item.WorkspaceID == workspaceID && item.Name == ref && item.State != StateDismissed {
@@ -143,6 +141,24 @@ func (s *memoryWorktreeStore) Get(_ context.Context, workspaceID, ref string) (*
 		}
 	}
 	return nil, ErrNotFound
+}
+
+type getErrorWorktreeStore struct {
+	*memoryWorktreeStore
+	err          error
+	successReads int
+	mu           sync.Mutex
+}
+
+func (s *getErrorWorktreeStore) Get(ctx context.Context, workspaceID, ref string) (*Worktree, error) {
+	s.mu.Lock()
+	if s.successReads > 0 {
+		s.successReads--
+		s.mu.Unlock()
+		return s.memoryWorktreeStore.Get(ctx, workspaceID, ref)
+	}
+	s.mu.Unlock()
+	return nil, s.err
 }
 
 func (s *memoryWorktreeStore) GetByPath(_ context.Context, workspaceID, path string) (*Worktree, error) {

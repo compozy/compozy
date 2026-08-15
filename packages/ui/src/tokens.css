@@ -366,6 +366,27 @@
   --width-worktree-submenu: 320px;
   --height-worktree-submenu-max: 420px;
 
+  /* Workspaces overview geometry — one source for the Command-Tab strip,
+     focused tile physics, caption, and subordinate worktree menu. */
+  --breakpoint-shell-wide: 60rem;
+  --width-workspaces-stage: min(1080px, calc(100% - 32px));
+  --width-workspaces-tile: 94px;
+  --width-workspaces-tile-wide: 86px;
+  --width-workspaces-menu: 340px;
+  --width-workspaces-menu-max: calc(100vw - 48px);
+  --width-workspaces-edge: 56px;
+  --width-workspaces-edge-wide: 72px;
+  --width-workspaces-notice: 42ch;
+  --width-workspaces-empty-copy: 28ch;
+  --size-workspaces-well: 56px;
+  --size-workspaces-well-wide: 52px;
+  --height-workspaces-caption: 48px;
+  --height-workspaces-caption-wide: 52px;
+  --basis-workspaces-reserved: clamp(160px, 30vh, 300px);
+  --spacing-workspaces-tile-gap: 7px;
+  --spacing-workspaces-caption-gap: 3px;
+  --spacing-workspaces-menu-gap: 5px;
+
   /* QR geometry — fixed physical sizes preserve a scanable quiet zone. */
   --size-qr-code-sm: 128px;
   --size-qr-code-default: 176px;
@@ -449,7 +470,7 @@
      rings the current-workspace pill against the glass. */
   --shadow-shell-strip: var(--shadow-overlay), var(--shadow-highlight);
   --shadow-shell-plate: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18);
-  --shadow-shell-check-halo: 0 0 0 2px var(--shell-glass-pop);
+  --shadow-shell-current-halo: 0 0 0 2px var(--color-shell-glass-pop);
 
   /* Shell motion tier — chrome-scale spatial transitions (window entry,
      dock magnification, minimize travel) above the base ladder; one spring. */
@@ -459,6 +480,12 @@
   --ease-spring: cubic-bezier(0.32, 0.72, 0.28, 1);
   /* Desktop-switch slide amplitude shared by the os-desk slide keyframes. */
   --distance-desk-slide: 4%;
+  /* Workspaces overview entry geometry shared by the shell keyframes. */
+  --distance-wsov-stage-entry: 8px;
+  --scale-wsov-stage-entry: 0.985;
+  --scale-wsov-tile-press: 0.96;
+  --distance-wsov-menu-entry: -3px;
+  --distance-wsov-caption-entry: 3px;
 
   /* Shell chrome geometry. */
   --height-menubar: 44px;
@@ -510,6 +537,8 @@
   --blur-shell-strip: 34px;
   --blur-shell-menu: 30px;
   --blur-shell-plate: 12px;
+  --saturate-shell-glass: 1.25;
+  --saturate-shell-plate: 1.2;
 
   /* Compact (<960px) presentation — os-v2.css mobile block. */
   --height-dock-tabbar: 56px;
@@ -517,8 +546,9 @@
   --size-traffic-light-compact: 15px;
   --size-traffic-light-compact-target: 44px;
 
-  /* Desktop overview cards + compact canvas faces (settings layouts). */
+  /* Desktop overview cards. */
   --height-workspace-thumb: 148px;
+  /* Compact canvas faces in Settings layouts. */
   --text-workspace-avatar: 9px;
 
   /* First-run setup panel — window grammar without being a window: identity

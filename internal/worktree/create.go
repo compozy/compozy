@@ -32,16 +32,19 @@ func (s *Service) Create(ctx context.Context, workspaceID string, options Create
 	return s.create(ctx, workspaceID, options)
 }
 
-func (s *Service) CancelCreate(ctx context.Context, workspaceID, id string) error {
-	item, err := s.store.Get(ctx, workspaceID, id)
-	if errors.Is(err, ErrNotFound) || item == nil {
+func (s *Service) CancelCreate(ctx context.Context, workspaceID, ref string) error {
+	item, err := s.store.Get(ctx, workspaceID, ref)
+	if errors.Is(err, ErrNotFound) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("worktree: read create cancellation target: %w", err)
 	}
-	id = item.ID
-	canceled, err := s.cancelAcceptedCreation(ctx, workspaceID, id)
+	if item == nil {
+		return ErrNotFound
+	}
+	worktreeID := item.ID
+	canceled, err := s.cancelAcceptedCreation(ctx, workspaceID, worktreeID)
 	if canceled {
 		return err
 	}
@@ -61,12 +64,15 @@ func (s *Service) CancelCreate(ctx context.Context, workspaceID, id string) erro
 		return err
 	}
 	defer release()
-	item, err = s.store.Get(ctx, workspaceID, id)
-	if errors.Is(err, ErrNotFound) || item == nil {
+	item, err = s.store.Get(ctx, workspaceID, worktreeID)
+	if errors.Is(err, ErrNotFound) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("worktree: reread create cancellation target: %w", err)
+	}
+	if item == nil {
+		return ErrNotFound
 	}
 	if item.State != StatePending {
 		return ErrNotPending
@@ -75,7 +81,7 @@ func (s *Service) CancelCreate(ctx context.Context, workspaceID, id string) erro
 	if rollbackErr != nil {
 		return rollbackErr
 	}
-	if deleteErr := s.store.DeletePending(context.WithoutCancel(ctx), workspaceID, id); deleteErr != nil {
+	if deleteErr := s.store.DeletePending(context.WithoutCancel(ctx), workspaceID, worktreeID); deleteErr != nil {
 		return deleteErr
 	}
 	s.invalidateDiscovery(workspaceID)

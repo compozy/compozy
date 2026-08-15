@@ -8,11 +8,11 @@ import {
   type OsWorkspacesWorktreeMenuModel,
 } from "../lib/workspaces-overview-model";
 import { OsWorkspacesWorktreeRow } from "./os-workspaces-worktree-row";
-import type { WorktreeNestEntry } from "@/systems/workspace";
+import { canRemoveWorktree, type WorktreeNestEntry } from "@/systems/workspace";
 
 const MENU_GLASS_CLASS = cn(
-  "w-[340px] max-w-[calc(100vw-48px)] rounded-window border border-line-strong",
-  "bg-shell-glass-pop shadow-shell-strip backdrop-blur-shell-menu backdrop-saturate-[1.25]"
+  "w-workspaces-menu max-w-workspaces-menu-max rounded-window border border-line-strong",
+  "bg-shell-glass-pop shadow-shell-strip backdrop-blur-shell-menu backdrop-saturate-shell-glass"
 );
 
 export interface OsWorkspacesWorktreeMenuProps {
@@ -76,13 +76,15 @@ export function OsWorkspacesWorktreeMenu({
 
   return (
     <div
-      role="listbox"
+      role="menu"
       aria-label={`Worktrees of ${model.node.workspace.name}`}
       data-slot="os-workspaces-worktree-menu"
       data-testid="os-workspaces-worktree-menu"
-      // Keyed by workspace so the entry animation replays per focus change.
-      key={model.node.workspace.id}
-      className={cn(MENU_GLASS_CLASS, "mt-1 p-[5px]", !reducedMotion && "os-wsov-menu-in")}
+      className={cn(
+        MENU_GLASS_CLASS,
+        "mt-1 p-workspaces-menu-gap",
+        !reducedMotion && "os-wsov-menu-in"
+      )}
     >
       {model.visible.map(entry => {
         const navIndex = navIndexByKey.get(entry.key);
@@ -98,9 +100,7 @@ export function OsWorkspacesWorktreeMenu({
             onDelete={
               // Delete stays gated to adopted, ready records — the remove
               // flow's production gate; discovered rows have no record.
-              entry.worktree && entry.displayState === "ready"
-                ? () => onDeleteRow(entry)
-                : undefined
+              canRemoveWorktree(entry) ? () => onDeleteRow(entry) : undefined
             }
             registerRow={registerRow(entry.key)}
             onSelect={navIndex === undefined ? undefined : rowHandlers(navIndex).onClick}
@@ -109,11 +109,10 @@ export function OsWorkspacesWorktreeMenu({
       })}
       {canCreate ? (
         <>
-          <div aria-hidden="true" className="mx-1.5 my-1 h-px bg-line-soft" />
+          <hr className="mx-1.5 my-1 h-px border-0 bg-line-soft" />
           <div
             ref={registerRow(WORKSPACES_MENU_CREATE_KEY)}
-            role="option"
-            aria-selected={false}
+            role="menuitem"
             aria-label="New worktree"
             tabIndex={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
             data-testid="os-workspaces-worktree-create"

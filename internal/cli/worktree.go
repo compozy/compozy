@@ -204,8 +204,8 @@ func newWorktreeDismissCommand(deps commandDeps) *cobra.Command {
 			if err := client.DismissWorktree(cmd.Context(), workspaceID, item.ID); err != nil {
 				return err
 			}
-			item.State = "dismissed"
-			return writeCommandOutput(cmd, worktreeMutationBundle("dismissed", item))
+			item.State = lifecycleDismissedKey
+			return writeCommandOutput(cmd, worktreeMutationBundle(lifecycleDismissedKey, item))
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)

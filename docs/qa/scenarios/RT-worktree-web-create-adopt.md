@@ -4,15 +4,15 @@ area: RT
 title: Create and adopt worktrees through the desktop shell
 persona: Ada
 journey: J-worktree-management
-expected: Creation is name-first with a truthful preview and field-level refusals; after acceptance, Cancel stays live until the exact row reaches ready, then the Web selects it and closes the dialog. A failed setup still completes as ready, while cancellation or materialization failure stays distinct. Adoption validates the linked checkout without re-running bootstrap.
+expected: Creation is name-first with the generated name in the placeholder only, a live `branch → path` preview, and field-level name-collision, branch-held, and base-ref refusals; after acceptance, Cancel stays live until the exact row reaches ready, then the Web selects it and closes the dialog. A failed setup still completes as ready, while cancellation or materialization failure stays distinct. Selecting a discovered row confirms adoption, validates the linked checkout, refuses the main checkout without touching it, and does not re-run bootstrap.
 entry_points: S4 Workspace menu → New worktree; S1|S3 nest → discovered row; S2 overview menu → discovered row Adopt / New worktree footer row; S5 Worktree row/status
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260813-pending-worktree-marked-missing; BUG-20260813-base-ref-accepted-before-validation
 fix_status: fixed
 retest_status: pass
 fix_commits: b6eb94d0; 0d54b6fe
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/screenshots/web-create-selected.png
-last_report: docs/qa/reports/2026-08-14-worktree-lifecycle-fixes.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-create-missing.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-stream-proof.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-stream-proof.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-cancel-complete.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-adopt.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/base-ref-refusal-fixed.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-base-ref-refusal-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-scroll-area-20260814-184457-553088-lab/qa-artifacts/qa/web-worktree-scroll-after.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-scroll-area-20260814-184457-553088-lab/qa-artifacts/qa/cli-adopt-worktrees.jsonl; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/screenshots/web-create-selected.png; /Users/pedronauck/dev/qa-labs/compozy-pr-410-review-evidence-20260815-055849-475301-lab/qa-artifacts/qa/screenshots/new-worktree-dialog.png; /Users/pedronauck/dev/qa-labs/compozy-pr-410-review-evidence-20260815-055849-475301-lab/qa-artifacts/qa/screenshots/workspaces-current-worktree.png; /Users/pedronauck/dev/qa-labs/compozy-pr-410-review-evidence-20260815-055849-475301-lab/qa-artifacts/qa/screenshots/adopt-worktree-confirmation.png; /Users/pedronauck/dev/qa-labs/compozy-pr-410-review-evidence-20260815-055849-475301-lab/qa-artifacts/qa/screenshots/create-terminal-failure-story.png
+last_report: docs/qa/reports/2026-08-15-pr-410-review-evidence.md
 overlaps: RT-worktree-web-nested-navigation
 ---
 

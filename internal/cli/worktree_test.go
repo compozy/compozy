@@ -172,8 +172,16 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 func TestWorktreeMutationNameReferences(t *testing.T) {
 	t.Parallel()
 
-	inspect := func(state string) func(context.Context, string, string) (WorktreeInspectRecord, error) {
+	inspect := func(t *testing.T, state string) func(context.Context, string, string) (WorktreeInspectRecord, error) {
+		t.Helper()
+		calls := 0
+		t.Cleanup(func() {
+			if calls != 1 {
+				t.Errorf("InspectWorktree() calls = %d, want one", calls)
+			}
+		})
 		return func(_ context.Context, workspaceID, ref string) (WorktreeInspectRecord, error) {
+			calls++
 			if workspaceID != "workspace-a" || ref != "feature-a" {
 				t.Fatalf("InspectWorktree() args = %q, %q", workspaceID, ref)
 			}
@@ -199,7 +207,7 @@ func TestWorktreeMutationNameReferences(t *testing.T) {
 
 	t.Run("Should resolve a name when canceling creation", func(t *testing.T) {
 		t.Parallel()
-		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect("pending"), cancelWorktreeFn: func(
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "pending"), cancelWorktreeFn: func(
 			_ context.Context,
 			workspaceID string,
 			ref string,
@@ -221,7 +229,7 @@ func TestWorktreeMutationNameReferences(t *testing.T) {
 
 	t.Run("Should resolve a name when removing a ready worktree", func(t *testing.T) {
 		t.Parallel()
-		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect("ready"), removeWorktreeFn: func(
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "ready"), removeWorktreeFn: func(
 			_ context.Context,
 			workspaceID, ref string,
 			force bool,
@@ -243,7 +251,7 @@ func TestWorktreeMutationNameReferences(t *testing.T) {
 
 	t.Run("Should resolve a name when dismissing a tombstone", func(t *testing.T) {
 		t.Parallel()
-		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect("removed"), dismissWorktreeFn: func(
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "removed"), dismissWorktreeFn: func(
 			_ context.Context,
 			workspaceID string,
 			ref string,

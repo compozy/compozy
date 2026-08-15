@@ -148,7 +148,7 @@ func TestCanonicalShortcuts(t *testing.T) {
 			"window.tile.top-left", "window.tile.top-right", "window.tile.bottom-left",
 			"window.tile.bottom-right", "window.focus.left", "window.focus.right",
 			"window.focus.up", "window.focus.down", "desktop.switch.previous",
-			"desktop.switch.next", "desktop.overview", "layout.arrange.two-up",
+			"desktop.switch.next", "desktop.overview", "workspaces.overview", "layout.arrange.two-up",
 			"layout.arrange.grid", "layout.balance", "layout.undo", "layout.redo",
 		}
 		shortcuts := make(map[string]string, len(actions))

@@ -7,6 +7,7 @@
 // strip's scroll physics (no layout in jsdom).
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { WorkspacePayload, WorktreeListingByWorkspace } from "@/systems/workspace";
@@ -15,6 +16,7 @@ import {
   emptyWorktreeListingFixture,
   nonGitWorktreeListingFixture,
   scrollableWorktreesListingFixture,
+  worktreeBehindFixture,
   worktreeErrorFixture,
   worktreeListingFixture,
   worktreeMissingFixture,
@@ -24,6 +26,9 @@ import {
 } from "@/systems/workspace/mocks";
 
 import { OsWorkspacesOverview, type OsWorkspacesOverviewProps } from "../os-workspaces-overview";
+
+const toastMocks = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMocks }));
 
 function workspace(id: string, name: string, rootDir: string): WorkspacePayload {
   return {
@@ -82,8 +87,15 @@ function renderOverview(overrides: Partial<OsWorkspacesOverviewProps> = {}) {
     ...callbacks,
     ...overrides,
   };
-  render(<OsWorkspacesOverview {...props} />);
-  return callbacks;
+  let currentProps = props;
+  const view = render(<OsWorkspacesOverview {...props} />);
+  return {
+    ...callbacks,
+    rerenderOverview: (next: Partial<OsWorkspacesOverviewProps>) => {
+      currentProps = { ...currentProps, ...next };
+      view.rerender(<OsWorkspacesOverview {...currentProps} />);
+    },
+  };
 }
 
 function tile(id: string) {
@@ -95,6 +107,38 @@ function caption() {
 }
 
 describe("OsWorkspacesOverview", () => {
+  it("Should return focus to the workspace menubar trigger after closing", async () => {
+    const user = userEvent.setup();
+    function FocusHarness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button type="button" data-slot="os-menubar-workspace">
+            Workspace menu
+          </button>
+          <OsWorkspacesOverview
+            open={open}
+            onOpenChange={setOpen}
+            workspaces={[COMPOZY]}
+            activeWorkspaceId={COMPOZY.id}
+            scope="workspace"
+            reducedMotion
+            worktreesByWorkspace={{ [COMPOZY.id]: worktreeListingFixture }}
+            onSelectWorkspace={vi.fn()}
+            onNewWorkspace={vi.fn()}
+          />
+        </>
+      );
+    }
+    render(<FocusHarness />);
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Workspace menu" })).toHaveFocus()
+    );
+  });
+
   it("Should wrap arrow focus across the strip and jump with Home/End", async () => {
     const user = userEvent.setup();
     renderOverview();
@@ -107,6 +151,7 @@ describe("OsWorkspacesOverview", () => {
 
     await user.keyboard("{ArrowRight}");
     expect(tile(COMPOZY.id)).toHaveFocus();
+    expect(tile(COMPOZY.id)).toHaveAttribute("aria-selected", "true");
 
     await user.keyboard("{End}");
     expect(screen.getByTestId("os-workspace-tile-add")).toHaveFocus();
@@ -117,6 +162,35 @@ describe("OsWorkspacesOverview", () => {
     expect(caption()).not.toHaveTextContent("/Users/ada");
   });
 
+  it("Should preserve focused workspace identity when the live list shifts", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview();
+
+    await user.keyboard("{ArrowRight}");
+    expect(tile(BRANAS.id)).toHaveFocus();
+    callbacks.rerenderOverview({ workspaces: [BRANAS, NOTES] });
+    expect(tile(BRANAS.id)).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    expect(callbacks.onSelectWorkspace).toHaveBeenCalledExactlyOnceWith(BRANAS.id);
+  });
+
+  it("Should focus the nearest workspace when the focused workspace disappears", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview();
+
+    await user.keyboard("{ArrowRight}");
+    expect(tile(BRANAS.id)).toHaveFocus();
+    callbacks.rerenderOverview({ workspaces: [COMPOZY, NOTES] });
+    expect(tile(NOTES.id)).toHaveFocus();
+
+    callbacks.rerenderOverview({ workspaces: [NOTES, COMPOZY] });
+    expect(tile(NOTES.id)).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    expect(callbacks.onSelectWorkspace).toHaveBeenCalledExactlyOnceWith(NOTES.id);
+  });
+
   it("Should display worktree row paths home-contracted", () => {
     renderOverview();
     const row = screen.getByTestId(
@@ -124,6 +198,9 @@ describe("OsWorkspacesOverview", () => {
     );
     expect(row).toHaveTextContent("~/");
     expect(row).not.toHaveTextContent("/Users/ada");
+    expect(row).toHaveAttribute("role", "menuitemradio");
+    expect(row).toHaveAccessibleDescription(/ready.*payments-retry/);
+    expect(screen.getByTestId("os-workspaces-worktree-menu")).toHaveAttribute("role", "menu");
   });
 
   it("Should jump by typeahead prefix and cycle a repeated letter through its matches", async () => {
@@ -136,6 +213,29 @@ describe("OsWorkspacesOverview", () => {
     // "new" matches the add tile: n → notes, repeated n cycles to New.
     await user.keyboard("n");
     expect(screen.getByTestId("os-workspace-tile-add")).toHaveFocus();
+  });
+
+  it("Should jump by a non-ASCII workspace-name prefix", async () => {
+    const user = userEvent.setup();
+    renderOverview({
+      workspaces: [{ ...COMPOZY, name: "École" }, BRANAS, NOTES],
+      activeWorkspaceId: BRANAS.id,
+    });
+
+    await user.keyboard("é");
+
+    expect(tile(COMPOZY.id)).toHaveFocus();
+  });
+
+  it("Should trap Tab and Shift+Tab as strip focus movement", async () => {
+    const user = userEvent.setup();
+    renderOverview();
+
+    await user.tab();
+    expect(tile(BRANAS.id)).toHaveFocus();
+
+    await user.tab({ shift: true });
+    expect(tile(COMPOZY.id)).toHaveFocus();
   });
 
   it("Should enter the menu on ↓, leave on ↑ at the top, and step Escape one layer at a time", async () => {
@@ -193,6 +293,25 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it.each(["{Enter}", " "])(
+    "Should keep %s on the worktree actions trigger out of stage activation",
+    async key => {
+      const user = userEvent.setup();
+      const callbacks = renderOverview();
+
+      await user.keyboard("{ArrowDown}");
+      const kebab = screen.getByTestId(
+        `os-workspaces-worktree-actions-${worktreeReadyDirtyRunningFixture.id}`
+      );
+      kebab.focus();
+      await user.keyboard(key);
+
+      await waitFor(() => expect(kebab).toHaveAttribute("aria-expanded", "true"));
+      expect(callbacks.onSelectWorktree).not.toHaveBeenCalled();
+      expect(callbacks.onOpenChange).not.toHaveBeenCalledWith(false);
+    }
+  );
+
   it("Should skip inert rows while their reasons stay readable in the lane", async () => {
     const user = userEvent.setup();
     renderOverview({ worktreesByWorkspace: MIXED_LISTINGS });
@@ -203,6 +322,7 @@ describe("OsWorkspacesOverview", () => {
     );
     expect(pendingRow).toHaveAttribute("aria-disabled", "true");
     expect(pendingRow).toHaveTextContent("materializing");
+    expect(pendingRow).toHaveAccessibleDescription(/pending.*materializing/);
     expect(
       screen.getByTestId(`os-workspaces-worktree-row-${worktreeMissingFixture.id}`)
     ).toHaveTextContent("directory missing");
@@ -233,7 +353,7 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onSelectWorktree).not.toHaveBeenCalled();
   });
 
-  it("Should scope a worktree row on ↵ and open create from the footer", async () => {
+  it("Should scope a worktree row on ↵", async () => {
     const user = userEvent.setup();
     const callbacks = renderOverview();
 
@@ -244,6 +364,92 @@ describe("OsWorkspacesOverview", () => {
     expect(entry?.key).toBe(worktreeReadyDirtyRunningFixture.id);
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
     expect(callbacks.onSelectWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("Should preserve focused worktree identity when the live menu shifts", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview();
+
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    const target = screen.getByTestId(`os-workspaces-worktree-row-${worktreeBehindFixture.id}`);
+    expect(target).toHaveFocus();
+    callbacks.rerenderOverview({
+      worktreesByWorkspace: {
+        ...LISTINGS,
+        [COMPOZY.id]: {
+          ...worktreeListingFixture,
+          worktrees: worktreeListingFixture.worktrees.filter(
+            worktree => worktree.id !== worktreeReadyDirtyRunningFixture.id
+          ),
+        },
+      },
+    });
+    expect(target).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    const [, entry] = callbacks.onSelectWorktree.mock.calls[0] ?? [];
+    expect(entry?.key).toBe(worktreeBehindFixture.id);
+  });
+
+  it("Should focus the nearest worktree when the focused worktree disappears", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview();
+
+    await user.keyboard("{ArrowDown}");
+    const removed = screen.getByTestId(
+      `os-workspaces-worktree-row-${worktreeReadyDirtyRunningFixture.id}`
+    );
+    expect(removed).toHaveFocus();
+    callbacks.rerenderOverview({
+      worktreesByWorkspace: {
+        ...LISTINGS,
+        [COMPOZY.id]: {
+          ...worktreeListingFixture,
+          worktrees: worktreeListingFixture.worktrees.filter(
+            worktree => worktree.id !== worktreeReadyDirtyRunningFixture.id
+          ),
+        },
+      },
+    });
+    const nearest = screen.getByTestId(`os-workspaces-worktree-row-${worktreeBehindFixture.id}`);
+    expect(nearest).toHaveFocus();
+
+    callbacks.rerenderOverview({
+      worktreesByWorkspace: {
+        ...LISTINGS,
+        [COMPOZY.id]: {
+          ...worktreeListingFixture,
+          worktrees: worktreeListingFixture.worktrees
+            .filter(worktree => worktree.id !== worktreeReadyDirtyRunningFixture.id)
+            .reverse(),
+        },
+      },
+    });
+    expect(nearest).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    const [, entry] = callbacks.onSelectWorktree.mock.calls[0] ?? [];
+    expect(entry?.key).toBe(worktreeBehindFixture.id);
+  });
+
+  it("Should return focus to the workspace when its live menu becomes empty", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview({ onCreateWorktree: undefined });
+
+    await user.keyboard("{ArrowDown}");
+    expect(
+      screen.getByTestId(`os-workspaces-worktree-row-${worktreeReadyDirtyRunningFixture.id}`)
+    ).toHaveFocus();
+    callbacks.rerenderOverview({
+      worktreesByWorkspace: {
+        ...LISTINGS,
+        [COMPOZY.id]: nonGitWorktreeListingFixture,
+      },
+    });
+    expect(tile(COMPOZY.id)).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    expect(callbacks.onSelectWorkspace).toHaveBeenCalledExactlyOnceWith(COMPOZY.id);
   });
 
   it("Should open the create flow from the menu footer", async () => {
@@ -267,7 +473,7 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("Should mark current as check, flip to the branch badge under a worktree scope, and hide all under Global", () => {
+  it("Should mark the current workspace as root", () => {
     renderOverview();
     expect(tile(COMPOZY.id)).toHaveAttribute("data-current", "root");
   });
@@ -277,13 +483,82 @@ describe("OsWorkspacesOverview", () => {
     expect(tile(COMPOZY.id)).toHaveAttribute("data-current", "wt");
     expect(
       screen.getByTestId(`os-workspaces-worktree-row-${worktreeReadyDirtyRunningFixture.id}`)
-    ).toHaveAttribute("aria-selected", "true");
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("Should not mark a non-ready worktree as the current scope", () => {
+    renderOverview({
+      worktreesByWorkspace: MIXED_LISTINGS,
+      selectedWorktreeId: worktreePendingFixture.id,
+    });
+
+    expect(tile(COMPOZY.id)).toHaveAttribute("data-current", "root");
+    expect(
+      screen.getByTestId(`os-workspaces-worktree-row-${worktreePendingFixture.id}`)
+    ).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("Should adopt a discovered checkout and delete a ready worktree through their row actions", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview({ worktreesByWorkspace: MIXED_LISTINGS });
+
+    await user.click(
+      screen.getByTestId(`os-workspaces-worktree-row-discovered:${discoveredWorktreeFixture.path}`)
+    );
+    expect(callbacks.onSelectWorktree).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSelectWorktree.mock.calls[0]?.[1]?.key).toBe(
+      `discovered:${discoveredWorktreeFixture.path}`
+    );
+
+    callbacks.rerenderOverview({ worktreesByWorkspace: LISTINGS, open: true });
+    const actions = screen.getByTestId(
+      `os-workspaces-worktree-actions-${worktreeReadyDirtyRunningFixture.id}`
+    );
+    await user.click(actions);
+    await user.click(
+      await screen.findByTestId(
+        `os-workspaces-worktree-delete-${worktreeReadyDirtyRunningFixture.id}`
+      )
+    );
+    expect(callbacks.onRemoveWorktree).toHaveBeenCalledTimes(1);
+    expect(callbacks.onRemoveWorktree.mock.calls[0]?.[1]?.key).toBe(
+      worktreeReadyDirtyRunningFixture.id
+    );
   });
 
   it("Should show no current marker anywhere while Global is on", () => {
     renderOverview({ scope: "global", selectedWorktreeId: null });
     expect(tile(COMPOZY.id)).not.toHaveAttribute("data-current");
     expect(tile(BRANAS.id)).not.toHaveAttribute("data-current");
+    expect(tile(COMPOZY.id)).toHaveAttribute("aria-selected", "false");
+    expect(tile(BRANAS.id)).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("Should report unavailable clipboard access without attempting a copy", async () => {
+    const user = userEvent.setup();
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    toastMocks.error.mockClear();
+    try {
+      renderOverview();
+      const kebab = screen.getByTestId(
+        `os-workspaces-worktree-actions-${worktreeReadyDirtyRunningFixture.id}`
+      );
+      await user.click(kebab);
+      await user.click(
+        await screen.findByTestId(
+          `os-workspaces-worktree-copy-${worktreeReadyDirtyRunningFixture.id}`
+        )
+      );
+
+      expect(toastMocks.error).toHaveBeenCalledExactlyOnceWith("Could not copy the path");
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
+      }
+    }
   });
 
   it("Should render menu absence truthfully: git+0 → lone create button, non-git → nothing", async () => {
@@ -301,7 +576,7 @@ describe("OsWorkspacesOverview", () => {
     expect(screen.queryByTestId("os-workspaces-worktree-menu")).not.toBeInTheDocument();
   });
 
-  it("Should truncate the nest at five rows and keep only real destinations in the footer", () => {
+  it("Should expose every worktree in the overview without inventing another destination", () => {
     renderOverview({
       worktreesByWorkspace: {
         [COMPOZY.id]: scrollableWorktreesListingFixture,
@@ -311,7 +586,7 @@ describe("OsWorkspacesOverview", () => {
     });
 
     const menu = screen.getByTestId("os-workspaces-worktree-menu");
-    expect(menu.querySelectorAll('[data-slot="os-workspaces-worktree-row"]')).toHaveLength(5);
+    expect(menu.querySelectorAll('[data-slot="os-workspaces-worktree-row"]')).toHaveLength(18);
     expect(screen.getByTestId("os-workspaces-worktree-create")).toBeInTheDocument();
     // No "All N worktrees" row: production has no worktree-overview surface,
     // and this overlay must not invent a destination.
@@ -339,6 +614,32 @@ describe("OsWorkspacesOverview", () => {
     await user.click(screen.getByTestId("os-workspaces-new"));
     expect(callbacks.onNewWorkspace).toHaveBeenCalledTimes(1);
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it.each(["{Enter}", " "])("Should activate the empty-state button with %s", async key => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview({
+      workspaces: [],
+      worktreesByWorkspace: {},
+      activeWorkspaceId: null,
+      scope: "global",
+    });
+
+    screen.getByTestId("os-workspaces-new").focus();
+    await user.keyboard(key);
+    expect(callbacks.onNewWorkspace).toHaveBeenCalledOnce();
+  });
+
+  it("Should apply the live current workspace when data arrives after an empty mount", () => {
+    const callbacks = renderOverview({
+      workspaces: [],
+      worktreesByWorkspace: {},
+      activeWorkspaceId: BRANAS.id,
+    });
+
+    callbacks.rerenderOverview({ workspaces: [COMPOZY, BRANAS], worktreesByWorkspace: LISTINGS });
+
+    expect(tile(BRANAS.id)).toHaveFocus();
   });
 
   it("Should count adopted worktrees only and singularize one workspace", () => {

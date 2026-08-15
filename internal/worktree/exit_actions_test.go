@@ -89,6 +89,24 @@ func TestExitActions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve lookup errors during exit cancellation", func(t *testing.T) {
+		t.Parallel()
+		fixture := newExitActionFixture(t, false)
+		storeErr := errors.New("read unavailable")
+		fixture.service.store = &getErrorWorktreeStore{
+			memoryWorktreeStore: fixture.store,
+			err:                 storeErr,
+		}
+
+		err := fixture.service.CancelExitAction(
+			context.Background(), fixture.item.WorkspaceID, fixture.item.ID, "op-exit",
+		)
+		if !errors.Is(err, storeErr) || errors.Is(err, ErrNotFound) ||
+			!strings.Contains(err.Error(), "read exit cancellation target") {
+			t.Fatalf("CancelExitAction() error = %v, want contextualized store error", err)
+		}
+	})
+
 	t.Run("Should refuse a second durable operation before starting another worker", func(t *testing.T) {
 		t.Parallel()
 		fixture := newExitActionFixture(t, false)

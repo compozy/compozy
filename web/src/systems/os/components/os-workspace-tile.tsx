@@ -13,23 +13,23 @@ export type OsWorkspaceTileCurrent = "root" | "wt";
  * roving-focus move, so keyboard focus is always visible.
  */
 const TILE_CLASS = cn(
-  "group/wsov-tile relative flex w-[94px] flex-none snap-center flex-col items-center gap-[7px]",
-  "rounded-xl border border-transparent px-1.5 pt-2 pb-[7px] text-center select-none",
-  "min-[960px]:w-[86px]",
+  "group/wsov-tile relative flex w-workspaces-tile flex-none snap-center flex-col items-center gap-workspaces-tile-gap",
+  "rounded-xl border border-transparent px-1.5 pt-2 pb-workspaces-tile-gap text-center select-none",
+  "shell-wide:w-workspaces-tile-wide",
   "outline-none focus-visible:outline-none",
   "transition-colors duration-base ease-out",
   "data-[on=true]:bg-(image:--shell-plate-gradient) data-[on=true]:shadow-shell-plate",
-  "data-[on=true]:backdrop-blur-shell-plate data-[on=true]:backdrop-saturate-[1.2]"
+  "data-[on=true]:backdrop-blur-shell-plate data-[on=true]:backdrop-saturate-shell-plate"
 );
 
 const WELL_CLASS = cn(
-  "relative grid size-14 flex-none place-items-center rounded-window text-fg",
+  "relative grid size-workspaces-well flex-none place-items-center rounded-window text-fg",
   "border border-line-strong bg-(image:--shell-well-gradient) shadow-highlight",
-  "min-[960px]:size-[52px]",
+  "shell-wide:size-workspaces-well-wide",
   "transition-[background,border-color,box-shadow,transform,scale] duration-base ease-out",
   "group-hover/wsov-tile:bg-none group-hover/wsov-tile:bg-btn-default-hover",
   "group-data-[on=true]/wsov-tile:-translate-y-px",
-  "group-active/wsov-tile:scale-[0.96] group-active/wsov-tile:translate-y-0"
+  "group-active/wsov-tile:scale-(--scale-wsov-tile-press) group-active/wsov-tile:translate-y-0"
 );
 
 const NAME_CLASS =
@@ -41,7 +41,7 @@ function CurrentPill({ current }: { current: OsWorkspaceTileCurrent }) {
     <span
       aria-hidden="true"
       data-slot="os-workspace-tile-current"
-      className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-pill bg-success text-accent-ink shadow-shell-check-halo"
+      className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-pill bg-success text-accent-ink shadow-shell-current-halo"
     >
       <Glyph className="size-2.5" />
     </span>
@@ -79,9 +79,8 @@ export function OsWorkspaceTile({
       data-slot="os-workspace-tile"
       data-on={focused ? "true" : undefined}
       data-current={current ?? undefined}
-      aria-selected={focused}
+      aria-selected={current !== null}
       aria-label={current ? `${name} (current)` : name}
-      tabIndex={focused ? 0 : -1}
       className={cn(TILE_CLASS, className)}
       {...props}
     >
@@ -109,9 +108,8 @@ export function OsWorkspaceAddTile({ focused, className, ...props }: OsWorkspace
       data-slot="os-workspace-tile"
       data-add="true"
       data-on={focused ? "true" : undefined}
-      aria-selected={focused}
+      aria-selected={false}
       aria-label="New workspace"
-      tabIndex={focused ? 0 : -1}
       className={cn(TILE_CLASS, className)}
       {...props}
     >

@@ -4,14 +4,14 @@ area: RT
 title: Manage a worktree lifecycle through structured CLI output
 persona: Ada
 journey: J-worktree-management
-expected: Every `compozy worktree` verb that accepts `<ref>` behaves the same for a name or ID, returns truthful structured output and deterministic refusal codes, and remove → dismiss makes the old name reusable without losing ID-addressed history.
+expected: Creating, cancelling, adopting, listing, inspecting, refreshing status, executing or cancelling an assisted exit, refusing an unsafe removal, forcing removal, and dismissing through `compozy worktree` never falls back to the workspace root; every `<ref>` verb behaves the same for a name or ID, returns truthful structured output and deterministic exit codes, and remove → dismiss makes the old name reusable without losing ID-addressed history.
 entry_points: compozy worktree list|create|cancel|adopt|inspect|status|exit|commit|push|pr|exit-cancel|remove|dismiss -o json|jsonl
 qa_status: pass
 bug_ids: BUG-20260814-worktree-mutation-output-loses-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: working-tree
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-status-by-name.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-remove-by-name.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-dismiss-by-name.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-recreate-same-name.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-old-id-tombstone.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/cli-worktree-create.jsonl; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/cli-worktree-dirty-exit-remove.jsonl; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/cli-worktree-force-remove.json; internal/daemon/daemon_worktree_e2e_integration_test.go; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-status-by-name.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-remove-by-name.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-dismiss-by-name.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-recreate-same-name.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/logs/cli-retest-old-id-tombstone.json
 last_report: docs/qa/reports/2026-08-14-worktree-lifecycle-fixes.md
 overlaps: RT-worktree-api-surface-parity
 ---

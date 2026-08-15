@@ -1454,11 +1454,11 @@ func worktreeE2ECLIRemovalRefusal(
 	harness *e2etest.RuntimeHarness,
 	root string,
 	workspaceID string,
-	worktreeID string,
+	worktreeRef string,
 ) compozycontract.WorktreeRemovalRefusalPayload {
 	t.Helper()
 	stdout, stderr, err := harness.CLI.RunInDir(
-		ctx, root, "worktree", "remove", worktreeID,
+		ctx, root, "worktree", "remove", worktreeRef,
 		"--workspace", workspaceID, "-o", "json",
 	)
 	if err == nil || strings.TrimSpace(stdout) != "" {
@@ -1505,8 +1505,8 @@ func waitForWorktreeE2EState(
 	}
 }
 
-func worktreeE2EPath(workspaceID string, worktreeID string) string {
-	return "/api/workspaces/" + url.PathEscape(workspaceID) + "/worktrees/" + url.PathEscape(worktreeID)
+func worktreeE2EPath(workspaceID string, worktreeRef string) string {
+	return "/api/workspaces/" + url.PathEscape(workspaceID) + "/worktrees/" + url.PathEscape(worktreeRef)
 }
 
 func assertWorktreeE2EListIsolation(

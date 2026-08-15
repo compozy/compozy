@@ -1,23 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 
-import type { WorkspacePayload, WorkspaceTreeNode, WorktreeNestEntry } from "@/systems/workspace";
+import type { WorkspacesMenuNavRow } from "../lib/workspaces-overview-model";
+import type { WorkspacePayload, WorkspaceTreeNode } from "@/systems/workspace";
 
 /** Trailing dashed tile; matches the typeahead word "new". */
 export const WORKSPACES_ADD_TILE_KEY = "__add";
 
-export interface WorkspacesSwitcherEntry {
+interface WorkspaceSwitcherWorkspaceEntry {
   /** Workspace id, or `WORKSPACES_ADD_TILE_KEY` for the trailing add tile. */
   key: string;
-  kind: "workspace" | "add";
-  node: WorkspaceTreeNode<WorkspacePayload> | null;
+  kind: "workspace";
+  node: WorkspaceTreeNode<WorkspacePayload>;
 }
 
-/** Arrow-reachable rows of the focused workspace's worktree menu. */
-export interface WorkspacesMenuNavRow {
-  key: string;
-  kind: "worktree" | "create";
-  entry: WorktreeNestEntry | null;
+interface WorkspaceSwitcherAddEntry {
+  key: typeof WORKSPACES_ADD_TILE_KEY;
+  kind: "add";
+  node: null;
 }
+
+export type WorkspacesSwitcherEntry = WorkspaceSwitcherWorkspaceEntry | WorkspaceSwitcherAddEntry;
 
 export type WorkspacesSwitcherLayer = "strip" | "menu";
 
@@ -63,23 +65,31 @@ export interface WorkspacesSwitcher {
 }
 
 const TYPEAHEAD_RESET_MS = 650;
-const TYPEAHEAD_PATTERN = /^[a-z0-9-]$/i;
+function isTypeaheadKey(key: string): boolean {
+  return Array.from(key).length === 1 && !/^\s$/u.test(key);
+}
 
 interface FocusIntent {
   instant?: boolean;
   skipScroll?: boolean;
 }
 
+interface FocusPosition {
+  key: string | null;
+  /** Nearest surviving position when the keyed entry disappears. */
+  index: number;
+}
+
 function typeaheadName(entry: WorkspacesSwitcherEntry): string {
-  return entry.kind === "add" ? "new" : (entry.node?.workspace.name.toLowerCase() ?? "");
+  return entry.kind === "add" ? "new" : entry.node.workspace.name.toLowerCase();
 }
 
 /**
  * Command-Tab interaction model: a roving-tabindex strip layer over a vertical
  * worktree-menu layer. Real DOM focus is the single focus model — there is no
  * aria-activedescendant mirror (workspaces DESIGN-NOTES keyboard contract).
- * Handlers move DOM focus synchronously; the one effect is the initial focus
- * on open.
+ * Handlers move DOM focus synchronously. A callback ref owns initial focus;
+ * the layout effect reconciles keyed focus when live entries change.
  */
 export function useWorkspacesSwitcher({
   entries,
@@ -93,21 +103,44 @@ export function useWorkspacesSwitcher({
   consumeDragClick,
   isTrackDragging,
 }: UseWorkspacesSwitcherInput): WorkspacesSwitcher {
-  const [focusIndex, setFocusIndex] = useState(() => {
-    const index = entries.findIndex(entry => entry.key === initialFocusKey);
-    return index >= 0 ? index : 0;
+  const [stripFocus, setStripFocusPosition] = useState<FocusPosition>(() => {
+    const initialIndex = entries.findIndex(entry => entry.key === initialFocusKey);
+    const index = initialIndex >= 0 ? initialIndex : 0;
+    return { key: entries[index]?.key ?? null, index };
   });
   const [layer, setLayer] = useState<WorkspacesSwitcherLayer>("strip");
-  const [menuIndex, setMenuIndex] = useState(0);
+  const [menuFocus, setMenuFocusPosition] = useState<FocusPosition>({ key: null, index: 0 });
 
   const tileElsRef = useRef(new Map<string, HTMLElement>());
   const rowElsRef = useRef(new Map<string, HTMLElement>());
   const typeBufferRef = useRef("");
   const typeTimerRef = useRef(0);
-  const initialFocusDoneRef = useRef(false);
-
+  const storedFocusIndex = entries.findIndex(entry => entry.key === stripFocus.key);
+  const initialEntryIndex =
+    stripFocus.key === null ? entries.findIndex(entry => entry.key === initialFocusKey) : -1;
+  const focusIndex =
+    storedFocusIndex >= 0
+      ? storedFocusIndex
+      : initialEntryIndex >= 0
+        ? initialEntryIndex
+        : Math.min(stripFocus.index, Math.max(0, entries.length - 1));
   const focusedEntry = entries[focusIndex];
   const menuNavRows = focusedEntry ? menuNavRowsForKey(focusedEntry.key) : [];
+  const storedMenuIndex = menuNavRows.findIndex(row => row.key === menuFocus.key);
+  const menuIndex =
+    storedMenuIndex >= 0
+      ? storedMenuIndex
+      : Math.min(menuFocus.index, Math.max(0, menuNavRows.length - 1));
+  const focusedMenuRow = menuNavRows[menuIndex];
+  const activeLayer = layer === "menu" && menuNavRows.length === 0 ? "strip" : layer;
+
+  if (activeLayer !== layer) setLayer(activeLayer);
+  if (activeLayer === "menu" && focusedMenuRow && menuFocus.key !== focusedMenuRow.key) {
+    setMenuFocusPosition({ key: focusedMenuRow.key, index: menuIndex });
+  }
+  if (activeLayer === "strip" && focusedEntry && stripFocus.key !== focusedEntry.key) {
+    setStripFocusPosition({ key: focusedEntry.key, index: focusIndex });
+  }
 
   const focusTileElement = (key: string | undefined, intent: FocusIntent) => {
     const element = key ? tileElsRef.current.get(key) : undefined;
@@ -118,17 +151,37 @@ export function useWorkspacesSwitcher({
 
   const setStripFocus = (index: number, intent: FocusIntent = {}) => {
     setLayer("strip");
-    setFocusIndex(index);
-    focusTileElement(entries[index]?.key, intent);
+    const key = entries[index]?.key;
+    setStripFocusPosition({ key: key ?? null, index });
+    focusTileElement(key, intent);
   };
 
   const setMenuFocus = (rows: readonly WorkspacesMenuNavRow[], navIndex: number) => {
     const row = rows[navIndex];
     if (!row) return;
     setLayer("menu");
-    setMenuIndex(navIndex);
+    setMenuFocusPosition({ key: row.key, index: navIndex });
     rowElsRef.current.get(row.key)?.focus({ preventScroll: true });
   };
+
+  const reconcileDOMFocus = useEffectEvent(
+    (element: HTMLElement, resolvedLayer: WorkspacesSwitcherLayer) => {
+      element.focus({ preventScroll: true });
+      if (resolvedLayer === "strip") {
+        keepInView(element, { instant: reducedMotion });
+      }
+    }
+  );
+
+  useLayoutEffect(() => {
+    const resolvedKey = activeLayer === "menu" ? focusedMenuRow?.key : focusedEntry?.key;
+    if (!resolvedKey) return;
+    const element =
+      activeLayer === "menu"
+        ? rowElsRef.current.get(resolvedKey)
+        : tileElsRef.current.get(resolvedKey);
+    if (element && document.activeElement !== element) reconcileDOMFocus(element, activeLayer);
+  }, [activeLayer, focusedEntry?.key, focusedMenuRow?.key]);
 
   useEffect(() => {
     return () => window.clearTimeout(typeTimerRef.current);
@@ -164,7 +217,7 @@ export function useWorkspacesSwitcher({
   };
 
   const activate = () => {
-    if (layer === "menu") {
+    if (activeLayer === "menu") {
       const row = menuNavRows[menuIndex];
       if (focusedEntry && row) onActivateMenuRow(focusedEntry, row);
       return;
@@ -187,13 +240,20 @@ export function useWorkspacesSwitcher({
       const index = (start + step) % entries.length;
       const entry = entries[index];
       if (entry && typeaheadName(entry).startsWith(prefix)) {
-        if (index !== focusIndex || layer !== "strip") setStripFocus(index);
+        if (index !== focusIndex || activeLayer !== "strip") setStripFocus(index);
         return;
       }
     }
   };
 
   const onStageKeyDown = (event: React.KeyboardEvent) => {
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest('[data-slot="dropdown-menu-trigger"], [data-slot="dropdown-menu-content"]')
+    ) {
+      return;
+    }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     switch (event.key) {
       case "ArrowRight":
@@ -206,37 +266,38 @@ export function useWorkspacesSwitcher({
         return;
       case "ArrowDown":
         event.preventDefault();
-        if (layer === "menu") moveMenu(1);
+        if (activeLayer === "menu") moveMenu(1);
         else enterMenu();
         return;
       case "ArrowUp":
         event.preventDefault();
-        if (layer === "menu") moveMenu(-1);
+        if (activeLayer === "menu") moveMenu(-1);
         return;
       case "Home":
         event.preventDefault();
-        if (layer === "menu") setMenuFocus(menuNavRows, 0);
+        if (activeLayer === "menu") setMenuFocus(menuNavRows, 0);
         else if (entries.length > 0) setStripFocus(0, { instant: true });
         return;
       case "End":
         event.preventDefault();
-        if (layer === "menu") setMenuFocus(menuNavRows, menuNavRows.length - 1);
+        if (activeLayer === "menu") setMenuFocus(menuNavRows, menuNavRows.length - 1);
         else if (entries.length > 0) setStripFocus(entries.length - 1, { instant: true });
         return;
       case "Enter":
       case " ":
+        if (!focusedEntry && target instanceof Element && target.closest("button")) return;
         event.preventDefault();
         activate();
         return;
       case "Tab":
         // Focus is trapped in the overlay; Tab is remapped to movement.
         event.preventDefault();
-        if (layer === "menu") moveMenu(event.shiftKey ? -1 : 1);
+        if (activeLayer === "menu") moveMenu(event.shiftKey ? -1 : 1);
         else moveStrip(event.shiftKey ? -1 : 1);
         return;
       default:
     }
-    if (event.key.length === 1 && TYPEAHEAD_PATTERN.test(event.key)) {
+    if (isTypeaheadKey(event.key)) {
       event.preventDefault();
       typeJump(event.key.toLowerCase());
     }
@@ -248,14 +309,6 @@ export function useWorkspacesSwitcher({
       return;
     }
     tileElsRef.current.set(key, element);
-    // Initial focus: the overlay mounts fresh per open and focus must land on
-    // the current workspace's tile, kept clear of the edge fades. The ref
-    // callback is the imperative DOM slot for this one-time commit-time sync.
-    if (!initialFocusDoneRef.current && entries[focusIndex]?.key === key) {
-      initialFocusDoneRef.current = true;
-      element.focus({ preventScroll: true });
-      keepInView(element, { instant: reducedMotion });
-    }
   };
 
   const registerRow = (key: string) => (element: HTMLElement | null) => {
@@ -272,7 +325,7 @@ export function useWorkspacesSwitcher({
     },
     onMouseMove: () => {
       if (isTrackDragging()) return;
-      if (layer === "strip" && index === focusIndex) return;
+      if (activeLayer === "strip" && index === focusIndex) return;
       setStripFocus(index, { skipScroll: true });
     },
   });
@@ -287,18 +340,18 @@ export function useWorkspacesSwitcher({
   });
 
   const focusNearest = (index: number) => {
-    if (layer === "strip" && index === focusIndex) return;
+    if (activeLayer === "strip" && index === focusIndex) return;
     setStripFocus(index, { skipScroll: true });
   };
 
   const guardEscape = () => {
-    if (layer !== "menu") return false;
+    if (activeLayer !== "menu") return false;
     leaveMenu();
     return true;
   };
 
   return {
-    layer,
+    layer: activeLayer,
     focusIndex,
     menuIndex,
     focusedEntry,

@@ -22,6 +22,16 @@ import {
 
 import { useOsShell } from "../hooks/use-os-shell";
 
+function finishWorktreeSelection(
+  scopeId: string,
+  workspaceId: string,
+  worktree: WorktreePayload,
+  close: () => void
+): void {
+  selectWorktreeForScope(scopeId, workspaceId, worktree.id);
+  close();
+}
+
 /**
  * Worktree lifecycle dialog boundaries for the desktop shell.
  *
@@ -46,10 +56,8 @@ export function WorktreeCreateDialogBoundary({
 }) {
   const model = useWorktreeCreateDialog(workspaceId, listing, {
     generatedName: suggestWorktreeName(listing),
-    onCreated: worktree => {
-      selectWorktreeForScope(scopeId, workspaceId, worktree.id);
-      onOpenChange(false);
-    },
+    onCreated: worktree =>
+      finishWorktreeSelection(scopeId, workspaceId, worktree, () => onOpenChange(false)),
   });
   return (
     <WorktreeCreateDialog
@@ -226,8 +234,7 @@ export function WorktreeAdoptDialogBoundary({
           {
             onSuccess: worktree => {
               // Adoption completes the gesture the selection started.
-              selectWorktreeForScope(scopeId, workspaceId, worktree.id);
-              onClose();
+              finishWorktreeSelection(scopeId, workspaceId, worktree, onClose);
             },
           }
         )

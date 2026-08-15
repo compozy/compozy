@@ -3,7 +3,7 @@ title: Removal and Recovery
 description: Remove a linked checkout after safety checks or recover a Worktree that disappeared outside CompozyOS.
 ---
 
-Removal deletes the linked checkout, not its branch or Git history. CompozyOS checks bound sessions,
+Removal deletes the linked checkout, not operator-owned branches or Git history. CompozyOS checks bound sessions,
 dirty files, unpushed commits, repository identity, and fresh cleanup evidence before it changes Git.
 
 ## Remove a clean Worktree
@@ -67,8 +67,10 @@ discard the checkout after reviewing those exact quantities, confirm explicitly:
 compozy worktree remove feature-auth --workspace . --force -o json
 ```
 
-`--force` does not delete the branch. A remote branch may downgrade unpushed evidence, but it never
-hides dirty files or an unreadable safety check.
+`--force` does not delete an operator-owned branch. A remote branch may downgrade unpushed evidence,
+but it never hides dirty files or an unreadable safety check. The narrow exception is an unchanged
+runtime-owned per-run branch: CompozyOS compare-deletes it only while it still points at the recorded
+creation commit and emits `worktree.branch_reclaimed`.
 
 ## Recover a missing path
 
@@ -100,11 +102,12 @@ session history, task history, or workspace memory. The retained record remains 
 but its name becomes available for a new Worktree. Every non-dismissed record, including `removed`,
 continues to reserve its name.
 
-Because removal preserves the branch, reuse the released Worktree name by attaching that branch:
+When removal preserved the branch, reuse the released Worktree name by attaching that branch:
 
 ```bash
-compozy worktree create feature-auth --workspace . --existing-branch feature-auth -o json
+compozy worktree create feature-auth --workspace . --existing-branch <retained-branch> -o json
 ```
 
-This creates a new Worktree ID while the dismissed record and its history remain readable by the old
-ID. Use `--branch <new-branch>` instead when the replacement should start from a different branch.
+Use `feature-auth` for `<retained-branch>` when the original Worktree used its default branch. This
+creates a new Worktree ID while the dismissed record and its history remain readable by the old ID.
+Use `--branch <new-branch>` instead when the replacement should start from a different branch.

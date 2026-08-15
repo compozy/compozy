@@ -37,18 +37,19 @@ func (g *WorktreeRepo) Insert(ctx context.Context, item worktree.Worktree) error
 	})
 }
 
-func (g *WorktreeRepo) Get(ctx context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
+// Get resolves IDs before live names. Dismissed rows remain addressable only by ID.
+func (g *WorktreeRepo) Get(ctx context.Context, workspaceID, idOrName string) (*worktree.Worktree, error) {
 	if err := g.checkReady(ctx, "get worktree"); err != nil {
 		return nil, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	ref = strings.TrimSpace(ref)
+	idOrName = strings.TrimSpace(idOrName)
 	row, err := g.queries.GetWorktreeByID(ctx, sqlcgen.GetWorktreeByIDParams{
-		WorkspaceID: workspaceID, WorktreeID: ref,
+		WorkspaceID: workspaceID, WorktreeID: idOrName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		row, err = g.queries.GetWorktreeByName(ctx, sqlcgen.GetWorktreeByNameParams{
-			WorkspaceID: workspaceID, Name: ref,
+			WorkspaceID: workspaceID, Name: idOrName,
 		})
 	}
 	if errors.Is(err, sql.ErrNoRows) {
