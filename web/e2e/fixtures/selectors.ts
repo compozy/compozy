@@ -31,7 +31,14 @@ export const SESSION_CREATE_FIRST_MESSAGE = "e2e first message";
 // match would resolve to a second session window (strict-mode violation).
 export const sessionWindowTestIds = {
   chatView: "chat-view",
+  composerAttachButton: "composer-attach-button",
+  composerAttachmentGate: "composer-attachment-gate",
+  composerAttachmentRemove: "composer-attachment-remove",
+  composerAttachmentStrip: "composer-attachment-strip",
+  composerAttachmentTile: "composer-attachment-tile",
   composerClearButton: "composer-clear-button",
+  composerDropOverlay: "composer-drop-overlay",
+  composerQueuedAttachmentWell: "composer-queued-attachment-well",
   composerSendButton: "composer-send-button",
   deleteButton: "delete-button",
   permissionAllowAlways: "permission-allow-always",
@@ -41,6 +48,9 @@ export const sessionWindowTestIds = {
   resumeButton: "resume-button",
   stopButton: "stop-button",
   topbarOverflow: "session-topbar-overflow",
+  userMessageAttachmentFileCard: "user-message-attachment-file-card",
+  userMessageAttachmentFrame: "user-message-attachment-frame",
+  userMessageAttachmentGallery: "user-message-attachment-gallery",
 } as const;
 
 export interface SessionLifecycleSelectors {
@@ -53,7 +63,14 @@ export interface SessionLifecycleSelectors {
 
 export interface SessionWindowSelectors {
   chatView: Locator;
+  composerAttachButton: Locator;
+  composerAttachmentGate: Locator;
+  composerAttachmentRemove: Locator;
+  composerAttachmentStrip: Locator;
+  composerAttachmentTile: Locator;
   composerClearButton: Locator;
+  composerDropOverlay: Locator;
+  composerQueuedAttachmentWell: Locator;
   composerSendButton: Locator;
   composerTextarea: Locator;
   deleteButton: Locator;
@@ -64,6 +81,9 @@ export interface SessionWindowSelectors {
   resumeButton: Locator;
   stopButton: Locator;
   topbarOverflow: Locator;
+  userMessageAttachmentFileCard: Locator;
+  userMessageAttachmentFrame: Locator;
+  userMessageAttachmentGallery: Locator;
 }
 
 export const networkOperatorTestIds = {
@@ -951,7 +971,16 @@ export function sessionWindowSelectors(
 ): SessionWindowSelectors {
   return {
     chatView: win.getByTestId(sessionWindowTestIds.chatView),
+    composerAttachButton: win.getByTestId(sessionWindowTestIds.composerAttachButton),
+    composerAttachmentGate: win.getByTestId(sessionWindowTestIds.composerAttachmentGate),
+    composerAttachmentRemove: win.getByTestId(sessionWindowTestIds.composerAttachmentRemove),
+    composerAttachmentStrip: win.getByTestId(sessionWindowTestIds.composerAttachmentStrip),
+    composerAttachmentTile: win.getByTestId(sessionWindowTestIds.composerAttachmentTile),
     composerClearButton: portalRoot.getByTestId(sessionWindowTestIds.composerClearButton),
+    composerDropOverlay: win.getByTestId(sessionWindowTestIds.composerDropOverlay),
+    composerQueuedAttachmentWell: win.getByTestId(
+      sessionWindowTestIds.composerQueuedAttachmentWell
+    ),
     composerSendButton: win.getByRole("button", { name: "Send message" }),
     composerTextarea: win.getByRole("textbox", { name: "Session prompt" }),
     deleteButton: portalRoot.getByTestId(sessionWindowTestIds.deleteButton),
@@ -962,6 +991,13 @@ export function sessionWindowSelectors(
     resumeButton: win.getByTestId(sessionWindowTestIds.resumeButton),
     stopButton: win.getByTestId(sessionWindowTestIds.stopButton),
     topbarOverflow: win.getByTestId(sessionWindowTestIds.topbarOverflow),
+    userMessageAttachmentFileCard: win.getByTestId(
+      sessionWindowTestIds.userMessageAttachmentFileCard
+    ),
+    userMessageAttachmentFrame: win.getByTestId(sessionWindowTestIds.userMessageAttachmentFrame),
+    userMessageAttachmentGallery: win.getByTestId(
+      sessionWindowTestIds.userMessageAttachmentGallery
+    ),
   };
 }
 

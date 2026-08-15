@@ -33,6 +33,7 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
 
   const clearComposer = () => {
     aui.composer.setText("");
+    void aui.composer.clearAttachments();
     sessionStore.trigger.composerDraftDiscarded({ sessionId });
   };
 

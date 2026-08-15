@@ -5,6 +5,7 @@ import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
 import { reportGatewayResponse } from "@/lib/gateway-access-signal";
 
+import { useSessionAttachmentAdapter } from "@/components/assistant-ui/hooks/use-session-attachment-adapter";
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
@@ -101,6 +102,7 @@ export function useSessionChatRuntime({
   const queryClient = useQueryClient();
   const promptRuntime = useOptionalSessionPromptRuntimeContext();
   const [idempotencyKeys] = useState(() => new Map<string, string>());
+  const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
     workspaceId,
@@ -113,5 +115,6 @@ export function useSessionChatRuntime({
   return useChatRuntime({
     transport: runtimeConfig.transport,
     onFinish: runtimeConfig.onFinish,
+    adapters: { attachments: attachmentAdapter },
   });
 }

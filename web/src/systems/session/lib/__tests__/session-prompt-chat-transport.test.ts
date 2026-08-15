@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { SESSION_ATTACHMENT_DATA_TYPE } from "../attachment-kinds";
 import { createSessionPromptChatTransport } from "../session-prompt-chat-transport";
 
 const userMessage = (id: string, text = "Continue the durable transcript") => ({
@@ -158,5 +159,42 @@ describe("session prompt chat transport", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("maps complete attachment data parts onto the prompt body", async () => {
+    const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => streamResponse()
+    );
+    const transport = createSessionPromptChatTransport({ api: "/prompt", fetch });
+    const attachment = {
+      bytes: 32,
+      height: 10,
+      id: "att_deadbeef",
+      kind: "image",
+      mime_type: "image/png",
+      name: "shot.png",
+      sha256: "b".repeat(64),
+      width: 10,
+    };
+
+    await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: "session-001",
+      messageId: undefined,
+      messages: [
+        {
+          id: "message-att",
+          parts: [
+            { text: "Look at this", type: "text" as const },
+            { type: SESSION_ATTACHMENT_DATA_TYPE, data: attachment },
+          ],
+          role: "user" as const,
+        },
+      ],
+      trigger: "submit-message",
+    });
+
+    const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(body.attachments).toEqual([attachment]);
   });
 });

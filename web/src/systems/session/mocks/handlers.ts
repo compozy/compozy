@@ -200,6 +200,46 @@ export const handlers: HttpHandler[] = [
     }
   ),
   compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
+    async ({ params, request }) => {
+      const id = String(params.session_id);
+      const workspaceId = String(params.workspace_id);
+      const session = sessionById.get(id);
+      if (!session || session.workspace_id !== workspaceId) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const form = await request.formData();
+      const uploaded = form.get("file");
+      const filename = uploaded instanceof File ? uploaded.name : "upload.bin";
+      return HttpResponse.json(
+        {
+          attachment: {
+            bytes: 32,
+            created_at: "2026-04-17T18:11:00Z",
+            height: 0,
+            id: `att_${"a".repeat(64)}`,
+            kind: filename.endsWith(".png") ? "image" : "file",
+            mime_type: filename.endsWith(".png") ? "image/png" : "application/octet-stream",
+            name: filename,
+            sha256: "b".repeat(64),
+            width: 0,
+          },
+        },
+        { status: 201 }
+      );
+    }
+  ),
+  compozyApiMock.delete(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}",
+    ({ params }) => {
+      const id = String(params.session_id);
+      if (!sessionById.has(id)) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      return new HttpResponse(null, { status: 204 });
+    }
+  ),
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
     ({ params }) => {
       const id = String(params.session_id);

@@ -3,6 +3,8 @@ import type { UIMessage } from "ai";
 
 import { createClientId } from "@/lib/client-id";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
+import { attachmentsFromPromptMessageParts } from "./attachment-kinds";
+import type { SessionPromptAttachment } from "../types";
 
 interface SessionPromptChatTransportOptions {
   api: string;
@@ -12,6 +14,7 @@ interface SessionPromptChatTransportOptions {
 }
 
 interface SessionPromptRequestBody {
+  attachments?: SessionPromptAttachment[];
   idempotency_key: string;
   message_id: string;
   messages: UIMessage[];
@@ -49,10 +52,12 @@ export function createSessionPromptChatTransport({
       const idempotencyKey = idempotencyKeys.get(messageId) ?? createClientId();
       idempotencyKeys.set(messageId, idempotencyKey);
       const runtime = getRuntimeSnapshot?.() ?? null;
+      const attachments = attachmentsFromPromptMessageParts(message.parts);
       const body: SessionPromptRequestBody = {
         idempotency_key: idempotencyKey,
         message_id: messageId,
         messages,
+        ...(attachments.length > 0 ? { attachments } : {}),
         ...(runtime ? { runtime } : {}),
       };
       return { body };

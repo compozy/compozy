@@ -56,10 +56,41 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 // Boundary IN: SessionThread state branching and readonly row rendering.
 // Boundary OUT: transcript query/refetch wiring, covered by session-chat-runtime-provider.test.tsx.
 
-function jsonResponse(body: unknown) {
+function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
-    headers: { "Content-Type": "application/json" },
+    status: init?.status ?? 200,
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
   });
+}
+
+function pngFile(name = "shot.png") {
+  const header = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+  return new File([header, new Uint8Array(24)], name, { type: "image/png" });
+}
+
+function zipFile() {
+  return new File([Uint8Array.of(0x50, 0x4b, 0x03, 0x04)], "archive.zip", {
+    type: "application/zip",
+  });
+}
+
+function attachmentUploadPayload(name = "shot.png") {
+  return {
+    attachment: {
+      bytes: 32,
+      created_at: "2026-08-15T00:00:00Z",
+      height: 10,
+      id: `att_${"a".repeat(64)}`,
+      kind: name.endsWith(".png") ? "image" : "file",
+      mime_type: name.endsWith(".png") ? "image/png" : "application/pdf",
+      name,
+      sha256: "b".repeat(64),
+      width: 10,
+    },
+  };
 }
 
 function getPathname(input: RequestInfo | URL): string {
@@ -151,7 +182,7 @@ function createPromptRecordingFetchMock(promptCalls: string[]) {
   });
 }
 
-function createFetchMock() {
+function createFetchMock(options?: { beforeAttachmentUpload?: () => Promise<void> }) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const pathname = getPathname(input);
 
@@ -185,6 +216,24 @@ function createFetchMock() {
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt/queue`
     ) {
       return jsonResponse({ inputs: [] });
+    }
+
+    if (
+      pathname ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments`
+    ) {
+      if (options?.beforeAttachmentUpload) {
+        await options.beforeAttachmentUpload();
+      }
+      return jsonResponse(attachmentUploadPayload(), { status: 201 });
+    }
+
+    if (
+      pathname.startsWith(
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments/`
+      )
+    ) {
+      return new Response(null, { status: 204 });
     }
 
     throw new Error(`Unhandled fetch in thread test: ${pathname}`);
@@ -627,6 +676,152 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findAllByTestId("session-skill-directive")).toHaveLength(2);
     expect(screen.getByTestId("user-message-bubble").textContent).toBe("/review /review");
+  });
+
+  it("Should render the attachment gallery above the user text bubble", async () => {
+    const workspaceId = fixtureWorkspaceId();
+    const sessionId = primarySessionFixture.id;
+    const transcript = [
+      {
+        id: "user-with-attachments",
+        role: "user",
+        metadata: {
+          attachments: [
+            {
+              id: "att-image",
+              name: "diagram.png",
+              mime_type: "image/png",
+              bytes: 2048,
+              sha256: "a".repeat(64),
+              kind: "image",
+              width: 1280,
+              height: 720,
+            },
+            {
+              id: "att-notes",
+              name: "notes.pdf",
+              mime_type: "application/pdf",
+              bytes: 4096,
+              sha256: "b".repeat(64),
+              kind: "file",
+            },
+          ],
+        },
+        parts: [
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: "compozy://session-attachments/att-image",
+            filename: "diagram.png",
+          },
+          {
+            type: "file",
+            mediaType: "application/pdf",
+            url: "compozy://session-attachments/att-notes",
+            filename: "notes.pdf",
+          },
+          { type: "text", text: "Flatten both.", state: "done" },
+        ],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const gallery = await screen.findByTestId("user-message-attachment-gallery");
+    const bubble = screen.getByTestId("user-message-bubble");
+    expect(bubble).toHaveTextContent("Flatten both.");
+    expect(gallery.compareDocumentPosition(bubble) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("user-message-attachment-frame")).toHaveAttribute(
+      "href",
+      `/api/workspaces/${workspaceId}/sessions/${sessionId}/attachments/att-image/bytes`
+    );
+    expect(screen.getByTestId("user-message-attachment-file-card")).toHaveAttribute(
+      "href",
+      `/api/workspaces/${workspaceId}/sessions/${sessionId}/attachments/att-notes/bytes`
+    );
+    expect(screen.getByTestId("user-message-attachment-file-card")).toHaveTextContent("notes.pdf");
+    expect(screen.queryByRole("img", { name: "diagram.png" })?.getAttribute("src")).not.toMatch(
+      /^data:/
+    );
+  });
+
+  it("Should skip the empty bubble on an image-only user turn", async () => {
+    const transcript = [
+      {
+        id: "user-image-only",
+        role: "user",
+        parts: [
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: "compozy://session-attachments/att-shot",
+            filename: "shot.png",
+          },
+        ],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("user-message-attachment-gallery")).toBeInTheDocument();
+    expect(screen.getByTestId("user-message-attachment-frame")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-bubble")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-actions-copy")).not.toBeInTheDocument();
+  });
+
+  it("Should leave a text-only user turn without a gallery", async () => {
+    const transcript = [
+      {
+        id: "user-text-only",
+        role: "user",
+        parts: [{ type: "text", text: "Ship the landing page.", state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("user-message-bubble")).toHaveTextContent(
+      "Ship the landing page."
+    );
+    expect(screen.queryByTestId("user-message-attachment-gallery")).not.toBeInTheDocument();
+  });
+
+  it("Should copy only the user-turn text when attachments are present", async () => {
+    const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    const transcript = [
+      {
+        id: "user-copy-with-attachments",
+        role: "user",
+        parts: [
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: "compozy://session-attachments/att-image",
+            filename: "diagram.png",
+          },
+          { type: "text", text: "Flatten both.", state: "done" },
+        ],
+      } as SessionMessage,
+    ];
+
+    try {
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+      const copy = await screen.findByTestId("user-message-actions-copy");
+      fireEvent.click(copy);
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith("Flatten both.");
+      });
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
+      }
+    }
   });
 
   it.each([
@@ -2463,6 +2658,160 @@ describe("SessionThread composer running semantics", () => {
     expect(sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]?.text).toBe(
       "Not yet"
     );
+  });
+});
+
+describe("SessionThread composer attachments", () => {
+  beforeEach(() => {
+    composerAui = null;
+    vi.stubGlobal("fetch", createFetchMock());
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.warning).mockClear();
+    sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+    sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetGatewayStreamAuth();
+    act(() => {
+      sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+      sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
+    });
+  });
+
+  it("Should turn a pasted image into a draft tile", async () => {
+    renderComposer({ promptImage: true });
+    await screen.findByTestId("composer-input");
+    const editable = await findComposerEditable();
+    const file = pngFile();
+    fireEvent.paste(editable, {
+      clipboardData: {
+        files: [file],
+        items: [{ kind: "file", type: file.type, getAsFile: () => file }],
+        types: ["Files"],
+      },
+    });
+
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveTextContent("shot.png");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should turn a picker file into a draft tile", async () => {
+    const user = userEvent.setup();
+    renderComposer({ promptImage: true });
+    await screen.findByTestId("composer-attach-button");
+    const input = document.querySelector('input[type="file"]');
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error("composer file input is not mounted");
+    }
+    await user.upload(input, pngFile("picked.png"));
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveTextContent("picked.png");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should disable send while a tile is uploading", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    vi.stubGlobal("fetch", createFetchMock({ beforeAttachmentUpload: () => hold }));
+    renderComposer({ promptImage: true });
+    await screen.findByTestId("composer-input");
+    const add = act(() => requireComposerAui().composer.addAttachment(pngFile()));
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveAttribute("data-state", "uploading");
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "Saving shot.png");
+    release();
+    await add;
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should enable image-only send when every tile is ready", async () => {
+    renderComposer({ promptImage: true });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+    expect(composerText()).toBe("");
+    expect(screen.getByTestId("composer-send-button")).toBeEnabled();
+  });
+
+  it("Should refuse unsupported files in place and keep send disabled", async () => {
+    renderComposer({ promptImage: true });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(zipFile());
+    });
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveAttribute("data-state", "rejected");
+    expect(tile).toHaveTextContent("PNG, JPEG, WebP, PDF, Markdown, or text");
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "Remove files that are not supported");
+  });
+
+  it("Should show the capability gate for images when the model cannot accept them", async () => {
+    renderComposer({ promptImage: false });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getByTestId("composer-attachment-gate")).toHaveTextContent(
+      "This model does not accept images."
+    );
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "This model does not accept images");
+  });
+
+  it("Should remove a draft tile from the strip", async () => {
+    const user = userEvent.setup();
+    renderComposer({ promptImage: true });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await screen.findByTestId("composer-attachment-tile");
+    await user.click(screen.getByTestId("composer-attachment-remove"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+    });
+  });
+
+  it("Should summarize queued attachments when the queue payload includes them", async () => {
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      onSteerQueuedPrompt: vi.fn(),
+      queuedPrompts: [
+        {
+          id: "inq-att",
+          text: "Review the screenshots.",
+          attachments: {
+            fileCount: 1,
+            imageCount: 2,
+            previewKind: "file",
+            previewMark: "PDF",
+          },
+        },
+      ],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    expect(within(row).getByTestId("composer-queued-attachment-well")).toHaveTextContent("PDF");
+    expect(row).toHaveTextContent("· 2 images · 1 file");
   });
 });
 

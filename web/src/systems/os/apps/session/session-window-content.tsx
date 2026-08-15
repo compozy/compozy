@@ -190,6 +190,7 @@ export function SessionWindowContent({
             environmentControl.current?.openFork();
             return true;
           }}
+          promptImage={session.runtime.acp_caps?.prompt_image ?? false}
         />
       </div>
       {inspector.open ? (

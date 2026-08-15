@@ -796,6 +796,36 @@ describe("SessionChatRuntimeProvider", () => {
 
       if (
         pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments`
+      ) {
+        return jsonResponse(
+          {
+            attachment: {
+              bytes: 32,
+              created_at: "2026-08-15T00:00:00Z",
+              height: 10,
+              id: `att_${"a".repeat(64)}`,
+              kind: "file",
+              mime_type: "application/pdf",
+              name: "flatten-spec.pdf",
+              sha256: "b".repeat(64),
+              width: 0,
+            },
+          },
+          { status: 201 }
+        );
+      }
+
+      if (
+        pathname.startsWith(
+          `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments/`
+        )
+      ) {
+        return new Response(null, { status: 204 });
+      }
+
+      if (
+        pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
       ) {
         lastPromptMessageID = getLastUserMessageID(init);

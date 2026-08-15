@@ -28,6 +28,8 @@ export type {
   SessionByIDResponse,
   SessionOwnerResponse,
   SessionPayload,
+  SessionAttachment,
+  SessionPromptAttachment,
   SessionPromptPayload,
   SessionPromptRequest,
   SessionPromptResponse,
@@ -134,11 +136,25 @@ export {
 } from "./hooks/use-session-runtime-selection";
 
 // Query infrastructure
+export { sessionAttachmentBytesURL, sessionAttachmentIdFromURI } from "./lib/attachment-url";
+export {
+  attachmentExtensionMark,
+  formatAttachmentBytes,
+  isImageMediaType,
+  userMessageAttachmentItems,
+  userMessageHasAttachments,
+  userMessageHasText,
+} from "./lib/session-attachment-items";
+export type {
+  SessionAttachmentFileItem,
+  SessionAttachmentImageItem,
+  SessionAttachmentItem,
+} from "./lib/session-attachment-items";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
-export type { QueuedPrompt } from "./lib/queued-prompt";
+export type { QueuedPrompt, QueuedPromptAttachmentSummary } from "./lib/queued-prompt";
 export { sessionKeys } from "./lib/query-keys";
 export {
   cachedForeignSessionOwner,
@@ -335,6 +351,18 @@ export {
   SessionWorkspaceSwitchDialog,
   type SessionWorkspaceSwitchDialogProps,
 } from "./components/session-workspace-switch-dialog";
+export {
+  SessionAttachmentFileCard,
+  type SessionAttachmentFileCardProps,
+} from "./components/session-attachment-file-card";
+export {
+  SessionAttachmentFrame,
+  type SessionAttachmentFrameProps,
+} from "./components/session-attachment-frame";
+export {
+  SessionAttachmentGallery,
+  type SessionAttachmentGalleryProps,
+} from "./components/session-attachment-gallery";
 export { SessionToolCallRow, type SessionToolCallRowProps } from "./components/tool-call-card";
 export {
   SessionChatRuntimeProvider,

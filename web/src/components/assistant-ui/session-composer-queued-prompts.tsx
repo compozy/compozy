@@ -1,9 +1,44 @@
 import { CornerDownRight, ListPlus, Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { QueuedPrompt } from "@/systems/session";
+import type { QueuedPrompt, QueuedPromptAttachmentSummary } from "@/systems/session";
 import { Button } from "@compozy/ui";
 import { queuedPromptPreview } from "./session-composer-queued-prompts.logic";
+
+function queuedAttachmentSuffix(summary: QueuedPromptAttachmentSummary): string {
+  const parts: string[] = [];
+  if (summary.imageCount > 0) {
+    parts.push(`${summary.imageCount} ${summary.imageCount === 1 ? "image" : "images"}`);
+  }
+  if (summary.fileCount > 0) {
+    parts.push(`${summary.fileCount} ${summary.fileCount === 1 ? "file" : "files"}`);
+  }
+  return parts.length > 0 ? `· ${parts.join(" · ")}` : "";
+}
+
+function SessionQueuedAttachmentWell({ summary }: { summary: QueuedPromptAttachmentSummary }) {
+  const suffix = queuedAttachmentSuffix(summary);
+  return (
+    <>
+      <span
+        data-testid="composer-queued-attachment-well"
+        className="grid size-4 shrink-0 place-items-center overflow-hidden rounded-xs border border-line bg-canvas-soft"
+      >
+        {summary.previewKind === "image" && summary.previewUrl ? (
+          <img src={summary.previewUrl} alt="" className="size-full object-cover" />
+        ) : (
+          <span
+            className="font-mono text-[6px] font-semibold leading-none text-subtle"
+            style={{ letterSpacing: "0.06em" }}
+          >
+            {summary.previewMark ?? "FILE"}
+          </span>
+        )}
+      </span>
+      {suffix ? <span className="shrink-0 font-mono text-[10px] text-faint">{suffix}</span> : null}
+    </>
+  );
+}
 
 interface SessionComposerQueuedPromptsProps {
   prompts: QueuedPrompt[];
@@ -56,6 +91,9 @@ export function SessionComposerQueuedPrompts({
             )}
           >
             <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
+            {prompt.attachments ? (
+              <SessionQueuedAttachmentWell summary={prompt.attachments} />
+            ) : null}
             <span
               className="min-w-0 flex-1 truncate text-transcript-body text-muted"
               title={prompt.text}

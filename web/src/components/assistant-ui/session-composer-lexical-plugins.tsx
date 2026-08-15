@@ -1,4 +1,4 @@
-import { INTERNAL } from "@assistant-ui/react";
+import { INTERNAL, useAui } from "@assistant-ui/react";
 import { DirectiveNode } from "@assistant-ui/react-lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
@@ -9,10 +9,14 @@ import {
   $isRangeSelection,
   $isTextNode,
   COMMAND_PRIORITY_CRITICAL,
+  COMMAND_PRIORITY_HIGH,
   KEY_ENTER_COMMAND,
+  PASTE_COMMAND,
   type RangeSelection,
 } from "lexical";
 import { useEffect, useEffectEvent } from "react";
+
+import { ATTACHMENT_MAX_COUNT } from "@/systems/session/lib/attachment-kinds";
 
 export interface SessionComposerInputHandle {
   focus: () => void;
@@ -230,6 +234,43 @@ export function SessionCommandScopePlugin({
         updateScope(prefix.trim().length === 0 ? "standalone" : "inline");
       });
     });
+  }, [editor]);
+
+  return null;
+}
+
+/**
+ * Clipboard files become composer attachments. Binary never enters the editor;
+ * text/markdown clipboard content keeps the default paste path.
+ */
+export function SessionComposerPastePlugin() {
+  const [editor] = useLexicalComposerContext();
+  const aui = useAui();
+
+  const addFiles = useEffectEvent((files: File[]) => {
+    const remaining = Math.max(
+      0,
+      ATTACHMENT_MAX_COUNT - aui.composer.getState().attachments.length
+    );
+    for (const file of files.slice(0, remaining)) {
+      void aui.composer.addAttachment(file);
+    }
+  });
+
+  useEffect(() => {
+    return editor.registerCommand(
+      PASTE_COMMAND,
+      event => {
+        if (event == null || !("clipboardData" in event)) return false;
+        const clipboard = event.clipboardData as DataTransfer | null;
+        const files = Array.from(clipboard?.files ?? []);
+        if (files.length === 0) return false;
+        event.preventDefault();
+        addFiles(files);
+        return true;
+      },
+      COMMAND_PRIORITY_HIGH
+    );
   }, [editor]);
 
   return null;

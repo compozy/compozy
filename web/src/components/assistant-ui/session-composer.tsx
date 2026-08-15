@@ -1,6 +1,6 @@
 import { ComposerPrimitive, useAui } from "@assistant-ui/react";
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
-import { ArrowUp, CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
+import { CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -18,9 +18,14 @@ import {
   SessionBusyEnterPlugin,
   SessionCommandScopePlugin,
   SessionComposerHandleBridge,
+  SessionComposerPastePlugin,
   SessionDirectiveBoundaryPlugin,
 } from "./session-composer-lexical-plugins";
+import { SessionAttachButton } from "./session-attach-button";
+import { SessionAttachmentStrip } from "./session-attachment-strip";
+import { SessionComposerDropRoot } from "./session-attachment-drop-overlay";
 import { SessionComposerQueuedPrompts } from "./session-composer-queued-prompts";
+import { SessionComposerSendButton } from "./session-composer-send-button";
 import {
   useSessionBusyInputActions,
   type SessionBusyInputHandler,
@@ -106,6 +111,8 @@ export interface SessionComposerProps {
   runtimeControl?: ReactNode;
   /** States where the session runs. Sits beside the runtime chip in the control row. */
   environmentControl?: ReactNode;
+  /** Session ACP prompt_image cap. Absent/false refuses image tiles. */
+  promptImage?: boolean;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
@@ -141,6 +148,7 @@ export function SessionComposer({
   commandCatalogStatus,
   onCommandCatalogOpen,
   onCommandAction,
+  promptImage = false,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
   const aui = useAui();
   const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
@@ -208,154 +216,151 @@ export function SessionComposer({
               isCatalogLoading={commandCatalogStatus === "loading"}
               onOpen={onCommandCatalogOpen}
             />
-            <ComposerPrimitive.Root
-              className={cn(
-                "flex flex-col gap-[7px] rounded-lg border border-line bg-elevated shadow-highlight",
-                "pt-[11px] pr-2.5 pb-2 pl-3.5",
-                "transition-colors duration-base ease-out",
-                "hover:border-line-strong focus-within:border-accent-dim",
-                "group-has-[[data-slot=dock]]/composer:rounded-t-none",
-                showQueuedStrip ? "rounded-t-none" : null
-              )}
-            >
-              <LexicalComposerInput
-                data-testid="composer-input"
-                inert={!canPrompt}
-                placeholder={canPrompt ? "Send a message…" : inactivePlaceholder}
-                submitMode="enter"
-                formatter={commandFormatter}
-                directiveChip={SessionCommandChip}
-                directivePluginProps={{
-                  onDirectiveSelect: item => {
-                    const token = commandItemPresentation(item).token;
-                    if (!onCommandAction?.(token)) return;
-                    const beforeSelection = composerText;
-                    window.setTimeout(() => {
-                      setComposerText(
-                        removeSelectedActionToken(
-                          beforeSelection,
-                          aui.composer.getState().text,
-                          token
-                        )
-                      );
-                    }, 0);
-                  },
-                }}
-                className={cn(
-                  "max-h-72 min-h-6 w-full text-small-body leading-relaxed text-fg",
-                  !canPrompt ? "opacity-60" : null
-                )}
-              >
-                <SessionComposerHandleBridge
-                  onHandle={setComposerInputElement}
-                  editableAriaLabel="Session prompt"
-                />
-                <SessionBusyEnterPlugin
-                  queueActive={runtimeRunning && canQueueFromInput}
-                  steerActive={
-                    runtimeRunning &&
-                    allowBusyInput &&
-                    Boolean(onSteerPrompt) &&
-                    busyInputFenceAvailable
-                  }
-                  onQueue={handleQueueAction}
-                  onSteer={handleSteerAction}
-                />
-                <SessionCommandScopePlugin setScope={setCommandScope} />
-                <SessionDirectiveBoundaryPlugin />
-              </LexicalComposerInput>
-              <div className="flex min-h-7 flex-wrap items-center gap-2">
-                {runtimeControl || environmentControl ? (
-                  <div className="flex min-w-0 items-center gap-2">
-                    {runtimeControl}
-                    {environmentControl}
-                  </div>
-                ) : null}
-                {canPrompt ? (
-                  <span
-                    data-testid="composer-enter-hint"
-                    className="inline-flex items-center gap-[5px] text-[10.5px] text-faint"
-                  >
-                    <kbd className="rounded-xs border border-line bg-canvas-soft px-1 py-px font-mono text-[9px] not-italic text-subtle">
-                      ⏎
-                    </kbd>
-                    {runtimeRunning && canQueueFromInput ? "queue" : "send"}
-                  </span>
-                ) : null}
-                <span className="flex-1" />
-
-                {showBusyControls ? (
-                  <>
-                    {allowBusyInput && onQueuePrompt ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleQueueAction}
-                        disabled={!canSubmitBusyInput}
-                        data-testid="composer-queue-button"
-                      >
-                        <ListPlus className="size-3" />
-                        Queue
-                      </Button>
-                    ) : null}
-                    {allowBusyInput && onSteerPrompt ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleSteerAction}
-                        disabled={!canSubmitBusyInput || !busyInputFenceAvailable}
-                        data-testid="composer-steer-button"
-                      >
-                        <CornerDownRight className="size-3" />
-                        Steer
-                      </Button>
-                    ) : null}
-                    {allowBusyInput && onInterruptPrompt ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleInterruptAction}
-                        disabled={!canSubmitBusyInput || !busyInputFenceAvailable}
-                        data-testid="composer-interrupt-button"
-                      >
-                        <Scissors className="size-3" />
-                        Interrupt
-                      </Button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={onCancelPrompt}
-                      aria-label="Stop generation"
-                      data-testid="composer-stop-button"
-                      className={cn(
-                        "inline-flex size-7 items-center justify-center rounded-full",
-                        "border border-line text-muted transition-colors duration-base ease-out",
-                        "hover:border-transparent hover:bg-danger-tint hover:text-danger",
-                        "focus-visible:shadow-focus-ring focus-visible:outline-none"
-                      )}
-                    >
-                      <Square className="size-3 fill-current" />
-                    </button>
-                  </>
-                ) : (
-                  <ComposerPrimitive.Send
-                    aria-label="Send message"
-                    disabled={!canPrompt}
+            <SessionComposerDropRoot disabled={!canPrompt}>
+              {({ isDragging }) => (
+                <ComposerPrimitive.Root
+                  className={cn(
+                    "flex flex-col gap-[7px] rounded-lg border border-line bg-elevated shadow-highlight",
+                    "pt-[11px] pr-2.5 pb-2 pl-3.5",
+                    "transition-colors duration-base ease-out",
+                    "hover:border-line-strong focus-within:border-accent-dim",
+                    "group-has-[[data-slot=dock]]/composer:rounded-t-none",
+                    showQueuedStrip ? "rounded-t-none" : null,
+                    isDragging ? "border-accent-dim" : null
+                  )}
+                >
+                  <SessionAttachmentStrip promptImage={promptImage} />
+                  <LexicalComposerInput
+                    data-testid="composer-input"
+                    inert={!canPrompt}
+                    placeholder={canPrompt ? "Send a message…" : inactivePlaceholder}
+                    submitMode="enter"
+                    formatter={commandFormatter}
+                    directiveChip={SessionCommandChip}
+                    directivePluginProps={{
+                      onDirectiveSelect: item => {
+                        const token = commandItemPresentation(item).token;
+                        if (!onCommandAction?.(token)) return;
+                        const beforeSelection = composerText;
+                        window.setTimeout(() => {
+                          setComposerText(
+                            removeSelectedActionToken(
+                              beforeSelection,
+                              aui.composer.getState().text,
+                              token
+                            )
+                          );
+                        }, 0);
+                      },
+                    }}
                     className={cn(
-                      "inline-flex size-7 items-center justify-center rounded-full",
-                      "bg-accent text-accent-ink shadow-highlight transition-colors duration-base ease-out",
-                      "hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-btn-default-fill disabled:text-faint disabled:opacity-100 disabled:shadow-none"
+                      "max-h-72 min-h-6 w-full text-small-body leading-relaxed text-fg",
+                      !canPrompt ? "opacity-60" : null
                     )}
-                    data-testid="composer-send-button"
                   >
-                    <ArrowUp className="size-3.5" />
-                  </ComposerPrimitive.Send>
-                )}
-              </div>
-            </ComposerPrimitive.Root>
+                    <SessionComposerHandleBridge
+                      onHandle={setComposerInputElement}
+                      editableAriaLabel="Session prompt"
+                    />
+                    <SessionBusyEnterPlugin
+                      queueActive={runtimeRunning && canQueueFromInput}
+                      steerActive={
+                        runtimeRunning &&
+                        allowBusyInput &&
+                        Boolean(onSteerPrompt) &&
+                        busyInputFenceAvailable
+                      }
+                      onQueue={handleQueueAction}
+                      onSteer={handleSteerAction}
+                    />
+                    <SessionCommandScopePlugin setScope={setCommandScope} />
+                    <SessionDirectiveBoundaryPlugin />
+                    <SessionComposerPastePlugin />
+                  </LexicalComposerInput>
+                  <div className="flex min-h-7 flex-wrap items-center gap-2">
+                    {runtimeControl || environmentControl ? (
+                      <div className="flex min-w-0 items-center gap-2">
+                        {runtimeControl}
+                        {environmentControl}
+                      </div>
+                    ) : null}
+                    {canPrompt ? <SessionAttachButton /> : null}
+                    {canPrompt ? (
+                      <span
+                        data-testid="composer-enter-hint"
+                        className="inline-flex items-center gap-[5px] text-[10.5px] text-faint"
+                      >
+                        <kbd className="rounded-xs border border-line bg-canvas-soft px-1 py-px font-mono text-[9px] not-italic text-subtle">
+                          ⏎
+                        </kbd>
+                        {runtimeRunning && canQueueFromInput ? "queue" : "send"}
+                      </span>
+                    ) : null}
+                    <span className="flex-1" />
+
+                    {showBusyControls ? (
+                      <>
+                        {allowBusyInput && onQueuePrompt ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleQueueAction}
+                            disabled={!canSubmitBusyInput}
+                            data-testid="composer-queue-button"
+                          >
+                            <ListPlus className="size-3" />
+                            Queue
+                          </Button>
+                        ) : null}
+                        {allowBusyInput && onSteerPrompt ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleSteerAction}
+                            disabled={!canSubmitBusyInput || !busyInputFenceAvailable}
+                            data-testid="composer-steer-button"
+                          >
+                            <CornerDownRight className="size-3" />
+                            Steer
+                          </Button>
+                        ) : null}
+                        {allowBusyInput && onInterruptPrompt ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleInterruptAction}
+                            disabled={!canSubmitBusyInput || !busyInputFenceAvailable}
+                            data-testid="composer-interrupt-button"
+                          >
+                            <Scissors className="size-3" />
+                            Interrupt
+                          </Button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={onCancelPrompt}
+                          aria-label="Stop generation"
+                          data-testid="composer-stop-button"
+                          className={cn(
+                            "inline-flex size-7 items-center justify-center rounded-full",
+                            "border border-line text-muted transition-colors duration-base ease-out",
+                            "hover:border-transparent hover:bg-danger-tint hover:text-danger",
+                            "focus-visible:shadow-focus-ring focus-visible:outline-none"
+                          )}
+                        >
+                          <Square className="size-3 fill-current" />
+                        </button>
+                      </>
+                    ) : (
+                      <SessionComposerSendButton canPrompt={canPrompt} promptImage={promptImage} />
+                    )}
+                  </div>
+                </ComposerPrimitive.Root>
+              )}
+            </SessionComposerDropRoot>
           </ComposerPrimitive.Unstable_TriggerPopoverRoot>
         </div>
       </ThreadContentRail>
