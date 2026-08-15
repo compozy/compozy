@@ -30,6 +30,8 @@ export interface EditorNodeData extends Record<string, unknown> {
   hasError: boolean;
   /** Read-only loop default used to label inherited execution on the node card. */
   loopDefaultEnvironment?: LoopEnvironmentSpec;
+  /** When true, connection handles stay non-connectable. */
+  readOnly?: boolean;
 }
 
 /** Data carried on each React Flow edge: the full raw edge for verbatim round-trip. */

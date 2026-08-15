@@ -50,4 +50,25 @@ describe("LoopSection", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Section body")).toBeVisible();
   });
+
+  it("Should keep the right slot outside any header button", async () => {
+    const user = userEvent.setup();
+    render(
+      <LoopSection
+        icon={<History aria-hidden="true" />}
+        right={<button type="button">Open in builder</button>}
+        title="History"
+      >
+        <p>Section body</p>
+      </LoopSection>
+    );
+    const action = screen.getByRole("button", { name: "Open in builder" });
+    expect(action.closest("[data-slot='collapsible-trigger']")).toBeNull();
+    await user.click(action);
+    expect(screen.getByRole("button", { name: /History/ })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByText("Section body")).toBeVisible();
+  });
 });

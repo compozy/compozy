@@ -1,6 +1,7 @@
 // Suite: OS attention projections
-// Invariant: badges and bell rows expose only fresh runtime-owned session/task attention.
-// Boundary IN: session catalog, task dashboard/list, attention derivation, and dock adapter.
+// Invariant: badges and bell rows expose only fresh runtime-owned attention;
+// loop-node rows appear only when a presence probe is true, never as static chrome.
+// Boundary IN: session catalog, task dashboard/list, loop-node probes, attention derivation, and dock adapter.
 // Boundary OUT: query polling/stream transport and rendered popover/dock behavior.
 import { describe, expect, it } from "vitest";
 
@@ -9,7 +10,27 @@ import type { TaskDashboardView, TaskListItem } from "@/systems/tasks";
 
 import { dockBadgeFor } from "../../components/dock-badges";
 import { OS_APPS } from "../app-registry";
-import { attentionCount, deriveAttentionBadges, deriveAttentionRows } from "../attention-model";
+import {
+  attentionCount,
+  deriveAttentionBadges,
+  deriveAttentionRows,
+  type OsLoopNodeAttentionRow,
+} from "../attention-model";
+
+const LOOP_NODE_ROWS: OsLoopNodeAttentionRow[] = [
+  {
+    kind: "loop-node",
+    id: "waiting",
+    title: "Loop nodes waiting on you",
+    state: "waiting",
+  },
+  {
+    kind: "loop-node",
+    id: "attention",
+    title: "Loop nodes needing attention",
+    state: "attention",
+  },
+];
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
@@ -105,6 +126,8 @@ describe("OS attention model", () => {
       sessionRowsStale: false,
       tasks: [pending, task({ id: "task-done", approval_state: "approved" })],
       taskRowsStale: false,
+      loopWaitingPresent: false,
+      loopAttentionPresent: false,
     });
 
     expect(rows).toEqual([
@@ -128,6 +151,8 @@ describe("OS attention model", () => {
         sessionRowsStale: false,
         tasks: [task({ approval_state: "approved" })],
         taskRowsStale: false,
+        loopWaitingPresent: false,
+        loopAttentionPresent: false,
       })
     ).toEqual([]);
   });
@@ -139,6 +164,8 @@ describe("OS attention model", () => {
         sessionRowsStale: true,
         tasks: [task()],
         taskRowsStale: false,
+        loopWaitingPresent: false,
+        loopAttentionPresent: false,
       })
     ).toEqual([
       {
@@ -148,5 +175,53 @@ describe("OS attention model", () => {
         identifier: "CompozyOS-42",
       },
     ]);
+  });
+
+  it("Should omit loop-node rows when both presence probes are empty", () => {
+    expect(
+      deriveAttentionRows({
+        sessions: [],
+        sessionRowsStale: false,
+        tasks: [],
+        taskRowsStale: false,
+        loopWaitingPresent: false,
+        loopAttentionPresent: false,
+      })
+    ).toEqual([]);
+  });
+
+  it("Should append only the probed loop-node rows and keep their deep-link state", () => {
+    expect(
+      deriveAttentionRows({
+        sessions: [],
+        sessionRowsStale: false,
+        tasks: [],
+        taskRowsStale: false,
+        loopWaitingPresent: true,
+        loopAttentionPresent: false,
+      })
+    ).toEqual([LOOP_NODE_ROWS[0]]);
+
+    expect(
+      deriveAttentionRows({
+        sessions: [],
+        sessionRowsStale: false,
+        tasks: [],
+        taskRowsStale: false,
+        loopWaitingPresent: false,
+        loopAttentionPresent: true,
+      })
+    ).toEqual([LOOP_NODE_ROWS[1]]);
+
+    expect(
+      deriveAttentionRows({
+        sessions: [],
+        sessionRowsStale: false,
+        tasks: [],
+        taskRowsStale: false,
+        loopWaitingPresent: true,
+        loopAttentionPresent: true,
+      })
+    ).toEqual(LOOP_NODE_ROWS);
   });
 });

@@ -1,5 +1,6 @@
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
+import { useLoopNodeExists } from "@/systems/loops/hooks/use-loop-node-exists";
 import {
   attentionCount,
   deriveAttentionBadges,
@@ -93,6 +94,9 @@ export function useOsAttention(
       refetchIntervalMs: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
     }
   );
+  const loopWorkspaceId = workspaceId ?? "";
+  const loopWaitingPresent = useLoopNodeExists(loopWorkspaceId, "waiting", sessionsEnabled);
+  const loopAttentionPresent = useLoopNodeExists(loopWorkspaceId, "attention", sessionsEnabled);
 
   const attentionSessions = attentionSessionsQuery.data ?? [];
   const modalSessions = modalSessionsQuery.data ?? [];
@@ -133,6 +137,8 @@ export function useOsAttention(
     tasks,
     sessionRowsStale: attentionSessionsStale,
     taskRowsStale: taskRowsDisconnected,
+    loopWaitingPresent,
+    loopAttentionPresent,
   });
   return {
     badges,

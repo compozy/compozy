@@ -150,6 +150,13 @@ export function DesktopMenubar({
       });
       return;
     }
+    if (row.kind === "loop-node") {
+      void coordinator.userOpen({
+        app: "loops",
+        route: { pathname: "/loop-runs", search: { nodes: row.state } },
+      });
+      return;
+    }
     void coordinator.userOpen({
       app: "tasks",
       route: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },

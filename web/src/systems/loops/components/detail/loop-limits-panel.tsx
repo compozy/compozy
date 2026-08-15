@@ -1,3 +1,5 @@
+import { Gauge } from "lucide-react";
+
 import { buildLoopLimits } from "../../lib/loop-limits";
 import { resolveLoopEffectiveConfig } from "../../lib/loop-effective-config";
 import type { LoopEffectiveConfig } from "../../types";
@@ -9,7 +11,7 @@ interface LoopLimitsPanelProps {
 
 /**
  * Right-rail Limits & budget panel: each per-loop default paired with its hard
- * daemon ceiling (§5.4). Cost is display-only; budgets are opt-in but enforced.
+ * daemon ceiling (§5.4). Budgets are opt-in but enforced.
  */
 export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
   const rows = buildLoopLimits(effectiveConfig);
@@ -20,6 +22,7 @@ export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
     <LoopRailSection
       data-testid="loop-limits"
       gist={`${effective.iteration_cap} generations · ${budgets}`}
+      icon={<Gauge aria-hidden="true" className="size-3.5" />}
       title="Limits"
     >
       <>
@@ -38,9 +41,7 @@ export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
           ))}
         </div>
         <p className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-faint">
-          Left is the per-loop default; right is the daemon ceiling, a hard backstop that cannot be
-          raised. Token and wall-clock budgets are off unless set (0 = unlimited); a set budget is
-          enforced. Cost is display-only, not an enforced cap.
+          Right values are daemon ceilings, hard backstops. A set budget is enforced.
         </p>
       </>
     </LoopRailSection>

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
+import type { ListingViewMode } from "@compozy/ui";
+
 import type { LoopRunsRouteSearch } from "@/systems/loops";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
-  type LoopNodeInventorySort,
   type LoopOutcomeValue,
   useLoopNodeInventory,
   useLoopRuns,
@@ -20,9 +21,6 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const enabled = workspaceId !== "" && liveDataEnabled;
   const [outcome, setOutcome] = useState<LoopOutcomeValue>("all");
-  // Sort is presentation over the loaded page, not a server contract — it stays
-  // component state rather than a search param the API would have to honor.
-  const [inventorySort, setInventorySort] = useState<LoopNodeInventorySort>("oldest");
   const navigate = useNavigate({ from: "/loop-runs" });
   const runsQuery = useLoopRuns(
     workspaceId,
@@ -59,6 +57,7 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
     enabled && inventoryState !== undefined
   );
   const loopOptions = [...new Set(catalogQuery.loops.map(loop => loop.name))].sort();
+  const runOptions = [...new Set((runsQuery.data?.runs ?? []).map(run => run.id))];
   const inventory = useLoopNodeInventory(
     workspaceId,
     {
@@ -73,6 +72,7 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
 
   const setInventoryState = (next: LoopRunsRouteSearch["nodes"]) => {
     void navigate({
+      replace: true,
       to: "/loop-runs",
       search: current => ({ ...current, nodes: next }),
     });
@@ -80,13 +80,31 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
 
   const setInventoryLoop = (loop: string) => {
     void navigate({
+      replace: true,
       to: "/loop-runs",
       search: current => ({ ...current, nodes_loop: loop || undefined }),
     });
   };
 
+  const setInventoryRun = (runId: string) => {
+    void navigate({
+      replace: true,
+      to: "/loop-runs",
+      search: current => ({ ...current, nodes_run: runId || undefined }),
+    });
+  };
+
+  const setInventoryView = (view: ListingViewMode) => {
+    void navigate({
+      replace: true,
+      to: "/loop-runs",
+      search: current => ({ ...current, view: view === "rows" ? undefined : view }),
+    });
+  };
+
   const clearInventoryFilters = () => {
     void navigate({
+      replace: true,
       to: "/loop-runs",
       search: current => ({ ...current, nodes_loop: undefined, nodes_run: undefined }),
     });
@@ -103,10 +121,11 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
     inventoryState,
     inventory,
     loopOptions,
-    inventorySort,
-    setInventorySort,
+    runOptions,
     setInventoryState,
     setInventoryLoop,
+    setInventoryRun,
+    setInventoryView,
     clearInventoryFilters,
   };
 }

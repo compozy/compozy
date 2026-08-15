@@ -1,8 +1,22 @@
-import { CircleAlert, ListChecks, SquareTerminal } from "lucide-react";
+import { CircleAlert, ListChecks, SquareTerminal, type LucideIcon } from "lucide-react";
 
 import { Icon, PopoverDescription, PopoverHeader, PopoverTitle } from "@compozy/ui";
 
+import { LOOP_STORY_ICONS } from "@/systems/loops";
+
 import type { OsAttentionRow } from "../lib/attention-model";
+
+function attentionRowIcon(row: OsAttentionRow): LucideIcon {
+  if (row.kind === "session") return SquareTerminal;
+  if (row.kind === "task") return ListChecks;
+  return row.state === "waiting" ? LOOP_STORY_ICONS.waiting : LOOP_STORY_ICONS.attention;
+}
+
+function attentionRowTrail(row: OsAttentionRow): string {
+  if (row.kind === "session") return `${row.agentName} · waiting-for-auth`;
+  if (row.kind === "task") return `${row.identifier ?? row.id} · awaiting approval`;
+  return row.state;
+}
 
 export interface AttentionBellProps {
   rows: readonly OsAttentionRow[];
@@ -52,17 +66,23 @@ export function AttentionBell({
             data-testid={`os-attention-${row.kind}-${row.id}`}
             onClick={() => onSelect(row)}
           >
-            <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-sm border border-line bg-elevated text-muted">
-              <Icon as={row.kind === "session" ? SquareTerminal : ListChecks} size="sm" />
+            <span
+              className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-sm border border-line bg-elevated ${
+                row.kind === "loop-node" && row.state === "waiting"
+                  ? "text-info"
+                  : row.kind === "loop-node"
+                    ? "text-warning"
+                    : "text-muted"
+              }`}
+            >
+              <Icon as={attentionRowIcon(row)} size="sm" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-small-body font-medium text-fg-strong">
                 {row.title}
               </span>
               <span className="block truncate font-mono text-micro text-subtle">
-                {row.kind === "session"
-                  ? `${row.agentName} · waiting-for-auth`
-                  : `${row.identifier ?? row.id} · awaiting approval`}
+                {attentionRowTrail(row)}
               </span>
             </span>
           </button>

@@ -31,10 +31,11 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
     inventoryState,
     inventory,
     loopOptions,
-    inventorySort,
-    setInventorySort,
+    runOptions,
     setInventoryState,
     setInventoryLoop,
+    setInventoryRun,
+    setInventoryView,
     clearInventoryFilters,
   } = useLoopRunsRoute(search);
 
@@ -140,11 +141,13 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
           onClearFilters={clearInventoryFilters}
           onLoadMore={inventory.fetchNextPage}
           onLoopFilterChange={setInventoryLoop}
-          onSortChange={setInventorySort}
+          onRunFilterChange={setInventoryRun}
           onStateChange={setInventoryState}
+          onViewChange={setInventoryView}
           runFilter={search.nodes_run ?? ""}
-          sort={inventorySort}
+          runOptions={runOptions}
           state={inventoryState}
+          view={search.view ?? "rows"}
         />
       </ListingPage>
     );

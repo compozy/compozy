@@ -1,3 +1,5 @@
+import { Layers } from "lucide-react";
+
 import { MonoTag } from "../mono-tag";
 import { LoopRailSection } from "../loop-rail-section";
 
@@ -13,7 +15,12 @@ interface LoopVersionsPanelProps {
  */
 export function LoopVersionsPanel({ version }: LoopVersionsPanelProps) {
   return (
-    <LoopRailSection data-testid="loop-versions" gist={`v${version} current`} title="Versions">
+    <LoopRailSection
+      data-testid="loop-versions"
+      gist={`v${version} current`}
+      icon={<Layers aria-hidden="true" className="size-3.5" />}
+      title="Versions"
+    >
       <div className="px-3.5 py-1">
         <div className="flex items-center gap-2.5 py-2.5">
           <span className="font-mono text-mono-id text-fg-strong">v{version}</span>

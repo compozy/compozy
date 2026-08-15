@@ -1,9 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { cn, formatRelativeTime } from "@compozy/ui";
+import { cn } from "@compozy/ui";
 
 import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
+import { loopStartKindIcon } from "../../lib/loop-start-kind-icons";
+import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import { loopRunOriginLine } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { LoopStatusPill } from "../loop-status-pill";
@@ -49,7 +51,8 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
           <span className="col-start-1 row-start-2 min-w-0 truncate font-mono text-mono-id text-fg min-[720px]:col-auto min-[720px]:row-auto">
             {run.id}
           </span>
-          <span className="col-span-2 row-start-3 min-w-0 truncate text-form-hint text-subtle min-[720px]:col-auto min-[720px]:row-auto">
+          <span className="col-span-2 row-start-3 flex min-w-0 items-center gap-1.5 truncate text-form-hint text-subtle min-[720px]:col-auto min-[720px]:row-auto">
+            <RecentRunOriginIcon run={run} />
             {loopRunOriginLine(run)}
           </span>
           <span className="col-start-1 row-start-4 text-xs tabular-nums text-muted min-[720px]:col-auto min-[720px]:row-auto">
@@ -61,8 +64,11 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
           >
             {loopRunBestLabel(run) ?? "—"}
           </span>
-          <span className="col-start-2 row-start-1 justify-self-end text-right text-form-hint tabular-nums text-faint min-[720px]:col-auto min-[720px]:row-auto">
-            {formatRelativeTime(run.created_at)}
+          <span
+            className="col-start-2 row-start-1 justify-self-end text-right font-mono text-mono-id tabular-nums text-faint min-[720px]:col-auto min-[720px]:row-auto"
+            data-testid="loop-recent-run-duration"
+          >
+            {formatClockDuration(runElapsedSeconds(run, Date.now()))}
           </span>
           <span className="col-start-2 row-start-2 justify-self-end text-faint min-[720px]:col-auto min-[720px]:row-auto">
             <ChevronRight aria-hidden="true" className="size-3.5" />
@@ -71,4 +77,11 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
       ))}
     </div>
   );
+}
+
+function RecentRunOriginIcon({ run }: { run: LoopRun }) {
+  const kind = run.started_origin_kind || run.started_by_kind || "";
+  const Icon = loopStartKindIcon(kind);
+  if (!Icon) return null;
+  return <Icon aria-hidden="true" className="size-3.5 shrink-0 text-muted" />;
 }

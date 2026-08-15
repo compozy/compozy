@@ -1,7 +1,22 @@
-import { Eyebrow, Section } from "@compozy/ui";
+import { Bot, ScrollText, Terminal, UserCheck, type LucideIcon } from "lucide-react";
+
+import { Eyebrow } from "@compozy/ui";
 
 import type { LoopContract, LoopContractVerification } from "../../types";
-import { MonoTag } from "../mono-tag";
+import { LoopSection } from "../loop-section";
+
+const CRITERION_TYPE_ICONS = {
+  "agent-judge": Bot,
+  command: Terminal,
+  human: UserCheck,
+} as const satisfies Record<string, LucideIcon>;
+
+function criterionTypeIcon(type: string): LucideIcon | undefined {
+  if (Object.hasOwn(CRITERION_TYPE_ICONS, type)) {
+    return CRITERION_TYPE_ICONS[type as keyof typeof CRITERION_TYPE_ICONS];
+  }
+  return undefined;
+}
 
 interface LoopContractPanelProps {
   contract: LoopContract;
@@ -26,11 +41,15 @@ function verificationMethod(criterion: LoopContractVerification): string {
  */
 export function LoopContractPanel({ contract, concurrency }: LoopContractPanelProps) {
   return (
-    <Section label="Contract" data-testid="loop-contract">
+    <LoopSection
+      data-testid="loop-contract"
+      icon={<ScrollText aria-hidden="true" />}
+      title="Contract"
+    >
       <div className="flex flex-col rounded-lg border border-line bg-canvas-soft">
         <LoopContractRows concurrency={concurrency} contract={contract} />
       </div>
-    </Section>
+    </LoopSection>
   );
 }
 
@@ -52,19 +71,23 @@ export function LoopContractRows({ contract, concurrency }: LoopContractPanelPro
       {verification.length > 0 ? (
         <ContractRow label="Gate criteria">
           <div className="mt-2 flex flex-col gap-2">
-            {verification.map(criterion => (
-              <div key={criterion.id} className="flex items-start gap-2.5">
-                <MonoTag className="min-w-[88px] shrink-0 justify-center rounded-xs bg-badge-fill px-1.5 py-1">
-                  {criterion.type}
-                </MonoTag>
-                <div className="min-w-0">
-                  <b className="text-small-body font-medium text-fg-strong">{criterion.id}</b>
-                  <div className="mt-0.5 font-mono text-mono-id text-subtle">
-                    {verificationMethod(criterion) || "—"}
+            {verification.map(criterion => {
+              const TypeIcon = criterionTypeIcon(criterion.type);
+              return (
+                <div key={criterion.id} className="flex items-start gap-2.5">
+                  <span className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 text-small-body text-muted">
+                    {TypeIcon ? <TypeIcon aria-hidden="true" className="size-3.5" /> : null}
+                    {criterion.type}
+                  </span>
+                  <div className="min-w-0">
+                    <b className="text-small-body font-medium text-fg-strong">{criterion.id}</b>
+                    <div className="mt-0.5 font-mono text-mono-id text-subtle">
+                      {verificationMethod(criterion) || "—"}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ContractRow>
       ) : null}

@@ -13,7 +13,8 @@ interface LoopSectionProps extends Omit<ComponentProps<typeof Collapsible>, "tit
 
 /**
  * Collapsible main-column section: Lucide icon + eyebrow title + optional gist
- * + right slot + chevron. Rail cards stay on `LoopRailSection`.
+ * + right slot + chevron. The right slot is a sibling of the triggers so it can
+ * hold a link or button. Rail cards stay on `LoopRailSection`.
  */
 export function LoopSection({
   icon,
@@ -26,23 +27,26 @@ export function LoopSection({
   ...props
 }: LoopSectionProps) {
   return (
-    <Collapsible className={cn("mb-6", className)} defaultOpen={defaultOpen} {...props}>
-      <CollapsibleTrigger className="group/sec-trigger flex min-h-6 w-full items-center gap-2 pb-2.5 text-left">
-        <span className="shrink-0 text-subtle [&_svg]:size-3.5">{icon}</span>
-        <Eyebrow className="text-subtle">{title}</Eyebrow>
-        {gist ? (
-          <span className="min-w-0 shrink truncate text-form-hint text-faint">{gist}</span>
-        ) : null}
-        <span className="min-w-0 flex-1" />
+    <Collapsible className={cn("group/sec mb-6", className)} defaultOpen={defaultOpen} {...props}>
+      <div className="flex min-h-6 items-center gap-2 pb-2.5">
+        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <span className="shrink-0 text-subtle [&_svg]:size-3.5">{icon}</span>
+          <Eyebrow className="text-subtle">{title}</Eyebrow>
+          {gist ? (
+            <span className="min-w-0 shrink truncate text-form-hint text-faint">{gist}</span>
+          ) : null}
+        </CollapsibleTrigger>
         {right ? <span className="shrink-0">{right}</span> : null}
-        <ChevronDown
-          aria-hidden="true"
-          className={cn(
-            "size-3.5 shrink-0 text-faint transition-transform -rotate-90",
-            "group-data-panel-open/sec-trigger:rotate-0 motion-reduce:transition-none"
-          )}
-        />
-      </CollapsibleTrigger>
+        <CollapsibleTrigger aria-hidden="true" className="shrink-0 text-faint" tabIndex={-1}>
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              "size-3.5 shrink-0 transition-transform -rotate-90",
+              "group-data-open/sec:rotate-0 motion-reduce:transition-none"
+            )}
+          />
+        </CollapsibleTrigger>
+      </div>
       <CollapsibleContent>{children}</CollapsibleContent>
     </Collapsible>
   );

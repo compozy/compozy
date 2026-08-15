@@ -70,6 +70,23 @@ export function loopNodeInventoryOptions(
   });
 }
 
+const EXISTS_STALE_TIME = 30_000;
+
+/** Cheap presence check for one inventory state — one item, no paging, no count. */
+export function loopNodeExistsOptions(
+  workspaceId: string,
+  state: "waiting" | "attention",
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: loopsKeys.nodeExists(workspaceId, state),
+    queryFn: ({ signal }) => listLoopNodes(workspaceId, { state, limit: 1 }, signal),
+    staleTime: EXISTS_STALE_TIME,
+    refetchOnWindowFocus: true,
+    enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
 export function loopDetailOptions(workspaceId: string, name: string, enabled = true) {
   return queryOptions({
     queryKey: loopsKeys.detail(workspaceId, name),
