@@ -94,6 +94,10 @@ export const loopsKeys = {
       normalizeText(filters.run_id),
       normalizeNumber(filters.limit),
     ] as const,
+  // Existence probe (`limit: 1`) — a distinct key so the inventory infinite
+  // query never shares a cache entry with the attention-bell presence check.
+  nodeExists: (workspaceId: string, state: "waiting" | "attention") =>
+    [...loopsKeys.all, "node-exists", workspaceId, state] as const,
 
   goalTurnsRoot: () => [...loopsKeys.all, "goal-turns"] as const,
   goalTurns: (

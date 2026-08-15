@@ -50,7 +50,10 @@ function ratioTone(ratio: number): LoopUsageTone {
  * (`now − started_at`); every parked and terminal state shows the frozen
  * `created_at → last_progress_at` span.
  */
-export function runElapsedSeconds(run: LoopRunRecord, nowMs: number): number {
+export function runElapsedSeconds(
+  run: Pick<LoopRunRecord, "status" | "started_at" | "created_at" | "last_progress_at">,
+  nowMs: number
+): number {
   if (run.status === "running") {
     const started = Date.parse(run.started_at);
     if (Number.isNaN(started)) return 0;

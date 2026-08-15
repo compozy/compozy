@@ -5,6 +5,7 @@ import { toast } from "@compozy/ui";
 import {
   loopControlAnswer,
   LoopLifecycleConflictError,
+  type LoopControlAnswer,
   type LoopNodeLifecycle,
   type LoopNodeVerb,
   type LoopNodeVerbCommit,
@@ -28,7 +29,8 @@ import {
  */
 export function useLoopNodeControls(workspaceId: string, runId: string) {
   const [request, setRequest] = useState<LoopNodeVerbRequest | null>(null);
-  const [answer, setAnswer] = useState<string | undefined>(undefined);
+  const [answer, setAnswer] = useState<LoopControlAnswer | undefined>(undefined);
+  const [error, setError] = useState<string | undefined>(undefined);
   const [quarantineNodeId, setQuarantineNodeId] = useState<string | null>(null);
 
   const pauseNode = usePauseLoopNode();
@@ -47,11 +49,12 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
   const closeDialog = () => {
     setRequest(null);
     setAnswer(undefined);
+    setError(undefined);
   };
 
-  const handleError = (error: unknown, node: LoopNodeLifecycle) => {
-    if (error instanceof LoopLifecycleConflictError) {
-      const conflict: LoopLifecycleConflictError = error;
+  const handleError = (failure: unknown, node: LoopNodeLifecycle) => {
+    if (failure instanceof LoopLifecycleConflictError) {
+      const conflict: LoopLifecycleConflictError = failure;
       const resolved = loopControlAnswer({
         code: conflict.code,
         message: conflict.message,
@@ -65,15 +68,19 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
       });
       // Information, not an error: the daemon answered, the state simply moved.
       toast.info(resolved.title, { description: resolved.detail });
-      setAnswer(resolved.detail);
+      setAnswer(resolved);
+      setError(undefined);
       return;
     }
-    toast.error(error instanceof Error ? error.message : "The request did not go through");
-    setAnswer(error instanceof Error ? error.message : undefined);
+    const message = failure instanceof Error ? failure.message : "The request did not go through";
+    toast.error(message);
+    setAnswer(undefined);
+    setError(message);
   };
 
   const onVerb = (verb: LoopNodeVerb, node: LoopNodeLifecycle) => {
     setAnswer(undefined);
+    setError(undefined);
     if (verb === "open-quarantine") {
       setQuarantineNodeId(node.nodeId);
       return;
@@ -81,17 +88,19 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
     setRequest({ verb, node });
   };
 
-  const commit = ({ verb, node, mode, payload }: LoopNodeVerbCommit) => {
+  const commit = ({ verb, node, mode, payload, reason }: LoopNodeVerbCommit) => {
     const target = { workspaceId, runId, nodeId: node.nodeId };
+    const trimmedReason = reason?.trim() ?? "";
+    const reasonBody = trimmedReason === "" ? {} : { reason: trimmedReason };
     const onSuccess = (message: string) => () => {
       toast.success(message);
       closeDialog();
     };
-    const onError = (error: unknown) => handleError(error, node);
+    const onError = (failure: unknown) => handleError(failure, node);
     switch (verb) {
       case "pause":
         pauseNode.mutate(
-          { ...target, data: { mode: mode ?? "drain" } },
+          { ...target, data: { mode: mode ?? "drain", ...reasonBody } },
           { onSuccess: onSuccess(`${node.nodeId} paused`), onError }
         );
         return;
@@ -110,7 +119,8 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
         try {
           parsed = payload && payload.trim() !== "" ? JSON.parse(payload) : {};
         } catch (parseError) {
-          setAnswer(
+          setAnswer(undefined);
+          setError(
             `That payload isn't valid JSON: ${
               parseError instanceof Error ? parseError.message : "unparseable"
             }`
@@ -119,7 +129,8 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
         }
         const itemIndex = loopNodeWaitResumeItemIndex(node);
         if (itemIndex === undefined) {
-          setAnswer("This wait is no longer open.");
+          setAnswer(undefined);
+          setError("This wait is no longer open.");
           return;
         }
         resumeNode.mutate(
@@ -133,19 +144,19 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
       }
       case "cancel":
         cancelNode.mutate(
-          { ...target, data: {} },
+          { ...target, data: reasonBody },
           { onSuccess: onSuccess(`${node.nodeId} canceled`), onError }
         );
         return;
       case "kill":
         killNode.mutate(
-          { ...target, data: {} },
+          { ...target, data: reasonBody },
           { onSuccess: onSuccess(`${node.nodeId} killed`), onError }
         );
         return;
       case "requeue":
         requeueNode.mutate(
-          { ...target, data: {} },
+          { ...target, data: reasonBody },
           {
             onSuccess: () => {
               toast.success(`${node.nodeId} requeued`);
@@ -164,6 +175,7 @@ export function useLoopNodeControls(workspaceId: string, runId: string) {
   return {
     request,
     answer,
+    error,
     isPending,
     quarantineNodeId,
     onVerb,

@@ -166,6 +166,17 @@ export type { DslLine } from "./lib/loop-dsl";
 export { buildDslView } from "./lib/loop-dsl";
 export type { PaletteGroup, PaletteItem } from "./lib/loop-palette";
 export { LOOP_PALETTE, uniqueNodeId } from "./lib/loop-palette";
+export { LOOP_STORY_ICONS } from "./lib/loop-story-icons";
+export type { LoopNodeKind } from "./lib/loop-node-kind-icons";
+export {
+  LOOP_CALL_TOOL_ICON,
+  LOOP_NODE_CLASS_ICONS,
+  LOOP_NODE_KIND_ICONS,
+  loopNodeClassIcon,
+  loopNodeKindIcon,
+} from "./lib/loop-node-kind-icons";
+export type { LoopStartKind } from "./lib/loop-start-kind-icons";
+export { LOOP_START_KIND_ICONS, loopStartKindIcon } from "./lib/loop-start-kind-icons";
 export {
   getAtPath,
   isNodeIdPath,
@@ -180,6 +191,9 @@ export type {
   UseLoopEditorResult,
 } from "./hooks/use-loop-editor";
 export { LoopEditor } from "./components/editor/loop-editor";
+export { LoopEditorFold } from "./components/editor/loop-editor-fold";
+export { loopNodeCardRows } from "./lib/loop-node-card-rows";
+export type { LoopNodeCardRow } from "./lib/loop-node-card-rows";
 
 // Limits & budget
 export type { LoopLimitRow } from "./lib/loop-limits";
@@ -211,10 +225,13 @@ export {
 // Run-form model
 export type { LoopRunInputs } from "./lib/loop-run-form";
 export {
+  declaredInputCountsGist,
+  environmentGist,
   hasInputValue,
   initialRunInputs,
   isRunFormValid,
   missingRequiredInputs,
+  participationGist,
   serializeRunInputs,
 } from "./lib/loop-run-form";
 export type {
@@ -353,9 +370,11 @@ export {
   useResumeLoopNode,
 } from "./hooks/use-loop-node-actions";
 export { useLoopNodeInventory } from "./hooks/use-loop-node-inventory";
+export { useLoopNodeExists } from "./hooks/use-loop-node-exists";
 export { type LoopNodeLifecycle, projectNodeLifecycles } from "./lib/loop-node-lifecycle";
 export {
   loopControlAnswer,
+  type LoopControlAnswer,
   type LoopNodeVerb,
   loopNodeWaitResumeItemIndex,
   loopRunVerbs,
@@ -365,7 +384,7 @@ export {
   isLoopNodeInventoryState,
   LOOP_NODE_INVENTORY_LABELS,
   LOOP_NODE_INVENTORY_STATES,
-  type LoopNodeInventorySort,
+  LOOP_NODE_INVENTORY_TONES,
 } from "./lib/loop-node-inventory";
 
 // Run-form view-model hook
@@ -388,6 +407,7 @@ export type {
 // Components
 export { LoopStatusPill } from "./components/loop-status-pill";
 export type { LoopStatusPillProps } from "./components/loop-status-pill";
+export { LoopSection } from "./components/loop-section";
 export { LoopCatalog } from "./components/catalog/loop-catalog";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
@@ -436,7 +456,6 @@ export { LoopRunOverflowMenu } from "./components/run-page/loop-run-overflow-men
 export { LoopRunPageBody } from "./components/run-page/loop-run-page-body";
 export type { LoopRunPageBodyProps } from "./components/run-page/loop-run-page-body";
 export { LoopRunProgressPanel } from "./components/run-page/loop-run-progress-panel";
-export { LoopRunSection } from "./components/run-page/loop-run-section";
 export { LoopRunStoryTimeline } from "./components/run-page/loop-run-story-timeline";
 export { LoopRunSubhead } from "./components/run-page/loop-run-subhead";
 export { LoopRunTurnsDisclosure } from "./components/run-page/loop-run-turns-disclosure";

@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { Button, PillGroup, type PillGroupItem } from "@compozy/ui";
 
 import type { LoopEditorView } from "../../hooks/use-loop-editor-state";
+import type { PaletteItem } from "../../lib/loop-palette";
+import { LoopEditorPaletteMenu } from "./loop-editor-palette-menu";
 
 interface LoopEditorToolbarProps {
   busy: boolean;
@@ -13,6 +15,8 @@ interface LoopEditorToolbarProps {
   onViewChange: (view: LoopEditorView) => void;
   onAutoLayout: () => void;
   onSaveLayout: () => void;
+  onAddNode: (item: PaletteItem) => void;
+  addNodeDisabled?: boolean;
 }
 
 const VIEW_ITEMS: PillGroupItem<LoopEditorView>[] = [
@@ -55,6 +59,8 @@ export function LoopEditorToolbar({
   onViewChange,
   onAutoLayout,
   onSaveLayout,
+  onAddNode,
+  addNodeDisabled = false,
 }: LoopEditorToolbarProps) {
   const flow = useReactFlow();
   const { zoom } = useViewport();
@@ -69,6 +75,8 @@ export function LoopEditorToolbar({
         size="sm"
         value={view}
       />
+
+      <LoopEditorPaletteMenu disabled={addNodeDisabled} onAddNode={onAddNode} />
 
       <div className="ml-auto flex items-center gap-2.5">
         <div className="flex items-center gap-0.5 rounded-md border border-line-soft bg-input-fill p-0.5">

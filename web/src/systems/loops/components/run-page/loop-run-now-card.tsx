@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { Activity, ArrowUpRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { formatRelativeTime, LiveBadge } from "@compozy/ui";
@@ -8,7 +8,7 @@ import type { LoopNodeNowLine } from "../../lib/loop-node-now-view";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 import type { LoopStoryNow } from "../../lib/loop-run-story";
 import type { LoopRunRecord } from "../../types";
-import { LoopRunSection } from "./loop-run-section";
+import { LoopSection } from "../loop-section";
 
 interface LoopRunNowCardProps {
   run: LoopRunRecord;
@@ -214,10 +214,12 @@ export function LoopRunNowCard(props: LoopRunNowCardProps) {
   if (!view && lines.length === 0) return null;
   const showLive = isLive && (run.status === "running" || run.status === "watching");
   return (
-    <LoopRunSection
-      label="Happening now"
-      right={showLive ? <LiveBadge /> : undefined}
+    <LoopSection
+      className="mb-0"
       data-testid="loop-run-now"
+      icon={<Activity aria-hidden="true" />}
+      right={showLive ? <LiveBadge /> : undefined}
+      title="Happening now"
     >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
         {view ? (
@@ -291,6 +293,6 @@ export function LoopRunNowCard(props: LoopRunNowCardProps) {
           );
         })}
       </div>
-    </LoopRunSection>
+    </LoopSection>
   );
 }

@@ -5,7 +5,7 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 
-import { LoopsApiError } from "./loops-api-errors";
+import { LoopLifecycleConflictError, LoopsApiError, reasonEnvelope } from "./loops-api-errors";
 import type {
   ApproveLoopRunRequest,
   LoopRun,
@@ -148,9 +148,12 @@ function loopRunControlError(
 ): LoopsApiError {
   if (response.status === 404) return new LoopsApiError(`Loop run not found: ${runId}`, 404);
   if (response.status === 409 || response.status === 422) {
-    return new LoopsApiError(
+    const { code, details } = reasonEnvelope(error);
+    return new LoopLifecycleConflictError(
       defaultApiErrorMessage(`Cannot ${action} loop run "${runId}"`, response, error),
-      response.status
+      response.status,
+      code,
+      details
     );
   }
   return new LoopsApiError(

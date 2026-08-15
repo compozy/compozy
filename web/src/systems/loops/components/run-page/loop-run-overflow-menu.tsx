@@ -1,4 +1,4 @@
-import { CodeXml, Ellipsis, Search, Workflow, Zap } from "lucide-react";
+import { CodeXml, Ellipsis, Workflow, Zap } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -12,7 +12,6 @@ import {
 
 interface LoopRunOverflowMenuProps {
   loopName: string;
-  onInspect: () => void;
   /**
    * Kill lives here, not beside Cancel: it is the destructive escape, and the
    * surface keeps exactly one ⋯ menu (DESIGN-LESSONS L12). Omitted entirely for
@@ -23,17 +22,11 @@ interface LoopRunOverflowMenuProps {
 }
 
 /**
- * The topbar ⋯ overflow (§3): the operator views that left the surface — View
- * graph (loop editor), View definition (loop detail), and the Inspect drawer —
- * plus Kill for a live run.
+ * The topbar ⋯ overflow (§3): View graph and View definition, plus Kill for a
+ * live run. Inspect lives once, in the rail foot beside the digest.
  * Renders for every status, including terminal runs whose controls are gone.
  */
-export function LoopRunOverflowMenu({
-  loopName,
-  onInspect,
-  onKill,
-  isKillPending,
-}: LoopRunOverflowMenuProps) {
+export function LoopRunOverflowMenu({ loopName, onKill, isKillPending }: LoopRunOverflowMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -57,10 +50,6 @@ export function LoopRunOverflowMenu({
         >
           <CodeXml aria-hidden="true" className="size-3.5" />
           View definition
-        </DropdownMenuItem>
-        <DropdownMenuItem data-testid="loop-run-inspect" onClick={onInspect}>
-          <Search aria-hidden="true" className="size-3.5" />
-          Inspect run
         </DropdownMenuItem>
         {onKill ? (
           <>

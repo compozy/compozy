@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { ArrowRight, GitFork, PencilLine, Play, SlidersHorizontal } from "lucide-react";
+import {
+  ArrowRight,
+  GitFork,
+  History,
+  PencilLine,
+  Play,
+  SlidersHorizontal,
+  Trash2,
+  Workflow,
+} from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import {
@@ -8,14 +17,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   PAGE_CONTENT_GUTTER,
-  Section,
   TopbarOverflowIcon,
   useTopbarSlot,
 } from "@compozy/ui";
 
 import { LoopPageLede } from "../loop-page-lede";
+import { LoopSection } from "../loop-section";
 
 import type { LoopBindingRow } from "../../lib/loop-bindings";
 import { loopSourceLabel } from "../../lib/loop-catalog";
@@ -130,13 +140,17 @@ export function LoopDetailView({
             Configure
           </DropdownMenuItem>
           {writable ? (
-            <DropdownMenuItem
-              data-testid="loop-delete-action"
-              onClick={() => setDeleteOpen(true)}
-              variant="destructive"
-            >
-              Delete loop
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                data-testid="loop-delete-action"
+                onClick={() => setDeleteOpen(true)}
+                variant="destructive"
+              >
+                <Trash2 aria-hidden="true" className="size-3.5" />
+                Delete loop
+              </DropdownMenuItem>
+            </>
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
@@ -175,8 +189,8 @@ export function LoopDetailView({
                 contract={definition.contract}
                 concurrency={definition.concurrency}
               />
-              <Section
-                label="Body · DAG"
+              <LoopSection
+                icon={<Workflow aria-hidden="true" />}
                 right={
                   <button
                     type="button"
@@ -188,11 +202,12 @@ export function LoopDetailView({
                     <ArrowRight aria-hidden="true" className="size-3" />
                   </button>
                 }
+                title="Body · DAG"
               >
                 <LoopBodyDag graph={graph} />
-              </Section>
-              <Section
-                label="Recent runs"
+              </LoopSection>
+              <LoopSection
+                icon={<History aria-hidden="true" />}
                 right={
                   <Link
                     to="/loop-runs"
@@ -203,9 +218,10 @@ export function LoopDetailView({
                     <ArrowRight aria-hidden="true" className="size-3" />
                   </Link>
                 }
+                title="Recent runs"
               >
                 <LoopRecentRuns runs={recentRuns} />
-              </Section>
+              </LoopSection>
             </div>
             <aside className="flex flex-col gap-6">
               <LoopDeclaredInputs inputs={definition.inputs} />

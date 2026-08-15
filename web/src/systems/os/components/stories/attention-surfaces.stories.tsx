@@ -94,6 +94,18 @@ const ATTENTION: OsAttentionModel = {
       title: "Approve runtime contract",
       identifier: "CompozyOS-42",
     },
+    {
+      kind: "loop-node",
+      id: "waiting",
+      title: "Loop nodes waiting on you",
+      state: "waiting",
+    },
+    {
+      kind: "loop-node",
+      id: "attention",
+      title: "Loop nodes needing attention",
+      state: "attention",
+    },
   ],
   sessions: CATALOG,
   archivedSessions: ARCHIVED_CATALOG,

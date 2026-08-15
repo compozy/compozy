@@ -3,8 +3,8 @@ import { Repeat2 } from "lucide-react";
 import { Button, Empty, Eyebrow, type ListingViewMode } from "@compozy/ui";
 
 import type { LoopCatalogFilter } from "../../lib/loop-catalog";
-import { groupLoopCatalog } from "../../lib/loop-catalog";
-import type { LoopCatalogEntry } from "../../types";
+import { groupLoopCatalog, loopKindFacetCount } from "../../lib/loop-catalog";
+import type { LoopCatalogEntry, LoopsListResponse } from "../../types";
 import { LoopCatalogCard } from "./loop-catalog-card";
 import { LoopCatalogRow } from "./loop-catalog-row";
 
@@ -12,6 +12,8 @@ interface LoopCatalogProps {
   entries: readonly LoopCatalogEntry[];
   view: ListingViewMode;
   hasActiveFilters: boolean;
+  /** Server-owned kind counts; group headers fall back to loaded length. */
+  facets?: LoopsListResponse["facets"];
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   errorMessage?: string | null;
@@ -26,6 +28,7 @@ export function LoopCatalog({
   entries,
   view,
   hasActiveFilters,
+  facets,
   hasNextPage = false,
   isFetchingNextPage = false,
   errorMessage = null,
@@ -76,7 +79,7 @@ export function LoopCatalog({
           <div className="flex items-center gap-2 px-1 pb-2">
             <Eyebrow className="text-muted">{group.label}</Eyebrow>
             <span className="font-mono text-mono-id tabular-nums text-faint">
-              {group.entries.length}
+              {loopKindFacetCount(group.kind, group.entries.length, facets?.kinds)}
             </span>
           </div>
           {view === "cards" ? (

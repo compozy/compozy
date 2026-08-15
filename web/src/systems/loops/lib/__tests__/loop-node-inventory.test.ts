@@ -5,8 +5,10 @@
 
 import { describe, expect, it } from "vitest";
 
+import { Check, RotateCcw, ShieldCheck } from "lucide-react";
+
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../../types";
-import { buildInventoryRow } from "../loop-node-inventory";
+import { buildInventoryRow, inventoryEmptyCopy } from "../loop-node-inventory";
 
 const NOW = Date.parse("2026-08-03T14:00:00Z");
 
@@ -63,5 +65,19 @@ describe("buildInventoryRow", () => {
     expect(waiting.reason).toBe("timer — resumes in 5m");
     expect(retrying.reason).toBe("attempt 2 · transport failure · next in 5m");
     expect(`${waiting.reason} ${retrying.reason}`).not.toContain("2026-08-03T14:05:00Z");
+  });
+
+  it("Should keep filter-aware empty copy and return a per-state empty icon", () => {
+    expect(inventoryEmptyCopy("waiting", false)).toMatchObject({
+      title: "Nothing is waiting",
+      icon: Check,
+    });
+    expect(inventoryEmptyCopy("quarantined", false).icon).toBe(ShieldCheck);
+    expect(inventoryEmptyCopy("attention", false).icon).toBe(Check);
+    expect(inventoryEmptyCopy("retrying", false).icon).toBe(RotateCcw);
+    expect(inventoryEmptyCopy("waiting", true)).toMatchObject({
+      title: "Nothing matches these filters",
+      icon: Check,
+    });
   });
 });

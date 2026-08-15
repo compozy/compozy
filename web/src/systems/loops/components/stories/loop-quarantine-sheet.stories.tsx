@@ -39,7 +39,7 @@ export const QuarantineEntry: Story = {
       <LoopQuarantineSheet
         node={quarantinedNode()}
         onOpenChange={() => {}}
-        onRequeue={() => {}}
+        onVerb={() => {}}
         open
         runId="r-7c4e19"
       />
@@ -57,7 +57,7 @@ export const RequeueConfirmation: Story = {
         <LoopQuarantineSheet
           node={node}
           onOpenChange={() => {}}
-          onRequeue={() => {}}
+          onVerb={() => {}}
           open
           runId="r-7c4e19"
         >
@@ -80,7 +80,7 @@ export const QuarantineEntryAfterRequeue: Story = {
       <LoopQuarantineSheet
         node={{ ...quarantinedNode(), quarantined: false, state: null, parked: false }}
         onOpenChange={() => {}}
-        onRequeue={() => {}}
+        onVerb={() => {}}
         open
         runId="r-7c4e19"
       />

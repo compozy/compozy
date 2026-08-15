@@ -1,7 +1,9 @@
+import { Gauge } from "lucide-react";
+
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
 
 import type { LoopProgressSegmentState, LoopRunProgressModel } from "../../lib/loop-run-progress";
-import { LoopRunSection } from "./loop-run-section";
+import { LoopSection } from "../loop-section";
 
 interface LoopRunProgressPanelProps {
   /** `contract.goal`, falling back to the run identity when no contract loads. */
@@ -18,7 +20,8 @@ const SEGMENT_CLASS: Record<LoopProgressSegmentState, string> = {
   failed: "bg-danger",
   // Parked reads as information, not failure: the branch is excluded from the
   // count, so it must not borrow the danger or redo colour.
-  parked: "bg-info-tint",
+  parked: "bg-info-tint ring-1 ring-inset ring-info",
+  quarantined: "bg-danger-tint ring-1 ring-inset ring-danger",
   idle: "bg-badge-fill",
 };
 
@@ -28,7 +31,12 @@ const SEGMENT_CLASS: Record<LoopProgressSegmentState, string> = {
  */
 export function LoopRunProgressPanel({ title, doneWhen, progress }: LoopRunProgressPanelProps) {
   return (
-    <LoopRunSection label="Progress" data-testid="loop-run-progress">
+    <LoopSection
+      className="mb-0"
+      data-testid="loop-run-progress"
+      icon={<Gauge aria-hidden="true" />}
+      title="Progress"
+    >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
         <div className="px-4.5 pt-4 pb-4.25">
           <h2
@@ -71,6 +79,6 @@ export function LoopRunProgressPanel({ title, doneWhen, progress }: LoopRunProgr
           </div>
         </div>
       </div>
-    </LoopRunSection>
+    </LoopSection>
   );
 }

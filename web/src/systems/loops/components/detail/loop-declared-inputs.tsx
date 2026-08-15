@@ -1,3 +1,5 @@
+import { TextCursorInput } from "lucide-react";
+
 import type { LoopInputSchema } from "../../types";
 import { MonoTag } from "../mono-tag";
 import { LoopRailSection } from "../loop-rail-section";
@@ -22,6 +24,7 @@ export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
       data-testid="loop-declared-inputs"
       defaultOpen
       gist={`${required} required · ${names.length - required} optional`}
+      icon={<TextCursorInput aria-hidden="true" className="size-3.5" />}
       title="Inputs"
     >
       <div className="flex flex-col">

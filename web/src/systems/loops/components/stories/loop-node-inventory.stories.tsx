@@ -77,11 +77,13 @@ function InventoryStoryHost({
   items,
   hasMore = false,
   loopFilter = "",
+  view = "rows",
 }: {
   state: LoopNodeInventoryState;
   items: LoopNodeInventoryItem[];
   hasMore?: boolean;
   loopFilter?: string;
+  view?: "rows" | "cards";
 }) {
   return (
     <div className="min-h-dvh bg-canvas p-6">
@@ -97,11 +99,13 @@ function InventoryStoryHost({
         onClearFilters={() => {}}
         onLoadMore={() => {}}
         onLoopFilterChange={() => {}}
-        onSortChange={() => {}}
+        onRunFilterChange={() => {}}
         onStateChange={() => {}}
+        onViewChange={() => {}}
         runFilter=""
-        sort="oldest"
+        runOptions={["r-914c3d", "r-2b81aa"]}
         state={state}
+        view={view}
       />
     </div>
   );
@@ -119,6 +123,12 @@ type Story = StoryObj<typeof meta>;
 export const Waiting: Story = {
   args: {},
   render: () => <InventoryStoryHost items={WAITING_ITEMS} state="waiting" />,
+};
+
+/** Cards view of the same waiting inventory — state glyph, one pill, clamped reason. */
+export const WaitingCards: Story = {
+  args: {},
+  render: () => <InventoryStoryHost items={WAITING_ITEMS} state="waiting" view="cards" />,
 };
 
 export const WaitingWithMore: Story = {

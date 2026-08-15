@@ -34,7 +34,7 @@ describe("loop-limits", () => {
     expect(byLabel.get("Token budget")).toMatchObject({ value: "off", ceiling: "/ 20M" });
     expect(byLabel.get("Wall clock")).toMatchObject({ value: "off", ceiling: "/ 7d" });
     expect(byLabel.get("On exceeded")).toMatchObject({ value: "halt", ceiling: "→ exhausted" });
-    expect(byLabel.get("Cost (USD)")).toMatchObject({ value: "—", ceiling: "display-only" });
+    expect(byLabel.has("Cost (USD)")).toBe(false);
     expect(byLabel.get("Fan-out breadth")).toMatchObject({ value: "4", ceiling: "/ 64" });
   });
 

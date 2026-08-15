@@ -1,29 +1,11 @@
-import type { ComponentType, ReactNode } from "react";
-import {
-  Activity,
-  Bell,
-  Ban,
-  Check,
-  CircleCheck,
-  CopyX,
-  Eye,
-  Hourglass,
-  Pause,
-  Play,
-  Radio,
-  RotateCcw,
-  TimerReset,
-  Send,
-  ShieldAlert,
-  Square,
-  TriangleAlert,
-  X,
-  Zap,
-  ZapOff,
-} from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Activity, History } from "lucide-react";
 
 import {
   cn,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   Empty,
   formatAbsoluteTime,
   formatRelativeTime,
@@ -33,8 +15,9 @@ import {
 
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import { formatLoopScore } from "../../lib/loop-generation-presentation";
-import type { LoopStoryIcon, LoopStoryRow } from "../../lib/loop-run-story";
-import { LoopRunSection } from "./loop-run-section";
+import type { LoopStoryRow } from "../../lib/loop-run-story";
+import { LOOP_STORY_ICONS } from "../../lib/loop-story-icons";
+import { LoopSection } from "../loop-section";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
 
 interface LoopRunStoryTimelineProps {
@@ -47,35 +30,6 @@ interface LoopRunStoryTimelineProps {
   isLoadingMoreGoalTurns?: boolean;
   onLoadMoreGoalTurns?: () => void;
 }
-
-type IconComponent = ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" }>;
-
-const ICONS: Record<LoopStoryIcon, IconComponent> = {
-  round: Play,
-  "check-pass": Check,
-  "check-warn": TriangleAlert,
-  "node-done": Check,
-  "node-failed": X,
-  approval: Bell,
-  watching: Eye,
-  paused: Pause,
-  resumed: Play,
-  started: Play,
-  stopped: Square,
-  done: Check,
-  retry: TimerReset,
-  canceled: Ban,
-  killed: Zap,
-  quarantined: ShieldAlert,
-  requeued: RotateCcw,
-  waiting: Hourglass,
-  attention: TriangleAlert,
-  "attention-cleared": CircleCheck,
-  effect: Send,
-  suppressed: CopyX,
-  "breaker-open": ZapOff,
-  "breaker-closed": Radio,
-};
 
 /** Story dots color state only (§1): neutral rows stay on the faint ring. */
 const TONE_RING: Record<PillTone, string> = {
@@ -103,7 +57,7 @@ function StoryIssues({ row }: { row: LoopStoryRow }) {
 }
 
 function StoryRow({ row, turnsSlot }: { row: LoopStoryRow; turnsSlot: ReactNode }) {
-  const Icon = ICONS[row.icon];
+  const Icon = LOOP_STORY_ICONS[row.icon];
   const score = formatLoopScore(row.score);
   const anchorId =
     row.kind === "generation_started" && row.generation !== undefined
@@ -174,10 +128,42 @@ function StoryRow({ row, turnsSlot }: { row: LoopStoryRow; turnsSlot: ReactNode 
   );
 }
 
+function readTargetedGeneration(): number | null {
+  if (typeof window === "undefined") return null;
+  const match = /^#loop-generation-(\d+)$/.exec(window.location.hash);
+  return match ? Number(match[1]) : null;
+}
+
+function partitionStoryGenerations(rows: readonly LoopStoryRow[]): {
+  newest: LoopStoryRow[];
+  older: { generation: number; rows: LoopStoryRow[] }[];
+} {
+  let newestGen = Number.NEGATIVE_INFINITY;
+  for (const row of rows) {
+    if (row.generation !== undefined && row.generation > newestGen) newestGen = row.generation;
+  }
+  const newest: LoopStoryRow[] = [];
+  const olderMap = new Map<number, LoopStoryRow[]>();
+  for (const row of rows) {
+    const generation = row.generation;
+    if (generation === undefined || generation === newestGen) {
+      newest.push(row);
+      continue;
+    }
+    const list = olderMap.get(generation) ?? [];
+    list.push(row);
+    olderMap.set(generation, list);
+  }
+  const older = [...olderMap.entries()]
+    .sort(([left], [right]) => right - left)
+    .map(([generation, groupRows]) => ({ generation, rows: groupRows }));
+  return { newest, older };
+}
+
 /**
- * The "What happened" story timeline (§5.3): flat, newest-first, one row per
- * meaningful frame on the prototype's icon spine. Goal-node rows fold the
- * `/turns` audit behind a Turns disclosure on their newest appearance.
+ * The "What happened" story timeline (§5.3): newest generation flat, older
+ * generations folded. Goal-node rows fold the `/turns` audit behind a Turns
+ * disclosure on their newest appearance.
  */
 export function LoopRunStoryTimeline({
   rows,
@@ -197,8 +183,60 @@ export function LoopRunStoryTimeline({
       turnsHostKeys.add(row.key);
     }
   }
+  const { newest, older } = partitionStoryGenerations(rows);
+  const [targetedGen, setTargetedGen] = useState(readTargetedGeneration);
+  const [openGens, setOpenGens] = useState(() => {
+    const targeted = readTargetedGeneration();
+    return targeted === null ? new Set<number>() : new Set([targeted]);
+  });
+  useEffect(() => {
+    const sync = () => {
+      const targeted = readTargetedGeneration();
+      if (targeted === null) return;
+      setOpenGens(current => {
+        if (current.has(targeted)) return current;
+        const next = new Set(current);
+        next.add(targeted);
+        return next;
+      });
+      setTargetedGen(targeted);
+    };
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
+  useEffect(() => {
+    if (targetedGen === null) return;
+    const el = document.getElementById(`loop-generation-${targetedGen}`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start" });
+  }, [targetedGen]);
+
+  const renderRow = (row: LoopStoryRow) => (
+    <StoryRow
+      key={row.key}
+      row={row}
+      turnsSlot={
+        turnsHostKeys.has(row.key) ? (
+          <LoopRunTurnsDisclosure
+            hasMore={hasMoreGoalTurns}
+            isLoadingMore={isLoadingMoreGoalTurns}
+            isLive={isLive}
+            onLoadMore={onLoadMoreGoalTurns}
+            turns={goalTurns.filter(turn => turn.nodeId === row.nodeId)}
+          />
+        ) : null
+      }
+    />
+  );
+
   return (
-    <LoopRunSection label="What happened" data-testid="loop-run-story">
+    <LoopSection
+      className="mb-0"
+      data-testid="loop-run-story"
+      gist={rows.length === 0 ? undefined : `${rows.length} events`}
+      icon={<History aria-hidden="true" />}
+      title="What happened"
+    >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
         {rows.length === 0 ? (
           <Empty
@@ -209,26 +247,32 @@ export function LoopRunStoryTimeline({
           />
         ) : (
           <div className="px-4 pt-1.5 pb-2.5">
-            {rows.map(row => (
-              <StoryRow
-                key={row.key}
-                row={row}
-                turnsSlot={
-                  turnsHostKeys.has(row.key) ? (
-                    <LoopRunTurnsDisclosure
-                      hasMore={hasMoreGoalTurns}
-                      isLoadingMore={isLoadingMoreGoalTurns}
-                      isLive={isLive}
-                      onLoadMore={onLoadMoreGoalTurns}
-                      turns={goalTurns.filter(turn => turn.nodeId === row.nodeId)}
-                    />
-                  ) : null
-                }
-              />
+            {newest.map(renderRow)}
+            {older.map(group => (
+              <Collapsible
+                className="border-t border-line-soft"
+                data-testid={`loop-story-generation-${group.generation}`}
+                key={group.generation}
+                open={openGens.has(group.generation)}
+                onOpenChange={open => {
+                  setOpenGens(current => {
+                    const next = new Set(current);
+                    if (open) next.add(group.generation);
+                    else next.delete(group.generation);
+                    return next;
+                  });
+                }}
+              >
+                <CollapsibleTrigger className="flex min-h-8 w-full items-center py-2 text-left font-mono text-pill-group-badge text-subtle">
+                  Generation {group.generation} · {group.rows.length}{" "}
+                  {group.rows.length === 1 ? "event" : "events"}
+                </CollapsibleTrigger>
+                <CollapsibleContent>{group.rows.map(renderRow)}</CollapsibleContent>
+              </Collapsible>
             ))}
           </div>
         )}
       </div>
-    </LoopRunSection>
+    </LoopSection>
   );
 }

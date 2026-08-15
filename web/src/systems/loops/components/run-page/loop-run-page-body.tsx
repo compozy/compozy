@@ -188,6 +188,7 @@ export function LoopRunPageBody({
 }: LoopRunPageBodyProps) {
   const status = run.status;
   const contract = materializedContract;
+  const quarantinedNodes = (nodeLifecycles ?? []).filter(node => node.quarantined);
   const nowTurnsSlot =
     story.now?.isGoalNode === true ? (
       <LoopRunTurnsDisclosure
@@ -231,15 +232,19 @@ export function LoopRunPageBody({
           subject={subject}
           hasWatchSource={hasWatchSource}
           elapsedLabel={elapsedLabel}
+          startedBy={startedBy}
         />
         <div className="mt-5.5 grid grid-cols-1 items-start gap-8 min-[1080px]:grid-cols-[minmax(0,1fr)_320px]">
           <main className="flex min-w-0 flex-col gap-6.5">
-            {status === "needs-approval" ? (
+            {status === "needs-approval" || quarantinedNodes.length > 0 ? (
               <LoopRunNeedsYouCard
                 run={run}
                 request={approvalRequest}
                 fallbackFacts={approvalFallbackFacts}
                 isPending={pendingAction === "approve"}
+                showApproval={status === "needs-approval"}
+                quarantinedNodes={quarantinedNodes}
+                onOpenQuarantine={onOpenQuarantine}
                 onDecision={onDecision}
               />
             ) : null}
@@ -247,6 +252,7 @@ export function LoopRunPageBody({
               nodes={attentionNodes ?? []}
               onOpenQuarantine={onOpenQuarantine}
               renderNodeActions={renderNodeActions}
+              runId={run.id}
             />
             {OUTCOME_STATUSES.has(status) ? (
               <LoopRunOutcomeCard
@@ -268,7 +274,11 @@ export function LoopRunPageBody({
               progress={progress}
             />
             {status !== "paused" ? nowCard : null}
-            <LoopRunWaitingPanel nodes={waitingNodes ?? []} renderNodeActions={renderNodeActions} />
+            <LoopRunWaitingPanel
+              nodes={waitingNodes ?? []}
+              renderNodeActions={renderNodeActions}
+              runId={run.id}
+            />
             <LoopRunStoryTimeline
               rows={story.rows}
               isLive={isLive}
@@ -284,7 +294,7 @@ export function LoopRunPageBody({
             <div className="rounded-lg border border-line bg-canvas-soft">
               <LoopRunUsageRail rows={usageRows} note={usageNote} />
               {nodeLifecycles && nodeLifecycles.length > 0 ? (
-                <LoopRunWaitsRail nodes={nodeLifecycles} />
+                <LoopRunWaitsRail nodes={nodeLifecycles} runId={run.id} />
               ) : null}
               <LoopRunAboutRail
                 run={run}

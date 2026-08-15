@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { Lightbulb, ShieldAlert } from "lucide-react";
+import { History, Info, Lightbulb, ShieldAlert } from "lucide-react";
 
 import {
   Button,
   Eyebrow,
+  formatAbsoluteTime,
   formatRelativeTime,
   MetadataTile,
   ScrollArea,
@@ -15,8 +16,12 @@ import {
   SheetTitle,
 } from "@compozy/ui";
 
+import { LOOP_NODE_VERB_PRESENTATION, type LoopNodeVerb } from "../../lib/loop-node-controls";
+import { LOOP_NODE_VERB_ICONS } from "../../lib/loop-node-verb-icons";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
-import { quarantineChainRows } from "../../lib/loop-quarantine-entry";
+import { LoopSection } from "../loop-section";
+import { LoopQuarantineChain } from "./loop-quarantine-chain";
+import { LoopRunQuietNote } from "./loop-run-quiet-note";
 
 interface LoopQuarantineSheetProps {
   /** The quarantined node, or null when the sheet is closed. */
@@ -25,19 +30,19 @@ interface LoopQuarantineSheetProps {
   open: boolean;
   isRequeuePending?: boolean;
   onOpenChange: (open: boolean) => void;
-  onRequeue: (node: LoopNodeLifecycle) => void;
+  onVerb: (verb: LoopNodeVerb, node: LoopNodeLifecycle) => void;
   /** Slot for the requeue confirm dialog, nested inside the sheet. */
   children?: ReactNode;
 }
 
-const DISPOSITION_TONE: Record<string, string> = {
-  retried: "text-warning",
-  routed: "text-info",
-  absorbed: "text-muted",
-  escalated: "text-warning",
-  quarantined: "text-danger",
-  canceled: "text-muted",
-};
+function countGist(attempts: number, episodes: number): string {
+  return [
+    attempts > 0 ? `${attempts} ${attempts === 1 ? "attempt" : "attempts"}` : null,
+    episodes > 0 ? `${episodes} ${episodes === 1 ? "episode" : "episodes"}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 /**
  * The quarantine entry sheet (US-024 AC-1, VC-R4). It renders exactly what the
@@ -56,14 +61,15 @@ export function LoopQuarantineSheet({
   open,
   isRequeuePending,
   onOpenChange,
-  onRequeue,
+  onVerb,
   children,
 }: LoopQuarantineSheetProps) {
   const entry = node?.quarantineEntry ?? null;
+  const CancelIcon = LOOP_NODE_VERB_ICONS.cancel;
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
       <SheetContent
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-160"
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-(--width-modal-sm)"
         data-testid="loop-quarantine-sheet"
       >
         {node && entry ? (
@@ -72,7 +78,7 @@ export function LoopQuarantineSheet({
               <div className="flex items-start gap-3">
                 <span
                   aria-hidden="true"
-                  className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded bg-danger-tint text-danger"
+                  className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-danger-tint text-danger ring-1 ring-danger/24 ring-inset"
                 >
                   <ShieldAlert className="size-4" />
                 </span>
@@ -95,22 +101,21 @@ export function LoopQuarantineSheet({
             <ScrollArea className="min-h-0 flex-1">
               <div className="flex flex-col gap-5 px-5 py-4">
                 {entry.hint ? (
-                  <section
-                    className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5"
+                  <LoopRunQuietNote
                     data-testid="loop-quarantine-hint"
+                    icon={Lightbulb}
+                    title="What to try"
                   >
-                    <div className="flex items-center gap-2">
-                      <Lightbulb aria-hidden="true" className="size-3.5 text-warning" />
-                      <span className="text-ws-name font-medium text-fg-strong">What to try</span>
-                    </div>
-                    <p className="mt-1.5 max-w-[62ch] text-small-body leading-relaxed text-muted">
-                      {entry.hint}
-                    </p>
-                  </section>
+                    {entry.hint}
+                  </LoopRunQuietNote>
                 ) : null}
-                <section data-testid="loop-quarantine-facts">
-                  <Eyebrow className="text-muted">At a glance</Eyebrow>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                <LoopSection
+                  className="mb-0"
+                  data-testid="loop-quarantine-facts"
+                  icon={<Info />}
+                  title="At a glance"
+                >
+                  <div className="grid grid-cols-2 gap-2">
                     <MetadataTile
                       label="Attempts"
                       value={entry.attemptCount}
@@ -136,7 +141,7 @@ export function LoopQuarantineSheet({
                       <MetadataTile
                         label="Quarantined"
                         value={formatRelativeTime(entry.quarantinedAt)}
-                        detail={entry.quarantinedAt}
+                        detail={formatAbsoluteTime(entry.quarantinedAt)}
                       />
                     ) : null}
                   </div>
@@ -148,67 +153,21 @@ export function LoopQuarantineSheet({
                       </p>
                     </div>
                   ) : null}
-                </section>
-                <section data-testid="loop-quarantine-chain">
-                  <div className="flex items-baseline gap-2">
-                    <Eyebrow className="text-muted">What failed, in order</Eyebrow>
-                    <span className="font-mono text-pill-group-badge text-faint">
-                      {entry.attemptCount} attempts · {entry.episodes.length} episodes
-                    </span>
-                  </div>
-                  <ol className="mt-2 flex flex-col rounded-lg border border-line bg-canvas-soft">
-                    {quarantineChainRows(entry).map((row, index) => (
-                      <li
-                        className={index > 0 ? "border-t border-line-soft" : undefined}
-                        data-testid={`loop-quarantine-attempt-${row.key}`}
-                        key={row.key}
-                      >
-                        {row.openedBy ? (
-                          <div className="border-b border-line-soft px-4 py-1.5">
-                            <Eyebrow className="text-faint">
-                              {`Episode ${row.episodeIndex + 1} — requeued by ${
-                                row.openedBy.actorId || row.openedBy.actorKind || "an operator"
-                              }`}
-                              {row.openedBy.requestedAt
-                                ? ` ${formatRelativeTime(row.openedBy.requestedAt)}`
-                                : ""}
-                            </Eyebrow>
-                          </div>
-                        ) : null}
-                        <div className="flex items-start gap-3 px-4 py-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-ws-name font-medium text-fg-strong">
-                              {row.cause || row.failureCode || "An attempt failed"}
-                            </div>
-                            {row.hint ? (
-                              <p className="mt-1 max-w-[58ch] text-small-body leading-relaxed text-muted">
-                                {row.hint}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <div className="font-mono text-mono-id tabular-nums text-subtle">
-                              attempt {row.attempt}
-                              {row.endedAt ? ` · ${formatRelativeTime(row.endedAt)}` : ""}
-                            </div>
-                            <div
-                              className={`font-mono text-pill-group-badge ${
-                                DISPOSITION_TONE[row.disposition ?? ""] ?? "text-faint"
-                              }`}
-                            >
-                              {[row.failureClass, row.disposition].filter(Boolean).join(" → ")}
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
+                </LoopSection>
+                <LoopSection
+                  className="mb-0"
+                  data-testid="loop-quarantine-chain"
+                  gist={countGist(entry.attemptCount, entry.episodes.length) || undefined}
+                  icon={<History />}
+                  title="What failed, in order"
+                >
+                  <LoopQuarantineChain entry={entry} />
                   {entry.truncated ? (
                     <p className="mt-1.5 text-form-hint text-subtle">
                       Older episodes were dropped to keep this entry inside its size limit.
                     </p>
                   ) : null}
-                </section>
+                </LoopSection>
               </div>
             </ScrollArea>
             <SheetFooter className="flex-row items-center justify-between gap-3 border-t border-line px-5 py-3">
@@ -216,20 +175,29 @@ export function LoopQuarantineSheet({
                 The run keeps working — quarantine never stops it by itself.
               </span>
               <span className="flex shrink-0 items-center gap-2">
-                <Button onClick={() => onOpenChange(false)} size="sm" type="button" variant="ghost">
-                  Close
-                </Button>
                 {node.quarantined ? (
-                  <Button
-                    data-testid="loop-quarantine-requeue"
-                    disabled={isRequeuePending}
-                    onClick={() => onRequeue(node)}
-                    size="sm"
-                    type="button"
-                    variant="primary"
-                  >
-                    Requeue…
-                  </Button>
+                  <>
+                    <Button
+                      data-testid="loop-quarantine-cancel"
+                      onClick={() => onVerb("cancel", node)}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      <CancelIcon className="size-3.5" />
+                      {LOOP_NODE_VERB_PRESENTATION.cancel.label}
+                    </Button>
+                    <Button
+                      data-testid="loop-quarantine-requeue"
+                      disabled={isRequeuePending}
+                      onClick={() => onVerb("requeue", node)}
+                      size="sm"
+                      type="button"
+                      variant="primary"
+                    >
+                      Requeue…
+                    </Button>
+                  </>
                 ) : null}
               </span>
             </SheetFooter>

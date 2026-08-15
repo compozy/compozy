@@ -5,6 +5,7 @@ import { cn } from "@compozy/ui";
 
 interface LoopRunQuietNoteProps extends ComponentProps<"div"> {
   icon: LucideIcon;
+  title?: string;
 }
 
 /**
@@ -13,6 +14,7 @@ interface LoopRunQuietNoteProps extends ComponentProps<"div"> {
  */
 export function LoopRunQuietNote({
   icon: Icon,
+  title,
   className,
   children,
   ...props
@@ -26,7 +28,10 @@ export function LoopRunQuietNote({
       {...props}
     >
       <Icon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
-      <span>{children}</span>
+      <div className="min-w-0">
+        {title ? <div className="text-ws-name font-medium text-fg-strong">{title}</div> : null}
+        <span className={title ? "mt-1.5 block" : undefined}>{children}</span>
+      </div>
     </div>
   );
 }

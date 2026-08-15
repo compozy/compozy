@@ -1,4 +1,4 @@
-import { Field, FieldDescription, FieldLabel, Textarea } from "@compozy/ui";
+import { Field, FieldDescription, FieldHeader, FieldLabel, Textarea } from "@compozy/ui";
 
 import type { EditableLoopContractField } from "../../lib/loop-editor-definition";
 import type { FieldPath } from "../../lib/loop-node-schema";
@@ -26,7 +26,10 @@ export function LoopEditorContract({
       </p>
       <div className="flex flex-col gap-3.5">
         <Field>
-          <FieldLabel htmlFor="loop-contract-goal">Goal (optional)</FieldLabel>
+          <FieldHeader>
+            <FieldLabel htmlFor="loop-contract-goal">Goal</FieldLabel>
+            <span className="text-badge font-normal text-faint">optional</span>
+          </FieldHeader>
           <Textarea
             id="loop-contract-goal"
             rows={2}

@@ -1,4 +1,4 @@
-import { Check, RotateCcw } from "lucide-react";
+import { Check, CircleSlash, RotateCcw } from "lucide-react";
 import { useState } from "react";
 
 import { Button, Pill, StatusCard, type StatusCardTone } from "@compozy/ui";
@@ -7,8 +7,8 @@ import type { LoopCoordinatorFailure } from "../../lib/loop-events";
 import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import { formatClockDuration, terminalRunElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRunRecord } from "../../types";
+import { LoopSection } from "../loop-section";
 import { LoopRunQuietNote } from "./loop-run-quiet-note";
-import { LoopRunSection } from "./loop-run-section";
 
 interface LoopRunOutcomeCardProps {
   run: LoopRunRecord;
@@ -231,8 +231,13 @@ export function LoopRunOutcomeCard(props: LoopRunOutcomeCardProps) {
   );
   if (!view.sectionLabel) return card;
   return (
-    <LoopRunSection label={view.sectionLabel} data-testid="loop-run-outcome">
+    <LoopSection
+      className="mb-0"
+      data-testid="loop-run-outcome"
+      icon={<CircleSlash aria-hidden="true" />}
+      title={view.sectionLabel}
+    >
       {card}
-    </LoopRunSection>
+    </LoopSection>
   );
 }

@@ -32,9 +32,9 @@ const TRIGGER_KINDS = new Set(["trigger", "webhook"]);
 
 /**
  * The Loop-detail Start-bindings panel (§9.14 / ADR-007): the declared `start[]`
- * kinds as read-only mono chips, one row per attached loop-target automation with
- * an enabled dot (the only stateful color here), and Add CTAs gated to the kinds
- * the Loop's allowlist actually permits — so no CTA leads to a create-time 422.
+ * kinds as one read-only mono line, one row per attached loop-target automation
+ * with an enabled dot (the only stateful color here), and Add CTAs gated to the
+ * kinds the Loop's allowlist actually permits — so no CTA leads to a create-time 422.
  */
 export function LoopStartBindingsPanel({
   declaredKinds,
@@ -58,21 +58,16 @@ export function LoopStartBindingsPanel({
     <LoopRailSection
       data-testid="loop-start-bindings"
       gist={`${declaredKinds.length} ways · ${totalBindings} attached`}
+      icon={<Zap aria-hidden="true" className="size-3.5" />}
       title="Start"
     >
       <div>
-        <div className="flex flex-wrap items-center gap-1.5 px-3.5 py-3">
-          {declaredKinds.map(kind => (
-            <MonoTag
-              key={kind}
-              className="rounded-xs bg-badge-fill px-1.5 py-0.5"
-              data-testid="loop-declared-kind"
-            >
-              {kind}
-            </MonoTag>
-          ))}
-          <span className="ml-auto font-mono text-pill-group-badge text-faint">declared</span>
-        </div>
+        <p
+          className="px-3.5 py-3 font-mono text-mono-id text-subtle"
+          data-testid="loop-declared-kind"
+        >
+          {declaredKinds.join(" · ")}
+        </p>
 
         {hasPagination ? (
           <p
@@ -93,8 +88,7 @@ export function LoopStartBindingsPanel({
             className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-subtle"
             data-testid="loop-bindings-empty"
           >
-            Runs on demand. Attach an automation to one of the declared start kinds above to run
-            this Loop hands-free.
+            Runs on demand.
           </p>
         ) : (
           bindings.map(binding => (

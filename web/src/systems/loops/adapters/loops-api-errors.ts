@@ -1,5 +1,21 @@
 import type { ValidateLoopResult } from "../types";
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+/** Reads the daemon's `{code, details}` reason envelope off a rejected response. */
+export function reasonEnvelope(error: unknown): { code: string; details: Record<string, string> } {
+  const body = asRecord(error);
+  const code = typeof body?.code === "string" ? body.code : "";
+  const rawDetails = asRecord(body?.details);
+  const details: Record<string, string> = {};
+  for (const [key, value] of Object.entries(rawDetails ?? {})) {
+    if (typeof value === "string") details[key] = value;
+  }
+  return { code, details };
+}
+
 export class LoopsApiError extends Error {
   constructor(
     message: string,

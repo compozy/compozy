@@ -24,8 +24,7 @@ describe("LoopStartBindingsPanel", () => {
   it("Should render the declared start kinds and attached automation rows", () => {
     render(<LoopStartBindingsPanel declaredKinds={DECLARED} bindings={BINDINGS} />);
     openStart();
-    const kinds = screen.getAllByTestId("loop-declared-kind").map(node => node.textContent);
-    expect(kinds).toEqual(DECLARED);
+    expect(screen.getByTestId("loop-declared-kind")).toHaveTextContent(DECLARED.join(" · "));
     const row = screen.getByTestId("loop-binding-row");
     expect(row).toHaveAttribute("data-enabled", "false");
     expect(row).toHaveTextContent("nightly");
@@ -35,7 +34,7 @@ describe("LoopStartBindingsPanel", () => {
   it("Should show the empty state when no automations are attached", () => {
     render(<LoopStartBindingsPanel declaredKinds={DECLARED} bindings={[]} />);
     openStart();
-    expect(screen.getByTestId("loop-bindings-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-bindings-empty")).toHaveTextContent("Runs on demand.");
     expect(screen.queryByTestId("loop-binding-row")).not.toBeInTheDocument();
   });
 

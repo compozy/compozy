@@ -1,13 +1,25 @@
-import { GripVertical } from "lucide-react";
+import { Eyebrow, KindIcon, type KindIconRegistry } from "@compozy/ui";
 
-import { Eyebrow } from "@compozy/ui";
-
+import {
+  LOOP_CALL_TOOL_ICON,
+  LOOP_NODE_KIND_ICONS,
+  loopNodeClassIcon,
+} from "../../lib/loop-node-kind-icons";
 import { LOOP_PALETTE, type PaletteItem } from "../../lib/loop-palette";
 import { MonoTag } from "../mono-tag";
 
 interface LoopEditorPaletteProps {
   onAddNode: (item: PaletteItem) => void;
   disabled?: boolean;
+}
+
+const LOOP_EDITOR_KIND_ICON_REGISTRY = {
+  ...LOOP_NODE_KIND_ICONS,
+  "": LOOP_CALL_TOOL_ICON,
+} satisfies KindIconRegistry;
+
+function paletteKindKey(kindLabel: string): string {
+  return kindLabel === "tool…" ? "" : kindLabel;
 }
 
 /**
@@ -20,7 +32,7 @@ interface LoopEditorPaletteProps {
 export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPaletteProps) {
   return (
     <aside
-      className="flex min-h-0 flex-col gap-4 overflow-y-auto border-r border-line bg-canvas px-3 py-3.5"
+      className="hidden min-h-0 flex-col gap-4 overflow-y-auto border-r border-line bg-canvas px-3 py-3.5 lg:flex"
       data-testid="loop-editor-palette"
     >
       <Eyebrow className="text-subtle">Add node</Eyebrow>
@@ -37,9 +49,22 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
               disabled={disabled}
               title={item.hint}
               data-testid={`loop-palette-item-${item.kindLabel}`}
-              className="flex items-center gap-2 rounded-md border border-line-soft bg-canvas-soft px-2 py-1.5 text-left transition-colors hover:border-line-strong hover:bg-canvas-tint disabled:cursor-not-allowed disabled:opacity-60"
+              className="group flex items-center gap-2 rounded-md border border-line-soft bg-canvas-soft px-2 py-1.5 text-left transition-colors hover:border-line-strong hover:bg-canvas-tint disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <GripVertical aria-hidden="true" className="size-3 shrink-0 text-faint" />
+              <span className="grid size-4 shrink-0 place-items-center rounded-xs bg-badge-fill transition-transform group-hover:scale-110">
+                <KindIcon
+                  className="size-2.5"
+                  fallback={loopNodeClassIcon({
+                    nodeClass: item.nodeClass,
+                    isFanOut: item.kindLabel === "fan-out",
+                    isGate: item.kindLabel === "gate",
+                  })}
+                  kind={paletteKindKey(item.kindLabel)}
+                  registry={LOOP_EDITOR_KIND_ICON_REGISTRY}
+                  size="xs"
+                  tone="muted"
+                />
+              </span>
               <span className="truncate text-form-label font-medium text-fg-strong">
                 {item.label}
               </span>
@@ -47,11 +72,6 @@ export function LoopEditorPalette({ onAddNode, disabled = false }: LoopEditorPal
           ))}
         </div>
       ))}
-      <p className="rounded-md border border-line-soft bg-canvas-soft px-2.5 py-2.5 text-form-hint leading-relaxed text-faint">
-        <span className="font-medium text-subtle">Kinds are ToolIDs.</span> Beyond run-agent,
-        run-loop and transform, an action&apos;s kind is the tool it calls. Tool params are edited
-        as JSON today; schema-driven forms are a follow-up.
-      </p>
     </aside>
   );
 }

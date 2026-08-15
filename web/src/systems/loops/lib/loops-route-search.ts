@@ -20,6 +20,7 @@ export interface LoopRunsRouteSearch {
   nodes?: LoopNodeInventoryState;
   nodes_loop?: string;
   nodes_run?: string;
+  view?: ListingViewMode;
 }
 
 export function parseLoopKindFilter(value: unknown): Exclude<LoopKindFilter, "all"> | undefined {
@@ -59,5 +60,6 @@ export function validateLoopRunsSearch(search: Record<string, unknown>): LoopRun
     nodes,
     nodes_loop: nodes === undefined ? undefined : nodesLoop,
     nodes_run: nodes === undefined ? undefined : nodesRun,
+    view: parseListingView(search.view),
   };
 }

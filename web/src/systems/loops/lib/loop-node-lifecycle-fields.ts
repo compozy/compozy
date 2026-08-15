@@ -151,6 +151,7 @@ export function reliabilityFold(_raw: RawLoopNode, variant: LoopLifecycleVariant
       key: "reliability",
       label: "Reliability",
       subLabel: "result_contract · on_error",
+      defaultOpen: true,
       fields: [
         {
           type: "hint",
@@ -167,6 +168,7 @@ export function reliabilityFold(_raw: RawLoopNode, variant: LoopLifecycleVariant
     key: "reliability",
     label: "Reliability",
     subLabel: "deadline · retry · result_contract · on_error",
+    defaultOpen: true,
     fields: [deadlineField(), ...retryFields(), ...resultContractFields(), ...errorPolicyFields()],
   };
 }

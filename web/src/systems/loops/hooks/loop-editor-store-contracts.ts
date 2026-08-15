@@ -23,12 +23,19 @@ export interface LoopEditorState {
   positionsDirty: boolean;
   positionsGeneration: number;
   publishError: string | null;
+  /** Discriminator for `publishError`: a 422 validation rejection vs a transport/unknown failure. */
+  publishFailureKind: "rejected" | "transport" | null;
   /**
    * The issues a publish 422 returned, kept beside the message so the rejected strip can list
    * the daemon's own verdict even while the dock is collapsed. Empty for a transport failure,
    * which has no issue list to show.
    */
   publishRejectedIssues: LoopValidationIssue[];
+  /**
+   * True when a 422 landed after the draft moved on — the dock is intentionally
+   * stale, so the strip must carry the issue list.
+   */
+  publishRejectedDockStale: boolean;
   publishGeneration: number;
   scopeGeneration: number;
   selectedNodeId: string | null;
@@ -141,7 +148,9 @@ export function createLoopEditorState(scopeGeneration = 0): LoopEditorState {
     positionsDirty: false,
     positionsGeneration: 0,
     publishError: null,
+    publishFailureKind: null,
     publishRejectedIssues: [],
+    publishRejectedDockStale: false,
     publishGeneration: 0,
     scopeGeneration,
     selectedNodeId: null,

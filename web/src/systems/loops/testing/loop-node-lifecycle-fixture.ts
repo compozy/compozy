@@ -29,6 +29,7 @@ export function loopNodeLifecycleFixture(
     disposition: "",
     outputStatus: "running",
     generation: 2,
+    itemIndex: null,
     sessionId: null,
     ...overrides,
   };

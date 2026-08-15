@@ -10,10 +10,12 @@ qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
-fix_commits:
+fix_commits: b17c0dfb
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: LP-021; ET-web-loop-editor-topbar
 ---
 
 Added by loop editor node label truncate. Flag only — retest in the next QA cycle.
+
+Reset 2026-08-14: the card was rebuilt to the 188px head/body anatomy (icon tile + kv rows, b17c0dfb) — truncation must hold on the head id and every kv value. Still awaiting the seeded QA walk; editor suites green at 9a694ff2.

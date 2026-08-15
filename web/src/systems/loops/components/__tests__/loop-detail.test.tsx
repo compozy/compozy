@@ -87,6 +87,7 @@ describe("LoopDetailView", () => {
     expect(screen.getByTestId("loop-contract")).toBeInTheDocument();
     expect(screen.getByTestId("loop-dag")).toBeInTheDocument();
     expect(screen.getByTestId("loop-recent-runs")).toBeInTheDocument();
+    expect(screen.getAllByTestId("loop-recent-run-duration")).toHaveLength(recentRuns.length);
     expect(screen.getAllByTestId("loop-recent-run-best")).toHaveLength(recentRuns.length);
     expect(
       screen.getAllByTestId("loop-recent-run-best").every(cell => cell.textContent === "—")

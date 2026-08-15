@@ -12,10 +12,12 @@ import {
   loopCategory,
   loopInputCount,
   loopKind,
+  loopKindFacetCount,
   loopSourceLabel,
   matchesLoopFilter,
   successRateLabel,
 } from "../loop-catalog";
+import { loopFactsSegments, loopLastRunFact } from "../loop-catalog-presentation";
 
 const delivery = loopCatalogFixtures.find(entry => entry.name === "implement-tasks")!;
 const review = loopCatalogFixtures.find(entry => entry.name === "review-and-fix")!;
@@ -141,5 +143,31 @@ describe("loop-catalog", () => {
       status: null,
     });
     expect(none).toHaveLength(0);
+  });
+
+  it("Should prefer server kind facets and fall back to the loaded length", () => {
+    expect(loopKindFacetCount("read-only", 2, { read_only: 80 })).toBe(80);
+    expect(loopKindFacetCount("workspace", 0, { workspace: 5 })).toBe(5);
+    expect(loopKindFacetCount("read-only", 2)).toBe(2);
+    expect(loopKindFacetCount("read-only", 2, {})).toBe(2);
+  });
+
+  it("Should lead facts with category and append best as a plain segment", () => {
+    expect(loopFactsSegments(delivery)).toEqual(["Engineering", "3 inputs", "iteration cap 50"]);
+    const withBest: LoopCatalogEntry = {
+      ...delivery,
+      last_run: { ...delivery.last_run!, best_generation: 2, best_score: 0.92 },
+    };
+    expect(loopFactsSegments(withBest)).toEqual([
+      "Engineering",
+      "3 inputs",
+      "iteration cap 50",
+      "best Gen 2 · 0.92",
+    ]);
+    expect(loopLastRunFact(delivery)).toEqual({
+      id: "looprun_running",
+      iso: "2026-07-05T12:00:00Z",
+    });
+    expect(loopLastRunFact({ ...delivery, last_run: undefined })).toBeNull();
   });
 });

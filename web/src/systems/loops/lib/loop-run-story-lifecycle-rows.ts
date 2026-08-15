@@ -279,7 +279,7 @@ export function nodeAttentionFlaggedRow(
   return {
     ...base(frame, payload, "node_attention_flagged"),
     tone: "warning",
-    icon: "attention",
+    icon: flag === "silence" ? "attention-silence" : "attention",
     title: copy ? `Flagged: ${label} is ${copy.title}` : `Flagged: ${label} needs attention`,
     sub: copy?.sub ?? (str(payload.reason) || undefined),
     micro: `${nodeTrail(payload, "node_attention_flagged")}${flag === "" ? "" : ` · ${flag}`}`,

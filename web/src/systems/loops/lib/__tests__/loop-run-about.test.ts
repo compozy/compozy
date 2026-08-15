@@ -71,6 +71,6 @@ describe("humanizeStartOrigin", () => {
     expect(
       humanizeStartOrigin(run({ started_origin_kind: "schedule", started_origin_ref: "nightly" }))
     ).toBe("A schedule · nightly");
-    expect(humanizeStartOrigin(run({ started_origin_kind: "" }))).toBe("Started by hand");
+    expect(humanizeStartOrigin(run({ started_origin_kind: "" }))).toBe("hand");
   });
 });

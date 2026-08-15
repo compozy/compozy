@@ -55,9 +55,8 @@ export interface LoopLimitRow {
 }
 
 /**
- * The 8 limit rows shown on the Loop-detail right rail, pairing each per-loop
- * default from saved configuration with its daemon ceiling. Cost is display-only (no
- * enforced USD cap, §9.5.2); fan-out breadth is bounded by the loaded task count.
+ * Limit rows on the Loop-detail right rail, pairing each per-loop default with
+ * its daemon ceiling. Fan-out breadth is bounded by the loaded task count.
  */
 /**
  * The single policy→outcome vocabulary for `budget_on_exceeded`, shared by the
@@ -97,7 +96,6 @@ export function buildLoopLimits(effectiveConfig: LoopEffectiveConfig): LoopLimit
       ceiling: `/ ${LOOP_CEILINGS.wallClock}`,
     },
     { label: "On exceeded", value: onExceeded, ceiling: onExceededTarget },
-    { label: "Cost (USD)", value: "—", ceiling: "display-only" },
     {
       label: "No-progress window",
       value: String(effective.no_progress_window),

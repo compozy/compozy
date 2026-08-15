@@ -70,7 +70,7 @@ export function buildInputRows(
 }
 
 const START_ORIGIN_LABELS: Record<string, string> = {
-  manual: "Started by hand",
+  manual: "hand",
   cli: "The CLI",
   http: "An API call",
   uds: "A local socket call",
@@ -80,10 +80,10 @@ const START_ORIGIN_LABELS: Record<string, string> = {
   event: "An event",
 };
 
-/** Humanized `started_origin_kind/ref` ("A schedule · nightly"); raw kind fallback. */
+/** Unprefixed origin/actor (`hand`, `A schedule · nightly`); the subhead prepends `Started by `. */
 export function humanizeStartOrigin(run: LoopRunRecord): string {
   const kind = run.started_origin_kind?.trim() ?? "";
   const ref = run.started_origin_ref?.trim() ?? "";
-  const label = START_ORIGIN_LABELS[kind] ?? (kind || "Started by hand");
+  const label = START_ORIGIN_LABELS[kind] ?? (kind || "hand");
   return ref ? `${label} · ${ref}` : label;
 }

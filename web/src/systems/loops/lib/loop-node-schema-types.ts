@@ -154,6 +154,7 @@ export interface EnvironmentFieldSpec extends FieldCommon {
 export interface FoldFieldSpec extends FieldCommon {
   type: "fold";
   subLabel?: string;
+  defaultOpen?: boolean;
   fields: FieldSpec[];
 }
 

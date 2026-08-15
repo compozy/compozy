@@ -140,6 +140,7 @@ describe("buildRunProgress parked accounting", () => {
       [lifecycle("fix_batches", "quarantined")]
     );
     expect(model.leftMeta).toContain("quarantined");
+    expect(model.segments).toEqual(["quarantined", "quarantined"]);
     // A quarantined branch must never read as a failure the run still owes.
     expect(model.segments).not.toContain("failed");
     expect(model.leftMeta).not.toContain("failed");

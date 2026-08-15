@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { Activity, ArrowRight } from "lucide-react";
 
 import { loopRunOriginLine } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
+import { LoopRailSection } from "../loop-rail-section";
 import { LoopStatusPill } from "../loop-status-pill";
 
 interface LoopRunActiveNoticeProps {
@@ -34,11 +35,14 @@ function concurrencyNote(concurrency: string | undefined, runId: string): string
 export function LoopRunActiveNotice({ run, concurrency }: LoopRunActiveNoticeProps) {
   const note = concurrencyNote(concurrency, run.id);
   return (
-    <section
-      className="flex flex-col gap-2 rounded-md border border-line-soft bg-canvas-tint px-3.5 py-3"
+    <LoopRailSection
       data-testid="loop-run-active-notice"
+      defaultOpen
+      gist={`${run.id} · ${loopRunOriginLine(run)}`}
+      icon={<Activity aria-hidden="true" className="size-3.5" />}
+      title="Already running"
     >
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-3.5 py-3">
         <LoopStatusPill status={run.status} />
         <span className="font-mono text-mono-id text-fg" data-testid="loop-run-active-id">
           {run.id}
@@ -56,7 +60,11 @@ export function LoopRunActiveNotice({ run, concurrency }: LoopRunActiveNoticePro
           <ArrowRight aria-hidden="true" className="size-3" />
         </Link>
       </div>
-      {note ? <p className="text-form-hint leading-relaxed text-faint">{note}</p> : null}
-    </section>
+      {note ? (
+        <p className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-faint">
+          {note}
+        </p>
+      ) : null}
+    </LoopRailSection>
   );
 }

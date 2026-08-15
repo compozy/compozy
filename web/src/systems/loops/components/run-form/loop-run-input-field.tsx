@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { Input, Switch } from "@compozy/ui";
+import { Input, RequiredMark, Switch } from "@compozy/ui";
 
 import type { LoopInputSchemaField } from "../../types";
 import { MonoTag } from "../mono-tag";
@@ -34,7 +34,7 @@ function agentAvatar(value: unknown, field: LoopInputSchemaField): string {
 /**
  * One auto-generated run-form field, rendered entirely from a declared input's type
  * (§4.3): boolean -> switch, number -> numeric input, agent -> avatar-prefixed picker,
- * file/ref/string -> mono text. Every field carries a type badge, a required marker,
+ * file/ref/string -> mono text. Every field carries a type marker, a required marker,
  * an optional hint, and an inline required error. `data-input-type` makes the chosen
  * control type assertable (web-unit-3). The daemon's declared type string is rendered
  * verbatim in the badge (truthful UI — `boolean`, not `bool`).
@@ -67,27 +67,25 @@ export function LoopRunInputField({
             onCheckedChange={checked => onChange(checked)}
           />
           <div className="min-w-0 flex-1">
-            <label htmlFor={controlId} className="block text-xs font-medium text-fg-strong">
+            <label
+              htmlFor={controlId}
+              className="flex items-center font-mono text-form-input text-fg-strong"
+            >
               {name}
+              {field.required ? <RequiredMark /> : null}
             </label>
             {field.description ? (
               <p className="text-form-hint leading-snug text-subtle">{field.description}</p>
             ) : null}
           </div>
-          <MonoTag className="rounded-xs bg-badge-fill px-1.5 py-0.5">{field.type}</MonoTag>
+          <MonoTag className="ml-auto text-faint">{field.type}</MonoTag>
         </div>
       ) : (
         <>
           <label htmlFor={controlId} className="flex items-center gap-1.5">
-            <span className="text-xs font-medium text-fg-strong">{name}</span>
-            {field.required ? (
-              <span className="text-form-required font-semibold text-accent" aria-label="required">
-                *
-              </span>
-            ) : null}
-            <MonoTag className="ml-auto rounded-xs bg-badge-fill px-1.5 py-0.5">
-              {field.type}
-            </MonoTag>
+            <span className="font-mono text-form-input text-fg-strong">{name}</span>
+            {field.required ? <RequiredMark /> : null}
+            <MonoTag className="ml-auto text-faint">{field.type}</MonoTag>
           </label>
           <div className="relative">
             {isAgent ? (

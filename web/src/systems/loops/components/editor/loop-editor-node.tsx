@@ -1,14 +1,28 @@
 import { AlertTriangle } from "lucide-react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
-import { cn } from "@compozy/ui";
+import { cn, KindIcon, PropertyRow, type KindIconRegistry } from "@compozy/ui";
 
 import type { EditorNode } from "../../lib/codec";
+import { loopNodeCardRows } from "../../lib/loop-node-card-rows";
+import {
+  LOOP_CALL_TOOL_ICON,
+  LOOP_NODE_KIND_ICONS,
+  loopNodeClassIcon,
+} from "../../lib/loop-node-kind-icons";
 import { LOOP_ENVIRONMENT_MODE_LABELS } from "../../lib/loop-node-schema-types";
 import type { LoopEnvironmentMode, LoopEnvironmentSpec } from "../../types";
 import { MonoTag } from "../mono-tag";
 
 const KIND_IN_LABEL = new Set(["gate", "fan-out", "collect", "branch", "sub-loop"]);
+
+const LOOP_EDITOR_KIND_ICON_REGISTRY = {
+  ...LOOP_NODE_KIND_ICONS,
+  "": LOOP_CALL_TOOL_ICON,
+} satisfies KindIconRegistry;
+
+const HANDLE_NUB =
+  "!h-5 !min-h-0 !min-w-0 !w-[7px] !border-line !bg-line transition-[width,left,right] duration-150 group-hover:!w-[9px]";
 
 function classLabel(nodeClass: string | null, kind: string): string {
   const base = nodeClass ?? "node";
@@ -83,72 +97,121 @@ function environmentReadout(
 /**
  * One neutral node card on the DAG canvas (design §4.6). Color never encodes class:
  * selection is an accent ring, a lint error is a danger ring + corner badge, everything
- * else is a flat surface with mono class/kind labels. A single custom node type
- * dispatches on `data.nodeClass`/`kind` rather than a type per kind, so new kinds
- * render without new React Flow node types.
+ * else is a flat surface with a kind tile, id, and class MonoTag. Body rows come from
+ * declared fields only.
  */
 export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
   const { raw, nodeClass, kind, hasError } = data;
   const chips = fanOutChips(raw);
   const environment = environmentReadout(raw, data.loopDefaultEnvironment);
+  const rows = loopNodeCardRows(raw);
+  const hasBody = rows.length > 0 || environment !== undefined || chips.length > 0;
+  const connectable = data.readOnly !== true;
+  const classGlyph = loopNodeClassIcon({
+    nodeClass: nodeClass ?? "action",
+    isFanOut: kind === "fan-out",
+    isGate: kind === "gate",
+  });
   return (
     <div
       className={cn(
-        "relative flex min-h-14 w-[132px] flex-col gap-1 rounded-md border bg-canvas-tint px-3 py-2.5 transition-colors",
+        "group relative flex w-[188px] flex-col rounded-md border bg-canvas-tint transition-colors",
         hasError ? "border-danger" : "border-line hover:border-line-strong",
-        selected && !hasError && "border-accent-dim ring-1 ring-accent-dim",
-        selected && hasError && "ring-1 ring-danger"
+        selected && !hasError && "border-accent-dim ring-[1.75px] ring-accent-dim",
+        selected && hasError && "ring-[1.75px] ring-danger"
       )}
       data-testid="loop-editor-node"
       data-node-id={raw.id}
       data-node-error={hasError ? "true" : "false"}
     >
-      <Handle type="target" position={Position.Left} className="!size-2 !border-line !bg-canvas" />
-      <MonoTag
+      <Handle
         className={cn(
-          "text-pill-group-badge tracking-[0.07em]",
-          selected ? "text-accent-strong" : "text-faint"
+          HANDLE_NUB,
+          "!-left-2 !rounded-l-[2px] !rounded-r-none group-hover:!-left-2.5"
+        )}
+        isConnectable={connectable}
+        position={Position.Left}
+        type="target"
+      />
+      <div
+        className={cn(
+          "flex min-h-9.5 items-center gap-2 px-2.5 py-2",
+          hasBody && "border-b border-line-soft"
         )}
       >
-        {classLabel(nodeClass, kind)}
-      </MonoTag>
-      <span
-        className="min-w-0 truncate text-small-body font-medium leading-tight text-fg-strong"
-        title={String(raw.id)}
-      >
-        {String(raw.id)}
-      </span>
-      <span
-        className="min-w-0 truncate font-mono text-mono-id text-subtle"
-        title={kind || undefined}
-      >
-        {kind || "—"}
-      </span>
-      {environment ? (
         <span
-          className="flex min-w-0 items-baseline gap-1 font-mono text-pill-group-badge text-faint"
-          data-slot="loop-node-card-env"
+          className={cn(
+            "grid size-6 shrink-0 place-items-center rounded border border-line-strong bg-elevated",
+            selected ? "text-accent-strong" : "text-muted"
+          )}
         >
-          <span>env</span>
-          <span
-            className={cn("min-w-0 truncate", environment.inherited ? "text-faint" : "text-subtle")}
-            data-source={environment.inherited ? "loop-default" : "node"}
-            title={environment.label}
-          >
-            {environment.label}
-          </span>
+          <KindIcon
+            className="size-3.5"
+            fallback={classGlyph}
+            kind={kind}
+            registry={LOOP_EDITOR_KIND_ICON_REGISTRY}
+            size="xs"
+            tone={selected ? "accent" : "muted"}
+          />
         </span>
-      ) : null}
-      {chips.length > 0 ? (
-        <div className="mt-0.5 flex flex-wrap gap-1" data-testid="loop-editor-node-branches">
-          {chips.map(chip => (
-            <span
-              key={chip}
-              className="rounded-xs bg-badge-fill px-1 py-px font-mono text-pill-group-badge text-subtle"
+        <span
+          className="min-w-0 flex-1 truncate text-small-body font-medium leading-tight text-fg-strong"
+          title={String(raw.id)}
+        >
+          {String(raw.id)}
+        </span>
+        <MonoTag
+          className={cn(
+            "shrink-0 text-pill-group-badge tracking-[0.07em]",
+            selected ? "text-accent-strong" : "text-faint"
+          )}
+        >
+          {classLabel(nodeClass, kind)}
+        </MonoTag>
+      </div>
+      {hasBody ? (
+        <div className="flex flex-col gap-1 px-2.5 py-2">
+          {rows.map(row => (
+            <PropertyRow
+              className="min-h-0 gap-2 py-0"
+              key={row.key}
+              label={row.danger ? <span className="text-danger/70">{row.label}</span> : row.label}
+              mono
             >
-              {chip}
-            </span>
+              {row.value}
+            </PropertyRow>
           ))}
+          {environment ? (
+            <PropertyRow
+              className="min-h-0 gap-2 py-0"
+              data-slot="loop-node-card-env"
+              label="env"
+              mono
+            >
+              <span
+                className={cn(
+                  "min-w-0 truncate",
+                  environment.inherited ? "text-faint" : "text-subtle"
+                )}
+                data-source={environment.inherited ? "loop-default" : "node"}
+                title={environment.label}
+              >
+                {environment.label}
+              </span>
+            </PropertyRow>
+          ) : null}
+          {chips.length > 0 ? (
+            <div className="mt-0.5 flex flex-wrap gap-1" data-testid="loop-editor-node-branches">
+              {chips.map(chip => (
+                <span
+                  key={chip}
+                  className="rounded-xs bg-badge-fill px-1 py-px font-mono text-pill-group-badge text-subtle"
+                >
+                  {chip}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {hasError ? (
@@ -160,7 +223,15 @@ export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
           <AlertTriangle aria-hidden="true" className="size-2.5" />
         </span>
       ) : null}
-      <Handle type="source" position={Position.Right} className="!size-2 !border-line !bg-canvas" />
+      <Handle
+        className={cn(
+          HANDLE_NUB,
+          "!-right-2 !rounded-l-none !rounded-r-[2px] group-hover:!-right-2.5"
+        )}
+        isConnectable={connectable}
+        position={Position.Right}
+        type="source"
+      />
     </div>
   );
 }

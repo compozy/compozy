@@ -127,14 +127,14 @@ export function LoopRunInspectSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        className="gap-0 sm:max-w-[560px]"
+        className="gap-0 sm:max-w-(--width-modal-sm)"
         data-testid="loop-run-inspect-sheet"
         side="right"
       >
         <SheetHeader className="flex-none flex-row items-start gap-3 border-b border-line p-5">
           <span
             aria-hidden="true"
-            className="grid size-9 flex-none place-items-center rounded-md bg-accent-tint text-accent-strong"
+            className="grid size-9 flex-none place-items-center rounded-md bg-accent-tint text-accent-strong ring-1 ring-accent-dim ring-inset"
           >
             <Search className="size-4" />
           </span>

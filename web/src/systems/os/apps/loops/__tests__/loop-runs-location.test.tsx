@@ -46,10 +46,11 @@ describe("LoopRunsLocation", () => {
         fetchNextPage: vi.fn(),
         refetch: inventoryRefetch,
       },
-      inventorySort: "oldest",
-      setInventorySort: vi.fn(),
+      runOptions: [],
       setInventoryState: vi.fn(),
       setInventoryLoop: vi.fn(),
+      setInventoryRun: vi.fn(),
+      setInventoryView: vi.fn(),
       clearInventoryFilters: vi.fn(),
     });
   });

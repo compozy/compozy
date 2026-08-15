@@ -210,7 +210,13 @@ export function waitingScenario(): LoopRunStoryScenario {
         created_at: minutesAgo(6),
         age_seconds: 360,
       }),
-      wait({ node_id: "fix_batch", item_index: 3, kind: "event", age_seconds: 18 * 60 }),
+      wait({
+        node_id: "fix_batch",
+        item_index: 3,
+        kind: "event",
+        age_seconds: 18 * 60,
+        expect: { env: "staging" },
+      }),
       wait({
         node_id: "finalize_round",
         kind: "approval_escalation",
@@ -387,6 +393,67 @@ export function canceledScenario(): LoopRunStoryScenario {
     definition: reviewAndFixDefinition,
     frames,
     generations: generationsFor("canceled", "succeeded"),
+  };
+}
+
+/** S8 — mixed parked lanes: one paused, one waiting, one quarantined. */
+export function parkedProgressScenario(): LoopRunStoryScenario {
+  const frame = createFrameFactory();
+  const frames = [
+    ...roundOneFrames(frame, 5),
+    frame("generation_started", 9, { generation: 2, parent_generation: 1, origin: "gate_revise" }),
+    frame(
+      "node_paused",
+      6,
+      nodePayload("write_artifacts", 2, {
+        actor_kind: "user",
+        actor_id: "pedro",
+        reason: "hold the write until review lands",
+        mode: "drain",
+      })
+    ),
+    frame(
+      "node_wait_started",
+      5,
+      nodePayload("collect_fixes", 2, { wait_kind: "event", resume_at: null, issued_epoch: 4 })
+    ),
+    frame(
+      "node_quarantined",
+      4,
+      nodePayload("fix_batch", 2, {
+        item_index: 3,
+        attempt: 4,
+        disposition: "quarantined",
+        failure: { cause: "GitHub rejected the credential twice in a row." },
+      })
+    ),
+  ];
+  return {
+    run: reviewAndFixRun({ tokens_used: 80_000, created_at: minutesAgo(40) }),
+    definition: reviewAndFixDefinition,
+    frames,
+    generations: generationsFor("failed"),
+    nodeControls: [
+      control({
+        node_id: "write_artifacts",
+        paused: true,
+        revision: 2,
+        pause_provenance: {
+          actor_kind: "user",
+          actor_id: "pedro",
+          reason: "hold the write until review lands",
+          requested_at: minutesAgo(8),
+        },
+      }),
+      control({
+        node_id: "fix_batch",
+        quarantined: true,
+        quarantined_at: minutesAgo(9),
+        revision: 4,
+        quarantine_entry: QUARANTINE_ENTRY,
+      }),
+    ],
+    waits: [wait({ node_id: "collect_fixes", kind: "event", age_seconds: 7 * 60 })],
   };
 }
 

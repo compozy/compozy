@@ -1,4 +1,7 @@
-import type { LoopNodeVerb, LoopRunVerb } from "./loop-node-controls";
+import { formatRelativeTime } from "@compozy/ui";
+
+import { loopStatusLabel } from "./loop-formatters";
+import type { LoopNodePauseMode, LoopNodeVerb, LoopRunVerb } from "./loop-node-controls";
 import type { LoopNodeLifecycle } from "./loop-node-lifecycle";
 
 /**
@@ -21,51 +24,105 @@ export interface LoopVerbConfirmCopy {
   micro: string;
 }
 
+function attentionClause(node: LoopNodeLifecycle): string | null {
+  if (node.attentionFlag === "") return null;
+  const flag = node.attentionReason || node.attentionFlag;
+  const evidence =
+    node.lastEvidenceAt === null
+      ? null
+      : `last evidence ${formatRelativeTime(node.lastEvidenceAt)}`;
+  return [`flagged: ${flag}`, evidence].filter(Boolean).join(" · ");
+}
+
+function withAttention(base: string, node: LoopNodeLifecycle): string {
+  const attention = attentionClause(node);
+  return attention ? `${base} · ${attention}` : base;
+}
+
 /** The one-line current-state strip: what the daemon says right now. */
 export function loopNodeStateStrip(node: LoopNodeLifecycle): string {
   switch (node.state) {
     case "quarantined": {
       const attempts = node.quarantineEntry?.attemptCount ?? 0;
       const episodes = node.quarantineEntry?.episodes.length ?? 0;
-      return [
-        `${node.nodeId} is quarantined`,
-        attempts > 0 ? `${attempts} attempts` : null,
-        episodes > 0 ? `episode ${episodes}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
+      return withAttention(
+        [
+          `${node.nodeId} is quarantined`,
+          attempts > 0 ? `${attempts} attempts` : null,
+          episodes > 0 ? `episode ${episodes}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        node
+      );
     }
     case "paused":
-      return `${node.nodeId} is paused${
-        node.pauseProvenance?.actor_id ? ` by ${node.pauseProvenance.actor_id}` : ""
-      }`;
+      return withAttention(
+        `${node.nodeId} is paused${
+          node.pauseProvenance?.actor_id ? ` by ${node.pauseProvenance.actor_id}` : ""
+        }`,
+        node
+      );
     case "waiting": {
       const wait = node.waits[0];
-      return `${node.nodeId} is waiting${wait ? ` · ${wait.kind}` : ""}`;
+      return withAttention(`${node.nodeId} is waiting${wait ? ` · ${wait.kind}` : ""}`, node);
     }
     case "retrying":
-      return `${node.nodeId} is retrying${node.attempt ? ` · attempt ${node.attempt}` : ""}`;
+      return withAttention(
+        [
+          `${node.nodeId} is retrying`,
+          node.attempt ? `attempt ${node.attempt}` : null,
+          node.nextAttemptAt ? `next ${formatRelativeTime(node.nextAttemptAt)}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        node
+      );
     case "canceling":
-      return `${node.nodeId} is ${node.cancelState}`;
+      return withAttention(`${node.nodeId} is ${node.cancelState}`, node);
     case "canceled":
-      return `${node.nodeId} is canceled`;
+      return withAttention(`${node.nodeId} is canceled`, node);
     default:
-      return `${node.nodeId} is ${node.outputStatus || "running"}`;
+      return withAttention(`${node.nodeId} is ${node.outputStatus || "running"}`, node);
   }
+}
+
+export interface LoopRunStateStripInput {
+  runId: string;
+  status: string;
+  generation: number;
+  inFlightCount?: number;
+  waitingOnYouCount?: number;
+  elapsedLabel?: string;
+}
+
+/** Run confirm strip: identity + non-zero lane counts + elapsed. */
+export function loopRunStateStrip(input: LoopRunStateStripInput): string {
+  const inFlight = input.inFlightCount ?? 0;
+  const waiting = input.waitingOnYouCount ?? 0;
+  return [
+    `${input.runId} is ${loopStatusLabel(input.status).toLowerCase()}`,
+    inFlight > 0 ? `${inFlight} ${inFlight === 1 ? "lane" : "lanes"} in flight` : null,
+    waiting > 0 ? `${waiting} waiting on you` : null,
+    `generation ${input.generation}`,
+    input.elapsedLabel ? input.elapsedLabel : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 const NODE_VERB_COPY: Record<
   Exclude<LoopNodeVerb, "open-quarantine">,
-  (node: LoopNodeLifecycle) => LoopVerbConfirmCopy
+  (node: LoopNodeLifecycle, pauseMode: LoopNodePauseMode) => LoopVerbConfirmCopy
 > = {
-  pause: node => ({
+  pause: (node, pauseMode) => ({
     eyebrow: "Pause node",
     title: `Pause ${node.nodeId}?`,
     body: "The lane stops being scheduled. The rest of the run keeps working. Choose what happens to the attempt already in flight.",
     confirmLabel: "Pause lane",
     cancelLabel: "Keep running",
     tone: "accent",
-    micro: "node_paused · with provenance",
+    micro: `mode: ${pauseMode}`,
   }),
   resume: node => ({
     eyebrow: "Resume node",
@@ -141,10 +198,11 @@ const NODE_VERB_COPY: Record<
 
 export function loopNodeVerbConfirmCopy(
   verb: LoopNodeVerb,
-  node: LoopNodeLifecycle
+  node: LoopNodeLifecycle,
+  options?: { pauseMode?: LoopNodePauseMode }
 ): LoopVerbConfirmCopy | null {
   if (verb === "open-quarantine") return null;
-  return NODE_VERB_COPY[verb](node);
+  return NODE_VERB_COPY[verb](node, options?.pauseMode ?? "drain");
 }
 
 const RUN_VERB_COPY: Record<

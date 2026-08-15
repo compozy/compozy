@@ -27,6 +27,7 @@ function Harness({
   onRun,
   onClearFilters = () => {},
   entries = loopCatalogFixtures,
+  facets,
   hasActiveFilters = false,
   hasNextPage = false,
   isFetchingNextPage = false,
@@ -36,6 +37,7 @@ function Harness({
   onRun: (entry: LoopCatalogEntry) => void;
   onClearFilters?: () => void;
   entries?: readonly LoopCatalogEntry[];
+  facets?: import("../../types").LoopsListResponse["facets"];
   hasActiveFilters?: boolean;
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
@@ -45,6 +47,7 @@ function Harness({
   return (
     <LoopCatalog
       entries={entries}
+      facets={facets}
       hasActiveFilters={hasActiveFilters}
       hasNextPage={hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
@@ -156,5 +159,54 @@ describe("LoopCatalog", () => {
     rerender(<Harness hasNextPage isFetchingNextPage onLoadMore={onLoadMore} onRun={() => {}} />);
     expect(screen.getByTestId("loop-catalog-load-more")).toBeDisabled();
     expect(screen.getByTestId("loop-catalog-load-more")).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("Should state category, cap, and last-run recency as plain facts in both views", () => {
+    const { rerender } = render(<Harness onRun={() => {}} />);
+    const row = screen.getAllByTestId("loop-catalog-row")[0];
+    expect(within(row).getByText("Engineering")).toBeInTheDocument();
+    expect(within(row).getByText("3 inputs")).toBeInTheDocument();
+    expect(within(row).getByText("iteration cap 50")).toBeInTheDocument();
+    expect(within(row).getByText("looprun_running")).toBeInTheDocument();
+    expect(row.querySelector('time[datetime="2026-07-05T12:00:00Z"]')).not.toBeNull();
+    expect(within(row).queryByText("Built-in")).not.toBeInTheDocument();
+    expect(within(row).queryByText("∞ cap")).not.toBeInTheDocument();
+
+    rerender(<Harness onRun={() => {}} view="cards" />);
+    const card = screen.getByTestId("loop-catalog-card-implement-tasks");
+    expect(within(card).getByText("Engineering")).toBeInTheDocument();
+    expect(within(card).getByText("3 inputs")).toBeInTheDocument();
+    expect(within(card).getByText("iteration cap 50")).toBeInTheDocument();
+    expect(within(card).getByText("looprun_running")).toBeInTheDocument();
+    expect(card.querySelector('time[datetime="2026-07-05T12:00:00Z"]')).not.toBeNull();
+  });
+
+  it("Should demote best to a plain fact instead of a success-toned pill", () => {
+    const withBest: LoopCatalogEntry = {
+      ...loopCatalogFixtures[0],
+      last_run: { ...loopCatalogFixtures[0].last_run!, best_generation: 2, best_score: 0.92 },
+    };
+    render(<Harness entries={[withBest]} onRun={() => {}} />);
+    const row = screen.getByTestId("loop-catalog-row");
+    expect(within(row).getByText("best Gen 2 · 0.92")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-catalog-best")).not.toBeInTheDocument();
+  });
+
+  it("Should use server kind facets in the group header and still drop empty groups", () => {
+    render(
+      <Harness
+        facets={{ categories: {}, kinds: { read_only: 80, workspace: 5 }, statuses: {} }}
+        onRun={() => {}}
+      />
+    );
+    expect(within(screen.getByTestId("loop-group-read-only")).getByText("80")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-group-workspace")).not.toBeInTheDocument();
+  });
+
+  it("Should keep the roster empty inside the catalog when there are no loops", () => {
+    render(<Harness entries={[]} onRun={() => {}} />);
+    expect(screen.getByTestId("loop-catalog-empty")).toBeInTheDocument();
+    expect(screen.getByText("No loops yet")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-catalog-clear-filters")).not.toBeInTheDocument();
   });
 });

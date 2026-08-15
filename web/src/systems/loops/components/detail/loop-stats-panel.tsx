@@ -1,3 +1,5 @@
+import { TrendingUp } from "lucide-react";
+
 import { successRateLabel } from "../../lib/loop-catalog";
 import type { LoopAggregate30d } from "../../types";
 import { LoopRailSection } from "../loop-rail-section";
@@ -24,6 +26,7 @@ export function LoopStatsPanel({ successRate, aggregate }: LoopStatsPanelProps) 
     <LoopRailSection
       data-testid="loop-stats"
       gist={`${successRateLabel(successRate)} success · ${aggregate.runs} runs`}
+      icon={<TrendingUp aria-hidden="true" className="size-3.5" />}
       title="Last 30 days"
     >
       <div className="grid grid-cols-2">

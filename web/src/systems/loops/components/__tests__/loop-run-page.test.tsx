@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -24,7 +24,8 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 const { LoopRunProgressPanel } = await import("../run-page/loop-run-progress-panel");
 const { LoopRunStoryTimeline } = await import("../run-page/loop-run-story-timeline");
 const { LoopRunNowCard } = await import("../run-page/loop-run-now-card");
-const { LoopRunAttentionPanel } = await import("../run-page/loop-run-parked-panels");
+const { LoopRunAttentionPanel, LoopRunWaitingPanel } =
+  await import("../run-page/loop-run-parked-panels");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
@@ -35,10 +36,14 @@ const { LoopRunControlDialog } = await import("../run-page/loop-run-control-dial
 const { LoopNodeControlDialog } = await import("../run-page/loop-node-control-dialog");
 const { LoopQuarantineSheet } = await import("../run-page/loop-quarantine-sheet");
 const { LoopRunWaitsRail } = await import("../run-page/loop-run-waits-rail");
-const { loopNodeVerbs, loopNodeWaitResumeItemIndex } = await import("../../lib/loop-node-controls");
+const { LOOP_NODE_VERB_PRESENTATION, loopNodeVerbs, loopNodeWaitResumeItemIndex } =
+  await import("../../lib/loop-node-controls");
 const { buildNodeNowLines } = await import("../../lib/loop-node-now-view");
 const { quarantineChainRows } = await import("../../lib/loop-quarantine-entry");
-const { loopNodeVerbConfirmCopy } = await import("../../lib/loop-node-verb-copy");
+const { loopNodeStateStrip, loopNodeVerbConfirmCopy, loopRunStateStrip } =
+  await import("../../lib/loop-node-verb-copy");
+const { checkLoopWaitPayload, loopWaitExpectRequiredKeys } =
+  await import("../../lib/loop-node-wait-payload");
 type LoopNodeLifecycle = import("../../lib/loop-node-lifecycle").LoopNodeLifecycle;
 const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
@@ -155,15 +160,60 @@ describe("LoopRunStoryTimeline", () => {
   });
 
   it("Should render score, best, and restored provenance from a generation row", () => {
+    const originalScroll = Element.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    window.location.hash = "#loop-generation-3";
+    try {
+      render(
+        <LoopRunStoryTimeline
+          rows={[
+            storyRow({
+              kind: "generation_started",
+              generation: 3,
+              score: 0.7,
+              isBest: true,
+              originLabel: "Restored from gen 1",
+            }),
+          ]}
+          isLive={false}
+          goalNodeIds={EMPTY_GOAL_IDS}
+          goalTurns={[]}
+        />
+      );
+
+      const row = screen.getByTestId("loop-story-row");
+      expect(row).toHaveAttribute("id", "loop-generation-3");
+      expect(row).toHaveTextContent("score 0.70");
+      expect(row).toHaveTextContent("Best");
+      expect(row).toHaveTextContent("Restored from gen 1");
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+    } finally {
+      Element.prototype.scrollIntoView = originalScroll;
+      window.location.hash = "";
+    }
+  });
+
+  it("Should stay quiet before any frame arrives", () => {
+    render(<LoopRunStoryTimeline rows={[]} isLive goalNodeIds={EMPTY_GOAL_IDS} goalTurns={[]} />);
+    expect(screen.getByText("Nothing yet")).toBeInTheDocument();
+  });
+
+  it("Should keep the newest generation flat and fold older generations", () => {
     render(
       <LoopRunStoryTimeline
         rows={[
           storyRow({
-            kind: "generation_started",
-            generation: 3,
-            score: 0.7,
-            isBest: true,
-            originLabel: "Restored from gen 1",
+            key: "g2",
+            generation: 2,
+            title: "Newest beat",
+            micro: "generation_started · gen 2",
+          }),
+          storyRow({
+            key: "g1",
+            generation: 1,
+            title: "Older beat",
+            micro: "generation_started · gen 1",
           }),
         ]}
         isLive={false}
@@ -171,17 +221,11 @@ describe("LoopRunStoryTimeline", () => {
         goalTurns={[]}
       />
     );
-
-    const row = screen.getByTestId("loop-story-row");
-    expect(row).toHaveAttribute("id", "loop-generation-3");
-    expect(row).toHaveTextContent("score 0.70");
-    expect(row).toHaveTextContent("Best");
-    expect(row).toHaveTextContent("Restored from gen 1");
-  });
-
-  it("Should stay quiet before any frame arrives", () => {
-    render(<LoopRunStoryTimeline rows={[]} isLive goalNodeIds={EMPTY_GOAL_IDS} goalTurns={[]} />);
-    expect(screen.getByText("Nothing yet")).toBeInTheDocument();
+    expect(screen.getByText("Newest beat")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-story-generation-1")).toHaveTextContent(
+      "Generation 1 · 1 event"
+    );
+    expect(screen.queryByText("Older beat")).not.toBeInTheDocument();
   });
 });
 
@@ -329,6 +373,84 @@ describe("LoopRunAttentionPanel", () => {
     expect(screen.getByTestId("loop-run-attention-collect")).toBeInTheDocument();
     expect(screen.getByTestId("loop-run-attention-review")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-attention-producer-unknown")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-attention-inventory-link")).toBeInTheDocument();
+  });
+});
+
+describe("LoopRunWaitingPanel", () => {
+  it("Should show the ladder strip only when cursor or next stamp exist", () => {
+    render(
+      <LoopRunWaitingPanel
+        runId="r-7c4e19"
+        nodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "approve_fix",
+            label: "approve fix",
+            state: "waiting",
+            parked: true,
+            waits: [
+              {
+                nodeId: "approve_fix",
+                generation: 2,
+                itemIndex: 0,
+                kind: "approval_escalation",
+                claimState: "intervention_required",
+                escalationCursor: 1,
+                nextEscalationAt: "2026-08-03T15:02:00Z",
+                admissionFailures: 0,
+                ageSeconds: 120,
+                createdAt: "2026-08-03T14:00:00Z",
+                expect: { env: "staging" },
+              },
+            ],
+          }),
+        ]}
+      />
+    );
+    expect(screen.getByTestId("loop-run-wait-ladder-approve_fix-0")).toHaveTextContent(
+      "step 1 done"
+    );
+    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
+      "The ladder walks its steps"
+    );
+    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
+      '{"env":"staging"}'
+    );
+  });
+
+  it("Should not describe a ladder that is not on screen", () => {
+    render(
+      <LoopRunWaitingPanel
+        runId="r-7c4e19"
+        nodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "approve_fix",
+            label: "approve fix",
+            state: "waiting",
+            parked: true,
+            waits: [
+              {
+                nodeId: "approve_fix",
+                generation: 2,
+                itemIndex: 0,
+                kind: "approval_escalation",
+                claimState: "waiting",
+                escalationCursor: 0,
+                admissionFailures: 0,
+                ageSeconds: 30,
+                createdAt: "2026-08-03T14:00:00Z",
+                expect: undefined,
+              },
+            ],
+          }),
+        ]}
+      />
+    );
+    expect(screen.queryByTestId("loop-run-wait-ladder-approve_fix-0")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).toHaveTextContent(
+      "Waiting for your decision"
+    );
+    expect(screen.getByTestId("loop-run-wait-approve_fix-0")).not.toHaveTextContent("ladder");
   });
 });
 
@@ -371,6 +493,73 @@ describe("LoopRunNeedsYouCard", () => {
     const facts = screen.getAllByTestId("loop-run-fact");
     expect(facts).toHaveLength(2);
     expect(facts[0]).toHaveTextContent("45m 00s of 45m");
+  });
+
+  it("Should render a quarantine row without the approval block", () => {
+    const onOpenQuarantine = vi.fn();
+    render(
+      <LoopRunNeedsYouCard
+        run={run({ status: "running" })}
+        request={null}
+        fallbackFacts={[]}
+        showApproval={false}
+        quarantinedNodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "fix_batch",
+            label: "fix batch",
+            state: "quarantined",
+            parked: true,
+            quarantined: true,
+          }),
+        ]}
+        onOpenQuarantine={onOpenQuarantine}
+        onDecision={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch-g2")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-needs-approval")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-g2"));
+    expect(onOpenQuarantine).toHaveBeenCalledWith("fix_batch");
+  });
+
+  it("Should keep distinct testids when fan-out quarantines two items of the same node", () => {
+    const onOpenQuarantine = vi.fn();
+    render(
+      <LoopRunNeedsYouCard
+        run={run({ status: "running" })}
+        request={null}
+        fallbackFacts={[]}
+        showApproval={false}
+        quarantinedNodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "fix_batch",
+            label: "fix batch",
+            state: "quarantined",
+            parked: true,
+            quarantined: true,
+            itemIndex: 0,
+            generation: 2,
+          }),
+          loopNodeLifecycleFixture({
+            nodeId: "fix_batch",
+            label: "fix batch",
+            state: "quarantined",
+            parked: true,
+            quarantined: true,
+            itemIndex: 1,
+            generation: 2,
+          }),
+        ]}
+        onOpenQuarantine={onOpenQuarantine}
+        onDecision={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch-0-g2")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch-1-g2")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-0-g2"));
+    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-1-g2"));
+    expect(onOpenQuarantine).toHaveBeenNthCalledWith(1, "fix_batch");
+    expect(onOpenQuarantine).toHaveBeenNthCalledWith(2, "fix_batch");
   });
 });
 
@@ -581,6 +770,8 @@ describe("LoopRunControlDialog", () => {
     expect(dialog).toHaveTextContent("Kill run r-7c4e19?");
     // The strip is the guard against acting on a stale screen.
     expect(dialog).toHaveTextContent("r-7c4e19 is running · generation 2");
+    expect(dialog).not.toHaveTextContent("in flight");
+    expect(dialog).not.toHaveTextContent("waiting on you");
     expect(dialog).toHaveTextContent("interrupted mid-step");
     expect(dialog).toHaveTextContent("cause operator_kill");
     fireEvent.click(screen.getByRole("button", { name: "Kill run" }));
@@ -622,6 +813,25 @@ describe("LoopRunControlDialog", () => {
     );
   });
 
+  it("Should append non-zero lane counts and elapsed to the run strip", () => {
+    render(
+      <LoopRunControlDialog
+        elapsedLabel="22m 14s"
+        generation={2}
+        inFlightCount={2}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        runId="r-7c4e19"
+        status="running"
+        verb="cancel"
+        waitingOnYouCount={1}
+      />
+    );
+    expect(screen.getByTestId("loop-run-control-dialog")).toHaveTextContent(
+      "r-7c4e19 is running · 2 lanes in flight · 1 waiting on you · generation 2 · 22m 14s"
+    );
+  });
+
   it("Should render nothing until a verb is actually pending", () => {
     render(
       <LoopRunControlDialog
@@ -643,7 +853,7 @@ describe("LoopRunOverflowMenu kill", () => {
   it("Should offer Kill inside the overflow and report the click", async () => {
     const user = userEvent.setup();
     const onKill = vi.fn();
-    render(<LoopRunOverflowMenu loopName="review-and-fix" onInspect={vi.fn()} onKill={onKill} />);
+    render(<LoopRunOverflowMenu loopName="review-and-fix" onKill={onKill} />);
     const trigger = screen.getByTestId("loop-run-more");
     fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
     await user.click(trigger);
@@ -653,11 +863,12 @@ describe("LoopRunOverflowMenu kill", () => {
 
   it("Should omit Kill entirely when the run can no longer be killed", async () => {
     const user = userEvent.setup();
-    render(<LoopRunOverflowMenu loopName="review-and-fix" onInspect={vi.fn()} />);
+    render(<LoopRunOverflowMenu loopName="review-and-fix" />);
     const trigger = screen.getByTestId("loop-run-more");
     fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
     await user.click(trigger);
-    expect(await screen.findByTestId("loop-run-inspect")).toBeInTheDocument();
+    expect(await screen.findByTestId("loop-run-view-definition")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-inspect")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-kill")).not.toBeInTheDocument();
   });
 });
@@ -788,6 +999,31 @@ describe("buildNodeNowLines", () => {
     expect(line.provenance).toBe("paused by system autopause · reason “retry storm”");
     expect(line.provenance).not.toContain("at ");
   });
+
+  it("Should omit waiting and quarantined lanes from Happening now", () => {
+    const lines = buildNodeNowLines(
+      [
+        loopNodeLifecycleFixture({ state: "waiting", parked: true }),
+        loopNodeLifecycleFixture({
+          nodeId: "task_04",
+          state: "quarantined",
+          parked: true,
+          quarantined: true,
+        }),
+        loopNodeLifecycleFixture({
+          nodeId: "task_05",
+          state: "paused",
+          parked: true,
+          paused: true,
+          itemIndex: 1,
+        }),
+      ],
+      null,
+      {}
+    );
+    expect(lines.map(line => line.state)).toEqual(["paused"]);
+    expect(lines[0]?.micro).toContain("task_05[1] · gen 2");
+  });
 });
 
 describe("LoopNodeControlDialog", () => {
@@ -860,6 +1096,67 @@ describe("LoopNodeControlDialog", () => {
 
     expect(screen.getByTestId("loop-node-wait-payload")).toHaveValue("");
   });
+
+  it("Should disable wait-resume confirm until the payload matches expect", () => {
+    const waitingNode = loopNodeLifecycleFixture({
+      state: "waiting",
+      parked: true,
+      waits: [
+        {
+          nodeId: "task_03",
+          generation: 2,
+          itemIndex: 0,
+          kind: "event",
+          claimState: "waiting",
+          escalationCursor: 0,
+          admissionFailures: 0,
+          ageSeconds: 10,
+          createdAt: "2026-08-03T14:00:00Z",
+          expect: { type: "object", required: ["env"] },
+        },
+      ],
+    });
+    render(
+      <LoopNodeControlDialog
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        request={{ verb: "resume-wait", node: waitingNode }}
+      />
+    );
+    expect(screen.getByTestId("loop-node-wait-expect")).toHaveTextContent("env");
+    expect(screen.getByRole("button", { name: "Resume lane" })).toBeDisabled();
+    fireEvent.change(screen.getByTestId("loop-node-wait-payload"), {
+      target: { value: '{"environment":"staging"}' },
+    });
+    expect(screen.getByTestId("loop-node-wait-invalid")).toHaveTextContent("Missing key env");
+    expect(screen.getByRole("button", { name: "Resume lane" })).toBeDisabled();
+    fireEvent.change(screen.getByTestId("loop-node-wait-payload"), {
+      target: { value: '{"env":"staging"}' },
+    });
+    expect(screen.queryByTestId("loop-node-wait-invalid")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume lane" })).toBeEnabled();
+  });
+
+  it("Should render a deterministic answer as information, not a transport error", () => {
+    render(
+      <LoopNodeControlDialog
+        answer={{
+          allowedTransitions: ["pause"],
+          detail: "task_03 isn't paused — it's running.",
+          micro: "node_not_paused · state running",
+          title: "Nothing to resume",
+          tone: "info",
+        }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        request={{ verb: "resume", node }}
+      />
+    );
+    const answer = screen.getByTestId("loop-control-answer");
+    expect(answer).toHaveAttribute("data-variant", "info");
+    expect(answer).toHaveTextContent("Nothing to resume");
+    expect(answer).toHaveTextContent("node_not_paused · state running");
+  });
 });
 
 describe("LoopNodeControlMenu", () => {
@@ -882,6 +1179,7 @@ describe("LoopNodeControlMenu", () => {
     const trigger = screen.getByTestId("loop-node-menu-trigger-task_03");
     fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
     await user.click(trigger);
+    expect(LOOP_NODE_VERB_PRESENTATION.cancel.label).toBe("Cancel…");
     expect(await screen.findByTestId("loop-node-verb-requeue")).toBeInTheDocument();
     expect(screen.getByTestId("loop-node-verb-open-quarantine")).toBeInTheDocument();
     // Resume is never offered for quarantine — requeue is the recovery verb.
@@ -911,8 +1209,38 @@ describe("LoopNodeRowActions", () => {
       />
     );
     const button = screen.getByTestId("loop-node-primary-requeue-task_03");
-    expect(button.querySelector(".lucide-rotate-ccw")).toBeInTheDocument();
+    expect(button.querySelector(".lucide-redo-2")).toBeInTheDocument();
     expect(button.querySelector(".lucide-play")).not.toBeInTheDocument();
+  });
+
+  it("Should promote resume-wait when the open wait needs a decision", () => {
+    render(
+      <LoopNodeRowActions
+        node={loopNodeLifecycleFixture({
+          state: "waiting",
+          parked: true,
+          waits: [
+            {
+              nodeId: "task_03",
+              generation: 2,
+              itemIndex: 0,
+              kind: "approval_escalation",
+              claimState: "intervention_required",
+              escalationCursor: 1,
+              admissionFailures: 0,
+              ageSeconds: 120,
+              createdAt: "2026-08-03T14:00:00Z",
+              expect: undefined,
+            },
+          ],
+        })}
+        onVerb={vi.fn()}
+        runStatus="running"
+      />
+    );
+    expect(screen.getByTestId("loop-node-primary-resume-wait-task_03")).toHaveTextContent(
+      "Resume with payload…"
+    );
   });
 });
 
@@ -923,6 +1251,91 @@ describe("loopNodeVerbConfirmCopy", () => {
       loopNodeLifecycleFixture({ state: "quarantined", quarantined: true })
     );
     expect(copy?.body).not.toContain("episode");
+  });
+
+  it("Should reflect the selected pause mode in the micro trail", () => {
+    const node = loopNodeLifecycleFixture();
+    expect(loopNodeVerbConfirmCopy("pause", node, { pauseMode: "drain" })?.micro).toBe(
+      "mode: drain"
+    );
+    expect(loopNodeVerbConfirmCopy("pause", node, { pauseMode: "cancel" })?.micro).toBe(
+      "mode: cancel"
+    );
+  });
+});
+
+describe("loopNodeStateStrip", () => {
+  it("Should append the attention clause and last evidence without a raw ISO", () => {
+    const strip = loopNodeStateStrip(
+      loopNodeLifecycleFixture({
+        attentionFlag: "silence",
+        attentionReason: "silent for 31m",
+        lastEvidenceAt: "2026-08-03T14:21:00Z",
+        outputStatus: "running",
+      })
+    );
+    expect(strip).toContain("flagged: silent for 31m");
+    expect(strip).toContain("last evidence");
+    expect(strip).not.toContain("2026-08-03T14:21:00Z");
+  });
+
+  it("Should surface nextAttemptAt on a retrying strip", () => {
+    const strip = loopNodeStateStrip(
+      loopNodeLifecycleFixture({
+        attempt: 2,
+        nextAttemptAt: "2099-01-01T00:00:00Z",
+        state: "retrying",
+      })
+    );
+    expect(strip).toContain("is retrying");
+    expect(strip).toContain("attempt 2");
+    expect(strip).toContain("next");
+    expect(strip).not.toContain("2099-01-01T00:00:00Z");
+  });
+});
+
+describe("loopRunStateStrip", () => {
+  it("Should omit zero lane counts", () => {
+    expect(
+      loopRunStateStrip({
+        generation: 2,
+        inFlightCount: 0,
+        runId: "r-7c4e19",
+        status: "running",
+        waitingOnYouCount: 0,
+      })
+    ).toBe("r-7c4e19 is running · generation 2");
+  });
+});
+
+describe("checkLoopWaitPayload", () => {
+  it("Should name the first missing required key", () => {
+    const check = checkLoopWaitPayload("{}", { type: "object", required: ["env"] });
+    expect(check.ok).toBe(false);
+    expect(check.error).toBe("Missing key env.");
+  });
+
+  it("Should treat a sample with a top-level type as a sample, not a schema", () => {
+    const expectBody = { type: "deploy", env: "staging" };
+    expect(loopWaitExpectRequiredKeys(expectBody)).toEqual(["type", "env"]);
+    expect(checkLoopWaitPayload("{}", expectBody).ok).toBe(false);
+    expect(checkLoopWaitPayload('{"type":"deploy","env":"staging"}', expectBody).ok).toBe(true);
+  });
+
+  it("Should honor a JSON Schema required list when type is object", () => {
+    expect(loopWaitExpectRequiredKeys({ type: "object", required: ["env", "region"] })).toEqual([
+      "env",
+      "region",
+    ]);
+  });
+
+  it("Should require no keys for a schema that only declares properties", () => {
+    expect(
+      loopWaitExpectRequiredKeys({
+        type: "object",
+        properties: { env: { type: "string" } },
+      })
+    ).toEqual([]);
   });
 });
 
@@ -947,7 +1360,7 @@ describe("LoopQuarantineSheet", () => {
 
   it("Should offer requeue only while refreshed truth still reports quarantine", async () => {
     const user = userEvent.setup();
-    const onRequeue = vi.fn();
+    const onVerb = vi.fn();
     const quarantined = loopNodeLifecycleFixture({
       state: "quarantined",
       parked: true,
@@ -956,7 +1369,7 @@ describe("LoopQuarantineSheet", () => {
     });
     const props = {
       onOpenChange: vi.fn(),
-      onRequeue,
+      onVerb,
       open: true,
       runId: "r-1",
     };
@@ -964,10 +1377,13 @@ describe("LoopQuarantineSheet", () => {
       <LoopQuarantineSheet {...props} isRequeuePending node={quarantined} />
     );
     expect(screen.getByTestId("loop-quarantine-requeue")).toBeDisabled();
+    expect(screen.getByTestId("loop-quarantine-cancel")).toHaveTextContent("Cancel…");
 
     rerender(<LoopQuarantineSheet {...props} node={quarantined} />);
     await user.click(screen.getByTestId("loop-quarantine-requeue"));
-    expect(onRequeue).toHaveBeenCalledWith(quarantined);
+    expect(onVerb).toHaveBeenCalledWith("requeue", quarantined);
+    await user.click(screen.getByTestId("loop-quarantine-cancel"));
+    expect(onVerb).toHaveBeenCalledWith("cancel", quarantined);
 
     rerender(
       <LoopQuarantineSheet
@@ -976,6 +1392,7 @@ describe("LoopQuarantineSheet", () => {
       />
     );
     expect(screen.queryByTestId("loop-quarantine-requeue")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-quarantine-cancel")).not.toBeInTheDocument();
   });
 
   it("Should pair a retained episode with the requeue from the same generation", () => {
@@ -995,12 +1412,50 @@ describe("LoopQuarantineSheet", () => {
     expect(rows[0].openedBy).toBeUndefined();
     expect(rows[1].openedBy?.actorId).toBe("correct");
   });
+
+  it("Should carry the requeue reason on the episode boundary", async () => {
+    render(
+      <LoopQuarantineSheet
+        node={loopNodeLifecycleFixture({
+          quarantineEntry: {
+            ...entry,
+            episodes: [
+              { generation: 7, attempts: [{ attempt: 1, cause: "first fail" }] },
+              { generation: 9, attempts: [{ attempt: 1, cause: "second fail" }] },
+            ],
+            requeues: [
+              {
+                actorKind: "user",
+                actorId: "operator",
+                generation: 9,
+                reason: "rotated the token",
+              },
+            ],
+            attemptCount: 2,
+          },
+          quarantined: true,
+          state: "quarantined",
+        })}
+        onOpenChange={vi.fn()}
+        onVerb={vi.fn()}
+        open
+        runId="r-1"
+      />
+    );
+    expect(await screen.findByTestId("loop-quarantine-episode-1")).toHaveTextContent(
+      "rotated the token"
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("loop-quarantine-facts")).toBeInTheDocument();
+    });
+  });
 });
 
 describe("LoopRunWaitsRail", () => {
   it("Should count every open wait truthfully and identify its sole node", () => {
     render(
       <LoopRunWaitsRail
+        runId="r-7c4e19"
         nodes={[
           loopNodeLifecycleFixture({
             nodeId: "await_deploy",
@@ -1141,5 +1596,34 @@ describe("LoopRunSubhead", () => {
     );
     expect(screen.getByTestId("loop-run-subhead")).toHaveTextContent("Ended");
     expect(screen.getByTestId("loop-run-elapsed")).toHaveTextContent("26m 41s");
+  });
+
+  it("Should add Started by and Round N of M as dot-separated segments", () => {
+    render(
+      <LoopRunSubhead
+        run={run({ status: "running", generation: 2, iteration_cap: 5 })}
+        subject={null}
+        hasWatchSource={false}
+        elapsedLabel="22m 14s"
+        startedBy="The CLI"
+      />
+    );
+    expect(screen.getByTestId("loop-run-started-by")).toHaveTextContent("Started by The CLI");
+    expect(screen.getByTestId("loop-run-round")).toHaveTextContent("Round 2 of 5");
+  });
+
+  it("Should omit of M when the iteration cap is off", () => {
+    render(
+      <LoopRunSubhead
+        run={run({ status: "running", generation: 2, iteration_cap: 0 })}
+        subject={null}
+        hasWatchSource={false}
+        elapsedLabel="22m 14s"
+        startedBy="hand"
+      />
+    );
+    expect(screen.getByTestId("loop-run-started-by")).toHaveTextContent("Started by hand");
+    expect(screen.getByTestId("loop-run-round")).toHaveTextContent("Round 2");
+    expect(screen.getByTestId("loop-run-round")).not.toHaveTextContent("of");
   });
 });

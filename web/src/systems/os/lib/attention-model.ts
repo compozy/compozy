@@ -20,7 +20,29 @@ export interface OsTaskAttentionRow {
   identifier?: string;
 }
 
-export type OsAttentionRow = OsSessionAttentionRow | OsTaskAttentionRow;
+export interface OsLoopNodeAttentionRow {
+  kind: "loop-node";
+  id: "waiting" | "attention";
+  title: string;
+  state: "waiting" | "attention";
+}
+
+export type OsAttentionRow = OsSessionAttentionRow | OsTaskAttentionRow | OsLoopNodeAttentionRow;
+
+const LOOP_NODE_ATTENTION_ROWS: readonly OsLoopNodeAttentionRow[] = [
+  {
+    kind: "loop-node",
+    id: "waiting",
+    title: "Loop nodes waiting on you",
+    state: "waiting",
+  },
+  {
+    kind: "loop-node",
+    id: "attention",
+    title: "Loop nodes needing attention",
+    state: "attention",
+  },
+];
 
 export function isWaitingSession(session: SessionPayload): boolean {
   return session.badge === "waiting-for-auth";
@@ -47,6 +69,9 @@ export function deriveAttentionRows(input: {
   sessionRowsStale: boolean;
   tasks: readonly TaskListItem[];
   taskRowsStale: boolean;
+  /** Daemon presence probes — the row renders only when that state has an item. */
+  loopWaitingPresent: boolean;
+  loopAttentionPresent: boolean;
 }): OsAttentionRow[] {
   const sessionRows: OsSessionAttentionRow[] = [];
   if (!input.sessionRowsStale) {
@@ -73,7 +98,11 @@ export function deriveAttentionRows(input: {
     }
   }
 
-  return [...sessionRows, ...taskRows];
+  const loopRows: OsLoopNodeAttentionRow[] = [];
+  if (input.loopWaitingPresent) loopRows.push(LOOP_NODE_ATTENTION_ROWS[0]);
+  if (input.loopAttentionPresent) loopRows.push(LOOP_NODE_ATTENTION_ROWS[1]);
+
+  return [...sessionRows, ...taskRows, ...loopRows];
 }
 
 export function attentionCount(badges: OsAttentionBadges): number {

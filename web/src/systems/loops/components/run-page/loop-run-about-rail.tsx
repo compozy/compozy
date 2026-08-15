@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { Link } from "@tanstack/react-router";
+import { Info } from "lucide-react";
 
 import { cn, Eyebrow, MonoId, PropertyRow } from "@compozy/ui";
 
@@ -44,7 +45,10 @@ export function LoopRunAboutRail({
       data-testid="loop-run-about"
       {...props}
     >
-      <Eyebrow className="mb-2 block text-subtle">About this run</Eyebrow>
+      <div className="mb-2 flex items-center gap-1.5">
+        <Info aria-hidden="true" className="size-3 text-muted" />
+        <Eyebrow className="text-subtle">About this run</Eyebrow>
+      </div>
       <PropertyRow label="Loop">
         <Link
           className="inline-flex min-h-6 items-center truncate rounded-xs text-small-body font-medium text-fg hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"

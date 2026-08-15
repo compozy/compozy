@@ -176,6 +176,7 @@ export function waitFields(raw: RawLoopNode): FieldSpec[] {
       key: "wait_expiry",
       label: "Expiry",
       subLabel: "expires.after · escalate · route",
+      defaultOpen: true,
       fields: expiryFields(["params", "expires"], "wait"),
     },
     {

@@ -21,8 +21,8 @@ export type LoopStoryIcon =
   | "paused"
   | "resumed"
   | "started"
-  | "stopped"
   | "done"
+  | "circle-slash"
   // Node lifecycle beats (Spec 1). One fixed lucide icon per concept across the
   // domain, per DESIGN-LESSONS L7.
   | "retry"
@@ -32,6 +32,7 @@ export type LoopStoryIcon =
   | "requeued"
   | "waiting"
   | "attention"
+  | "attention-silence"
   | "attention-cleared"
   | "effect"
   | "suppressed"

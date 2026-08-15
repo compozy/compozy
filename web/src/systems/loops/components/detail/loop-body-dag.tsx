@@ -1,8 +1,8 @@
-import { ChevronRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { fanOutSummary, nodeClassLabel } from "../../lib/loop-graph";
 import type { LoopGraph, LoopGraphNode } from "../../lib/loop-graph";
-import { MonoTag } from "../mono-tag";
+import { loopNodeClassIcon } from "../../lib/loop-node-kind-icons";
 
 interface LoopBodyDagProps {
   graph: LoopGraph;
@@ -10,8 +10,7 @@ interface LoopBodyDagProps {
 
 /**
  * Read-only body graph: a horizontal spine of neutral node cards in topological
- * order, gate nodes tinting only their class label (color = state, never class).
- * The interactive canvas editor is task 22; this is the definition-view render.
+ * order. The class glyph carries identity; labels stay faint. Color is state-only.
  */
 export function LoopBodyDag({ graph }: LoopBodyDagProps) {
   if (graph.nodes.length === 0) {
@@ -32,7 +31,7 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
             <DagNode node={node} />
             {index < graph.nodes.length - 1 ? (
               <span aria-hidden="true" className="flex items-center self-center px-1 text-faint">
-                <ChevronRight className="size-4.5" />
+                <ArrowRight className="size-4.5" />
               </span>
             ) : null}
           </div>
@@ -48,17 +47,32 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
 function DagNode({ node }: { node: LoopGraphNode }) {
   const summary = fanOutSummary(node);
   const kindLabel = summary ?? node.kind;
+  const ClassIcon = node.nodeClass
+    ? loopNodeClassIcon({
+        nodeClass: node.nodeClass,
+        isFanOut: node.kind === "fan-out" || summary !== null,
+        isGate: node.isGate,
+      })
+    : undefined;
   return (
     <div
       className="flex min-w-[124px] shrink-0 flex-col gap-1 overflow-hidden rounded-md border border-line bg-canvas-tint px-3 py-2.5"
       data-testid="loop-dag-node"
       data-node-id={node.id}
     >
-      <MonoTag className={`tracking-wider ${node.isGate ? "text-warning" : "text-faint"}`}>
+      <span className="flex min-w-0 items-center gap-1.5">
+        {ClassIcon ? (
+          <ClassIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
+        ) : null}
+        <span
+          className="min-w-0 truncate text-small-body font-medium text-fg-strong"
+          title={node.id}
+        >
+          {node.id}
+        </span>
+      </span>
+      <span className="min-w-0 truncate font-mono text-mono-id text-faint">
         {nodeClassLabel(node)}
-      </MonoTag>
-      <span className="min-w-0 truncate text-small-body font-medium text-fg-strong" title={node.id}>
-        {node.id}
       </span>
       <span
         className="min-w-0 truncate font-mono text-mono-id text-subtle"

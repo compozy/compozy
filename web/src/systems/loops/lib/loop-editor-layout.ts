@@ -12,8 +12,8 @@ import type { LoopAnnotation } from "../types";
  * canonical definition.
  */
 
-export const EDITOR_NODE_WIDTH = 132;
-export const EDITOR_NODE_HEIGHT = 64;
+export const EDITOR_NODE_WIDTH = 188;
+export const EDITOR_NODE_HEIGHT = 96;
 
 /** Indexes a saved-annotations list by node id for O(1) position override lookup. */
 export function annotationsToPositions(

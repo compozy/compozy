@@ -8,6 +8,9 @@ import { loopRunPageLogic } from "./use-loop-run-page-state";
 import {
   buildNodeNowLines,
   isTerminalLoopStatus,
+  loopControlAnswer,
+  LoopLifecycleConflictError,
+  type LoopControlAnswer,
   type LoopGateDecision,
   type LoopNodeLifecycle,
   loopRunVerbs,
@@ -25,6 +28,29 @@ import {
   useResumeLoopRun,
   useRunLoop,
 } from "@/systems/loops";
+
+function runControlFeedback(
+  failure: unknown,
+  runId: string
+): { answer?: LoopControlAnswer; error?: string } {
+  if (failure instanceof LoopLifecycleConflictError) {
+    return {
+      answer: loopControlAnswer({
+        code: failure.code,
+        message: failure.message,
+        actualState: failure.actualState,
+        allowedTransitions: failure.allowedTransitions,
+        winnerActorKind: failure.winnerActorKind,
+        winnerActorId: failure.winnerActorId,
+        winnerReason: failure.winnerReason,
+        winnerRequestedAt: failure.winnerRequestedAt,
+        subject: runId,
+      }),
+    };
+  }
+  if (failure instanceof Error) return { error: failure.message };
+  return {};
+}
 
 /**
  * The live run-page view-model (redesign spec §2-§5): composes the run
@@ -129,8 +155,13 @@ export function useLoopRunPage(
       await cancelMutation.mutateAsync({ workspaceId, runId });
       toast.success("Cancellation requested");
       return true;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel run");
+    } catch (failure) {
+      const feedback = runControlFeedback(failure, runId);
+      if (feedback.answer) {
+        toast.info(feedback.answer.title, { description: feedback.answer.detail });
+      } else {
+        toast.error(feedback.error ?? "Failed to cancel run");
+      }
       return false;
     }
   };
@@ -140,8 +171,13 @@ export function useLoopRunPage(
       await killMutation.mutateAsync({ workspaceId, runId });
       toast.success("Run killed — in-flight work was stopped immediately");
       return true;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to kill run");
+    } catch (failure) {
+      const feedback = runControlFeedback(failure, runId);
+      if (feedback.answer) {
+        toast.info(feedback.answer.title, { description: feedback.answer.detail });
+      } else {
+        toast.error(feedback.error ?? "Failed to kill run");
+      }
       return false;
     }
   };
@@ -248,8 +284,10 @@ export function useLoopRunPage(
     isResumePending: resumeMutation.isPending,
     isCancelPending: cancelMutation.isPending,
     isKillPending: killMutation.isPending,
-    cancelError: cancelMutation.error instanceof Error ? cancelMutation.error.message : undefined,
-    killError: killMutation.error instanceof Error ? killMutation.error.message : undefined,
+    cancelAnswer: runControlFeedback(cancelMutation.error, runId).answer,
+    killAnswer: runControlFeedback(killMutation.error, runId).answer,
+    cancelError: runControlFeedback(cancelMutation.error, runId).error,
+    killError: runControlFeedback(killMutation.error, runId).error,
     resetRunControlErrors,
     /** Kill is offerable exactly while the daemon reports a live run. */
     canKillRun: Boolean(run) && loopRunVerbs(run?.status, false).includes("kill"),

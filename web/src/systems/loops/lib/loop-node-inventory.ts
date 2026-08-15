@@ -1,4 +1,6 @@
-import { formatRelativeTime } from "@compozy/ui";
+import { Check, RotateCcw, ShieldCheck, type LucideIcon } from "lucide-react";
+
+import { formatRelativeTime, type PillTone } from "@compozy/ui";
 
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../types";
 import { readQuarantineEntry } from "./loop-quarantine-entry";
@@ -18,6 +20,20 @@ export const LOOP_NODE_INVENTORY_LABELS = {
   retrying: "Retrying",
 } as const satisfies Record<LoopNodeInventoryState, string>;
 
+export const LOOP_NODE_INVENTORY_TONES = {
+  waiting: "info",
+  quarantined: "danger",
+  attention: "warning",
+  retrying: "warning",
+} as const satisfies Record<LoopNodeInventoryState, PillTone>;
+
+const INVENTORY_EMPTY_ICONS = {
+  waiting: Check,
+  quarantined: ShieldCheck,
+  attention: Check,
+  retrying: RotateCcw,
+} as const satisfies Record<LoopNodeInventoryState, LucideIcon>;
+
 export interface LoopNodeInventoryRowView {
   key: string;
   runId: string;
@@ -26,11 +42,12 @@ export interface LoopNodeInventoryRowView {
   label: string;
   itemIndex: number;
   generation: number;
+  state: LoopNodeInventoryState;
   /** Plain-language reason this row is in this state. */
   reason: string;
   /** `49m` — time in this state, from `state_at`. */
   age: string;
-  /** Seconds in state; the sort key. */
+  /** Seconds in this state, from `state_at` or the daemon's `age_seconds`. */
   ageSeconds: number;
   /** Mono identity trail. */
   micro: string;
@@ -144,6 +161,7 @@ export function buildInventoryRow(
     label: humanizeLoopNodeId(item.node_id),
     itemIndex: item.item_index,
     generation: item.generation,
+    state: item.state,
     reason: rowReason(item, nowMs),
     age: inventoryAgeLabel(ageSeconds),
     ageSeconds,
@@ -151,30 +169,17 @@ export function buildInventoryRow(
   };
 }
 
-export type LoopNodeInventorySort = "oldest" | "newest";
-
-/**
- * Sorts the loaded page by time in state. This reorders only what the server
- * already returned — it is presentation over a page, never a substitute for the
- * server's own ordering of the population.
- */
-export function sortInventoryRows(
-  rows: readonly LoopNodeInventoryRowView[],
-  sort: LoopNodeInventorySort
-): LoopNodeInventoryRowView[] {
-  const sorted = [...rows].sort((left, right) => right.ageSeconds - left.ageSeconds);
-  return sort === "oldest" ? sorted : sorted.reverse();
-}
-
 /** Truthful, filter-aware empty copy — never "nothing is waiting" under a filter. */
 export function inventoryEmptyCopy(
   state: LoopNodeInventoryState,
   filtered: boolean
-): { title: string; description: string } {
+): { title: string; description: string; icon: LucideIcon } {
+  const icon = INVENTORY_EMPTY_ICONS[state];
   if (filtered) {
     return {
       title: "Nothing matches these filters",
       description: `No ${LOOP_NODE_INVENTORY_LABELS[state].toLowerCase()} nodes match the loop and run you picked. Clear the filters to see the whole workspace.`,
+      icon,
     };
   }
   switch (state) {
@@ -183,26 +188,30 @@ export function inventoryEmptyCopy(
         title: "Nothing is waiting",
         description:
           "No lane in this workspace is parked on a timer, an event, or a decision right now.",
+        icon,
       };
     case "quarantined":
       return {
         title: "Nothing is quarantined",
         description:
           "No lane has been set aside for repair. Quarantined lanes show up here with their failure chain.",
+        icon,
       };
     case "attention":
       return {
         title: "Nothing needs attention",
         description:
           "No lane is flagged. Flags appear here when a lane goes quiet or blocks on a quarantined dependency.",
+        icon,
       };
     case "retrying":
       return {
         title: "Nothing is retrying",
         description:
           "No lane is inside a retry backoff. Retrying lanes show their attempt and next attempt time here.",
+        icon,
       };
     default:
-      return { title: "Nothing here", description: "" };
+      return { title: "Nothing here", description: "", icon: Check };
   }
 }

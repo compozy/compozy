@@ -47,6 +47,7 @@ function node(overrides: Partial<LoopNodeLifecycle> & { nodeId: string }): LoopN
     generation: 2,
     sessionId: null,
     ...overrides,
+    itemIndex: overrides.itemIndex ?? null,
   };
 }
 
@@ -72,7 +73,7 @@ const WAITING = node({
       admissionFailures: 0,
       ageSeconds: 18 * 60,
       createdAt: "2026-08-03T14:20:00Z",
-      expect: undefined,
+      expect: { type: "object", required: ["env"] },
     },
   ],
 });
@@ -215,7 +216,14 @@ export const DeterministicAnswer: Story = {
   render: () => (
     <div className="min-h-dvh bg-canvas">
       <LoopNodeControlDialog
-        error="task_03 isn't paused — it's running. From here you can pause, cancel or kill it."
+        answer={{
+          allowedTransitions: ["pause", "cancel", "kill"],
+          detail:
+            "task_03 isn't paused — it's running. From here you can pause, cancel or kill it.",
+          micro: "node_not_paused · state running",
+          title: "Nothing to resume",
+          tone: "info",
+        }}
         onConfirm={() => {}}
         onOpenChange={() => {}}
         request={{ verb: "resume", node: PAUSED }}
@@ -300,7 +308,7 @@ export const RunCancelVsKill: Story = {
           onResume={() => {}}
           status="running"
         />
-        <LoopRunOverflowMenu loopName="review-and-fix" onInspect={() => {}} onKill={() => {}} />
+        <LoopRunOverflowMenu loopName="review-and-fix" onKill={() => {}} />
       </div>
     </div>
   ),

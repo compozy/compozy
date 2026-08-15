@@ -22,7 +22,11 @@ vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
   useScopedWorktreeFilter: vi.fn(),
 }));
 vi.mock("../use-worktree-scope", () => ({ useFocusedWorktreeScopeId: vi.fn(() => "window:one") }));
+vi.mock("@/systems/loops", () => ({
+  useLoopNodeExists: vi.fn(() => false),
+}));
 
+import { useLoopNodeExists } from "@/systems/loops";
 import { useOsAttention } from "../use-os-attention";
 import { useSessions, type SessionPayload } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
@@ -154,5 +158,22 @@ describe("useOsAttention", () => {
     // A stale attention query hides the count rather than reporting zero from
     // the scoped page that happened to load.
     expect(result.current.badges.sessions).toBeUndefined();
+  });
+
+  it("Should surface loop-node rows only when the existence probes are true", () => {
+    vi.mocked(useLoopNodeExists).mockImplementation((_workspaceId, state) => state === "waiting");
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+
+    expect(result.current.rows).toEqual([
+      {
+        kind: "loop-node",
+        id: "waiting",
+        title: "Loop nodes waiting on you",
+        state: "waiting",
+      },
+    ]);
+    expect(result.current.notificationCount).toBe(0);
   });
 });

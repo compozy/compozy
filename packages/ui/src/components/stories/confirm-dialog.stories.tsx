@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { AlertTriangle, Ban, Hourglass, Info, Pause, Trash2, Zap } from "lucide-react";
 
 import { Button } from "../button";
 import { ConfirmDialog } from "../custom/confirm-dialog";
@@ -17,6 +17,7 @@ const meta: Meta<typeof ConfirmDialog> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** Danger well + eyebrow. Body copy stays muted; confirm uses tinted destructive. */
 export const Danger: Story = {
   args: {},
   render: () => (
@@ -30,6 +31,9 @@ export const Danger: Story = {
           This removes <span className="font-mono">operator-style.md</span> from global knowledge.
         </>
       }
+      eyebrow="Knowledge"
+      icon={Trash2}
+      iconTone="danger"
       onConfirm={() => undefined}
       title="Delete knowledge entry?"
       tone="danger"
@@ -37,6 +41,7 @@ export const Danger: Story = {
   ),
 };
 
+/** Warning paints the eyebrow; the well stays neutral; confirm maps to tinted destructive. */
 export const Warning: Story = {
   args: {},
   render: () => (
@@ -46,6 +51,9 @@ export const Warning: Story = {
       confirmLabel="Discard"
       defaultOpen
       description="This draft has unsaved changes."
+      eyebrow="Draft"
+      icon={AlertTriangle}
+      iconTone="neutral"
       onConfirm={() => undefined}
       title="Discard draft?"
       tone="warning"
@@ -88,9 +96,8 @@ export const TypingRequired: Story = {
 };
 
 /**
- * `body` is the in-dialog content slot — a mode choice, an input, a machine
- * trail. It sits between the note strip and the footer. (`children` is the
- * Dialog trigger, not body content.)
+ * Accent well + 28px RadioCard wells. Machine trail lives in `footNote`,
+ * not the body. (`children` is the Dialog trigger, not body content.)
  */
 export const WithBody: Story = {
   args: {},
@@ -100,28 +107,67 @@ export const WithBody: Story = {
         <>
           <RadioCard
             description="Nothing is interrupted. The lane parks once the attempt in flight settles."
+            icon={Hourglass}
+            iconWellSize="lg"
             onSelect={() => undefined}
             selected
             title="Let the current attempt finish"
           />
           <RadioCard
             description="The in-flight attempt is asked to cancel, then the lane parks."
+            icon={Ban}
+            iconWellSize="lg"
             onSelect={() => undefined}
             selected={false}
             title="Ask the current attempt to stop"
           />
-          <p className="font-mono text-pill-group-badge text-faint">node_paused · drain</p>
         </>
       }
       cancelLabel="Keep running"
       confirmLabel="Pause lane"
       defaultOpen
       description="The lane stops being scheduled. The rest of the run keeps working."
+      eyebrow="Node"
+      footNote={
+        <>
+          <Info />
+          mode: drain
+        </>
+      }
+      icon={Pause}
+      iconTone="accent"
       note="task_03 is running · attempt 2"
       noteTone="info"
       onConfirm={() => undefined}
       title="Pause task_03?"
       tone="accent"
+    />
+  ),
+};
+
+/** Kill uses the solid danger fill; cancel stays on the tinted destructive. */
+export const DestructiveSolidConfirm: Story = {
+  args: {},
+  render: () => (
+    <ConfirmDialog
+      cancelLabel="Keep running"
+      confirmButtonProps={{ variant: "destructive-solid" }}
+      confirmIcon={Zap}
+      confirmLabel="Kill run"
+      defaultOpen
+      description="No on_* reactions fire. The run ends immediately."
+      eyebrow="Run"
+      footNote={
+        <>
+          <Info />
+          node_killed · no on_* reactions
+        </>
+      }
+      icon={Zap}
+      iconTone="danger"
+      onConfirm={() => undefined}
+      title="Kill this run?"
+      tone="danger"
     />
   ),
 };

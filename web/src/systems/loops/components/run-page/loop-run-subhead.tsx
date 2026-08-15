@@ -13,6 +13,8 @@ interface LoopRunSubheadProps extends ComponentProps<"div"> {
   hasWatchSource: boolean;
   /** Ticking (running) or frozen (§5.4) elapsed label. */
   elapsedLabel: string;
+  /** Unprefixed origin/actor from `humanizeStartOrigin`; this strip prepends `Started by `. */
+  startedBy?: string;
 }
 
 function Dot() {
@@ -50,11 +52,17 @@ export function LoopRunSubhead({
   subject,
   hasWatchSource,
   elapsedLabel,
+  startedBy,
   className,
   ...props
 }: LoopRunSubheadProps) {
   const terminal = isTerminalLoopStatus(run.status);
   const elapsed = elapsedSegment(run, elapsedLabel);
+  const origin = startedBy === undefined || startedBy === "" ? null : `Started by ${startedBy}`;
+  const round =
+    run.iteration_cap > 0
+      ? `Round ${Math.max(run.generation, 1)} of ${run.iteration_cap}`
+      : `Round ${Math.max(run.generation, 1)}`;
   return (
     <div
       className={cn(
@@ -65,6 +73,12 @@ export function LoopRunSubhead({
       {...props}
     >
       <span className="font-mono text-mono-id tabular-nums">{run.id}</span>
+      {origin ? (
+        <>
+          <Dot />
+          <span data-testid="loop-run-started-by">{origin}</span>
+        </>
+      ) : null}
       {subject ? (
         <>
           <Dot />
@@ -74,6 +88,8 @@ export function LoopRunSubhead({
           </span>
         </>
       ) : null}
+      <Dot />
+      <span data-testid="loop-run-round">{round}</span>
       <Dot />
       {terminal ? (
         <span>

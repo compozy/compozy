@@ -10,10 +10,12 @@ qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
-fix_commits:
+fix_commits: b17c0dfb
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: ET-web-loop-editor-topbar; LP-toggle-loop-goal
 ---
 
 Added by loop editor Contract/Node lane tabs. Flag only — retest in the next QA cycle.
+
+Reset 2026-08-14: both lanes now share one field-label grammar (Field/RequiredMark), folds carry rotating chevrons with reliability and wait-expiry open by default, and Reveal node also centers the viewport (b17c0dfb). Still awaiting the seeded QA walk; editor suites green at 9a694ff2.

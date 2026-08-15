@@ -1,0 +1,57 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  Ban,
+  Bell,
+  Check,
+  CircleCheck,
+  CircleSlash,
+  CopyX,
+  Eye,
+  Hourglass,
+  Pause,
+  Play,
+  Radio,
+  Redo2,
+  RotateCcw,
+  Send,
+  ShieldAlert,
+  TriangleAlert,
+  VolumeOff,
+  X,
+  Zap,
+  ZapOff,
+} from "lucide-react";
+
+import type { LoopStoryIcon } from "./loop-run-story-types";
+
+/**
+ * One Lucide glyph per story concept (DESIGN-BACKLOG §2.1 / L7).
+ * Run-canceled uses `circle-slash`; node cancel stays `canceled` → Ban.
+ */
+export const LOOP_STORY_ICONS: Record<LoopStoryIcon, LucideIcon> = {
+  round: Play,
+  "check-pass": Check,
+  "check-warn": TriangleAlert,
+  "node-done": Check,
+  "node-failed": X,
+  approval: Bell,
+  watching: Eye,
+  paused: Pause,
+  resumed: Play,
+  started: Play,
+  done: Check,
+  "circle-slash": CircleSlash,
+  retry: RotateCcw,
+  canceled: Ban,
+  killed: Zap,
+  quarantined: ShieldAlert,
+  requeued: Redo2,
+  waiting: Hourglass,
+  attention: TriangleAlert,
+  "attention-silence": VolumeOff,
+  "attention-cleared": CircleCheck,
+  effect: Send,
+  suppressed: CopyX,
+  "breaker-open": ZapOff,
+  "breaker-closed": Radio,
+};

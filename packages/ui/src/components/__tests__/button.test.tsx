@@ -19,4 +19,12 @@ describe("Button", () => {
     render(<Button className="custom-tail">F</Button>);
     expect(screen.getByRole("button", { name: /f/i }).className).toContain("custom-tail");
   });
+
+  it("Should apply solid danger fill and readable ink on destructive-solid", () => {
+    render(<Button variant="destructive-solid">Kill</Button>);
+    const button = screen.getByRole("button", { name: /kill/i });
+    expect(button.className).toContain("bg-danger");
+    expect(button.className).toContain("text-accent-ink");
+    expect(button.className).not.toContain("bg-danger-tint");
+  });
 });

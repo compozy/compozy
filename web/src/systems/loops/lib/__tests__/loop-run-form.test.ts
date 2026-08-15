@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  declaredInputCountsGist,
+  environmentGist,
   hasInputValue,
   initialRunInputs,
   isRunFormValid,
   missingRequiredInputs,
+  participationGist,
   serializeRunInputs,
 } from "../loop-run-form";
 import type { LoopInputSchema } from "../../types";
@@ -57,5 +60,25 @@ describe("loop-run-form model", () => {
     expect(body).toEqual({ slug: "billing", verify_command: "", auto_commit: false });
     expect(body).not.toHaveProperty("blank_free_text");
     expect(body).not.toHaveProperty("note");
+  });
+
+  it("Should summarize declared input counts for the Inputs gist", () => {
+    expect(declaredInputCountsGist(schema)).toBe("1 required · 4 optional");
+    expect(declaredInputCountsGist(undefined)).toBe("0 required · 0 optional");
+  });
+
+  it("Should summarize participation and environment drafts for folded gists", () => {
+    expect(participationGist({ mode: "local", channelId: "", channelStrategy: "" })).toBe("Local");
+    expect(
+      participationGist({ mode: "live", channelId: "release", channelStrategy: "loop_run" })
+    ).toBe("Live · loop_run");
+    expect(environmentGist(null)).toBe("Loop default");
+    expect(environmentGist({ mode: "worktree", worktree_ref: "feat/billing" })).toBe(
+      "worktree · feat/billing"
+    );
+    expect(environmentGist({ mode: "directory", directory: "packages/api" })).toBe(
+      "directory · packages/api"
+    );
+    expect(environmentGist({ mode: "per_run" })).toBe("Per-run");
   });
 });
