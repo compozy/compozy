@@ -371,14 +371,11 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		assertProviderRuntimeFileMode(t, filepath.Join(runtimeDir, "settings.json"), 0o600)
 		models := readProviderJSON[piModelsFile](t, filepath.Join(runtimeDir, "models.json"))
 		provider := models.Providers["openrouter"]
-		if provider.APIKey != "OPENROUTER_API_KEY" {
-			t.Fatalf("models.json apiKey = %q, want injected env name", provider.APIKey)
-		}
 		if provider.BaseURL != "https://openrouter.ai/api/v1" || provider.API != "openai" {
 			t.Fatalf("models.json provider = %#v, want base URL and API transport", provider)
 		}
 		assertProviderRuntimeFileMode(t, filepath.Join(runtimeDir, "models.json"), 0o600)
-		assertPiRuntimeEnvContract(t, opts, "openrouter", secret)
+		assertPiRuntimeEnvContract(t, opts, "openrouter", "OPENROUTER_API_KEY", secret)
 		payload, err := os.ReadFile(filepath.Join(runtimeDir, "models.json"))
 		if err != nil {
 			t.Fatalf("ReadFile(models.json) error = %v", err)
@@ -781,6 +778,7 @@ func assertPiRuntimeEnvContract(
 	t *testing.T,
 	opts acp.StartOpts,
 	providerName string,
+	targetEnv string,
 	wantSecret string,
 ) {
 	t.Helper()
@@ -794,11 +792,12 @@ func assertPiRuntimeEnvContract(
 	if !ok {
 		t.Fatalf("models.json providers = %#v, want provider %q", models.Providers, providerName)
 	}
-	if provider.APIKey == "" {
-		t.Fatalf("models.json providers[%q].apiKey = empty, want env var reference", providerName)
+	wantRef := "$" + targetEnv
+	if provider.APIKey != wantRef {
+		t.Fatalf("models.json providers[%q].apiKey = %q, want %q", providerName, provider.APIKey, wantRef)
 	}
-	if got := envValue(opts.Env, provider.APIKey); got != wantSecret {
-		t.Fatalf("child env %s = %q, want resolved provider secret", provider.APIKey, got)
+	if got := envValue(opts.Env, targetEnv); got != wantSecret {
+		t.Fatalf("child env %s = %q, want resolved provider secret", targetEnv, got)
 	}
 }
 

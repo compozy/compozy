@@ -20,16 +20,21 @@ func piCredentialEnv(
 		targetEnv := strings.TrimSpace(slot.TargetEnv)
 		if strings.TrimSpace(slot.Kind) == providerRuntimeAPIKeyKey &&
 			injectedProviderTargetEnv(targetEnv, injectedTargetEnvs) {
-			return targetEnv
+			return piEnvInterpolationRef(targetEnv)
 		}
 	}
 	for _, slot := range slots {
 		targetEnv := strings.TrimSpace(slot.TargetEnv)
 		if injectedProviderTargetEnv(targetEnv, injectedTargetEnvs) {
-			return targetEnv
+			return piEnvInterpolationRef(targetEnv)
 		}
 	}
 	return ""
+}
+
+// Pi treats a bare environment name as a literal API key.
+func piEnvInterpolationRef(targetEnv string) string {
+	return "$" + targetEnv
 }
 
 func injectedProviderTargetEnv(targetEnv string, injectedTargetEnvs map[string]struct{}) bool {
