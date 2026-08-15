@@ -56,16 +56,19 @@ func TestSweeperLifecycle(t *testing.T) {
 	t.Run("Should reject invalid start state and duplicate starts", func(t *testing.T) {
 		t.Parallel()
 
-		if err := NewSweeper(nil, time.Hour, nil).Start(t.Context()); err == nil {
-			t.Fatal("Start(nil store) error = nil, want error")
+		if err := NewSweeper(nil, time.Hour, nil).Start(t.Context()); err == nil ||
+			err.Error() != "attachment sweeper store is required" {
+			t.Fatalf("Start(nil store) error = %v, want store-required error", err)
 		}
 		store := &sweeperTestStore{}
-		if err := NewSweeper(store, 0, nil).Start(t.Context()); err == nil {
-			t.Fatal("Start(zero interval) error = nil, want error")
+		if err := NewSweeper(store, 0, nil).Start(t.Context()); err == nil ||
+			err.Error() != "attachment sweep interval must be greater than zero: 0s" {
+			t.Fatalf("Start(zero interval) error = %v, want interval validation error", err)
 		}
 		worker := NewSweeper(store, time.Hour, nil)
-		if err := worker.Start(nil); err == nil { //nolint:staticcheck // exercises the nil-context guard
-			t.Fatal("Start(nil context) error = nil, want error")
+		if err := worker.Start(nil); err == nil || //nolint:staticcheck // exercises the nil-context guard
+			err.Error() != "attachment sweeper context is required" {
+			t.Fatalf("Start(nil context) error = %v, want context-required error", err)
 		}
 		if err := worker.Start(t.Context()); err != nil {
 			t.Fatalf("Start() error = %v", err)
@@ -75,8 +78,8 @@ func TestSweeperLifecycle(t *testing.T) {
 				t.Errorf("Shutdown() error = %v", err)
 			}
 		})
-		if err := worker.Start(t.Context()); err == nil {
-			t.Fatal("Start(duplicate) error = nil, want error")
+		if err := worker.Start(t.Context()); err == nil || err.Error() != "attachment sweeper is already started" {
+			t.Fatalf("Start(duplicate) error = %v, want already-started error", err)
 		}
 	})
 

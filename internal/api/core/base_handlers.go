@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/memory"
@@ -44,7 +43,7 @@ type BaseHandlerConfig struct {
 	Extensions                   ExtensionService
 	Tools                        ToolRegistry
 	ToolArtifacts                toolspkg.ToolArtifactStore
-	SessionAttachments           attachmentspkg.Store
+	SessionAttachments           SessionAttachmentStore
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalGrants               ToolApprovalGrantService
@@ -127,7 +126,7 @@ type BaseHandlers struct {
 	Extensions                   ExtensionService
 	Tools                        ToolRegistry
 	ToolArtifacts                toolspkg.ToolArtifactStore
-	SessionAttachments           attachmentspkg.Store
+	SessionAttachments           SessionAttachmentStore
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalGrants               ToolApprovalGrantService

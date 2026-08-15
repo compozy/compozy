@@ -96,13 +96,9 @@ func (s *FilesystemAttachmentStore) readMeta(contentPath string, id string) (att
 	if err != nil {
 		return attachmentMeta{}, err
 	}
-	encoded, err := readMetadataFile(metaPath(contentPath))
+	meta, err := readSidecar(contentPath)
 	if err != nil {
 		return attachmentMeta{}, err
-	}
-	var meta attachmentMeta
-	if err := json.Unmarshal(encoded, &meta); err != nil {
-		return attachmentMeta{}, fmt.Errorf("%w: decode sidecar: %w", ErrCorrupt, err)
 	}
 	mime, kind, width, height, err := SniffMIME(content, meta.Name)
 	if err != nil {
@@ -116,6 +112,18 @@ func (s *FilesystemAttachmentStore) readMeta(contentPath string, id string) (att
 		meta.Height != height ||
 		meta.CreatedAt.IsZero() {
 		return attachmentMeta{}, fmt.Errorf("%w: sidecar metadata mismatch", ErrCorrupt)
+	}
+	return meta, nil
+}
+
+func readSidecar(contentPath string) (attachmentMeta, error) {
+	encoded, err := readMetadataFile(metaPath(contentPath))
+	if err != nil {
+		return attachmentMeta{}, err
+	}
+	var meta attachmentMeta
+	if err := json.Unmarshal(encoded, &meta); err != nil {
+		return attachmentMeta{}, fmt.Errorf("%w: decode sidecar: %w", ErrCorrupt, err)
 	}
 	return meta, nil
 }

@@ -1,9 +1,9 @@
 package httpapi
 
-import attachmentspkg "github.com/compozy/compozy/internal/attachments"
+import "github.com/compozy/compozy/internal/api/core"
 
 // WithSessionAttachmentStore injects durable session attachment storage.
-func WithSessionAttachmentStore(store attachmentspkg.Store) Option {
+func WithSessionAttachmentStore(store core.SessionAttachmentStore) Option {
 	return func(server *Server) {
 		server.sessionAttachments = store
 	}

@@ -18,7 +18,11 @@ func TestFilesystemAttachmentStoreRoundTrip(t *testing.T) {
 	t.Run("Should put open stat and delete one attachment", func(t *testing.T) {
 		t.Parallel()
 
-		store := openTestAttachmentStore(t, filepath.Join(t.TempDir(), "session-attachments"), testAttachmentRetention())
+		store := openTestAttachmentStore(
+			t,
+			filepath.Join(t.TempDir(), "session-attachments"),
+			testAttachmentRetention(),
+		)
 		payload := encodeTestPNG(t, 2, 2)
 
 		ref, err := store.Put(t.Context(), "ws_a", "sess_1", "shot.png", payload)
@@ -83,7 +87,11 @@ func TestFilesystemAttachmentStoreRoundTrip(t *testing.T) {
 	t.Run("Should return the existing ref when the same digest is put again", func(t *testing.T) {
 		t.Parallel()
 
-		store := openTestAttachmentStore(t, filepath.Join(t.TempDir(), "session-attachments"), testAttachmentRetention())
+		store := openTestAttachmentStore(
+			t,
+			filepath.Join(t.TempDir(), "session-attachments"),
+			testAttachmentRetention(),
+		)
 		payload := []byte("same markdown body")
 
 		first, err := store.Put(t.Context(), "ws_a", "sess_1", "notes.md", payload)
@@ -374,10 +382,38 @@ func TestFilesystemAttachmentStoreFailureCleanup(t *testing.T) {
 func TestFilesystemAttachmentStoreMetadataIntegrity(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should leave full content verification to requested-object reads", func(t *testing.T) {
+		t.Parallel()
+
+		store := openTestAttachmentStore(
+			t,
+			filepath.Join(t.TempDir(), "session-attachments"),
+			testAttachmentRetention(),
+		)
+		ref, err := store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("payload"))
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+		contentPath := store.contentPath("ws_a", "sess_1", ref.ID)
+		if err := os.WriteFile(contentPath, []byte("tamper!"), attachmentFileMode); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		if err := store.Sweep(t.Context()); err != nil {
+			t.Fatalf("Sweep() error = %v, want sidecar-only retention accounting", err)
+		}
+		if _, err := store.Stat(t.Context(), "ws_a", "sess_1", ref.ID); !errors.Is(err, ErrCorrupt) {
+			t.Fatalf("Stat() error = %v, want corrupt", err)
+		}
+	})
+
 	t.Run("Should reject a sidecar whose byte count differs from content", func(t *testing.T) {
 		t.Parallel()
 
-		store := openTestAttachmentStore(t, filepath.Join(t.TempDir(), "session-attachments"), testAttachmentRetention())
+		store := openTestAttachmentStore(
+			t,
+			filepath.Join(t.TempDir(), "session-attachments"),
+			testAttachmentRetention(),
+		)
 		ref, err := store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("payload"))
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)
@@ -407,7 +443,11 @@ func TestFilesystemAttachmentStoreMetadataIntegrity(t *testing.T) {
 	t.Run("Should reject a symlink sidecar", func(t *testing.T) {
 		t.Parallel()
 
-		store := openTestAttachmentStore(t, filepath.Join(t.TempDir(), "session-attachments"), testAttachmentRetention())
+		store := openTestAttachmentStore(
+			t,
+			filepath.Join(t.TempDir(), "session-attachments"),
+			testAttachmentRetention(),
+		)
 		ref, err := store.Put(t.Context(), "ws_a", "sess_1", "notes.txt", []byte("payload"))
 		if err != nil {
 			t.Fatalf("Put() error = %v", err)

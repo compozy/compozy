@@ -47,6 +47,16 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	workspaceID, err := sessionPromptWorkspaceID(session)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	preparation.request.attachments, err = m.canonicalPromptAttachments(
+		ctx, workspaceID, session.ID, preparation.request.attachments,
+	)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	preparation.request.runtime, err = m.resolvePromptRuntimeAtAdmission(
 		ctx,
 		session,

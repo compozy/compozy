@@ -51,6 +51,12 @@ func (m *Manager) submitAdmittedGoalByTarget(
 		return SendPromptResult{}, err
 	}
 	preparation.request.runtime = target.runtime
+	preparation.request.attachments, err = m.canonicalPromptAttachments(
+		ctx, target.workspaceID, preparation.request.target, preparation.request.attachments,
+	)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	admissionReq, err := m.newPromptAdmissionRequest(
 		target.workspaceID,
 		preparation.request,
@@ -83,6 +89,12 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		return SendPromptResult{}, err
 	}
 	preparation.request.runtime = target.runtime
+	preparation.request.attachments, err = m.canonicalPromptAttachments(
+		ctx, target.workspaceID, preparation.request.target, preparation.request.attachments,
+	)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	admissionReq, err := m.newPromptAdmissionRequest(
 		target.workspaceID,
 		preparation.request,

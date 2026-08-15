@@ -2214,11 +2214,40 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			t.Fatalf("request counts = preflight:%d upload:%d, want 1 each", preflightCalls, uploadCalls)
 		}
 		if record.ID != "att-1" || record.Name != "frame.png" || record.MIMEType != "image/png" ||
-			record.SHA256 != "sha256:abc" || record.Kind != "image" {
+			record.SHA256 != "sha256:abc" || record.Kind != contract.PromptAttachmentKindImage {
 			t.Fatalf("attachment record = %#v, want uploaded attachment metadata", record)
 		}
 		if got := fmt.Sprint(record.Bytes); got != "22" {
 			t.Fatalf("attachment bytes = %s, want 22", got)
+		}
+	})
+
+	t.Run("Should stop the multipart producer when transport fails before reading", func(t *testing.T) {
+		t.Parallel()
+
+		filePath := filepath.Join(t.TempDir(), "large-frame.png")
+		if err := os.WriteFile(filePath, bytes.Repeat([]byte("x"), 1<<20), 0o600); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+		transportErr := errors.New("injected upload transport failure")
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method == http.MethodGet {
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+					), nil
+				}
+				return nil, transportErr
+			})},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := client.UploadSessionAttachment(ctx, "sess-1", filePath)
+		if !errors.Is(err, transportErr) {
+			t.Fatalf("UploadSessionAttachment() error = %v, want transport failure", err)
 		}
 	})
 

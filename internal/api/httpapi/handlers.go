@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
-	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
@@ -45,7 +44,7 @@ type handlerConfig struct {
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
 	toolArtifacts      toolspkg.ToolArtifactStore
-	sessionAttachments attachmentspkg.Store
+	sessionAttachments core.SessionAttachmentStore
 	toolsets           core.ToolsetRegistry
 	toolApprovals      core.ToolApprovalIssuer
 	approvalGrants     core.ToolApprovalGrantService

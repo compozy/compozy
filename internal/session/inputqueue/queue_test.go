@@ -50,19 +50,22 @@ func TestServiceNewInsertAttachments(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject empty steer text even when attachments are present", func(t *testing.T) {
+	t.Run("Should reject every steer insert that carries attachments", func(t *testing.T) {
 		t.Parallel()
 
-		service := newTestQueueService(t)
-		_, err := service.newInsert(insertSpec{
-			sessionID:    "sess-queue-steer",
-			mode:         store.SessionInputQueueModeSteer,
-			delivery:     store.SessionInputDeliveryInterruptThenPrompt,
-			targetTurnID: "turn-active",
-			attachments:  []store.SessionInputAttachment{testQueueAttachment()},
-		})
-		if err == nil || !strings.Contains(err.Error(), "text is required") {
-			t.Fatalf("newInsert() error = %v, want text is required", err)
+		for _, text := range []string{"", "steer with text"} {
+			service := newTestQueueService(t)
+			_, err := service.newInsert(insertSpec{
+				sessionID:    "sess-queue-steer",
+				mode:         store.SessionInputQueueModeSteer,
+				delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+				targetTurnID: "turn-active",
+				text:         text,
+				attachments:  []store.SessionInputAttachment{testQueueAttachment()},
+			})
+			if !errors.Is(err, store.ErrSessionInputSteerTextOnly) {
+				t.Fatalf("newInsert(%q) error = %v, want ErrSessionInputSteerTextOnly", text, err)
+			}
 		}
 	})
 }
@@ -235,8 +238,8 @@ type mutationQueueStore struct {
 
 func newMutationQueueStore(entries ...store.SessionInputQueueEntry) *mutationQueueStore {
 	indexed := make(map[string]store.SessionInputQueueEntry, len(entries))
-	for _, entry := range entries {
-		indexed[entry.ID] = entry
+	for index := range entries {
+		indexed[entries[index].ID] = entries[index]
 	}
 	return &mutationQueueStore{entries: indexed}
 }

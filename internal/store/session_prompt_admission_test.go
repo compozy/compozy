@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -36,15 +37,17 @@ func TestSessionPromptAdmissionRequestAttachments(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject empty steer authored text even when attachments are present", func(t *testing.T) {
+	t.Run("Should reject every steer request that carries attachments", func(t *testing.T) {
 		t.Parallel()
 
-		req := validSessionPromptAdmissionRequest()
-		req.Operation = SessionPromptOperationSteer
-		req.AuthoredText = ""
-		req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
-		if err := req.Validate(); err == nil || !strings.Contains(err.Error(), "authored text is required") {
-			t.Fatalf("Validate() error = %v, want authored text is required", err)
+		for _, authoredText := range []string{"", "steer with text"} {
+			req := validSessionPromptAdmissionRequest()
+			req.Operation = SessionPromptOperationSteer
+			req.AuthoredText = authoredText
+			req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
+			if err := req.Validate(); !errors.Is(err, ErrSessionInputSteerTextOnly) {
+				t.Fatalf("Validate(%q) error = %v, want ErrSessionInputSteerTextOnly", authoredText, err)
+			}
 		}
 	})
 }

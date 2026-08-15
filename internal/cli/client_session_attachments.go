@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 )
@@ -43,8 +43,17 @@ func (c *daemonClient) UploadSessionAttachment(
 		agentidentity.Credentials{},
 		c.httpClient,
 	)
-	if err != nil {
-		return SessionAttachmentRecord{}, err
+	bodyErr := body.Close()
+	if err != nil || bodyErr != nil {
+		var responseErr error
+		if response != nil && response.Body != nil {
+			responseErr = response.Body.Close()
+		}
+		return SessionAttachmentRecord{}, errors.Join(
+			err,
+			wrapSessionAttachmentBodyError(filePath, bodyErr),
+			wrapSessionAttachmentResponseCloseError(responseErr),
+		)
 	}
 	defer mergeResponseBodyCloseError(&err, response, http.MethodPost, path)
 
@@ -57,45 +66,123 @@ func (c *daemonClient) UploadSessionAttachment(
 	return result.Attachment, nil
 }
 
-func sessionAttachmentMultipart(filePath string) (body *bytes.Buffer, contentType string, err error) {
+type sessionAttachmentMultipartBody struct {
+	reader *io.PipeReader
+	done   <-chan error
+	once   sync.Once
+	err    error
+}
+
+func (b *sessionAttachmentMultipartBody) Read(p []byte) (int, error) {
+	return b.reader.Read(p)
+}
+
+func (b *sessionAttachmentMultipartBody) Close() error {
+	b.once.Do(func() {
+		readerErr := b.reader.Close()
+		producerErr := <-b.done
+		b.err = errors.Join(readerErr, producerErr)
+	})
+	return b.err
+}
+
+func sessionAttachmentMultipart(
+	filePath string,
+) (body *sessionAttachmentMultipartBody, contentType string, err error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, "", fmt.Errorf("cli: open session attachment %q: %w", filePath, err)
 	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			closeErr = fmt.Errorf("cli: close session attachment %q: %w", filePath, closeErr)
-			if err == nil {
-				err = closeErr
-				return
-			}
-			err = errors.Join(err, closeErr)
-		}
-	}()
 
 	info, err := file.Stat()
 	if err != nil {
-		return nil, "", fmt.Errorf("cli: stat session attachment %q: %w", filePath, err)
+		closeErr := file.Close()
+		return nil, "", errors.Join(
+			fmt.Errorf("cli: stat session attachment %q: %w", filePath, err),
+			wrapSessionAttachmentFileCloseError(filePath, closeErr),
+		)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, "", fmt.Errorf("cli: session attachment %q is not a regular file", filePath)
+		closeErr := file.Close()
+		return nil, "", errors.Join(
+			fmt.Errorf("cli: session attachment %q is not a regular file", filePath),
+			wrapSessionAttachmentFileCloseError(filePath, closeErr),
+		)
 	}
 	name := filepath.Base(filePath)
 	if strings.TrimSpace(name) == "" || name == "." || name == string(filepath.Separator) {
-		return nil, "", fmt.Errorf("cli: session attachment %q has no file name", filePath)
+		closeErr := file.Close()
+		return nil, "", errors.Join(
+			fmt.Errorf("cli: session attachment %q has no file name", filePath),
+			wrapSessionAttachmentFileCloseError(filePath, closeErr),
+		)
 	}
 
-	body = &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
+	reader, pipeWriter := io.Pipe()
+	writer := multipart.NewWriter(pipeWriter)
+	done := make(chan error, 1)
+	go func() {
+		producerErr := writeSessionAttachmentMultipart(filePath, name, file, writer)
+		pipeErr := pipeWriter.CloseWithError(producerErr)
+		done <- errors.Join(producerErr, pipeErr)
+		close(done)
+	}()
+	return &sessionAttachmentMultipartBody{reader: reader, done: done}, writer.FormDataContentType(), nil
+}
+
+func writeSessionAttachmentMultipart(
+	filePath string,
+	name string,
+	file *os.File,
+	writer *multipart.Writer,
+) error {
 	part, err := writer.CreateFormFile("file", name)
 	if err != nil {
-		return nil, "", fmt.Errorf("cli: create session attachment multipart field: %w", err)
+		return errors.Join(
+			fmt.Errorf("cli: create session attachment multipart field: %w", err),
+			wrapSessionAttachmentMultipartCloseError(writer.Close()),
+			wrapSessionAttachmentFileCloseError(filePath, file.Close()),
+		)
 	}
-	if _, err := io.Copy(part, file); err != nil {
-		return nil, "", fmt.Errorf("cli: read session attachment %q: %w", filePath, err)
+	_, copyErr := io.Copy(part, file)
+	return errors.Join(
+		wrapSessionAttachmentReadError(filePath, copyErr),
+		wrapSessionAttachmentMultipartCloseError(writer.Close()),
+		wrapSessionAttachmentFileCloseError(filePath, file.Close()),
+	)
+}
+
+func wrapSessionAttachmentReadError(filePath string, err error) error {
+	if err == nil {
+		return nil
 	}
-	if err := writer.Close(); err != nil {
-		return nil, "", fmt.Errorf("cli: close session attachment multipart writer: %w", err)
+	return fmt.Errorf("cli: read session attachment %q: %w", filePath, err)
+}
+
+func wrapSessionAttachmentMultipartCloseError(err error) error {
+	if err == nil {
+		return nil
 	}
-	return body, writer.FormDataContentType(), nil
+	return fmt.Errorf("cli: close session attachment multipart writer: %w", err)
+}
+
+func wrapSessionAttachmentFileCloseError(filePath string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("cli: close session attachment %q: %w", filePath, err)
+}
+
+func wrapSessionAttachmentBodyError(filePath string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("cli: close session attachment upload %q: %w", filePath, err)
+}
+
+func wrapSessionAttachmentResponseCloseError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("cli: close failed attachment upload response: %w", err)
 }

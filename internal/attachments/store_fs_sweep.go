@@ -81,7 +81,7 @@ func (s *FilesystemAttachmentStore) listAttachments(ctx context.Context) ([]reta
 				continue
 			}
 			sessionPath := filepath.Join(workspacePath, sessionEntry.Name())
-			listed, err := s.listSessionAttachments(sessionPath)
+			listed, err := s.listSessionAttachments(ctx, sessionPath)
 			if err != nil {
 				return nil, err
 			}
@@ -91,13 +91,19 @@ func (s *FilesystemAttachmentStore) listAttachments(ctx context.Context) ([]reta
 	return items, nil
 }
 
-func (s *FilesystemAttachmentStore) listSessionAttachments(sessionPath string) ([]retainedAttachment, error) {
+func (s *FilesystemAttachmentStore) listSessionAttachments(
+	ctx context.Context,
+	sessionPath string,
+) ([]retainedAttachment, error) {
 	entries, err := os.ReadDir(sessionPath)
 	if err != nil {
 		return nil, fmt.Errorf("%w: list attachment session: %w", ErrPersistence, err)
 	}
 	items := make([]retainedAttachment, 0)
 	for _, entry := range entries {
+		if err := attachmentContextErr(ctx); err != nil {
+			return nil, err
+		}
 		id := entry.Name()
 		if entry.IsDir() || !attachmentIDPattern.MatchString(id) {
 			continue
@@ -110,14 +116,17 @@ func (s *FilesystemAttachmentStore) listSessionAttachments(sessionPath string) (
 		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("%w: retained attachment is not a regular file", ErrCorrupt)
 		}
-		meta, err := s.readMeta(contentPath, id)
+		meta, err := readSidecar(contentPath)
 		if err != nil {
 			return nil, err
+		}
+		if meta.SHA256 != attachmentSHA256(id) || meta.Bytes != info.Size() || meta.CreatedAt.IsZero() {
+			return nil, fmt.Errorf("%w: sidecar metadata mismatch", ErrCorrupt)
 		}
 		items = append(items, retainedAttachment{
 			contentPath: contentPath,
 			createdAt:   meta.CreatedAt.UTC(),
-			bytes:       meta.Bytes,
+			bytes:       info.Size(),
 		})
 	}
 	return items, nil

@@ -59,20 +59,56 @@ func (m *Manager) resolvePromptAttachments(
 	return resolved, nil
 }
 
+func (m *Manager) canonicalPromptAttachments(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	metas []AttachmentMeta,
+) ([]AttachmentMeta, error) {
+	if len(metas) == 0 {
+		return nil, nil
+	}
+	if m.attachmentOpener == nil {
+		return nil, errors.New("session: attachment opener is required")
+	}
+	canonical := make([]AttachmentMeta, 0, len(metas))
+	for _, meta := range metas {
+		reader, ref, err := m.attachmentOpener.Open(ctx, workspaceID, sessionID, strings.TrimSpace(meta.ID))
+		if err != nil {
+			return nil, fmt.Errorf("session: open prompt attachment %q: %w", strings.TrimSpace(meta.Name), err)
+		}
+		if err := reader.Close(); err != nil {
+			return nil, wrapPromptAttachmentCloseError(ref.Name, err)
+		}
+		canonical = append(canonical, attachmentMetaFromRef(ref))
+	}
+	return canonical, nil
+}
+
+func attachmentMetaFromRef(ref attachmentspkg.AttachmentRef) AttachmentMeta {
+	return AttachmentMeta{
+		ID: strings.TrimSpace(ref.ID), Name: strings.TrimSpace(ref.Name),
+		MIMEType: strings.TrimSpace(ref.MIMEType), Bytes: ref.Bytes,
+		SHA256: strings.TrimSpace(ref.SHA256), Kind: strings.TrimSpace(ref.Kind),
+		Width: ref.Width, Height: ref.Height,
+	}
+}
+
+const (
+	promptImagesUnsupportedMessage = "the selected agent does not accept image input; " +
+		"choose a multimodal agent, remove the attachments, or send text only"
+	promptFilesUnsupportedMessage = "the selected agent does not accept file input; " +
+		"choose an agent with embedded context, remove the attachments, or send text only"
+)
+
 func validatePromptAttachmentCaps(metas []AttachmentMeta, caps acp.Caps) error {
 	for _, meta := range metas {
 		mimeType := strings.ToLower(strings.TrimSpace(meta.MIMEType))
 		switch {
 		case strings.HasPrefix(mimeType, "image/") && !caps.PromptImage:
-			return fmt.Errorf(
-				"the selected agent does not accept image input; choose a multimodal agent, remove the attachments, or send text only: %w",
-				ErrPromptImagesUnsupported,
-			)
+			return fmt.Errorf("%s: %w", promptImagesUnsupportedMessage, ErrPromptImagesUnsupported)
 		case mimeType == "application/pdf" && !caps.PromptEmbeddedContext:
-			return fmt.Errorf(
-				"the selected agent does not accept file input; choose an agent with embedded context, remove the attachments, or send text only: %w",
-				ErrPromptFilesUnsupported,
-			)
+			return fmt.Errorf("%s: %w", promptFilesUnsupportedMessage, ErrPromptFilesUnsupported)
 		}
 	}
 	return nil
@@ -102,7 +138,7 @@ func (m *Manager) readPromptAttachment(
 	}
 
 	digest := fmt.Sprintf("%x", sha256.Sum256(data))
-	if expected := strings.ToLower(strings.TrimSpace(meta.SHA256)); expected == "" || digest != expected {
+	if expected := strings.ToLower(strings.TrimSpace(ref.SHA256)); expected == "" || digest != expected {
 		return acp.PromptAttachment{}, fmt.Errorf(
 			"session: verify prompt attachment %q: %w",
 			strings.TrimSpace(meta.Name),
@@ -110,18 +146,9 @@ func (m *Manager) readPromptAttachment(
 		)
 	}
 
-	name := strings.TrimSpace(meta.Name)
-	if name == "" {
-		name = strings.TrimSpace(ref.Name)
-	}
-	mimeType := strings.TrimSpace(meta.MIMEType)
-	if mimeType == "" {
-		mimeType = strings.TrimSpace(ref.MIMEType)
-	}
-	kind := strings.TrimSpace(meta.Kind)
-	if kind == "" {
-		kind = strings.TrimSpace(ref.Kind)
-	}
+	name := strings.TrimSpace(ref.Name)
+	mimeType := strings.TrimSpace(ref.MIMEType)
+	kind := strings.TrimSpace(ref.Kind)
 	return acp.PromptAttachment{Name: name, MIMEType: mimeType, Kind: kind, Data: data}, nil
 }
 

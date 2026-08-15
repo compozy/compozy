@@ -118,9 +118,6 @@ func (s *FilesystemAttachmentStore) Put(
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.sweepLocked(ctx, 0, 0); err != nil {
-		return AttachmentRef{}, err
-	}
 
 	id := attachmentID(data)
 	sessionDir, err := s.ensureSessionDir(workspaceID, sessionID)

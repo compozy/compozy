@@ -12,10 +12,11 @@ func TestParseAttachmentURI(t *testing.T) {
 
 	validID := "att_" + strings.Repeat("ab", 32)
 	cases := []struct {
-		name    string
-		uri     string
-		wantID  string
-		wantErr bool
+		name       string
+		uri        string
+		wantID     string
+		wantErr    bool
+		wantDetail string
 	}{
 		{
 			name:   "Should accept a canonical attachment URI",
@@ -25,22 +26,22 @@ func TestParseAttachmentURI(t *testing.T) {
 		{
 			name:    "Should reject surrounding whitespace",
 			uri:     " " + AttachmentURIPrefix + validID,
-			wantErr: true,
+			wantErr: true, wantDetail: "invalid attachment URI",
 		},
 		{
 			name:    "Should reject a foreign URI prefix",
 			uri:     "compozy://tool-artifacts/" + validID,
-			wantErr: true,
+			wantErr: true, wantDetail: "invalid attachment URI",
 		},
 		{
 			name:    "Should reject a non-hex identity",
 			uri:     AttachmentURIPrefix + "att_" + strings.Repeat("zz", 32),
-			wantErr: true,
+			wantErr: true, wantDetail: "invalid attachment URI",
 		},
 		{
 			name:    "Should reject a path traversal identity",
 			uri:     AttachmentURIPrefix + "../secret",
-			wantErr: true,
+			wantErr: true, wantDetail: "invalid attachment URI",
 		},
 	}
 
@@ -49,8 +50,8 @@ func TestParseAttachmentURI(t *testing.T) {
 			t.Parallel()
 			got, err := ParseAttachmentURI(tc.uri)
 			if tc.wantErr {
-				if err == nil {
-					t.Fatal("ParseAttachmentURI() error = nil, want error")
+				if err == nil || err.Error() != tc.wantDetail {
+					t.Fatalf("ParseAttachmentURI() error = %v, want %q", err, tc.wantDetail)
 				}
 				return
 			}
@@ -118,10 +119,13 @@ func TestValidateSize(t *testing.T) {
 		bytes        int64
 		maxFileBytes int64
 		wantErr      error
+		wantDetail   string
 	}{
 		{name: "Should accept a file at the configured ceiling", bytes: 8, maxFileBytes: 8},
-		{name: "Should reject a file over the configured ceiling", bytes: 9, maxFileBytes: 8, wantErr: ErrTooLarge},
-		{name: "Should reject a non-positive ceiling", bytes: 1, maxFileBytes: 0},
+		{name: "Should reject a file over the configured ceiling", bytes: 9, maxFileBytes: 8, wantErr: ErrTooLarge,
+			wantDetail: "9 exceeds max_file_bytes 8"},
+		{name: "Should reject a non-positive ceiling", bytes: 1, maxFileBytes: 0,
+			wantDetail: "attachment max_file_bytes must be greater than zero: 0"},
 	}
 
 	for _, tc := range cases {
@@ -129,14 +133,14 @@ func TestValidateSize(t *testing.T) {
 			t.Parallel()
 			err := ValidateSize(tc.bytes, tc.maxFileBytes)
 			if tc.wantErr != nil {
-				if !errors.Is(err, tc.wantErr) {
+				if !errors.Is(err, tc.wantErr) || !strings.Contains(err.Error(), tc.wantDetail) {
 					t.Fatalf("ValidateSize() error = %v, want %v", err, tc.wantErr)
 				}
 				return
 			}
 			if tc.maxFileBytes <= 0 {
-				if err == nil {
-					t.Fatal("ValidateSize() error = nil, want invalid ceiling")
+				if err == nil || err.Error() != tc.wantDetail {
+					t.Fatalf("ValidateSize() error = %v, want %q", err, tc.wantDetail)
 				}
 				return
 			}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/ginutil"
-	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/memory"
@@ -61,7 +60,7 @@ type Server struct {
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
 	toolArtifacts      toolspkg.ToolArtifactStore
-	sessionAttachments attachmentspkg.Store
+	sessionAttachments core.SessionAttachmentStore
 	toolsets           core.ToolsetRegistry
 	toolApprovals      core.ToolApprovalIssuer
 	approvalGrants     core.ToolApprovalGrantService
