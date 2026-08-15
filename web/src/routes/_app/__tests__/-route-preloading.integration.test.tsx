@@ -633,9 +633,9 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopDetailRoute, {
         ...context(queryClient),
+        deps: { workspace: undefined },
         location: { pathname: "/loops/review" },
         params: { name: "review" },
-        search: {},
       }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
@@ -718,8 +718,8 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopRunDetailRoute, {
         ...context(queryClient),
+        deps: { workspace: undefined },
         params: { runId: "run-1" },
-        search: {},
       }),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
@@ -954,8 +954,8 @@ describe("route query preloading", () => {
 
     await invokeLoader(LoopRunDetailRoute, {
       ...context(queryClient),
+      deps: { workspace: targetWorkspaceId },
       params: { runId: "run-1" },
-      search: { workspace: targetWorkspaceId },
     });
 
     expect(adapterMocks.getLoopRun).toHaveBeenCalledWith(

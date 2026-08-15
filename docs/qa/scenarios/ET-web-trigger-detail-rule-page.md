@@ -11,7 +11,7 @@ bug_ids: BUG-20260815-trigger-detail-duplicate-key
 fix_status: fixed
 retest_status: pass
 fix_commits: self (the commit that records this fixed verdict)
-evidence: docs/qa/evidence/2026-08-15-triggers-ui/webhook-detail.png; docs/qa/evidence/2026-08-15-triggers-ui/inspect-sample-envelope.png; docs/qa/evidence/2026-08-15-triggers-ui/webhook-disabled-after-reload.png; docs/qa/evidence/2026-08-15-triggers-ui/compact-320x800.png; docs/qa/evidence/2026-08-15-triggers-ui/port-4177-retest.png
+evidence: docs/qa/evidence/2026-08-15-triggers-ui/webhook-detail.png; docs/qa/evidence/2026-08-15-triggers-ui/inspect-sample-envelope.png; docs/qa/evidence/2026-08-15-triggers-ui/webhook-disabled-after-reload.png; docs/qa/evidence/2026-08-15-triggers-ui/compact-320x800.png; docs/qa/evidence/2026-08-15-triggers-ui/port-4177-retest.png; docs/qa/evidence/2026-08-15-triggers-ui/post-rebase-4177.png
 last_report: docs/qa/reports/2026-08-15-triggers-ui.md
 overlaps: ET-web-jobs-triggers-catalog; TA-automation-crud-loop-target
 ---
@@ -36,3 +36,8 @@ and Inspect overlays distinct identities. A fresh browser retest on port 4177
 confirmed the detail and Inspect sheet render without reconciliation errors; the
 dynamic and managed enable switches persisted across reloads, and compact 320x800,
 deep-link, history, malformed-id, and keyboard/Escape probes passed.
+
+QA 2026-08-15 post-rebase: a new isolated lab bootstrapped the final schema head,
+recreated the workspace trigger through the real HTTP API, and repeated the
+catalog → detail → Inspect path on Web port 4177. The final browser console had
+no application errors.
