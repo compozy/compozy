@@ -1,8 +1,11 @@
 // Suite: Jobs window catalog
-// Invariant: Workspace automation suggestions remain visible after the jobs route moves into the OS window.
+// Invariant: Automation suggestions reach the UI only through the unfiltered
+// zero-inventory empty state — gated by a runtime workspace and non-global
+// scope; loading, filtered-empty, and populated catalogs never render them.
 // Boundary IN: Jobs catalog composition for active workspace and explicit global scope.
 // Boundary OUT: Suggestion fetching and actions, owned by automation hook/component suites.
 import { screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
@@ -29,9 +32,13 @@ vi.mock("@/systems/automation/components/automation-editor-dialog", () => ({
 }));
 
 vi.mock("@/systems/automation/components/automation-jobs-catalog", () => ({
-  AutomationJobsCatalog: (props: { isLoading: boolean; view: string }) => {
+  AutomationJobsCatalog: (props: {
+    isLoading: boolean;
+    unfilteredEmptyExtra?: ReactNode;
+    view: string;
+  }) => {
     jobsCatalog(props);
-    return <div data-testid="automation-jobs-catalog" />;
+    return <div data-testid="automation-jobs-catalog">{props.unfilteredEmptyExtra}</div>;
   },
 }));
 
@@ -93,7 +100,7 @@ beforeEach(() => {
 });
 
 describe("JobsCatalogLocation", () => {
-  it("Should show runtime-workspace suggestions unless the catalog filter is Global", () => {
+  it("Should hand zero-inventory suggestions to the empty state unless scope is Global or no runtime workspace exists", () => {
     const { rerender } = render(<JobsCatalogLocation search={{}} />);
 
     expect(screen.getByTestId("automation-suggestions-panel")).toBeInTheDocument();
@@ -109,6 +116,36 @@ describe("JobsCatalogLocation", () => {
     };
     rerender(<JobsCatalogLocation search={{}} />);
     expect(suggestionPanel).toHaveBeenLastCalledWith("ws_home");
+
+    workspaceContext.current = {
+      activeWorkspace: undefined,
+      activeWorkspaceId: null,
+      runtimeWorkspaceId: null,
+    };
+    rerender(<JobsCatalogLocation search={{}} />);
+    expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
+  });
+
+  it("Should never render suggestions once the catalog holds inventory", () => {
+    jobsPage.current = { ...jobsPage.current, jobs: [], total: 12 };
+
+    render(<JobsCatalogLocation search={{}} />);
+
+    expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
+    expect(jobsCatalog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ unfilteredEmptyExtra: null })
+    );
+  });
+
+  it("Should withhold suggestions from the filtered-empty state", () => {
+    jobsPage.current = { ...jobsPage.current, hasActiveFilters: true, total: 0 };
+
+    render(<JobsCatalogLocation search={{}} />);
+
+    expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
+    expect(jobsCatalog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ unfilteredEmptyExtra: null })
+    );
   });
 
   it("Should delegate card-mode loading geometry to the automation catalog", () => {

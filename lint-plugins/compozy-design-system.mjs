@@ -36,6 +36,7 @@ const PREFER_BARE_UTILITY_WHITELIST = new Set([
   "available-height",
   "transform-origin",
   "accordion-panel-height",
+  "collapsible-panel-height",
   "fd-docs-row-1",
   // App-injected runtime
   "detail-inspector-width",

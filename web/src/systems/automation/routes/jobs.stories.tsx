@@ -61,6 +61,21 @@ export const Empty: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+export const FilteredEmpty: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/jobs?q=zzzz"),
+    ...storybookMswParameters({
+      automation: [
+        compozyApiMock.get("/api/automation/jobs", () =>
+          HttpResponse.json({ jobs: [], page: { has_more: false, limit: 50, total: 0 } })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 export const JobsError: Story = {
   args: {},
   parameters: {

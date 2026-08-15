@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { ListingViewMode } from "@compozy/ui";
 
 import type { AutomationJob } from "../types";
@@ -20,6 +22,7 @@ export interface AutomationJobsCatalogProps {
   onClearFilters: () => void;
   onCreate: () => void;
   onRun: (id: string) => void;
+  unfilteredEmptyExtra?: ReactNode;
 }
 
 /** Jobs catalog body: rows or cards with shared empty/loading/error/load-more. */
@@ -35,6 +38,7 @@ function AutomationJobsCatalog({
   onClearFilters,
   onCreate,
   onRun,
+  unfilteredEmptyExtra,
 }: AutomationJobsCatalogProps) {
   return (
     <AutomationCatalogShell
@@ -46,6 +50,7 @@ function AutomationJobsCatalog({
       onClearFilters={onClearFilters}
       onCreate={onCreate}
       pagination={pagination}
+      unfilteredEmptyExtra={unfilteredEmptyExtra}
       view={view}
     >
       {jobs.map(job =>

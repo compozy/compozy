@@ -20,7 +20,13 @@ function actionErrorMessage(error: unknown, fallback: string): string {
   return message === "" ? fallback : message;
 }
 
-export function AutomationSuggestionsPanel({ workspaceID }: { workspaceID: string }) {
+export function AutomationSuggestionsPanel({
+  className,
+  workspaceID,
+}: {
+  className?: string;
+  workspaceID: string;
+}) {
   const suggestionsQuery = useAutomationSuggestions(workspaceID);
   const acceptSuggestion = useAcceptAutomationSuggestion(workspaceID);
   const dismissSuggestion = useDismissAutomationSuggestion(workspaceID);
@@ -64,6 +70,7 @@ export function AutomationSuggestionsPanel({ workspaceID }: { workspaceID: strin
   return (
     <AutomationSuggestionsCard
       actionErrors={actionErrors}
+      className={className}
       errorMessage={suggestionsQuery.isError ? LOAD_ERROR : null}
       isLoading={suggestionsQuery.isPending}
       onAccept={suggestionID => void runAction(suggestionID, "accept")}

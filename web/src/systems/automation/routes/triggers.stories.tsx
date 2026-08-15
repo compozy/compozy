@@ -64,6 +64,24 @@ export const Empty: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+export const FilteredEmpty: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/triggers?q=zzzz"),
+    ...storybookMswParameters({
+      automation: [
+        compozyApiMock.get("/api/automation/triggers", () =>
+          HttpResponse.json({
+            page: { has_more: false, limit: 50, total: 0 },
+            triggers: [],
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 export const TriggersError: Story = {
   args: {},
   parameters: {

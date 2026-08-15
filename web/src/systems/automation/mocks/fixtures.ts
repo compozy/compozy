@@ -1,4 +1,9 @@
-import type { AutomationJob, AutomationRun, AutomationTrigger } from "../types";
+import type {
+  AutomationJob,
+  AutomationRun,
+  AutomationSuggestion,
+  AutomationTrigger,
+} from "../types";
 import { storyAgentNames, storySessionIds, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 
 export const automationJobFixtures: AutomationJob[] = [
@@ -172,6 +177,36 @@ export const automationRunSkipFixtures: AutomationRun[] = [
     fire_id: "fire_launch_command_digest_004",
     scheduled_at: "2026-04-17T18:30:00Z",
     metadata: { reason: "misfire_grace_exceeded" },
+  },
+];
+
+export const automationSuggestionFixtures: AutomationSuggestion[] = [
+  {
+    created_at: "2026-04-17T16:00:00Z",
+    dedup_key: "launch-command-digest",
+    id: "suggestion_launch_command_digest",
+    payload: {
+      ...automationJobFixtures[0],
+      id: "job_suggested_launch_command_digest",
+      name: "Launch command digest",
+    },
+    source: "catalog",
+    status: "pending",
+    workspace_id: storyWorkspaceIds.hq,
+  },
+  {
+    created_at: "2026-04-17T16:05:00Z",
+    dedup_key: "launch-crm-release",
+    id: "suggestion_launch_crm_release",
+    payload: {
+      ...automationJobFixtures[1],
+      id: "job_suggested_launch_crm_release",
+      name: "Launch CRM release",
+      workspace_id: storyWorkspaceIds.hq,
+    },
+    source: "catalog",
+    status: "pending",
+    workspace_id: storyWorkspaceIds.hq,
   },
 ];
 
