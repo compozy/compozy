@@ -37,6 +37,7 @@ Testing Library, Turborepo, Playwright.
 
 - Modify: `web/src/systems/loops/hooks/__tests__/use-loop-stream.test.tsx`
 - Modify: `web/src/systems/loops/hooks/use-loop-stream.ts`
+- Modify: `web/src/systems/os/apps/loops/use-loop-run-page.ts`
 
 **Interfaces:**
 
@@ -86,9 +87,8 @@ Testing Library, Turborepo, Playwright.
   ```
 
   Assert `onEvent` receives `[terminal, effectResult]` in that order, the source has not closed
-  before unmount, and unmount closes it exactly once. Expand the local event-kind fixture to the
-  complete current generated vocabulary so its existing “every enumerated kind” assertion includes
-  `effect_results` and does not retain the stale twelve-kind claim.
+  before unmount, and unmount closes it exactly once. Keep the existing event-kind fixture unchanged;
+  the regression directly exercises the separately retained `effect_results` listener.
 
 - [ ] **Step 3: Run the focused test and verify RED**
 
@@ -106,7 +106,8 @@ Testing Library, Turborepo, Playwright.
   In `use-loop-stream.ts`, remove the terminal-status close branch, delete the now-unused
   `isTerminalLoopStatus` import, and delete `isTerminalStatusFrame`. Update the hook docstring to
   state that source ownership lasts until the React effect cleanup. Do not change event parsing,
-  invalidation, lifecycle-store opening, error handling, or detach behavior.
+  invalidation, lifecycle-store opening, error handling, or detach behavior. Update the stale
+  `use-loop-run-page.ts` comment that says the hook closes on the replayed terminal frame.
 
 - [ ] **Step 5: Run the focused test and verify GREEN**
 
@@ -131,7 +132,8 @@ Testing Library, Turborepo, Playwright.
 
   ```bash
   git add web/src/systems/loops/hooks/__tests__/use-loop-stream.test.tsx \
-    web/src/systems/loops/hooks/use-loop-stream.ts
+    web/src/systems/loops/hooks/use-loop-stream.ts \
+    web/src/systems/os/apps/loops/use-loop-run-page.ts
   git commit -m "fix: keep loop streams open for terminal effects"
   ```
 
