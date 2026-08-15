@@ -29,6 +29,11 @@ export interface LoopEditorState {
    * which has no issue list to show.
    */
   publishRejectedIssues: LoopValidationIssue[];
+  /**
+   * True when a 422 landed after the draft moved on — the dock is intentionally
+   * stale, so the strip must carry the issue list.
+   */
+  publishRejectedDockStale: boolean;
   publishGeneration: number;
   scopeGeneration: number;
   selectedNodeId: string | null;
@@ -142,6 +147,7 @@ export function createLoopEditorState(scopeGeneration = 0): LoopEditorState {
     positionsGeneration: 0,
     publishError: null,
     publishRejectedIssues: [],
+    publishRejectedDockStale: false,
     publishGeneration: 0,
     scopeGeneration,
     selectedNodeId: null,

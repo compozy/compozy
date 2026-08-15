@@ -9,6 +9,8 @@ interface LoopEditorPublishRejectedStripProps {
   issues: readonly LoopValidationIssue[];
   /** The version the editor still holds — a rejected publish never advances it. */
   version: number | undefined;
+  /** When true the dock's lint is stale, so the strip is the sole issue carrier. */
+  dockStale?: boolean;
 }
 
 /**
@@ -21,6 +23,7 @@ export function LoopEditorPublishRejectedStrip({
   message,
   issues,
   version,
+  dockStale = false,
 }: LoopEditorPublishRejectedStripProps) {
   return (
     <div
@@ -32,10 +35,10 @@ export function LoopEditorPublishRejectedStrip({
         <AlertCircle aria-hidden="true" className="size-3.5 shrink-0" />
         {message}
         <span className="ml-auto font-mono text-mono-id text-subtle">
-          expected_version v{version ?? "?"} kept
+          422 · expected_version v{version ?? "?"} kept
         </span>
       </p>
-      {issues.length > 0 ? (
+      {dockStale && issues.length > 0 ? (
         <ul className="flex flex-col gap-0.5 pl-5.5" data-testid="loop-editor-publish-error-issues">
           {withOccurrenceKeys(
             issues,

@@ -26,7 +26,12 @@ export const loopEditorPublishTransitions = {
       return;
     }
     const next = clearPublishPending(current, event.generation);
-    return { ...next, publishError: event.error, publishRejectedIssues: [] };
+    return {
+      ...next,
+      publishError: event.error,
+      publishRejectedIssues: [],
+      publishRejectedDockStale: false,
+    };
   },
   publishRejected: (current: LoopEditorState, event: LoopEditorEvents["publishRejected"]) => {
     if (
@@ -42,7 +47,7 @@ export const loopEditorPublishTransitions = {
     // lint state is intentionally left alone.
     const publishRejectedIssues = lint.issues;
     if (current.structuralRevision !== event.revision) {
-      return { ...next, publishError, publishRejectedIssues };
+      return { ...next, publishError, publishRejectedIssues, publishRejectedDockStale: true };
     }
     return {
       ...next,
@@ -50,6 +55,7 @@ export const loopEditorPublishTransitions = {
       nodes: applyLintToNodes(current.nodes, lint.byNode),
       publishError,
       publishRejectedIssues,
+      publishRejectedDockStale: false,
     };
   },
   publishRequested: (
@@ -90,6 +96,7 @@ export const loopEditorPublishTransitions = {
       pendingPublishGeneration: generation,
       publishError: null,
       publishRejectedIssues: [],
+      publishRejectedDockStale: false,
       publishGeneration: generation,
       validationGeneration: current.validationGeneration + 1,
     };

@@ -193,6 +193,9 @@ describe("LoopEditor", () => {
     await screen.findByTestId("loop-editor");
     // The canonical body renders on the canvas.
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
+    expect(screen.queryByText(/Kinds are ToolIDs/)).not.toBeInTheDocument();
+    expect(within(nodeCard("execute_task")).getByText("deadline")).toBeInTheDocument();
+    expect(within(nodeCard("collect")).queryByText("joins")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-editor-save")).toBeInTheDocument();
     // No unsaved-changes chip until the definition is edited.
     expect(screen.queryByTestId("loop-editor-dirty-chip")).not.toBeInTheDocument();
@@ -438,7 +441,7 @@ describe("LoopEditor", () => {
     renderEditor("quality-gate-demo", [capture]);
 
     await screen.findByTestId("loop-editor");
-    fireEvent.change(screen.getByRole("textbox", { name: "Goal (optional)" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Goal" }), {
       target: { value: "" },
     });
     fireEvent.change(screen.getByRole("textbox", { name: "Definition of done" }), {
@@ -556,6 +559,7 @@ describe("LoopEditor", () => {
     renderEditor("quality-gate-demo", [handler, detailHandler(fullLifecycleDetail)]);
     await screen.findByTestId("loop-editor");
     fireEvent.click(nodeCard("execute_task"));
+    fireEvent.click(await screen.findByRole("button", { name: /^Reactions/ }));
 
     // The authored on_retry row is an emit; switching its shape must REPLACE the variant.
     const shape = await screen.findByTestId("loop-field-on_retry-shape-0");
@@ -612,10 +616,11 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-readonly-strip")).toHaveTextContent(
       /read-only marketplace source/i
     );
+    expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v1 · marketplace");
 
     // Every mutation path is CLOSED, not merely decorated with a notice.
     fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
-    const goal = screen.getByRole("textbox", { name: "Goal (optional)" }) as HTMLTextAreaElement;
+    const goal = screen.getByRole("textbox", { name: "Goal" }) as HTMLTextAreaElement;
     const goalBefore = goal.value;
     fireEvent.change(goal, { target: { value: "rewritten" } });
     fireEvent.click(nodeCard("implement"));
@@ -653,12 +658,14 @@ describe("LoopEditor", () => {
     const strip = await screen.findByTestId("loop-editor-publish-error");
     expect(strip).toHaveAttribute("role", "alert");
     expect(strip).toHaveTextContent(/2 issues to resolve/i);
-    expect(strip).toHaveTextContent(/expected_version v4 kept/i);
-    // The strip lists the daemon's own verdict, so the fix path needs no dock expansion.
-    const issues = within(strip).getAllByTestId("loop-editor-publish-error-issue");
-    expect(issues).toHaveLength(2);
-    expect(issues[0]).toHaveTextContent("fan_out_ceiling_exceeded");
-    expect(issues[1]).toHaveTextContent("error_route_conflict");
+    expect(strip).toHaveTextContent(/422 · expected_version v4 kept/i);
+    // Matching revision: the dock owns the issue list; the strip does not duplicate it.
+    expect(within(strip).queryByTestId("loop-editor-publish-error-issue")).not.toBeInTheDocument();
+    expandLinterDock();
+    const dockIssues = screen.getAllByTestId("loop-linter-issue");
+    expect(dockIssues).toHaveLength(2);
+    expect(dockIssues[0]).toHaveTextContent("fan_out_ceiling_exceeded");
+    expect(dockIssues[1]).toHaveTextContent("error_route_conflict");
     // Nothing was saved: the compare-and-swap version pill is unchanged.
     expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4");
   });
@@ -666,8 +673,19 @@ describe("LoopEditor", () => {
   it("Should show that the editor version was kept when a rejection has no issue list", () => {
     render(<LoopEditorPublishRejectedStrip message="Publish rejected" issues={[]} version={4} />);
     const strip = screen.getByTestId("loop-editor-publish-error");
-    expect(strip).toHaveTextContent("expected_version v4 kept");
-    expect(strip).not.toHaveTextContent("422");
+    expect(strip).toHaveTextContent("422 · expected_version v4 kept");
+  });
+
+  it("Should list publish issues on the strip only when the dock is stale", () => {
+    render(
+      <LoopEditorPublishRejectedStrip
+        dockStale
+        issues={PUBLISH_REJECTED_ISSUES}
+        message="Publish rejected — 2 issues to resolve."
+        version={4}
+      />
+    );
+    expect(screen.getAllByTestId("loop-editor-publish-error-issue")).toHaveLength(2);
   });
 
   it("Should publish the first edit of a version-zero workspace Loop with explicit CAS", async () => {

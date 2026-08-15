@@ -84,7 +84,7 @@ function goalDetail(): LoopDetail {
   };
 }
 
-/** Long tool kind + id so canvas cards prove ellipsis stays inside the fixed 132px width. */
+/** Long tool kind + id so canvas cards prove ellipsis stays inside the fixed 188px width. */
 function longKindDetail(): LoopDetail {
   const graph = delivery.definition.graph as unknown as RawGraph;
   const nodes = graph.nodes.map(node =>
@@ -180,20 +180,24 @@ export const LongKindLabels: Story = {
   parameters: { msw: { handlers: editorHandlers(longKindDetail()) } },
 };
 
-/** Opens the named `<details>` folds and scrolls the final one into view. */
+/** Opens the named inspector folds and scrolls the final one into view. */
 async function revealFolds(canvasElement: HTMLElement, labels: string[], scrollOffset = 0) {
-  const summaries = Array.from(canvasElement.querySelectorAll("summary"));
+  const triggers = Array.from(canvasElement.querySelectorAll("button, summary"));
+  let last: HTMLElement | undefined;
   for (const label of labels) {
-    const summary = summaries.find(element => element.textContent?.startsWith(label));
-    if (!summary) throw new Error(`fold ${label} not found`);
-    if (!(summary.parentElement as HTMLDetailsElement | null)?.open) {
-      await userEvent.click(summary);
+    const trigger = triggers.find(element => element.textContent?.startsWith(label));
+    if (!trigger) throw new Error(`fold ${label} not found`);
+    const expanded =
+      trigger.getAttribute("aria-expanded") === "true" ||
+      trigger.closest("[data-open]") !== null ||
+      (trigger.parentElement as HTMLDetailsElement | null)?.open === true;
+    if (!expanded) {
+      await userEvent.click(trigger);
     }
+    last = trigger as HTMLElement;
   }
-  const finalLabel = labels.at(-1);
-  const final = summaries.find(element => element.textContent?.startsWith(finalLabel ?? ""));
-  final?.scrollIntoView({ block: "start" });
-  const scrollParent = final?.closest(".overflow-y-auto");
+  last?.scrollIntoView({ block: "start" });
+  const scrollParent = last?.closest(".overflow-y-auto");
   if (scrollParent instanceof HTMLElement && scrollOffset > 0) {
     scrollParent.scrollTop = Math.max(0, scrollParent.scrollTop - scrollOffset);
   }

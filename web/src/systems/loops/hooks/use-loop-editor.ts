@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import {
   addEdge,
   applyEdgeChanges,
@@ -78,6 +78,10 @@ export interface UseLoopEditorResult {
   onConnect: (connection: Connection) => void;
   selectNode: (id: string | null) => void;
   revealNode: (id: string) => void;
+  /** Increments on Reveal node so the canvas can center without a stored flow handle. */
+  revealSeq: number;
+  /** True when a 422 landed after the draft moved on — the strip lists issues. */
+  publishRejectedDockStale: boolean;
   changeField: (path: FieldPath, value: unknown) => void;
   /** Applies several path writes to the selected node as ONE draft transition. */
   changeFields: (edits: NodeFieldEdit[]) => void;
@@ -122,6 +126,7 @@ export function useLoopEditor(
     positionsDirty,
     publishError,
     publishRejectedIssues,
+    publishRejectedDockStale,
     selectedNodeId,
     selectionSeq,
     sidebarTab,
@@ -143,6 +148,8 @@ export function useLoopEditor(
     selectView,
     store,
   } = useLoopEditorState();
+
+  const [revealSeq, setRevealSeq] = useState(0);
 
   const handlePublished = useEffectEvent((loop: LoopDetail) => {
     onPublished?.(loop);
@@ -263,6 +270,7 @@ export function useLoopEditor(
   };
   const revealNode = (id: string) => {
     selectEditorNode(id, true);
+    setRevealSeq(seq => seq + 1);
   };
 
   const changeFields = (edits: NodeFieldEdit[]) => {
@@ -369,6 +377,8 @@ export function useLoopEditor(
     busy,
     publishError,
     publishRejectedIssues,
+    publishRejectedDockStale,
+    revealSeq,
     dslLines,
     onNodesChange,
     onEdgesChange,

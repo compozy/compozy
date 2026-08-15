@@ -1,6 +1,18 @@
 import { AlertTriangle } from "lucide-react";
 
-import { cn, Input, NativeSelect, NativeSelectOption, Switch, Textarea } from "@compozy/ui";
+import {
+  cn,
+  Field,
+  FieldDescription,
+  FieldHeader,
+  FieldLabel,
+  Input,
+  NativeSelect,
+  NativeSelectOption,
+  RequiredMark,
+  Switch,
+  Textarea,
+} from "@compozy/ui";
 
 import type { WorktreePayload } from "@/systems/workspace";
 
@@ -21,6 +33,7 @@ import { LoopEditorEffectsField } from "./loop-editor-field-effects";
 import { LoopEditorEnvironmentField } from "./loop-editor-environment-field";
 import { LoopEditorJsonField } from "./loop-editor-json-field";
 import { LoopEditorWaitMode } from "./loop-editor-wait-mode";
+import { LoopEditorFold } from "./loop-editor-fold";
 import { LoopEditorWatchEvents } from "./loop-editor-watch-events";
 import { LoopReferenceInput } from "./loop-reference-input";
 
@@ -44,19 +57,15 @@ function str(value: unknown): string {
   return "";
 }
 
-function FieldSpecLabel({ field }: { field: TextFieldSpec | NumberFieldSpec | SelectFieldSpec }) {
+function SpecFieldLabel({ field }: { field: TextFieldSpec | NumberFieldSpec | SelectFieldSpec }) {
   const optional = "optionalLabel" in field ? field.optionalLabel : undefined;
   const required = "required" in field ? field.required : false;
   return (
-    <span className="mb-1.5 flex items-center gap-1.5 text-form-label font-medium text-fg-strong">
-      {field.label}
-      {required ? (
-        <span className="text-accent-strong" title="required">
-          *
-        </span>
-      ) : null}
+    <FieldHeader>
+      <FieldLabel>{field.label}</FieldLabel>
+      {required ? <RequiredMark>*</RequiredMark> : null}
       {optional ? <span className="text-badge font-normal text-faint">{optional}</span> : null}
-    </span>
+    </FieldHeader>
   );
 }
 
@@ -137,10 +146,10 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
   }
   if (field.type === "static") {
     return (
-      <div>
-        <span className="mb-1.5 block text-form-label font-medium text-fg-strong">
-          {field.label}
-        </span>
+      <Field>
+        <FieldHeader>
+          <FieldLabel>{field.label}</FieldLabel>
+        </FieldHeader>
         <span className="flex items-center gap-2 text-small-body text-fg">
           <span className="font-mono text-mono-id text-fg-strong">{field.value || "—"}</span>
           {field.badge ? (
@@ -149,7 +158,7 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
             </MonoTag>
           ) : null}
         </span>
-      </div>
+      </Field>
     );
   }
   if (field.type === "switch") {
@@ -175,8 +184,8 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
   if (field.type === "select") {
     const clear = field.clearOption;
     return (
-      <div>
-        <FieldSpecLabel field={field} />
+      <Field>
+        <SpecFieldLabel field={field} />
         <NativeSelect
           value={str(getAtPath(raw, field.path))}
           disabled={disabled}
@@ -198,10 +207,8 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        {field.hint ? (
-          <p className="mt-1.5 text-form-hint leading-relaxed text-subtle">{field.hint}</p>
-        ) : null}
-      </div>
+        {field.hint ? <FieldDescription>{field.hint}</FieldDescription> : null}
+      </Field>
     );
   }
   if (field.type === "number") {
@@ -209,8 +216,8 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
     const numeric = typeof raw0 === "number" ? raw0 : Number(str(raw0));
     const over = field.ceiling !== undefined && Number.isFinite(numeric) && numeric > field.ceiling;
     return (
-      <div>
-        <FieldSpecLabel field={field} />
+      <Field>
+        <SpecFieldLabel field={field} />
         <div className="flex items-center gap-2.5">
           <Input
             type="number"
@@ -237,25 +244,23 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
         </div>
         {over ? (
           <p
-            className="mt-1.5 flex items-center gap-1.5 text-form-hint text-danger"
+            className="flex items-center gap-1.5 text-form-hint text-danger"
             data-testid={`loop-field-${field.key}-ceiling`}
           >
             <AlertTriangle aria-hidden="true" className="size-3" />
             Above the ceiling of {field.ceiling} — the linter rejects a higher value on publish.
           </p>
         ) : null}
-        {field.hint ? (
-          <p className="mt-1.5 text-form-hint leading-relaxed text-subtle">{field.hint}</p>
-        ) : null}
-      </div>
+        {field.hint ? <FieldDescription>{field.hint}</FieldDescription> : null}
+      </Field>
     );
   }
   if (field.type === "criteria") {
     return (
-      <div>
-        <span className="mb-1.5 block text-form-label font-medium text-fg-strong">
-          {field.label}
-        </span>
+      <Field>
+        <FieldHeader>
+          <FieldLabel>{field.label}</FieldLabel>
+        </FieldHeader>
         <LoopEditorCriteria
           value={getAtPath(raw, field.path)}
           suggestions={props.suggestions}
@@ -263,28 +268,24 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
           allowedTypes={field.allowedTypes}
           onChange={criteria => onChange(field.path, criteria)}
         />
-        {field.hint ? (
-          <p className="mt-1.5 text-form-hint leading-relaxed text-subtle">{field.hint}</p>
-        ) : null}
-      </div>
+        {field.hint ? <FieldDescription>{field.hint}</FieldDescription> : null}
+      </Field>
     );
   }
   if (field.type === "events") {
     return (
-      <div>
-        <span className="mb-1.5 block text-form-label font-medium text-fg-strong">
-          {field.label}
-        </span>
+      <Field>
+        <FieldHeader>
+          <FieldLabel>{field.label}</FieldLabel>
+        </FieldHeader>
         <LoopEditorWatchEvents
           value={getAtPath(raw, field.path)}
           suggestions={props.suggestions}
           disabled={disabled}
           onChange={events => onChange(field.path, events)}
         />
-        {field.hint ? (
-          <p className="mt-1.5 text-form-hint leading-relaxed text-subtle">{field.hint}</p>
-        ) : null}
-      </div>
+        {field.hint ? <FieldDescription>{field.hint}</FieldDescription> : null}
+      </Field>
     );
   }
   if (field.type === "effects") {
@@ -326,28 +327,18 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
   }
   if (field.type === "fold") {
     return (
-      <details className="rounded-md border border-line-soft bg-canvas-soft">
-        <summary className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-form-label font-medium text-fg-strong">
-          {field.label}
-          {field.subLabel ? (
-            <span className="text-badge font-normal text-faint">{field.subLabel}</span>
-          ) : null}
-        </summary>
-        <div className="flex flex-col gap-3 px-3 pb-3">
-          {field.fields.map(child => (
-            <LoopEditorField key={child.key} {...props} field={child} />
-          ))}
-        </div>
-      </details>
+      <LoopEditorFold defaultOpen={field.defaultOpen} label={field.label} subLabel={field.subLabel}>
+        {field.fields.map(child => (
+          <LoopEditorField key={child.key} {...props} field={child} />
+        ))}
+      </LoopEditorFold>
     );
   }
   return (
-    <div>
-      <FieldSpecLabel field={field} />
+    <Field>
+      <SpecFieldLabel field={field} />
       <TextControl {...props} field={field} />
-      {field.hint ? (
-        <p className="mt-1.5 text-form-hint leading-relaxed text-subtle">{field.hint}</p>
-      ) : null}
-    </div>
+      {field.hint ? <FieldDescription>{field.hint}</FieldDescription> : null}
+    </Field>
   );
 }

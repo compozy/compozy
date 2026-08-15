@@ -6,6 +6,7 @@ import { getAtPath } from "../../lib/loop-editor-draft";
 import type { FieldPath } from "../../lib/loop-node-schema";
 import type { LoopContract } from "../../types";
 import { LoopEditorEffects } from "./loop-editor-effects";
+import { LoopEditorFold } from "./loop-editor-fold";
 
 interface LoopEditorContractTerminalsProps {
   contract: LoopContract;
@@ -23,12 +24,8 @@ export function LoopEditorContractTerminals({
   onChangePath,
 }: LoopEditorContractTerminalsProps) {
   return (
-    <details className="rounded-md border border-line-soft bg-canvas-soft" open>
-      <summary className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-form-label font-medium text-fg-strong">
-        Terminal reactions
-        <span className="text-badge font-normal text-faint">on_done … on_canceled</span>
-      </summary>
-      <div className="flex flex-col gap-3 px-3 pb-3" data-testid="loop-editor-contract-terminals">
+    <LoopEditorFold defaultOpen label="Terminal reactions" subLabel="on_done … on_canceled">
+      <div className="flex flex-col gap-3" data-testid="loop-editor-contract-terminals">
         <p className="text-form-hint leading-relaxed text-subtle">{LOOP_TERMINAL_REACTIONS_HINT}</p>
         {LOOP_TERMINAL_REACTIONS.map(field => (
           <div key={field.key}>
@@ -45,6 +42,6 @@ export function LoopEditorContractTerminals({
           </div>
         ))}
       </div>
-    </details>
+    </LoopEditorFold>
   );
 }

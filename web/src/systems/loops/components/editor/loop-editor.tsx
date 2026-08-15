@@ -65,6 +65,7 @@ export function LoopEditor({
         version={readyEditor.version}
         isDirty={readyEditor.isDirty}
         positionsDirty={readyEditor.positionsDirty}
+        source={readyEditor.loop.source}
       />
     ) : undefined,
     actions: readyEditor ? (
@@ -149,7 +150,7 @@ function LoopEditorReady({
           />
         ) : null}
 
-        <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)_344px]">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[170px_minmax(0,1fr)_320px] xl:grid-cols-[190px_minmax(0,1fr)_344px]">
           <LoopEditorPalette onAddNode={editor.addNode} disabled={editor.busy || readOnly} />
 
           <section className="relative flex min-h-0 flex-col bg-canvas">
@@ -160,6 +161,7 @@ function LoopEditorReady({
                   nodes={editor.nodes}
                   edges={editor.edges}
                   selectedNodeId={editor.selectedNode?.id ?? null}
+                  revealSeq={editor.revealSeq}
                   onNodesChange={editor.onNodesChange}
                   onEdgesChange={editor.onEdgesChange}
                   onConnect={editor.onConnect}
@@ -179,6 +181,7 @@ function LoopEditorReady({
                 message={editor.publishError}
                 issues={editor.publishRejectedIssues}
                 version={editor.version}
+                dockStale={editor.publishRejectedDockStale}
               />
             ) : null}
 
@@ -229,8 +232,8 @@ function LoopEditorSkeleton() {
         <Skeleton className="h-7 w-28" />
         <Skeleton className="h-7 w-32" />
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)_344px]">
-        <div className="space-y-3 border-r border-line p-3">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[170px_minmax(0,1fr)_320px] xl:grid-cols-[190px_minmax(0,1fr)_344px]">
+        <div className="hidden space-y-3 border-r border-line p-3 lg:block">
           <Skeleton className="h-3 w-20" />
           {[0, 1, 2, 3, 4].map(index => (
             <Skeleton className="h-9 w-full" key={index} />

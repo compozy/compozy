@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LoopValidationError } from "../../adapters/loops-api";
 import { loopDetailByName } from "../../mocks/fixtures";
 import { loopEditorLogic } from "../loop-editor-store";
 import type { ValidateLoopResult } from "../../types";
@@ -227,6 +228,35 @@ describe("loopEditorLogic", () => {
     await vi.waitFor(() => {
       expect(store.getSnapshot().context.pendingPublishGeneration).toBeNull();
       expect(store.getSnapshot().context.publishError).toBe("publish unavailable");
+    });
+  });
+
+  it("Should keep publish-rejected issues on the strip when the draft moved on", async () => {
+    const store = loopEditorLogic.createStore(undefined);
+    const loop = loopDetailByName.get("implement-tasks")!;
+    const publish = deferred<typeof loop>();
+    store.trigger.draftInitialized({ definition: loop.definition, edges: [], nodes: [] });
+    store.trigger.publishRequested({ execute: () => publish.promise });
+    store.trigger.connectionCreated({ edges: [] });
+    publish.reject(
+      new LoopValidationError("Publish rejected", {
+        valid: false,
+        errors: [
+          {
+            node_id: "implement",
+            code: "fan_out_ceiling_exceeded",
+            message: "too wide",
+            severity: "error",
+          },
+        ],
+      })
+    );
+
+    await vi.waitFor(() => {
+      expect(store.getSnapshot().context.pendingPublishGeneration).toBeNull();
+      expect(store.getSnapshot().context.publishRejectedDockStale).toBe(true);
+      expect(store.getSnapshot().context.publishRejectedIssues).toHaveLength(1);
+      expect(store.getSnapshot().context.lint.validated).toBe(false);
     });
   });
 });

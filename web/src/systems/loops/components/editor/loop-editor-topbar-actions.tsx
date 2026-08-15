@@ -2,6 +2,8 @@ import { Check, Upload } from "lucide-react";
 
 import { Button, Pill } from "@compozy/ui";
 
+import type { LoopSource } from "../../types";
+
 interface LoopEditorTopbarActionsProps {
   busy: boolean;
   publishDisabled: boolean;
@@ -13,15 +15,30 @@ interface LoopEditorTopbarStatusProps {
   version: number | undefined;
   isDirty: boolean;
   positionsDirty: boolean;
+  source?: LoopSource;
 }
 
 export function LoopEditorTopbarStatus({
   version,
   isDirty,
   positionsDirty,
+  source,
 }: LoopEditorTopbarStatusProps) {
-  const state = isDirty ? "unpublished edits" : positionsDirty ? "layout unsaved" : "published";
-  const tone = isDirty ? "warning" : positionsDirty ? "neutral" : "success";
+  const readOnlySource = source !== undefined && source !== "workspace";
+  const state = readOnlySource
+    ? source
+    : isDirty
+      ? "unpublished edits"
+      : positionsDirty
+        ? "layout unsaved"
+        : "published";
+  const tone = readOnlySource
+    ? "neutral"
+    : isDirty
+      ? "warning"
+      : positionsDirty
+        ? "neutral"
+        : "success";
 
   return (
     <span
