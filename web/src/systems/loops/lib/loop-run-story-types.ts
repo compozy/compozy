@@ -32,6 +32,7 @@ export type LoopStoryIcon =
   | "requeued"
   | "waiting"
   | "attention"
+  | "attention-silence"
   | "attention-cleared"
   | "effect"
   | "suppressed"

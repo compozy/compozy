@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ShieldAlert } from "lucide-react";
 
 import { Button, formatRelativeTime } from "@compozy/ui";
 
@@ -214,6 +214,7 @@ function DependencyAttentionRow({
           type="button"
           variant="outline"
         >
+          <ShieldAlert aria-hidden="true" className="size-3.5" />
           Open quarantine entry
         </Button>
       ) : null}

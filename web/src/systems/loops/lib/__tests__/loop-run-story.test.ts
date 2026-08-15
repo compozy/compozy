@@ -616,6 +616,14 @@ describe("lifecycle story rows", () => {
     });
     expect(fromReason.title).toBe("Flagged: task 04 is silent for a while");
     expect(fromFlag.title).toBe(fromReason.title);
+    expect(fromReason.icon).toBe("attention-silence");
+    expect(fromFlag.icon).toBe("attention-silence");
+    expect(
+      rowFor("node_attention_flagged", {
+        node_id: "task_04",
+        attention_flag: "dependency_quarantined",
+      }).icon
+    ).toBe("attention");
     expect(fromFlag.sub).toContain("clears itself on any evidence of life");
     expect(rowFor("node_attention_cleared", { node_id: "task_04" }).tone).toBe("success");
   });

@@ -1,26 +1,5 @@
-import type { ComponentType, ReactNode } from "react";
-import {
-  Activity,
-  Bell,
-  Ban,
-  Check,
-  CircleCheck,
-  CopyX,
-  Eye,
-  Hourglass,
-  Pause,
-  Play,
-  Radio,
-  RotateCcw,
-  TimerReset,
-  Send,
-  ShieldAlert,
-  Square,
-  TriangleAlert,
-  X,
-  Zap,
-  ZapOff,
-} from "lucide-react";
+import type { ReactNode } from "react";
+import { Activity } from "lucide-react";
 
 import {
   cn,
@@ -33,7 +12,8 @@ import {
 
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import { formatLoopScore } from "../../lib/loop-generation-presentation";
-import type { LoopStoryIcon, LoopStoryRow } from "../../lib/loop-run-story";
+import type { LoopStoryRow } from "../../lib/loop-run-story";
+import { LOOP_STORY_ICONS } from "../../lib/loop-story-icons";
 import { LoopRunSection } from "./loop-run-section";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
 
@@ -47,35 +27,6 @@ interface LoopRunStoryTimelineProps {
   isLoadingMoreGoalTurns?: boolean;
   onLoadMoreGoalTurns?: () => void;
 }
-
-type IconComponent = ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" }>;
-
-const ICONS: Record<LoopStoryIcon, IconComponent> = {
-  round: Play,
-  "check-pass": Check,
-  "check-warn": TriangleAlert,
-  "node-done": Check,
-  "node-failed": X,
-  approval: Bell,
-  watching: Eye,
-  paused: Pause,
-  resumed: Play,
-  started: Play,
-  stopped: Square,
-  done: Check,
-  retry: TimerReset,
-  canceled: Ban,
-  killed: Zap,
-  quarantined: ShieldAlert,
-  requeued: RotateCcw,
-  waiting: Hourglass,
-  attention: TriangleAlert,
-  "attention-cleared": CircleCheck,
-  effect: Send,
-  suppressed: CopyX,
-  "breaker-open": ZapOff,
-  "breaker-closed": Radio,
-};
 
 /** Story dots color state only (§1): neutral rows stay on the faint ring. */
 const TONE_RING: Record<PillTone, string> = {
@@ -103,7 +54,7 @@ function StoryIssues({ row }: { row: LoopStoryRow }) {
 }
 
 function StoryRow({ row, turnsSlot }: { row: LoopStoryRow; turnsSlot: ReactNode }) {
-  const Icon = ICONS[row.icon];
+  const Icon = LOOP_STORY_ICONS[row.icon];
   const score = formatLoopScore(row.score);
   const anchorId =
     row.kind === "generation_started" && row.generation !== undefined

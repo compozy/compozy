@@ -166,6 +166,17 @@ export type { DslLine } from "./lib/loop-dsl";
 export { buildDslView } from "./lib/loop-dsl";
 export type { PaletteGroup, PaletteItem } from "./lib/loop-palette";
 export { LOOP_PALETTE, uniqueNodeId } from "./lib/loop-palette";
+export { LOOP_STORY_ICONS } from "./lib/loop-story-icons";
+export type { LoopNodeKind } from "./lib/loop-node-kind-icons";
+export {
+  LOOP_CALL_TOOL_ICON,
+  LOOP_NODE_CLASS_ICONS,
+  LOOP_NODE_KIND_ICONS,
+  loopNodeClassIcon,
+  loopNodeKindIcon,
+} from "./lib/loop-node-kind-icons";
+export type { LoopStartKind } from "./lib/loop-start-kind-icons";
+export { LOOP_START_KIND_ICONS, loopStartKindIcon } from "./lib/loop-start-kind-icons";
 export {
   getAtPath,
   isNodeIdPath,
@@ -388,6 +399,7 @@ export type {
 // Components
 export { LoopStatusPill } from "./components/loop-status-pill";
 export type { LoopStatusPillProps } from "./components/loop-status-pill";
+export { LoopSection } from "./components/loop-section";
 export { LoopCatalog } from "./components/catalog/loop-catalog";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";

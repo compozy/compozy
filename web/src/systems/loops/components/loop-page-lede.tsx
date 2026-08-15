@@ -22,7 +22,7 @@ interface LoopPageLedeProps {
  */
 export function LoopPageLede({ name, prefix, tags, meta, lede, testId }: LoopPageLedeProps) {
   return (
-    <div className="flex flex-col gap-2 pt-4" data-testid={testId}>
+    <div className="flex flex-col gap-2 border-b border-line pt-4 pb-5" data-testid={testId}>
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">
           {prefix ? <span className="text-muted">{prefix} </span> : null}

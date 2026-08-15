@@ -1,4 +1,4 @@
-import { Pause, Play, Square } from "lucide-react";
+import { Ban, Pause, Play } from "lucide-react";
 
 import { Button } from "@compozy/ui";
 
@@ -87,7 +87,7 @@ export function LoopRunControls({
           disabled={pendingVerb === "cancel"}
           onClick={onCancel}
         >
-          <Square className="size-3.5" aria-hidden="true" />
+          <Ban className="size-3.5" aria-hidden="true" />
           Cancel run
         </Button>
       ) : null}

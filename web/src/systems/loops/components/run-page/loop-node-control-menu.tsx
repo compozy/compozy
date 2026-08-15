@@ -3,9 +3,10 @@ import {
   MoreHorizontal,
   Pause,
   Play,
-  RotateCcw,
-  Search,
+  Redo2,
+  ShieldAlert,
   SkipForward,
+  TimerReset,
   Zap,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -39,13 +40,13 @@ type IconComponent = ComponentType<{ className?: string; "aria-hidden"?: boolean
 const VERB_ICON: Record<LoopNodeVerb, IconComponent> = {
   pause: Pause,
   resume: Play,
-  "resume-reset-attempts": RotateCcw,
+  "resume-reset-attempts": TimerReset,
   "resume-immediate": SkipForward,
   "resume-wait": Play,
   cancel: Ban,
   kill: Zap,
-  requeue: RotateCcw,
-  "open-quarantine": Search,
+  requeue: Redo2,
+  "open-quarantine": ShieldAlert,
 };
 
 /**

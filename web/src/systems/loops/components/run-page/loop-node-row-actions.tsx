@@ -1,4 +1,4 @@
-import { Play, RotateCcw } from "lucide-react";
+import { Play, Redo2 } from "lucide-react";
 
 import { Button } from "@compozy/ui";
 
@@ -49,7 +49,7 @@ export function LoopNodeRowActions({
           {primary === "resume" ? (
             <Play aria-hidden="true" className="size-3" />
           ) : (
-            <RotateCcw aria-hidden="true" className="size-3" />
+            <Redo2 aria-hidden="true" className="size-3" />
           )}
           {primary === "resume" ? "Resume" : "Requeue…"}
         </Button>

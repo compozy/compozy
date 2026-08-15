@@ -911,7 +911,7 @@ describe("LoopNodeRowActions", () => {
       />
     );
     const button = screen.getByTestId("loop-node-primary-requeue-task_03");
-    expect(button.querySelector(".lucide-rotate-ccw")).toBeInTheDocument();
+    expect(button.querySelector(".lucide-redo-2")).toBeInTheDocument();
     expect(button.querySelector(".lucide-play")).not.toBeInTheDocument();
   });
 });
