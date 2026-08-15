@@ -155,6 +155,22 @@ function toThreadPart(part: SessionMessagePart): ThreadContentPart | null {
     return toToolPart(part, type);
   }
 
+  if (type === "file") {
+    const url = stringField(part, "url") ?? stringField(part, "data");
+    const mimeType = stringField(part, "mediaType") ?? stringField(part, "mimeType");
+    const filename = stringField(part, "filename");
+    if (!url || !mimeType) {
+      return null;
+    }
+    return {
+      type: "file" as const,
+      data: url,
+      mimeType,
+      ...(filename ? { filename } : {}),
+      ...threadPartMetadata(part),
+    } as ThreadContentPart;
+  }
+
   return null;
 }
 

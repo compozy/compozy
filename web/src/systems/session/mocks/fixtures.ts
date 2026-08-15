@@ -23,16 +23,29 @@ function liveParticipation(workspaceId: string, channelId: string) {
   return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
 }
 
+const DEFAULT_ACP_CAPS = {
+  prompt_audio: false,
+  prompt_embedded_context: false,
+  prompt_image: false,
+} as const;
+
 export function sessionRuntime(
   provider: string,
-  acpCaps?: SessionPayload["runtime"]["acp_caps"]
+  acpCaps?: Partial<NonNullable<SessionPayload["runtime"]["acp_caps"]>>
 ): SessionPayload["runtime"] {
   return {
     status: "ready",
     transition: "initial_bind",
     effective: { provider },
     selection_revision: 0,
-    ...(acpCaps ? { acp_caps: acpCaps } : {}),
+    ...(acpCaps
+      ? {
+          acp_caps: {
+            ...DEFAULT_ACP_CAPS,
+            ...acpCaps,
+          } as NonNullable<SessionPayload["runtime"]["acp_caps"]>,
+        }
+      : {}),
   };
 }
 

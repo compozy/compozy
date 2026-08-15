@@ -1,6 +1,5 @@
 import {
   type DataMessagePartProps,
-  MessagePartPrimitive,
   MessagePrimitive,
   type TextMessagePartProps,
   useAuiState,
@@ -8,6 +7,13 @@ import {
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { SessionAttachmentGallery } from "@/systems/session/components/session-attachment-gallery";
+import { useSessionRuntimeRenderContext } from "@/systems/session/hooks/use-session-runtime-render-context";
+import {
+  userMessageAttachmentItems,
+  userMessageHasText,
+} from "@/systems/session/lib/session-attachment-items";
+
 import { sessionSkillInvocationDirectives } from "./session-directive-registry";
 import { SessionDirectiveText } from "./session-directive-text";
 import { MessageActions } from "./message-actions";
@@ -92,27 +98,35 @@ function UserMessageBubble({ children }: { children: ReactNode }) {
 }
 
 export function UserMessage() {
-  const messageMetadata = useAuiState(state => state.message.metadata);
-  const directives = sessionSkillInvocationDirectives(messageMetadata);
+  const message = useAuiState(state => state.message);
+  const context = useSessionRuntimeRenderContext();
+  const attachments = userMessageAttachmentItems(
+    message.content,
+    message.metadata,
+    context?.workspaceId ?? "",
+    context?.sessionId ?? ""
+  );
+  const hasText = userMessageHasText(message.content);
+  const directives = sessionSkillInvocationDirectives(message.metadata);
   return (
     <MessagePrimitive.Root className="group/message flex w-full min-w-0 justify-end pt-1 pb-transcript-turn-gap">
       <div className="flex max-w-[80%] min-w-0 flex-col items-end gap-transcript-meta-gap">
-        <UserMessageBubble>
-          <MessagePrimitive.Parts>
-            {({ part }) => {
-              if (part.type === "text") {
-                return <SessionTextPart {...part} directives={directives} />;
-              }
-              if (part.type === "image") {
-                return <MessagePartPrimitive.Image />;
-              }
-              if (part.type === "data") {
-                return part.dataRendererUI ?? <SessionDataPart {...part} />;
-              }
-              return null;
-            }}
-          </MessagePrimitive.Parts>
-        </UserMessageBubble>
+        {attachments.length > 0 ? <SessionAttachmentGallery items={attachments} /> : null}
+        {hasText ? (
+          <UserMessageBubble>
+            <MessagePrimitive.Parts>
+              {({ part }) => {
+                if (part.type === "text") {
+                  return <SessionTextPart {...part} directives={directives} />;
+                }
+                if (part.type === "data") {
+                  return part.dataRendererUI ?? <SessionDataPart {...part} />;
+                }
+                return null;
+              }}
+            </MessagePrimitive.Parts>
+          </UserMessageBubble>
+        ) : null}
         <MessageActions align="end" copyLabel="Copy message" testId="user-message-actions" />
       </div>
     </MessagePrimitive.Root>

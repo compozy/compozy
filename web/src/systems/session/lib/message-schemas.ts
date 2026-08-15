@@ -86,6 +86,9 @@ type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];
 interface PartTurnMeta {
   turnId?: string;
   timestamp?: string;
+  bytes?: number;
+  width?: number;
+  height?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -95,6 +98,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function stringField(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function numberField(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function isToolPart(part: unknown): part is Record<string, unknown> {
@@ -246,6 +254,18 @@ function capturePartTurnMeta(messages: unknown): PartTurnMeta[][] {
       if (timestamp) {
         meta.timestamp = timestamp;
       }
+      const bytes = numberField(part, "bytes");
+      if (bytes !== undefined) {
+        meta.bytes = bytes;
+      }
+      const width = numberField(part, "width");
+      if (width !== undefined) {
+        meta.width = width;
+      }
+      const height = numberField(part, "height");
+      if (height !== undefined) {
+        meta.height = height;
+      }
       return meta;
     });
   });
@@ -264,7 +284,14 @@ function reattachPartTurnMeta(
     let mutated = false;
     const nextParts = parts.map((part, partIndex) => {
       const meta = metas[partIndex];
-      if (!meta || (!meta.turnId && !meta.timestamp)) {
+      if (
+        !meta ||
+        (!meta.turnId &&
+          !meta.timestamp &&
+          meta.bytes === undefined &&
+          meta.width === undefined &&
+          meta.height === undefined)
+      ) {
         return part;
       }
       mutated = true;
@@ -272,6 +299,9 @@ function reattachPartTurnMeta(
         ...part,
         ...(meta.turnId ? { turnId: meta.turnId } : {}),
         ...(meta.timestamp ? { timestamp: meta.timestamp } : {}),
+        ...(meta.bytes !== undefined ? { bytes: meta.bytes } : {}),
+        ...(meta.width !== undefined ? { width: meta.width } : {}),
+        ...(meta.height !== undefined ? { height: meta.height } : {}),
       } as SessionMessagePart;
     });
     return mutated ? ({ ...message, parts: nextParts } as SessionMessage) : message;
