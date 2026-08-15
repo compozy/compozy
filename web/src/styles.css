@@ -245,21 +245,22 @@
 @keyframes os-wsov-in {
   from {
     opacity: 0;
-    transform: translateY(var(--distance-wsov-stage-entry)) scale(var(--scale-wsov-stage-entry));
+    transform: translateY(var(--distance-workspaces-stage-entry))
+      scale(var(--scale-workspaces-stage-entry));
   }
 }
 
 @keyframes os-wsov-menu-in {
   from {
     opacity: 0;
-    transform: translateY(var(--distance-wsov-menu-entry));
+    transform: translateY(var(--distance-workspaces-menu-entry));
   }
 }
 
 @keyframes os-wsov-cap-swap {
   from {
     opacity: 0;
-    transform: translateY(var(--distance-wsov-caption-entry));
+    transform: translateY(var(--distance-workspaces-caption-entry));
   }
 }
 

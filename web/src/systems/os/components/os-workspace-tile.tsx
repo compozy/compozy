@@ -29,7 +29,7 @@ const WELL_CLASS = cn(
   "transition-[background,border-color,box-shadow,transform,scale] duration-base ease-out",
   "group-hover/wsov-tile:bg-none group-hover/wsov-tile:bg-btn-default-hover",
   "group-data-[on=true]/wsov-tile:-translate-y-px",
-  "group-active/wsov-tile:scale-(--scale-wsov-tile-press) group-active/wsov-tile:translate-y-0"
+  "group-active/wsov-tile:scale-(--scale-workspaces-tile-press) group-active/wsov-tile:translate-y-0"
 );
 
 const NAME_CLASS =

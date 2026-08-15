@@ -10,11 +10,14 @@ import (
 // without probing repository capability or derived status caches.
 func (s *Service) Resolve(ctx context.Context, workspaceID, ref string) (*Worktree, error) {
 	item, err := s.store.Get(ctx, workspaceID, ref)
-	if errors.Is(err, ErrNotFound) || item == nil {
+	if errors.Is(err, ErrNotFound) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("worktree: resolve registry row: %w", err)
+	}
+	if item == nil {
+		return nil, ErrNotFound
 	}
 	return item, nil
 }

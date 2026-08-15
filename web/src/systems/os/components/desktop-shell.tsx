@@ -221,8 +221,8 @@ function DesktopShellScopedBody({
           }
         }}
         onCreateWorktree={model.openWorktreeCreate}
-        onResolveMissing={worktreeDialogs.requestResolveMissing}
-        onContext={worktreeDialogs.requestContext}
+        onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
+        onOpenWorktreeContext={worktreeDialogs.requestContext}
         onRemoveWorktree={worktreeDialogs.requestRemove}
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">

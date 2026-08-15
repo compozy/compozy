@@ -11,13 +11,13 @@ import {
 
 import {
   contractHomePath,
+  copyWorktreePath,
   WorktreePath,
   WorktreeSignals,
   WorktreeStateChip,
   WorktreeStateDot,
   type WorktreeNestEntry,
 } from "@/systems/workspace";
-import { copyWorktreePath } from "@/systems/workspace/lib/copy-worktree-path";
 
 const ROW_CLASS = cn(
   "group/wsov-row grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-0.5 rounded-md",

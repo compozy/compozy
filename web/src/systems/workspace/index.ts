@@ -38,6 +38,7 @@ export type { CreateWorkspaceParams, ResolveWorkspaceParams } from "./adapters/w
 
 // Query infrastructure
 export { contractHomePath } from "./lib/display-path";
+export { copyWorktreePath } from "./lib/copy-worktree-path";
 export { isOperatorHomeWorkspace, partitionProjectWorkspaces } from "./lib/project-workspaces";
 export type { ProjectWorkspacePartition, WorkspaceHomeCandidate } from "./lib/project-workspaces";
 export { resolveActiveWorkspace, workspaceMonogram } from "./lib/active-workspace";

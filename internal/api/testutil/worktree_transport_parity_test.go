@@ -30,9 +30,6 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 		"Should return byte-identical JSON or empty success bodies for every finite worktree route",
 		func(t *testing.T) {
 			t.Parallel()
-			service := newParityWorktreeService()
-			httpRouter := newWorktreeParityHTTPRouter(t, service)
-			udsRouter := newWorktreeParityUDSRouter(t, service)
 			for _, test := range []struct {
 				name           string
 				method         string
@@ -55,7 +52,10 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 				{name: "dismiss by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/dismiss", wantStatus: http.StatusNoContent, wantRef: "parity"},
 			} {
 				t.Run("Should match "+test.name, func(t *testing.T) {
-					service.refs = nil
+					t.Parallel()
+					service := newParityWorktreeService()
+					httpRouter := newWorktreeParityHTTPRouter(t, service)
+					udsRouter := newWorktreeParityUDSRouter(t, service)
 					httpResponse := performWorktreeParityRequest(t, httpRouter, test.method, test.path, test.body)
 					udsResponse := performWorktreeParityRequest(t, udsRouter, test.method, test.path, test.body)
 					assertWorktreeParityResponse(t, httpResponse, udsResponse, test.wantStatus)

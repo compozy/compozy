@@ -481,11 +481,11 @@
   /* Desktop-switch slide amplitude shared by the os-desk slide keyframes. */
   --distance-desk-slide: 4%;
   /* Workspaces overview entry geometry shared by the shell keyframes. */
-  --distance-wsov-stage-entry: 8px;
-  --scale-wsov-stage-entry: 0.985;
-  --scale-wsov-tile-press: 0.96;
-  --distance-wsov-menu-entry: -3px;
-  --distance-wsov-caption-entry: 3px;
+  --distance-workspaces-stage-entry: 8px;
+  --scale-workspaces-stage-entry: 0.985;
+  --scale-workspaces-tile-press: 0.96;
+  --distance-workspaces-menu-entry: -3px;
+  --distance-workspaces-caption-entry: 3px;
 
   /* Shell chrome geometry. */
   --height-menubar: 44px;

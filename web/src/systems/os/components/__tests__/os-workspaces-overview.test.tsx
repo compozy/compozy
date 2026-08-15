@@ -586,7 +586,9 @@ describe("OsWorkspacesOverview", () => {
     });
 
     const menu = screen.getByTestId("os-workspaces-worktree-menu");
-    expect(menu.querySelectorAll('[data-slot="os-workspaces-worktree-row"]')).toHaveLength(18);
+    expect(menu.querySelectorAll('[data-slot="os-workspaces-worktree-row"]')).toHaveLength(
+      scrollableWorktreesListingFixture.worktrees.length
+    );
     expect(screen.getByTestId("os-workspaces-worktree-create")).toBeInTheDocument();
     // No "All N worktrees" row: production has no worktree-overview surface,
     // and this overlay must not invent a destination.
@@ -649,7 +651,7 @@ describe("OsWorkspacesOverview", () => {
     });
     // 7 adopted records — the discovered checkout never enters the count.
     expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent(
-      "1 workspace · 7 worktrees"
+      `1 workspace · ${worktreeListingFixture.worktrees.length} worktrees`
     );
   });
 });
