@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -1725,13 +1726,25 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		t.Parallel()
 
 		queueStore := openManagerInputQueueStore(t)
-		h := newHarness(t, WithSessionInputQueueStore(queueStore), WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+		attachmentID := "att_" + strings.Repeat("c", 64)
+		attachmentData := []byte("Goal context")
+		opener := &promptAttachmentOpenerStub{
+			data: map[string][]byte{attachmentID: attachmentData},
+			refs: map[string]attachmentspkg.AttachmentRef{
+				attachmentID: storedPromptAttachmentRef(
+					attachmentID, "goal-context.txt", "text/plain", attachmentData,
+				),
+			},
+		}
+		handlerCalls := 0
+		h := newHarness(t, WithSessionInputQueueStore(queueStore), WithAttachmentOpener(opener), WithGoalCommandHandler(GoalCommandHandlerFunc(func(
 			_ context.Context,
 			workspaceID string,
 			sessionID string,
 			caller PromptCaller,
 			command GoalCommand,
 		) (GoalDispatchDecision, error) {
+			handlerCalls++
 			if workspaceID == "" || sessionID == "" || caller.ID != "operator" || command.Verb != "status" {
 				t.Fatalf(
 					"Goal handler input = workspace:%q session:%q caller:%#v command:%#v",
@@ -1757,12 +1770,16 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			}
 		})
 
-		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+		opts := SendPromptOpts{
 			Message: "/goal status", AllowCommands: true,
 			MessageID:      "client-goal-status",
 			IdempotencyKey: "idem-goal-status",
 			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "http"},
-		})
+			Attachments: []AttachmentMeta{
+				promptAttachmentMeta(attachmentID, "goal-context.txt", "text/plain", attachmentData),
+			},
+		}
+		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
 		if err != nil {
 			t.Fatalf("SendPrompt(Goal status) error = %v", err)
 		}
@@ -1771,6 +1788,22 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		}
 		if calls := managerPromptCalls(h); len(calls) != 0 {
 			t.Fatalf("ACP prompt calls = %d, want 0", len(calls))
+		}
+		callsBeforeReplay := opener.calls
+		delete(opener.data, attachmentID)
+		delete(opener.refs, attachmentID)
+		replayed, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
+		if err != nil {
+			t.Fatalf("SendPrompt(replay Goal status) error = %v", err)
+		}
+		if !replayed.Replayed || replayed.Goal == nil || replayed.Goal.Outcome != GoalOutcomeStatus {
+			t.Fatalf("replayed Goal result = %#v, want replayed status result", replayed)
+		}
+		if opener.calls != callsBeforeReplay {
+			t.Fatalf("attachment opener calls = %d after replay, want %d", opener.calls, callsBeforeReplay)
+		}
+		if handlerCalls != 1 {
+			t.Fatalf("Goal handler calls = %d, want 1", handlerCalls)
 		}
 		persistedInputs := managerUserPromptEvents(t, h, sess.ID)
 		if got, want := len(persistedInputs), 1; got != want {

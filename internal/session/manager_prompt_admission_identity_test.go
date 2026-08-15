@@ -1,6 +1,7 @@
 package session
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -57,7 +58,34 @@ func TestPromptAdmissionFingerprintAttachments(t *testing.T) {
 			t.Fatalf("promptAdmissionFingerprint(reverse) error = %v", err)
 		}
 		if first != second {
-			t.Fatalf("fingerprint = %q vs %q, want order-stable v3 digest", first, second)
+			t.Fatalf("fingerprint = %q vs %q, want order-stable v4 attachment identity", first, second)
+		}
+	})
+
+	t.Run("Should stay stable when canonical metadata enriches an attachment ID", func(t *testing.T) {
+		t.Parallel()
+
+		attachmentID := "att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		raw := promptRequest{
+			messageID: "msg-canonical",
+			attachments: []AttachmentMeta{{
+				ID: attachmentID,
+			}},
+		}
+		canonical := raw
+		canonical.attachments = []AttachmentMeta{{
+			ID: attachmentID, SHA256: strings.Repeat("a", 64), Name: "notes.txt", MIMEType: "text/plain",
+		}}
+		before, err := promptAdmissionFingerprint(storePromptOperation(), BusyInputModeQueue, raw)
+		if err != nil {
+			t.Fatalf("promptAdmissionFingerprint(raw) error = %v", err)
+		}
+		after, err := promptAdmissionFingerprint(storePromptOperation(), BusyInputModeQueue, canonical)
+		if err != nil {
+			t.Fatalf("promptAdmissionFingerprint(canonical) error = %v", err)
+		}
+		if before != after {
+			t.Fatalf("fingerprint = %q before canonicalization, %q after", before, after)
 		}
 	})
 }

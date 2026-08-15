@@ -33,29 +33,31 @@ export function SessionAttachmentTile({
   ...props
 }: SessionAttachmentTileProps) {
   const isImage = isImageAttachmentMime(model.mimeType) && Boolean(model.file);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ file: File; url: string } | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(
     model.width && model.height ? { width: model.width, height: model.height } : null
   );
 
   useEffect(() => {
-    if (!isImage || !model.file) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(model.file);
-    setPreviewUrl(url);
-    const image = new Image();
+    if (!isImage || !model.file) return;
+    const file = model.file;
+    const reader = new FileReader();
     const handleLoad = () => {
-      setDimensions({ width: image.naturalWidth, height: image.naturalHeight });
+      if (typeof reader.result === "string") {
+        setPreview({ file, url: reader.result });
+      }
     };
-    image.addEventListener("load", handleLoad);
-    image.src = url;
+    reader.addEventListener("load", handleLoad);
+    reader.readAsDataURL(file);
     return () => {
-      image.removeEventListener("load", handleLoad);
-      URL.revokeObjectURL(url);
+      reader.removeEventListener("load", handleLoad);
+      if (reader.readyState === FileReader.LOADING) {
+        reader.abort();
+      }
     };
   }, [isImage, model.file]);
+
+  const previewUrl = preview && preview.file === model.file ? preview.url : null;
 
   const nameTitle =
     isImage && dimensions ? `${model.name} · ${dimensions.width}×${dimensions.height}` : model.name;
@@ -84,6 +86,12 @@ export function SessionAttachmentTile({
           <img
             src={previewUrl}
             alt=""
+            onLoad={event => {
+              setDimensions({
+                width: event.currentTarget.naturalWidth,
+                height: event.currentTarget.naturalHeight,
+              });
+            }}
             className={cn(
               "size-full object-cover",
               model.state === "uploading" ? "opacity-45" : null

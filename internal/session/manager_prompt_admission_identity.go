@@ -15,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionPromptFingerprintVersion = "session-prompt/v3"
+const sessionPromptFingerprintVersion = "session-prompt/v4"
 
 type promptAdmissionLock struct {
 	mu   sync.Mutex
@@ -116,29 +116,29 @@ func promptAdmissionFingerprint(
 	req promptRequest,
 ) (string, error) {
 	runtime := storeRuntimeSelection(req.runtime).Normalize()
-	attachmentDigests := attachmentFingerprintDigests(req.attachments)
-	slices.Sort(attachmentDigests)
+	attachmentIdentities := attachmentFingerprintIdentities(req.attachments)
+	slices.Sort(attachmentIdentities)
 	canonical := struct {
-		Version           string                  `json:"version"`
-		Operation         string                  `json:"operation"`
-		MessageID         string                  `json:"message_id"`
-		AuthoredText      string                  `json:"authored_text"`
-		Mode              string                  `json:"mode"`
-		Provider          string                  `json:"provider"`
-		Model             string                  `json:"model"`
-		ReasoningEffort   string                  `json:"reasoning_effort"`
-		Speed             string                  `json:"speed"`
-		ExpectedTurnID    string                  `json:"expected_turn_id,omitempty"`
-		SkillInvocations  []commandpkg.Invocation `json:"skill_invocations,omitempty"`
-		AttachmentDigests []string                `json:"attachment_digests,omitempty"`
+		Version          string                  `json:"version"`
+		Operation        string                  `json:"operation"`
+		MessageID        string                  `json:"message_id"`
+		AuthoredText     string                  `json:"authored_text"`
+		Mode             string                  `json:"mode"`
+		Provider         string                  `json:"provider"`
+		Model            string                  `json:"model"`
+		ReasoningEffort  string                  `json:"reasoning_effort"`
+		Speed            string                  `json:"speed"`
+		ExpectedTurnID   string                  `json:"expected_turn_id,omitempty"`
+		SkillInvocations []commandpkg.Invocation `json:"skill_invocations,omitempty"`
+		AttachmentIDs    []string                `json:"attachment_ids,omitempty"`
 	}{
 		Version: sessionPromptFingerprintVersion, Operation: strings.TrimSpace(operation),
 		MessageID: strings.TrimSpace(req.messageID), AuthoredText: strings.TrimSpace(req.authoredMessage),
 		Mode: strings.TrimSpace(string(mode)), Provider: runtime.Provider, Model: runtime.Model,
 		ReasoningEffort: runtime.ReasoningEffort, Speed: runtime.Speed,
-		ExpectedTurnID:    strings.TrimSpace(req.expectedTurnID),
-		SkillInvocations:  append([]commandpkg.Invocation(nil), req.skillInvocations...),
-		AttachmentDigests: attachmentDigests,
+		ExpectedTurnID:   strings.TrimSpace(req.expectedTurnID),
+		SkillInvocations: append([]commandpkg.Invocation(nil), req.skillInvocations...),
+		AttachmentIDs:    attachmentIdentities,
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {

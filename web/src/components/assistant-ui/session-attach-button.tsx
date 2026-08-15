@@ -46,6 +46,7 @@ export function SessionAttachButton({ disabled = false }: { disabled?: boolean }
       <input
         ref={inputRef}
         type="file"
+        aria-label="Choose attachments"
         accept={ATTACHMENT_PICKER_ACCEPT}
         multiple
         className="sr-only"

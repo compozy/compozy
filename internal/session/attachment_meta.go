@@ -83,17 +83,17 @@ func attachmentMetaFromStore(items []store.SessionInputAttachment) []AttachmentM
 	return out
 }
 
-func attachmentFingerprintDigests(items []AttachmentMeta) []string {
-	digests := make([]string, 0, len(items))
+func attachmentFingerprintIdentities(items []AttachmentMeta) []string {
+	identities := make([]string, 0, len(items))
 	for _, item := range items {
-		digest := strings.TrimSpace(item.SHA256)
-		if digest == "" {
-			digest = strings.TrimSpace(item.ID)
+		identity := strings.TrimSpace(item.ID)
+		if identity == "" {
+			identity = strings.TrimSpace(item.SHA256)
 		}
-		if digest == "" {
+		if identity == "" {
 			continue
 		}
-		digests = append(digests, digest)
+		identities = append(identities, identity)
 	}
-	return digests
+	return identities
 }

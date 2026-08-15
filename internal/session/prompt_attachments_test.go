@@ -197,12 +197,18 @@ func TestSendPromptDispatchesAttachments(t *testing.T) {
 			t.Fatalf("SendPrompt() error = %v", err)
 		}
 		collectEvents(t, result.Events)
+		callsBeforeReplay := opener.calls
+		delete(opener.data, attachmentID)
+		delete(opener.refs, attachmentID)
 		replayed, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
 		if err != nil {
 			t.Fatalf("SendPrompt(replay) error = %v", err)
 		}
 		if !replayed.Replayed {
 			t.Fatalf("SendPrompt(replay).Replayed = false, want true")
+		}
+		if opener.calls != callsBeforeReplay {
+			t.Fatalf("attachment opener calls = %d after replay, want %d", opener.calls, callsBeforeReplay)
 		}
 		calls := managerPromptCalls(h)
 		if len(calls) != 1 || len(calls[0].Attachments) != 1 {

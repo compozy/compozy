@@ -29,7 +29,7 @@ func (m *Manager) submitAdmittedSteerCommand(
 	}
 	unlock := m.lockPromptAdmission(workspaceID, session.ID, admissionReq.IdempotencyKey)
 	defer unlock()
-	if replayed, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
+	if replayed, _, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
 		if err != nil {
 			return SendPromptResult{}, err
 		}
@@ -51,12 +51,6 @@ func (m *Manager) submitAdmittedGoalByTarget(
 		return SendPromptResult{}, err
 	}
 	preparation.request.runtime = target.runtime
-	preparation.request.attachments, err = m.canonicalPromptAttachments(
-		ctx, target.workspaceID, preparation.request.target, preparation.request.attachments,
-	)
-	if err != nil {
-		return SendPromptResult{}, err
-	}
 	admissionReq, err := m.newPromptAdmissionRequest(
 		target.workspaceID,
 		preparation.request,
@@ -68,11 +62,21 @@ func (m *Manager) submitAdmittedGoalByTarget(
 	}
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
-	if replayed, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
+	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)
+	if err != nil || replayed != nil {
 		if err != nil {
 			return SendPromptResult{}, err
 		}
 		return *replayed, nil
+	}
+	if !found {
+		preparation.request.attachments, err = m.canonicalPromptAttachments(
+			ctx, target.workspaceID, preparation.request.target, preparation.request.attachments,
+		)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		admissionReq.Attachments = storeAttachments(preparation.request.attachments)
 	}
 	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime); err != nil {
 		return SendPromptResult{}, err
@@ -89,12 +93,6 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		return SendPromptResult{}, err
 	}
 	preparation.request.runtime = target.runtime
-	preparation.request.attachments, err = m.canonicalPromptAttachments(
-		ctx, target.workspaceID, preparation.request.target, preparation.request.attachments,
-	)
-	if err != nil {
-		return SendPromptResult{}, err
-	}
 	admissionReq, err := m.newPromptAdmissionRequest(
 		target.workspaceID,
 		preparation.request,
@@ -106,11 +104,21 @@ func (m *Manager) submitAdmittedPromptByTarget(
 	}
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
-	if replayed, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
+	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)
+	if err != nil || replayed != nil {
 		if err != nil {
 			return SendPromptResult{}, err
 		}
 		return *replayed, nil
+	}
+	if !found {
+		preparation.request.attachments, err = m.canonicalPromptAttachments(
+			ctx, target.workspaceID, preparation.request.target, preparation.request.attachments,
+		)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		admissionReq.Attachments = storeAttachments(preparation.request.attachments)
 	}
 	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime); err != nil {
 		return SendPromptResult{}, err
@@ -169,17 +177,17 @@ func (m *Manager) resolvePromptAdmissionTarget(
 func (m *Manager) replayPromptAdmission(
 	ctx context.Context,
 	req store.SessionPromptAdmissionRequest,
-) (*SendPromptResult, error) {
+) (*SendPromptResult, bool, error) {
 	admission, found, err := m.promptAdmissionStore.ReplaySessionPromptAdmission(ctx, req)
 	if err != nil || !found || admission.State != store.SessionPromptAdmissionCompleted {
-		return nil, err
+		return nil, found, err
 	}
 	result, err := sendPromptResultFromAdmission(admission)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	result.Replayed = true
-	return &result, nil
+	return &result, true, nil
 }
 
 func (m *Manager) submitAdmittedDirectPrompt(
