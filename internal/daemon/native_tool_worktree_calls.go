@@ -115,7 +115,12 @@ func (n *daemonNativeTools) worktreeRemove(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	refusal, err := n.deps.Worktrees.Remove(ctx, workspaceID, ref, input.Force)
+	item, err := n.deps.Worktrees.Resolve(ctx, workspaceID, ref)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
+	}
+	worktreeID := item.ID
+	refusal, err := n.deps.Worktrees.Remove(ctx, workspaceID, worktreeID, input.Force)
 	if refusal != nil {
 		partial, marshalErr := structuredResult(core.WorktreeRemovalRefusalPayload(*refusal), refusal.Code)
 		if marshalErr != nil {
@@ -126,7 +131,10 @@ func (n *daemonNativeTools) worktreeRemove(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"worktree_id": ref, "state": string(worktree.StateRemoved)}, ref)
+	return structuredResult(
+		map[string]any{"worktree_id": worktreeID, "state": string(worktree.StateRemoved)},
+		worktreeID,
+	)
 }
 
 func (n *daemonNativeTools) nativeWorktreeTarget(

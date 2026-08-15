@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { hashKey, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   buildWorktreeCreatePreview,
@@ -12,6 +13,8 @@ import {
   type WorktreeRefusal,
 } from "../lib/worktree-refusal";
 import type { WorktreePayload, WorktreesResponse } from "../types";
+import { workspaceKeys } from "../lib/query-keys";
+import { worktreeMaterializationFailureOptions } from "../lib/query-options";
 import { useCancelWorktreeCreate, useCreateWorktree } from "./use-worktrees";
 
 export interface WorktreeCreateDraft {
@@ -73,6 +76,7 @@ export interface WorktreeCreateDialogModel {
   cancelCreate: () => void;
   isCancelling: boolean;
   cancelError: string | null;
+  materializationError: string | null;
 }
 
 function fieldForRefusal(refusal: WorktreeRefusal | null): WorktreeCreateFieldError {
@@ -97,11 +101,24 @@ export function useWorktreeCreateDialog(
 ): WorktreeCreateDialogModel {
   const [draft, setDraftState] = useState<WorktreeCreateDraft>(EMPTY_DRAFT);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [pendingWorktree, setPendingWorktree] = useState<WorktreePayload | null>(null);
+  const [pendingWorktree, setPendingWorktree] = useState<WorktreePayload | null>(
+    () => listing?.worktrees.find(worktree => worktree.state === "pending") ?? null
+  );
+  const [acceptedCatalogSeen, setAcceptedCatalogSeen] = useState(() =>
+    Boolean(listing?.worktrees.some(worktree => worktree.state === "pending"))
+  );
+  const completedWorktreeID = useRef<string | null>(null);
+  const completionSubscription = useRef<(() => void) | null>(null);
+  const queryClient = useQueryClient();
   const createMutation = useCreateWorktree(workspaceId);
   const cancelMutation = useCancelWorktreeCreate(workspaceId);
-
   const worktrees = listing?.worktrees ?? [];
+  const catalogPending = worktrees.find(worktree => worktree.state === "pending") ?? null;
+  const trackedPending = pendingWorktree ?? catalogPending;
+  const creationFailure = useQuery(
+    worktreeMaterializationFailureOptions(workspaceId, trackedPending?.id ?? "")
+  );
+
   const parentDir = deriveWorktreeParentDir(worktrees);
 
   const heldBranches = new Map<string, string>();
@@ -126,6 +143,11 @@ export function useWorktreeCreateDialog(
 
   const fieldError = fieldForRefusal(refusal);
 
+  const stopCompletionSubscription = () => {
+    completionSubscription.current?.();
+    completionSubscription.current = null;
+  };
+
   const setDraft = (next: Partial<WorktreeCreateDraft>) => {
     // Editing the field a refusal points at clears it, so the primary unblocks
     // as soon as the user addresses the reason instead of staying dead.
@@ -136,20 +158,67 @@ export function useWorktreeCreateDialog(
   };
 
   const reset = () => {
+    stopCompletionSubscription();
     setDraftState(EMPTY_DRAFT);
     setAdvancedOpen(false);
     setPendingWorktree(null);
+    setAcceptedCatalogSeen(false);
+    completedWorktreeID.current = null;
     createMutation.reset();
     cancelMutation.reset();
   };
 
-  // A pending row that reached `ready` (or left the list) is past the point of
-  // cancellation, so the affordance retires itself rather than lingering.
-  const livePending =
-    pendingWorktree === null
+  useEffect(() => {
+    return () => {
+      completionSubscription.current?.();
+      completionSubscription.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (pendingWorktree || !catalogPending) return;
+    const worktreesQueryHash = hashKey(workspaceKeys.worktrees(workspaceId));
+    const finishFromCatalog = () => {
+      const catalog = queryClient.getQueryData<WorktreesResponse>(
+        workspaceKeys.worktrees(workspaceId)
+      );
+      const authoritative = catalog?.worktrees.find(
+        candidate => candidate.id === catalogPending.id
+      );
+      if (authoritative?.state !== "ready" || completedWorktreeID.current === authoritative.id) {
+        return;
+      }
+      completedWorktreeID.current = authoritative.id;
+      options.onCreated?.(authoritative);
+    };
+    const unsubscribe = queryClient.getQueryCache().subscribe(event => {
+      if (hashKey(event.query.queryKey) === worktreesQueryHash) finishFromCatalog();
+    });
+    finishFromCatalog();
+    return unsubscribe;
+  }, [catalogPending, options.onCreated, pendingWorktree, queryClient, workspaceId]);
+
+  const listedAccepted =
+    trackedPending === null
       ? null
-      : (worktrees.find(worktree => worktree.id === pendingWorktree.id) ?? pendingWorktree);
+      : (worktrees.find(worktree => worktree.id === trackedPending.id) ?? null);
+  const catalogFailure =
+    listedAccepted && listedAccepted.state !== "pending" && listedAccepted.state !== "ready"
+      ? listedAccepted.setup_error?.trim() || "Worktree creation failed and was rolled back."
+      : null;
+  const acceptedRowVanished =
+    trackedPending !== null && listing !== undefined && acceptedCatalogSeen && !listedAccepted;
+  const materializationError =
+    creationFailure.data?.trim() ||
+    catalogFailure ||
+    (acceptedRowVanished ? "Worktree creation failed and was rolled back." : null);
+
+  // Keep cancellation live until the catalog reaches a terminal outcome. The
+  // accepted payload covers the short interval before the first stream refresh.
+  const livePending = materializationError ? null : (listedAccepted ?? trackedPending);
   const cancellablePending = livePending?.state === "pending" ? livePending : null;
+  const materializing =
+    trackedPending !== null && materializationError === null && listedAccepted?.state !== "ready";
 
   return {
     draft,
@@ -162,10 +231,11 @@ export function useWorktreeCreateDialog(
     refusal,
     fieldError,
     heldByWorktree,
-    isSubmitting: createMutation.isPending,
+    isSubmitting: createMutation.isPending || materializing,
     // A standing refusal blocks the primary until the offending field changes.
-    canSubmit: !createMutation.isPending && refusal === null,
+    canSubmit: !createMutation.isPending && !materializing && refusal === null,
     submit: () => {
+      if (createMutation.isPending || materializing) return;
       createMutation.mutate(
         {
           name: effectiveName,
@@ -177,8 +247,56 @@ export function useWorktreeCreateDialog(
           onSuccess: worktree => {
             // 202: the row is durable and materializing. Hold it so Cancel can
             // reach the daemon-side creation by id.
+            completedWorktreeID.current = null;
+            setAcceptedCatalogSeen(false);
             setPendingWorktree(worktree);
-            options.onCreated?.(worktree);
+            stopCompletionSubscription();
+            let catalogSeen = false;
+            const finishFromCatalog = () => {
+              const failure = queryClient.getQueryData<string>(
+                workspaceKeys.worktreeMaterializationFailure(workspaceId, worktree.id)
+              );
+              if (failure?.trim()) {
+                stopCompletionSubscription();
+                return;
+              }
+              const catalog = queryClient.getQueryData<WorktreesResponse>(
+                workspaceKeys.worktrees(workspaceId)
+              );
+              const authoritative = catalog?.worktrees.find(
+                candidate => candidate.id === worktree.id
+              );
+              if (authoritative) {
+                catalogSeen = true;
+                setAcceptedCatalogSeen(true);
+              }
+              if (catalog && catalogSeen && !authoritative) {
+                stopCompletionSubscription();
+                return;
+              }
+              if (
+                authoritative &&
+                authoritative.state !== "pending" &&
+                authoritative.state !== "ready"
+              ) {
+                stopCompletionSubscription();
+                return;
+              }
+              if (
+                authoritative?.state !== "ready" ||
+                completedWorktreeID.current === authoritative.id
+              ) {
+                return;
+              }
+              completedWorktreeID.current = authoritative.id;
+              stopCompletionSubscription();
+              options.onCreated?.(authoritative);
+            };
+            const worktreesQueryHash = hashKey(workspaceKeys.worktrees(workspaceId));
+            completionSubscription.current = queryClient.getQueryCache().subscribe(event => {
+              if (hashKey(event.query.queryKey) === worktreesQueryHash) finishFromCatalog();
+            });
+            finishFromCatalog();
           },
         }
       );
@@ -188,10 +306,15 @@ export function useWorktreeCreateDialog(
     cancelCreate: () => {
       if (!cancellablePending) return;
       cancelMutation.mutate(cancellablePending.id, {
-        onSuccess: () => setPendingWorktree(null),
+        onSuccess: () => {
+          stopCompletionSubscription();
+          setPendingWorktree(null);
+          setAcceptedCatalogSeen(false);
+        },
       });
     },
     isCancelling: cancelMutation.isPending,
     cancelError: cancelMutation.error instanceof Error ? cancelMutation.error.message : null,
+    materializationError,
   };
 }

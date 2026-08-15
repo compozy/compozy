@@ -209,7 +209,7 @@ export const HelpMenuOpen: Story = {
 
 /**
  * VC-15 — workspace menu with the shared nested worktree projection.
- * Compact listing keeps discovered and missing inside the five-row nest.
+ * Every row stays in the nest — discovered and missing included.
  * Play hovers the git-backed parent so the side submenu is capturable.
  */
 export const WorkspaceMenuOpen: Story = {

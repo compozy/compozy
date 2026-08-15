@@ -11,15 +11,6 @@ const STATE_GROUP_ORDER: Record<WorktreeDisplayState, number> = {
   failed: 4,
 };
 
-/** Truncated nests keep the five most recently active rows. */
-export const WORKTREE_NEST_VISIBLE_LIMIT = 5;
-
-export interface TruncatedNest {
-  visible: WorktreeNestEntry[];
-  /** Rows folded behind the overflow row; `0` renders no overflow row. */
-  overflowCount: number;
-}
-
 /** `null` is unknown activity — an unparseable stamp is unknown, never epoch. */
 function activityRank(entry: WorktreeNestEntry): number | null {
   if (entry.activityAt === null) return null;
@@ -48,20 +39,6 @@ export function sortWorktreeNestEntries(
 
     return left.name.localeCompare(right.name);
   });
-}
-
-/**
- * Keeps the most recently active rows in locked order. Callers pass sorted
- * entries; truncation never re-orders.
- */
-export function truncateWorktreeNest(
-  entries: ReadonlyArray<WorktreeNestEntry>,
-  limit: number = WORKTREE_NEST_VISIBLE_LIMIT
-): TruncatedNest {
-  if (entries.length <= limit) {
-    return { visible: [...entries], overflowCount: 0 };
-  }
-  return { visible: entries.slice(0, limit), overflowCount: entries.length - limit };
 }
 
 /**

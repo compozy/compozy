@@ -18,6 +18,7 @@ import {
   emptyWorktreeListingFixture,
   nonGitWorktreeListingFixture,
   worktreeListingFixture,
+  worktreeMissingFixture,
   worktreeReadyDirtyRunningFixture,
 } from "@/systems/workspace/mocks";
 
@@ -45,6 +46,8 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
   const onSelectWorkspace = vi.fn();
   const onSelectWorktree = vi.fn();
   const onCreateWorktree = vi.fn();
+  const onResolveMissingWorktree = vi.fn();
+  const onOpenWorktreeContext = vi.fn();
   const onRemoveWorktree = vi.fn();
   const onOpenWorkspaces = vi.fn();
   render(
@@ -67,6 +70,8 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
           }}
           onSelectWorktree={onSelectWorktree}
           onCreateWorktree={onCreateWorktree}
+          onResolveMissingWorktree={onResolveMissingWorktree}
+          onOpenWorktreeContext={onOpenWorktreeContext}
           onRemoveWorktree={onRemoveWorktree}
           {...overrides}
         />
@@ -78,6 +83,8 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
     onSelectWorkspace,
     onSelectWorktree,
     onCreateWorktree,
+    onResolveMissingWorktree,
+    onOpenWorktreeContext,
     onRemoveWorktree,
     onOpenWorkspaces,
   };
@@ -127,20 +134,36 @@ describe("WorkspaceMenu", () => {
 
     await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
 
-    await screen.findByTestId(`os-worktree-submenu-${gitAlpha.id}`);
+    const submenu = await screen.findByTestId(`os-worktree-submenu-${gitAlpha.id}`);
     const row = screen.getByTestId("os-worktree-option-wt_payments_retry");
     // Nothing is bound yet, so no row is checked.
     expect(row).toHaveAttribute("aria-checked", "false");
-    // 7 adopted records overflow the five-row nest behind the overview row.
-    const overflow = screen.getByTestId(`os-worktree-overflow-${gitAlpha.id}`);
-    expect(overflow).toHaveTextContent("All 7 worktrees");
-    expect(screen.getByTestId(`os-worktree-create-${gitAlpha.id}`)).toBeInTheDocument();
+    // Every worktree of the workspace stays in the list — adopted and
+    // discovered alike — inside the nest's scroll region; long nests scroll
+    // instead of folding rows behind an overflow jump to the overview.
+    const options = within(submenu).getAllByTestId(/^os-worktree-option-/);
+    expect(options).toHaveLength(
+      worktreeListingFixture.worktrees.length + worktreeListingFixture.discovered.length
+    );
+    expect(within(submenu).queryByTestId(/os-worktree-overflow/)).not.toBeInTheDocument();
+    expect(row.closest('[data-slot="scroll-area"]')).not.toBeNull();
+    // The create row stays reachable below the scroll region, never inside it.
+    const create = screen.getByTestId(`os-worktree-create-${gitAlpha.id}`);
+    expect(create.closest('[data-slot="scroll-area"]')).toBeNull();
     // Traversal alone neither selects nor closes.
     expect(onSelectWorkspace).not.toHaveBeenCalled();
     expect(openChangeFlags(onOpenChange)).not.toContain(false);
+    expect(onOpenWorkspaces).not.toHaveBeenCalled();
+  });
 
-    await user.click(overflow);
-    expect(onOpenWorkspaces).toHaveBeenCalledOnce();
+  it("Should contract home-rooted nest paths when the host supplies userHomeDir", async () => {
+    const user = userEvent.setup();
+    renderMenu({ userHomeDir: "/Users/ada" });
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+
+    const row = await screen.findByTestId("os-worktree-option-wt_payments_retry");
+    expect(within(row).getByText("~/.compozy/worktrees/launch-hq/payments-retry")).toBeVisible();
   });
 
   it("Should check the bound worktree, select rows, and close the menu on selection", async () => {
@@ -186,7 +209,7 @@ describe("WorkspaceMenu", () => {
     expect(entry.kind).toBe("discovered");
   });
 
-  it("Should expose Copy path and Remove behind the row actions menu", async () => {
+  it("Should expose Copy path and Remove behind a ready row's actions", async () => {
     const user = userEvent.setup();
     const { onRemoveWorktree } = renderMenu();
 
@@ -206,6 +229,44 @@ describe("WorkspaceMenu", () => {
     const [workspaceId, entry] = onRemoveWorktree.mock.calls[0];
     expect(workspaceId).toBe(gitAlpha.id);
     expect(entry.key).toBe("wt_payments_retry");
+  });
+
+  it("Should expose Context behind a ready row's actions", async () => {
+    const user = userEvent.setup();
+    const { onOpenWorktreeContext } = renderMenu();
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+    await openSubmenuByKeyboard(user, "os-worktree-actions-wt_payments_retry");
+    act(() => screen.getByTestId("os-worktree-context-wt_payments_retry").focus());
+    await user.keyboard("{Enter}");
+
+    expect(onOpenWorktreeContext).toHaveBeenCalledTimes(1);
+    expect(onOpenWorktreeContext.mock.calls[0]?.[0]).toBe(gitAlpha.id);
+    expect(onOpenWorktreeContext.mock.calls[0]?.[1]?.key).toBe("wt_payments_retry");
+  });
+
+  it("Should expose Resolve behind a missing row's actions", async () => {
+    const user = userEvent.setup();
+    const { onResolveMissingWorktree } = renderMenu({
+      worktreesByWorkspace: {
+        [gitAlpha.id]: {
+          ...worktreeListingFixture,
+          worktrees: [worktreeMissingFixture],
+          discovered: [],
+        },
+        [gitBeta.id]: emptyWorktreeListingFixture,
+        [plainNotes.id]: nonGitWorktreeListingFixture,
+      },
+    });
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+    await openSubmenuByKeyboard(user, `os-worktree-actions-${worktreeMissingFixture.id}`);
+    act(() => screen.getByTestId(`os-worktree-resolve-${worktreeMissingFixture.id}`).focus());
+    await user.keyboard("{Enter}");
+
+    expect(onResolveMissingWorktree).toHaveBeenCalledTimes(1);
+    expect(onResolveMissingWorktree.mock.calls[0]?.[0]).toBe(gitAlpha.id);
+    expect(onResolveMissingWorktree.mock.calls[0]?.[1]?.key).toBe(worktreeMissingFixture.id);
   });
 
   it("Should omit Remove from a discovered row's actions", async () => {

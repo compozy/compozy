@@ -22,6 +22,7 @@ vi.mock("../../adapters/worktree-api", async () => {
 
 import { buildWorktreeFixture, worktreeListingFixture } from "../../mocks/worktree-fixtures";
 import { WorktreeApiError } from "../../adapters/worktree-api";
+import { workspaceKeys } from "../../lib/query-keys";
 import { useWorktreeCreateDialog } from "../use-worktree-create-dialog";
 
 const WORKSPACE = "ws_launch_hq";
@@ -32,17 +33,13 @@ const pendingRow = buildWorktreeFixture({
   pending_phase: "branch",
 });
 
-function setup(listing = worktreeListingFixture) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-  return renderHook(
-    () => useWorktreeCreateDialog(WORKSPACE, listing, { generatedName: "steady-heron" }),
-    { wrapper }
-  );
+const createReadyListing = {
+  ...worktreeListingFixture,
+  worktrees: worktreeListingFixture.worktrees.filter(worktree => worktree.state !== "pending"),
+};
+
+function setup(listing = createReadyListing) {
+  return renderCreateDialogHook(() => listing);
 }
 
 describe("useWorktreeCreateDialog", () => {
@@ -118,6 +115,18 @@ describe("useWorktreeCreateDialog", () => {
     await waitFor(() => expect(result.current.pendingWorktree?.id).toBe(pendingRow.id));
   });
 
+  it("Should reject a second submit while the accepted worktree is materializing", async () => {
+    createWorktreeMock.mockResolvedValue(pendingRow);
+    const { result } = setup();
+
+    act(() => result.current.submit());
+    await waitFor(() => expect(result.current.pendingWorktree?.id).toBe(pendingRow.id));
+    expect(result.current.canSubmit).toBe(false);
+
+    act(() => result.current.submit());
+    expect(createWorktreeMock).toHaveBeenCalledOnce();
+  });
+
   it("Should cancel the accepted creation daemon-side by worktree id", async () => {
     createWorktreeMock.mockResolvedValue(pendingRow);
     cancelWorktreeCreateMock.mockResolvedValue(undefined);
@@ -141,13 +150,14 @@ describe("useWorktreeCreateDialog", () => {
     // There is nothing durable to cancel yet, and aborting the in-flight POST
     // would not stop a creation the daemon already accepted.
     expect(result.current.pendingWorktree).toBeNull();
+    expect(result.current.canSubmit).toBe(true);
     act(() => result.current.cancelCreate());
     expect(cancelWorktreeCreateMock).not.toHaveBeenCalled();
   });
 
   it("Should retire the cancel affordance once the row reaches ready", async () => {
     createWorktreeMock.mockResolvedValue(pendingRow);
-    const readyRow = { ...pendingRow, state: "ready" };
+    const readyRow = buildWorktreeFixture({ ...pendingRow, state: "ready" });
     const { result, rerender } = renderHookWithListing(readyRow);
 
     act(() => result.current.submit());
@@ -156,20 +166,241 @@ describe("useWorktreeCreateDialog", () => {
 
     // Past materialization there is nothing left to cancel.
     expect(result.current.pendingWorktree).toBeNull();
+    expect(result.current.canSubmit).toBe(true);
+  });
+
+  it("Should complete exactly once only after the accepted row reaches ready", async () => {
+    createWorktreeMock.mockResolvedValue(pendingRow);
+    const onCreated = vi.fn();
+    let listing: typeof worktreeListingFixture = { ...worktreeListingFixture, worktrees: [] };
+    const { result, rerender, queryClient } = renderHookWithDynamicListing(
+      () => listing,
+      onCreated
+    );
+
+    act(() => result.current.submit());
+
+    await waitFor(() => expect(result.current.pendingWorktree?.id).toBe(pendingRow.id));
+    expect(onCreated).not.toHaveBeenCalled();
+
+    const readyRow = buildWorktreeFixture({ ...pendingRow, state: "ready" });
+    act(() => {
+      listing = { ...listing, worktrees: [readyRow] };
+      queryClient.setQueryData(workspaceKeys.worktrees(WORKSPACE), listing);
+      rerender();
+    });
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(readyRow));
+    expect(onCreated).toHaveBeenCalledOnce();
+    expect(result.current.pendingWorktree).toBeNull();
+
+    rerender();
+    expect(onCreated).toHaveBeenCalledOnce();
+  });
+
+  it("Should treat a ready row with failed setup as completed creation", async () => {
+    createWorktreeMock.mockResolvedValue(pendingRow);
+    const onCreated = vi.fn();
+    let listing: typeof worktreeListingFixture = { ...worktreeListingFixture, worktrees: [] };
+    const { result, rerender, queryClient } = renderHookWithDynamicListing(
+      () => listing,
+      onCreated
+    );
+
+    act(() => result.current.submit());
+    await waitFor(() => expect(result.current.pendingWorktree).not.toBeNull());
+
+    const readyWithSetupFailure = buildWorktreeFixture({
+      ...pendingRow,
+      state: "ready",
+      setup_state: "failed",
+      setup_error: "bootstrap failed",
+    });
+    act(() => {
+      listing = { ...listing, worktrees: [readyWithSetupFailure] };
+      queryClient.setQueryData(workspaceKeys.worktrees(WORKSPACE), listing);
+      rerender();
+    });
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(readyWithSetupFailure));
+    expect(onCreated).toHaveBeenCalledOnce();
+  });
+
+  it("Should surface an asynchronous materialization failure without completing", async () => {
+    createWorktreeMock.mockResolvedValue(pendingRow);
+    const onCreated = vi.fn();
+    let listing: typeof worktreeListingFixture = { ...worktreeListingFixture, worktrees: [] };
+    const { result, rerender, queryClient } = renderHookWithDynamicListing(
+      () => listing,
+      onCreated
+    );
+
+    act(() => result.current.submit());
+    await waitFor(() => expect(result.current.pendingWorktree).not.toBeNull());
+
+    act(() => {
+      queryClient.setQueryData(
+        workspaceKeys.worktreeMaterializationFailure(WORKSPACE, pendingRow.id),
+        "Checkout failed and was rolled back."
+      );
+      listing = { ...listing, worktrees: [] };
+      rerender();
+    });
+
+    await waitFor(() =>
+      expect(result.current.materializationError).toBe("Checkout failed and was rolled back.")
+    );
+    expect(result.current.pendingWorktree).toBeNull();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(result.current.canSubmit).toBe(true);
+  });
+
+  it("Should surface a terminal failed catalog row and allow retry", async () => {
+    createWorktreeMock.mockResolvedValue(pendingRow);
+    const onCreated = vi.fn();
+    let listing: typeof worktreeListingFixture = { ...worktreeListingFixture, worktrees: [] };
+    const { result, rerender, queryClient } = renderHookWithDynamicListing(
+      () => listing,
+      onCreated
+    );
+
+    act(() => result.current.submit());
+    await waitFor(() => expect(result.current.pendingWorktree?.id).toBe(pendingRow.id));
+
+    const failedRow = buildWorktreeFixture({
+      ...pendingRow,
+      state: "failed",
+      setup_error: "Checkout recovery failed.",
+    });
+    act(() => {
+      listing = { ...listing, worktrees: [failedRow] };
+      queryClient.setQueryData(workspaceKeys.worktrees(WORKSPACE), listing);
+      rerender();
+    });
+
+    expect(result.current.materializationError).toBe("Checkout recovery failed.");
+    expect(result.current.isSubmitting).toBe(false);
+    expect(result.current.canSubmit).toBe(true);
+    expect(result.current.pendingWorktree).toBeNull();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it("Should surface failure when an observed accepted row disappears", async () => {
+    createWorktreeMock.mockResolvedValue(pendingRow);
+    const onCreated = vi.fn();
+    let listing: typeof worktreeListingFixture = { ...worktreeListingFixture, worktrees: [] };
+    const { result, rerender, queryClient } = renderHookWithDynamicListing(
+      () => listing,
+      onCreated
+    );
+
+    act(() => result.current.submit());
+    await waitFor(() => expect(result.current.pendingWorktree?.id).toBe(pendingRow.id));
+    act(() => {
+      listing = { ...listing, worktrees: [pendingRow] };
+      queryClient.setQueryData(workspaceKeys.worktrees(WORKSPACE), listing);
+      rerender();
+    });
+    await waitFor(() => expect(result.current.isSubmitting).toBe(true));
+
+    act(() => {
+      listing = { ...listing, worktrees: [] };
+      queryClient.setQueryData(workspaceKeys.worktrees(WORKSPACE), listing);
+      rerender();
+    });
+
+    await waitFor(() =>
+      expect(result.current.materializationError).toBe(
+        "Worktree creation failed and was rolled back."
+      )
+    );
+    expect(result.current.isSubmitting).toBe(false);
+    expect(result.current.canSubmit).toBe(true);
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it("Should block duplicate creation while a reopened dialog observes catalog pending", async () => {
+    const onCreated = vi.fn();
+    let listing: typeof worktreeListingFixture = {
+      ...worktreeListingFixture,
+      worktrees: [pendingRow],
+    };
+    const { result, rerender, queryClient } = renderHookWithDynamicListing(
+      () => listing,
+      onCreated
+    );
+
+    expect(result.current.pendingWorktree?.id).toBe(pendingRow.id);
+    expect(result.current.isSubmitting).toBe(true);
+    expect(result.current.canSubmit).toBe(false);
+    act(() => result.current.submit());
+    expect(createWorktreeMock).not.toHaveBeenCalled();
+
+    const readyRow = buildWorktreeFixture({ ...pendingRow, state: "ready" });
+    act(() => {
+      listing = { ...listing, worktrees: [readyRow] };
+      queryClient.setQueryData(workspaceKeys.worktrees(WORKSPACE), listing);
+      rerender();
+    });
+
+    await waitFor(() => expect(result.current.isSubmitting).toBe(false));
+    expect(result.current.pendingWorktree).toBeNull();
+    expect(result.current.canSubmit).toBe(true);
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it("Should surface rollback when a recovered pending row disappears", async () => {
+    let listing: typeof worktreeListingFixture = {
+      ...worktreeListingFixture,
+      worktrees: [pendingRow],
+    };
+    const { result, rerender, queryClient } = renderHookWithDynamicListing(() => listing, vi.fn());
+
+    act(() => {
+      listing = { ...listing, worktrees: [] };
+      queryClient.setQueryData(workspaceKeys.worktrees(WORKSPACE), listing);
+      rerender();
+    });
+
+    await waitFor(() =>
+      expect(result.current.materializationError).toBe(
+        "Worktree creation failed and was rolled back."
+      )
+    );
+    expect(result.current.canSubmit).toBe(true);
   });
 });
 
 /** Renders with a listing that already carries the row in its final state. */
 function renderHookWithListing(row: ReturnType<typeof buildWorktreeFixture>) {
+  const listing = { ...worktreeListingFixture, worktrees: [row] };
+  return renderCreateDialogHook(() => listing);
+}
+
+function renderHookWithDynamicListing(
+  listing: () => typeof worktreeListingFixture,
+  onCreated: (worktree: ReturnType<typeof buildWorktreeFixture>) => void
+) {
+  return renderCreateDialogHook(listing, onCreated);
+}
+
+function renderCreateDialogHook(
+  listing: () => typeof worktreeListingFixture,
+  onCreated?: (worktree: ReturnType<typeof buildWorktreeFixture>) => void
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  const listing = { ...worktreeListingFixture, worktrees: [row] };
-  return renderHook(
-    () => useWorktreeCreateDialog(WORKSPACE, listing, { generatedName: "steady-heron" }),
+  const hook = renderHook(
+    () =>
+      useWorktreeCreateDialog(WORKSPACE, listing(), {
+        generatedName: "steady-heron",
+        onCreated,
+      }),
     { wrapper }
   );
+  return { ...hook, queryClient };
 }

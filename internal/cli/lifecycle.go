@@ -24,6 +24,7 @@ const (
 	lifecycleMessageValue = "Message"
 	lifecycleStatusValue  = "Status"
 	lifecycleCommandKey   = "command"
+	lifecycleDismissedKey = "dismissed"
 	lifecycleManagedKey   = "managed"
 	lifecycleManagerKey   = "manager"
 	lifecycleMessageKey   = "message"

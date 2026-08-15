@@ -22,7 +22,7 @@ func (s *Service) Status(ctx context.Context, workspaceID, id string, refresh bo
 		return nil, ErrMissing
 	}
 	if !refresh {
-		cached, err := s.store.GetStatus(ctx, workspaceID, id)
+		cached, err := s.store.GetStatus(ctx, workspaceID, item.ID)
 		if err != nil {
 			return nil, fmt.Errorf("worktree: read cached status: %w", err)
 		}

@@ -134,18 +134,29 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 
 		const body = `{"code":"worktree_dirty_requires_force","risk":{"changed_files":2,"insertions":4,"deletions":1,"unpushed_commits":3,"exists_on_remote":false},"downgrade":false}`
 		apiErr := readAPIErrorBody(http.StatusConflict, "409 Conflict", []byte(body))
-		client := withWorkspaceResolution(&stubClient{removeWorktreeFn: func(
-			context.Context,
-			string,
-			string,
-			bool,
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: func(
+			_ context.Context,
+			workspaceID, ref string,
+		) (WorktreeInspectRecord, error) {
+			if workspaceID != "workspace-a" || ref != "feature-a" {
+				t.Fatalf("InspectWorktree() args = %q, %q", workspaceID, ref)
+			}
+			return WorktreeInspectRecord{Worktree: WorktreeRecord{ID: "wt-a", Name: ref}}, nil
+		}, removeWorktreeFn: func(
+			_ context.Context,
+			workspaceID string,
+			ref string,
+			force bool,
 		) error {
+			if workspaceID != "workspace-a" || ref != "wt-a" || force {
+				t.Fatalf("RemoveWorktree() args = %q, %q, %t", workspaceID, ref, force)
+			}
 			return apiErr
 		}})
 		exitCode, _, stderr := executeRootCommandWithExit(
 			t,
 			newWorkspaceTestDeps(t, client),
-			"worktree", "remove", "wt-a", "--workspace", "workspace-a", "-o", "json",
+			"worktree", "remove", "feature-a", "--workspace", "workspace-a", "-o", "json",
 		)
 		if exitCode == 0 {
 			t.Fatal("removal refusal exit code = 0, want non-zero")
@@ -153,6 +164,111 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 		if got := strings.TrimSpace(stderr); got != body {
 			t.Fatalf("removal refusal = %s, want %s", got, body)
 		}
+	})
+}
+
+// Invariant: every CLI mutation resolves a name once, forwards the canonical
+// ID, and reports that same identity. Owning layer: worktree CLI. Canonical suite: this file.
+func TestWorktreeMutationNameReferences(t *testing.T) {
+	t.Parallel()
+
+	inspect := func(t *testing.T, state string) func(context.Context, string, string) (WorktreeInspectRecord, error) {
+		t.Helper()
+		calls := 0
+		t.Cleanup(func() {
+			if calls != 1 {
+				t.Errorf("InspectWorktree() calls = %d, want one", calls)
+			}
+		})
+		return func(_ context.Context, workspaceID, ref string) (WorktreeInspectRecord, error) {
+			calls++
+			if workspaceID != "workspace-a" || ref != "feature-a" {
+				t.Fatalf("InspectWorktree() args = %q, %q", workspaceID, ref)
+			}
+			return WorktreeInspectRecord{Worktree: WorktreeRecord{
+				ID: "wt-a", WorkspaceID: workspaceID, Name: ref, State: state,
+			}}, nil
+		}
+	}
+	assertMutation := func(t *testing.T, stdout, action, state string) {
+		t.Helper()
+		var got struct {
+			Action   string         `json:"action"`
+			Worktree WorktreeRecord `json:"worktree"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("decode mutation output: %v; output=%s", err, stdout)
+		}
+		if got.Action != action || got.Worktree.ID != "wt-a" || got.Worktree.Name != "feature-a" ||
+			got.Worktree.State != state {
+			t.Fatalf("mutation output = %#v, want %s wt-a feature-a %s", got, action, state)
+		}
+	}
+
+	t.Run("Should resolve a name when canceling creation", func(t *testing.T) {
+		t.Parallel()
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "pending"), cancelWorktreeFn: func(
+			_ context.Context,
+			workspaceID string,
+			ref string,
+		) error {
+			if workspaceID != "workspace-a" || ref != "wt-a" {
+				t.Fatalf("CancelWorktreeCreate() args = %q, %q", workspaceID, ref)
+			}
+			return nil
+		}})
+		stdout, _, err := executeRootCommand(
+			t, newWorkspaceTestDeps(t, client),
+			"worktree", "cancel", "feature-a", "--workspace", "workspace-a", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("worktree cancel by name error = %v", err)
+		}
+		assertMutation(t, stdout, "canceled", "pending")
+	})
+
+	t.Run("Should resolve a name when removing a ready worktree", func(t *testing.T) {
+		t.Parallel()
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "ready"), removeWorktreeFn: func(
+			_ context.Context,
+			workspaceID, ref string,
+			force bool,
+		) error {
+			if workspaceID != "workspace-a" || ref != "wt-a" || !force {
+				t.Fatalf("RemoveWorktree() args = %q, %q, %t", workspaceID, ref, force)
+			}
+			return nil
+		}})
+		stdout, _, err := executeRootCommand(
+			t, newWorkspaceTestDeps(t, client),
+			"worktree", "remove", "feature-a", "--force", "--workspace", "workspace-a", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("worktree remove by name error = %v", err)
+		}
+		assertMutation(t, stdout, "removed", "removed")
+	})
+
+	t.Run("Should resolve a name when dismissing a tombstone", func(t *testing.T) {
+		t.Parallel()
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "removed"), dismissWorktreeFn: func(
+			_ context.Context,
+			workspaceID string,
+			ref string,
+		) error {
+			if workspaceID != "workspace-a" || ref != "wt-a" {
+				t.Fatalf("DismissWorktree() args = %q, %q", workspaceID, ref)
+			}
+			return nil
+		}})
+		stdout, _, err := executeRootCommand(
+			t, newWorkspaceTestDeps(t, client),
+			"worktree", "dismiss", "feature-a", "--workspace", "workspace-a", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("worktree dismiss by name error = %v", err)
+		}
+		assertMutation(t, stdout, "dismissed", "dismissed")
 	})
 }
 
@@ -165,7 +281,7 @@ func TestWorktreeExitCommands(t *testing.T) {
 			_ context.Context,
 			workspaceID, ref string,
 		) (WorktreeExitPlanRecord, error) {
-			if workspaceID != "workspace-a" || ref != "wt-a" {
+			if workspaceID != "workspace-a" || ref != "feature-a" {
 				t.Fatalf("GetWorktreeExitPlan() args = %q, %q", workspaceID, ref)
 			}
 			return WorktreeExitPlanRecord{
@@ -180,7 +296,7 @@ func TestWorktreeExitCommands(t *testing.T) {
 		}})
 		stdout, _, err := executeRootCommand(
 			t, newWorkspaceTestDeps(t, client),
-			"worktree", "exit", "wt-a", "--workspace", "workspace-a", "-o", "json",
+			"worktree", "exit", "feature-a", "--workspace", "workspace-a", "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("worktree exit error = %v", err)
@@ -202,17 +318,17 @@ func TestWorktreeExitCommands(t *testing.T) {
 	}{
 		{
 			name: "commit and push flags",
-			args: []string{"commit", "wt-a", "--message", "Ready", "--push"},
+			args: []string{"commit", "feature-a", "--message", "Ready", "--push"},
 			want: WorktreeExitActionRequest{Action: "commit_push", Message: "Ready"},
 		},
 		{
 			name: "push action",
-			args: []string{"push", "wt-a"},
+			args: []string{"push", "feature-a"},
 			want: WorktreeExitActionRequest{Action: "push"},
 		},
 		{
 			name: "pull request flags",
-			args: []string{"pr", "wt-a", "--title", "Exit", "--body", "Ready", "--draft", "--base", "trunk"},
+			args: []string{"pr", "feature-a", "--title", "Exit", "--body", "Ready", "--draft", "--base", "trunk"},
 			want: WorktreeExitActionRequest{
 				Action: "open_pr", Title: "Exit", Body: "Ready", Draft: true, Base: "trunk",
 			},
@@ -226,7 +342,7 @@ func TestWorktreeExitCommands(t *testing.T) {
 				workspaceID, ref string,
 				request WorktreeExitActionRequest,
 			) (WorktreeExitOperationRecord, error) {
-				if workspaceID != "workspace-a" || ref != "wt-a" {
+				if workspaceID != "workspace-a" || ref != "feature-a" {
 					t.Fatalf("RunWorktreeExitAction() args = %q, %q", workspaceID, ref)
 				}
 				got = request
@@ -248,7 +364,15 @@ func TestWorktreeExitCommands(t *testing.T) {
 	t.Run("Should cancel only the named exit operation", func(t *testing.T) {
 		t.Parallel()
 		var gotWorkspace, gotRef, gotOperation string
-		client := withWorkspaceResolution(&stubClient{cancelWorktreeExitFn: func(
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: func(
+			_ context.Context,
+			workspaceID, ref string,
+		) (WorktreeInspectRecord, error) {
+			if workspaceID != "workspace-a" || ref != "feature-a" {
+				t.Fatalf("InspectWorktree() args = %q, %q", workspaceID, ref)
+			}
+			return WorktreeInspectRecord{Worktree: WorktreeRecord{ID: "wt-a", Name: ref}}, nil
+		}, cancelWorktreeExitFn: func(
 			_ context.Context,
 			workspaceID, ref, opID string,
 		) error {
@@ -257,7 +381,7 @@ func TestWorktreeExitCommands(t *testing.T) {
 		}})
 		stdout, _, err := executeRootCommand(
 			t, newWorkspaceTestDeps(t, client),
-			"worktree", "exit-cancel", "wt-a", "--op", " op-exit ",
+			"worktree", "exit-cancel", "feature-a", "--op", " op-exit ",
 			"--workspace", "workspace-a", "-o", "json",
 		)
 		var output struct {

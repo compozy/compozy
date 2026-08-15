@@ -24,6 +24,22 @@ export type WorktreeListingByWorkspace = Readonly<
   Record<string, Pick<WorktreesResponse, "worktrees" | "discovered" | "repo"> | undefined>
 >;
 
+/** How a host renders a workspace's worktree affordance. */
+export type WorktreeNestPresence = "absent" | "create-only" | "list";
+
+/**
+ * The locked absence rules every host shares: non-git → nothing (absent,
+ * never disabled); git-backed with zero worktrees → only the create control.
+ */
+export function worktreeNestPresence(
+  node: Pick<WorkspaceTreeNode<WorkspaceHomeCandidate>, "gitBacked" | "worktrees">,
+  canCreate: boolean
+): WorktreeNestPresence {
+  if (!node.gitBacked) return "absent";
+  if (node.worktrees.length === 0) return canCreate ? "create-only" : "absent";
+  return "list";
+}
+
 /**
  * Single projection behind the switcher, the menubar menu, and the overview, so
  * the three surfaces cannot diverge. The operator-home registration is hidden;

@@ -167,7 +167,6 @@ function DesktopShellScopedBody({
     reducedMotion,
     transition,
     winLayer,
-    workspaceDetails,
   } = useDesktopShellBody(model, {
     firstRun,
     onNewSession: openNewSession,
@@ -222,6 +221,8 @@ function DesktopShellScopedBody({
           }
         }}
         onCreateWorktree={model.openWorktreeCreate}
+        onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
+        onOpenWorktreeContext={worktreeDialogs.requestContext}
         onRemoveWorktree={worktreeDialogs.requestRemove}
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
@@ -331,12 +332,11 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("workspaces", open)}
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
+        scope={model.scope}
         onSelectWorkspace={workspaceId =>
           model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
         }
         onNewWorkspace={model.openWorkspaceSetup}
-        details={workspaceDetails}
-        presentation={pager.presentation}
         reducedMotion={reducedMotion}
         worktreesByWorkspace={model.worktreesByWorkspace}
         userHomeDir={model.userHomeDir}
@@ -349,8 +349,6 @@ function DesktopShellScopedBody({
         }}
         onCreateWorktree={model.openWorktreeCreate}
         onRemoveWorktree={worktreeDialogs.requestRemove}
-        onResolveMissing={worktreeDialogs.requestResolveMissing}
-        onOpenWorktreeContext={worktreeDialogs.requestContext}
       />
       <WorkspaceSetupDialogBoundary
         defaults={workspaceSetupDefaults}

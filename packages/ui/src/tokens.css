@@ -365,6 +365,34 @@
   --width-menu-sub-min: 96px;
   --width-worktree-submenu: 320px;
   --height-worktree-submenu-max: 420px;
+  /* Inert-row reason lane cap: the functional label truncates before it can
+     squeeze the name column out of a 320–340px nest row. */
+  --max-width-worktree-nest-reason: 18ch;
+
+  /* Workspaces overview geometry — one source for the Command-Tab strip,
+     focused tile physics, caption, and subordinate worktree menu. */
+  --breakpoint-shell-wide: 60rem;
+  --width-workspaces-stage: min(1080px, calc(100% - 32px));
+  --width-workspaces-tile: 94px;
+  --width-workspaces-tile-wide: 86px;
+  --width-workspaces-menu: 340px;
+  --max-width-workspaces-menu-max: calc(100vw - 48px);
+  --width-workspaces-edge: 56px;
+  --width-workspaces-edge-wide: 72px;
+  --max-width-workspaces-notice: 42ch;
+  --max-width-workspaces-empty-copy: 28ch;
+  --size-workspaces-well: 56px;
+  --size-workspaces-well-wide: 52px;
+  --height-workspaces-caption: 48px;
+  --height-workspaces-caption-wide: 52px;
+  --flex-basis-workspaces-reserved: clamp(160px, 30vh, 300px);
+  /* Worktree-menu scroll cap, derived from the reserved band: half the
+     leftover viewport below the ~200px stage plus half the band, minus the
+     pinned hints and the sep + New worktree footer. Long nests scroll. */
+  --height-workspaces-menu-max: min(420px, calc(50vh + clamp(80px, 15vh, 150px) - 265px));
+  --spacing-workspaces-tile-gap: 7px;
+  --spacing-workspaces-caption-gap: 3px;
+  --spacing-workspaces-menu-gap: 5px;
 
   /* QR geometry — fixed physical sizes preserve a scanable quiet zone. */
   --size-qr-code-sm: 128px;
@@ -443,6 +471,13 @@
   --shadow-window-unfocused: 0 18px 50px -22px rgba(0, 0, 0, 0.55);
   --shadow-window-head-scrolled: 0 10px 18px -14px rgba(0, 0, 0, 0.55);
   --shadow-dock: 0 18px 50px -18px rgba(0, 0, 0, 0.6);
+  /* Workspaces overview (Command-Tab switcher) shell glass details.
+     The strip shadow is the overlay drop plus the inset top light edge; the
+     plate shadow is the frosted focus plate behind the focused tile; the halo
+     rings the current-workspace pill against the glass. */
+  --shadow-shell-strip: var(--shadow-overlay), var(--shadow-highlight);
+  --shadow-shell-plate: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18);
+  --shadow-shell-current-halo: 0 0 0 2px var(--color-shell-glass-pop);
 
   /* Shell motion tier — chrome-scale spatial transitions (window entry,
      dock magnification, minimize travel) above the base ladder; one spring. */
@@ -452,6 +487,12 @@
   --ease-spring: cubic-bezier(0.32, 0.72, 0.28, 1);
   /* Desktop-switch slide amplitude shared by the os-desk slide keyframes. */
   --distance-desk-slide: 4%;
+  /* Workspaces overview entry geometry shared by the shell keyframes. */
+  --distance-workspaces-stage-entry: 8px;
+  --scale-workspaces-stage-entry: 0.985;
+  --scale-workspaces-tile-press: 0.96;
+  --distance-workspaces-menu-entry: -3px;
+  --distance-workspaces-caption-entry: 3px;
 
   /* Shell chrome geometry. */
   --height-menubar: 44px;
@@ -498,6 +539,13 @@
   --blur-shell: 28px;
   --blur-shell-pop: 32px;
   --blur-shell-scrim: 8px;
+  /* Workspaces overview tiers: strip glass, worktree menu / kebab popover
+     glass, and the frosted focus plate behind the focused tile. */
+  --blur-shell-strip: 34px;
+  --blur-shell-menu: 30px;
+  --blur-shell-plate: 12px;
+  --saturate-shell-glass: 1.25;
+  --saturate-shell-plate: 1.2;
 
   /* Compact (<960px) presentation — os-v2.css mobile block. */
   --height-dock-tabbar: 56px;
@@ -505,11 +553,9 @@
   --size-traffic-light-compact: 15px;
   --size-traffic-light-compact-target: 44px;
 
-  /* Workspace and desktop overview cards. */
-  --width-workspace-card: 264px;
+  /* Desktop overview cards. */
   --height-workspace-thumb: 148px;
-  --spacing-workspaces-subtitle-gap: 22px;
-  --spacing-workspaces-row-gap: 18px;
+  /* Compact canvas faces in Settings layouts. */
   --text-workspace-avatar: 9px;
 
   /* First-run setup panel — window grammar without being a window: identity
@@ -540,6 +586,39 @@
      adapters above; components never consume these directly. */
   --shell-glass: rgba(12, 11, 11, 0.72);
   --shell-glass-pop: rgba(19, 18, 17, 0.94);
+
+  /* Workspaces overview (Command-Tab switcher) gradient stacks — gradient
+     geometry is not a utility scale, so the family stays out of @theme.
+     Consumed via `bg-(image:--shell-…)`. The edge fades dissolve tiles into
+     the strip glass and add a dark "more to scroll" veil on the overflowing
+     side (workspaces.css contract). */
+  --shell-plate-gradient: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.09),
+    rgba(255, 255, 255, 0.035)
+  );
+  --shell-well-gradient: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--color-elevated) 90%, var(--color-fg) 5%),
+    var(--color-elevated)
+  );
+  --shell-edge-veil: rgba(0, 0, 0, 0.28);
+  /* oxfmt-ignore */
+  --shell-edge-fade-start: linear-gradient(90deg, var(--shell-edge-veil) 0%, transparent 55%),
+    linear-gradient(
+      90deg,
+      var(--shell-glass-pop) 0%,
+      color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%,
+      transparent 100%
+    );
+  /* oxfmt-ignore */
+  --shell-edge-fade-end: linear-gradient(270deg, var(--shell-edge-veil) 0%, transparent 55%),
+    linear-gradient(
+      270deg,
+      var(--shell-glass-pop) 0%,
+      color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%,
+      transparent 100%
+    );
 
   /* Scrim blur stays outside @theme: no matching Tailwind namespace. */
   --overlay-blur: 3px;

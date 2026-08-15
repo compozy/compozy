@@ -295,6 +295,17 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			}
 		}
 
+		nameBound := sessionInfoForWorkspaceStateIndexTest(
+			"sess-bound-by-name",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt.Add(4*time.Minute),
+		)
+		nameBound.WorktreeID = "target"
+		if err := globalDB.RegisterSession(ctx, nameBound); !errors.Is(err, worktreepkg.ErrNotFound) {
+			t.Fatalf("RegisterSession(worktree name as ID) error = %v, want ErrNotFound", err)
+		}
+
 		bound := sessionInfoForWorkspaceStateIndexTest(
 			"sess-bound-target",
 			workspaceID,

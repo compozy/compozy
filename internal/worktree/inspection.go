@@ -2,7 +2,6 @@ package worktree
 
 import (
 	"context"
-	"errors"
 	"fmt"
 )
 
@@ -30,12 +29,9 @@ type DetailedListing struct {
 // Inspect returns durable registry and cached derived state. It probes only
 // repository capability; status, discovery, and forge reads remain cached.
 func (s *Service) Inspect(ctx context.Context, workspaceID, ref string) (*Inspection, error) {
-	item, err := s.store.Get(ctx, workspaceID, ref)
-	if errors.Is(err, ErrNotFound) || item == nil {
-		return nil, ErrNotFound
-	}
+	item, err := s.Resolve(ctx, workspaceID, ref)
 	if err != nil {
-		return nil, fmt.Errorf("worktree: inspect registry row: %w", err)
+		return nil, err
 	}
 	workspace, err := s.resolveWorkspace(ctx, workspaceID)
 	if err != nil {

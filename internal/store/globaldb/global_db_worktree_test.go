@@ -485,5 +485,158 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 				sessionWorktreeID, runWorktreeID, item.ID,
 			)
 		}
+
+		t.Run("Should release the dismissed name for recreation", func(t *testing.T) {
+			replacement := item
+			replacement.ID = "wt_history_recreated"
+			replacement.Path = filepath.Join(t.TempDir(), "history-recreated")
+			replacement.State = worktreepkg.StateReady
+			replacement.UpdatedAt = now.Add(time.Minute)
+			if err := globalDB.Worktrees.Insert(ctx, replacement); err != nil {
+				t.Fatalf("Insert(recreated name) error = %v", err)
+			}
+			resolved, err := globalDB.Worktrees.Get(ctx, workspaceID, item.Name)
+			if err != nil || resolved == nil || resolved.ID != replacement.ID {
+				t.Fatalf("Get(recreated name) = %#v, %v, want %q", resolved, err, replacement.ID)
+			}
+			tombstone, err := globalDB.Worktrees.Get(ctx, workspaceID, item.ID)
+			if err != nil || tombstone == nil || tombstone.State != worktreepkg.StateDismissed {
+				t.Fatalf("Get(dismissed id) = %#v, %v, want retained tombstone", tombstone, err)
+			}
+			listed, err := globalDB.Worktrees.List(ctx, workspaceID)
+			if err != nil || len(listed) != 1 || listed[0].ID != replacement.ID {
+				t.Fatalf("List(recreated name) = %#v, %v, want only replacement", listed, err)
+			}
+		})
+	})
+}
+
+// Suite: worktree name-reservation migration.
+// Invariant: v63 preserves dismissed rows and their side-table history while
+// releasing only their names; every non-dismissed row still reserves its name.
+// Owning layer: GlobalDB migration stream. Canonical suite: global_db_worktree_test.go.
+func TestGlobalDBWorktreeNameReservationMigration(t *testing.T) {
+	t.Run("Should preserve dismissed tombstones and release names after migration", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00063_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open v62 GlobalDB error = %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		const workspaceID = "workspace-worktree-name-migration"
+		const otherWorkspaceID = "workspace-worktree-name-migration-other"
+		const dismissedID = "wt-name-migration-dismissed"
+		const otherWorkspaceWorktreeID = "wt-name-migration-other"
+		const reusedName = "reusable-name"
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO workspaces (
+		id, root_dir, add_dirs, name, created_at, updated_at
+	) VALUES (?, ?, '[]', ?, ?, ?)`, workspaceID, t.TempDir(), workspaceID,
+			"2026-08-14T12:00:00Z", "2026-08-14T12:00:00Z"); err != nil {
+			t.Fatalf("seed v62 workspace error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO workspaces (
+		id, root_dir, add_dirs, name, created_at, updated_at
+	) VALUES (?, ?, '[]', ?, ?, ?)`, otherWorkspaceID, t.TempDir(), otherWorkspaceID,
+			"2026-08-14T12:00:00Z", "2026-08-14T12:00:00Z"); err != nil {
+			t.Fatalf("seed v62 other workspace error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO worktrees (
+		id, workspace_id, name, branch, path, state, origin, setup_state, created_at, updated_at
+	) VALUES (?, ?, ?, 'feature/reusable-name', ?, 'dismissed', 'manual', 'none', ?, ?)`,
+			dismissedID, workspaceID, reusedName, filepath.Join(t.TempDir(), reusedName),
+			"2026-08-14T12:01:00Z", "2026-08-14T12:02:00Z"); err != nil {
+			t.Fatalf("seed v62 dismissed worktree error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO worktree_status (
+		worktree_id, dirty_files, read_error
+	) VALUES (?, 3, '')`, dismissedID); err != nil {
+			t.Fatalf("seed v62 worktree status error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO worktrees (
+		id, workspace_id, name, branch, path, state, origin, setup_state, created_at, updated_at
+	) VALUES (?, ?, ?, 'feature/reusable-name', ?, 'ready', 'manual', 'none', ?, ?)`,
+			otherWorkspaceWorktreeID, otherWorkspaceID, reusedName,
+			filepath.Join(t.TempDir(), "other-"+reusedName),
+			"2026-08-14T12:01:00Z", "2026-08-14T12:02:00Z"); err != nil {
+			t.Fatalf("seed v62 other workspace worktree error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("close v62 GlobalDB error = %v", err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("upgrade GlobalDB through v63 error = %v", err)
+		}
+		upgradedClosed := false
+		t.Cleanup(func() {
+			if upgradedClosed {
+				return
+			}
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("close upgraded GlobalDB cleanup error = %v", closeErr)
+			}
+		})
+		tombstone, err := upgraded.Worktrees.Get(ctx, workspaceID, dismissedID)
+		if err != nil || tombstone == nil || tombstone.State != worktreepkg.StateDismissed {
+			t.Fatalf("Get(dismissed id after upgrade) = %#v, %v", tombstone, err)
+		}
+		status, err := upgraded.Worktrees.GetStatus(ctx, workspaceID, dismissedID)
+		if err != nil || status == nil || status.DirtyFiles == nil || *status.DirtyFiles != 3 {
+			t.Fatalf("GetStatus(dismissed id after upgrade) = %#v, %v", status, err)
+		}
+		now := time.Date(2026, 8, 14, 12, 3, 0, 0, time.UTC)
+		replacement := worktreepkg.Worktree{
+			ID: "wt-name-migration-live", WorkspaceID: workspaceID, Name: reusedName,
+			Branch: "feature/reusable-name-v2", Path: filepath.Join(t.TempDir(), reusedName),
+			State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual,
+			SetupState: worktreepkg.SetupNone, CreatedAt: now, UpdatedAt: now,
+		}
+		if err := upgraded.Worktrees.Insert(ctx, replacement); err != nil {
+			t.Fatalf("Insert(reused dismissed name after upgrade) error = %v", err)
+		}
+		resolved, err := upgraded.Worktrees.Get(ctx, workspaceID, reusedName)
+		if err != nil || resolved == nil || resolved.ID != replacement.ID {
+			t.Fatalf("Get(reused name after upgrade) = %#v, %v, want %q", resolved, err, replacement.ID)
+		}
+		otherResolved, err := upgraded.Worktrees.Get(ctx, otherWorkspaceID, reusedName)
+		if err != nil || otherResolved == nil || otherResolved.ID != otherWorkspaceWorktreeID {
+			t.Fatalf(
+				"Get(other workspace reused name) = %#v, %v, want %q",
+				otherResolved,
+				err,
+				otherWorkspaceWorktreeID,
+			)
+		}
+		collision := replacement
+		collision.ID = "wt-name-migration-collision"
+		collision.Path = filepath.Join(t.TempDir(), "collision")
+		if err := upgraded.Worktrees.Insert(ctx, collision); err == nil || !isSQLiteUniqueConstraint(err) {
+			t.Fatalf("Insert(live name collision) error = %v, want SQLite unique constraint", err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("close upgraded GlobalDB error = %v", err)
+		}
+		upgradedClosed = true
+
+		reopened, err := OpenGlobalDB(globalMigrationTestContext(t), path)
+		if err != nil {
+			t.Fatalf("reopen v63 GlobalDB error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("close reopened GlobalDB error = %v", closeErr)
+			}
+		})
+		resolved, err = reopened.Worktrees.Get(globalMigrationTestContext(t), workspaceID, reusedName)
+		if err != nil || resolved == nil || resolved.ID != replacement.ID {
+			t.Fatalf("Get(reused name after reopen) = %#v, %v, want %q", resolved, err, replacement.ID)
+		}
 	})
 }

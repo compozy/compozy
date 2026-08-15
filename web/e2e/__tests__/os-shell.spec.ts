@@ -1030,16 +1030,19 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await appPage.getByTestId("os-menu-workspaces-overview").click();
   const workspaces = appPage.getByTestId("os-workspaces-overview");
   await expect(workspaces).toBeVisible();
+  // Command-Tab strip: tiles are listbox options; current carries the check.
   await expect(
-    workspaces.getByRole("button", {
-      name: new RegExp(`Current workspace ${escapeRegExp(secondWorkspace.name)}`),
+    workspaces.getByRole("option", {
+      name: `${secondWorkspace.name} (current)`,
     })
   ).toBeVisible();
-  await expect(
-    workspaces.getByRole("button", {
-      name: new RegExp(`Switch to ${escapeRegExp(workspace.name)}`),
-    })
-  ).toBeVisible();
+  await expect(workspaces.getByRole("option", { name: workspace.name, exact: true })).toBeVisible();
+  await expect(workspaces.getByTestId("os-workspaces-caption")).toContainText(secondWorkspace.name);
+  await appPage.keyboard.press("Escape");
+  await expect(workspaces).toHaveCount(0);
+  // ⇧⌘W is the registered overlay chord (workspaces.overview).
+  await appPage.keyboard.press("ControlOrMeta+Shift+W");
+  await expect(appPage.getByTestId("os-workspaces-overview")).toBeVisible();
   await appPage.keyboard.press("Escape");
   await appPage.keyboard.press("ControlOrMeta+Shift+S");
   await expect(desktops).toBeVisible();
@@ -1051,6 +1054,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await expect(shortcuts).toBeVisible();
   // Every registry action is listed, bound or not.
   await expect(shortcuts.getByTestId("os-shortcut-row-window.close")).toContainText("⌘W");
+  await expect(shortcuts.getByTestId("os-shortcut-row-workspaces.overview")).toContainText("⌘⇧W");
   await expect(shortcuts.getByTestId("os-shortcut-row-window.tile.top")).toBeVisible();
   await appPage.keyboard.press("Escape");
   await expect(shortcuts).toHaveCount(0);
@@ -3607,15 +3611,14 @@ test("operator sees one nested worktree tree across all three workspace-listing 
     await paletteRow.press("Enter");
     await expect(palette).toHaveCount(0);
 
-    // Surface 3 — the overview nest, same content and same order.
+    // Surface 3 — the overview's vertical worktree menu, always visible for
+    // the focused git-backed workspace: same content and same order.
     await appPage.locator('[data-slot="os-menubar-workspace"]').click();
     await appPage.getByTestId("os-workspace-overview").click();
-    const overviewToggle = appPage.getByTestId(`os-workspace-worktrees-toggle-${workspace.id}`);
-    await expect(overviewToggle).toBeVisible();
-    await overviewToggle.hover();
-    await expect(appPage.getByTestId(`os-worktree-submenu-${workspace.id}`)).toBeVisible();
+    await expect(appPage.getByTestId("os-workspaces-overview")).toBeVisible();
+    await expect(appPage.getByTestId("os-workspaces-worktree-menu")).toBeVisible();
     const overviewRows = await appPage
-      .getByTestId(new RegExp(`^os-worktree-option-`))
+      .getByTestId(new RegExp(`^os-workspaces-worktree-row-`))
       .allTextContents();
     expect(overviewRows.join(" ")).toContain("payments-retry");
     // Both surfaces project the same tree, so their row order matches.

@@ -760,7 +760,7 @@ func TestServiceCreate(t *testing.T) {
 		if err := fixture.store.Insert(context.Background(), pending); err != nil {
 			t.Fatalf("seed pending worktree: %v", err)
 		}
-		if err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, pending.ID); err != nil {
+		if err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, pending.Name); err != nil {
 			t.Fatalf("CancelCreate() error = %v", err)
 		}
 		if _, err := fixture.store.Get(
@@ -805,6 +805,40 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("CancelCreate(cross-workspace) error = %v, want ErrNotFound", err)
 		}
 	})
+
+	for _, tc := range []struct {
+		name         string
+		successReads int
+	}{
+		{name: "on the initial read", successReads: 0},
+		{name: "on the locked reread", successReads: 1},
+	} {
+		t.Run("Should preserve store errors "+tc.name+" during creation cancellation", func(t *testing.T) {
+			t.Parallel()
+			fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+			now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+			pending := Worktree{
+				ID: "wt-pending", WorkspaceID: fixture.workspace.ID, Name: "pending", Branch: "pending",
+				Path: filepath.Join(fixture.worktreesRoot, "pending"), GitDir: fixture.adminGitDir,
+				State: StatePending, PendingPhase: PhaseCheckout, Origin: OriginManual,
+				SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
+			}
+			if err := fixture.store.Insert(context.Background(), pending); err != nil {
+				t.Fatalf("seed pending worktree: %v", err)
+			}
+			storeErr := errors.New("read unavailable")
+			fixture.service.store = &getErrorWorktreeStore{
+				memoryWorktreeStore: fixture.store,
+				err:                 storeErr,
+				successReads:        tc.successReads,
+			}
+
+			err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, pending.Name)
+			if !errors.Is(err, storeErr) || errors.Is(err, ErrNotFound) {
+				t.Fatalf("CancelCreate() error = %v, want wrapped store error", err)
+			}
+		})
+	}
 
 	t.Run(
 		"Should allowlist setup environment and report timeout without exposing unrelated values",

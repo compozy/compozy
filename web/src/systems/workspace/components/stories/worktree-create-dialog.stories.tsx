@@ -57,6 +57,7 @@ function useHarnessModel(overrides: Partial<WorktreeCreateDialogModel>): Worktre
     cancelCreate: fn(),
     isCancelling: false,
     cancelError: null,
+    materializationError: null,
     ...overrides,
   };
 }
@@ -210,6 +211,20 @@ export const SubmittingWithPendingRow: Story = {
         state: "pending",
         pending_phase: "branch",
       })}
+    />
+  ),
+};
+
+/** VC-28 — materialization ended and the preserved draft is ready to retry. */
+export const CreationFailure: Story = {
+  args: {},
+  render: () => (
+    <Harness
+      draft={{ name: "docs-refresh", branch: "", baseRef: "", existingBranch: "" }}
+      materializationError="Checkout creation failed and was rolled back."
+      isSubmitting={false}
+      canSubmit
+      pendingWorktree={null}
     />
   ),
 };

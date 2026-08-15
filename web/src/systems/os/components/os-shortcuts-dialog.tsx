@@ -38,6 +38,7 @@ const SECTIONS = [
   { title: "Window", match: (id: string) => id.startsWith("window.") },
   { title: "Layout", match: (id: string) => id.startsWith("layout.") },
   { title: "Desktops", match: (id: string) => id.startsWith("desktop.") },
+  { title: "Workspaces", match: (id: string) => id.startsWith("workspaces.") },
 ] as const;
 
 /**

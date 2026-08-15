@@ -19,7 +19,7 @@ const colorGroups = {
     "row-hover row-selected surface-glaze bar-fill input-fill btn-default-fill btn-default-hover badge-fill",
 };
 const componentSizeTokenPattern =
-  /^(container|height|min-width|size|space|spacing|width)-|^overlay-blur$/;
+  /^(basis|breakpoint|container|height|min-width|size|space|spacing|width)-|^overlay-blur$/;
 // Matched against every declaration, not just @theme: `--font-weight-display`
 // lives in `:root` (L-023).
 const fontTokenPattern = /^font-/;
@@ -73,8 +73,16 @@ function replaceGeneratedSections(text) {
     ["radii", tokenTable(prefixRows(runtimeTheme, "radius", true))],
     ["component-sizes", tokenTable(namedRows(runtimeDecls, componentSizeTokenPattern))],
     ["shadows", tokenTable(prefixRows(runtimeTheme, "shadow-"))],
-    ["shell-backdrop", tokenTable(namedRows(runtimeDecls, /^(blur-shell|wallpaper-)/))],
-    ["motion", tokenTable(namedRows(runtimeTheme, /^(duration|ease)-/))],
+    [
+      "shell-backdrop",
+      tokenTable(
+        namedRows(
+          runtimeDecls,
+          /^(blur-shell|saturate-shell|shell-(?:plate-gradient|well-gradient|edge-veil|edge-fade-(?:start|end))|wallpaper-)/
+        )
+      ),
+    ],
+    ["motion", tokenTable(namedRows(runtimeTheme, /^(distance|duration|ease|scale)-/))],
     [
       "site-clamps",
       tokenTable(namedRows(siteTheme, /^text-site-|^text-group-label|^leading-doc-body$/)),
@@ -199,8 +207,10 @@ function emitFrontmatter() {
     yamlMap("typography", typographyMap(), 4),
     yamlMap("rounded", radiusMap(), 4),
     "    motion:",
+    yamlMap("distance", namespaceMap(runtimeTheme, "distance"), 6),
     yamlMap("duration", namespaceMap(runtimeTheme, "duration"), 6),
     yamlMap("ease", namespaceMap(runtimeTheme, "ease"), 6),
+    yamlMap("scale", namespaceMap(runtimeTheme, "scale"), 6),
     yamlMap("shadow", namespaceMap(runtimeTheme, "shadow"), 4),
     yamlMap(
       "sizes",

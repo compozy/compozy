@@ -19,6 +19,7 @@ interface WindowManagerActionContext {
   manager: WindowManagerController;
   state: OsDesktopRuntimeStore;
   openDesktops: () => void;
+  openWorkspaces: () => void;
   /** Tab activation and new-tab creation own one URL write each (US-020). */
   activateWindow: (windowId: string) => void;
   openNewTab: (stackTargetWindowId: string | null) => void;
@@ -60,6 +61,7 @@ export function dispatchWindowManagerAction(
   const { manager, state } = context;
   const focusedId = state.focusedId;
   if (actionId === "desktop.overview") return context.openDesktops();
+  if (actionId === "workspaces.overview") return context.openWorkspaces();
   if (actionId === "window.tab.new") {
     context.openNewTab(focusedId);
     return;

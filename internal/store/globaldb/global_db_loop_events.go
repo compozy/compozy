@@ -66,6 +66,7 @@ const (
 	loopRunEventPayloadKeyStatus        = "status"
 	loopRunEventPayloadKeyTaskID        = "task_id"
 	loopRunEventPayloadKeyTaskRunID     = "task_run_id"
+	loopRunEventPayloadKeyTarget        = "target"
 	loopRunEventPayloadKeyTerminal      = "terminal"
 	loopRunEventPayloadKeyText          = "text"
 	loopRunEventPayloadKeyTitle         = "title"

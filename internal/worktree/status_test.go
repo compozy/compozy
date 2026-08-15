@@ -28,7 +28,7 @@ func TestServiceStatus(t *testing.T) {
 		}
 		runner := &recordingGitRunner{}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
-		got, err := service.Status(context.Background(), item.WorkspaceID, item.ID, false)
+		got, err := service.Status(context.Background(), item.WorkspaceID, item.Name, false)
 		if err != nil || got.DirtyFiles == nil || *got.DirtyFiles != dirty || len(runner.invocations()) != 0 {
 			t.Fatalf("Status(cached) = %#v, %v calls=%#v, want cached value", got, err, runner.invocations())
 		}
@@ -67,7 +67,7 @@ func TestServiceStatus(t *testing.T) {
 		}
 	})
 
-	t.Run("Should assemble and persist local and upstream status", func(t *testing.T) {
+	t.Run("Should assemble and persist canonical status after a refreshed name lookup", func(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
 		item := statusTestWorktree()
@@ -92,17 +92,21 @@ func TestServiceStatus(t *testing.T) {
 		service := NewService(
 			store, runner, WithCapabilityGate(readyCapabilityGate()), WithClock(statusTestClock), WithEvents(events),
 		)
-		status, err := service.Status(context.Background(), item.WorkspaceID, item.ID, true)
+		status, err := service.Status(context.Background(), item.WorkspaceID, item.Name, true)
 		if err != nil {
 			t.Fatalf("Status() error = %v", err)
 		}
-		if valueOrZero(status.DirtyFiles) != 3 || valueOrZero(status.Insertions) != 10 ||
-			valueOrZero(status.Deletions) != 2 || status.Ahead == nil || *status.Ahead != 1 ||
-			status.Behind == nil || *status.Behind != 0 || status.HasUpstream == nil || !*status.HasUpstream {
+		metricsMatch := valueOrZero(status.DirtyFiles) == 3 &&
+			valueOrZero(status.Insertions) == 10 &&
+			valueOrZero(status.Deletions) == 2
+		upstreamMatches := status.Ahead != nil && *status.Ahead == 1 &&
+			status.Behind != nil && *status.Behind == 0 &&
+			status.HasUpstream != nil && *status.HasUpstream
+		if status.WorktreeID != item.ID || !metricsMatch || !upstreamMatches {
 			t.Fatalf("Status() = %#v, want 3 files +10 -2 and upstream +1 -0", status)
 		}
 		persisted, err := store.GetStatus(context.Background(), item.WorkspaceID, item.ID)
-		if err != nil || persisted == nil || persisted.RefreshedAt == nil ||
+		if err != nil || persisted == nil || persisted.WorktreeID != item.ID || persisted.RefreshedAt == nil ||
 			!persisted.RefreshedAt.Equal(statusTestClock()) {
 			t.Fatalf("persisted status = %#v, %v, want refreshed timestamp", persisted, err)
 		}
@@ -246,6 +250,42 @@ func TestServiceStatus(t *testing.T) {
 		_, err := service.StatusDetails(context.Background(), item.WorkspaceID, item.ID, false, true)
 		if !errors.Is(err, ErrForgeUnavailable) || errors.Is(err, ErrForge) {
 			t.Fatalf("StatusDetails(forge unavailable) error = %v, want only ErrForgeUnavailable", err)
+		}
+	})
+
+	t.Run("Should report the canonical identity after status lookup by name", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryWorktreeStore()
+		item := statusTestWorktree()
+		if err := store.Insert(context.Background(), item); err != nil {
+			t.Fatalf("seed worktree: %v", err)
+		}
+		if err := store.SaveStatus(context.Background(), item.WorkspaceID, item.ID, Status{
+			WorktreeID: item.ID,
+		}); err != nil {
+			t.Fatalf("seed cached status: %v", err)
+		}
+		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+			if strings.Join(call.args, " ") == "remote get-url --all origin" {
+				return gitResponse{stdout: []byte("https://github.com/acme/repo.git\n")}
+			}
+			return gitResponse{err: errors.New("unexpected Git call")}
+		}}
+		forge := &recordingExitForge{status: &ForgeStatus{WorktreeID: item.ID, Provider: "github"}}
+		service := NewService(
+			store,
+			runner,
+			WithCapabilityGate(readyCapabilityGate()),
+			WithForge(forge),
+		)
+		details, err := service.StatusDetails(
+			context.Background(), item.WorkspaceID, item.Name, false, true,
+		)
+		cachedForge, cacheErr := store.GetForgeStatus(context.Background(), item.WorkspaceID, item.ID)
+		if err != nil || details == nil || details.WorktreeID != item.ID ||
+			forge.lastStatus.WorktreeID != item.ID || cacheErr != nil || cachedForge == nil ||
+			cachedForge.WorktreeID != item.ID {
+			t.Fatalf("StatusDetails(name) = %#v, %v, want canonical id %q", details, err, item.ID)
 		}
 	})
 }

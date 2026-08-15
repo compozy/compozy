@@ -74,10 +74,12 @@ func (h *BaseHandlers) StreamWorktree(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: observer is required"))
 		return
 	}
-	if _, err := h.Worktrees.Inspect(c.Request.Context(), scope.RegistryID, id); err != nil {
+	inspection, err := h.Worktrees.Inspect(c.Request.Context(), scope.RegistryID, id)
+	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
 	}
+	worktreeID := inspection.Worktree.ID
 	afterSequence, err := h.parseWorktreeAfterSequence(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -93,7 +95,7 @@ func (h *BaseHandlers) StreamWorktree(c *gin.Context) {
 		return
 	}
 	query := store.EventSummaryQuery{
-		WorkspaceID: scope.RegistryID, WorktreeID: id, AfterSequence: afterSequence, Limit: worktreeReplayLimit,
+		WorkspaceID: scope.RegistryID, WorktreeID: worktreeID, AfterSequence: afterSequence, Limit: worktreeReplayLimit,
 	}
 	afterSequence, ok = h.replayWorktreeEvents(c, writer, query)
 	if !ok {

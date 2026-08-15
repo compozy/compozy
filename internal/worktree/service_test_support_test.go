@@ -111,7 +111,8 @@ func (s *memoryWorktreeStore) Insert(_ context.Context, item Worktree) error {
 		return errors.New("unique id")
 	}
 	for _, existing := range s.items {
-		if existing.WorkspaceID == item.WorkspaceID && existing.Name == item.Name {
+		if item.State != StateDismissed && existing.State != StateDismissed &&
+			existing.WorkspaceID == item.WorkspaceID && existing.Name == item.Name {
 			return errors.New("unique name")
 		}
 		if existing.Path == item.Path && isLiveWorktreeState(existing.State) {
@@ -129,13 +130,35 @@ func isLiveWorktreeState(state State) bool {
 func (s *memoryWorktreeStore) Get(_ context.Context, workspaceID, ref string) (*Worktree, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if item, ok := s.items[worktreeStoreKey(workspaceID, ref)]; ok {
+		cloned := item
+		return &cloned, nil
+	}
 	for _, item := range s.items {
-		if item.WorkspaceID == workspaceID && (item.ID == ref || item.Name == ref) {
+		if item.WorkspaceID == workspaceID && item.Name == ref && item.State != StateDismissed {
 			cloned := item
 			return &cloned, nil
 		}
 	}
 	return nil, ErrNotFound
+}
+
+type getErrorWorktreeStore struct {
+	*memoryWorktreeStore
+	err          error
+	successReads int
+	mu           sync.Mutex
+}
+
+func (s *getErrorWorktreeStore) Get(ctx context.Context, workspaceID, ref string) (*Worktree, error) {
+	s.mu.Lock()
+	if s.successReads > 0 {
+		s.successReads--
+		s.mu.Unlock()
+		return s.memoryWorktreeStore.Get(ctx, workspaceID, ref)
+	}
+	s.mu.Unlock()
+	return nil, s.err
 }
 
 func (s *memoryWorktreeStore) GetByPath(_ context.Context, workspaceID, path string) (*Worktree, error) {

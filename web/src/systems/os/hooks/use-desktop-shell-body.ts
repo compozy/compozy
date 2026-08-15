@@ -16,7 +16,6 @@ import { useOsReducedMotion } from "./use-os-reduced-motion";
 import { useOsShell } from "./use-os-shell";
 import { useOsShortcuts } from "./use-os-shortcuts";
 import { useOsWinLayer } from "./use-os-win-layer";
-import { useWorkspaceDetails } from "./use-workspace-details";
 
 export interface DesktopShellBodyOptions {
   /** First-run setup owns the shell; the chrome is inert and shortcuts are off. */
@@ -78,7 +77,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       activeDesktopId: state.activeDesktopId,
       desktops: state.desktops,
       compact: state.presentation === "compact",
-      presentation: state.presentation,
       canSwitchDesktop:
         state.client !== null &&
         state.hydration === "live" &&
@@ -86,16 +84,13 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     }),
     shallowEqual
   );
-  const workspaceDetails = useWorkspaceDetails(
-    model.workspaces.map(workspace => workspace.id),
-    { enabled: overlays.activeOverlay === "workspaces" }
-  );
 
   useOsShortcuts(
     {
       onPalette: () => overlays.toggleOverlay("palette"),
       onNewSession: options.onNewSession,
       onDesktops: () => overlays.toggleOverlay("desktops"),
+      onWorkspaces: () => overlays.toggleOverlay("workspaces"),
       onToggleGlobalScope: model.toggleGlobalScope,
       onEscape: () => {
         if (overlays.activeOverlay !== null) return;
@@ -140,6 +135,5 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     reducedMotion,
     transition,
     winLayer,
-    workspaceDetails,
   };
 }

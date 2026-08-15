@@ -60,6 +60,8 @@ export interface DesktopMenubarProps {
   worktreeSelection?: ActiveWorktreeSelection;
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
+  onResolveMissingWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onOpenWorktreeContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
@@ -96,6 +98,8 @@ export function DesktopMenubar({
   worktreeSelection,
   onSelectWorktree,
   onCreateWorktree,
+  onResolveMissingWorktree,
+  onOpenWorktreeContext,
   onRemoveWorktree,
 }: DesktopMenubarProps) {
   const { coordinator } = useOsShell();
@@ -224,6 +228,8 @@ export function DesktopMenubar({
           selectedWorktreeId={globalOn ? null : (worktreeSelection?.selectedWorktreeId ?? null)}
           onSelectWorktree={onSelectWorktree}
           onCreateWorktree={onCreateWorktree}
+          onResolveMissingWorktree={onResolveMissingWorktree}
+          onOpenWorktreeContext={onOpenWorktreeContext}
           onRemoveWorktree={onRemoveWorktree}
         />
       )}

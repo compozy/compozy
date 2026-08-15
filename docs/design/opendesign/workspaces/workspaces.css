@@ -20,8 +20,8 @@
      the quiet New worktree button; non-git → nothing). Same projection
      as S1/S2/S3 (worktree/DESIGN-NOTES.md): state enum ready · pending ·
      discovered · missing · error, adopted-only counts, locked sort,
-     truncate at 5 + "All N worktrees". Never a horizontal strip — the
-     worktrees must not compete with the workspace tiles.
+     every row listed — long menus scroll inside .wsov-mscroll. Never a
+     horizontal strip — worktrees must not compete with workspace tiles.
    ============================================================ */
 
 /* ---- domain tokens (derived from ds-core / ds-shell only) ---- */
@@ -276,6 +276,16 @@
   box-shadow:var(--shadow-overlay),var(--highlight);
   animation:wsov-menu-in .16s var(--ease);
 }
+/* every row stays listed — the rows region scrolls under a cap derived from
+   the reserved band (half leftover below the ~200px stage + half band, minus
+   hints and the pinned sep + New footer); labs render in flow, uncapped */
+.wsov-mscroll{
+  max-height:min(420px, calc(50vh + clamp(80px, 15vh, 150px) - 265px));
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:var(--line-strong) transparent;
+}
+.stage .wsov-mscroll{max-height:none}
 @keyframes wsov-menu-in{from{opacity:0;transform:translateY(-3px)}}
 /* lone create entry — git-backed, zero worktrees */
 .wsov-newbtn{
@@ -389,7 +399,7 @@
 .wsov-actitem--danger svg{color:var(--danger)}
 .wsov-actitem--danger:hover{background:var(--danger-tint)}
 
-/* quiet footer rows — All N worktrees · New worktree */
+/* quiet footer row — New worktree, pinned after the hairline */
 .wsov-msep{height:1px;margin:4px 6px;background:var(--line-soft)}
 .wsov-mrow--foot svg{width:12px;height:12px;color:var(--subtle);justify-self:center}
 .wsov-mrow--foot .wsov-mname b{font-weight:500;font-size:11.5px;color:var(--muted)}

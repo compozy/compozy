@@ -1,16 +1,11 @@
 // Suite: worktree nest ordering
 // Invariant (UT-134, pure half): the locked sort is state group then last-activity descending with
-// unknown last; truncation keeps the most recently active five and exposes every hidden row.
+// unknown last; counts stay adopted-only. Hosts list every row — there is no truncation helper.
 // Owning layer: workspace sort lib. Canonical suite: this lib test.
 import { describe, expect, it } from "vitest";
 
 import type { WorktreeNestEntry } from "../worktree-display";
-import {
-  adoptedWorktreeCount,
-  runningAgentCount,
-  sortWorktreeNestEntries,
-  truncateWorktreeNest,
-} from "../worktree-sort";
+import { adoptedWorktreeCount, runningAgentCount, sortWorktreeNestEntries } from "../worktree-sort";
 
 function entry(overrides: Partial<WorktreeNestEntry> & { key: string }): WorktreeNestEntry {
   return {
@@ -82,52 +77,6 @@ describe("sortWorktreeNestEntries", () => {
 
     expect(forward.map(item => item.key)).toEqual(["alpha", "beta"]);
     expect(reverse.map(item => item.key)).toEqual(["alpha", "beta"]);
-  });
-});
-
-describe("truncateWorktreeNest", () => {
-  it("Should keep the first five and report the overflow remainder", () => {
-    const entries = Array.from({ length: 8 }, (_, index) => entry({ key: `wt-${index}` }));
-
-    const { visible, overflowCount } = truncateWorktreeNest(entries);
-
-    expect(visible).toHaveLength(5);
-    expect(visible.map(item => item.key)).toEqual(["wt-0", "wt-1", "wt-2", "wt-3", "wt-4"]);
-    expect(overflowCount).toBe(3);
-  });
-
-  it("Should render no overflow row when the nest fits", () => {
-    const { visible, overflowCount } = truncateWorktreeNest([entry({ key: "only" })]);
-
-    expect(visible).toHaveLength(1);
-    expect(overflowCount).toBe(0);
-  });
-
-  it("Should expose overflow when hidden rows are discovered entries", () => {
-    const entries = [
-      entry({ key: "adopted-a" }),
-      entry({ key: "adopted-b" }),
-      ...Array.from({ length: 6 }, (_, index) =>
-        entry({ key: `found-${index}`, kind: "discovered", displayState: "discovered" })
-      ),
-    ];
-
-    const { visible, overflowCount } = truncateWorktreeNest(entries);
-
-    expect(visible).toHaveLength(5);
-    expect(overflowCount).toBe(3);
-  });
-
-  it("Should render the overflow row when adopted records overflow the fold", () => {
-    const entries = [
-      ...Array.from({ length: 6 }, (_, index) => entry({ key: `adopted-${index}` })),
-      entry({ key: "found", kind: "discovered", displayState: "discovered" }),
-    ];
-
-    const { visible, overflowCount } = truncateWorktreeNest(entries);
-
-    expect(visible).toHaveLength(5);
-    expect(overflowCount).toBe(2);
   });
 });
 

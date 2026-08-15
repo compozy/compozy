@@ -801,7 +801,7 @@ func TestDaemonWorktreeCLIJourneyE2E003(t *testing.T) {
 
 	var inspected compozycontract.WorktreeInspectionResponse
 	if err := harness.CLI.RunJSONInDir(
-		ctx, root, &inspected, "worktree", "inspect", created.ID,
+		ctx, root, &inspected, "worktree", "inspect", created.Name,
 		"--workspace", harness.WorkspaceID, "-o", "json",
 	); err != nil {
 		t.Fatalf("worktree inspect error = %v", err)
@@ -813,7 +813,7 @@ func TestDaemonWorktreeCLIJourneyE2E003(t *testing.T) {
 
 	var status compozycontract.WorktreeStatusResponse
 	if err := harness.CLI.RunJSONInDir(
-		ctx, root, &status, "worktree", "status", created.ID, "--refresh",
+		ctx, root, &status, "worktree", "status", created.Name, "--refresh",
 		"--workspace", harness.WorkspaceID, "-o", "json",
 	); err != nil {
 		t.Fatalf("worktree status error = %v", err)
@@ -825,11 +825,11 @@ func TestDaemonWorktreeCLIJourneyE2E003(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(ready.Worktree.Path, "dirty.txt"), []byte("dirty\n"), 0o600); err != nil {
 		t.Fatalf("write dirty worktree file: %v", err)
 	}
-	cliRefusal := worktreeE2ECLIRemovalRefusal(t, ctx, harness, root, harness.WorkspaceID, created.ID)
+	cliRefusal := worktreeE2ECLIRemovalRefusal(t, ctx, harness, root, harness.WorkspaceID, created.Name)
 	var apiRefusal compozycontract.WorktreeRemovalRefusalPayload
 	statusCode := loopRuntimeRawJSON(
 		t, ctx, harness.HTTPClient,
-		harness.HTTPURL(worktreeE2EPath(harness.WorkspaceID, created.ID)),
+		harness.HTTPURL(worktreeE2EPath(harness.WorkspaceID, created.Name)),
 		http.MethodDelete, nil, &apiRefusal,
 	)
 	if statusCode != http.StatusConflict || cliRefusal != apiRefusal ||
@@ -850,6 +850,52 @@ func TestDaemonWorktreeCLIJourneyE2E003(t *testing.T) {
 	if removed.Action != "removed" || removed.Worktree.ID != created.ID {
 		t.Fatalf("worktree remove(force) = %#v", removed)
 	}
+
+	var reusable compozycontract.WorktreePayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx, root, &reusable, "worktree", "create", "cli-name-reuse",
+		"--workspace", harness.WorkspaceID, "-o", "json",
+	); err != nil {
+		t.Fatalf("worktree create(name reuse fixture) error = %v", err)
+	}
+	waitForWorktreeE2EState(t, ctx, harness, harness.WorkspaceID, reusable.ID, worktree.StateReady)
+	var removedByName struct {
+		Action   string                          `json:"action"`
+		Worktree compozycontract.WorktreePayload `json:"worktree"`
+	}
+	if err := harness.CLI.RunJSONInDir(
+		ctx, root, &removedByName, "worktree", "remove", reusable.Name,
+		"--workspace", harness.WorkspaceID, "-o", "json",
+	); err != nil {
+		t.Fatalf("worktree remove by name error = %v", err)
+	}
+	if removedByName.Action != "removed" || removedByName.Worktree.ID != reusable.ID {
+		t.Fatalf("worktree remove by name = %#v", removedByName)
+	}
+	var dismissedByName struct {
+		Action   string                          `json:"action"`
+		Worktree compozycontract.WorktreePayload `json:"worktree"`
+	}
+	if err := harness.CLI.RunJSONInDir(
+		ctx, root, &dismissedByName, "worktree", "dismiss", reusable.Name,
+		"--workspace", harness.WorkspaceID, "-o", "json",
+	); err != nil {
+		t.Fatalf("worktree dismiss by name error = %v", err)
+	}
+	if dismissedByName.Action != "dismissed" || dismissedByName.Worktree.ID != reusable.ID {
+		t.Fatalf("worktree dismiss by name = %#v", dismissedByName)
+	}
+	var recreated compozycontract.WorktreePayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx, root, &recreated, "worktree", "create", reusable.Name,
+		"--existing-branch", reusable.Branch, "--workspace", harness.WorkspaceID, "-o", "json",
+	); err != nil {
+		t.Fatalf("worktree recreate dismissed name error = %v", err)
+	}
+	if recreated.ID == reusable.ID || recreated.Name != reusable.Name {
+		t.Fatalf("recreated worktree = %#v, want a new id for %q", recreated, reusable.Name)
+	}
+	waitForWorktreeE2EState(t, ctx, harness, harness.WorkspaceID, recreated.ID, worktree.StateReady)
 
 	_, stderr, err := harness.CLI.RunInDir(
 		ctx, root, "worktree", "inspect", "missing-worktree",
@@ -1071,7 +1117,7 @@ func TestDaemonNativeWorktreeJourneyE2E004(t *testing.T) {
 	removeResult := callApprovalToolWithDecision(
 		t, ctx, harness, session.ID, client,
 		toolspkg.ToolIDWorktreeRemove, "worktree-remove-approved",
-		map[string]any{"workspace": harness.WorkspaceID, "ref": created.Worktree.ID},
+		map[string]any{"workspace": harness.WorkspaceID, "ref": created.Worktree.Name},
 		"allow-once",
 	)
 	var refusal compozycontract.WorktreeRemovalRefusalPayload
@@ -1081,7 +1127,7 @@ func TestDaemonNativeWorktreeJourneyE2E004(t *testing.T) {
 		t.Fatalf("native worktree removal refusal = %#v / %#v", removeResult, refusal)
 	}
 	cliRefusal := worktreeE2ECLIRemovalRefusal(
-		t, ctx, harness, root, workspaceID, created.Worktree.ID,
+		t, ctx, harness, root, workspaceID, created.Worktree.Name,
 	)
 	if refusal != cliRefusal {
 		t.Fatalf("native/CLI removal refusal = %#v / %#v, want byte-equivalent payloads", refusal, cliRefusal)
@@ -1408,11 +1454,11 @@ func worktreeE2ECLIRemovalRefusal(
 	harness *e2etest.RuntimeHarness,
 	root string,
 	workspaceID string,
-	worktreeID string,
+	worktreeRef string,
 ) compozycontract.WorktreeRemovalRefusalPayload {
 	t.Helper()
 	stdout, stderr, err := harness.CLI.RunInDir(
-		ctx, root, "worktree", "remove", worktreeID,
+		ctx, root, "worktree", "remove", worktreeRef,
 		"--workspace", workspaceID, "-o", "json",
 	)
 	if err == nil || strings.TrimSpace(stdout) != "" {
@@ -1459,8 +1505,8 @@ func waitForWorktreeE2EState(
 	}
 }
 
-func worktreeE2EPath(workspaceID string, worktreeID string) string {
-	return "/api/workspaces/" + url.PathEscape(workspaceID) + "/worktrees/" + url.PathEscape(worktreeID)
+func worktreeE2EPath(workspaceID string, worktreeRef string) string {
+	return "/api/workspaces/" + url.PathEscape(workspaceID) + "/worktrees/" + url.PathEscape(worktreeRef)
 }
 
 func assertWorktreeE2EListIsolation(

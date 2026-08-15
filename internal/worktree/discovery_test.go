@@ -42,6 +42,21 @@ func TestServiceDiscovery(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve registry lookup failures", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDiscoveryTestFixture(t)
+		storeErr := errors.New("store unavailable")
+		fixture.service.store = &getErrorWorktreeStore{
+			memoryWorktreeStore: fixture.store,
+			err:                 storeErr,
+		}
+
+		item, err := fixture.service.Resolve(context.Background(), fixture.workspace.ID, "feature")
+		if !errors.Is(err, storeErr) || errors.Is(err, ErrNotFound) || item != nil {
+			t.Fatalf("Resolve(store failure) = %#v, %v, want wrapped store error", item, err)
+		}
+	})
+
 	t.Run("Should merge Git-known entries without duplicating registered canonical paths", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDiscoveryTestFixture(t)

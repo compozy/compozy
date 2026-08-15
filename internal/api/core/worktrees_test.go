@@ -122,6 +122,10 @@ func (s worktreeServiceStub) ListDetails(context.Context, string, bool) (*worktr
 	return nil, fmt.Errorf("unexpected ListDetails call")
 }
 
+func (s worktreeServiceStub) Resolve(context.Context, string, string) (*worktree.Worktree, error) {
+	return nil, fmt.Errorf("unexpected Resolve call")
+}
+
 func (s worktreeServiceStub) Inspect(
 	ctx context.Context,
 	workspaceID string,
@@ -817,7 +821,7 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 func TestWorktreeStreams(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should replay durable worktree events in order after the requested sequence", func(t *testing.T) {
+	t.Run("Should replay canonical worktree events by name in order after the requested sequence", func(t *testing.T) {
 		t.Parallel()
 
 		events := []store.EventSummary{
@@ -860,10 +864,13 @@ func TestWorktreeStreams(t *testing.T) {
 				Worktrees: worktreeServiceStub{inspect: func(
 					_ context.Context,
 					workspaceID string,
-					worktreeID string,
+					worktreeRef string,
 				) (*worktree.Inspection, error) {
+					if worktreeRef != "parity" {
+						t.Fatalf("Inspect() ref = %q, want name parity", worktreeRef)
+					}
 					return &worktree.Inspection{Worktree: worktree.Worktree{
-						ID: worktreeID, WorkspaceID: workspaceID,
+						ID: "wt-a", WorkspaceID: workspaceID,
 					}}, nil
 				}},
 			}
@@ -872,7 +879,7 @@ func TestWorktreeStreams(t *testing.T) {
 			request := httptest.NewRequestWithContext(
 				requestContext,
 				http.MethodGet,
-				fmt.Sprintf("/workspaces/workspace-a/worktrees/wt-a/stream?after_sequence=%d", afterSequence),
+				fmt.Sprintf("/workspaces/workspace-a/worktrees/parity/stream?after_sequence=%d", afterSequence),
 				http.NoBody,
 			)
 			response := httptest.NewRecorder()

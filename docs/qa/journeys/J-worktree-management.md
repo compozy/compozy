@@ -29,7 +29,10 @@ flowchart TD
     P -->|dirty or unique commits| R[Read quantified refusal and choose exit or force]
     R -->|return to exit| L
     R -->|explicit force| Q
-    Q --> S[True end: checkout gone, branch and records retained]
+    Q --> S{Keep the retained record?}
+    S -->|yes| T[True end: checkout gone, branch and records retained]
+    S -->|dismiss| U[Dismiss record and release its name]
+    U --> V[True end: new worktree may reuse the name after choosing the retained branch or a new branch; old history remains readable by ID]
     C -.->|failure or cancel| X2[Abandon: pending artifacts roll back and no session starts]
     J -.->|checkout disappears| X3[Recover: mark missing, preserve history, refuse resume without root fallback]
 ```
@@ -69,12 +72,12 @@ journey:
       verb: "Remove the checkout through the safety boundary"
       expected_observable: "Clean removal confirms once; dirty or unique work refuses with quantified risk before a distinct force decision; the branch, session history, task history, and events remain readable."
     - step: 7
-      verb: "Resume or recover after the checkout remains ready, is removed, or disappears"
-      expected_observable: "A ready checkout resumes in place; removed or missing state never falls back to root, never cascades history, and accepts restoration only for the recorded Git identity."
+      verb: "Resume, recover, or dismiss after the checkout remains ready, is removed, or disappears"
+      expected_observable: "A ready checkout resumes in place; removed or missing state never falls back to root or cascades history; restoration accepts only the recorded Git identity; dismissal releases the name while the old record stays readable by ID."
   goal:
     observable: "The isolated work reaches a safe exit and removal state while every durable record stays anchored to the parent workspace."
     side_effects: [worktree-created-or-adopted, session-bound, changes-published, checkout-removed, branch-preserved, history-persisted]
-  true_end_state: "The checkout is safely removed or intentionally retained, its branch and durable records remain inspectable, and no resume, stream, cache, or agent surface can escape the original workspace and worktree boundary."
+  true_end_state: "The checkout is safely removed or intentionally retained, its branch and durable records remain inspectable by ID, a dismissed name can be reused after choosing the retained branch or a new branch, and no resume, stream, cache, or agent surface can escape the original workspace and worktree boundary."
   exit:
     natural: "The operator removes the checkout after exit evidence is safe, or keeps it with a truthful blocker and a clear next action."
   abandonment:

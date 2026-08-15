@@ -30,6 +30,11 @@ export interface WorktreeNestEntry {
   discovered: DiscoveredWorktreePayload | null;
 }
 
+/** Removal is available only for an adopted worktree whose checkout is ready. */
+export function canRemoveWorktree(entry: WorktreeNestEntry): boolean {
+  return entry.worktree !== null && entry.displayState === "ready";
+}
+
 /**
  * Maps the wire's lifecycle `state` onto the presentational vocabulary.
  * `error` is the presentation of a status read failure, which the wire keeps

@@ -204,20 +204,20 @@ func (q *Queries) GetLiveWorktreeByPath(ctx context.Context, arg GetLiveWorktree
 	return i, err
 }
 
-const getWorktree = `-- name: GetWorktree :one
+const getWorktreeByID = `-- name: GetWorktreeByID :one
 SELECT id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
 WHERE workspace_id = ?1
-  AND (id = ?2 OR name = ?2)
+  AND id = ?2
 LIMIT 1
 `
 
-type GetWorktreeParams struct {
+type GetWorktreeByIDParams struct {
 	WorkspaceID string `json:"workspace_id"`
-	Ref         string `json:"ref"`
+	WorktreeID  string `json:"worktree_id"`
 }
 
-func (q *Queries) GetWorktree(ctx context.Context, arg GetWorktreeParams) (Worktree, error) {
-	row := q.db.QueryRowContext(ctx, getWorktree, arg.WorkspaceID, arg.Ref)
+func (q *Queries) GetWorktreeByID(ctx context.Context, arg GetWorktreeByIDParams) (Worktree, error) {
+	row := q.db.QueryRowContext(ctx, getWorktreeByID, arg.WorkspaceID, arg.WorktreeID)
 	var i Worktree
 	err := row.Scan(
 		&i.ID,
@@ -242,20 +242,21 @@ func (q *Queries) GetWorktree(ctx context.Context, arg GetWorktreeParams) (Workt
 	return i, err
 }
 
-const getWorktreeByID = `-- name: GetWorktreeByID :one
+const getWorktreeByName = `-- name: GetWorktreeByName :one
 SELECT id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
 WHERE workspace_id = ?1
-  AND id = ?2
+  AND name = ?2
+  AND state <> 'dismissed'
 LIMIT 1
 `
 
-type GetWorktreeByIDParams struct {
+type GetWorktreeByNameParams struct {
 	WorkspaceID string `json:"workspace_id"`
-	WorktreeID  string `json:"worktree_id"`
+	Name        string `json:"name"`
 }
 
-func (q *Queries) GetWorktreeByID(ctx context.Context, arg GetWorktreeByIDParams) (Worktree, error) {
-	row := q.db.QueryRowContext(ctx, getWorktreeByID, arg.WorkspaceID, arg.WorktreeID)
+func (q *Queries) GetWorktreeByName(ctx context.Context, arg GetWorktreeByNameParams) (Worktree, error) {
+	row := q.db.QueryRowContext(ctx, getWorktreeByName, arg.WorkspaceID, arg.Name)
 	var i Worktree
 	err := row.Scan(
 		&i.ID,

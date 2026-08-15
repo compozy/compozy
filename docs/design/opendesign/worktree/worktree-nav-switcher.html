@@ -451,10 +451,10 @@
     <!-- ════ 07 · MANY WORKTREES ════ -->
     <section class="lab-sec" data-od-id="s1-many">
       <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Many worktrees</h2>
-        <span class="lab-sec__gist">panel truncates at five · overflow opens the overview</span></div>
+        <span class="lab-sec__gist">every row stays in the panel · long lists scroll</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Collapse treatment</b>Past five entries the panel shows the five most recently active and one quiet "All 7 worktrees" row (opens the workspace overview). Counts count adopted only — discovered never enters the number.</div>
+        <div class="spec__note"><b>Scroll treatment</b>Every worktree stays in the panel in locked order; past the host cap (420px) the rows region scrolls — no row folds behind an overflow jump. Counts count adopted only — discovered never enters the number.</div>
         <div class="spec__demo">
           <div class="wt-fly" data-wt-static data-od-id="cs-many-fly">
             <div class="cs-pop" style="width:300px">
@@ -526,10 +526,27 @@
                 </div>
                 <button class="wt-more" aria-label="Actions for fix-flaky-e2e"><svg data-lucide="ellipsis"></svg></button>
               </div>
-              <!-- gating: adoptedCount > 5 → overflow row opens S3 overview; count = adopted only -->
-              <a class="wt-sub-foot" href="worktree-overview.html" data-od-id="cs-all-worktrees">
-                <svg data-lucide="ellipsis"></svg>All 7 worktrees
-              </a>
+              <div class="wt-sub-row">
+                <div class="wt-row">
+                  <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                  <span class="wt-row__main">
+                    <span class="wt-row__name"><b>ledger-export</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/ledger-export</span></span>
+                  </span>
+                  </div>
+                <button class="wt-more" aria-label="Actions for ledger-export"><svg data-lucide="ellipsis"></svg></button>
+              </div>
+              <div class="wt-sub-row">
+                <div class="wt-row">
+                  <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                  <span class="wt-row__main">
+                    <span class="wt-row__name"><b>webhook-retry</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/webhook-retry</span></span>
+                  </span>
+                  </div>
+                <button class="wt-more" aria-label="Actions for webhook-retry"><svg data-lucide="ellipsis"></svg></button>
+              </div>
+              <!-- gating: every adopted + discovered row renders; the panel scrolls past its cap -->
               <div class="wt-sub-sep"></div>
               <a class="wt-sub-foot" href="worktree-create-dialog.html">
                 <svg data-lucide="plus"></svg>New worktree

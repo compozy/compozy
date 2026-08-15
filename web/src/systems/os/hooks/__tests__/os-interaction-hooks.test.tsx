@@ -2,7 +2,13 @@
 // Invariant: OS hooks translate keyboard, pointer, and viewport changes into current shell actions and geometry.
 // Owning layer: the browser-to-OS-hook interaction boundary.
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
-import { type ReactNode, useEffect, useLayoutEffect } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import type { Rnd } from "react-rnd";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -32,6 +38,7 @@ import {
 } from "../use-window-live-data-enabled";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
+import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
 import { windowManagerStore } from "../../stores/window-manager-store";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 
@@ -335,6 +342,127 @@ describe("useAnimationFrameLatest", () => {
     rerender({ callbackVersion: 2, flushBeforePassive: true });
 
     expect(calls).toEqual(["2:drag"]);
+  });
+});
+
+describe("useWorkspacesStripScroll", () => {
+  it("Should bind wheel scrubbing when strip elements arrive after the first render", () => {
+    vi.useFakeTimers();
+    const overlayRef: RefObject<HTMLElement | null> = { current: null };
+    const onSettleFocus = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ itemCount }) =>
+        useWorkspacesStripScroll({
+          overlayRef,
+          reducedMotion: true,
+          itemCount,
+          onSettleFocus,
+        }),
+      { initialProps: { itemCount: 0 } }
+    );
+    const overlay = document.createElement("div");
+    const track = document.createElement("div");
+    Object.defineProperties(track, {
+      clientWidth: { configurable: true, value: 100 },
+      scrollWidth: { configurable: true, value: 400 },
+    });
+    overlay.append(track);
+    overlayRef.current = overlay;
+    result.current.trackRef.current = track;
+
+    rerender({ itemCount: 1 });
+    act(() => result.current.trackProps.onScroll());
+    const wheel = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 30 });
+    act(() => overlay.dispatchEvent(wheel));
+
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(track.scrollLeft).toBe(30);
+  });
+
+  it("Should settle wheel scrubbing that interrupts focus scrolling", () => {
+    vi.useFakeTimers();
+    const overlay = document.createElement("div");
+    const overlayRef: RefObject<HTMLElement | null> = { current: overlay };
+    const onSettleFocus = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ itemCount }) =>
+        useWorkspacesStripScroll({
+          overlayRef,
+          reducedMotion: false,
+          itemCount,
+          onSettleFocus,
+        }),
+      { initialProps: { itemCount: 0 } }
+    );
+    const track = document.createElement("div");
+    const tile = document.createElement("button");
+    tile.dataset.slot = "os-workspace-tile";
+    track.append(tile);
+    overlay.append(track);
+    Object.defineProperties(track, {
+      clientWidth: { configurable: true, value: 100 },
+      scrollWidth: { configurable: true, value: 300 },
+    });
+    track.getBoundingClientRect = () => new DOMRect(0, 0, 100, 40);
+    tile.getBoundingClientRect = () => new DOMRect(120, 0, 40, 40);
+    track.scrollTo = vi.fn(options => {
+      track.scrollLeft = typeof options === "number" ? options : (options.left ?? 0);
+    });
+    result.current.trackRef.current = track;
+
+    rerender({ itemCount: 1 });
+    act(() => result.current.trackProps.onScroll());
+    onSettleFocus.mockClear();
+    vi.clearAllTimers();
+    act(() => result.current.keepInView(tile));
+    const wheel = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 30 });
+    act(() => overlay.dispatchEvent(wheel));
+    act(() => vi.advanceTimersByTime(90));
+
+    expect(onSettleFocus).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it("Should settle a completed drag once and swallow its trailing click", () => {
+    const overlay = document.createElement("div");
+    const overlayRef: RefObject<HTMLElement | null> = { current: overlay };
+    const onSettleFocus = vi.fn();
+    const { result } = renderHook(() =>
+      useWorkspacesStripScroll({
+        overlayRef,
+        reducedMotion: true,
+        itemCount: 2,
+        onSettleFocus,
+      })
+    );
+    const track = document.createElement("div");
+    track.setPointerCapture = vi.fn();
+    track.getBoundingClientRect = () => new DOMRect(0, 0, 200, 50);
+    for (const left of [0, 120]) {
+      const tile = document.createElement("button");
+      tile.dataset.slot = "os-workspace-tile";
+      tile.getBoundingClientRect = () => new DOMRect(left, 0, 80, 40);
+      track.append(tile);
+    }
+    result.current.trackRef.current = track;
+
+    act(() => {
+      result.current.trackProps.onPointerDown({
+        button: 0,
+        pointerId: 7,
+        clientX: 100,
+      } as ReactPointerEvent<HTMLDivElement>);
+      result.current.trackProps.onPointerMove({
+        pointerId: 7,
+        clientX: 70,
+      } as ReactPointerEvent<HTMLDivElement>);
+      result.current.trackProps.onPointerUp({
+        pointerId: 7,
+      } as ReactPointerEvent<HTMLDivElement>);
+    });
+
+    expect(onSettleFocus).toHaveBeenCalledExactlyOnceWith(0);
+    expect(result.current.consumeDragClick()).toBe(true);
+    expect(result.current.consumeDragClick()).toBe(false);
   });
 });
 
@@ -967,6 +1095,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -987,6 +1116,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1002,12 +1132,34 @@ describe("useOsShortcuts", () => {
     input.remove();
   });
 
+  it("Should open the workspaces overview on ⇧⌘W through the action registry", () => {
+    const shell = createShell();
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
+      onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
+    };
+    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+
+    fireEvent.keyDown(document, { key: "w", code: "KeyW", metaKey: true, shiftKey: true });
+
+    expect(handlers.onWorkspaces).toHaveBeenCalledOnce();
+    expect(shell.controller.closeWindow).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(document, { key: "w", code: "KeyW", metaKey: true });
+    expect(shell.controller.closeWindow).toHaveBeenCalledExactlyOnceWith("window:primary");
+  });
+
   it("Should leave a prevented Escape to the nested control", () => {
     const { wrapper } = createShell({ live: false });
     const handlers: OsShortcutHandlers = {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1032,6 +1184,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1062,6 +1215,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1089,6 +1243,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1157,6 +1312,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1183,6 +1339,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1208,6 +1365,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };

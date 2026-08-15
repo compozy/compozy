@@ -363,9 +363,9 @@ func sessionWorktreeAvailabilityError(
 	if worktreeID == "" {
 		return nil
 	}
-	row, err := queries.GetWorktree(ctx, sqlcgen.GetWorktreeParams{
+	row, err := queries.GetWorktreeByID(ctx, sqlcgen.GetWorktreeByIDParams{
 		WorkspaceID: strings.TrimSpace(session.WorkspaceID),
-		Ref:         worktreeID,
+		WorktreeID:  worktreeID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return worktree.ErrNotFound

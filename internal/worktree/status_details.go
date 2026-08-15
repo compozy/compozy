@@ -9,6 +9,7 @@ import (
 )
 
 type StatusDetails struct {
+	WorktreeID  string
 	Status      *Status
 	ForgeStatus *ForgeStatus
 }
@@ -20,10 +21,6 @@ func (s *Service) StatusDetails(
 	refresh bool,
 	refreshForge bool,
 ) (*StatusDetails, error) {
-	status, err := s.Status(ctx, workspaceID, id, refresh)
-	if err != nil {
-		return nil, err
-	}
 	item, err := s.store.Get(ctx, workspaceID, id)
 	if err != nil || item == nil {
 		if err == nil {
@@ -31,12 +28,16 @@ func (s *Service) StatusDetails(
 		}
 		return nil, err
 	}
-	forgeStatus, err := s.store.GetForgeStatus(ctx, workspaceID, id)
+	status, err := s.Status(ctx, workspaceID, item.ID, refresh)
+	if err != nil {
+		return nil, err
+	}
+	forgeStatus, err := s.store.GetForgeStatus(ctx, workspaceID, item.ID)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read cached forge status: %w", err)
 	}
 	if !refreshForge {
-		return &StatusDetails{Status: status, ForgeStatus: forgeStatus}, nil
+		return &StatusDetails{WorktreeID: item.ID, Status: status, ForgeStatus: forgeStatus}, nil
 	}
 	if s.forge == nil {
 		return nil, ErrForgeUnavailable
@@ -50,7 +51,7 @@ func (s *Service) StatusDetails(
 	}
 	forgeStatus, err = s.forge.Status(ctx, ForgeStatusRequest{
 		WorkspaceID: workspaceID,
-		WorktreeID:  id,
+		WorktreeID:  item.ID,
 		RemoteURLs:  remoteURLs,
 		Branch:      item.Branch,
 	})
@@ -71,8 +72,8 @@ func (s *Service) StatusDetails(
 			return nil, fmt.Errorf("%w: provider returned an invalid pull request URL", ErrForge)
 		}
 	}
-	if err := s.store.SaveForgeStatus(ctx, workspaceID, id, *forgeStatus); err != nil {
+	if err := s.store.SaveForgeStatus(ctx, workspaceID, item.ID, *forgeStatus); err != nil {
 		return nil, fmt.Errorf("worktree: persist forge status: %w", err)
 	}
-	return &StatusDetails{Status: status, ForgeStatus: forgeStatus}, nil
+	return &StatusDetails{WorktreeID: item.ID, Status: status, ForgeStatus: forgeStatus}, nil
 }

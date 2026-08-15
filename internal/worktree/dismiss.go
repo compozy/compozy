@@ -20,7 +20,7 @@ func (s *Service) Dismiss(ctx context.Context, workspaceID, id string) error {
 		return ErrNotReady
 	}
 	swapped, err := s.store.CompareAndSwapState(
-		ctx, workspaceID, id, item.State, StateDismissed, s.now().UTC(),
+		ctx, workspaceID, item.ID, item.State, StateDismissed, s.now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("worktree: dismiss tombstone: %w", err)

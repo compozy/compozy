@@ -17,6 +17,7 @@ import {
   groupWorkspaceTree,
   WorktreeAggregate,
   WorktreeSubmenuPanel,
+  worktreeNestPresence,
   WORKTREE_SUBMENU_FRAME_CLASS,
   type WorkspacePayload,
   type WorktreeListingByWorkspace,
@@ -42,6 +43,8 @@ export interface WorkspaceMenuProps {
   selectedWorktreeId?: string | null;
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
+  onResolveMissingWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onOpenWorktreeContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   /** Opens the remove dialog for an adopted worktree (row actions menu). */
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
@@ -84,6 +87,8 @@ export function WorkspaceMenu({
   selectedWorktreeId,
   onSelectWorktree,
   onCreateWorktree,
+  onResolveMissingWorktree,
+  onOpenWorktreeContext,
   onRemoveWorktree,
 }: WorkspaceMenuProps) {
   const notice = deletionNotice ?? (globalScopeOn ? GLOBAL_SCOPE_COPY.menuNotice : null);
@@ -110,8 +115,9 @@ export function WorkspaceMenu({
         ) : null}
         {orderedWorkspaces.map(workspace => {
           const node = nodeByWorkspaceId.get(workspace.id);
-          // A non-git workspace gets no worktree affordance — absent, never disabled.
-          const gitBacked = Boolean(node?.gitBacked);
+          // Shared absence rule: a non-git workspace gets no worktree
+          // affordance — absent, never disabled.
+          const presence = node ? worktreeNestPresence(node, Boolean(onCreateWorktree)) : "absent";
           const isActive = !globalScopeOn && workspace.id === activeWorkspaceId;
           const rowLabel = (
             <WorkspaceRowLabel
@@ -120,7 +126,7 @@ export function WorkspaceMenu({
               runningAgents={node?.runningAgents ?? 0}
             />
           );
-          if (!gitBacked || !node) {
+          if (!node || presence === "absent") {
             return (
               <MenubarItem
                 key={workspace.id}
@@ -162,13 +168,23 @@ export function WorkspaceMenu({
                   selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
                   testIdPrefix="os"
                   variant="menu"
+                  userHomeDir={userHomeDir}
                   onSelectWorktree={
                     onSelectWorktree ? entry => onSelectWorktree(workspace.id, entry) : undefined
                   }
                   onCreateWorktree={
                     onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
                   }
-                  onShowAllWorktrees={onOpenWorkspaces}
+                  onResolveMissing={
+                    onResolveMissingWorktree
+                      ? entry => onResolveMissingWorktree(workspace.id, entry)
+                      : undefined
+                  }
+                  onOpenContext={
+                    onOpenWorktreeContext
+                      ? entry => onOpenWorktreeContext(workspace.id, entry)
+                      : undefined
+                  }
                   onRemoveWorktree={
                     onRemoveWorktree ? entry => onRemoveWorktree(workspace.id, entry) : undefined
                   }

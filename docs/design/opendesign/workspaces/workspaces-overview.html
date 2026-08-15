@@ -472,14 +472,10 @@
       lucide.createIcons();
       return;
     }
-    /* truncate at 5 + "All N worktrees" (adopted-only count) — locked nest rule */
+    /* every row stays listed — long nests scroll inside .wsov-mscroll (locked nest rule) */
     const sorted = sortedWts(ws);
-    let html = sorted.slice(0, 5).map((wt) => rowHtml(ws, wt)).join("");
-    if (sorted.length > 5) {
-      html += "<a class=\"wsov-mrow wsov-mrow--foot\" href=\"../worktree/worktree-overview.html\""
-        + " data-nav data-act=\"all\" tabindex=\"-1\" data-od-id=\"wt-all-row\">"
-        + "<svg data-lucide=\"ellipsis\"></svg><span class=\"wsov-mname\"><b>All " + adoptedCount(ws) + " worktrees</b></span></a>";
-    }
+    let html = "<div class=\"wsov-mscroll\" data-od-id=\"wt-menu-scroll\">"
+      + sorted.map((wt) => rowHtml(ws, wt)).join("") + "</div>";
     html += "<div class=\"wsov-msep\" aria-hidden=\"true\"></div>"
       + "<a class=\"wsov-mrow wsov-mrow--foot\" href=\"../worktree/worktree-create-dialog.html\""
       + " data-nav data-act=\"new\" tabindex=\"-1\" data-od-id=\"wt-new-row\">"
@@ -659,8 +655,8 @@
       toast("<b>" + el.dataset.id + "</b> opens the Adopt confirm — metadata validated, bootstrap is not re-run.");
       return;
     }
-    if (act === "all" || act === "new") {
-      /* real cross-links into the worktree set */
+    if (act === "new") {
+      /* real cross-link into the worktree set */
       window.location.href = el.getAttribute("href");
       return;
     }
@@ -878,7 +874,7 @@
     const el = e.target.closest("[data-act]");
     if (!el) return;
     const act = el.dataset.act;
-    if (act === "all" || act === "new") return; /* native anchor navigation */
+    if (act === "new") return; /* native anchor navigation */
     e.preventDefault();
     layer = "menu";
     menuIndex = navRows().indexOf(el);

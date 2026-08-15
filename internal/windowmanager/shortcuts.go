@@ -129,6 +129,7 @@ func validShortcutAction(action string) bool {
 		"desktop.switch.previous",
 		"desktop.switch.next",
 		"desktop.overview",
+		"workspaces.overview",
 		"layout.arrange.two-up",
 		"layout.arrange.grid",
 		string(CommandLayoutBalance),

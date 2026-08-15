@@ -6,8 +6,8 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import {
   discoveredOnlyWorktreeListingFixture,
   emptyWorktreeListingFixture,
-  manyWorktreesListingFixture,
   nonGitWorktreeListingFixture,
+  scrollableWorktreesListingFixture,
   worktreeListingFixture,
   worktreeMissingFixture,
   worktreePendingFixture,
@@ -53,7 +53,6 @@ function Harness({
           selectedWorktreeId={selectedWorktreeId}
           onSelectWorktree={fn()}
           onCreateWorktree={fn()}
-          onShowAllWorktrees={fn()}
           onAddWorkspace={fn()}
         />
       </div>
@@ -170,8 +169,8 @@ export const InertRowsWithReasons: Story = {
   ),
 };
 
-/** VC-11 — past five entries the nest truncates behind an adopted-only count. */
-export const TruncationWithOverflow: Story = {
+/** VC-11 — every worktree stays in the list; past the host cap the nest scrolls. */
+export const ScrollingNest: Story = {
   args: {},
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
@@ -180,7 +179,7 @@ export const TruncationWithOverflow: Story = {
   render: () => (
     <Harness
       workspaces={[GIT_WORKSPACE]}
-      worktreesByWorkspace={{ [GIT_WORKSPACE.id]: manyWorktreesListingFixture }}
+      worktreesByWorkspace={{ [GIT_WORKSPACE.id]: scrollableWorktreesListingFixture }}
     />
   ),
 };

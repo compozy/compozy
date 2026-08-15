@@ -37,6 +37,8 @@ export {
 export type { CreateWorkspaceParams, ResolveWorkspaceParams } from "./adapters/workspace-api";
 
 // Query infrastructure
+export { contractHomePath } from "./lib/display-path";
+export { copyWorktreePath } from "./lib/copy-worktree-path";
 export { isOperatorHomeWorkspace, partitionProjectWorkspaces } from "./lib/project-workspaces";
 export type { ProjectWorkspacePartition, WorkspaceHomeCandidate } from "./lib/project-workspaces";
 export { resolveActiveWorkspace, workspaceMonogram } from "./lib/active-workspace";
@@ -110,16 +112,17 @@ export type {
   WorktreeStreamEventName,
 } from "./lib/worktree-events";
 export { reconcileWorktreeList, removeWorktreeFromList } from "./lib/worktree-list-reconciliation";
-export { toWorktreeDisplayState, toWorktreeNestEntries } from "./lib/worktree-display";
+export {
+  canRemoveWorktree,
+  toWorktreeDisplayState,
+  toWorktreeNestEntries,
+} from "./lib/worktree-display";
 export type { WorktreeNestEntry } from "./lib/worktree-display";
 export {
   adoptedWorktreeCount,
   runningAgentCount,
   sortWorktreeNestEntries,
-  truncateWorktreeNest,
-  WORKTREE_NEST_VISIBLE_LIMIT,
 } from "./lib/worktree-sort";
-export type { TruncatedNest } from "./lib/worktree-sort";
 export {
   decodeWorktreeRefusal,
   refusalBranchHolder,
@@ -273,6 +276,12 @@ export {
   WorktreeSubmenuPanel,
 } from "./components/worktree-submenu-panel";
 export type { WorktreeSubmenuPanelProps } from "./components/worktree-submenu-panel";
+export { WorktreeNest } from "./components/worktree-nest";
+export type { WorktreeNestProps } from "./components/worktree-nest";
+export { worktreeNestPresence } from "./lib/workspace-tree";
+export type { WorktreeNestPresence } from "./lib/workspace-tree";
+export { WorktreeNestRow } from "./components/worktree-nest-row";
+export type { WorktreeNestRowProps } from "./components/worktree-nest-row";
 export { WorktreeHoverSubmenu } from "./components/worktree-hover-submenu";
 export type { WorktreeHoverSubmenuProps } from "./components/worktree-hover-submenu";
 export { WorkspaceSetupDialog } from "./components/workspace-setup";

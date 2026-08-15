@@ -23,6 +23,7 @@ export type WindowManagerActionId =
   | "desktop.switch.previous"
   | "desktop.switch.next"
   | "desktop.overview"
+  | "workspaces.overview"
   | "layout.arrange.two-up"
   | "layout.arrange.grid"
   | "layout.balance"
@@ -191,6 +192,11 @@ export const WINDOW_MANAGER_ACTIONS: readonly WindowManagerActionDefinition[] = 
     id: "desktop.overview",
     label: "Desktops overview",
     defaultChord: "meta+shift+KeyS",
+  },
+  {
+    id: "workspaces.overview",
+    label: "Workspaces overview",
+    defaultChord: "meta+shift+KeyW",
   },
   ...WINDOW_ARRANGE_COMMANDS.map(command => ({
     ...command,

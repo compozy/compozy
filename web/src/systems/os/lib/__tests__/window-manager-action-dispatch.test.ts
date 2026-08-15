@@ -41,6 +41,7 @@ function contextFixture(frame: OsWindowFrameModel | null, focusedId: string | nu
     manager,
     state,
     openDesktops: vi.fn(),
+    openWorkspaces: vi.fn(),
     activateWindow,
     openNewTab,
   };

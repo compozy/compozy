@@ -9,7 +9,7 @@ export interface ProjectWorkspacePartition<T extends WorkspaceHomeCandidate> {
 }
 
 /** Trailing separators vary between daemon paths and `$HOME`; compare without them. */
-function normalizeRootDir(path: string): string {
+export function normalizeRootDir(path: string): string {
   let end = path.length;
   while (end > 1 && path.charCodeAt(end - 1) === 47) {
     end -= 1;

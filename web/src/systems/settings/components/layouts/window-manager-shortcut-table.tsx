@@ -38,6 +38,10 @@ const GROUPS: ReadonlyArray<{ title: string; ids: readonly WindowManagerActionId
     ids: ["desktop.switch.previous", "desktop.switch.next", "desktop.overview"],
   },
   {
+    title: "Workspaces",
+    ids: ["workspaces.overview"],
+  },
+  {
     title: "Layout",
     ids: [
       "layout.arrange.two-up",

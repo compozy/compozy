@@ -3,6 +3,7 @@ package testutil_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -28,32 +30,50 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 		"Should return byte-identical JSON or empty success bodies for every finite worktree route",
 		func(t *testing.T) {
 			t.Parallel()
-			service := newParityWorktreeService()
-			httpRouter := newWorktreeParityHTTPRouter(t, service)
-			udsRouter := newWorktreeParityUDSRouter(t, service)
 			for _, test := range []struct {
-				name       string
-				method     string
-				path       string
-				body       string
-				wantStatus int
+				name           string
+				method         string
+				path           string
+				body           string
+				wantStatus     int
+				wantRef        string
+				wantWorktreeID string
 			}{
 				{name: "list", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees", wantStatus: http.StatusOK},
 				{name: "create", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees", body: `{"name":"feature"}`, wantStatus: http.StatusAccepted},
 				{name: "adopt", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/adopt", body: `{"path":"/repo/feature"}`, wantStatus: http.StatusOK},
-				{name: "inspect", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity", wantStatus: http.StatusOK},
-				{name: "status", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity/status?refresh=true", wantStatus: http.StatusOK},
-				{name: "exit plan", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit", wantStatus: http.StatusOK},
-				{name: "exit action", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit/actions", body: `{"action":"commit"}`, wantStatus: http.StatusAccepted},
-				{name: "exit cancel", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent},
-				{name: "create cancel", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/cancel", wantStatus: http.StatusNoContent},
-				{name: "remove", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/wt-parity", wantStatus: http.StatusNoContent},
-				{name: "dismiss", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/dismiss", wantStatus: http.StatusNoContent},
+				{name: "inspect by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusOK, wantRef: "parity"},
+				{name: "status by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity/status?refresh=true", wantStatus: http.StatusOK, wantRef: "parity", wantWorktreeID: "wt-parity"},
+				{name: "exit plan by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity/exit", wantStatus: http.StatusOK, wantRef: "parity"},
+				{name: "exit action by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/actions", body: `{"action":"commit"}`, wantStatus: http.StatusAccepted, wantRef: "parity"},
+				{name: "exit cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent, wantRef: "parity"},
+				{name: "create cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/cancel", wantStatus: http.StatusNoContent, wantRef: "parity"},
+				{name: "remove by name", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusNoContent, wantRef: "parity"},
+				{name: "dismiss by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/dismiss", wantStatus: http.StatusNoContent, wantRef: "parity"},
 			} {
 				t.Run("Should match "+test.name, func(t *testing.T) {
+					t.Parallel()
+					service := newParityWorktreeService()
+					httpRouter := newWorktreeParityHTTPRouter(t, service)
+					udsRouter := newWorktreeParityUDSRouter(t, service)
 					httpResponse := performWorktreeParityRequest(t, httpRouter, test.method, test.path, test.body)
 					udsResponse := performWorktreeParityRequest(t, udsRouter, test.method, test.path, test.body)
 					assertWorktreeParityResponse(t, httpResponse, udsResponse, test.wantStatus)
+					if test.wantRef != "" &&
+						(len(service.refs) != 2 ||
+							service.refs[0] != test.wantRef ||
+							service.refs[1] != test.wantRef) {
+						t.Fatalf("forwarded refs = %#v, want HTTP and UDS ref %q", service.refs, test.wantRef)
+					}
+					if test.wantWorktreeID != "" {
+						var status contract.WorktreeStatusResponse
+						if err := json.Unmarshal(httpResponse.Body.Bytes(), &status); err != nil {
+							t.Fatalf("decode status response: %v", err)
+						}
+						if status.WorktreeID != test.wantWorktreeID {
+							t.Fatalf("status worktree id = %q, want %q", status.WorktreeID, test.wantWorktreeID)
+						}
+					}
 				})
 			}
 		},
@@ -209,7 +229,10 @@ type parityWorktreeService struct {
 	status     worktree.Status
 	inspectErr error
 	removal    *worktree.RemovalRefusal
+	refs       []string
 }
+
+func (s *parityWorktreeService) recordRef(ref string) { s.refs = append(s.refs, ref) }
 
 func newParityWorktreeService() *parityWorktreeService {
 	dirty, ahead, behind, upstream, detached := 1, 0, 0, true, false
@@ -255,7 +278,10 @@ func (s *parityWorktreeService) CreateReady(
 	return &item, nil
 }
 
-func (*parityWorktreeService) CancelCreate(context.Context, string, string) error { return nil }
+func (s *parityWorktreeService) CancelCreate(_ context.Context, _ string, ref string) error {
+	s.recordRef(ref)
+	return nil
+}
 
 func (s *parityWorktreeService) Adopt(context.Context, string, string) (*worktree.Worktree, error) {
 	item := s.item
@@ -272,7 +298,14 @@ func (s *parityWorktreeService) ListDetails(context.Context, string, bool) (*wor
 	}, nil
 }
 
-func (s *parityWorktreeService) Inspect(context.Context, string, string) (*worktree.Inspection, error) {
+func (s *parityWorktreeService) Resolve(_ context.Context, _ string, ref string) (*worktree.Worktree, error) {
+	s.recordRef(ref)
+	item := s.item
+	return &item, nil
+}
+
+func (s *parityWorktreeService) Inspect(_ context.Context, _ string, ref string) (*worktree.Inspection, error) {
+	s.recordRef(ref)
 	if s.inspectErr != nil {
 		return nil, s.inspectErr
 	}
@@ -281,16 +314,18 @@ func (s *parityWorktreeService) Inspect(context.Context, string, string) (*workt
 }
 
 func (s *parityWorktreeService) StatusDetails(
-	context.Context,
-	string,
-	string,
-	bool,
-	bool,
+	_ context.Context,
+	_ string,
+	ref string,
+	_ bool,
+	_ bool,
 ) (*worktree.StatusDetails, error) {
-	return &worktree.StatusDetails{Status: &s.status}, nil
+	s.recordRef(ref)
+	return &worktree.StatusDetails{WorktreeID: s.item.ID, Status: &s.status}, nil
 }
 
-func (s *parityWorktreeService) ExitPlan(context.Context, string, string) (*worktree.ExitPlan, error) {
+func (s *parityWorktreeService) ExitPlan(_ context.Context, _ string, ref string) (*worktree.ExitPlan, error) {
+	s.recordRef(ref)
 	return &worktree.ExitPlan{
 		WorktreeID: s.item.ID, Primary: worktree.ExitActionCommit,
 		Actions:     []worktree.ExitActionPlan{{Action: worktree.ExitActionCommit, Label: "Commit", Enabled: true}},
@@ -298,29 +333,35 @@ func (s *parityWorktreeService) ExitPlan(context.Context, string, string) (*work
 	}, nil
 }
 
-func (*parityWorktreeService) RunExitAction(
-	context.Context,
-	string,
-	string,
-	worktree.ExitActionRequest,
+func (s *parityWorktreeService) RunExitAction(
+	_ context.Context,
+	_ string,
+	ref string,
+	_ worktree.ExitActionRequest,
 ) (string, error) {
+	s.recordRef(ref)
 	return "op-parity", nil
 }
 
-func (*parityWorktreeService) CancelExitAction(context.Context, string, string, string) error {
+func (s *parityWorktreeService) CancelExitAction(_ context.Context, _ string, ref string, _ string) error {
+	s.recordRef(ref)
 	return nil
 }
 
 func (s *parityWorktreeService) Remove(
-	context.Context,
-	string,
-	string,
-	bool,
+	_ context.Context,
+	_ string,
+	ref string,
+	_ bool,
 ) (*worktree.RemovalRefusal, error) {
+	s.recordRef(ref)
 	return s.removal, nil
 }
 
-func (*parityWorktreeService) Dismiss(context.Context, string, string) error { return nil }
+func (s *parityWorktreeService) Dismiss(_ context.Context, _ string, ref string) error {
+	s.recordRef(ref)
+	return nil
+}
 
 func parityWorktreeTime() time.Time {
 	return time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
