@@ -399,6 +399,108 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 	})
 }
 
+// Invariant: request list/detail/respond use the same payloads and structured failures on HTTP and UDS.
+// The canonical Loop handler suite owns transport parity for public request operations.
+func TestLoopRequestHandlersShouldPreserveTransportParity(t *testing.T) {
+	t.Parallel()
+
+	for _, transport := range []string{"httpapi", "udsapi"} {
+		t.Run("Should serve request operations over "+transport, func(t *testing.T) {
+			t.Parallel()
+
+			service := happyLoopService(t)
+			request := contract.LoopRequestPayload{
+				LoopRunID: "run-1", LoopName: "rollout", Generation: 1, NodeID: "select",
+				Kind: "ask", State: "pending", Prompt: "Choose an environment",
+				Context: json.RawMessage(`{"release":"v2.4.1"}`),
+				Expect:  json.RawMessage(`{"environment":"string"}`), Decisions: []string{"respond"},
+				Agents: "deny", OpenedAt: time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC),
+			}
+			service.listLoopRequestsFn = func(
+				_ context.Context, workspaceID string, query core.LoopRequestListQuery,
+			) (contract.LoopRequestsResponse, error) {
+				if workspaceID != "ws-1" || query.State != "pending" || query.Limit != 20 {
+					return contract.LoopRequestsResponse{}, errors.New("unexpected request list query")
+				}
+				return contract.LoopRequestsResponse{
+					Items:      []contract.LoopRequestPayload{request},
+					Aggregates: contract.LoopRequestAggregates{Pending: 1},
+				}, nil
+			}
+			service.getLoopRequestFn = func(
+				_ context.Context, workspaceID, runID, nodeID string, itemIndex int,
+			) (contract.LoopRequestPayload, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || nodeID != "select" || itemIndex != 2 {
+					return contract.LoopRequestPayload{}, errors.New("unexpected request identity")
+				}
+				request.ItemIndex = itemIndex
+				return request, nil
+			}
+			service.respondLoopRequestFn = func(
+				_ context.Context, workspaceID, runID, nodeID string,
+				req contract.RespondLoopRequest, _ taskpkg.ActorContext,
+			) (contract.RespondLoopRequestResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || nodeID != "select" ||
+					req.ItemIndex != 2 || string(req.Payload) != `{"environment":"production"}` {
+					return contract.RespondLoopRequestResponse{}, errors.New("unexpected response input")
+				}
+				return contract.RespondLoopRequestResponse{
+					OK: true, RunID: "run-1", NodeID: "select", Decision: "respond", State: "answered",
+					Provenance: contract.LoopRequestProvenance{
+						ActorKind: "operator", ActorID: "operator:one",
+						AnsweredAt: time.Date(2026, time.August, 16, 12, 1, 0, 0, time.UTC),
+					},
+				}, nil
+			}
+			_, engine := newLoopHandlerFixture(t, transport, service)
+
+			list := performRequest(t, engine, http.MethodGet,
+				"/workspaces/ws-1/loop-requests?state=pending&limit=20", nil)
+			assertLoopStatus(t, list.Code, http.StatusOK, list.Body.String())
+			var listed contract.LoopRequestsResponse
+			testutil.DecodeJSONResponse(t, list, &listed)
+			if len(listed.Items) != 1 || listed.Aggregates.Pending != 1 {
+				t.Fatalf("%s request list = %#v", transport, listed)
+			}
+
+			detail := performRequest(t, engine, http.MethodGet,
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/request?item_index=2", nil)
+			assertLoopStatus(t, detail.Code, http.StatusOK, detail.Body.String())
+			respond := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/respond",
+				[]byte(`{"item_index":2,"payload":{"environment":"production"}}`))
+			assertLoopStatus(t, respond.Code, http.StatusOK, respond.Body.String())
+			var responded contract.RespondLoopRequestResponse
+			testutil.DecodeJSONResponse(t, respond, &responded)
+			if !responded.OK || responded.RunID != "run-1" || responded.NodeID != "select" ||
+				responded.Decision != "respond" || responded.State != "answered" ||
+				responded.Provenance.ActorKind != "operator" || responded.Provenance.ActorID != "operator:one" {
+				t.Fatalf("%s request response = %#v", transport, responded)
+			}
+
+			service.respondLoopRequestFn = func(
+				context.Context, string, string, string, contract.RespondLoopRequest, taskpkg.ActorContext,
+			) (contract.RespondLoopRequestResponse, error) {
+				return contract.RespondLoopRequestResponse{}, looppkg.NewRequestReasonError(
+					looppkg.ReasonCodeRequestValidationFailed,
+					looppkg.ErrRequestValidationFailed,
+					map[string]string{"environment": "minItems: got 0, want 1"},
+				)
+			}
+			invalid := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/respond",
+				[]byte(`{"item_index":2,"payload":{"environment":[]}}`))
+			assertLoopStatus(t, invalid.Code, http.StatusUnprocessableEntity, invalid.Body.String())
+			var failure contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, invalid, &failure)
+			if failure.Code != string(looppkg.ReasonCodeRequestValidationFailed) ||
+				failure.Details["environment"] == "" {
+				t.Fatalf("%s request error = %#v", transport, failure)
+			}
+		})
+	}
+}
+
 func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing.T) {
 	t.Parallel()
 
@@ -1515,6 +1617,9 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/cancel", handlers.CancelLoopNode)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/kill", handlers.KillLoopNode)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/requeue", handlers.RequeueLoopNode)
+	workspace.GET("/loop-requests", handlers.ListLoopRequests)
+	workspace.GET("/loop-runs/:run_id/nodes/:node_id/request", handlers.GetLoopRequest)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/respond", handlers.RespondLoopRequest)
 	workspace.GET("/loop-nodes", handlers.ListLoopNodes)
 	workspace.GET("/loop-runs/:run_id/events", handlers.StreamLoopRunEvents)
 	workspace.GET("/sessions/:session_id/goal", handlers.GetSessionGoal)
@@ -1541,9 +1646,19 @@ type stubLoopService struct {
 		string,
 		contract.LoopInputDefaultsScope,
 	) (contract.DeleteLoopInputDefaultResponse, error)
-	getAnnotationsFn    func(context.Context, string, string) (contract.LoopAnnotationsResponse, error)
-	putAnnotationsFn    func(context.Context, string, string, contract.PutLoopAnnotationsRequest) (contract.LoopAnnotationsResponse, error)
-	listLoopRunsFn      func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
+	getAnnotationsFn     func(context.Context, string, string) (contract.LoopAnnotationsResponse, error)
+	putAnnotationsFn     func(context.Context, string, string, contract.PutLoopAnnotationsRequest) (contract.LoopAnnotationsResponse, error)
+	listLoopRunsFn       func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
+	listLoopRequestsFn   func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error)
+	getLoopRequestFn     func(context.Context, string, string, string, int) (contract.LoopRequestPayload, error)
+	respondLoopRequestFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.RespondLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.RespondLoopRequestResponse, error)
 	getLoopRunFn        func(context.Context, string, string) (contract.LoopRunResponse, error)
 	getSessionGoalFn    func(context.Context, string, string) (*session.GoalSnapshot, error)
 	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
@@ -2009,6 +2124,35 @@ func (s *stubLoopService) ApproveLoopRun(
 	actor taskpkg.ActorContext,
 ) error {
 	return s.approveLoopRunFn(ctx, workspaceID, runID, req, actor)
+}
+
+func (s *stubLoopService) ListLoopRequests(
+	ctx context.Context,
+	workspaceID string,
+	query core.LoopRequestListQuery,
+) (contract.LoopRequestsResponse, error) {
+	return s.listLoopRequestsFn(ctx, workspaceID, query)
+}
+
+func (s *stubLoopService) GetLoopRequest(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	itemIndex int,
+) (contract.LoopRequestPayload, error) {
+	return s.getLoopRequestFn(ctx, workspaceID, runID, nodeID, itemIndex)
+}
+
+func (s *stubLoopService) RespondLoopRequest(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.RespondLoopRequest,
+	actor taskpkg.ActorContext,
+) (contract.RespondLoopRequestResponse, error) {
+	return s.respondLoopRequestFn(ctx, workspaceID, runID, nodeID, req, actor)
 }
 
 func (s *stubLoopService) ListLoopRunEvents(

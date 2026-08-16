@@ -1,0 +1,75 @@
+---
+title: Human requests
+description: Park a Loop at an ask node, inspect its redacted context, and admit one validated answer from a human or permitted agent.
+---
+
+An `ask` control pauses one node cell without occupying an agent session. Its rendered prompt,
+redacted context, answer shape, responder policy, and expiry are frozen when the request opens.
+The admitted payload becomes that node's output, so downstream nodes read it through the usual
+`nodes.<id>.output` namespace.
+
+## Author an ask
+
+```yaml
+graph:
+  nodes:
+    - id: choose_environment
+      class: control
+      kind: ask
+      params:
+        prompt: "Where should {{ .inputs.release }} deploy?"
+        context:
+          release: "{{ .inputs.release }}"
+          candidates: [staging, production]
+        expect:
+          environment: string
+        responders:
+          agents: deny
+        expires:
+          after: 72h
+          route: request_expired
+
+    - id: deploy
+      class: action
+      kind: transform
+      params:
+        map:
+          environment:
+            template: "{{ .nodes.choose_environment.output.environment }}"
+
+    - id: request_expired
+      class: action
+      kind: transform
+      params:
+        map:
+          expired: { value: true }
+
+  edges:
+    - { from: choose_environment, to: deploy }
+    - { from: choose_environment, to: request_expired }
+```
+
+`expect` is required and becomes the output shape. `responders.agents` defaults to `deny`; set it
+to `allow` only when capability-gated agents should answer. An agent still cannot answer a run it
+started, including through a spawned-child chain. `expires.route` must be a direct forward edge.
+
+Set `loops.defaults.delivery.requests.expire_after` or
+`loops.defaults.watch.requests.expire_after` to seed asks that omit `expires`. An authored expiry
+always wins. Leaving the setting empty keeps expiry entirely in the definition.
+
+## Operate requests
+
+| Action | CLI | HTTP or UDS | Native tool |
+| --- | --- | --- | --- |
+| List | `compozy loop requests --state pending` | `GET /loop-requests?state=pending` | `compozy__loop_requests` |
+| Detail | `compozy loop request --run-id <id> --node <id>` | `GET /loop-runs/:run_id/nodes/:node_id/request` | `compozy__loop_request` |
+| Answer | `compozy loop respond --run-id <id> --node <id> --payload '{"environment":"production"}'` | `POST /loop-runs/:run_id/nodes/:node_id/respond` | `compozy__loop_respond` |
+
+The list returns bounded previews and `aggregates.pending`; detail returns the full redacted
+context. Fan-out requests use `--item` or `item_index`. Pending order is expiry first, with requests
+without expiry last; resolved order is newest first. Cursors preserve that order.
+
+One transaction wins among answer, expiry, and cancellation. An identical retry by the recorded
+responder returns the durable answer without resuming twice. Other late writes return
+`request_already_answered`, `request_expired`, or `request_canceled`. A payload outside `expect`
+returns `request_validation_failed` with field details while the request stays pending.

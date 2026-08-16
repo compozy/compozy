@@ -1722,6 +1722,35 @@ func (s *nativeLoopServiceStub) ApproveLoopRun(
 	return errors.New("unexpected ApproveLoopRun call")
 }
 
+func (s *nativeLoopServiceStub) ListLoopRequests(
+	context.Context,
+	string,
+	core.LoopRequestListQuery,
+) (contract.LoopRequestsResponse, error) {
+	return contract.LoopRequestsResponse{}, errors.New("unexpected ListLoopRequests call")
+}
+
+func (s *nativeLoopServiceStub) GetLoopRequest(
+	context.Context,
+	string,
+	string,
+	string,
+	int,
+) (contract.LoopRequestPayload, error) {
+	return contract.LoopRequestPayload{}, errors.New("unexpected GetLoopRequest call")
+}
+
+func (s *nativeLoopServiceStub) RespondLoopRequest(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.RespondLoopRequest,
+	taskpkg.ActorContext,
+) (contract.RespondLoopRequestResponse, error) {
+	return contract.RespondLoopRequestResponse{}, errors.New("unexpected RespondLoopRequest call")
+}
+
 func (s *nativeLoopServiceStub) ListLoopRunEvents(
 	ctx context.Context,
 	workspaceID string,

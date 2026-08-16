@@ -65,6 +65,7 @@ type daemonLoopAPIService struct {
 	sessionStatus     loopSessionStatusReader
 	creationStore     store.SessionCreationStore
 	runtimeCatalog    looppkg.WorkspaceRuntimeCatalog
+	responderPolicy   looppkg.ResponderPolicy
 	logger            *slog.Logger
 	publishMu         sync.Mutex
 }
@@ -119,11 +120,12 @@ func newDaemonLoopAPIService(
 	runtimeCatalog := loopRuntimeCatalogFactory{
 		homePaths: homePaths, workspaceResolver: state.workspaceResolver,
 	}
+	responderPolicy := daemonLoopResponderPolicy{runs: persistence, sessions: state.sessions}
 	aggregate, err := looppkg.NewService(
 		persistence,
 		resolver,
 		newGoalRunPolicyResolver(homePaths, state.workspaceResolver),
-		loopAPIServiceOptions(state, homePaths, now, logger, runtimeCatalog)...,
+		loopAPIServiceOptions(state, homePaths, now, logger, runtimeCatalog, responderPolicy)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create loop aggregate api service: %w", err)
@@ -144,6 +146,7 @@ func newDaemonLoopAPIService(
 		sessionStatus:     state.sessions,
 		creationStore:     sessionCreationStoreFromRegistry(state.registry),
 		runtimeCatalog:    runtimeCatalog,
+		responderPolicy:   responderPolicy,
 		logger:            logger,
 	}, nil
 }
@@ -154,6 +157,7 @@ func loopAPIServiceOptions(
 	now func() time.Time,
 	logger *slog.Logger,
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
+	responderPolicy looppkg.ResponderPolicy,
 ) []looppkg.Option {
 	options := []looppkg.Option{
 		looppkg.WithClock(now),
@@ -164,6 +168,7 @@ func loopAPIServiceOptions(
 		looppkg.WithCoordinatorRunActivator(loopCoordinatorRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
 		looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: state.sessions}),
+		looppkg.WithResponderPolicy(responderPolicy),
 	}
 	if state.participationResolver != nil {
 		options = append(options, looppkg.WithParticipationResolver(state.participationResolver))

@@ -19,6 +19,7 @@ type GenerationSnapshotPayload struct {
 	Attempts             []NodeAttempt                     `json:"attempts,omitempty"`
 	Controls             []NodeControlMutation             `json:"controls,omitempty"`
 	Waits                []NodeWaitIntent                  `json:"waits,omitempty"`
+	Requests             []RequestIntent                   `json:"requests,omitempty"`
 	OutputBlobs          []GenerationOutputBlob            `json:"output_blobs,omitempty"`
 	Verdicts             []gate.VerdictIntent              `json:"verdicts,omitempty"`
 	BestUpdate           *gate.BestUpdateIntent            `json:"best_update,omitempty"`
@@ -130,6 +131,41 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 		if err := writeNodeWaitIntent(ctx, tx, loopRunID, snap.Generation, wait); err != nil {
 			return err
 		}
+	}
+	for _, request := range payload.Requests {
+		if err := writeRequestIntent(ctx, tx, loopRunID, snap.Generation, request); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeRequestIntent(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	intent RequestIntent,
+) error {
+	intent = intent.normalized()
+	if err := intent.validate(); err != nil {
+		return err
+	}
+	contextRef := OutputRefForPayload(intent.Context)
+	if err := store.UpsertLoopOutputBlob(ctx, tx, contextRef, intent.Context, intent.OpenedAt); err != nil {
+		return fmt.Errorf("loop: persist request context: %w", err)
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO loop_requests (
+		workspace_id, loop_run_id, generation, node_id, item_index, kind, state,
+		prompt, context_preview_json, context_ref, answer_schema_json, decisions_json,
+		respond_schema_json, opened_at, expires_at
+	) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(loop_run_id, generation, node_id, item_index) DO NOTHING`,
+		intent.WorkspaceID, loopRunID, generation, intent.NodeID, intent.ItemIndex, intent.Kind,
+		intent.Prompt, string(intent.ContextPreview), contextRef, string(intent.AnswerSchema),
+		string(intent.Decisions), string(intent.AnswerSchema), intent.OpenedAt, intent.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("loop: write request %s/%d: %w", intent.NodeID, intent.ItemIndex, err)
 	}
 	return nil
 }

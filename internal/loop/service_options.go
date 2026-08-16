@@ -111,6 +111,13 @@ func WithCancellationSessionController(controller CancellationSessionController)
 	}
 }
 
+// WithResponderPolicy injects the daemon-owned initiator-lineage policy.
+func WithResponderPolicy(policy ResponderPolicy) Option {
+	return func(s *service) {
+		s.responderPolicy = policy
+	}
+}
+
 func (s *service) resolveDefaults(ctx context.Context, ws WorkspaceID) (LoopDefaults, error) {
 	if s.defaultsResolver == nil {
 		return s.defaults, nil

@@ -214,7 +214,7 @@ func (i GenerationLifecycleEventIntent) validateNodeWaitStarted() error {
 	}
 	if i.NodeID != "" && i.ItemIndex >= 0 && i.Attempt >= 1 && i.IssuedEpoch >= 1 &&
 		(i.WaitKind == NodeWaitKindTimer || i.WaitKind == NodeWaitKindEvent ||
-			i.WaitKind == NodeWaitKindApprovalEscalation) {
+			i.WaitKind == NodeWaitKindApprovalEscalation || i.WaitKind == NodeWaitKindRequest) {
 		return nil
 	}
 	return fmt.Errorf("%w: node_wait_started event has incomplete wait identity", ErrValidation)
@@ -331,6 +331,15 @@ func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (Gene
 		return GenerationSnapshotPayload{}, err
 	}
 	payload.Waits = waits
+	requests := make([]RequestIntent, len(payload.Requests))
+	for index, request := range payload.Requests {
+		normalized := request.normalized()
+		if err := normalized.validate(); err != nil {
+			return GenerationSnapshotPayload{}, err
+		}
+		requests[index] = normalized
+	}
+	payload.Requests = requests
 	controls, err := normalizeNodeControlMutations(payload.Controls)
 	if err != nil {
 		return GenerationSnapshotPayload{}, err

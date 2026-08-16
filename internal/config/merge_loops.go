@@ -26,6 +26,7 @@ type loopDefaultOverlay struct {
 	Resume          loopResumeDefaultOverlay     `toml:"resume"`
 	Predicates      loopPredicateDefaultOverlay  `toml:"predicates"`
 	Waits           loopWaitDefaultOverlay       `toml:"waits"`
+	Requests        loopRequestsDefaultOverlay   `toml:"requests"`
 	Admission       loopAdmissionDefaultOverlay  `toml:"admission"`
 	Autopause       []LoopAutopauseRule          `toml:"autopause"`
 }
@@ -51,6 +52,10 @@ type loopPredicateDefaultOverlay struct {
 type loopWaitDefaultOverlay struct {
 	AdmissionAttempts      *int    `toml:"admission_attempts"`
 	AdmissionRetryInterval *string `toml:"admission_retry_interval"`
+}
+
+type loopRequestsDefaultOverlay struct {
+	ExpireAfter *string `toml:"expire_after"`
 }
 
 type loopAdmissionDefaultOverlay struct {
@@ -141,6 +146,7 @@ func (o loopDefaultOverlay) Apply(dst *LoopDefaultConfig) {
 	o.Resume.Apply(&dst.Resume)
 	o.Predicates.Apply(&dst.Predicates)
 	o.Waits.Apply(&dst.Waits)
+	o.Requests.Apply(&dst.Requests)
 	o.Admission.Apply(&dst.Admission)
 	if len(o.Autopause) > 0 {
 		dst.Autopause = append(dst.Autopause, o.Autopause...)
@@ -183,6 +189,12 @@ func (o loopWaitDefaultOverlay) Apply(dst *LoopWaitDefaultConfig) {
 	}
 	if o.AdmissionRetryInterval != nil {
 		dst.AdmissionRetryInterval = *o.AdmissionRetryInterval
+	}
+}
+
+func (o loopRequestsDefaultOverlay) Apply(dst *LoopRequestsDefaultConfig) {
+	if o.ExpireAfter != nil {
+		dst.ExpireAfter = *o.ExpireAfter
 	}
 }
 

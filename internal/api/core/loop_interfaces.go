@@ -163,6 +163,16 @@ type LoopService interface {
 		req contract.ApproveLoopRunRequest,
 		actor taskpkg.ActorContext,
 	) error
+	ListLoopRequests(context.Context, string, LoopRequestListQuery) (contract.LoopRequestsResponse, error)
+	GetLoopRequest(context.Context, string, string, string, int) (contract.LoopRequestPayload, error)
+	RespondLoopRequest(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.RespondLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.RespondLoopRequestResponse, error)
 	ListLoopRunEvents(
 		ctx context.Context,
 		workspaceID string,
@@ -179,6 +189,14 @@ type LoopRunListQuery struct {
 	OriginSession string
 	Live          *bool
 	Limit         int
+}
+
+// LoopRequestListQuery contains request inventory filters shared by HTTP and UDS.
+type LoopRequestListQuery struct {
+	RunID  string
+	State  string
+	Cursor string
+	Limit  int
 }
 
 // LoopNodeListQuery contains workspace node-inventory filters.

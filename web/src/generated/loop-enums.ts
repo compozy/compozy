@@ -68,6 +68,10 @@ export const LOOP_RUN_EVENT_KINDS = [
   "target_breaker_transition",
   "stale_schedule_dropped",
   "late_arrival",
+  "request_opened",
+  "request_answered",
+  "request_expired",
+  "request_canceled",
 ] as const;
 
 export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];

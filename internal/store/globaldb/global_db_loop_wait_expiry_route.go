@@ -36,6 +36,11 @@ func (g *LoopRepo) resolveExpiredWaitRoute(
 	if err := requireSingleWaitMutation(result); err != nil {
 		return err
 	}
+	if due.wait.Kind == looppkg.NodeWaitKindRequest {
+		if err := expireLoopRequestWithExecutor(ctx, exec, due, now); err != nil {
+			return err
+		}
+	}
 	parkedFor := now.UTC().Sub(due.wait.CreatedAt.UTC())
 	parkedFor = max(parkedFor, 0)
 	if due.wait.Kind == looppkg.NodeWaitKindApprovalEscalation {
@@ -73,6 +78,31 @@ func (g *LoopRepo) resolveExpiredWaitRoute(
 			due.wait.NodeID, due.wait.ItemIndex, due.wait.IssuedEpoch),
 	)
 	return err
+}
+
+func expireLoopRequestWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	due *dueWaitEscalation,
+	now time.Time,
+) error {
+	result, err := exec.ExecContext(ctx, `UPDATE loop_requests SET state = 'expired', resolved_at = ?,
+		actor_kind = 'expiry', actor_id = 'wait-expiry' WHERE loop_run_id = ? AND generation = ?
+		AND node_id = ? AND item_index = ? AND state = 'pending'`, now.UTC(), due.wait.LoopRunID,
+		due.wait.Generation, due.wait.NodeID, due.wait.ItemIndex)
+	if err != nil {
+		return fmt.Errorf("store: expire Loop request: %w", err)
+	}
+	if err := requireSingleWaitMutation(result); err != nil {
+		return err
+	}
+	return appendLoopRunEventWithExecutor(ctx, exec, due.run.ID, due.run.WorkspaceID,
+		loopRunEventRequestExpired, map[string]any{
+			loopRunEventPayloadKeyGeneration:  due.wait.Generation,
+			loopRunEventPayloadKeyNodeID:      due.wait.NodeID,
+			loopRunEventPayloadKeyItemIndex:   due.wait.ItemIndex,
+			loopRunEventPayloadKeyIssuedEpoch: due.wait.IssuedEpoch,
+		}, now)
 }
 
 func (g *LoopRepo) resolveExpiredApprovalRoute(

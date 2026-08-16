@@ -231762,6 +231762,90 @@
                       },
                       "type": "array"
                     },
+                    "requests": {
+                      "items": {
+                        "properties": {
+                          "actor_id": {
+                            "type": "string"
+                          },
+                          "actor_kind": {
+                            "type": "string"
+                          },
+                          "agents": {
+                            "type": "string"
+                          },
+                          "answered_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "answered_decision": {
+                            "type": "string"
+                          },
+                          "context": {},
+                          "decisions": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "expect": {},
+                          "expires_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "generation": {
+                            "type": "integer"
+                          },
+                          "item_index": {
+                            "type": "integer"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "loop_name": {
+                            "type": "string"
+                          },
+                          "loop_run_id": {
+                            "type": "string"
+                          },
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "opened_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "prompt": {
+                            "type": "string"
+                          },
+                          "resolved_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agents",
+                          "context",
+                          "decisions",
+                          "generation",
+                          "item_index",
+                          "kind",
+                          "loop_run_id",
+                          "node_id",
+                          "opened_at",
+                          "prompt",
+                          "state"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "run": {
                       "properties": {
                         "active_gate_id": {
@@ -232188,6 +232272,7 @@
                   "required": [
                     "materialized_contract",
                     "node_controls",
+                    "requests",
                     "run",
                     "waits"
                   ],
@@ -233968,7 +234053,11 @@
                             "duplicate_suppressed",
                             "target_breaker_transition",
                             "stale_schedule_dropped",
-                            "late_arrival"
+                            "late_arrival",
+                            "request_opened",
+                            "request_answered",
+                            "request_expired",
+                            "request_canceled"
                           ],
                           "type": "string"
                         },

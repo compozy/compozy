@@ -235,6 +235,8 @@ func (c *lintContext) lintControlNode(node dsl.Node) {
 			return
 		}
 		c.lintSubLoopBody(node)
+	case dsl.ControlAsk:
+		c.lintAsk(node)
 	}
 }
 

@@ -160,7 +160,7 @@ CREATE TABLE loop_node_waits (
 	generation         INTEGER NOT NULL CHECK (generation >= 1),
 	node_id            TEXT NOT NULL,
 	item_index         INTEGER NOT NULL DEFAULT 0,
-	kind               TEXT NOT NULL CHECK (kind IN ('timer','event','approval_escalation')),
+	kind               TEXT NOT NULL CHECK (kind IN ('timer','event','approval_escalation','request')),
 	resume_at          TIMESTAMP,
 	next_escalation_at TIMESTAMP,
 	escalation_cursor  INTEGER NOT NULL DEFAULT 0,
@@ -175,6 +175,34 @@ CREATE TABLE loop_node_waits (
 	ahead_payload_json TEXT CHECK (ahead_payload_json IS NULL OR json_valid(ahead_payload_json)),
 	issued_epoch       INTEGER NOT NULL DEFAULT 0,
 	created_at         TIMESTAMP NOT NULL,
+	PRIMARY KEY (loop_run_id, generation, node_id, item_index)
+);
+
+CREATE TABLE loop_requests (
+	workspace_id          TEXT NOT NULL,
+	loop_run_id           TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	generation            INTEGER NOT NULL CHECK (generation >= 1),
+	node_id               TEXT NOT NULL,
+	item_index            INTEGER NOT NULL DEFAULT 0 CHECK (item_index >= 0),
+	kind                  TEXT NOT NULL CHECK (kind IN ('ask','review')),
+	state                 TEXT NOT NULL CHECK (state IN ('pending','answered','expired','canceled')),
+	prompt                TEXT NOT NULL,
+	context_preview_json  TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(context_preview_json)),
+	context_ref           TEXT,
+	answer_schema_json    TEXT CHECK (answer_schema_json IS NULL OR json_valid(answer_schema_json)),
+	edit_schema_json      TEXT CHECK (edit_schema_json IS NULL OR json_valid(edit_schema_json)),
+	respond_schema_json   TEXT CHECK (respond_schema_json IS NULL OR json_valid(respond_schema_json)),
+	decisions_json        TEXT NOT NULL CHECK (json_valid(decisions_json)),
+	proposed_ref          TEXT,
+	proposed_preview_json TEXT CHECK (proposed_preview_json IS NULL OR json_valid(proposed_preview_json)),
+	answered_decision     TEXT,
+	answered_payload_ref  TEXT,
+	answered_note         TEXT,
+	actor_kind            TEXT,
+	actor_id              TEXT,
+	opened_at             TIMESTAMP NOT NULL,
+	resolved_at           TIMESTAMP,
+	expires_at            TIMESTAMP,
 	PRIMARY KEY (loop_run_id, generation, node_id, item_index)
 );
 
@@ -444,7 +472,8 @@ CREATE TABLE loop_run_events (
 				'generation_started','channel_msg','token_tick','needs_approval','status_changed',
 				'goal_turn_started','goal_turn_completed','goal_status_changed','runtime_applied',
 				'predicate_diagnostic','route_taken','node_retry_scheduled','stale_schedule_dropped',
-				'late_arrival','effect_results','custom_event'
+				'late_arrival','effect_results','custom_event','request_opened','request_answered',
+				'request_expired','request_canceled'
 			)),
 			payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
 			at           TIMESTAMP NOT NULL,
@@ -552,6 +581,9 @@ CREATE INDEX idx_loop_node_waits_ladder
 	WHERE claim_state = 'waiting' AND next_escalation_at IS NOT NULL;
 
 CREATE INDEX idx_loop_node_waits_state ON loop_node_waits(claim_state);
+
+CREATE INDEX idx_loop_requests_pending
+ON loop_requests(workspace_id, state, expires_at, opened_at);
 
 CREATE INDEX idx_loop_effect_outbox_pending
 	ON loop_effect_outbox(state) WHERE state = 'pending';

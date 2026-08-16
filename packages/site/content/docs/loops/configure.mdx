@@ -103,6 +103,7 @@ The current Configure sheet does not edit lifecycle policy. Set these operator d
 | `resume`     | `death_streak_limit`                             | `3`                       |
 | `predicates` | `cost_limit`                                     | `10000`                   |
 | `waits`      | `admission_attempts`, `admission_retry_interval` | `3`, `60s`                |
+| `requests`   | `expire_after`                                  | empty; author must expire  |
 | `admission`  | `tombstone_horizon`                              | `168h`                    |
 | `autopause`  | ordered `{ match, action = "pause" }` rules      | none                      |
 
@@ -116,6 +117,7 @@ get/set/unset surfaces. For example:
 
 ```bash
 compozy config set loops.defaults.delivery.retry.max_attempts 4
+compozy config set loops.defaults.delivery.requests.expire_after 72h
 compozy config set loops.breaker.probe_interval 90s
 ```
 

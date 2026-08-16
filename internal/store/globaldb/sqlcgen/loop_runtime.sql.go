@@ -1011,6 +1011,12 @@ AND NOT EXISTS (
   SELECT 1 FROM loop_goal_checkpoints
   WHERE loop_goal_checkpoints.report_evidence_ref = loop_output_blobs.output_ref
 )
+AND NOT EXISTS (
+  SELECT 1 FROM loop_requests
+  WHERE loop_requests.context_ref = loop_output_blobs.output_ref
+     OR loop_requests.proposed_ref = loop_output_blobs.output_ref
+     OR loop_requests.answered_payload_ref = loop_output_blobs.output_ref
+)
 `
 
 func (q *Queries) SweepOrphanedLoopOutputBlobs(ctx context.Context) error {

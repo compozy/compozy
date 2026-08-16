@@ -36,6 +36,10 @@ const (
 	LoopRunEventTargetBreaker        LoopRunEventKind = "target_breaker_transition"
 	LoopRunEventStaleScheduleDropped LoopRunEventKind = "stale_schedule_dropped"
 	LoopRunEventLateArrival          LoopRunEventKind = "late_arrival"
+	LoopRunEventRequestOpened        LoopRunEventKind = "request_opened"
+	LoopRunEventRequestAnswered      LoopRunEventKind = "request_answered"
+	LoopRunEventRequestExpired       LoopRunEventKind = "request_expired"
+	LoopRunEventRequestCanceled      LoopRunEventKind = "request_canceled"
 )
 
 // LoopRunStatusValues returns the closed public loop run status vocabulary.
@@ -115,6 +119,10 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventTargetBreaker),
 		string(LoopRunEventStaleScheduleDropped),
 		string(LoopRunEventLateArrival),
+		string(LoopRunEventRequestOpened),
+		string(LoopRunEventRequestAnswered),
+		string(LoopRunEventRequestExpired),
+		string(LoopRunEventRequestCanceled),
 	}
 }
 

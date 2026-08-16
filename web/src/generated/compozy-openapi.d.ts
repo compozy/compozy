@@ -94307,6 +94307,31 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
             }[];
+            requests: {
+              actor_id?: string;
+              actor_kind?: string;
+              agents: string;
+              /** Format: date-time */
+              answered_at?: string | null;
+              answered_decision?: string;
+              context: unknown;
+              decisions: string[];
+              expect?: unknown;
+              /** Format: date-time */
+              expires_at?: string | null;
+              generation: number;
+              item_index: number;
+              kind: string;
+              loop_name?: string;
+              loop_run_id: string;
+              node_id: string;
+              /** Format: date-time */
+              opened_at: string;
+              prompt: string;
+              /** Format: date-time */
+              resolved_at?: string | null;
+              state: string;
+            }[];
             run: {
               active_gate_id?: string;
               /** Format: int64 */
@@ -95184,7 +95209,11 @@ export interface operations {
                   | "duplicate_suppressed"
                   | "target_breaker_transition"
                   | "stale_schedule_dropped"
-                  | "late_arrival";
+                  | "late_arrival"
+                  | "request_opened"
+                  | "request_answered"
+                  | "request_expired"
+                  | "request_canceled";
                 loop_run_id: string;
                 payload: unknown;
                 /** Format: int64 */

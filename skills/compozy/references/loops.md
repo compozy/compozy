@@ -16,7 +16,7 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 
 ## The Tool Set And CLI Verbs
 
-Toolset `compozy__loops` — 23 native tools. All 21 Loop tools have matching `compozy loop` verbs;
+Toolset `compozy__loops` — 26 native tools. All 24 Loop tools have matching `compozy loop` verbs;
 the two session-bound Goal tools use the session command/native report surfaces. The CLI adds one verb
 (`edit`) that has no native tool.
 
@@ -27,6 +27,9 @@ the two session-bound Goal tools use the session command/native report surfaces.
 | `compozy__loop_validate`     | read                            | `compozy loop validate`     | Lint + compile a definition without saving.                                  |
 | `compozy__loop_status`       | read                            | `compozy loop status`       | Read one run's status with generation detail.                                |
 | `compozy__loop_runs`         | read                            | `compozy loop runs`         | List runs in the workspace.                                                  |
+| `compozy__loop_requests`     | read                            | `compozy loop requests`     | List pending or resolved human requests.                                     |
+| `compozy__loop_request`      | read                            | `compozy loop request`      | Read one request with its full redacted context.                             |
+| `compozy__loop_respond`      | mutating · **capability-gated** | `compozy loop respond`      | Admit one schema-valid request answer.                                       |
 | `compozy__loop_create`       | mutating                        | `compozy loop create`       | Create/fork, or CAS-publish when `expected_version` is set.                  |
 | `compozy__loop_run`          | mutating                        | `compozy loop run`          | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
 | `compozy__loop_configure`    | mutating                        | `compozy loop configure`    | Write per-Loop runtime config overrides.                                     |
@@ -61,6 +64,16 @@ Opaque cursors bind workspace, search, kind, category, status, and sort; limit m
 
 `compozy loop runs` / `compozy__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
 Each run summary exposes `best_generation`/`best_score` but never embeds generation history.
+
+## Human Requests
+
+An `ask` control parks one node cell until a valid answer arrives. Use `compozy__loop_requests` to
+find work, `compozy__loop_request` to read the full redacted context and expected shape, then
+`compozy__loop_respond` with `payload` and the exact `run_id`, `node_id`, and `item_index`. Agent
+answers require `responders.agents: allow` on that node plus `loops.respond`; humans remain allowed
+by default. A run starter and every agent in its durable spawn chain are always denied from
+answering their own run. Treat `request_already_answered` as durable winner truth; expired and
+canceled requests return `request_expired` or `request_canceled` and cannot be reopened.
 
 ## Run History And Best State
 

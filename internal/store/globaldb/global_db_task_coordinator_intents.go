@@ -53,7 +53,41 @@ func applyCoordinatorGenerationSnapshotIntentsWithExecutor(
 	); err != nil {
 		return err
 	}
-	return appendGenerationLifecycleEventsWithExecutor(ctx, exec, run, snapshot.Generation, provenance, payload, at)
+	if err := appendGenerationLifecycleEventsWithExecutor(
+		ctx, exec, run, snapshot.Generation, provenance, payload, at,
+	); err != nil {
+		return err
+	}
+	return appendRequestOpenedEventsWithExecutor(ctx, exec, run, snapshot.Generation, payload.Requests)
+}
+
+func appendRequestOpenedEventsWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	requests []looppkg.RequestIntent,
+) error {
+	for _, request := range requests {
+		payload := map[string]any{
+			loopRunEventPayloadKeyGeneration: generation,
+			loopRunEventPayloadKeyNodeID:     request.NodeID,
+			loopRunEventPayloadKeyItemIndex:  request.ItemIndex,
+			"kind":                           request.Kind,
+			"prompt":                         request.Prompt,
+			"context":                        request.ContextPreview,
+			"expect":                         request.AnswerSchema,
+			"decisions":                      request.Decisions,
+			"agents":                         request.Agents,
+			"expires_at":                     request.ExpiresAt,
+		}
+		if err := appendLoopRunEventWithExecutor(
+			ctx, exec, run.ID, run.WorkspaceID, loopRunEventRequestOpened, payload, request.OpenedAt,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func generationSnapshotRequiresProvenance(

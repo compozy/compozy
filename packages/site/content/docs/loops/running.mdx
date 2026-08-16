@@ -179,6 +179,9 @@ Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, 
 | Cancel node     | `compozy loop node cancel`                      | `POST /loop-runs/:id/nodes/:node/cancel`  | `compozy__loop_node_cancel`                    |
 | Kill node       | `compozy loop node kill`                        | `POST /loop-runs/:id/nodes/:node/kill`    | `compozy__loop_node_kill`                      |
 | Requeue node    | `compozy loop node requeue`                     | `POST /loop-runs/:id/nodes/:node/requeue` | `compozy__loop_node_requeue`                   |
+| List requests   | `compozy loop requests`                         | `GET /loop-requests`                      | `compozy__loop_requests`                       |
+| Request detail  | `compozy loop request`                          | `GET /loop-runs/:id/nodes/:node/request`  | `compozy__loop_request`                        |
+| Answer request  | `compozy loop respond`                          | `POST /loop-runs/:id/nodes/:node/respond` | `compozy__loop_respond`                        |
 
 Live events stream from `GET /loop-runs/:id/events` (SSE). HTTP routes are workspace-scoped under
 `/api/workspaces/{workspace_id}/…`; the [Loops API](/docs/api/loops) reference lists

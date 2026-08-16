@@ -260,6 +260,8 @@ func evaluateControlNodeKind(
 		return parked, terminal, err
 	case dsl.ControlWait:
 		return evaluateWaitNode(eval, plan, output, node, *outputs, outputBlobs)
+	case dsl.ControlAsk:
+		return evaluateAskNode(eval, plan, output, node, *outputs)
 	case dsl.ControlSubLoop:
 		output.Status = generationOutputSucceeded
 		setGenerationOutputRef(&output, subLoopEnteredOutputRef)

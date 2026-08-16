@@ -1,5 +1,35 @@
 package dsl
 
+// ResponderAgentPolicy is the closed agent-response policy for human requests.
+type ResponderAgentPolicy string
+
+const (
+	// ResponderAgentsDeny keeps requests human-only, the default.
+	ResponderAgentsDeny ResponderAgentPolicy = "deny"
+	// ResponderAgentsAllow opts capable agents into responding.
+	ResponderAgentsAllow ResponderAgentPolicy = "allow"
+)
+
+// Valid reports whether the policy belongs to the closed responder enum.
+func (p ResponderAgentPolicy) Valid() bool {
+	return p == "" || p == ResponderAgentsDeny || p == ResponderAgentsAllow
+}
+
+// ResponderSpec controls which non-human principals may answer a request.
+type ResponderSpec struct {
+	Agents ResponderAgentPolicy `json:"agents,omitempty" yaml:"agents,omitempty"`
+}
+
+// AskParams is the canonical schema for control kind ask.
+type AskParams struct {
+	Prompt     string         `json:"prompt"               yaml:"prompt"`
+	Context    map[string]any `json:"context,omitempty"    yaml:"context,omitempty"`
+	Expect     Schema         `json:"expect"               yaml:"expect"`
+	Responders *ResponderSpec `json:"responders,omitempty" yaml:"responders,omitempty"`
+	Expires    *WaitExpiry    `json:"expires,omitempty"    yaml:"expires,omitempty"`
+	Extra      map[string]any `json:"-"                    yaml:",inline"`
+}
+
 // RunAgentParams is the canonical schema for action kind run-agent.
 type RunAgentParams struct {
 	Agent        string          `json:"agent"                   yaml:"agent"`

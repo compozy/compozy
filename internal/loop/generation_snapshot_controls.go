@@ -83,6 +83,20 @@ func claimCanceledNodeWaits(
 ) error {
 	_, err := tx.ExecContext(
 		ctx,
+		`UPDATE loop_requests SET state = 'canceled', resolved_at = ?,
+			actor_kind = (SELECT cancel_actor_kind FROM loop_node_controls
+				WHERE loop_run_id = ? AND node_id = ?),
+			actor_id = (SELECT cancel_actor_id FROM loop_node_controls
+				WHERE loop_run_id = ? AND node_id = ?)
+		 WHERE loop_run_id = ? AND node_id = ? AND state = 'pending'`,
+		mutation.At.UTC(), loopRunID, mutation.NodeID, loopRunID, mutation.NodeID,
+		loopRunID, mutation.NodeID,
+	)
+	if err != nil {
+		return fmt.Errorf("loop: cancel node %q requests: %w", mutation.NodeID, err)
+	}
+	_, err = tx.ExecContext(
+		ctx,
 		`UPDATE loop_node_waits SET
 			claim_state = 'claimed',
 			claimed_by_kind = (

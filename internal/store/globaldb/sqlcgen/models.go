@@ -852,6 +852,33 @@ type LoopOutputBlob struct {
 	LastUsedAt  string `json:"last_used_at"`
 }
 
+type LoopRequest struct {
+	WorkspaceID         string         `json:"workspace_id"`
+	LoopRunID           string         `json:"loop_run_id"`
+	Generation          int64          `json:"generation"`
+	NodeID              string         `json:"node_id"`
+	ItemIndex           int64          `json:"item_index"`
+	Kind                string         `json:"kind"`
+	State               string         `json:"state"`
+	Prompt              string         `json:"prompt"`
+	ContextPreviewJson  string         `json:"context_preview_json"`
+	ContextRef          sql.NullString `json:"context_ref"`
+	AnswerSchemaJson    sql.NullString `json:"answer_schema_json"`
+	EditSchemaJson      sql.NullString `json:"edit_schema_json"`
+	RespondSchemaJson   sql.NullString `json:"respond_schema_json"`
+	DecisionsJson       string         `json:"decisions_json"`
+	ProposedRef         sql.NullString `json:"proposed_ref"`
+	ProposedPreviewJson sql.NullString `json:"proposed_preview_json"`
+	AnsweredDecision    sql.NullString `json:"answered_decision"`
+	AnsweredPayloadRef  sql.NullString `json:"answered_payload_ref"`
+	AnsweredNote        sql.NullString `json:"answered_note"`
+	ActorKind           sql.NullString `json:"actor_kind"`
+	ActorID             sql.NullString `json:"actor_id"`
+	OpenedAt            time.Time      `json:"opened_at"`
+	ResolvedAt          sql.NullTime   `json:"resolved_at"`
+	ExpiresAt           sql.NullTime   `json:"expires_at"`
+}
+
 type LoopRun struct {
 	ID                       string          `json:"id"`
 	WorkspaceID              string          `json:"workspace_id"`

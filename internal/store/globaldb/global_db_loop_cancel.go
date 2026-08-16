@@ -48,6 +48,9 @@ func (g *LoopRepo) RequestRunCancellation(
 		if err := projectRunCancellation(ctx, exec, mutation); err != nil {
 			return err
 		}
+		if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
+			return err
+		}
 		result.SessionIDs, err = listRunCancellationSessions(ctx, exec, mutation)
 		if err != nil {
 			return err
@@ -172,6 +175,9 @@ func (g *LoopRepo) RequestNodeCancellation(
 		}
 		if result.Applied {
 			if err := fenceNodeCancellation(ctx, exec, mutation); err != nil {
+				return err
+			}
+			if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
 				return err
 			}
 		}
@@ -442,7 +448,7 @@ func terminalizeRunCancellation(
 	mutation looppkg.CancellationMutation,
 	run looppkg.Run,
 ) error {
-	if err := claimCancellationWaits(ctx, exec, mutation); err != nil {
+	if err := claimCancellationWaits(ctx, exec, mutation, run); err != nil {
 		return err
 	}
 	if _, err := exec.ExecContext(ctx, `UPDATE loop_generation_outputs SET status = 'canceled',

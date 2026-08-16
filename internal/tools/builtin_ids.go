@@ -362,6 +362,12 @@ const (
 	ToolIDLoopConfigure ToolID = "compozy__loop_configure"
 	// ToolIDLoopApprove applies one human-gate decision.
 	ToolIDLoopApprove ToolID = "compozy__loop_approve"
+	// ToolIDLoopRequests lists human requests.
+	ToolIDLoopRequests ToolID = "compozy__loop_requests"
+	// ToolIDLoopRequest reads one human request in full.
+	ToolIDLoopRequest ToolID = "compozy__loop_request"
+	// ToolIDLoopRespond answers one human request.
+	ToolIDLoopRespond ToolID = "compozy__loop_respond"
 	// ToolIDLoopDelete deletes one user-authored Loop definition.
 	ToolIDLoopDelete ToolID = "compozy__loop_delete"
 	// ToolIDAutomationJobsList lists automation jobs through the automation manager.

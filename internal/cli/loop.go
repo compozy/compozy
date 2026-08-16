@@ -39,6 +39,9 @@ const (
 	loopPauseKey      = "pause"
 	loopResumeKey     = "resume"
 	loopApproveKey    = "approve"
+	loopRequestsKey   = "requests"
+	loopRequestKey    = "request"
+	loopRespondKey    = "respond"
 	loopEditKey       = "edit"
 	loopDeleteKey     = "delete"
 )
@@ -69,6 +72,9 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLoopNodesCommand(deps))
 	cmd.AddCommand(newLoopConfigureCommand(deps))
 	cmd.AddCommand(newLoopApproveCommand(deps))
+	cmd.AddCommand(newLoopRequestsCommand(deps))
+	cmd.AddCommand(newLoopRequestCommand(deps))
+	cmd.AddCommand(newLoopRespondCommand(deps))
 	cmd.AddCommand(newLoopEditCommand(deps))
 	cmd.AddCommand(newLoopDeleteCommand(deps))
 	return cmd

@@ -85,15 +85,16 @@ func loopDefaultConfigFromConfig(
 		return looppkg.LoopConfig{}, err
 	}
 	result := looppkg.LoopConfig{
-		IterationCap:     new(cfg.IterationCap),
-		NoProgressWindow: new(cfg.NoProgress.Window),
-		BudgetTokens:     new(cfg.Budget.Tokens),
-		BudgetWallSec:    new(cfg.Budget.WallClockSec),
-		BudgetOnExceeded: budgetExceededPtr(cfg.Budget.OnExceeded),
-		RuntimeDefaults:  loopRuntimeDefaultsFromConfig(cfg.RuntimeDefaults),
-		RuntimeRules:     loopRuntimeRulesFromConfig(cfg.RuntimeRules),
-		FanOutWidth:      new(cfg.FanOutWidth),
-		Lifecycle:        &lifecycle,
+		IterationCap:       new(cfg.IterationCap),
+		NoProgressWindow:   new(cfg.NoProgress.Window),
+		BudgetTokens:       new(cfg.Budget.Tokens),
+		BudgetWallSec:      new(cfg.Budget.WallClockSec),
+		BudgetOnExceeded:   budgetExceededPtr(cfg.Budget.OnExceeded),
+		RuntimeDefaults:    loopRuntimeDefaultsFromConfig(cfg.RuntimeDefaults),
+		RuntimeRules:       loopRuntimeRulesFromConfig(cfg.RuntimeRules),
+		FanOutWidth:        new(cfg.FanOutWidth),
+		RequestExpireAfter: new(cfg.Requests.ExpireAfter),
+		Lifecycle:          &lifecycle,
 	}
 	if includeZeroGate || cfg.Gates.MaxRevisions > 0 {
 		result.GateMaxRevisions = new(cfg.Gates.MaxRevisions)

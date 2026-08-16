@@ -31,6 +31,12 @@ func (c *lintContext) lintLifecycleNode(node dsl.Node) {
 	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlWait {
 		c.lintWait(node)
 	}
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlAsk {
+		var params dsl.AskParams
+		if err := node.Params.Decode(&params); err == nil && params.Expires != nil {
+			c.lintWaitExpiry(node, params.Expires, "ask")
+		}
+	}
 }
 
 func (c *lintContext) lintRetryLifecycle(node dsl.Node) {

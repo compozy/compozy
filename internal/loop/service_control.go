@@ -82,6 +82,9 @@ func (s *service) Approve(
 	if err := actor.Validate(); err != nil {
 		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
+	if err := s.rejectSelfOperation(ctx, ws, runID, actor); err != nil {
+		return err
+	}
 	run, err := s.store.GetLoopRun(ctx, ws, runID)
 	if err != nil {
 		return err

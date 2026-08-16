@@ -45,6 +45,10 @@ const (
 	loopRunEventLateArrival             = "late_arrival"
 	loopRunEventEffectResults           = "effect_results"
 	loopRunEventCustomEvent             = "custom_event"
+	loopRunEventRequestOpened           = "request_opened"
+	loopRunEventRequestAnswered         = "request_answered"
+	loopRunEventRequestExpired          = "request_expired"
+	loopRunEventRequestCanceled         = "request_canceled"
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
@@ -279,7 +283,11 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventStaleScheduleDropped,
 		loopRunEventLateArrival,
 		loopRunEventEffectResults,
-		loopRunEventCustomEvent:
+		loopRunEventCustomEvent,
+		loopRunEventRequestOpened,
+		loopRunEventRequestAnswered,
+		loopRunEventRequestExpired,
+		loopRunEventRequestCanceled:
 		return true
 	default:
 		return false

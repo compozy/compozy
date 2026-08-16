@@ -291,7 +291,7 @@ var loopTools = []toolspkg.Descriptor{
 }
 
 func loopDescriptors() []toolspkg.Descriptor {
-	return loopTools
+	return append(append([]toolspkg.Descriptor(nil), loopTools...), loopRequestTools...)
 }
 
 func nativeLoopDescriptor(
@@ -317,6 +317,12 @@ func nativeLoopDescriptor(
 		descriptor.OutputSchema = json.RawMessage(loopRunsOutputSchema)
 	case toolspkg.ToolIDLoopNodes:
 		descriptor.OutputSchema = json.RawMessage(loopNodesOutputSchema)
+	case toolspkg.ToolIDLoopRequests:
+		descriptor.OutputSchema = json.RawMessage(loopRequestsOutputSchema)
+	case toolspkg.ToolIDLoopRequest:
+		descriptor.OutputSchema = json.RawMessage(loopRequestOutputSchema)
+	case toolspkg.ToolIDLoopRespond:
+		descriptor.OutputSchema = json.RawMessage(loopRespondOutputSchema)
 	case toolspkg.ToolIDLoopCancel,
 		toolspkg.ToolIDLoopKill,
 		toolspkg.ToolIDLoopNodePause,
@@ -328,6 +334,9 @@ func nativeLoopDescriptor(
 	}
 	if id == toolspkg.ToolIDLoopApprove {
 		return withRequiredCapabilities(descriptor, "loops.approve")
+	}
+	if id == toolspkg.ToolIDLoopRespond {
+		return withRequiredCapabilities(descriptor, "loops.respond")
 	}
 	return descriptor
 }

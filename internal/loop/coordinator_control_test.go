@@ -140,6 +140,99 @@ func TestCoordinatorRunnerShouldParkWaitControls(t *testing.T) {
 	}
 }
 
+// Invariant: an ask freezes one redacted request and parks the exact cell without worker work.
+// The canonical coordinator-control suite owns ask planning and default-vs-authored expiry precedence.
+func TestCoordinatorRunnerShouldParkAskRequests(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name          string
+		authoredAfter string
+		wantAfter     time.Duration
+	}{
+		{name: "Should seed expiry when the ask omits it", wantAfter: 72 * time.Hour},
+		{name: "Should preserve authored expiry over the seed", authoredAfter: "1h", wantAfter: time.Hour},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			params := dsl.NodeParams{
+				"prompt": "Choose release target for {{ .inputs.release }}",
+				"context": map[string]any{
+					"release":   "{{ .inputs.release }}",
+					"api_token": "super-secret-token",
+					"evidence":  strings.Repeat("x", requestPreviewLimitBytes+256),
+				},
+				"expect":     map[string]any{"environment": "string"},
+				"responders": map[string]any{"agents": "allow"},
+			}
+			if tt.authoredAfter != "" {
+				params["expires"] = map[string]any{"after": tt.authoredAfter}
+			}
+			definition := dsl.Definition{
+				APIVersion: dsl.APIVersion,
+				Kind:       dsl.KindLoop,
+				Meta:       dsl.Meta{Name: "ask-control"},
+				Inputs:     map[string]dsl.Input{"release": {Type: dsl.InputTypeString, Required: true}},
+				Contract: dsl.Contract{
+					Goal: "Choose a target", DefinitionOfDone: "Target chosen", IterationCap: 2,
+				},
+				Graph: dsl.Graph{Nodes: []dsl.Node{
+					{ID: "select", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk), Params: params},
+					{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+						Params: dsl.NodeParams{"map": map[string]any{"ok": map[string]any{"value": true}}}},
+				}, Edges: []dsl.Edge{{From: "select", To: "publish"}}},
+			}
+			resolved := compileCoordinatorControlDefinition(t, definition)
+			loopRun := controlLoopRun("looprun-ask-"+strings.ReplaceAll(tt.name, " ", "-"), map[string]any{
+				"release": "v2.4.1",
+			})
+			coordinatorRun := controlCoordinatorRun(loopRun, 1)
+			defaults := DefaultLoopDefaults()
+			seed := "72h"
+			defaults.Delivery.RequestExpireAfter = &seed
+			runner := newCoordinatorRunnerForControlTestWithDefaults(
+				t, loopRun, coordinatorRun, nil,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+					{Generation: 1, NodeID: "select", Status: generationOutputPending, Attempt: 1},
+					{Generation: 1, NodeID: "publish", Status: generationOutputPending, Attempt: 1},
+				}}},
+				resolved,
+				defaults,
+			)
+			runner.now = func() time.Time { return now }
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			payload := coordinatorSnapshotPayloadForTest(t, plan)
+			outputs := outputsByNodeAndItemForTest(payload.Outputs)
+			if plan.Terminal != nil || len(plan.NodeRuns) != 0 || !plan.Yield ||
+				outputs["select/0"].Status != generationOutputWaiting {
+				t.Fatalf("ask plan = %#v outputs = %#v, want parked without worker", plan, outputs)
+			}
+			if len(payload.Waits) != 1 || payload.Waits[0].Kind != NodeWaitKindRequest ||
+				payload.Waits[0].NextEscalationAt == nil ||
+				!payload.Waits[0].NextEscalationAt.Equal(now.Add(tt.wantAfter)) {
+				t.Fatalf("ask waits = %#v, want request expiry after %s", payload.Waits, tt.wantAfter)
+			}
+			if len(payload.Requests) != 1 {
+				t.Fatalf("ask requests = %#v, want one", payload.Requests)
+			}
+			request := payload.Requests[0]
+			if request.Prompt != "Choose release target for v2.4.1" ||
+				request.Agents != dsl.ResponderAgentsAllow ||
+				!strings.Contains(string(request.Context), `"api_token":"[REDACTED]"`) ||
+				strings.Contains(string(request.Context), "super-secret-token") ||
+				!strings.Contains(string(request.ContextPreview), `"truncated":true`) {
+				t.Fatalf("frozen request = %#v", request)
+			}
+		})
+	}
+}
+
 func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
 	t.Parallel()
 
@@ -1487,12 +1580,27 @@ func newCoordinatorRunnerForControlTest(
 	resolved *ResolvedDefinition,
 ) *CoordinatorRunner {
 	t.Helper()
-	if runs == nil {
-		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
-	}
 	defaults := LoopDefaults{
 		Delivery: definitionConfigLayer(resolved.Definition),
 		Watch:    definitionConfigLayer(resolved.Definition),
+	}
+	return newCoordinatorRunnerForControlTestWithDefaults(
+		t, loopRun, coordinatorRun, runs, outputs, resolved, defaults,
+	)
+}
+
+func newCoordinatorRunnerForControlTestWithDefaults(
+	t *testing.T,
+	loopRun Run,
+	coordinatorRun task.Run,
+	runs map[string]task.Run,
+	outputs GenerationOutputReader,
+	resolved *ResolvedDefinition,
+	defaults LoopDefaults,
+) *CoordinatorRunner {
+	t.Helper()
+	if runs == nil {
+		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
 	}
 	effective, err := ResolveEffectiveConfig(resolved, defaults, nil, LoopConfig{})
 	if err != nil {

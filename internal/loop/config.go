@@ -98,6 +98,9 @@ func (cfg LoopConfig) Clone() LoopConfig {
 		lifecycle := cfg.Lifecycle.Clone()
 		cloned.Lifecycle = &lifecycle
 	}
+	if cfg.RequestExpireAfter != nil {
+		cloned.RequestExpireAfter = new(*cfg.RequestExpireAfter)
+	}
 	return cloned
 }
 
@@ -239,6 +242,9 @@ func mergeConfigLayer(effective *EffectiveConfig, layer LoopConfig) {
 	if layer.Lifecycle != nil {
 		mergeLifecycleLayer(&effective.Lifecycle, *layer.Lifecycle)
 	}
+	if layer.RequestExpireAfter != nil {
+		effective.RequestExpireAfter = strings.TrimSpace(*layer.RequestExpireAfter)
+	}
 	if layer.Environment != nil {
 		effective.Environment = normalizeEnvironmentSpec(*layer.Environment)
 	}
@@ -265,6 +271,12 @@ func validateEffectiveConfig(cfg EffectiveConfig) error {
 	}
 	if _, err := ResolveActionEnvironment(dsl.EnvironmentSpec{}, cfg.Environment); err != nil {
 		return err
+	}
+	if cfg.RequestExpireAfter != "" {
+		duration, err := time.ParseDuration(cfg.RequestExpireAfter)
+		if err != nil || duration <= 0 {
+			return fmt.Errorf("%w: request_expire_after must be a positive duration", ErrValidation)
+		}
 	}
 	return nil
 }

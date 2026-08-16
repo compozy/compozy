@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -12,9 +13,130 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+// Invariant: request transports expose preview/provenance fields and never private blob refs.
+// The daemon Loop API suite owns the public request payload builder.
+func TestLoopRequestPayloadShouldExposeOnlyPublicRequestState(t *testing.T) {
+	t.Parallel()
+
+	answeredAt := time.Date(2026, time.August, 16, 14, 11, 3, 0, time.UTC)
+	payload := loopRequestPayload(looppkg.Request{
+		LoopRunID: "run-1", LoopName: "rollout", Generation: 2, NodeID: "select", ItemIndex: 3,
+		Kind: looppkg.RequestKindAsk, State: looppkg.RequestStateAnswered,
+		Prompt: "Choose an environment", Context: json.RawMessage(`{"truncated":true,"byte_size":20000}`),
+		Expect: json.RawMessage(`{"environment":"string"}`), Decisions: []string{"respond"},
+		Agents: dsl.ResponderAgentsAllow, AnsweredDecision: "respond",
+		ActorKind: "human", ActorID: "operator:pedro", OpenedAt: answeredAt.Add(-time.Minute),
+		ResolvedAt: &answeredAt,
+	})
+	response := contract.LoopRequestsResponse{
+		Items:      []contract.LoopRequestPayload{payload},
+		Aggregates: contract.LoopRequestAggregates{Pending: 4},
+	}
+	raw, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	encoded := string(raw)
+	for _, fragment := range []string{`"pending":4`, `"answered_at":"2026-08-16T14:11:03Z"`, `"agents":"allow"`} {
+		if !strings.Contains(encoded, fragment) {
+			t.Fatalf("request payload = %s, want %s", encoded, fragment)
+		}
+	}
+	for _, privateField := range []string{"context_ref", "proposed_ref", "answered_payload_ref"} {
+		if strings.Contains(encoded, privateField) {
+			t.Fatalf("request payload leaked private field %q: %s", privateField, encoded)
+		}
+	}
+}
+
+// Invariant: agents in a run starter's durable spawn chain cannot act as that run's responder.
+// The daemon Loop API suite owns the shared responder trust boundary used by approve and respond.
+func TestDaemonLoopResponderPolicyShouldEvaluateDurableSpawnChains(t *testing.T) {
+	t.Parallel()
+
+	policy := daemonLoopResponderPolicy{
+		runs: responderRunReaderStub{run: looppkg.Run{
+			ID: "run-1", WorkspaceID: "ws-1",
+			StartedBy: task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: "starter"},
+		}},
+		sessions: responderSessionReaderStub{sessions: map[string]*session.Info{
+			"starter":    responderSessionInfo("starter", "ws-1", ""),
+			"child":      responderSessionInfo("child", "ws-1", "starter"),
+			"grandchild": responderSessionInfo("grandchild", "ws-1", "child"),
+			"unrelated":  responderSessionInfo("unrelated", "ws-1", ""),
+			"stale":      responderSessionInfo("different", "ws-1", ""),
+		}},
+	}
+	for _, tt := range []struct {
+		name     string
+		actor    task.ActorContext
+		wantDeny bool
+	}{
+		{name: "Should deny the direct starter", actor: responderActorForTest(task.ActorKindAgentSession, "starter", "ws-1"), wantDeny: true},
+		{name: "Should deny a transitively spawned child", actor: responderActorForTest(task.ActorKindAgentSession, "grandchild", "ws-1"), wantDeny: true},
+		{name: "Should allow an unrelated agent", actor: responderActorForTest(task.ActorKindAgentSession, "unrelated", "ws-1")},
+		{name: "Should allow a human operator", actor: responderActorForTest(task.ActorKindHuman, "operator:pedro", "ws-1")},
+		{name: "Should deny a cross-workspace actor", actor: responderActorForTest(task.ActorKindAgentSession, "unrelated", "ws-other"), wantDeny: true},
+		{name: "Should fail closed on missing lineage", actor: responderActorForTest(task.ActorKindAgentSession, "missing", "ws-1"), wantDeny: true},
+		{name: "Should fail closed on stale lineage", actor: responderActorForTest(task.ActorKindAgentSession, "stale", "ws-1"), wantDeny: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			denied, err := policy.DeniesSelfOperation(t.Context(), "ws-1", "run-1", tt.actor)
+			if err != nil {
+				t.Fatalf("DeniesSelfOperation() error = %v", err)
+			}
+			if denied != tt.wantDeny {
+				t.Fatalf("DeniesSelfOperation() = %v, want %v", denied, tt.wantDeny)
+			}
+		})
+	}
+}
+
+type responderRunReaderStub struct {
+	run looppkg.Run
+	err error
+}
+
+func (s responderRunReaderStub) GetLoopRun(
+	context.Context,
+	looppkg.WorkspaceID,
+	looppkg.RunID,
+) (looppkg.Run, error) {
+	return s.run, s.err
+}
+
+type responderSessionReaderStub struct {
+	sessions map[string]*session.Info
+}
+
+func (s responderSessionReaderStub) Status(_ context.Context, sessionID string) (*session.Info, error) {
+	info, ok := s.sessions[sessionID]
+	if !ok {
+		return nil, errors.New("session not found")
+	}
+	return info, nil
+}
+
+func responderSessionInfo(id, workspaceID, parentID string) *session.Info {
+	return &session.Info{
+		ID: id, WorkspaceID: workspaceID,
+		Lineage: &storepkg.SessionLineage{ParentSessionID: parentID},
+	}
+}
+
+func responderActorForTest(kind task.ActorKind, id, workspaceID string) task.ActorContext {
+	return task.ActorContext{
+		Actor: task.ActorIdentity{Kind: kind, Ref: id},
+		Scope: task.CallerScope{WorkspaceID: workspaceID},
+	}
+}
 
 func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.T) {
 	t.Parallel()
@@ -720,6 +842,29 @@ func (s *loopApprovalAggregateStub) Approve(
 		return errors.New("unexpected Approve call")
 	}
 	return s.approveFn(ctx, ws, runID, gateID, decision, actor)
+}
+
+func (s *loopApprovalAggregateStub) ListRequests(
+	context.Context,
+	looppkg.WorkspaceID,
+	looppkg.RequestQuery,
+) (looppkg.RequestPage, error) {
+	return looppkg.RequestPage{}, errors.New("unexpected ListRequests call")
+}
+
+func (s *loopApprovalAggregateStub) GetRequest(
+	context.Context,
+	looppkg.WorkspaceID,
+	looppkg.RequestRef,
+) (looppkg.RequestDetail, error) {
+	return looppkg.RequestDetail{}, errors.New("unexpected GetRequest call")
+}
+
+func (s *loopApprovalAggregateStub) Respond(
+	context.Context,
+	looppkg.RespondInput,
+) (looppkg.RespondResult, error) {
+	return looppkg.RespondResult{}, errors.New("unexpected Respond call")
 }
 
 func (s *loopApprovalAggregateStub) Configure(

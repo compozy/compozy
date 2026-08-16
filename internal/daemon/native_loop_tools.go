@@ -80,6 +80,15 @@ func (n *daemonNativeTools) loopToolBindings(
 			call:         n.loopApprove,
 			availability: availability,
 		},
+		toolspkg.ToolIDLoopRequests: {
+			call: n.loopRequests, availability: availability,
+		},
+		toolspkg.ToolIDLoopRequest: {
+			call: n.loopRequest, availability: availability,
+		},
+		toolspkg.ToolIDLoopRespond: {
+			call: n.loopRespond, availability: availability,
+		},
 		toolspkg.ToolIDLoopDelete: {
 			call:         n.loopDelete,
 			availability: availability,

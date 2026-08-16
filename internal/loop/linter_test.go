@@ -36,6 +36,89 @@ graph:
 	requireLintMessageContains(t, errList, loop.CodeUnknownParameter, "contract.no_progress.hash_fields")
 }
 
+// Invariant: ask controls declare a valid answer shape and only route expiry forward.
+// The canonical linter suite owns authoring diagnostics and output-schema derivation.
+func TestLinterShouldValidateAskControls(t *testing.T) {
+	t.Parallel()
+
+	valid := dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Meta:       dsl.Meta{Name: "ask-lint"},
+		Contract: dsl.Contract{
+			Goal: "Select an environment", DefinitionOfDone: "Selection recorded", IterationCap: 2,
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID: "select", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk),
+					Params: dsl.NodeParams{
+						"prompt":     "Which environment?",
+						"expect":     map[string]any{"environment": "string"},
+						"responders": map[string]any{"agents": "allow"},
+						"expires":    map[string]any{"after": "1h", "route": "expired"},
+					},
+				},
+				{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{
+						"environment": map[string]any{"template": "{{ .nodes.select.output.environment }}"},
+					}}},
+				{ID: "expired", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{"expired": map[string]any{"value": true}}}},
+			},
+			Edges: []dsl.Edge{{From: "select", To: "publish"}, {From: "select", To: "expired"}},
+		},
+	}
+	if _, err := loop.NewCompiler().Compile(valid); err != nil {
+		t.Fatalf("Compile(valid ask) error = %v", err)
+	}
+
+	for _, tt := range []struct {
+		name string
+		edit func(*dsl.Definition)
+		code string
+	}{
+		{
+			name: "Should require an answer shape",
+			edit: func(definition *dsl.Definition) { delete(definition.Graph.Nodes[0].Params, "expect") },
+			code: loop.CodeAskExpectRequired,
+		},
+		{
+			name: "Should reject a zero expiry duration",
+			edit: func(definition *dsl.Definition) {
+				definition.Graph.Nodes[0].Params["expires"] = map[string]any{"after": "0s", "route": "expired"}
+			},
+			code: loop.CodeDurationInvalid,
+		},
+		{
+			name: "Should reject a non-forward expiry route",
+			edit: func(definition *dsl.Definition) {
+				definition.Graph.Nodes[0].Params["expires"] = map[string]any{"after": "1h", "route": "missing"}
+			},
+			code: loop.CodeErrorRouteBackward,
+		},
+		{
+			name: "Should reject an unknown responder policy",
+			edit: func(definition *dsl.Definition) {
+				definition.Graph.Nodes[0].Params["responders"] = map[string]any{"agents": "sometimes"}
+			},
+			code: loop.CodeResponderPolicyInvalid,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			definition := valid
+			definition.Graph.Nodes = append([]dsl.Node(nil), valid.Graph.Nodes...)
+			definition.Graph.Nodes[0].Params = dsl.NodeParams{}
+			for key, value := range valid.Graph.Nodes[0].Params {
+				definition.Graph.Nodes[0].Params[key] = value
+			}
+			tt.edit(&definition)
+			requireLintDiagnostic(t, loop.NewLinter().Lint(definition), tt.code, loop.SeverityError)
+		})
+	}
+}
+
 func TestLinterShouldValidatePredicateErrorPolicies(t *testing.T) {
 	t.Parallel()
 

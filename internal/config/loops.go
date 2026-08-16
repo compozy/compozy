@@ -85,6 +85,7 @@ type LoopDefaultConfig struct {
 	Resume          LoopResumeDefaultConfig     `toml:"resume"`
 	Predicates      LoopPredicateDefaultConfig  `toml:"predicates"`
 	Waits           LoopWaitDefaultConfig       `toml:"waits"`
+	Requests        LoopRequestsDefaultConfig   `toml:"requests"`
 	Admission       LoopAdmissionDefaultConfig  `toml:"admission"`
 	Autopause       []LoopAutopauseRule         `toml:"autopause"`
 }
@@ -221,6 +222,9 @@ func (c LoopDefaultConfig) Validate(path string) error {
 		return err
 	}
 	if err := c.Waits.validate(path + ".waits"); err != nil {
+		return err
+	}
+	if err := c.Requests.validate(path + ".requests"); err != nil {
 		return err
 	}
 	if err := c.Admission.validate(path + ".admission"); err != nil {

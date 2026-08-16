@@ -21,6 +21,14 @@ func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {
 		return c.sourceOutputSchema(node)
 	case dsl.NodeClassAction:
 		return c.actionOutputSchema(node)
+	case dsl.NodeClassControl:
+		if dsl.ControlKind(node.Kind) == dsl.ControlAsk {
+			var params dsl.AskParams
+			if err := node.Params.Decode(&params); err == nil && len(params.Expect) > 0 {
+				return convertSchema(params.Expect), true
+			}
+		}
+		return nil, false
 	default:
 		return nil, false
 	}

@@ -17,6 +17,8 @@ const (
 	NodeWaitKindEvent = "event"
 	// NodeWaitKindApprovalEscalation parks a gate while its escalation ladder remains active.
 	NodeWaitKindApprovalEscalation = "approval_escalation"
+	// NodeWaitKindRequest parks a human request until answer, expiry, or cancellation.
+	NodeWaitKindRequest = "request"
 )
 
 // NodeWaitIntent persists one wait in the same transaction as its waiting cell.
@@ -131,7 +133,8 @@ func (i NodeWaitIntent) validate() error {
 	if i.NodeID == "" || i.ItemIndex < 0 || i.IssuedEpoch < 1 || i.CreatedAt.IsZero() {
 		return fmt.Errorf("%w: node wait intent identity is incomplete", ErrValidation)
 	}
-	if i.Kind != NodeWaitKindTimer && i.Kind != NodeWaitKindEvent && i.Kind != NodeWaitKindApprovalEscalation {
+	if i.Kind != NodeWaitKindTimer && i.Kind != NodeWaitKindEvent &&
+		i.Kind != NodeWaitKindApprovalEscalation && i.Kind != NodeWaitKindRequest {
 		return fmt.Errorf("%w: node wait kind is invalid: %q", ErrValidation, i.Kind)
 	}
 	if i.Kind == NodeWaitKindTimer && i.ResumeAt == nil {

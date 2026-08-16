@@ -90,6 +90,7 @@ type LoopRunResponse struct {
 	Generations          []LoopGenerationPayload  `json:"generations,omitempty"`
 	NodeControls         []LoopNodeControlPayload `json:"node_controls"`
 	Waits                []LoopNodeWaitPayload    `json:"waits"`
+	Requests             []LoopRequestPayload     `json:"requests"`
 	// WatchEvents is the parked watch-events read-model (present only while dormant).
 	WatchEvents *LoopWatchEventsState `json:"watch_events,omitempty"`
 }

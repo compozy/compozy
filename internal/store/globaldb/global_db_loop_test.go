@@ -60,6 +60,10 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 		loopRunEventTargetBreakerTransition: {},
 		loopRunEventStaleScheduleDropped:    {},
 		loopRunEventLateArrival:             {},
+		loopRunEventRequestOpened:           {},
+		loopRunEventRequestAnswered:         {},
+		loopRunEventRequestExpired:          {},
+		loopRunEventRequestCanceled:         {},
 	}
 	for _, kind := range contract.LoopRunEventKindValues() {
 		t.Run("Should accept public kind "+kind, func(t *testing.T) {
@@ -80,6 +84,327 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: one request row and its request wait form a single-winner, workspace-scoped lifecycle.
+// The canonical GlobalDB Loop suite owns ordering, admission, idempotency, expiry, and cancellation truth.
+func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should paginate pending lanes and admit one schema-valid answer", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 13, 0, 0, 0, time.UTC)
+		globalDB.LoopRepo.now = func() time.Time { return now.Add(10 * time.Minute) }
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-request-admission", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		schema := json.RawMessage(`{"type":"object","required":["environment"],"properties":{"environment":{"type":"string"}}}`)
+		for lane, expiry := range []time.Time{now.Add(2 * time.Hour), now.Add(time.Hour)} {
+			seedLoopWaitCellForTest(
+				t, globalDB, run, "select", lane, looppkg.NodeWaitKindRequest, int64(lane+1),
+				schema, nil, &expiry, now.Add(time.Duration(lane)*time.Minute),
+			)
+			seedLoopRequestForTest(t, globalDB, run, "select", lane, schema, &expiry, now.Add(time.Duration(lane)*time.Minute))
+		}
+
+		first, err := globalDB.ListRequests(ctx, run.WorkspaceID, looppkg.RequestQuery{Limit: 1})
+		if err != nil {
+			t.Fatalf("ListRequests(first) error = %v", err)
+		}
+		if len(first.Items) != 1 || first.Items[0].ItemIndex != 1 || first.Pending != 2 || first.NextCursor == "" {
+			t.Fatalf("ListRequests(first) = %#v, want earliest expiry and cursor", first)
+		}
+		second, err := globalDB.ListRequests(ctx, run.WorkspaceID, looppkg.RequestQuery{
+			Limit: 1, Cursor: first.NextCursor,
+		})
+		if err != nil {
+			t.Fatalf("ListRequests(second) error = %v", err)
+		}
+		if len(second.Items) != 1 || second.Items[0].ItemIndex != 0 || second.NextCursor != "" {
+			t.Fatalf("ListRequests(second) = %#v, want final lane without cursor", second)
+		}
+		detail, err := globalDB.GetRequest(ctx, run.WorkspaceID, looppkg.RequestRef{
+			RunID: run.ID, NodeID: "select", ItemIndex: 1,
+		}, true)
+		if err != nil || !strings.Contains(string(detail.Context), `"full":"lane-1"`) {
+			t.Fatalf("GetRequest(full) = %#v, error = %v", detail, err)
+		}
+
+		actor := operatorActorContextForTest("operator:one")
+		_, err = globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
+			Payload: json.RawMessage(`{}`), Actor: actor,
+		})
+		var validationReason *looppkg.ReasonError
+		if !errors.Is(err, looppkg.ErrRequestValidationFailed) ||
+			!errors.As(err, &validationReason) || validationReason.Code != looppkg.ReasonCodeRequestValidationFailed {
+			t.Fatalf("RespondRequest(invalid) error = %#v", err)
+		}
+		pending, err := globalDB.GetRequest(ctx, run.WorkspaceID, looppkg.RequestRef{
+			RunID: run.ID, NodeID: "select", ItemIndex: 1,
+		}, false)
+		if err != nil || pending.State != looppkg.RequestStatePending {
+			t.Fatalf("GetRequest(after invalid) = %#v, error = %v", pending, err)
+		}
+
+		answer := json.RawMessage(`{"environment":"production"}`)
+		result, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
+			Payload: answer, Actor: actor,
+		})
+		if err != nil || !result.Won || result.Request.State != looppkg.RequestStateAnswered ||
+			result.Coordinator == nil {
+			t.Fatalf("RespondRequest(valid) = %#v, error = %v", result, err)
+		}
+		var outputRef string
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT output_ref FROM loop_generation_outputs
+			WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
+			run.ID, result.Request.Generation, "select", 1).Scan(&outputRef); err != nil {
+			t.Fatalf("load admitted request output ref error = %v", err)
+		}
+		payload, err := globalDB.GetGenerationOutputPayload(ctx, looppkg.GenerationOutputPayloadKey{
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			Generation:  result.Request.Generation,
+			NodeID:      "select",
+			ItemIndex:   1,
+			OutputRef:   outputRef,
+		})
+		if err != nil || string(payload) != string(answer) {
+			t.Fatalf("admitted request output = %s, error = %v, want %s", payload, err, answer)
+		}
+		replay, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
+			Payload: answer, Actor: actor,
+		})
+		if err != nil || replay.Won {
+			t.Fatalf("RespondRequest(replay) = %#v, error = %v, want idempotent echo", replay, err)
+		}
+		_, err = globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select", ItemIndex: 1,
+			Payload: answer, Actor: operatorActorContextForTest("operator:two"),
+		})
+		var conflictReason *looppkg.ReasonError
+		if !errors.Is(err, looppkg.ErrRequestAlreadyAnswered) ||
+			!errors.As(err, &conflictReason) ||
+			conflictReason.Meta[looppkg.ReasonMetaRecordedDecision] != looppkg.RequestDecisionRespond {
+			t.Fatalf("RespondRequest(loser) error = %#v", err)
+		}
+	})
+
+	t.Run("Should serialize concurrent responders and cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 13, 30, 0, 0, time.UTC)
+		globalDB.LoopRepo.now = func() time.Time { return now.Add(time.Minute) }
+		schema := json.RawMessage(`{"type":"object","required":["value"],"properties":{"value":{"type":"string"}}}`)
+		seedRun := func(id string) looppkg.Run {
+			t.Helper()
+			run, err := globalDB.CreateLoopRunForStart(
+				ctx, testLoopRun(id, now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart(%s) error = %v", id, err)
+			}
+			expires := now.Add(time.Hour)
+			seedLoopWaitCellForTest(t, globalDB, run, "select", 0, looppkg.NodeWaitKindRequest, 1, schema, nil, &expires, now)
+			seedLoopRequestForTest(t, globalDB, run, "select", 0, schema, &expires, now)
+			return run
+		}
+
+		respondRun := seedRun("looprun-request-race-respond")
+		start := make(chan struct{})
+		respondErrors := make(chan error, 2)
+		var responders sync.WaitGroup
+		for index := 0; index < 2; index++ {
+			responders.Add(1)
+			go func(index int) {
+				defer responders.Done()
+				<-start
+				_, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+					WorkspaceID: respondRun.WorkspaceID, RunID: respondRun.ID, NodeID: "select",
+					Payload: json.RawMessage(fmt.Sprintf(`{"value":"answer-%d"}`, index)),
+					Actor:   operatorActorContextForTest(fmt.Sprintf("operator:%d", index)),
+				})
+				respondErrors <- err
+			}(index)
+		}
+		close(start)
+		responders.Wait()
+		close(respondErrors)
+		wins := 0
+		conflicts := 0
+		for err := range respondErrors {
+			switch {
+			case err == nil:
+				wins++
+			case errors.Is(err, looppkg.ErrRequestAlreadyAnswered):
+				conflicts++
+			default:
+				t.Fatalf("concurrent RespondRequest() error = %v", err)
+			}
+		}
+		if wins != 1 || conflicts != 1 {
+			t.Fatalf("respond race wins/conflicts = %d/%d, want 1/1", wins, conflicts)
+		}
+
+		cancelRun := seedRun("looprun-request-race-cancel")
+		start = make(chan struct{})
+		raceErrors := make(chan error, 2)
+		var race sync.WaitGroup
+		race.Add(2)
+		go func() {
+			defer race.Done()
+			<-start
+			_, err := globalDB.RespondRequest(ctx, looppkg.RespondInput{
+				WorkspaceID: cancelRun.WorkspaceID, RunID: cancelRun.ID, NodeID: "select",
+				Payload: json.RawMessage(`{"value":"answer"}`),
+				Actor:   operatorActorContextForTest("operator:respond"),
+			})
+			if err != nil && !errors.Is(err, looppkg.ErrRequestCanceled) {
+				raceErrors <- err
+				return
+			}
+			raceErrors <- nil
+		}()
+		go func() {
+			defer race.Done()
+			<-start
+			_, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+				WorkspaceID: cancelRun.WorkspaceID, RunID: cancelRun.ID, Kind: looppkg.RunCancelCancel,
+				Reason: "race", Actor: operatorActorContextForTest("operator:cancel"), RequestedAt: now.Add(2 * time.Minute),
+			})
+			raceErrors <- err
+		}()
+		close(start)
+		race.Wait()
+		close(raceErrors)
+		for err := range raceErrors {
+			if err != nil {
+				t.Fatalf("respond/cancel race error = %v", err)
+			}
+		}
+		request, err := globalDB.GetRequest(ctx, cancelRun.WorkspaceID, looppkg.RequestRef{
+			RunID: cancelRun.ID, NodeID: "select",
+		}, false)
+		if err != nil || (request.State != looppkg.RequestStateAnswered && request.State != looppkg.RequestStateCanceled) {
+			t.Fatalf("respond/cancel race request = %#v, error = %v", request, err)
+		}
+		var answeredEvents, canceledEvents int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT
+			SUM(CASE WHEN kind = 'request_answered' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN kind = 'request_canceled' THEN 1 ELSE 0 END)
+			FROM loop_run_events WHERE loop_run_id = ?`, cancelRun.ID).Scan(&answeredEvents, &canceledEvents); err != nil {
+			t.Fatalf("count request race events error = %v", err)
+		}
+		if answeredEvents+canceledEvents != 1 {
+			t.Fatalf("respond/cancel race events answered/canceled = %d/%d, want one terminal request event",
+				answeredEvents, canceledEvents)
+		}
+	})
+
+	t.Run("Should cancel a pending request in the run cancellation transaction", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 14, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-request-cancel", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		schema := json.RawMessage(`{"type":"object"}`)
+		expires := now.Add(time.Hour)
+		seedLoopWaitCellForTest(t, globalDB, run, "select", 0, looppkg.NodeWaitKindRequest, 1, schema, nil, &expires, now)
+		seedLoopRequestForTest(t, globalDB, run, "select", 0, schema, &expires, now)
+
+		_, err = globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, Kind: looppkg.RunCancelCancel,
+			Reason: "operator canceled", Actor: operatorActorContextForTest("operator:cancel"), RequestedAt: now.Add(time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("RequestRunCancellation() error = %v", err)
+		}
+		request, err := globalDB.GetRequest(ctx, run.WorkspaceID, looppkg.RequestRef{
+			RunID: run.ID, NodeID: "select",
+		}, false)
+		if err != nil || request.State != looppkg.RequestStateCanceled {
+			t.Fatalf("GetRequest(canceled) = %#v, error = %v", request, err)
+		}
+		var eventCount int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_run_events
+			WHERE loop_run_id = ? AND kind = ?`, run.ID, loopRunEventRequestCanceled).Scan(&eventCount); err != nil {
+			t.Fatalf("count request_canceled events error = %v", err)
+		}
+		if eventCount != 1 {
+			t.Fatalf("request_canceled events = %d, want 1", eventCount)
+		}
+		page, err := globalDB.ListRequests(ctx, run.WorkspaceID, looppkg.RequestQuery{Limit: 10})
+		if err != nil || page.Pending != 0 || len(page.Items) != 0 {
+			t.Fatalf("ListRequests(after cancel) = %#v, error = %v", page, err)
+		}
+		_, err = globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select",
+			Payload: json.RawMessage(`{}`), Actor: operatorActorContextForTest("operator:late"),
+		})
+		var canceledReason *looppkg.ReasonError
+		if !errors.Is(err, looppkg.ErrRequestCanceled) || !errors.As(err, &canceledReason) ||
+			canceledReason.Code != looppkg.ReasonCodeRequestCanceled {
+			t.Fatalf("RespondRequest(canceled) error = %#v", err)
+		}
+	})
+
+	t.Run("Should expire one request exactly once", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 15, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-request-expiry", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		schema := json.RawMessage(`{"type":"object"}`)
+		expires := now.Add(time.Minute)
+		seedLoopWaitCellForTest(t, globalDB, run, "select", 0, looppkg.NodeWaitKindRequest, 1, schema, nil, &expires, now)
+		seedLoopRequestForTest(t, globalDB, run, "select", 0, schema, &expires, now)
+		due := &dueWaitEscalation{run: run, wait: looppkg.NodeWait{
+			LoopRunID: run.ID, Generation: 1, NodeID: "select", ItemIndex: 0, IssuedEpoch: 1,
+		}}
+		if err := expireLoopRequestWithExecutor(ctx, globalDB.db, due, expires); err != nil {
+			t.Fatalf("expireLoopRequestWithExecutor() error = %v", err)
+		}
+		if err := expireLoopRequestWithExecutor(ctx, globalDB.db, due, expires); !errors.Is(err, looppkg.ErrTransitionConflict) {
+			t.Fatalf("expireLoopRequestWithExecutor(replay) error = %v, want conflict", err)
+		}
+		var eventCount int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_run_events
+			WHERE loop_run_id = ? AND kind = ?`, run.ID, loopRunEventRequestExpired).Scan(&eventCount); err != nil {
+			t.Fatalf("count request_expired events error = %v", err)
+		}
+		if eventCount != 1 {
+			t.Fatalf("request_expired events = %d, want 1", eventCount)
+		}
+		_, err = globalDB.RespondRequest(ctx, looppkg.RespondInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, NodeID: "select",
+			Payload: json.RawMessage(`{}`), Actor: operatorActorContextForTest("operator:late"),
+		})
+		if !errors.Is(err, looppkg.ErrRequestExpired) {
+			t.Fatalf("RespondRequest(expired) error = %v", err)
+		}
+	})
 }
 
 // Invariant: node inventories expose one workspace-scoped, stable keyset order with exactly
@@ -4541,6 +4866,44 @@ func seedLoopWaitCellForTest(
 			"wait_kind":                       kind,
 		}, createdAt.UTC()); err != nil {
 		t.Fatalf("append wait started event %s/%d error = %v", nodeID, itemIndex, err)
+	}
+}
+
+func seedLoopRequestForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	run looppkg.Run,
+	nodeID string,
+	itemIndex int,
+	schema json.RawMessage,
+	expiresAt *time.Time,
+	openedAt time.Time,
+) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	contextPayload := json.RawMessage(fmt.Sprintf(`{"full":"lane-%d"}`, itemIndex))
+	contextRef := looppkg.OutputRefForPayload(contextPayload)
+	if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, contextRef, contextPayload, openedAt); err != nil {
+		t.Fatalf("UpsertLoopOutputBlob(request context) error = %v", err)
+	}
+	_, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_requests (
+		workspace_id, loop_run_id, generation, node_id, item_index, kind, state,
+		prompt, context_preview_json, context_ref, answer_schema_json, respond_schema_json,
+		decisions_json, opened_at, expires_at
+	) VALUES (?, ?, 1, ?, ?, 'ask', 'pending', ?, ?, ?, ?, ?, '["respond"]', ?, ?)`,
+		run.WorkspaceID, run.ID, nodeID, itemIndex, "Choose an environment",
+		fmt.Sprintf(`{"lane":%d}`, itemIndex), contextRef, string(schema), string(schema),
+		openedAt.UTC(), expiresAt)
+	if err != nil {
+		t.Fatalf("insert Loop request %s/%d error = %v", nodeID, itemIndex, err)
+	}
+	if err := appendLoopRunEventWithExecutor(ctx, globalDB.db, run.ID, run.WorkspaceID,
+		loopRunEventRequestOpened, map[string]any{
+			loopRunEventPayloadKeyGeneration: 1,
+			loopRunEventPayloadKeyNodeID:     nodeID,
+			loopRunEventPayloadKeyItemIndex:  itemIndex,
+		}, openedAt.UTC()); err != nil {
+		t.Fatalf("append request_opened event %s/%d error = %v", nodeID, itemIndex, err)
 	}
 }
 

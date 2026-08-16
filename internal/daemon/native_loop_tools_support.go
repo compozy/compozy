@@ -355,3 +355,28 @@ type nativeLoopApproveInput struct {
 	Decision          string `json:"decision"`
 	ApprovalTokenHash string `json:"approval_token_hash,omitempty"`
 }
+
+type nativeLoopRequestsInput struct {
+	WorkspaceID string `json:"workspace,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
+	State       string `json:"state,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+}
+
+type nativeLoopRequestInput struct {
+	WorkspaceID string `json:"workspace,omitempty"`
+	RunID       string `json:"run_id"`
+	NodeID      string `json:"node_id"`
+	ItemIndex   int    `json:"item_index,omitempty"`
+}
+
+type nativeLoopRespondInput struct {
+	WorkspaceID string          `json:"workspace,omitempty"`
+	RunID       string          `json:"run_id"`
+	NodeID      string          `json:"node_id"`
+	ItemIndex   int             `json:"item_index,omitempty"`
+	Decision    string          `json:"decision,omitempty"`
+	Payload     json.RawMessage `json:"payload"`
+	Note        string          `json:"note,omitempty"`
+}

@@ -164,6 +164,10 @@ const (
 	CodeWaitShapeInvalid = "wait_shape_invalid"
 	// CodeWaitExpiryWithoutPath warns that expiry can only surface needs-attention.
 	CodeWaitExpiryWithoutPath = "wait_expiry_without_path"
+	// CodeAskExpectRequired reports an ask without an answer schema.
+	CodeAskExpectRequired = "ask_expect_required"
+	// CodeResponderPolicyInvalid reports an unsupported responders.agents value.
+	CodeResponderPolicyInvalid = "responder_policy_invalid"
 	// CodeWatchIdentityRequired reports a watch source without stable event identity support.
 	CodeWatchIdentityRequired = "watch_identity_required"
 	// CodeParentCloseInvalid reports parent-close policy outside run-loop or its closed enum.

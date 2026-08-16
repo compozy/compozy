@@ -671,6 +671,10 @@ cost_limit = 10000
 admission_attempts = 3
 admission_retry_interval = "60s"
 
+[loops.defaults.delivery.requests]
+# Seeds asks that omit expires. Empty leaves expiry author-owned.
+expire_after = "72h"
+
 [loops.defaults.delivery.admission]
 tombstone_horizon = "168h"
 
@@ -730,6 +734,9 @@ cost_limit = 10000
 [loops.defaults.watch.waits]
 admission_attempts = 3
 admission_retry_interval = "60s"
+
+[loops.defaults.watch.requests]
+expire_after = "72h"
 
 [loops.defaults.watch.admission]
 tombstone_horizon = "168h"
@@ -2098,6 +2105,7 @@ revision defaults, but it cannot loosen them past the hard runtime ceilings.
 | `predicates.cost_limit`                                      | `10000`  | `10000` | Positive integer.                        | CEL runtime cost limit; evaluation warns at 80%.                                         |
 | `waits.admission_attempts`                                   | `3`      | `3`     | Positive integer.                        | Bounded attempts to admit a wait resume.                                                 |
 | `waits.admission_retry_interval`                             | `60s`    | `60s`   | Positive Go duration.                    | Delay between admission attempts.                                                        |
+| `requests.expire_after`                                     | empty    | empty   | Empty or positive Go duration.           | Seeds an expiry only when an authored request omits `expires`; authored expiry wins.     |
 | `admission.tombstone_horizon`                                | `168h`   | `168h`  | Positive Go duration.                    | Minimum watch-admission deduplication retention.                                         |
 | `runtime_defaults.{worker,judge}.{provider,model,reasoning}` | empty    | empty   | Valid provider/model/reasoning fields.   | Worker and judge runtime defaults.                                                       |
 | `runtime_rules[]`                                            | none     | none    | One `id`, `type`, or `complexity` match. | Field-merged worker override; `id > type > complexity`, later wins on equal specificity. |

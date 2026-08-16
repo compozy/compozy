@@ -2212,6 +2212,35 @@ func (s *stubClient) ListLoopRuns(
 	return contract.LoopRunsResponse{}, errors.New("unexpected ListLoopRuns call")
 }
 
+func (s *stubClient) ListLoopRequests(
+	context.Context,
+	string,
+	LoopRequestListQuery,
+) (contract.LoopRequestsResponse, error) {
+	return contract.LoopRequestsResponse{}, errors.New("unexpected ListLoopRequests call")
+}
+
+func (s *stubClient) GetLoopRequest(
+	context.Context,
+	string,
+	string,
+	string,
+	int,
+) (contract.LoopRequestPayload, error) {
+	return contract.LoopRequestPayload{}, errors.New("unexpected GetLoopRequest call")
+}
+
+func (s *stubClient) RespondLoopRequest(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.RespondLoopRequest,
+	agentidentity.Credentials,
+) (contract.RespondLoopRequestResponse, error) {
+	return contract.RespondLoopRequestResponse{}, errors.New("unexpected RespondLoopRequest call")
+}
+
 func (s *stubClient) ListGoalTurns(
 	ctx context.Context,
 	workspaceID string,

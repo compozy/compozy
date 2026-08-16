@@ -103,7 +103,7 @@ func isCoordinatorOwnedControl(node dsl.Node) bool {
 	}
 	switch dsl.ControlKind(node.Kind) {
 	case dsl.ControlFanOut, dsl.ControlCollect, dsl.ControlBranch, dsl.ControlRoute,
-		dsl.ControlSubLoop, dsl.ControlWait:
+		dsl.ControlSubLoop, dsl.ControlWait, dsl.ControlAsk:
 		return true
 	default:
 		return false

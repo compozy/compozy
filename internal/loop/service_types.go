@@ -135,39 +135,41 @@ const (
 //
 //nolint:revive // TechSpec "Core Interfaces" names this public type LoopConfig.
 type LoopConfig struct {
-	HumanGateEnabled  *bool                `json:"human_gate_enabled,omitempty"  yaml:"human_gate_enabled,omitempty"`
-	ReattemptStrategy *ReattemptStrategy   `json:"reattempt_strategy,omitempty"  yaml:"reattempt_strategy,omitempty"`
-	EnabledChecks     json.RawMessage      `json:"enabled_checks_json,omitempty" yaml:"enabled_checks_json,omitempty"`
-	IterationCap      *int                 `json:"iteration_cap,omitempty"       yaml:"iteration_cap,omitempty"`
-	BudgetTokens      *int                 `json:"budget_tokens,omitempty"       yaml:"budget_tokens,omitempty"`
-	BudgetWallSec     *int                 `json:"budget_wall_sec,omitempty"     yaml:"budget_wall_sec,omitempty"`
-	BudgetOnExceeded  *dsl.BudgetExceeded  `json:"budget_on_exceeded,omitempty"  yaml:"budget_on_exceeded,omitempty"`
-	NoProgressWindow  *int                 `json:"no_progress_window,omitempty"  yaml:"no_progress_window,omitempty"`
-	FanOutWidth       *int                 `json:"fan_out_width,omitempty"       yaml:"fan_out_width,omitempty"`
-	GateMaxRevisions  *int                 `json:"gate_max_revisions,omitempty"  yaml:"gate_max_revisions,omitempty"`
-	RuntimeDefaults   *RuntimeDefaults     `json:"runtime_defaults,omitempty"    yaml:"runtime_defaults,omitempty"`
-	RuntimeRules      []RuntimeRule        `json:"runtime_rules,omitempty"       yaml:"runtime_rules,omitempty"`
-	Environment       *dsl.EnvironmentSpec `json:"environment,omitempty"         yaml:"environment,omitempty"`
-	Lifecycle         *LifecycleConfig     `json:"lifecycle,omitempty"           yaml:"lifecycle,omitempty"`
+	HumanGateEnabled   *bool                `json:"human_gate_enabled,omitempty"  yaml:"human_gate_enabled,omitempty"`
+	ReattemptStrategy  *ReattemptStrategy   `json:"reattempt_strategy,omitempty"  yaml:"reattempt_strategy,omitempty"`
+	EnabledChecks      json.RawMessage      `json:"enabled_checks_json,omitempty" yaml:"enabled_checks_json,omitempty"`
+	IterationCap       *int                 `json:"iteration_cap,omitempty"       yaml:"iteration_cap,omitempty"`
+	BudgetTokens       *int                 `json:"budget_tokens,omitempty"       yaml:"budget_tokens,omitempty"`
+	BudgetWallSec      *int                 `json:"budget_wall_sec,omitempty"     yaml:"budget_wall_sec,omitempty"`
+	BudgetOnExceeded   *dsl.BudgetExceeded  `json:"budget_on_exceeded,omitempty"  yaml:"budget_on_exceeded,omitempty"`
+	NoProgressWindow   *int                 `json:"no_progress_window,omitempty"  yaml:"no_progress_window,omitempty"`
+	FanOutWidth        *int                 `json:"fan_out_width,omitempty"       yaml:"fan_out_width,omitempty"`
+	GateMaxRevisions   *int                 `json:"gate_max_revisions,omitempty"  yaml:"gate_max_revisions,omitempty"`
+	RuntimeDefaults    *RuntimeDefaults     `json:"runtime_defaults,omitempty"    yaml:"runtime_defaults,omitempty"`
+	RuntimeRules       []RuntimeRule        `json:"runtime_rules,omitempty"       yaml:"runtime_rules,omitempty"`
+	Environment        *dsl.EnvironmentSpec `json:"environment,omitempty"         yaml:"environment,omitempty"`
+	Lifecycle          *LifecycleConfig     `json:"lifecycle,omitempty"           yaml:"lifecycle,omitempty"`
+	RequestExpireAfter *string              `json:"request_expire_after,omitempty" yaml:"request_expire_after,omitempty"`
 }
 
 // EffectiveConfig is the fully resolved non-null runtime config.
 type EffectiveConfig struct {
-	HumanGateEnabled  bool                `json:"human_gate_enabled"`
-	ReattemptStrategy ReattemptStrategy   `json:"reattempt_strategy"`
-	EnabledChecks     json.RawMessage     `json:"enabled_checks_json"`
-	IterationCap      int                 `json:"iteration_cap"`
-	BudgetTokens      int                 `json:"budget_tokens"`
-	BudgetWallSec     int                 `json:"budget_wall_sec"`
-	BudgetOnExceeded  dsl.BudgetExceeded  `json:"budget_on_exceeded"`
-	NoProgressWindow  int                 `json:"no_progress_window"`
-	FanOutWidth       int                 `json:"fan_out_width"`
-	GateMaxRevisions  int                 `json:"gate_max_revisions"`
-	RuntimeDefaults   RuntimeDefaults     `json:"runtime_defaults"`
-	RuntimeRules      []RuntimeRule       `json:"runtime_rules"`
-	RunRuntimeRules   []RuntimeRule       `json:"run_runtime_rules"`
-	Environment       dsl.EnvironmentSpec `json:"environment"`
-	Lifecycle         LifecycleConfig     `json:"lifecycle"`
+	HumanGateEnabled   bool                `json:"human_gate_enabled"`
+	ReattemptStrategy  ReattemptStrategy   `json:"reattempt_strategy"`
+	EnabledChecks      json.RawMessage     `json:"enabled_checks_json"`
+	IterationCap       int                 `json:"iteration_cap"`
+	BudgetTokens       int                 `json:"budget_tokens"`
+	BudgetWallSec      int                 `json:"budget_wall_sec"`
+	BudgetOnExceeded   dsl.BudgetExceeded  `json:"budget_on_exceeded"`
+	NoProgressWindow   int                 `json:"no_progress_window"`
+	FanOutWidth        int                 `json:"fan_out_width"`
+	GateMaxRevisions   int                 `json:"gate_max_revisions"`
+	RuntimeDefaults    RuntimeDefaults     `json:"runtime_defaults"`
+	RuntimeRules       []RuntimeRule       `json:"runtime_rules"`
+	RunRuntimeRules    []RuntimeRule       `json:"run_runtime_rules"`
+	Environment        dsl.EnvironmentSpec `json:"environment"`
+	Lifecycle          LifecycleConfig     `json:"lifecycle"`
+	RequestExpireAfter string              `json:"request_expire_after"`
 }
 
 // ConfigSnapshot keeps the stored override and daemon-resolved runtime config from one read.
@@ -389,6 +391,9 @@ type Service interface {
 		decision GateDecision,
 		actor task.ActorContext,
 	) error
+	ListRequests(ctx context.Context, ws WorkspaceID, query RequestQuery) (RequestPage, error)
+	GetRequest(ctx context.Context, ws WorkspaceID, ref RequestRef) (RequestDetail, error)
+	Respond(ctx context.Context, input RespondInput) (RespondResult, error)
 	Configure(ctx context.Context, ws WorkspaceID, name string, cfg LoopConfig) error
 	GetConfig(ctx context.Context, ws WorkspaceID, name string) (*LoopConfig, error)
 	GetConfigSnapshot(ctx context.Context, ws WorkspaceID, name string) (ConfigSnapshot, error)

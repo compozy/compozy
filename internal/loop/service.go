@@ -40,6 +40,7 @@ type service struct {
 	coordinatorActivator  CoordinatorRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
 	cancellationSessions  CancellationSessionController
+	responderPolicy       ResponderPolicy
 	participationResolver participation.Resolver
 	runtimeCatalog        WorkspaceRuntimeCatalog
 	logger                *slog.Logger
