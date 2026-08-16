@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+type SpawnPreCreatePayload struct {
+	Event                        HookEvent      `json:"event"`
+	Timestamp                    time.Time      `json:"timestamp"`
+	ParentSessionID              string         `json:"parent_session_id,omitempty"`
+	RootSessionID                string         `json:"root_session_id,omitempty"`
+	ChildSessionID               string         `json:"child_session_id,omitempty"`
+	WorkspaceID                  string         `json:"workspace_id,omitempty"`
+	Workspace                    string         `json:"workspace,omitempty"`
+	AgentName                    string         `json:"agent_name,omitempty"`
+	SpawnRole                    string         `json:"spawn_role,omitempty"`
+	SpawnDepth                   int            `json:"spawn_depth,omitempty"`
+	TTLSeconds                   int64          `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent             bool           `json:"auto_stop_on_parent,omitempty"`
+	TaskID                       string         `json:"task_id,omitempty"`
+	RunID                        string         `json:"run_id,omitempty"`
+	WorkflowID                   string         `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec          `json:"resolved_network_participation,omitempty"`
+	SoulSnapshotID               string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest                   string         `json:"soul_digest,omitempty"`
+	ParentSoulDigest             string         `json:"parent_soul_digest,omitempty"`
+	ParentPermissions            *PermissionSet `json:"parent_permissions"`
+	ChildPermissions             *PermissionSet `json:"child_permissions"`
+	Denied                       bool           `json:"denied,omitempty"`
+	DenyReason                   string         `json:"deny_reason,omitempty"`
+}
+
 type SpawnReapedPayload struct {
 	Event                        HookEvent      `json:"event"`
 	Timestamp                    time.Time      `json:"timestamp"`
@@ -316,11 +342,4 @@ type TaskDashboardBlockedCardPayload struct {
 	AwaitingApproval     int    `json:"awaiting_approval"`
 	AwaitingDependencies int    `json:"awaiting_dependencies"`
 	HealthStatus         string `json:"health_status"`
-}
-
-type TaskDashboardCardsPayload struct {
-	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
-	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
-	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
-	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
 }

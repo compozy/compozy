@@ -31,6 +31,10 @@ const (
 	extensionErrorEnvBindingUndeclared
 	extensionErrorEnvBindingDangling
 	extensionErrorEnvBindingInvalid
+	extensionErrorAgentPluginClientLayout
+	extensionErrorAgentPluginNotManifest
+	extensionErrorAgentPluginSchemaUnsupported
+	extensionErrorAgentPluginManifestInvalid
 )
 
 // ExtensionStatusCode maps extension-domain errors onto transport status codes.
@@ -43,7 +47,11 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusNotFound
 	case extensionErrorConflict, extensionErrorNetworkConfirmationRequired, extensionErrorAgentConflict:
 		return http.StatusConflict
-	case extensionErrorUnprocessable:
+	case extensionErrorUnprocessable,
+		extensionErrorAgentPluginClientLayout,
+		extensionErrorAgentPluginNotManifest,
+		extensionErrorAgentPluginSchemaUnsupported,
+		extensionErrorAgentPluginManifestInvalid:
 		return http.StatusUnprocessableEntity
 	case extensionErrorBadRequest, extensionErrorEnvBindingUndeclared,
 		extensionErrorEnvBindingDangling, extensionErrorEnvBindingInvalid:
@@ -59,6 +67,14 @@ func ExtensionStatusCode(err error) int {
 
 func classifyExtensionError(err error) extensionErrorKind {
 	switch {
+	case errors.Is(err, extensionpkg.ErrAgentPluginClientLayout):
+		return extensionErrorAgentPluginClientLayout
+	case errors.Is(err, extensionpkg.ErrAgentPluginNotManifest):
+		return extensionErrorAgentPluginNotManifest
+	case errors.Is(err, extensionpkg.ErrAgentPluginSchemaUnsupported):
+		return extensionErrorAgentPluginSchemaUnsupported
+	case errors.Is(err, extensionpkg.ErrAgentPluginManifestInvalid):
+		return extensionErrorAgentPluginManifestInvalid
 	case errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired):
 		return extensionErrorNetworkConfirmationRequired
 	case errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
@@ -110,6 +126,10 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 	}
 	if payload, ok := extensionOperationErrorPayload(c, status, err, mask); ok {
 		c.JSON(status, payload)
+		return
+	}
+	if errors.Is(err, extensionpkg.ErrAgentPluginManifestInvalid) {
+		c.JSON(status, agentPluginManifestErrorPayload(status, err, mask))
 		return
 	}
 	if errors.Is(err, extensionpkg.ErrManifestInvalid) {

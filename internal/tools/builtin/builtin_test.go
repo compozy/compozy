@@ -639,7 +639,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			}]
 		}`)
 		assertNativeOutputSchemaAccepts(t, inventory, `{
-			"extension":"kit","enabled":true,
+			"extension":"kit","format":"agent-plugin","enabled":true,
 			"items":[{"kind":"skill","id":"review","name":"Review","live":true}]
 		}`)
 		assertNativeOutputSchemaRejects(t, inventory, `{

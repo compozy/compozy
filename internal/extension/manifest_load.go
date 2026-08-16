@@ -70,6 +70,9 @@ func loadManifest(dir string, dataDir string) (*Manifest, error) {
 		}
 		pkg, loadErr := agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: dataDir})
 		if loadErr != nil {
+			if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](loadErr); ok {
+				return nil, newAgentPluginManifestValidationError(pluginPath, manifestErr)
+			}
 			return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
 		}
 		if dataDirWasDefault {
@@ -80,27 +83,42 @@ func loadManifest(dir string, dataDir string) (*Manifest, error) {
 			if resolvedDataDir != dataDir {
 				pkg, loadErr = agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: resolvedDataDir})
 				if loadErr != nil {
+					if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](loadErr); ok {
+						return nil, newAgentPluginManifestValidationError(pluginPath, manifestErr)
+					}
 					return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
 				}
 			}
 		}
 		return SynthesizeAgentPluginManifest(pkg, manifestDir)
 	case agentplugin.SchemaUnsupportedVersion:
-		return nil, fmt.Errorf(
-			"extension: Agent Plugins manifest %q declares schema %q; supported schema is %q",
-			pluginPath,
-			declared,
-			agentplugin.PluginSchemaID,
-		)
+		return nil, &AgentPluginSchemaUnsupportedError{Root: manifestDir, Declared: declared}
 	case agentplugin.SchemaUnrelated:
-		if exists, statErr := fileExists(pluginPath); statErr != nil {
+		if info, statErr := os.Lstat(pluginPath); statErr == nil {
+			if !info.Mode().IsRegular() {
+				_, loadErr := agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: dataDir})
+				if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](loadErr); ok {
+					return nil, newAgentPluginManifestValidationError(pluginPath, manifestErr)
+				}
+				return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
+			}
+			content, readErr := os.ReadFile(pluginPath)
+			if readErr != nil {
+				return nil, fmt.Errorf("extension: read Agent Plugins manifest %q: %w", pluginPath, readErr)
+			}
+			if !json.Valid(content) {
+				_, loadErr := agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: dataDir})
+				if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](loadErr); ok {
+					return nil, newAgentPluginManifestValidationError(pluginPath, manifestErr)
+				}
+				return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
+			}
+			return nil, &AgentPluginNotManifestError{Root: manifestDir}
+		} else if !errors.Is(statErr, os.ErrNotExist) {
 			return nil, fmt.Errorf("extension: stat %q: %w", pluginPath, statErr)
-		} else if exists {
-			return nil, fmt.Errorf(
-				"extension: %q is not an Agent Plugins manifest; expected schema %q",
-				pluginPath,
-				agentplugin.PluginSchemaID,
-			)
+		}
+		if layout := detectAgentPluginClientLayout(manifestDir); layout != "" {
+			return nil, &AgentPluginClientLayoutError{Root: manifestDir, Layout: layout}
 		}
 	}
 
@@ -108,6 +126,16 @@ func loadManifest(dir string, dataDir string) (*Manifest, error) {
 		Dir:   manifestDir,
 		Paths: []string{tomlPath, jsonPath, pluginPath},
 	}
+}
+
+func detectAgentPluginClientLayout(root string) string {
+	for _, layout := range []string{".claude-plugin", ".codex-plugin", ".cursor-plugin"} {
+		path := filepath.Join(root, layout, agentPluginManifestFileName)
+		if info, err := os.Lstat(path); err == nil && info.Mode().IsRegular() {
+			return layout
+		}
+	}
+	return ""
 }
 
 func defaultAgentPluginDataDir(manifestDir string, name string) (string, error) {

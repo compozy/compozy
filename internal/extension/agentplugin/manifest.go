@@ -71,7 +71,7 @@ func decodeManifest(content []byte) (*Package, string, error) {
 	name, nameOK := requiredString(fields, fieldName, &issues)
 	if nameOK {
 		if err := ValidateName(name); err != nil {
-			issues = append(issues, Issue{Path: fieldName, Message: err.Error()})
+			issues = append(issues, Issue{Path: fieldName, Message: fmt.Sprintf("name %q %s", name, err)})
 		}
 	}
 	pkg.Name = name

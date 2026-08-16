@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type WorktreeObservationPatch struct{}
+
 type WorktreeObservationPayload struct {
 	Event         HookEvent `json:"event"`
 	Timestamp     time.Time `json:"timestamp"`

@@ -72,6 +72,9 @@
             },
             "type": "array"
           },
+          "format": {
+            "type": "string"
+          },
           "issues": {
             "items": {
               "properties": {
@@ -90,10 +93,14 @@
                 "path": {
                   "type": "string"
                 },
+                "scope": {
+                  "type": "string"
+                },
                 "severity": {
                   "enum": [
                     "error",
-                    "warning"
+                    "warning",
+                    "warn"
                   ],
                   "type": "string"
                 }
@@ -143,18 +150,50 @@
               "version"
             ],
             "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "would_ingest": {
+            "items": {
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "transport": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "required": [
-          "consent_areas",
-          "issues"
+          "format",
+          "issues",
+          "status"
         ],
         "type": "object"
       },
       "IssueSeverity": {
         "enum": [
           "error",
-          "warning"
+          "warning",
+          "warn"
         ],
         "type": "string"
       },
@@ -897,10 +936,14 @@
           "path": {
             "type": "string"
           },
+          "scope": {
+            "type": "string"
+          },
           "severity": {
             "enum": [
               "error",
-              "warning"
+              "warning",
+              "warn"
             ],
             "type": "string"
           }
@@ -68473,6 +68516,9 @@
                           "failure_code": {
                             "type": "string"
                           },
+                          "format": {
+                            "type": "string"
+                          },
                           "generation_hash": {
                             "type": "string"
                           },
@@ -68958,6 +69004,7 @@
                           "daemon_running",
                           "digest_matched",
                           "enabled",
+                          "format",
                           "name",
                           "network_confirmation_required",
                           "restart_backoff_ms",
@@ -69255,6 +69302,9 @@
                           "type": "boolean"
                         },
                         "failure_code": {
+                          "type": "string"
+                        },
+                        "format": {
                           "type": "string"
                         },
                         "generation_hash": {
@@ -69742,6 +69792,7 @@
                         "daemon_running",
                         "digest_matched",
                         "enabled",
+                        "format",
                         "name",
                         "network_confirmation_required",
                         "restart_backoff_ms",
@@ -69913,74 +69964,254 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
+                  "oneOf": [
+                    {
                       "properties": {
-                        "category": {
-                          "type": "string"
-                        },
                         "code": {
                           "type": "string"
                         },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
+                        "details": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
                           "type": "object"
                         },
-                        "id": {
-                          "type": "string"
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "error": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "error"
                       ],
                       "type": "object"
                     },
-                    "error": {
-                      "type": "string"
+                    {
+                      "properties": {
+                        "agents": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "current_digest": {
+                          "type": "string"
+                        },
+                        "declared_env": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        "env_name": {
+                          "type": "string"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "error"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "issues": {
+                          "items": {
+                            "properties": {
+                              "column": {
+                                "type": "integer"
+                              },
+                              "field": {
+                                "type": "string"
+                              },
+                              "line": {
+                                "type": "integer"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "scope": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "enum": [
+                                  "error",
+                                  "warning",
+                                  "warn"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "message",
+                              "path",
+                              "severity"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "error",
+                        "issues"
+                      ],
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
-            "description": "Extension trust decision required"
+            "description": "Extension trust decision or package validation failure"
           },
           "500": {
             "content": {
@@ -70576,6 +70807,9 @@
                         "failure_code": {
                           "type": "string"
                         },
+                        "format": {
+                          "type": "string"
+                        },
                         "generation_hash": {
                           "type": "string"
                         },
@@ -71061,6 +71295,7 @@
                         "daemon_running",
                         "digest_matched",
                         "enabled",
+                        "format",
                         "name",
                         "network_confirmation_required",
                         "restart_backoff_ms",
@@ -71342,10 +71577,16 @@
                   "properties": {
                     "extension": {
                       "properties": {
+                        "data_path": {
+                          "type": "string"
+                        },
                         "name": {
                           "type": "string"
                         },
                         "path": {
+                          "type": "string"
+                        },
+                        "quarantine_path": {
                           "type": "string"
                         },
                         "status": {
@@ -71899,6 +72140,9 @@
                         "failure_code": {
                           "type": "string"
                         },
+                        "format": {
+                          "type": "string"
+                        },
                         "generation_hash": {
                           "type": "string"
                         },
@@ -72384,6 +72628,7 @@
                         "daemon_running",
                         "digest_matched",
                         "enabled",
+                        "format",
                         "name",
                         "network_confirmation_required",
                         "restart_backoff_ms",
@@ -73450,6 +73695,9 @@
                         "failure_code": {
                           "type": "string"
                         },
+                        "format": {
+                          "type": "string"
+                        },
                         "generation_hash": {
                           "type": "string"
                         },
@@ -73935,6 +74183,7 @@
                         "daemon_running",
                         "digest_matched",
                         "enabled",
+                        "format",
                         "name",
                         "network_confirmation_required",
                         "restart_backoff_ms",
@@ -74381,6 +74630,9 @@
                         "failure_code": {
                           "type": "string"
                         },
+                        "format": {
+                          "type": "string"
+                        },
                         "generation_hash": {
                           "type": "string"
                         },
@@ -74866,6 +75118,7 @@
                         "daemon_running",
                         "digest_matched",
                         "enabled",
+                        "format",
                         "name",
                         "network_confirmation_required",
                         "restart_backoff_ms",
@@ -75351,6 +75604,9 @@
                     "extension": {
                       "type": "string"
                     },
+                    "format": {
+                      "type": "string"
+                    },
                     "items": {
                       "items": {
                         "properties": {
@@ -75381,6 +75637,7 @@
                   "required": [
                     "enabled",
                     "extension",
+                    "format",
                     "items"
                   ],
                   "type": "object"
@@ -76760,6 +77017,9 @@
                         "failure_code": {
                           "type": "string"
                         },
+                        "format": {
+                          "type": "string"
+                        },
                         "generation_hash": {
                           "type": "string"
                         },
@@ -77245,6 +77505,7 @@
                         "daemon_running",
                         "digest_matched",
                         "enabled",
+                        "format",
                         "name",
                         "network_confirmation_required",
                         "restart_backoff_ms",

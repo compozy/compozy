@@ -106,7 +106,7 @@ func (n *daemonNativeTools) extensionValidate(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionValidationError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"validation": report}, "extension validation complete")
+	return structuredResult(report, "extension validation complete")
 }
 
 func (n *daemonNativeTools) extensionDev(

@@ -54,20 +54,21 @@ func ClassifyManifestContent(content []byte) (SchemaStatus, string) {
 
 // ValidateName enforces the portable manifest name grammar byte-for-byte.
 func ValidateName(name string) error {
+	const message = "must be 1-64 lowercase letters, digits, dots, or hyphens, start and end alphanumeric, without \"--\" or \"..\""
 	if name == "" || len(name) > 64 {
-		return errors.New("name length must be between 1 and 64 bytes")
+		return errors.New(message)
 	}
 	if strings.Contains(name, "--") || strings.Contains(name, "..") {
-		return errors.New("name must not contain consecutive hyphens or periods")
+		return errors.New(message)
 	}
 	for _, character := range []byte(name) {
 		if isASCIILower(character) || isASCIIDigit(character) || character == '-' || character == '.' {
 			continue
 		}
-		return errors.New("name may contain only lowercase ASCII letters, digits, hyphens, and periods")
+		return errors.New(message)
 	}
 	if !isASCIIAlphanumeric(name[0]) || !isASCIIAlphanumeric(name[len(name)-1]) {
-		return errors.New("name must start and end with an ASCII letter or digit")
+		return errors.New(message)
 	}
 	return nil
 }

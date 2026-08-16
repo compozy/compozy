@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
 )
 
@@ -54,6 +55,50 @@ type extensionUpdateOptions struct {
 	Version              string
 	AllowUnverified      bool
 	ConfirmNetworkDigest string
+}
+
+type extensionPortableUpdateOutput struct {
+	Update   extensionUpdateItem
+	Status   ExtensionRecord
+	Report   *extensionpkg.ValidationReport
+	DataPath string
+}
+
+func extensionPortableUpdatePresentation(
+	ctx context.Context,
+	deps commandDeps,
+	item extensionUpdateItem,
+) (extensionPortableUpdateOutput, bool, error) {
+	client, err := requireExtensionDaemonClient(ctx, deps)
+	if err != nil {
+		return extensionPortableUpdateOutput{}, false, err
+	}
+	status, err := client.ExtensionStatus(ctx, item.Name)
+	if err != nil {
+		return extensionPortableUpdateOutput{}, false, err
+	}
+	if status.Format != string(extensionpkg.FormatAgentPlugin) {
+		return extensionPortableUpdateOutput{}, false, nil
+	}
+	report, err := extensionpkg.ValidateBundleReport(item.Path)
+	if err != nil {
+		return extensionPortableUpdateOutput{}, false, fmt.Errorf(
+			"cli: build extension update report for %q: %w",
+			item.Name,
+			err,
+		)
+	}
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		return extensionPortableUpdateOutput{}, false, fmt.Errorf("cli: resolve extension update data path: %w", err)
+	}
+	dataPath, err := homePaths.ExtensionDataPath(item.Name, "")
+	if err != nil {
+		return extensionPortableUpdateOutput{}, false, fmt.Errorf("cli: resolve extension update data path: %w", err)
+	}
+	return extensionPortableUpdateOutput{
+		Update: item, Status: status, Report: report, DataPath: dataPath,
+	}, true, nil
 }
 
 func searchExtensionsPage(
@@ -234,11 +279,22 @@ func extensionRemoveBundle(item extensionRemoveItem) outputBundle {
 			return writeJSONLine(cmd, item)
 		},
 		human: func() (string, error) {
-			return renderHumanSection("Extension Remove", []keyValue{
-				{Label: automationNameValue, Value: stringOrDash(item.Name)},
-				{Label: extensionMarketplacePathValue, Value: stringOrDash(item.Path)},
-				{Label: extensionMarketplaceStatusValue, Value: stringOrDash(item.Status)},
-			}), nil
+			blocks := []string{
+				fmt.Sprintf("✓ remove %s", strings.TrimSpace(item.Name)),
+				"removed: " + strings.TrimSpace(item.Path),
+			}
+			if strings.TrimSpace(item.DataPath) != "" && strings.TrimSpace(item.QuarantinePath) == "" {
+				blocks = append(blocks, "removed: "+strings.TrimSpace(item.DataPath))
+			}
+			if strings.TrimSpace(item.QuarantinePath) != "" {
+				blocks = append(blocks, fmt.Sprintf(
+					"warning: data directory could not be removed; quarantined as %s — "+
+						"a fresh install of %s starts empty",
+					strings.TrimSpace(item.QuarantinePath),
+					strings.TrimSpace(item.Name),
+				))
+			}
+			return renderHumanBlocks(blocks...), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(

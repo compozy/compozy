@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,20 +16,34 @@ func extensionInventoryBundle(payload ExtensionInventoryRecord) outputBundle {
 			return writeJSONLine(cmd, payload)
 		},
 		human: func() (string, error) {
-			return renderHumanBlocks(
+			blocks := []string{
 				renderHumanSection("Extension inventory", []keyValue{
 					{Label: "Extension", Value: payload.Extension},
+					{Label: "Format", Value: extensionFormatLabel(payload.Format)},
 					{Label: automationEnabledValue, Value: fmt.Sprintf("%t", payload.Enabled)},
 				}),
 				extensionKitResourceHumanTable("Resources", cliLiveValue, extensionKitItemRows(payload.Items)),
-			), nil
+			}
+			if skipped := extensionSkippedDiagnosticsHuman(payload.Diagnostics); skipped != "" {
+				blocks = append(blocks, skipped)
+			}
+			if live := extensionLiveDiagnosticsHuman(payload.Diagnostics); live != "" {
+				blocks = append(blocks, live)
+			}
+			return renderHumanBlocks(blocks...), nil
 		},
 		toon: func() (string, error) {
+			diagnosticsJSON, err := json.Marshal(payload.Diagnostics)
+			if err != nil {
+				return "", fmt.Errorf("cli: marshal extension inventory diagnostics: %w", err)
+			}
 			return renderHumanBlocks(
 				renderToonObject(
 					"extension_inventory",
-					[]string{extensionExtensionKey, extensionEnabledKey},
-					[]string{payload.Extension, fmt.Sprintf("%t", payload.Enabled)},
+					[]string{extensionExtensionKey, "format", extensionEnabledKey, "diagnostics"},
+					[]string{
+						payload.Extension, payload.Format, fmt.Sprintf("%t", payload.Enabled), string(diagnosticsJSON),
+					},
 				),
 				extensionKitResourceToonArray(cliItemsKey, cliLiveKey, extensionKitItemRows(payload.Items)),
 			), nil

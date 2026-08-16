@@ -209,6 +209,20 @@ func extensionBuildBundle(result *extensionpkg.BuildResult) outputBundle {
 }
 
 func extensionValidationBundle(report *extensionpkg.ValidationReport) outputBundle {
+	if strings.TrimSpace(report.Format) == string(extensionpkg.FormatAgentPlugin) {
+		return outputBundle{
+			jsonValue: report,
+			jsonl: func(cmd *cobra.Command) error {
+				return writeJSONLine(cmd, report)
+			},
+			human: func() (string, error) {
+				return extensionPortableValidationHuman(report), nil
+			},
+			toon: func() (string, error) {
+				return extensionPortableValidationToon(report)
+			},
+		}
+	}
 	status := configValidKey
 	if validationHasErrors(report.Issues) {
 		status = configInvalidKey
@@ -243,6 +257,39 @@ func extensionValidationBundle(report *extensionpkg.ValidationReport) outputBund
 		[]string{automationStatusKey, "issues", "consent_areas"},
 		[]string{status, strconv.Itoa(len(report.Issues)), strings.Join(consent, ",")},
 	)
+}
+
+func extensionPortableValidationHuman(report *extensionpkg.ValidationReport) string {
+	packageName := strings.TrimSpace(strings.Join([]string{report.Name, report.Version}, " "))
+	rows := []keyValue{
+		{Label: automationStatusValue, Value: stringOrDash(report.Status)},
+		{Label: "Format", Value: extensionFormatLabel(report.Format)},
+	}
+	if packageName != "" {
+		rows = append(rows, keyValue{Label: "Package", Value: packageName})
+	}
+	rows = append(rows, keyValue{Label: "Issues", Value: strconv.Itoa(len(report.Issues))})
+	blocks := []string{renderHumanSection("Extension bundle validation", rows)}
+	if len(report.WouldIngest) > 0 {
+		rows := make([][]string, 0, len(report.WouldIngest))
+		for _, item := range report.WouldIngest {
+			rows = append(rows, []string{item.Kind, item.Name, item.Transport})
+		}
+		blocks = append(blocks, renderHumanTable("Would ingest", []string{"Kind", "Name", "Transport"}, rows))
+	}
+	for _, issue := range report.Issues {
+		scope := strings.TrimSpace(issue.Scope)
+		if scope == "" {
+			scope = strings.TrimSpace(issue.Path)
+		}
+		blocks = append(blocks, fmt.Sprintf(
+			"%s %s:  %s",
+			strings.ToUpper(string(issue.Severity)),
+			scope,
+			strings.TrimSpace(issue.Message),
+		))
+	}
+	return renderHumanBlocks(blocks...)
 }
 
 func singleExtensionAuthoringBundle(

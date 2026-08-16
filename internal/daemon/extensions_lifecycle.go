@@ -186,10 +186,12 @@ func (s *daemonExtensionService) Remove(
 		}
 		s.mcpRuntimeHealth.EvictInstance(name, "")
 		item = contract.ManagedExtensionRemovePayload{
-			Name:     removed.Name,
-			Path:     removed.Path,
-			Status:   removed.Status,
-			Warnings: append([]contract.DiagnosticItem(nil), removed.Warnings...),
+			Name:           removed.Name,
+			Path:           removed.Path,
+			DataPath:       removed.DataPath,
+			QuarantinePath: removed.QuarantinePath,
+			Status:         removed.Status,
+			Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
 		}
 		return s.recordExtensionRemoveEvent(ctx, actor, item)
 	})

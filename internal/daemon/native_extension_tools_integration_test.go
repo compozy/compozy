@@ -448,6 +448,69 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 	})
 }
 
+func TestNativeExtensionToolsPortableContract(t *testing.T) {
+	t.Parallel()
+
+	deps, extRegistry, _, runtime := newNativeExtensionToolDeps(t)
+	deps.ExtensionRuntime = func() extensionRuntime { return runtime }
+	registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+	portablePath := filepath.Join("..", "extension", "testdata", "agent-plugin-conformant")
+
+	before, err := extRegistry.List()
+	if err != nil {
+		t.Fatalf("extension registry List(before validate) error = %v", err)
+	}
+	validateResult, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDExtensionsValidate,
+		Input:  json.RawMessage(fmt.Sprintf(`{"path":%q}`, portablePath)),
+	})
+	if err != nil {
+		t.Fatalf("Registry.Call(extensions_validate portable) error = %v", err)
+	}
+	for _, expected := range [][]byte{
+		[]byte(`"status":"valid"`), []byte(`"format":"agent-plugin"`),
+		[]byte(`"would_ingest"`), []byte(`"issues"`),
+	} {
+		requireNativeStructuredContains(t, validateResult, expected)
+	}
+	after, err := extRegistry.List()
+	if err != nil {
+		t.Fatalf("extension registry List(after validate) error = %v", err)
+	}
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("portable validate mutated registry: before=%#v after=%#v", before, after)
+	}
+
+	installResult, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDExtensionsInstall,
+		Input: json.RawMessage(fmt.Sprintf(
+			`{"source":"local_path","ref":%q,"allow_unverified":true}`,
+			portablePath,
+		)),
+	})
+	if err != nil {
+		t.Fatalf("Registry.Call(extensions_install portable) error = %v", err)
+	}
+	requireNativeStructuredContains(t, installResult, []byte(`"format":"agent-plugin"`))
+	requireNativeStructuredContains(t, installResult, []byte(`"extension_agent_plugin_component_skipped"`))
+
+	unrelated := t.TempDir()
+	if err := os.WriteFile(filepath.Join(unrelated, "plugin.json"), []byte(`{"name":"npm-package"}`), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(unrelated plugin.json) error = %v", err)
+	}
+	_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDExtensionsInstall,
+		Input: json.RawMessage(fmt.Sprintf(
+			`{"source":"local_path","ref":%q,"allow_unverified":true}`,
+			unrelated,
+		)),
+	})
+	toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+	if !ok || string(toolErr.Code) != "extension_agent_plugin_not_manifest" {
+		t.Fatalf("portable install error = %#v, want branchable not-manifest code", err)
+	}
+}
+
 type nativeExtensionInspectionRuntime struct {
 	*fakeExtensionRuntime
 	manager *extensionpkg.Manager

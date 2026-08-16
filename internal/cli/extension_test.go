@@ -103,6 +103,58 @@ func TestExtensionInitHelpListsEveryScaffoldTemplate(t *testing.T) {
 	}
 }
 
+func TestExtensionValidatePortableExitContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep warn-only portable validation successful and daemonless", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join("..", "extension", "testdata", "agent-plugin-conformant")
+		stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "validate", path)
+		if err != nil {
+			t.Fatalf("executeRootCommand(extension validate portable) error = %v", err)
+		}
+		for _, want := range []string{"Status:", "valid", "Format:", "agent plugin", "WARN"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("portable validate output = %q, want %q", stdout, want)
+			}
+		}
+	})
+
+	t.Run("Should print a fatal portable report before returning exit failure", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		manifest := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"Bad--Name"}`
+		if err := os.WriteFile(filepath.Join(root, "plugin.json"), []byte(manifest), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(plugin.json) error = %v", err)
+		}
+		stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "validate", root)
+		if err == nil || !strings.Contains(err.Error(), "extension bundle validation failed") {
+			t.Fatalf("executeRootCommand(extension validate fatal) error = %v, want validation failure", err)
+		}
+		for _, want := range []string{"Status:", "invalid", "Format:", "agent plugin", "ERROR plugin.json"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("fatal portable validate output = %q, want %q", stdout, want)
+			}
+		}
+	})
+
+	t.Run("Should preserve native human validation output", func(t *testing.T) {
+		t.Parallel()
+
+		path := writeExtensionFixture(t, "native-validation", extensionFixtureOptions{})
+		stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "validate", path)
+		if err != nil {
+			t.Fatalf("executeRootCommand(extension validate native) error = %v", err)
+		}
+		if !strings.Contains(stdout, "Extension bundle validation") || !strings.Contains(stdout, "Consent:") ||
+			strings.Contains(stdout, "Format:") || strings.Contains(stdout, "Would ingest") {
+			t.Fatalf("native validate output changed shape: %q", stdout)
+		}
+	})
+}
+
 func TestExtensionLogsCursorRequiresItsStreamEpoch(t *testing.T) {
 	t.Parallel()
 	t.Run("Should reject a sequence cursor without its ring identity", func(t *testing.T) {

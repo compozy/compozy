@@ -149,7 +149,11 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, extensionSuccessBundle(installCommandKey, item))
+			report, err := extensionInstallValidationReport(deps, plan, item)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, extensionInstallSuccessBundle(item, report))
 		},
 	}
 	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
@@ -236,6 +240,15 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			})
 			if err != nil {
 				return err
+			}
+			if !checkOnly && len(items) == 1 {
+				presentation, ok, err := extensionPortableUpdatePresentation(cmd.Context(), deps, items[0])
+				if err != nil {
+					return err
+				}
+				if ok {
+					return writeCommandOutput(cmd, extensionUpdateSuccessBundle(presentation))
+				}
 			}
 			if err := writeCommandOutput(cmd, extensionUpdateBundle(items)); err != nil {
 				return err

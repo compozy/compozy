@@ -402,15 +402,35 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Extensions.Trust.AllowUnverified = true
+		}},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	portablePath, err := filepath.Abs(filepath.Join("..", "..", "extension", "testdata", "agent-plugin-conformant"))
+	if err != nil {
+		t.Fatalf("filepath.Abs(agent-plugin-conformant) error = %v", err)
+	}
+	installed, err := runtimeHarness.InstallExtension(ctx, compozycontract.InstallExtensionRequest{
+		Source:          compozycontract.InstallExtensionSourceLocalPath,
+		Ref:             portablePath,
+		AllowUnverified: true,
+	})
+	if err != nil {
+		t.Fatalf("InstallExtension(portable) error = %v", err)
+	}
+	if installed.Format != "agent-plugin" || len(installed.Diagnostics) == 0 {
+		t.Fatalf("installed portable extension = %#v, want format and recorded diagnostics", installed)
+	}
 
 	clients, err := runtimeHarness.TransportClients()
 	if err != nil {
 		t.Fatalf("TransportClients() error = %v", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
 
 	httpListResp := mustHTTPRequest(
 		t,
@@ -441,11 +461,21 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	if !extensionsSemanticallyEqual(httpList.Extensions, udsList.Extensions) {
 		t.Fatalf("HTTP extensions = %#v, want UDS parity %#v", httpList.Extensions, udsList.Extensions)
 	}
-	if len(httpList.Extensions) == 0 {
-		return
+	var cliList []compozycontract.ExtensionPayload
+	if err := clients.CLI.RunJSONInDir(
+		ctx,
+		runtimeHarness.WorkspaceRoot,
+		&cliList,
+		"extension", "list", "-o", "json",
+	); err != nil {
+		t.Fatalf("CLI list extensions error = %v", err)
+	}
+	sortExtensionsByName(cliList)
+	if !extensionsSemanticallyEqual(httpList.Extensions, cliList) {
+		t.Fatalf("HTTP extensions = %#v, want CLI parity %#v", httpList.Extensions, cliList)
 	}
 
-	extensionName := httpList.Extensions[0].Name
+	extensionName := installed.Name
 
 	httpStatusResp := mustHTTPRequest(
 		t,
@@ -475,6 +505,94 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	if !extensionSemanticallyEqual(httpStatus.Extension, udsStatus.Extension) {
 		t.Fatalf("HTTP extension = %#v, want UDS parity %#v", httpStatus.Extension, udsStatus.Extension)
 	}
+	var cliStatus compozycontract.ExtensionPayload
+	if err := clients.CLI.RunJSONInDir(
+		ctx,
+		runtimeHarness.WorkspaceRoot,
+		&cliStatus,
+		"extension", "status", extensionName, "-o", "json",
+	); err != nil {
+		t.Fatalf("CLI extension status error = %v", err)
+	}
+	if !extensionSemanticallyEqual(httpStatus.Extension, cliStatus) {
+		t.Fatalf("HTTP extension = %#v, want CLI parity %#v", httpStatus.Extension, cliStatus)
+	}
+
+	inventoryPath := "/api/extensions/" + url.PathEscape(extensionName) + "/inventory"
+	var httpInventory compozycontract.ExtensionInventoryPayload
+	if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, inventoryPath, nil, &httpInventory); err != nil {
+		t.Fatalf("HTTP extension inventory error = %v", err)
+	}
+	var udsInventory compozycontract.ExtensionInventoryPayload
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, inventoryPath, nil, &udsInventory); err != nil {
+		t.Fatalf("UDS extension inventory error = %v", err)
+	}
+	if !reflect.DeepEqual(httpInventory, udsInventory) {
+		t.Fatalf("HTTP extension inventory = %#v, want UDS parity %#v", httpInventory, udsInventory)
+	}
+	var cliInventory compozycontract.ExtensionInventoryPayload
+	if err := clients.CLI.RunJSONInDir(
+		ctx,
+		runtimeHarness.WorkspaceRoot,
+		&cliInventory,
+		"extension", "inventory", extensionName, "-o", "json",
+	); err != nil {
+		t.Fatalf("CLI extension inventory error = %v", err)
+	}
+	if !reflect.DeepEqual(httpInventory, cliInventory) {
+		t.Fatalf("HTTP extension inventory = %#v, want CLI parity %#v", httpInventory, cliInventory)
+	}
+	if httpInventory.Format != "agent-plugin" || len(httpInventory.Diagnostics) == 0 {
+		t.Fatalf("portable inventory = %#v, want format and recorded diagnostics", httpInventory)
+	}
+
+	assertTransportErrorParity := func(method, path string) []byte {
+		t.Helper()
+		httpResponse := mustHTTPRequest(
+			t, clients.HTTPClient, method, runtimeHarness.HTTPURL(path), nil, nil,
+		)
+		udsResponse := mustHTTPRequest(
+			t, clients.UDSClient, method, runtimeHarness.UDSURL(path), nil, nil,
+		)
+		httpBody := readAndCloseHTTPBody(t, httpResponse)
+		udsBody := readAndCloseHTTPBody(t, udsResponse)
+		if httpResponse.StatusCode != udsResponse.StatusCode || !reflect.DeepEqual(httpBody, udsBody) {
+			t.Fatalf(
+				"HTTP error = status %d body %s, want UDS parity status %d body %s",
+				httpResponse.StatusCode,
+				string(httpBody),
+				udsResponse.StatusCode,
+				string(udsBody),
+			)
+		}
+		return httpBody
+	}
+	assertCLIErrorParity := func(want []byte, args ...string) {
+		t.Helper()
+		stdout, stderr, err := clients.CLI.RunInDir(ctx, runtimeHarness.WorkspaceRoot, args...)
+		if err == nil {
+			t.Fatalf("CLI %q error = nil, want failure", strings.Join(args, " "))
+		}
+		if strings.TrimSpace(stdout) != "" || strings.TrimSpace(stderr) != strings.TrimSpace(string(want)) {
+			t.Fatalf(
+				"CLI %q stdout=%q stderr=%q, want structured error %s",
+				strings.Join(args, " "),
+				stdout,
+				stderr,
+				string(want),
+			)
+		}
+	}
+	missingBody := assertTransportErrorParity(http.MethodGet, "/api/extensions/missing-portable-package")
+	assertCLIErrorParity(
+		missingBody,
+		"extension", "status", "missing-portable-package", "-o", "json",
+	)
+	consentBody := assertTransportErrorParity(
+		http.MethodPost,
+		"/api/extensions/"+url.PathEscape(extensionName)+"/enable",
+	)
+	assertCLIErrorParity(consentBody, "extension", "enable", extensionName, "-o", "json")
 
 	logsPath := "/api/extensions/" + url.PathEscape(extensionName) + "/logs"
 	httpLogsResp := mustHTTPRequest(
@@ -511,6 +629,84 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 				httpLogs.StreamEpoch,
 			)
 		}
+	}
+}
+
+func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Extensions.Trust.AllowUnverified = true
+		}},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	clientLayout := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(clientLayout, ".claude-plugin"), 0o700); err != nil {
+		t.Fatalf("MkdirAll(.claude-plugin) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(clientLayout, ".claude-plugin", "plugin.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("WriteFile(.claude-plugin/plugin.json) error = %v", err)
+	}
+	notManifest := t.TempDir()
+	unrelatedManifest := `{"$schema":"https://example.com/other/plugin.schema.json","name":"unrelated"}`
+	if err := os.WriteFile(filepath.Join(notManifest, "plugin.json"), []byte(unrelatedManifest), 0o600); err != nil {
+		t.Fatalf("WriteFile(plugin.json) error = %v", err)
+	}
+
+	for _, testCase := range []struct {
+		name string
+		path string
+		code string
+	}{
+		{
+			name: "Should reject a client-specific layout",
+			path: clientLayout,
+			code: "extension_agent_plugin_client_layout",
+		},
+		{
+			name: "Should reject an unrelated directory",
+			path: notManifest,
+			code: "extension_agent_plugin_not_manifest",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			requestBody, err := json.Marshal(compozycontract.InstallExtensionRequest{
+				Source:          compozycontract.InstallExtensionSourceLocalPath,
+				Ref:             testCase.path,
+				AllowUnverified: true,
+			})
+			if err != nil {
+				t.Fatalf("json.Marshal(install request) error = %v", err)
+			}
+			response := mustHTTPRequest(
+				t,
+				runtimeHarness.HTTPClient,
+				http.MethodPost,
+				runtimeHarness.HTTPURL("/api/extensions"),
+				requestBody,
+				nil,
+			)
+			if response.StatusCode != http.StatusUnprocessableEntity {
+				body := readAndCloseHTTPBody(t, response)
+				t.Fatalf("HTTP install status = %d, want 422; body=%s", response.StatusCode, string(body))
+			}
+			var payload compozycontract.ExtensionOperationErrorPayload
+			decodeHTTPJSON(t, response, &payload)
+			if payload.Code != testCase.code {
+				t.Fatalf("HTTP install error code = %q, want %q", payload.Code, testCase.code)
+			}
+			installed, err := runtimeHarness.ListExtensions(ctx)
+			if err != nil {
+				t.Fatalf("ListExtensions() error = %v", err)
+			}
+			if len(installed) != 0 {
+				t.Fatalf("installed extensions = %#v, want registry untouched", installed)
+			}
+		})
 	}
 }
 

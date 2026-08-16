@@ -66,6 +66,14 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			fmt.Errorf("%w: %w", toolspkg.ErrToolNotFound, err),
 			toolspkg.ReasonExtensionNotInstalled,
 		)
+	case core.ExtensionAgentPluginErrorCode(err) != "":
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCode(core.ExtensionAgentPluginErrorCode(err)),
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonExtensionValidationFailed,
+		)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
 	case errors.Is(err, extensionpkg.ErrExtensionNetworkConfirmationRequired),

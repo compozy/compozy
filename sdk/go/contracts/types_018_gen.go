@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type RunDesignationSummary struct {
+	Index int    `json:"index"`
+	Brief string `json:"brief,omitempty"`
+}
+
 type RunStatus string
 
 type RuntimeSelectionPayload struct {
@@ -243,5 +248,3 @@ type ScheduleSpec struct {
 	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
 	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
 }
-
-type SchedulerCatchUpPolicy string

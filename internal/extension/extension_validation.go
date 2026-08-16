@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
 
@@ -23,6 +25,8 @@ const (
 	IssueSeverityError = extensioncontract.IssueSeverityError
 	// IssueSeverityWarning reports non-blocking authoring guidance.
 	IssueSeverityWarning = extensioncontract.IssueSeverityWarning
+	// IssueSeverityWarn reports one non-blocking portable component skip.
+	IssueSeverityWarn = extensioncontract.IssueSeverityWarn
 )
 
 // ValidationIssue is one positioned extension validation diagnostic.
@@ -58,12 +62,24 @@ func validationIssuesForError(dir string, err error) ([]ValidationIssue, error) 
 
 // ValidateBundleReport adds the permission-derived consent summary to ValidateBundle.
 func ValidateBundleReport(dir string) (*ValidationReport, error) {
+	format, dualManifest, err := extensionValidationFormat(dir)
+	if err != nil {
+		if errors.Is(err, ErrAgentPluginManifestInvalid) {
+			return invalidAgentPluginValidationReport(err), nil
+		}
+		return nil, err
+	}
+	if format == FormatAgentPlugin {
+		return validateAgentPluginBundleReport(dir)
+	}
+
 	manifest, issues, err := ValidateBundle(dir)
 	if err != nil {
 		return nil, err
 	}
 	report := &ValidationReport{
-		Issues: issues,
+		Status: configValidationStatus(issues), Format: string(FormatCompozy),
+		Issues: issues, DualManifest: dualManifest,
 	}
 	if manifest == nil {
 		report.ConsentAreas = []ConsentArea{}
@@ -86,6 +102,143 @@ func ValidateBundleReport(dir string) (*ValidationReport, error) {
 		report.ConsentAreas = []ConsentArea{}
 	}
 	return report, nil
+}
+
+func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
+	root := strings.TrimSpace(dir)
+	pluginPath := filepath.Join(root, agentPluginManifestFileName)
+	pluginInfo, pluginErr := os.Lstat(pluginPath)
+	pluginExists := pluginErr == nil
+	if pluginErr != nil && !errors.Is(pluginErr, os.ErrNotExist) {
+		return "", false, fmt.Errorf("extension: inspect Agent Plugins manifest %q: %w", pluginPath, pluginErr)
+	}
+	for _, name := range []string{manifestTOMLFileName, manifestJSONFileName} {
+		if exists, err := fileExists(filepath.Join(root, name)); err != nil {
+			return "", false, err
+		} else if exists {
+			return FormatCompozy, pluginExists, nil
+		}
+	}
+	if pluginExists && !pluginInfo.Mode().IsRegular() {
+		_, loadErr := LoadManifest(root)
+		return "", false, loadErr
+	}
+	status, _, err := agentplugin.ClassifyManifest(root)
+	if err != nil {
+		return "", false, err
+	}
+	if status == agentplugin.SchemaSupported {
+		return FormatAgentPlugin, false, nil
+	}
+	if pluginExists || status == agentplugin.SchemaUnsupportedVersion || detectAgentPluginClientLayout(root) != "" {
+		_, loadErr := LoadManifest(root)
+		return "", false, loadErr
+	}
+	return FormatCompozy, false, nil
+}
+
+func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
+	root := strings.TrimSpace(dir)
+	dataDir, err := defaultAgentPluginDataDir(root, filepath.Base(root))
+	if err != nil {
+		return nil, err
+	}
+	pkg, err := agentplugin.Load(root, agentplugin.LoadOptions{DataDir: dataDir})
+	if err != nil {
+		if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](err); ok {
+			return invalidAgentPluginValidationReport(
+				newAgentPluginManifestValidationError(filepath.Join(root, agentPluginManifestFileName), manifestErr),
+			), nil
+		}
+		return nil, fmt.Errorf("extension: validate Agent Plugins package %q: %w", root, err)
+	}
+	manifest, err := SynthesizeAgentPluginManifest(pkg, root)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateStaticKitResources(context.Background(), root, manifest); err != nil {
+		issues, validationErr := validationIssuesForError(root, err)
+		if validationErr != nil {
+			return nil, validationErr
+		}
+		return &ValidationReport{
+			Status: "invalid", Format: string(FormatAgentPlugin), Name: pkg.Name, Version: pkg.Version,
+			Issues: issues,
+		}, nil
+	}
+	return &ValidationReport{
+		Status:      "valid",
+		Format:      string(FormatAgentPlugin),
+		Name:        pkg.Name,
+		Version:     pkg.Version,
+		WouldIngest: agentPluginValidationComponents(root, pkg),
+		Issues:      agentPluginValidationWarnings(pkg.Diagnostics),
+	}, nil
+}
+
+func invalidAgentPluginValidationReport(err error) *ValidationReport {
+	issues := []ValidationIssue{{
+		Path: filepath.Base(agentPluginManifestFileName), Scope: agentPluginManifestFileName,
+		Message: err.Error(), Severity: IssueSeverityError,
+	}}
+	if manifestErr, ok := errors.AsType[*AgentPluginManifestValidationError](err); ok && manifestErr != nil {
+		issues = make([]ValidationIssue, 0, len(manifestErr.Issues))
+		for _, issue := range manifestErr.Issues {
+			issues = append(issues, ValidationIssue{
+				Path: agentPluginManifestFileName, Scope: agentPluginManifestFileName,
+				Field: strings.TrimSpace(issue.Path), Message: strings.TrimSpace(issue.Message),
+				Severity: IssueSeverityError,
+			})
+		}
+	}
+	return &ValidationReport{Status: "invalid", Format: string(FormatAgentPlugin), Issues: issues}
+}
+
+func agentPluginValidationComponents(root string, pkg *agentplugin.Package) []apicontract.ExtensionValidationComponent {
+	components := make([]apicontract.ExtensionValidationComponent, 0, len(pkg.Skills)+len(pkg.Servers))
+	for _, skill := range pkg.Skills {
+		detail, err := filepath.Rel(root, skill.Dir)
+		if err != nil {
+			detail = filepath.Join("skills", skill.Name)
+		}
+		components = append(components, apicontract.ExtensionValidationComponent{
+			Kind: "skill", Name: skill.Name, Detail: filepath.ToSlash(detail),
+		})
+	}
+	for _, server := range pkg.Servers {
+		components = append(components, apicontract.ExtensionValidationComponent{
+			Kind: "mcp_server", Name: server.Name, Transport: server.Transport, Detail: server.Transport,
+		})
+	}
+	slices.SortStableFunc(components, func(left, right apicontract.ExtensionValidationComponent) int {
+		if left.Kind != right.Kind {
+			if left.Kind == "skill" {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(left.Name, right.Name)
+	})
+	return components
+}
+
+func agentPluginValidationWarnings(values []agentplugin.Diagnostic) []ValidationIssue {
+	issues := make([]ValidationIssue, 0, len(values))
+	for _, item := range values {
+		issues = append(issues, ValidationIssue{
+			Scope: strings.TrimSpace(item.Scope), Message: strings.TrimSpace(item.Message), Severity: IssueSeverityWarn,
+		})
+	}
+	return issues
+}
+
+func configValidationStatus(issues []ValidationIssue) string {
+	for _, issue := range issues {
+		if issue.Severity == IssueSeverityError {
+			return "invalid"
+		}
+	}
+	return "valid"
 }
 
 func validationIssueForError(dir string, err error) (ValidationIssue, bool, error) {

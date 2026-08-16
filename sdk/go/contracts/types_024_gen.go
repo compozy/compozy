@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type TaskInboxStatusFacetPayload struct {
+	Status Status `json:"status"`
+	Count  int    `json:"count"`
+}
+
 type TaskInboxTaskPayload struct {
 	ID             string     `json:"id"`
 	Identifier     string     `json:"identifier,omitempty"`
@@ -320,37 +325,4 @@ type TaskRunFailedPayload struct {
 
 type TaskRunGetParams struct {
 	ID string `json:"id"`
-}
-
-type TaskRunLeaseExpiredPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	RunKind                      *string   `json:"run_kind,omitempty"`
-	WakeID                       string    `json:"wake_id,omitempty"`
-	OwnerKey                     string    `json:"owner_key,omitempty"`
-	TargetSessionID              string    `json:"target_session_id,omitempty"`
-	LoopRunID                    string    `json:"loop_run_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	SessionID                    string    `json:"session_id,omitempty"`
-	ActorKind                    string    `json:"actor_kind,omitempty"`
-	ActorID                      string    `json:"actor_id,omitempty"`
-	OriginKind                   string    `json:"origin_kind,omitempty"`
-	OriginRef                    string    `json:"origin_ref,omitempty"`
-	TaskStatus                   string    `json:"task_status,omitempty"`
-	RunStatus                    string    `json:"run_status,omitempty"`
-	SoulSnapshotID               string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest                   string    `json:"soul_digest,omitempty"`
-	Attempt                      int       `json:"attempt,omitempty"`
-	LeaseUntil                   time.Time `json:"lease_until"`
-	ReleaseReason                string    `json:"release_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-	PreviousRunStatus            string    `json:"previous_run_status,omitempty"`
-	PreviousSessionID            string    `json:"previous_session_id,omitempty"`
-	RecoveryAction               string    `json:"recovery_action,omitempty"`
-	RecoveryReason               string    `json:"recovery_reason,omitempty"`
 }

@@ -71,10 +71,12 @@ type MarketplaceInstallRequest struct {
 
 // ManagedRemoveResult describes one removed managed extension.
 type ManagedRemoveResult struct {
-	Name     string                              `json:"name"`
-	Path     string                              `json:"path"`
-	Status   string                              `json:"status"`
-	Warnings []diagnosticcontract.DiagnosticItem `json:"warnings,omitempty"`
+	Name           string                              `json:"name"`
+	Path           string                              `json:"path"`
+	DataPath       string                              `json:"data_path,omitempty"`
+	QuarantinePath string                              `json:"quarantine_path,omitempty"`
+	Status         string                              `json:"status"`
+	Warnings       []diagnosticcontract.DiagnosticItem `json:"warnings,omitempty"`
 }
 
 // MarketplaceUpdateRequest describes one marketplace update batch.
@@ -417,6 +419,8 @@ func removeManagedExtensionWithDataOps(
 		return ManagedRemoveResult{}, errors.Join(dataCleanupErr, restoreErr)
 	}
 	result := finalizeManagedExtensionRemoval(info.Name, installDir, change)
+	result.DataPath = dataCleanup.dataPath
+	result.QuarantinePath = dataCleanup.quarantinePath
 	if dataCleanupErr != nil {
 		result.Warnings = append(result.Warnings, extensionDataCleanupWarning(
 			info.Name,

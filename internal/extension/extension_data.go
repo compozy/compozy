@@ -19,6 +19,7 @@ type extensionDataRemovalOps struct {
 
 type extensionDataCleanup struct {
 	quarantined    bool
+	dataPath       string
 	quarantinePath string
 }
 
@@ -43,7 +44,9 @@ func removeAgentPluginDataForInstall(
 	if err != nil {
 		return extensionDataCleanup{}, fmt.Errorf("extension: resolve data path for %q: %w", info.Name, err)
 	}
-	return removeExtensionDataPath(dataPath, ops)
+	cleanup, cleanupErr := removeExtensionDataPath(dataPath, ops)
+	cleanup.dataPath = dataPath
+	return cleanup, cleanupErr
 }
 
 func removeExtensionDataPath(path string, ops extensionDataRemovalOps) (extensionDataCleanup, error) {

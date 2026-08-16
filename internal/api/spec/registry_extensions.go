@@ -258,7 +258,15 @@ func installExtensionOperationSpec() OperationSpec {
 			{Status: 201, Description: specCreatedDescription, Body: contract.ExtensionResponse{}},
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Extension trust decision required", Body: contract.ErrorPayload{}},
+			{
+				Status:      422,
+				Description: "Extension trust decision or package validation failure",
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](),
+					responseBodyOf[contract.ExtensionOperationErrorPayload](),
+					responseBodyOf[contract.ExtensionValidationErrorPayload](),
+				),
+			},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

@@ -81,6 +81,9 @@ func (e *extensionOperationAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
 	}
+	if strings.HasPrefix(strings.TrimSpace(e.payload.Code), "extension_agent_plugin_") {
+		return 1
+	}
 	return apiStatusExitCode(e.statusCode)
 }
 

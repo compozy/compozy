@@ -151,6 +151,7 @@ type ExtensionPayload struct {
 	WorkspaceID                 string                       `json:"workspace_id,omitempty"`
 	Version                     string                       `json:"version"`
 	Type                        string                       `json:"type"`
+	Format                      string                       `json:"format"`
 	Source                      string                       `json:"source"`
 	Enabled                     bool                         `json:"enabled"`
 	State                       string                       `json:"state"`
@@ -200,6 +201,7 @@ type ExtensionKitItemPayload struct {
 // ExtensionInventoryPayload is the shipped/live union for one extension.
 type ExtensionInventoryPayload struct {
 	Extension   string                    `json:"extension"`
+	Format      string                    `json:"format"`
 	Enabled     bool                      `json:"enabled"`
 	Items       []ExtensionKitItemPayload `json:"items"`
 	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`

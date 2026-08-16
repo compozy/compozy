@@ -61,6 +61,7 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		WorkspaceID:              ext.Status.WorkspaceID,
 		Version:                  ext.Info.Version,
 		Type:                     extensionType(ext.Manifest, ext.Info),
+		Format:                   string(normalizeExtensionFormat(ext.Info.Format)),
 		Source:                   ext.Info.Source.String(),
 		Enabled:                  ext.Info.Enabled,
 		State:                    state,
@@ -88,8 +89,15 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		DaemonRunning:       daemonRunning,
 		Provenance:          extensionProvenancePayload(ext.Info.Provenance),
 		Trust:               extensionTrustPayload(ext.Info.Provenance),
-		Diagnostics:         append([]contract.DiagnosticItem(nil), ext.Info.Provenance.Warnings...),
+		Diagnostics:         extensionProjectionDiagnostics(ext.Info),
 	}
+}
+
+func extensionProjectionDiagnostics(info ExtensionInfo) []contract.DiagnosticItem {
+	diagnostics := make([]contract.DiagnosticItem, 0, len(info.IngestDiagnostics)+len(info.Provenance.Warnings))
+	diagnostics = append(diagnostics, info.IngestDiagnostics...)
+	diagnostics = append(diagnostics, info.Provenance.Warnings...)
+	return diagnostics
 }
 
 func extensionType(manifest *Manifest, info ExtensionInfo) string {

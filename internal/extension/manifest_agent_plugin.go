@@ -41,7 +41,14 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		if path == "" {
 			path = filepath.Join(absRoot, "skills", skill.Name, "SKILL.md")
 		}
-		skills = append(skills, filepath.Clean(path))
+		relativePath, err := filepath.Rel(absRoot, filepath.Clean(path))
+		if err != nil {
+			return nil, fmt.Errorf("extension: resolve Agent Plugins skill %q: %w", skill.Name, err)
+		}
+		if filepath.IsAbs(relativePath) || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("extension: Agent Plugins skill %q escapes the package root", skill.Name)
+		}
+		skills = append(skills, filepath.ToSlash(relativePath))
 	}
 	sort.Strings(skills)
 

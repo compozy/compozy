@@ -3,7 +3,10 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -57,6 +60,49 @@ func installExtension(
 			return localExtensionRecord(*info, deps.now, deps.getenv), nil
 		},
 	)
+}
+
+func extensionInstallValidationReport(
+	deps commandDeps,
+	plan extensionInstallPlan,
+	item ExtensionRecord,
+) (*extensionpkg.ValidationReport, error) {
+	for _, request := range plan.Attempts {
+		if request.Source != contract.InstallExtensionSourceLocalPath {
+			continue
+		}
+		path := strings.TrimSpace(request.Ref)
+		info, err := os.Stat(path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, fmt.Errorf("cli: inspect extension install report source %q: %w", path, err)
+		}
+		if !info.IsDir() {
+			continue
+		}
+		report, err := extensionpkg.ValidateBundleReport(path)
+		if err != nil {
+			return nil, fmt.Errorf("cli: build extension install report for %q: %w", path, err)
+		}
+		if report.DualManifest || report.Format == item.Format {
+			return report, nil
+		}
+	}
+	if strings.TrimSpace(item.Format) != string(extensionpkg.FormatAgentPlugin) {
+		return nil, nil
+	}
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		return nil, fmt.Errorf("cli: resolve extension install report home: %w", err)
+	}
+	path := extensionpkg.ManagedInstallPath(homePaths, item.Name)
+	report, err := extensionpkg.ValidateBundleReport(path)
+	if err != nil {
+		return nil, fmt.Errorf("cli: build extension install report for %q: %w", item.Name, err)
+	}
+	return report, nil
 }
 
 func executeExtensionInstallPlan(

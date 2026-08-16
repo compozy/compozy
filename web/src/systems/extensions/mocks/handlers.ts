@@ -133,6 +133,7 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({
       enabled: extension.enabled,
       extension: name,
+      format: extension.format,
       items: inventoryState[name] ?? [],
     });
   }),

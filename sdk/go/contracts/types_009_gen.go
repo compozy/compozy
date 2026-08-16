@@ -4,6 +4,15 @@ package contracts
 
 import "time"
 
+type ForgePRCreateRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Head       string   `json:"head"`
+	Base       string   `json:"base"`
+	Title      string   `json:"title"`
+	Body       string   `json:"body,omitempty"`
+	Draft      bool     `json:"draft,omitempty"`
+}
+
 type ForgePRCreateResponse struct {
 	Status string `json:"status"`
 	Number int    `json:"number,omitempty"`
@@ -189,24 +198,4 @@ type HeartbeatStatusRequest struct {
 	SessionID               string `json:"session_id,omitempty"`
 	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
 	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
-}
-
-type HeartbeatStatusResponse struct {
-	AgentName        string                             `json:"agent_name"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	Summary          string                             `json:"summary,omitempty"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	WakeState        *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
-	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
 }

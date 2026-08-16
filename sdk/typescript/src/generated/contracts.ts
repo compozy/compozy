@@ -1870,10 +1870,17 @@ export interface ExtensionToolCallResponse {
   result: ToolResult;
 }
 
-export type IssueSeverity = "error" | "warning";
+export interface ExtensionValidationComponent {
+  kind: string;
+  name: string;
+  transport?: string;
+}
+
+export type IssueSeverity = "error" | "warning" | "warn";
 
 export interface ValidationIssue {
   path: string;
+  scope?: string;
   line?: number;
   column?: number;
   field?: string;
@@ -1882,9 +1889,14 @@ export interface ValidationIssue {
 }
 
 export interface ExtensionValidatePayload {
+  status: string;
+  format: string;
+  name?: string;
+  version?: string;
+  would_ingest?: ExtensionValidationComponent[];
   manifest?: ExtensionManifestSummary;
   issues: ValidationIssue[];
-  consent_areas: ConsentArea[];
+  consent_areas?: ConsentArea[];
 }
 
 export interface ForgeCapabilitiesRequest {

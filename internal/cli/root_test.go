@@ -96,6 +96,21 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 	}
 	operationErr := readAPIErrorBody(http.StatusConflict, "409 Conflict", body)
 
+	t.Run("Should keep portable package failures on the documented exit code", func(t *testing.T) {
+		t.Parallel()
+
+		portableBody, err := json.Marshal(contract.ExtensionOperationErrorPayload{
+			Error: "client-specific layout", Code: "extension_agent_plugin_client_layout",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(portable error) error = %v", err)
+		}
+		portableErr := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", portableBody)
+		if exitCode := cliExitCodeForError(portableErr); exitCode != 1 {
+			t.Fatalf("cliExitCodeForError(portable error) = %d, want 1", exitCode)
+		}
+	})
+
 	t.Run("Should render the digest and retry command for humans", func(t *testing.T) {
 		t.Parallel()
 

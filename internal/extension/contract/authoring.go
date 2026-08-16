@@ -10,6 +10,8 @@ const (
 	IssueSeverityError = apicontract.IssueSeverityError
 	// IssueSeverityWarning reports non-blocking authoring guidance.
 	IssueSeverityWarning = apicontract.IssueSeverityWarning
+	// IssueSeverityWarn reports one non-blocking portable-package skip.
+	IssueSeverityWarn = apicontract.IssueSeverityWarn
 )
 
 // IssueSeverityValues returns the closed validation-severity set.

@@ -156,9 +156,20 @@ type ExtensionToolWorkspaceScope struct {
 }
 
 type ExtensionValidatePayload struct {
-	Manifest     *ExtensionManifestSummary `json:"manifest,omitempty"`
-	Issues       []ValidationIssue         `json:"issues"`
-	ConsentAreas []ConsentArea             `json:"consent_areas"`
+	Status       string                         `json:"status"`
+	Format       string                         `json:"format"`
+	Name         string                         `json:"name,omitempty"`
+	Version      string                         `json:"version,omitempty"`
+	WouldIngest  []ExtensionValidationComponent `json:"would_ingest,omitempty"`
+	Manifest     *ExtensionManifestSummary      `json:"manifest,omitempty"`
+	Issues       []ValidationIssue              `json:"issues"`
+	ConsentAreas []ConsentArea                  `json:"consent_areas,omitempty"`
+}
+
+type ExtensionValidationComponent struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Transport string `json:"transport,omitempty"`
 }
 
 type FailureHealth struct {
@@ -194,13 +205,4 @@ type ForgeCapabilitiesResponse struct {
 	CredentialSource   string   `json:"credential_source,omitempty"`
 	DefaultBranch      string   `json:"default_branch,omitempty"`
 	Cause              string   `json:"cause,omitempty"`
-}
-
-type ForgePRCreateRequest struct {
-	RemoteURLs []string `json:"remote_urls"`
-	Head       string   `json:"head"`
-	Base       string   `json:"base"`
-	Title      string   `json:"title"`
-	Body       string   `json:"body,omitempty"`
-	Draft      bool     `json:"draft,omitempty"`
 }
