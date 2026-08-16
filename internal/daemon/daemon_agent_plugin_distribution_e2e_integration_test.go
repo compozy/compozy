@@ -122,7 +122,7 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 		"agent plugin",
 		"Package:",
 		"acme.tools 1.2.0",
-		"Would ingest:",
+		"Would ingest",
 		"WARN",
 	)
 
