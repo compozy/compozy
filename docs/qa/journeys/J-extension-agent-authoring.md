@@ -10,6 +10,12 @@ flowchart TD
   B --> C[extensions_init scaffolds a public SDK project]
   C --> D[extensions_build emits immutable generation plus deterministic manifest]
   D --> E[extensions_validate reports issues and derived consent areas]
+  B --> P[Select an Agent Plugins package directory]
+  P --> P1[extensions_validate auto-detects schema 1.0.0 without writing daemon state]
+  P1 -->|fatal manifest error| P2[Reject the whole package with a deterministic code and no side effects]
+  P1 -->|component issue| P3[Keep valid siblings and report ordered scoped warnings]
+  P3 --> P4[Eight-item minimum-conformance evidence is complete]
+  P4 --> ZP[True end portable: evidence complete with no registry, data, process, or resource mutation]
   E -->|invalid provide, permission, or command metadata| E1[Closed validation rejects with no activation]
   E1 --> D
   E --> F[extensions_dev links only the trusted workspace]
@@ -41,6 +47,10 @@ journey:
       origin: direct
     - url: compozy__extensions_install|compozy__extensions_update|compozy__extensions_remove|compozy__tool_invoke
       origin: direct
+    - url: compozy extension validate <agent-plugin-directory> -o human|json|jsonl|toon
+      origin: direct
+    - url: https://compozy.com/docs/extensions/agent-plugins
+      origin: external-share
   actions:
     - step: 1
       verb: Discover and follow the official extension-authoring guidance
@@ -48,6 +58,9 @@ journey:
     - step: 2
       verb: Scaffold, build, and validate through native tools
       expected_observable: Structured outputs match CLI service results; the manifest is generated deterministically from SDK registrations
+    - step: 2a
+      verb: Validate the portable schema and walk all eight minimum-conformance items
+      expected_observable: Validation selects the pinned schemas, ignores unowned extensions, discovers fixed locations, proves both supported MCP transports and stdio environment rules, isolates component failures, and leaves registry, data, resources, and subprocess state untouched
     - step: 3
       verb: Link, reload, and inspect logs in the trusted workspace
       expected_observable: Interaction gates apply, workspace_id is server-bound, last-good behavior survives failure, and logs are redacted before transport
@@ -60,7 +73,7 @@ journey:
   goal:
     observable: The complete authoring lifecycle is agent-manageable with the nine new native tools and canonical lifecycle tools
     side_effects: [project-scaffolded, generation-built, dev-link-created, release-published, extension-installed, extension-removed]
-  true_end_state: The published extension was invoked from a second workspace and removed there, while the original author workspace remains isolated and every transcript is secret-free
+  true_end_state: The native branch publishes, invokes, and removes from a second workspace; the portable-validation branch completes item-level evidence with no daemon mutation
   exit:
     natural: Continue managing another extension through the same structured contracts
   abandonment:
@@ -81,3 +94,5 @@ journey:
   the acceptance floor is A−/B/B.
 - Human CLI rendering and Web management are intentionally covered by the newcomer, distribution,
   command, and canary journeys.
+- Portable validation is an import-authoring branch: it owns deterministic human/structured
+  diagnostics and the eight-item evidence gate, not generation or publication of a native project.

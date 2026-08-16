@@ -16,11 +16,14 @@ flowchart TD
   D --> E{Entry kind}
   E -->|Skill| F[One-click Install or Update]
   F --> F2[True end skill: card flips installed; Manage opens /marketplace/skills; timer < 60s]
-  E -->|Extension| G{Daemon trust decision}
+  E -->|Extension| G0{Catalog format marker}
+  G0 -->|native or absent| G[Daemon trust decision]
+  G0 -->|agent-plugin| G5[Neutral Agent Plugin badge on card and detail; marker remains display-only]
+  G5 --> G
   G -->|curated| G1[Install; digest verified before extraction]
   G -->|policy blocked| G2[Focusable-but-unavailable action explains block, links Settings › Extensions]
   G -->|allowed unverified| G3[Warning-confirm gate, explicit consent]
-  G1 --> G4[True end extension: installed with truthful provenance; Manage opens /marketplace/extensions; timer < 60s]
+  G1 --> G4[True end extension: installed with runtime-detected format and truthful provenance; Manage opens /marketplace/extensions; timer < 60s]
   G3 --> G4
   G2 -.->|operator is not the policy owner| X2[Abandon: nothing written; policy change is J-extension-policy-admin]
   E -->|MCP| I[Guided install: entry-locked template, required values typed or Vault-referenced]
@@ -50,13 +53,17 @@ journey:
       origin: direct
     - url: compozy.com/docs/marketplace/
       origin: external-share
+    - url: compozy marketplace search --kind extension and GET /api/extensions/marketplace (HTTP + UDS)
+      origin: direct
+    - url: curated extension catalog feed
+      origin: direct
   actions:
     - step: 1
       verb: Detour mid-session to Marketplace, select a kind, and browse or search its active scope
       expected_observable: The index enters Skills in Installed scope; choosing Marketplace writes `tab=market`, and kind/detail/back navigation preserves that explicit scope without stale chrome
     - step: 2
       verb: Inspect one entry by its stable feed identity
-      expected_observable: Kind-specific metadata, installed state, update state, and trust evidence match daemon output; no invented trust for skills
+      expected_observable: Kind-specific metadata, installed state, update state, format badge, and trust evidence match daemon output; catalog format is display-only and installed runtime detection wins when metadata is absent or stale
     - step: 3
       verb: Acquire per kind — skill one-click, extension trust-gated, MCP guided install
       expected_observable: Required values are validated up front, secrets are write-only, and policy blocks explain themselves; wall-clock from step 1 to acquired is under 60 seconds per kind
@@ -69,7 +76,7 @@ journey:
   goal:
     observable: Each of the three kinds acquired born-valid in under 60 seconds, with discovery and installed state in agreement
     side_effects: [capability-installed, scoped-config-written, canonical-vault-refs-created]
-  true_end_state: A fresh marketplace read and the destination management surface report the same installed capability, scope, provenance, and update state without exposing secret values; per-kind acquisition timings are captured as evidence
+  true_end_state: A fresh marketplace read and the destination management surface report the same installed capability, scope, runtime-detected format, provenance, diagnostics, and update state without exposing secret values; per-kind acquisition timings are captured as evidence
   exit:
     natural: Back to the interrupted session, capability available
   abandonment:
@@ -93,3 +100,5 @@ journey:
 - Taxonomy sweep: journeys (per-kind happy paths above), functional (validation, entry-id identity, RouteNav, and round-trips — scenario rows), experiential (keyboard operability with open `BUG-20260714-keyboard-focus-invisible`; curated-showcase copy must not imply exhaustiveness), edge/error/empty (per-kind failure, all-zero search, abandonments above), cross-cutting (mobile kind pages and redirect-to-sibling breadcrumb continuity; regression canary is CH-033 on J-22).
 - MCP acquisition ends at the structurally-valid server + truthful readiness handoff; authorization is J-mcp-authorize-repair.
 - Agent-plane equivalents of every step are J-agent-marketplace-parity.
+- Agent Plugins entries reuse the Extension branch. Their badge is neutral metadata; acquired bytes
+  remain authoritative for format, diagnostics, trust, and lifecycle state.
