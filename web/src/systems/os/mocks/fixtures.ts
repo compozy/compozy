@@ -7,7 +7,10 @@ import {
   storySessionIds,
   storyWorkspaceIds,
 } from "@/storybook/fintech-scenario";
-import type { SessionAttentionEventPayload } from "@/systems/session";
+import type {
+  OperatorNotificationEventPayload,
+  SessionAttentionEventPayload,
+} from "@/systems/session";
 
 import { resolveAppForPath } from "../lib/app-registry";
 
@@ -21,6 +24,15 @@ export const osSessionAttentionEventFixture: SessionAttentionEventPayload = {
   to: "waiting-for-input",
   class: "needs-you",
   at: "2026-04-17T18:11:30Z",
+};
+
+export const osOperatorNotificationEventFixture: OperatorNotificationEventPayload = {
+  notification_id: "ntf_story_deps_audit",
+  session_id: storySessionIds.cto,
+  workspace_id: storyWorkspaceIds.hq,
+  title: "Dependency audit done",
+  body: "3 findings, 1 high severity",
+  at: "2026-04-17T18:12:00Z",
 };
 
 /**

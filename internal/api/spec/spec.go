@@ -59,6 +59,7 @@ const (
 	specAPISettingsRolesPath                                 = "/api/settings/roles"
 	specAPISettingsNetworkPath                               = "/api/settings/network"
 	specAPISettingsWindowManagerPath                         = "/api/settings/window-manager"
+	specAPISettingsAttentionPath                             = "/api/settings/attention"
 	specAPISettingsObservabilityPath                         = "/api/settings/observability"
 	specAPISettingsProvidersNamePath                         = "/api/settings/providers/{name}"
 	specAPISettingsSandboxesNamePath                         = "/api/settings/sandboxes/{name}"

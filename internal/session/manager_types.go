@@ -151,6 +151,9 @@ type Manager struct {
 	catalogEvents         *sessionCatalogBroadcaster
 	presenceMu            sync.Mutex
 	presenceLeases        map[sessionPresenceKey]sessionPresenceLease
+	notifyMu              sync.Mutex
+	notifyConfig          compozyconfig.AttentionConfig
+	notifyLastBySession   map[string]time.Time
 
 	logger                       *slog.Logger
 	driver                       AgentDriver
@@ -209,6 +212,7 @@ type Manager struct {
 	newRepairEventID             IDGenerator
 	newInteractionID             IDGenerator
 	newPresenceLeaseID           IDGenerator
+	newNotificationID            IDGenerator
 	acquireSessionDBFamilyLease  sessionDBFamilyLeaseAcquirer
 	removeAllPath                func(path string) error
 	promptBufSize                int

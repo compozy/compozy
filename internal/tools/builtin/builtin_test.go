@@ -1273,6 +1273,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__network_work", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__notify", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__observe_metrics", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__observe_search", risk: toolspkg.RiskRead,
@@ -2662,6 +2664,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(sessions, toolspkg.ToolIDSessionInputPromote) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionDescribe) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionHealth) ||
+			!slices.Contains(sessions, toolspkg.ToolIDNotify) ||
 			slices.Contains(sessions, toolspkg.ToolID("compozy__session_stop")) {
 			t.Fatalf("sessions toolset expansion = %#v, want session read and mutation tools", sessions)
 		}

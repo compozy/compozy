@@ -238,6 +238,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/settings/mcp-servers/:name/auth/logout",
 			"GET /api/settings/memory",
 			"GET /api/settings/network",
+			"GET /api/settings/attention",
 			"GET /api/settings/window-manager",
 			"GET /api/settings/observability",
 			"GET /api/settings/observability/log-tail",
@@ -299,6 +300,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/bridges/:id",
 			"PATCH /api/memory/:filename",
 			"PATCH /api/settings/automation",
+			"PATCH /api/settings/attention",
 			"PATCH /api/settings/general",
 			"PATCH /api/settings/hooks-extensions",
 			"PATCH /api/settings/memory",
@@ -334,6 +336,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/bridges/:id/webhook/register",
 			"POST /api/agent/channels/:channel/send",
 			"POST /api/agent/channels/reply",
+			"POST /api/agent/notify",
 			"POST /api/agent/soul/validate",
 			"POST /api/agent/spawn",
 			"POST /api/agent/tasks/:run_id/complete",
@@ -693,7 +696,12 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			req settingspkg.SectionRequest,
 		) (settingspkg.SectionEnvelope, error) {
 			envelope := settingsTestSectionEnvelope(req.Section, req.Scope, req.WorkspaceID)
-			if req.Section == settingspkg.SectionWindowManager {
+			switch req.Section {
+			case settingspkg.SectionAttention:
+				envelope.Attention = &settingspkg.AttentionSection{Config: compozyconfig.AttentionConfig{
+					Toasts: true, Sound: true,
+				}}
+			case settingspkg.SectionWindowManager:
 				envelope.WindowManager = &settingspkg.WindowManagerSection{
 					Config: compozyconfig.DefaultWindowManagerConfig(),
 				}
@@ -791,6 +799,59 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 						"LastUpdateSectionRequest.General = %#v, want parsed payload",
 						settingsService.LastUpdateSectionRequest.General,
 					)
+				}
+			},
+		},
+		{
+			name:       "Should get attention section",
+			method:     http.MethodGet,
+			path:       "/api/settings/attention",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsAttentionResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionAttention ||
+					!response.Config.Toasts || !response.Config.Sound {
+					t.Fatalf("attention response = %#v, want enabled defaults", response)
+				}
+				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionAttention {
+					t.Fatalf(
+						"LastGetSectionRequest.Section = %q, want %q",
+						settingsService.LastGetSectionRequest.Section,
+						settingspkg.SectionAttention,
+					)
+				}
+			},
+		},
+		{
+			name:       "Should patch attention section",
+			method:     http.MethodPatch,
+			path:       "/api/settings/attention",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.UpdateSettingsAttentionRequest{
+				Config: contract.SettingsAttentionPayload{
+					Toasts: false, Sound: false, System: true,
+					MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+				},
+			}),
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsGlobalSectionMutationResult
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionAttention {
+					t.Fatalf("response.Section = %q, want attention", response.Section)
+				}
+				request := settingsService.LastUpdateSectionRequest
+				if request.Section != settingspkg.SectionAttention || request.Attention == nil ||
+					request.Attention.Toasts || request.Attention.Sound || !request.Attention.System ||
+					!reflect.DeepEqual(
+						request.Attention.MutedWorkspaces,
+						[]string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+					) {
+					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed attention config", request)
 				}
 			},
 		},
@@ -1126,6 +1187,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"GET /api/agent/me":                                            "AgentMe",
 		"POST /api/agent/channels/:channel/send":                       "AgentChannelSend",
 		"POST /api/agent/channels/reply":                               "AgentChannelReply",
+		"POST /api/agent/notify":                                       "AgentNotify",
 		"POST /api/agent/tasks/:run_id/complete":                       "AgentTaskComplete",
 		"POST /api/agent/tasks/:run_id/fail":                           "AgentTaskFail",
 		"POST /api/agent/tasks/:run_id/heartbeat":                      "AgentTaskHeartbeat",

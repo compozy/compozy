@@ -47,6 +47,13 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_runtime_clear`, `compozy__session_archive`,
 `compozy__session_unarchive`, `compozy__session_rename`.
 
+`compozy__notify` sends one operator notification from the bound session and workspace. Pass a
+required `title` of at most 80 characters and an optional `body` of at most 240 characters. The
+daemon sanitizes and redacts both fields before delivery, then returns exactly one provable outcome:
+`delivered` when at least one live operator catalog-stream subscriber accepted the event,
+`no-client`, `muted-workspace`, or `rate-limited` with `retry_after_ms`. The per-session limit is one
+send per second, including sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
+
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
 `new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
 accept or send a prompt or runtime. A named Worktree must be ready; new creation reaches ready before

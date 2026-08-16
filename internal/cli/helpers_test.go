@@ -34,6 +34,7 @@ type stubClient struct {
 	getSettingsUpdateFn                func(context.Context) (SettingsUpdateRecord, error)
 	updateSettingsSkillsFn             func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
 	updateSettingsWindowManagerFn      func(context.Context, UpdateSettingsWindowManagerRequest) (SettingsMutationRecord, error)
+	updateSettingsAttentionFn          func(context.Context, UpdateSettingsAttentionRequest) (SettingsMutationRecord, error)
 	reloadSettingsFn                   func(context.Context) (SettingsMutationRecord, error)
 	listSettingsApplyRecordsFn         func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
 	getOnboardingStatusFn              func(context.Context) (contract.OnboardingStatusResponse, error)
@@ -471,6 +472,7 @@ type stubClient struct {
 	schedulerBacklogFn     func(context.Context, SchedulerBacklogQuery) (SchedulerBacklogRecord, error)
 	agentMeFn              func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
 	agentContextFn         func(context.Context, agentidentity.Credentials) (AgentContextRecord, error)
+	agentNotifyFn          func(context.Context, AgentNotifyRequest, agentidentity.Credentials) (AgentNotifyRecord, error)
 	agentSpawnFn           func(context.Context, AgentSpawnRequest, agentidentity.Credentials) (AgentSpawnRecord, error)
 	agentChannelsFn        func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error)
 	agentChannelRecvFn     func(context.Context, string, AgentChannelRecvQuery, agentidentity.Credentials) ([]AgentChannelMessageRecord, error)
@@ -624,6 +626,16 @@ func (s *stubClient) UpdateSettingsWindowManager(
 		return s.updateSettingsWindowManagerFn(ctx, request)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsWindowManager call")
+}
+
+func (s *stubClient) UpdateSettingsAttention(
+	ctx context.Context,
+	request UpdateSettingsAttentionRequest,
+) (SettingsMutationRecord, error) {
+	if s.updateSettingsAttentionFn != nil {
+		return s.updateSettingsAttentionFn(ctx, request)
+	}
+	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsAttention call")
 }
 
 func (s *stubClient) ReloadSettings(ctx context.Context) (SettingsMutationRecord, error) {
@@ -3917,6 +3929,17 @@ func (s *stubClient) AgentContext(
 		return s.agentContextFn(ctx, credentials)
 	}
 	return AgentContextRecord{}, errors.New("unexpected AgentContext call")
+}
+
+func (s *stubClient) AgentNotify(
+	ctx context.Context,
+	request AgentNotifyRequest,
+	credentials agentidentity.Credentials,
+) (AgentNotifyRecord, error) {
+	if s.agentNotifyFn != nil {
+		return s.agentNotifyFn(ctx, request, credentials)
+	}
+	return AgentNotifyRecord{}, errors.New("unexpected AgentNotify call")
 }
 
 func (s *stubClient) AgentSpawn(

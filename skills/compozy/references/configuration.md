@@ -148,3 +148,14 @@ snap thresholds and repeat ratios, edge bindings, and shortcuts. Every `window_m
 live-applied only after the complete candidate validates; a failed apply keeps the prior active
 generation. Workspace topology overrides remain part of revisioned layout documents rather than a
 second Settings scope. Field detail lives in `references/window-management.md` (Configuration and hooks).
+
+## Attention
+
+`[attention]` controls operator notification delivery. `toasts` and `sound` default to `true`,
+`system` defaults to `false`, and `muted_workspaces` defaults to an empty array of canonical workspace
+IDs. Every `attention.*` path applies live as one validated candidate. A muted workspace receives no
+notification event, but its attention rows and counts remain unchanged. Workspace removal prunes its
+ID from `muted_workspaces`.
+
+Use `compozy config get|set attention.<key>` or `GET/PATCH /api/settings/attention`. The title count
+is always on and is not a config key.

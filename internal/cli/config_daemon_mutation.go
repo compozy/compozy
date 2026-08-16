@@ -59,6 +59,13 @@ func maybeApplyConfigSetViaDaemon(
 		result, err = client.UpdateSettingsWindowManager(ctx, UpdateSettingsWindowManagerRequest{
 			Config: settingsWindowManagerPayloadFromConfig(cfg.WindowManager),
 		})
+	case configAttentionKey:
+		if applyErr := applyAttentionConfigValue(&cfg.Attention, path, value); applyErr != nil {
+			return nil, applyErr
+		}
+		result, err = client.UpdateSettingsAttention(ctx, UpdateSettingsAttentionRequest{
+			Config: settingsAttentionPayloadFromConfig(cfg.Attention),
+		})
 	default:
 		return nil, fmt.Errorf("cli: config set %q is not daemon-managed", strings.Join(path, "."))
 	}
@@ -125,7 +132,7 @@ func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTar
 	if len(path) == 2 && path[0] == configSkillsKey && path[1] == agentDisabledSkillsKey {
 		return true
 	}
-	return len(path) >= 2 && path[0] == configWindowManagerKey
+	return len(path) >= 2 && (path[0] == configWindowManagerKey || path[0] == configAttentionKey)
 }
 
 func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {

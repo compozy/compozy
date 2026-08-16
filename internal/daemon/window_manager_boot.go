@@ -83,6 +83,10 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 	}
 	state.workspaceResolver.SetUnregisterPreparer(
 		func(ctx context.Context, workspace workspacepkg.Workspace) (workspacepkg.UnregisterPreparation, error) {
+			attentionPreparation, err := prepareAttentionWorkspaceRemoval(state, workspace.ID)
+			if err != nil {
+				return nil, err
+			}
 			sessionPreparation, err := preparer.PrepareWorkspaceRemoval(ctx, workspace.ID)
 			if err != nil {
 				return nil, err
@@ -103,6 +107,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 			return workspaceRemovalPreparation{
 				windowManager: windowPreparation,
 				session:       sessionPreparation,
+				attention:     attentionPreparation,
 				deadEntities:  state.deadEntities,
 				mcpTools:      state.mcpToolProvider,
 				workspaceID:   workspace.ID,
@@ -115,6 +120,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 type workspaceRemovalPreparation struct {
 	windowManager workspacepkg.UnregisterPreparation
 	session       workspacepkg.UnregisterPreparation
+	attention     workspacepkg.UnregisterPreparation
 	deadEntities  *deadentity.Service
 	mcpTools      workspaceMCPStateRetirer
 	workspaceID   string
@@ -128,23 +134,31 @@ func (p workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
 	if err := p.windowManager.BeforeDelete(ctx); err != nil {
 		return err
 	}
-	return p.session.BeforeDelete(ctx)
+	if err := p.session.BeforeDelete(ctx); err != nil {
+		return err
+	}
+	return p.attention.BeforeDelete(ctx)
 }
 
 func (p workspaceRemovalPreparation) Commit(ctx context.Context) error {
 	windowManagerErr := p.windowManager.Commit(ctx)
 	sessionErr := p.session.Commit(ctx)
+	attentionErr := p.attention.Commit(ctx)
 	if p.deadEntities != nil {
 		p.deadEntities.ForgetWorkspace(p.workspaceID)
 	}
 	if p.mcpTools != nil {
 		p.mcpTools.ForgetWorkspace(p.workspaceID)
 	}
-	return errors.Join(windowManagerErr, sessionErr)
+	return errors.Join(windowManagerErr, sessionErr, attentionErr)
 }
 
 func (p workspaceRemovalPreparation) Rollback(ctx context.Context) error {
-	return errors.Join(p.windowManager.Rollback(ctx), p.session.Rollback(ctx))
+	return errors.Join(
+		p.attention.Rollback(ctx),
+		p.session.Rollback(ctx),
+		p.windowManager.Rollback(ctx),
+	)
 }
 
 func windowManagerDefaults(cfg compozyconfig.WindowManagerConfig) windowmanager.Config {

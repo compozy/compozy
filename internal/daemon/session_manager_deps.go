@@ -42,6 +42,7 @@ type SessionManagerDeps struct {
 	SessionPromptAdmission store.SessionPromptAdmissionStore
 	SessionAttachments     session.AttachmentOpener
 	SessionHealthConfig    compozyconfig.HeartbeatConfig
+	AttentionConfig        compozyconfig.AttentionConfig
 	SessionCatalog         store.SessionCatalog
 	ProcessRegistry        *toolruntime.Registry
 	HostedMCP              session.HostedMCPLauncher
@@ -94,6 +95,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionPromptAdmission: sessionPromptAdmissionStoreDependency(state.registry),
 		SessionAttachments:     state.sessionAttachments,
 		SessionHealthConfig:    state.cfg.Agents.Heartbeat,
+		AttentionConfig:        state.cfg.Attention,
 		SessionCatalog:         state.registry,
 		ProcessRegistry:        state.processRegistry,
 		HostedMCP:              hostedMCPLauncher(state.hostedMCP),

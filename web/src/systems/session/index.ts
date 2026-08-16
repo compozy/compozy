@@ -47,6 +47,7 @@ export type {
   SessionAttachResponse,
   SessionBadge,
   SessionAttentionEventPayload,
+  OperatorNotificationEventPayload,
   SessionCatalogEventPayload,
   SessionCommandPayload,
   SessionCommandsResponse,

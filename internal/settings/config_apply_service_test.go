@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
@@ -431,6 +432,197 @@ cost_reasoning_per_million = 30
 		}
 		if !pendingRestart {
 			t.Fatal("HasPendingConfigRestart() = false, want pending provider drift")
+		}
+	})
+
+	t.Run("Should live-apply attention config without leaking pending restart fields", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := WithMutationSource(context.Background(), "uds")
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			RuntimeApplier: applier,
+			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		initialActive, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(initial) error = %v", err)
+		}
+		pendingRestartConfig := strings.Replace(
+			baseSettingsConfig(),
+			`provider = "codex"`,
+			`provider = "claude"`,
+			1,
+		)
+		writeFile(t, homePaths.ConfigFile, pendingRestartConfig)
+		desired := compozyconfig.AttentionConfig{
+			Toasts:          false,
+			Sound:           false,
+			System:          true,
+			MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+		}
+
+		result, err := service.ApplySection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionAttention},
+			Attention:      &desired,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(attention) error = %v", err)
+		}
+		if !result.Applied || result.RestartRequired {
+			t.Fatalf("ApplySection(attention) = %#v, want live applied result", result)
+		}
+		if got, want := applier.calls, 1; got != want {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+		}
+		if got := applier.snapshots[0].Attention; !reflect.DeepEqual(got, desired) {
+			t.Fatalf("runtime Attention = %#v, want %#v", got, desired)
+		}
+		if got, want := applier.snapshots[0].Defaults.Provider, initialActive.Defaults.Provider; got != want {
+			t.Fatalf("runtime defaults.provider = %q, want pending restart value %q excluded", got, want)
+		}
+
+		desired.MutedWorkspaces[0] = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+		first, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(first) error = %v", err)
+		}
+		first.Attention.MutedWorkspaces[0] = "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+		second, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(second) error = %v", err)
+		}
+		if got, want := second.Attention.MutedWorkspaces[0], "01ARZ3NDEKTSV4RRFFQ69G5FAV"; got != want {
+			t.Fatalf("active muted workspace = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should prune and restore one attention mute through the live apply pipeline", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := WithMutationSource(context.Background(), "workspace.unregister")
+		homePaths := testHomePaths(t)
+		const removedID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		const retainedID = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+fmt.Sprintf(`
+[attention]
+toasts = true
+sound = true
+system = false
+muted_workspaces = ["%s", "%s"]
+`, removedID, retainedID))
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			RuntimeApplier: applier,
+			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+
+		changed, err := service.SetAttentionWorkspaceMuted(ctx, removedID, false)
+		if err != nil || !changed {
+			t.Fatalf("SetAttentionWorkspaceMuted(prune) = %t, error = %v, want changed", changed, err)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(pruned) error = %v", err)
+		}
+		if got, want := loaded.Attention.MutedWorkspaces, []string{retainedID}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("pruned muted workspaces = %#v, want %#v", got, want)
+		}
+		changed, err = service.SetAttentionWorkspaceMuted(ctx, removedID, false)
+		if err != nil || changed {
+			t.Fatalf("SetAttentionWorkspaceMuted(repeated prune) = %t, error = %v, want no change", changed, err)
+		}
+
+		changed, err = service.SetAttentionWorkspaceMuted(ctx, removedID, true)
+		if err != nil || !changed {
+			t.Fatalf("SetAttentionWorkspaceMuted(restore) = %t, error = %v, want changed", changed, err)
+		}
+		loaded, err = compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(restored) error = %v", err)
+		}
+		if got, want := loaded.Attention.MutedWorkspaces, []string{retainedID, removedID}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("restored muted workspaces = %#v, want %#v", got, want)
+		}
+		if got, want := applier.calls, 2; got != want {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should serialize concurrent attention writers without a torn config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := WithMutationSource(context.Background(), "http")
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		service := testService(t, homePaths, Dependencies{
+			RuntimeApplier: &fakeConfigRuntimeApplier{},
+			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		candidates := []compozyconfig.AttentionConfig{
+			{Toasts: true, Sound: false, MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"}},
+			{Toasts: false, Sound: true, System: true, MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAW"}},
+			{Toasts: true, Sound: true, System: true, MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAX"}},
+		}
+		errorsByWriter := make(chan error, len(candidates))
+		var writers sync.WaitGroup
+		for index := range candidates {
+			candidate := cloneAttentionConfig(candidates[index])
+			writers.Add(1)
+			go func() {
+				defer writers.Done()
+				_, applyErr := service.ApplySection(ctx, SectionUpdateRequest{
+					SectionRequest: SectionRequest{Section: SectionAttention},
+					Attention:      &candidate,
+				})
+				errorsByWriter <- applyErr
+			}()
+		}
+		writers.Wait()
+		close(errorsByWriter)
+		for writerErr := range errorsByWriter {
+			if writerErr != nil {
+				t.Fatalf("ApplySection(concurrent attention) error = %v", writerErr)
+			}
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(concurrent attention) error = %v", err)
+		}
+		if !slices.ContainsFunc(candidates, func(candidate compozyconfig.AttentionConfig) bool {
+			return reflect.DeepEqual(candidate, loaded.Attention)
+		}) {
+			t.Fatalf("concurrent attention = %#v, want one complete candidate", loaded.Attention)
 		}
 	})
 

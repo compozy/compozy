@@ -98,6 +98,8 @@ const (
 	ToolIDSessionEvents ToolID = "compozy__session_events"
 	// ToolIDSessionDescribe reads a composite read-only session description.
 	ToolIDSessionDescribe ToolID = "compozy__session_describe"
+	// ToolIDNotify sends one bounded operator notification from the bound session.
+	ToolIDNotify ToolID = "compozy__notify"
 	// ToolIDSessionHealth reads metadata-only session health and wake eligibility.
 	ToolIDSessionHealth ToolID = "compozy__session_health"
 	// ToolIDAgentHeartbeatStatus reads resolved Heartbeat policy, wake state, health, and wake audit.

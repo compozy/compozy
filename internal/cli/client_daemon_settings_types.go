@@ -55,6 +55,9 @@ type UpdateSettingsSkillsRequest = contract.UpdateSettingsSkillsRequest
 // UpdateSettingsWindowManagerRequest captures the shared window-manager settings update payload.
 type UpdateSettingsWindowManagerRequest = contract.UpdateSettingsWindowManagerRequest
 
+// UpdateSettingsAttentionRequest captures the shared attention settings update payload.
+type UpdateSettingsAttentionRequest = contract.UpdateSettingsAttentionRequest
+
 // VaultRecord is one redacted vault secret metadata row.
 type VaultRecord = contract.VaultSecretPayload
 

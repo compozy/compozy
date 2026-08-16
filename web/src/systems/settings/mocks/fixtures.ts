@@ -1,6 +1,7 @@
 import type {
   ConfigApplyRecordsResponse,
   SettingsAutomationSection,
+  SettingsAttentionSection,
   SettingsSandboxCollection,
   SettingsSandboxEntry,
   SettingsApplyResponse,
@@ -102,6 +103,18 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
     messages_rejected: 1,
   },
   links: [{ label: "network", path: "/network" }],
+};
+
+export const settingsAttentionSectionFixture: SettingsAttentionSection = {
+  section: "attention",
+  scope: "global",
+  available_scopes: ["global"],
+  config: {
+    toasts: true,
+    sound: true,
+    system: false,
+    muted_workspaces: [],
+  },
 };
 
 export const settingsNotificationPresetCollectionFixture: SettingsNotificationPresetCollection = {

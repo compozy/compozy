@@ -44,6 +44,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionPromptAdmissionStore(deps.SessionPromptAdmission),
 			session.WithAttachmentOpener(deps.SessionAttachments),
 			session.WithSessionHealthConfig(deps.SessionHealthConfig),
+			session.WithAttentionConfig(deps.AttentionConfig),
 			session.WithSessionHealthStore(deps.SessionHealthStore),
 			session.WithSessionCatalog(deps.SessionCatalog),
 			session.WithHostedMCPLauncher(deps.HostedMCP),

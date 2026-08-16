@@ -21,6 +21,7 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 
 | Key path pattern                                   | Lifecycle          | Diff class         | Next action when not immediately active |
 | -------------------------------------------------- | ------------------ | ------------------ | --------------------------------------- |
+| `attention.*`                                      | `live`             | `live`             | `none`                                  |
 | `automation.*`                                     | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `daemon.memory_report_interval`                    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `daemon.reload_timeouts.bridges`                   | `live`             | `live`             | `none`                                  |

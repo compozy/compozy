@@ -29,6 +29,8 @@ func (s *service) updateConfigBackedSection(
 		return s.updateGatewaySection(ctx, req)
 	case SectionWindowManager:
 		return s.updateWindowManagerSection(ctx, req)
+	case SectionAttention:
+		return s.updateAttentionSection(ctx, req)
 	case SectionObservability:
 		return s.updateObservabilitySection(ctx, req)
 	case SectionHooksExtensions:
@@ -181,6 +183,27 @@ func (s *service) updateWindowManagerSection(
 	changed := diffWindowManagerSettings(cfg.WindowManager, desired)
 	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyWindowManagerSettings(editor, desired)
+	})
+}
+
+func (s *service) updateAttentionSection(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) (MutationResult, error) {
+	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if req.Attention == nil {
+		return MutationResult{}, validationError(errors.New("settings: attention section payload is required"))
+	}
+	desired := cloneAttentionConfig(*req.Attention)
+	if err := desired.Validate(); err != nil {
+		return MutationResult{}, validationError(err)
+	}
+	changed := diffAttentionSettings(cfg.Attention, desired)
+	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
+		return applyAttentionSettings(editor, desired)
 	})
 }
 

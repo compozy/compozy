@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -154,6 +155,25 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		}
 		if got := configured.WindowManager.Shortcuts["window.focus.left"]; got != "alt+KeyH" {
 			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want alt+KeyH", got)
+		}
+
+		for _, mutation := range [][2]string{
+			{"attention.toasts", "false"},
+			{"attention.sound", "false"},
+			{"attention.system", "true"},
+			{"attention.muted_workspaces", `["01ARZ3NDEKTSV4RRFFQ69G5FAV"]`},
+		} {
+			if _, _, err := executeRootCommand(t, deps, "config", "set", mutation[0], mutation[1]); err != nil {
+				t.Fatalf("config set %s error = %v", mutation[0], err)
+			}
+		}
+		configured, err = compozyconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(attention) error = %v", err)
+		}
+		if configured.Attention.Toasts || configured.Attention.Sound || !configured.Attention.System ||
+			!slices.Equal(configured.Attention.MutedWorkspaces, []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"}) {
+			t.Fatalf("Attention = %#v, want false/false/true with one muted workspace", configured.Attention)
 		}
 
 		if _, _, err := executeRootCommand(
@@ -596,6 +616,62 @@ func TestConfigSetWindowManagerUsesDaemonSettingsWhenRunning(t *testing.T) {
 	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
 		record.RestartRequired {
 		t.Fatalf("config set window manager record = %#v, want live/applied=true", record)
+	}
+}
+
+func TestConfigSetAttentionUsesDaemonSettingsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	var captured UpdateSettingsAttentionRequest
+	client := &stubClient{
+		updateSettingsAttentionFn: func(
+			_ context.Context,
+			request UpdateSettingsAttentionRequest,
+		) (SettingsMutationRecord, error) {
+			captured = request
+			return SettingsMutationRecord{
+				Section:          "attention",
+				Scope:            contract.SettingsScopeGlobal,
+				Lifecycle:        contract.SettingsApplyLifecycleLive,
+				ApplyRecordID:    "cfgapp-attention",
+				Applied:          true,
+				ActiveGeneration: 3,
+				ActiveConfigHash: "sha256:attention",
+				NextAction:       contract.SettingsApplyNextActionNone,
+			}, nil
+		},
+	}
+
+	deps := newWorkspaceTestDeps(t, client)
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	out, _, err := executeRootCommand(t, deps, "config", "set", "attention.system", "true", "-o", "json")
+	if err != nil {
+		t.Fatalf("config set attention.system error = %v", err)
+	}
+	if !captured.Config.System || !captured.Config.Toasts || !captured.Config.Sound ||
+		len(captured.Config.MutedWorkspaces) != 0 {
+		t.Fatalf("daemon attention payload = %#v, want complete defaults with system=true", captured.Config)
+	}
+
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+	}
+
+	var record configSetRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config set attention) error = %v", err)
+	}
+	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
+		record.RestartRequired {
+		t.Fatalf("config set attention record = %#v, want live/applied=true", record)
 	}
 }
 

@@ -15,8 +15,9 @@ const sessionCatalogSubscriberBuffer = 64
 type CatalogEventName string
 
 const (
-	CatalogEventNameChanged   CatalogEventName = "session_catalog_changed"
-	CatalogEventNameAttention CatalogEventName = "session_attention_changed"
+	CatalogEventNameChanged              CatalogEventName = "session_catalog_changed"
+	CatalogEventNameAttention            CatalogEventName = "session_attention_changed"
+	CatalogEventNameOperatorNotification CatalogEventName = "operator_notification"
 )
 
 // CatalogEventKind identifies a durable session-catalog mutation.
@@ -31,11 +32,12 @@ const (
 
 // CatalogEvent identifies the workspace-scoped catalog snapshot to reconcile.
 type CatalogEvent struct {
-	Name        CatalogEventName
-	Kind        CatalogEventKind
-	WorkspaceID string
-	SessionID   string
-	Attention   *AttentionEvent
+	Name                 CatalogEventName
+	Kind                 CatalogEventKind
+	WorkspaceID          string
+	SessionID            string
+	Attention            *AttentionEvent
+	OperatorNotification *OperatorNotification
 }
 
 type sessionCatalogBroadcaster struct {
@@ -74,20 +76,23 @@ func (b *sessionCatalogBroadcaster) subscribe(
 	return subscriber.ch, cancel, nil
 }
 
-func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) {
+func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) int {
 	if strings.TrimSpace(event.WorkspaceID) == "" || strings.TrimSpace(event.SessionID) == "" {
-		return
+		return 0
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	delivered := 0
 	for subscriber := range b.subscribers {
 		select {
 		case subscriber.ch <- event:
+			delivered++
 		default:
 			delete(b.subscribers, subscriber)
 			subscriber.close()
 		}
 	}
+	return delivered
 }
 
 func (s *sessionCatalogSubscriber) close() {
@@ -115,15 +120,20 @@ func (m *Manager) SubscribeSessionCatalogEvents(
 }
 
 func (m *Manager) publishSessionCatalogEvent(event CatalogEvent) {
+	m.publishSessionCatalogEventCount(event)
+}
+
+func (m *Manager) publishSessionCatalogEventCount(event CatalogEvent) int {
 	if m == nil {
-		return
+		return 0
 	}
 	m.catalogEventsMu.Lock()
 	broadcaster := m.catalogEvents
 	m.catalogEventsMu.Unlock()
 	if broadcaster != nil {
-		broadcaster.publish(event)
+		return broadcaster.publish(event)
 	}
+	return 0
 }
 
 func (m *Manager) publishSessionCatalogWakeForEvent(session *Session, event acp.AgentEvent) {

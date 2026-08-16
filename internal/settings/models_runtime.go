@@ -70,6 +70,11 @@ type WindowManagerSection struct {
 	Config compozyconfig.WindowManagerConfig
 }
 
+// AttentionSection is the operator attention section read model.
+type AttentionSection struct {
+	Config compozyconfig.AttentionConfig
+}
+
 // ObservabilitySection is the observability section read model.
 type ObservabilitySection struct {
 	Config         compozyconfig.ObservabilityConfig

@@ -19,6 +19,57 @@ import (
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {
+	t.Run("Should apply attention config before publishing active config", func(t *testing.T) {
+		t.Parallel()
+
+		previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		next := previous
+		next.Attention = compozyconfig.AttentionConfig{
+			Toasts:          false,
+			Sound:           false,
+			System:          true,
+			MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+		}
+		sessions := &attentionConfigSessionManager{fakeSessionManager: &fakeSessionManager{}}
+		daemonInstance := &Daemon{config: previous}
+		failures := daemonSettingsRuntimeApplier{
+			daemon: daemonInstance,
+			state:  &bootState{cfg: previous, sessions: sessions},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 0 {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want none", failures)
+		}
+		if len(sessions.configs) != 1 || !attentionConfigsEqual(sessions.configs[0], next.Attention) {
+			t.Fatalf("SetAttentionConfig() configs = %#v, want candidate", sessions.configs)
+		}
+		if !attentionConfigsEqual(daemonInstance.config.Attention, next.Attention) {
+			t.Fatalf("published attention = %#v, want %#v", daemonInstance.config.Attention, next.Attention)
+		}
+	})
+
+	t.Run("Should keep previous config when attention sync fails", func(t *testing.T) {
+		t.Parallel()
+
+		previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		next := previous
+		next.Attention.System = true
+		sessions := &attentionConfigSessionManager{
+			fakeSessionManager: &fakeSessionManager{},
+			err:                errors.New("attention sync boom"),
+		}
+		daemonInstance := &Daemon{config: previous}
+		failures := daemonSettingsRuntimeApplier{
+			daemon: daemonInstance,
+			state:  &bootState{cfg: previous, sessions: sessions},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 1 || failures[0].Subsystem != "attention" {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want attention failure", failures)
+		}
+		if daemonInstance.config.Attention.System {
+			t.Fatal("published attention.system = true, want previous false config")
+		}
+	})
+
 	t.Run("Should apply the gateway ceiling before publishing active config", func(t *testing.T) {
 		t.Parallel()
 
@@ -546,6 +597,20 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "rollback-first")
 	})
+}
+
+type attentionConfigSessionManager struct {
+	*fakeSessionManager
+	configs []compozyconfig.AttentionConfig
+	err     error
+}
+
+func (m *attentionConfigSessionManager) SetAttentionConfig(cfg compozyconfig.AttentionConfig) error {
+	m.configs = append(m.configs, compozyconfig.AttentionConfig{
+		Toasts: cfg.Toasts, Sound: cfg.Sound, System: cfg.System,
+		MutedWorkspaces: append([]string(nil), cfg.MutedWorkspaces...),
+	})
+	return m.err
 }
 
 func TestDaemonAppliesIsolatedProviderPreStarterDefaults(t *testing.T) {

@@ -61,6 +61,14 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 }
 
 func sessionCatalogSSEMessage(event session.CatalogEvent) (string, any) {
+	if event.Name == session.CatalogEventNameOperatorNotification && event.OperatorNotification != nil {
+		notification := event.OperatorNotification
+		return string(session.CatalogEventNameOperatorNotification), contract.OperatorNotificationEventPayload{
+			NotificationID: notification.NotificationID,
+			SessionID:      notification.SessionID, WorkspaceID: notification.WorkspaceID,
+			Title: notification.Title, Body: notification.Body, At: notification.At,
+		}
+	}
 	if event.Name == session.CatalogEventNameAttention && event.Attention != nil {
 		return string(session.CatalogEventNameAttention), contract.SessionAttentionEventPayload{
 			SessionID: event.Attention.SessionID, WorkspaceID: event.Attention.WorkspaceID,

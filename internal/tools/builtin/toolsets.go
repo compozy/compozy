@@ -82,6 +82,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionEvents.String(),
 			toolspkg.ToolIDSessionDescribe.String(),
 			toolspkg.ToolIDSessionHealth.String(),
+			toolspkg.ToolIDNotify.String(),
 		},
 	},
 	{

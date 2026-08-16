@@ -301,4 +301,5 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	loopAndGoalConfigSetPathKinds(),
 	extensionConfigSetPathKinds(),
 	marketplaceConfigSetPathKinds(),
+	attentionConfigSetPathKinds(),
 )

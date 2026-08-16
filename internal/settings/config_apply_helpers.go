@@ -50,6 +50,11 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.Live
 		}
 		return s.classifyWindowManagerRequest(ctx, req)
+	case SectionAttention:
+		if req.Attention == nil {
+			return lifecycle.Live
+		}
+		return s.classifyAttentionRequest(ctx, req)
 	default:
 		return lifecycle.RestartRequired
 	}
@@ -128,6 +133,7 @@ func cloneActiveConfig(cfg *compozyconfig.Config) compozyconfig.Config {
 	cloned.Roles = compozyconfig.CloneRolesConfig(&cfg.Roles)
 	cloned.RoleSources = compozyconfig.CloneRoleFieldSources(cfg.RoleSources)
 	cloned.WindowManager = cloneWindowManagerConfig(cfg.WindowManager)
+	cloned.Attention = cloneAttentionConfig(cfg.Attention)
 	return cloned
 }
 

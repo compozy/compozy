@@ -6,6 +6,10 @@ export type SessionsResponse = OperationResponse<"listSessions", 200>;
 type SessionCatalogStreamPayload = OperationResponse<"streamSessionCatalog", 200>;
 export type SessionCatalogEventPayload = Extract<SessionCatalogStreamPayload, { kind: string }>;
 export type SessionAttentionEventPayload = Extract<SessionCatalogStreamPayload, { from: string }>;
+export type OperatorNotificationEventPayload = Extract<
+  SessionCatalogStreamPayload,
+  { notification_id: string }
+>;
 export type SessionsQuery = OperationQuery<"listSessions">;
 export type SessionListFilters = Omit<SessionsQuery, "cursor">;
 export type SessionPayload = SessionsResponse["sessions"][number];

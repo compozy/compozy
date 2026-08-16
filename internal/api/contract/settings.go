@@ -38,6 +38,7 @@ const (
 	SettingsSectionAutomation      SettingsSectionName = "automation"
 	SettingsSectionNetwork         SettingsSectionName = "network"
 	SettingsSectionWindowManager   SettingsSectionName = "window-manager"
+	SettingsSectionAttention       SettingsSectionName = "attention"
 	SettingsSectionObservability   SettingsSectionName = "observability"
 	SettingsSectionHooksExtensions SettingsSectionName = "hooks-extensions"
 )
@@ -61,6 +62,7 @@ const (
 	SettingsApplyTargetAutomation      SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAutomation)
 	SettingsApplyTargetNetwork         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionNetwork)
 	SettingsApplyTargetWindowManager   SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionWindowManager)
+	SettingsApplyTargetAttention       SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAttention)
 	SettingsApplyTargetObservability   SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionObservability)
 	SettingsApplyTargetHooksExtensions SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionHooksExtensions)
 	SettingsApplyTargetProviders       SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionProviders)

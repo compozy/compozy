@@ -240,6 +240,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__network_unmute":                 expectedNativeEntry("Unmuting", " ", false, "🌐", "auto"),
 		"compozy__network_usage":                  expectedNativeEntry("Reading", " ", false, "🌐", "auto"),
 		"compozy__network_work":                   expectedNativeEntry("Reading", " ", false, "🌐", "auto"),
+		"compozy__notify":                         expectedNativeEntry("Notifying", " ", false, "🔔", "auto"),
 		"compozy__observe_metrics":                expectedNativeEntry("Reading", " ", false, "🔭", "auto"),
 		"compozy__observe_search":                 expectedNativeEntry("Searching", " for ", false, "🔭", "query"),
 		"compozy__provider_models_curate":         expectedNativeEntry("Curating", " ", false, "🤖", "auto"),

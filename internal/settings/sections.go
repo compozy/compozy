@@ -208,6 +208,10 @@ func (s *service) populateSectionEnvelope(
 		envelope.Scope = ScopeGlobal
 		section := buildWindowManagerSection(cfg)
 		envelope.WindowManager = &section
+	case SectionAttention:
+		envelope.Scope = ScopeGlobal
+		section := buildAttentionSection(cfg)
+		envelope.Attention = &section
 	case SectionObservability:
 		envelope.Scope = ScopeGlobal
 		section, err := s.buildObservabilitySection(ctx, cfg)

@@ -4,6 +4,7 @@ type configOverlay struct {
 	Daemon        daemonOverlay              `toml:"daemon"`
 	HTTP          httpOverlay                `toml:"http"`
 	App           appOverlay                 `toml:"app"`
+	Attention     attentionOverlay           `toml:"attention"`
 	WindowManager windowManagerOverlay       `toml:"window_manager"`
 	Defaults      defaultsOverlay            `toml:"defaults"`
 	Agents        agentsOverlay              `toml:"agents"`
@@ -39,6 +40,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
 	o.App.Apply(&dst.App)
+	o.Attention.Apply(&dst.Attention)
 	o.WindowManager.Apply(&dst.WindowManager)
 	o.Defaults.Apply(&dst.Defaults)
 	o.Agents.Apply(&dst.Agents)

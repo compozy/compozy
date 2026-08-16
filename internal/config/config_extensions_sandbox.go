@@ -76,6 +76,7 @@ type Config struct {
 	Daemon        DaemonConfig              `toml:"daemon"`
 	HTTP          HTTPConfig                `toml:"http"`
 	App           AppConfig                 `toml:"app"`
+	Attention     AttentionConfig           `toml:"attention"`
 	WindowManager WindowManagerConfig       `toml:"window_manager"`
 	Defaults      DefaultsConfig            `toml:"defaults"`
 	Agents        AgentsConfig              `toml:"agents"`

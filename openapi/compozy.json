@@ -16849,6 +16849,454 @@
         ]
       }
     },
+    "/api/agent/notify": {
+      "post": {
+        "operationId": "notifyOperator",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "body": {
+                    "maxLength": 240,
+                    "type": "string"
+                  },
+                  "title": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "retry_after_ms": {
+                      "format": "int64",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "outcome"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Notification outcome"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Agent caller identity is missing"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden - workspace or permission mismatch"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid notification"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Notify live operator clients from the calling agent",
+        "tags": [
+          "agent"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/agent/soul": {
       "get": {
         "operationId": "getAgentSoul",
@@ -98689,6 +99137,7 @@
                             "automation",
                             "network",
                             "window-manager",
+                            "attention",
                             "observability",
                             "hooks-extensions",
                             "providers",
@@ -124791,6 +125240,38 @@
                         "workspace_id"
                       ],
                       "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "body": {
+                          "type": "string"
+                        },
+                        "notification_id": {
+                          "type": "string"
+                        },
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "body",
+                        "notification_id",
+                        "session_id",
+                        "title",
+                        "workspace_id"
+                      ],
+                      "type": "object"
                     }
                   ]
                 }
@@ -126974,6 +127455,693 @@
         ]
       }
     },
+    "/api/settings/attention": {
+      "get": {
+        "operationId": "getSettingsAttention",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "available_scopes": {
+                      "items": {
+                        "enum": [
+                          "global"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "config": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "muted_workspaces": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "sound": {
+                          "type": "boolean"
+                        },
+                        "system": {
+                          "type": "boolean"
+                        },
+                        "toasts": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "muted_workspaces",
+                        "sound",
+                        "system",
+                        "toasts"
+                      ],
+                      "type": "object"
+                    },
+                    "scope": {
+                      "enum": [
+                        "global"
+                      ],
+                      "type": "string"
+                    },
+                    "section": {
+                      "enum": [
+                        "general",
+                        "memory",
+                        "roles",
+                        "skills",
+                        "automation",
+                        "network",
+                        "window-manager",
+                        "attention",
+                        "observability",
+                        "hooks-extensions"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "available_scopes",
+                    "config",
+                    "scope",
+                    "section"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Read the operator attention settings section",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "patch": {
+        "operationId": "updateSettingsAttention",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "config": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "muted_workspaces": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "sound": {
+                        "type": "boolean"
+                      },
+                      "system": {
+                        "type": "boolean"
+                      },
+                      "toasts": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "muted_workspaces",
+                      "sound",
+                      "system",
+                      "toasts"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "config"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "active_config_hash": {
+                      "type": "string"
+                    },
+                    "active_generation": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "agent_name": {
+                      "type": "string"
+                    },
+                    "applied": {
+                      "type": "boolean"
+                    },
+                    "apply_record_id": {
+                      "type": "string"
+                    },
+                    "lifecycle": {
+                      "enum": [
+                        "live",
+                        "live-add",
+                        "live-remove-if-unused",
+                        "restart-required",
+                        "session-rebind"
+                      ],
+                      "type": "string"
+                    },
+                    "next_action": {
+                      "enum": [
+                        "none",
+                        "restart-daemon",
+                        "new-session",
+                        "retry"
+                      ],
+                      "type": "string"
+                    },
+                    "partial_failures": {
+                      "items": {
+                        "properties": {
+                          "diagnostic": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "subsystem": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "diagnostic",
+                          "subsystem"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "restart_required": {
+                      "type": "boolean"
+                    },
+                    "restart_scope": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "enum": [
+                        "global",
+                        "workspace",
+                        "agent"
+                      ],
+                      "type": "string"
+                    },
+                    "section": {
+                      "enum": [
+                        "general",
+                        "memory",
+                        "roles",
+                        "skills",
+                        "automation",
+                        "network",
+                        "window-manager",
+                        "attention",
+                        "observability",
+                        "hooks-extensions",
+                        "providers",
+                        "mcp-servers",
+                        "sandboxes",
+                        "hooks"
+                      ],
+                      "type": "string"
+                    },
+                    "skipped": {
+                      "type": "boolean"
+                    },
+                    "skipped_reason": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    },
+                    "write_target": {
+                      "enum": [
+                        "global-config",
+                        "workspace-config",
+                        "global-mcp-sidecar",
+                        "workspace-mcp-sidecar",
+                        "global-agent-file",
+                        "workspace-agent-file"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "active_config_hash",
+                    "active_generation",
+                    "applied",
+                    "apply_record_id",
+                    "lifecycle",
+                    "next_action"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid settings payload"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Conflicting settings change"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Update the operator attention settings section",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/settings/automation": {
       "get": {
         "operationId": "getSettingsAutomation",
@@ -127105,6 +128273,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -127384,6 +128553,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -128004,6 +129174,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -128374,6 +129545,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -129905,6 +131077,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -130304,6 +131477,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -130795,6 +131969,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -131536,6 +132711,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -132678,6 +133854,7 @@
                             "automation",
                             "network",
                             "window-manager",
+                            "attention",
                             "observability",
                             "hooks-extensions",
                             "providers",
@@ -133764,6 +134941,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -134474,6 +135652,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -137370,6 +138549,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -138055,6 +139235,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -138603,6 +139784,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -138950,6 +140132,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -139434,6 +140617,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -139720,6 +140904,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -141129,6 +142314,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -142716,6 +143902,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -143196,6 +144383,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -143854,6 +145042,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -144442,6 +145631,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -145265,6 +146455,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -146167,6 +147358,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -146788,6 +147980,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -147334,6 +148527,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -148278,6 +149472,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -148709,6 +149904,7 @@
                         "automation",
                         "network",
                         "window-manager",
+                        "attention",
                         "observability",
                         "hooks-extensions",
                         "providers",

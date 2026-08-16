@@ -48,6 +48,7 @@ func settingsSectionValues() []string {
 		string(contract.SettingsSectionAutomation),
 		string(contract.SettingsSectionNetwork),
 		string(contract.SettingsSectionWindowManager),
+		string(contract.SettingsSectionAttention),
 		string(contract.SettingsSectionObservability),
 		string(contract.SettingsSectionHooksExtensions),
 	}
@@ -62,6 +63,7 @@ func settingsApplyTargetValues() []string {
 		string(contract.SettingsApplyTargetAutomation),
 		string(contract.SettingsApplyTargetNetwork),
 		string(contract.SettingsApplyTargetWindowManager),
+		string(contract.SettingsApplyTargetAttention),
 		string(contract.SettingsApplyTargetObservability),
 		string(contract.SettingsApplyTargetHooksExtensions),
 		string(contract.SettingsApplyTargetProviders),

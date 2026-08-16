@@ -59,6 +59,70 @@ func TestMeCommandJSONReturnsValidatedIdentity(t *testing.T) {
 	})
 }
 
+func TestNotifyCommandReturnsDaemonProvableOutcome(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward the bounded request under agent identity", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentNotifyFn = func(
+			_ context.Context,
+			request AgentNotifyRequest,
+			credentials agentidentity.Credentials,
+		) (AgentNotifyRecord, error) {
+			assertAgentCredentials(t, credentials)
+			if request.Title != "Deps audit done" || request.Body != "3 findings, 1 high severity" {
+				t.Fatalf("AgentNotify() request = %#v, want bounded title and body", request)
+			}
+			return AgentNotifyRecord{Outcome: "delivered"}, nil
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"notify",
+			"Deps audit done",
+			"--body",
+			"3 findings, 1 high severity",
+		)
+		if err != nil {
+			t.Fatalf("compozy notify error = %v", err)
+		}
+		if got, want := strings.TrimSpace(stdout), "OUTCOME   delivered"; got != want {
+			t.Fatalf("compozy notify output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve rate-limit details in structured output", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentNotifyFn = func(
+			_ context.Context,
+			_ AgentNotifyRequest,
+			credentials agentidentity.Credentials,
+		) (AgentNotifyRecord, error) {
+			assertAgentCredentials(t, credentials)
+			return AgentNotifyRecord{Outcome: "rate-limited", RetryAfterMS: 875}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "notify", "Again", "-o", "json")
+		if err != nil {
+			t.Fatalf("compozy notify -o json error = %v", err)
+		}
+		var got AgentNotifyRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(compozy notify) error = %v", err)
+		}
+		if got.Outcome != "rate-limited" || got.RetryAfterMS != 875 {
+			t.Fatalf("compozy notify payload = %#v, want rate-limited/875", got)
+		}
+	})
+}
+
 func TestMeContextCommandJSONKeepsStableSectionOrder(t *testing.T) {
 	t.Parallel()
 

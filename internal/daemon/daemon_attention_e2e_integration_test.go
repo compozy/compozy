@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -183,6 +184,42 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		waitForAttentionStatus(t, ctx, harness, target.ID, session.BadgeIdle)
 		releaseAttentionPresence(t, ctx, harness, target.ID, leaseID)
 	})
+
+	t.Run("Should report truthful notify CLI outcomes and rate-limit a burst", func(t *testing.T) {
+		options := attentionTruthRuntimeOptions(t)
+		harness := e2etest.StartRuntimeHarness(t, &options)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		noClientSender := createFixtureBackedSession(
+			t, ctx, harness, "attention-agent", "notify-no-client",
+		)
+		assertAttentionNotifyCLIOutcome(
+			t, ctx, harness, noClientSender, "No client", session.NotifyOutcomeNoClient,
+		)
+
+		deliveredSender := createFixtureBackedSession(
+			t, ctx, harness, "attention-agent", "notify-delivered",
+		)
+		catalog, err := harness.StartSessionCatalogHTTPStream(ctx, func(event e2etest.SSEEvent) bool {
+			if event.Event != string(session.CatalogEventNameOperatorNotification) {
+				return false
+			}
+			var payload compozycontract.OperatorNotificationEventPayload
+			return json.Unmarshal(event.Data, &payload) == nil &&
+				payload.SessionID == deliveredSender.ID && payload.Title == "Deps audit done"
+		})
+		if err != nil {
+			t.Fatalf("StartSessionCatalogHTTPStream(operator notification) error = %v", err)
+		}
+		assertAttentionNotifyCLIOutcome(
+			t, ctx, harness, deliveredSender, "Deps audit done", session.NotifyOutcomeDelivered,
+		)
+		assertAttentionNotifyCLIOutcome(
+			t, ctx, harness, deliveredSender, "Burst", session.NotifyOutcomeRateLimited,
+		)
+		awaitAttentionCatalogObservation(t, ctx, catalog)
+	})
 }
 
 func attentionTruthRuntimeOptions(t testing.TB) e2etest.RuntimeHarnessOptions {
@@ -193,6 +230,35 @@ func attentionTruthRuntimeOptions(t testing.TB) e2etest.RuntimeHarnessOptions {
 			FixtureAgent: "attention",
 			AgentName:    "attention-agent",
 		}},
+	}
+}
+
+func assertAttentionNotifyCLIOutcome(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sender compozycontract.SessionPayload,
+	title string,
+	want session.NotifyOutcome,
+) {
+	t.Helper()
+	stdout, stderr, err := harness.CLI.RunInDirWithEnv(
+		ctx,
+		harness.WorkspaceRoot,
+		map[string]string{
+			agentidentity.EnvSessionID: sender.ID,
+			agentidentity.EnvAgent:     sender.AgentName,
+		},
+		"notify",
+		title,
+		"--body",
+		"3 findings, 1 high severity",
+	)
+	if err != nil {
+		t.Fatalf("compozy notify %q error = %v; stderr=%s", title, err, stderr)
+	}
+	if got, expected := strings.TrimSpace(stdout), "OUTCOME   "+string(want); got != expected {
+		t.Fatalf("compozy notify %q output = %q, want %q", title, got, expected)
 	}
 }
 

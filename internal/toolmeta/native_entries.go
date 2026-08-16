@@ -163,6 +163,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__network_unmute":                 nativeEntry("Unmuting", " ", false, "🌐", "auto"),
 	"compozy__network_usage":                  nativeEntry("Reading", " ", false, "🌐", "auto"),
 	"compozy__network_work":                   nativeEntry("Reading", " ", false, "🌐", "auto"),
+	"compozy__notify":                         nativeEntry("Notifying", " ", false, "🔔", "auto"),
 	"compozy__observe_metrics":                nativeEntry("Reading", " ", false, "🔭", "auto"),
 	"compozy__observe_search":                 nativeEntry("Searching", " for ", false, "🔭", previewHintQuery),
 	"compozy__provider_models_curate":         nativeEntry("Curating", " ", false, "🤖", "auto"),

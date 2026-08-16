@@ -20,6 +20,7 @@ type nativeToolAvailabilitySet struct {
 	networkRead         toolspkg.NativeAvailabilityFunc
 	networkUsage        toolspkg.NativeAvailabilityFunc
 	sessions            toolspkg.NativeAvailabilityFunc
+	notifications       toolspkg.NativeAvailabilityFunc
 	sessionCatalog      toolspkg.NativeAvailabilityFunc
 	sessionRuntime      toolspkg.NativeAvailabilityFunc
 	sessionHealth       toolspkg.NativeAvailabilityFunc
@@ -91,6 +92,10 @@ func (n *daemonNativeTools) coreNativeToolAvailability() nativeToolAvailabilityS
 
 func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nativeToolAvailabilitySet) {
 	availability.sessions = n.dependencyAvailability(func() bool { return n.deps.Sessions != nil })
+	availability.notifications = n.dependencyAvailability(func() bool {
+		_, ok := n.deps.Sessions.(operatorNotificationPublisher)
+		return ok && n.deps.Workspaces != nil
+	})
 	availability.sessionCatalog = n.dependencyAvailability(func() bool {
 		_, ok := n.deps.Sessions.(core.SessionPageManager)
 		return ok

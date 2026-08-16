@@ -156,6 +156,7 @@ func sessionCatalogStreamOperation() OperationSpec {
 				Bodies: responseBodiesOf(
 					responseBodyOf[contract.SessionCatalogEventPayload](),
 					responseBodyOf[contract.SessionAttentionEventPayload](),
+					responseBodyOf[contract.OperatorNotificationEventPayload](),
 				),
 				ContentType: specContentTypeEventStream,
 			},

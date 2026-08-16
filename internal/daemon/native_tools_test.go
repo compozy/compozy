@@ -72,6 +72,24 @@ type nativeSessionCommandManager struct {
 	catalog commandpkg.Catalog
 }
 
+type nativeNotificationSessionManager struct {
+	apitest.StubSessionManager
+	requests []session.NotifyRequest
+	result   session.NotifyResult
+	err      error
+}
+
+func (m *nativeNotificationSessionManager) PublishOperatorNotification(
+	ctx context.Context,
+	req session.NotifyRequest,
+) (session.NotifyResult, error) {
+	if err := ctx.Err(); err != nil {
+		return session.NotifyResult{}, err
+	}
+	m.requests = append(m.requests, req)
+	return m.result, m.err
+}
+
 func (m *nativeSessionCommandManager) CommandCatalog(
 	ctx context.Context,
 	id string,
@@ -219,6 +237,47 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should notify from the bound session without crossing workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		base := nativeNetworkTestSessionManager("ws-native")
+		manager := &nativeNotificationSessionManager{
+			StubSessionManager: base,
+			result:             session.NotifyResult{Outcome: session.NotifyOutcomeDelivered},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		input := json.RawMessage(`{"title":"Deps audit done","body":"3 findings"}`)
+		result, err := registry.Call(t.Context(), toolspkg.Scope{
+			WorkspaceID: "ws-native", SessionID: "sess-native", AgentName: "coder",
+		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDNotify, Input: input})
+		if err != nil {
+			t.Fatalf("Registry.Call(compozy__notify) error = %v", err)
+		}
+		if len(manager.requests) != 1 || manager.requests[0].SessionID != "sess-native" ||
+			manager.requests[0].WorkspaceID != "ws-native" || manager.requests[0].Title != "Deps audit done" {
+			t.Fatalf("PublishOperatorNotification() requests = %#v, want bound session request", manager.requests)
+		}
+		var payload struct {
+			Outcome string `json:"outcome"`
+		}
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(compozy__notify result) error = %v", err)
+		}
+		if payload.Outcome != string(session.NotifyOutcomeDelivered) {
+			t.Fatalf("compozy__notify outcome = %q, want delivered", payload.Outcome)
+		}
+
+		_, err = registry.Call(t.Context(), toolspkg.Scope{
+			WorkspaceID: "ws-foreign", SessionID: "sess-native", AgentName: "coder",
+		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDNotify, Input: input})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if len(manager.requests) != 1 {
+			t.Fatalf("PublishOperatorNotification() requests after denial = %d, want 1", len(manager.requests))
+		}
+	})
 
 	t.Run("Should read a native session prompt attachment path within its workspace", func(t *testing.T) {
 		t.Parallel()

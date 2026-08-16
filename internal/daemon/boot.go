@@ -113,6 +113,7 @@ type bootState struct {
 	toolsets              core.ToolsetRegistry
 	toolApprovals         toolspkg.ApprovalTokenIssuer
 	clarify               *clarifyBridge
+	attentionMuteMutator  attentionWorkspaceMuteMutator
 	observer              Observer
 	lifecycleObservers    *sessionLifecycleFanout
 	hookTelemetrySinks    *hookTelemetryFanout

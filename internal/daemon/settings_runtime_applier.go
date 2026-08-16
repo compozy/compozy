@@ -52,6 +52,10 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 		failures = a.rollbackRuntimeDependencies(ctx, &previous, failures)
 		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
 	}
+	if failure := a.applyAttentionConfigChange(&previous, &next); failure != nil {
+		failures := a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
+		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
+	}
 
 	a.daemon.mu.Lock()
 	if nextLoopTargetHealth != nil {

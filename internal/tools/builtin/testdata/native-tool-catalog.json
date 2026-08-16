@@ -2163,6 +2163,19 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__notify",
+    "native_name": "notify",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "05585dcf8c554218032438ea405ba598810e93eba6d0422dd31aa4d4018b5ef3",
+    "output_schema_digest": "b321efbe4f39c93602230756b8b39fa407312d6644e9f0503b7e96e7e57396e4"
+  },
+  {
     "tool_id": "compozy__observe_metrics",
     "native_name": "observe_metrics",
     "toolsets": [

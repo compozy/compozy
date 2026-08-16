@@ -79,6 +79,8 @@ const (
 	SectionGateway SectionName = "gateway"
 	// SectionWindowManager exposes daemon-owned window behavior defaults.
 	SectionWindowManager SectionName = "window-manager"
+	// SectionAttention exposes operator attention delivery settings.
+	SectionAttention SectionName = "attention"
 	// SectionObservability exposes observe and transcript settings.
 	SectionObservability SectionName = "observability"
 	// SectionHooksExtensions exposes hook declarations plus extension policy.
@@ -182,6 +184,7 @@ type SectionUpdateRequest struct {
 	Network         *compozyconfig.NetworkConfig
 	Gateway         *compozyconfig.GatewayConfig
 	WindowManager   *compozyconfig.WindowManagerConfig
+	Attention       *compozyconfig.AttentionConfig
 	Observability   *compozyconfig.ObservabilityConfig
 	HooksExtensions *compozyconfig.ExtensionsConfig
 }
@@ -231,6 +234,7 @@ type SectionEnvelope struct {
 	Network         *NetworkSection
 	Gateway         *GatewaySection
 	WindowManager   *WindowManagerSection
+	Attention       *AttentionSection
 	Observability   *ObservabilitySection
 	HooksExtensions *HooksExtensionsSection
 }

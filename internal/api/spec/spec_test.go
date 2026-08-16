@@ -657,13 +657,24 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				operation := operationFor(t, doc, "/api/sessions/catalog-stream", "GET")
 				stream := responseSchema(t, operation, 200, specContentTypeEventStream)
-				if len(stream.OneOf) != 2 {
-					t.Fatalf("session catalog SSE response oneOf = %#v, want two named payloads", stream.OneOf)
+				if len(stream.OneOf) != 3 {
+					t.Fatalf("session catalog SSE response oneOf = %#v, want three named payloads", stream.OneOf)
 				}
 				catalog := stream.OneOf[0].Value
 				attention := stream.OneOf[1].Value
+				notification := stream.OneOf[2].Value
 				assertRequired(t, catalog, "kind", "workspace_id", "session_id")
 				assertRequired(t, attention, "session_id", "workspace_id", "from", "to", "class", "at")
+				assertRequired(
+					t,
+					notification,
+					"notification_id",
+					"session_id",
+					"workspace_id",
+					"title",
+					"body",
+					"at",
+				)
 			},
 		},
 		{

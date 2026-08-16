@@ -194,6 +194,14 @@ func WithSessionHealthConfig(config compozyconfig.HeartbeatConfig) Option {
 	}
 }
 
+// WithAttentionConfig injects the live operator notification policy.
+func WithAttentionConfig(config compozyconfig.AttentionConfig) Option {
+	return func(manager *Manager) {
+		manager.notifyConfig = config
+		manager.notifyConfig.MutedWorkspaces = append([]string(nil), config.MutedWorkspaces...)
+	}
+}
+
 // WithLogger injects the logger used by the session manager.
 func WithLogger(logger *slog.Logger) Option {
 	return func(manager *Manager) {

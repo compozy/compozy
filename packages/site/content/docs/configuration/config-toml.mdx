@@ -32,6 +32,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                              |
 | `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
+| `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                   | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
@@ -147,6 +148,12 @@ port = 2123
 update_check = true
 # Check cadence. Valid range: 15m to 168h.
 update_check_interval = "6h"
+
+[attention]
+toasts = true
+sound = true
+system = false
+muted_workspaces = []
 
 [window_manager]
 new_window_policy = "floating"
@@ -906,6 +913,22 @@ Changing this field is restart-required.
 | ----------------------- | -------- | ------- | --------------- | ----------------------------------------------------- |
 | `update_check`          | boolean  | `true`  | `true`, `false` | Checks for desktop app and app-owned runtime updates. |
 | `update_check_interval` | duration | `6h`    | `15m` to `168h` | Time between desktop update checks.                   |
+
+## `[attention]`
+
+Attention settings are global and live-applied as one validated candidate. Operators can use the
+Settings attention controls; agents can use `compozy config get|set attention.<key>` or the typed
+`GET/PATCH /api/settings/attention` surface. The title count is always on and has no config key.
+
+| Field              | Type         | Default | Validation                              | Description                                                                 |
+| ------------------ | ------------ | ------- | --------------------------------------- | --------------------------------------------------------------------------- |
+| `toasts`           | boolean      | `true`  | `true` or `false`                       | Allows in-app notification toasts.                                          |
+| `sound`            | boolean      | `true`  | `true` or `false`                       | Allows the built-in notification sound.                                     |
+| `system`           | boolean      | `false` | `true` or `false`                       | Allows supported clients to use system notifications while not in view.     |
+| `muted_workspaces` | string array | `[]`    | Unique canonical workspace IDs (ULIDs). | Suppresses delivery for listed workspaces without hiding rows or counters. |
+
+All four fields have the `live` lifecycle. Removing a workspace also removes its ID from
+`muted_workspaces`; unmuting never replays notifications that were suppressed.
 
 ## `[window_manager]`
 
