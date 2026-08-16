@@ -343,7 +343,7 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extensionInstallSuccessBundle(dual).human() error = %v", err)
 		}
-		note := "note: directory carries both extension.toml and plugin.json; installed as a Compozy extension " +
+		note := "note: directory carries both extension.toml and plugin.json; installed as a CompozyOS extension " +
 			"(native manifest wins)"
 		if strings.Count(human, note) != 1 {
 			t.Fatalf("dual install output = %q, want one %q", human, note)

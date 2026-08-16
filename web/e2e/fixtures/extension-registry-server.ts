@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile);
 const DEFAULT_HOST = "127.0.0.1";
 
 /**
- * Package layout an archived release carries. `native` is the Compozy manifest; `agent-plugin` is
+ * Package layout an archived release carries. `native` is the CompozyOS manifest; `agent-plugin` is
  * the portable standard layout; `client-layout` is the drifted Claude Code shape the installer
  * refuses by design.
  */
@@ -28,7 +28,7 @@ export interface BrowserExtensionRegistrySeed {
   repository: string;
   extensionName: string;
   description?: string;
-  /** Defaults to the native Compozy manifest layout. */
+  /** Defaults to the native CompozyOS manifest layout. */
   layout?: BrowserExtensionLayout;
   releases: BrowserExtensionReleaseSeed[];
 }

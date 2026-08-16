@@ -113,7 +113,7 @@ func extensionInstallSuccessBundle(item ExtensionRecord, report *extensionpkg.Va
 			blocks = append(blocks, extensionPortableInstallReportHuman(report))
 		} else if report != nil && report.DualManifest {
 			blocks = append(blocks,
-				"note: directory carries both extension.toml and plugin.json; installed as a Compozy extension "+
+				"note: directory carries both extension.toml and plugin.json; installed as a CompozyOS extension "+
 					"(native manifest wins)")
 		}
 		next := "next: compozy extension status " + strings.TrimSpace(item.Name)
