@@ -60,6 +60,7 @@ If HTTP is enabled on the default host and port, the same data is available over
 
 ```bash
 curl -s http://localhost:2123/api/status | jq '.daemon'
+curl -s http://localhost:2123/api/status/identity | jq '.daemon'
 curl -s 'http://localhost:2123/api/status?workspace_id=<workspace-id>' | jq '.skills'
 curl -s http://localhost:2123/api/doctor | jq '.items'
 ```
@@ -67,6 +68,10 @@ curl -s http://localhost:2123/api/doctor | jq '.items'
 `GET /api/status` accepts either `workspace_id=<id>` or `workspace=<id|name|path>` when the caller
 needs skill diagnostics resolved for one workspace. Bare `compozy status` remains the daemon-wide
 process view and does not infer a workspace.
+
+The native desktop shell uses `GET /api/status/identity` for its frequent liveness checks. This
+bounded response contains only the schema version and the daemon process, listener, home, and build
+identity. Use `GET /api/status` or `compozy status` when you need the complete runtime snapshot.
 
 <Mermaid
   chart={`flowchart LR

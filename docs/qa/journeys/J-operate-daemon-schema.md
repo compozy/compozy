@@ -26,7 +26,7 @@ flowchart TD
     FRESH --> BOOT
     BACKUP --> FRESH
     BOOT --> DOMAINS[Read workspace and memory catalogs through public CLI surfaces]
-    DOMAINS --> STATUS[Inspect GET /api/status over HTTP and UDS]
+    DOMAINS --> STATUS[Inspect full status and bounded identity over HTTP and UDS]
     STATUS --> CLI[Inspect compozy status -o json]
     CLI --> AUDIT[Run gateway audit over CLI, HTTP, UDS, and the native tool]
     AUDIT --> MATCH{schema and gateway observations match?}
@@ -47,6 +47,8 @@ journey:
     - url: "CLI: compozy daemon start --foreground"
       origin: direct
     - url: "HTTP/UDS: GET /api/status"
+      origin: direct
+    - url: "HTTP/UDS: GET /api/status/identity"
       origin: direct
     - url: "CLI: compozy status -o json"
       origin: direct
@@ -72,8 +74,8 @@ journey:
       verb: "Exercise global and memory read paths after migration and restart"
       expected_observable: "Workspace and memory catalog reads succeed while the two version streams remain independently visible."
     - step: 5
-      verb: "Compare schema status over HTTP, UDS, and CLI JSON"
-      expected_observable: "All surfaces return the same ordered global and memory entries with version, applied count, and schema digest."
+      verb: "Compare full status and bounded runtime identity over HTTP, UDS, and CLI JSON"
+      expected_observable: "Full status keeps the same ordered global and memory entries; repeated identity reads return only the process and listener identity on both transports."
     - step: 6
       verb: "Run the gateway self-audit through each structured surface"
       expected_observable: "Every surface returns the same stable, severity-ranked findings or an explicit no-findings result without changing gateway state or exposing credentials."
@@ -90,7 +92,7 @@ journey:
     - at_step: 1
       how: "The database was written by a newer post-squash binary and the matching binary is unavailable."
       resume: "Leave the home unchanged and resume only with a compatible newer binary or a separately selected fresh COMPOZY_HOME."
-  crosses: [daemon-boot, session-readers, ledger-materialization, SQLite, Goose, HTTP, UDS, CLI]
+  crosses: [daemon-boot, desktop-liveness, session-readers, ledger-materialization, SQLite, Goose, HTTP, UDS, CLI]
 ```
 
 Taxonomy note: this journey covers the functional happy path, global and per-session legacy/ahead/corruption error and

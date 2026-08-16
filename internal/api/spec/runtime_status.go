@@ -33,6 +33,17 @@ func runtimeStatusOperations() []OperationSpec {
 				{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			},
 		},
+		{
+			Method:      httpMethodGet,
+			Path:        "/api/status/identity",
+			OperationID: "getRuntimeIdentity",
+			Summary:     "Get the bounded runtime identity",
+			Tags:        []string{specDiagnosticsKey},
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "OK", Body: contract.RuntimeIdentityPayload{}},
+			},
+		},
 		drainStateOperation(httpMethodPost, "/api/drain", "drainDaemon", "Stop admitting new work"),
 		drainStateOperation(httpMethodPost, "/api/undrain", "undrainDaemon", "Resume admission of new work"),
 	}

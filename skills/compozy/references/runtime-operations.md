@@ -552,6 +552,10 @@ Do not treat stale UI state, chat messages, or memory notes as runtime authority
 
 `compozy status -o json` is the consolidated daemon-wide status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. To resolve skill diagnostics for one workspace, call `GET /api/status?workspace_id=<id>` or `GET /api/status?workspace=<id|name|path>`; bare `compozy status` does not select a workspace. Inspect `schema_streams` after startup to confirm that the global and memory streams report their expected version, applied migration count, and digest. An incompatible daemon-global `compozy.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `compozy session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
 
+`GET /api/status/identity` is the bounded HTTP/UDS process and listener identity used by the native
+desktop shell for frequent liveness checks. It intentionally omits runtime diagnostics; use
+`compozy status -o json`, `GET /api/status`, or `compozy doctor -o json` for inspection.
+
 Inspect `.subprocess_health` in `compozy status -o json` and run
 `compozy doctor --only runtime.subprocess_health -o json` for active ACP subprocess verdicts. With the
 default `daemon.subprocess_health_escalation_threshold = 3`, three consecutive failed checks—or an

@@ -15,7 +15,7 @@ use super::discovery::DaemonRecord;
 
 pub const MAX_KNOWN_STATUS_SCHEMA: &str = "2026-07-16";
 pub const MINIMUM_RUNTIME: &str = ">=0.3.0-beta.8";
-const MAX_STATUS_BODY_BYTES: usize = 64 * 1024;
+const MAX_IDENTITY_BODY_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 pub struct StatusPayload {
@@ -98,25 +98,25 @@ impl StatusTransport for HttpStatusTransport {
         let Some(client) = &self.client else {
             return TransportResult::Unreachable;
         };
-        let Ok(url) = origin.join("/api/status") else {
+        let Ok(url) = origin.join("/api/status/identity") else {
             return TransportResult::Unreachable;
         };
         match client.get(url).timeout(deadline).send() {
             Ok(response) if response.status().is_success() => {
                 let mut bytes = Vec::new();
-                let mut limited = response.take((MAX_STATUS_BODY_BYTES + 1) as u64);
+                let mut limited = response.take((MAX_IDENTITY_BODY_BYTES + 1) as u64);
                 match limited.read_to_end(&mut bytes) {
-                    Ok(_) if bytes.len() <= MAX_STATUS_BODY_BYTES => TransportResult::Ok(bytes),
+                    Ok(_) if bytes.len() <= MAX_IDENTITY_BODY_BYTES => TransportResult::Ok(bytes),
                     Ok(_) => TransportResult::HttpFailure,
                     Err(error) => {
-                        crate::logging::error(format!("read runtime status: {error}"));
+                        crate::logging::error(format!("read runtime identity: {error}"));
                         TransportResult::Unreachable
                     }
                 }
             }
             Ok(_) => TransportResult::HttpFailure,
             Err(error) => {
-                crate::logging::error(format!("request runtime status: {error}"));
+                crate::logging::error(format!("request runtime identity: {error}"));
                 TransportResult::Unreachable
             }
         }
@@ -236,6 +236,8 @@ fn schema_date(value: &str) -> Option<NaiveDate> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+    use std::net::TcpListener;
     use std::sync::{Arc, Mutex};
 
     use super::*;
@@ -392,6 +394,33 @@ mod tests {
         let probe = BoundProbe::new(DeadlineTransport(Arc::clone(&observed)), deadline);
         assert_eq!(probe.probe(&fixture_record(), None), Identity::Unreachable);
         assert_eq!(*observed.lock().expect("deadline lock"), Some(deadline));
+    }
+
+    #[test]
+    fn should_request_the_bounded_runtime_identity_surface() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener binds");
+        let address = listener.local_addr().expect("test listener has an address");
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("identity request connects");
+            let mut request = [0_u8; 1024];
+            let length = stream.read(&mut request).expect("identity request reads");
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+                .expect("identity response writes");
+            String::from_utf8(request[..length].to_vec()).expect("identity request is UTF-8")
+        });
+
+        let origin = Url::parse(&format!("http://{address}")).expect("test origin parses");
+        let transport = HttpStatusTransport::default();
+        assert!(matches!(
+            transport.get_status(&origin, Duration::from_secs(1)),
+            TransportResult::Ok(body) if body == b"{}"
+        ));
+        let request = server.join().expect("identity server joins");
+        assert!(
+            request.starts_with("GET /api/status/identity HTTP/1.1\r\n"),
+            "request line = {request:?}"
+        );
     }
 
     #[test]

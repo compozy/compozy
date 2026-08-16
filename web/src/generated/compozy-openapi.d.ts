@@ -3537,6 +3537,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/status/identity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the bounded runtime identity */
+    get: operations["getRuntimeIdentity"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/support/bundles": {
     parameters: {
       query?: never;
@@ -63035,6 +63052,37 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+    };
+  };
+  getRuntimeIdentity: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            daemon: {
+              http_host: string;
+              http_port: number;
+              pid: number;
+              /** Format: date-time */
+              started_at: string;
+              user_home_dir: string;
+              version: string;
+            };
+            schema_version: string;
           };
         };
       };

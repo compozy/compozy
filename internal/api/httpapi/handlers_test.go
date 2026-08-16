@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -187,6 +188,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/network/status",
 		"GET /api/workspaces/:workspace_id/network/work/:work_id",
 		"GET /api/status",
+		"GET /api/status/identity",
 		"POST /api/undrain",
 		"GET /api/onboarding",
 		"POST /api/onboarding/complete",
@@ -2012,6 +2014,53 @@ func TestDaemonStatusHandlerReturnsUserHomeDir(t *testing.T) {
 			)
 		}
 	})
+}
+
+func TestRuntimeIdentityHandlerStaysIndependentFromRuntimeAggregation(t *testing.T) {
+	t.Parallel()
+
+	var sessionCalls atomic.Int32
+	var observerCalls atomic.Int32
+	homePaths := newTestHomePaths(t)
+	manager := stubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			sessionCalls.Add(1)
+			return nil, errors.New("session aggregation must not run")
+		},
+	}
+	observer := stubObserver{
+		HealthFn: func(context.Context) (observe.Health, error) {
+			observerCalls.Add(1)
+			return observe.Health{}, errors.New("observer aggregation must not run")
+		},
+	}
+	engine := newTestRouter(t, newTestHandlers(t, manager, observer, homePaths))
+
+	recorder := performRequest(t, engine, http.MethodGet, "/api/status/identity", nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if sessionCalls.Load() != 0 || observerCalls.Load() != 0 {
+		t.Fatalf(
+			"identity aggregation calls = sessions:%d observer:%d, want zero",
+			sessionCalls.Load(),
+			observerCalls.Load(),
+		)
+	}
+
+	var response map[string]json.RawMessage
+	decodeJSONResponse(t, recorder, &response)
+	if len(response) != 2 || response["schema_version"] == nil || response["daemon"] == nil {
+		t.Fatalf("identity response keys = %v, want schema_version and daemon only", slices.Sorted(maps.Keys(response)))
+	}
+	var daemon contract.DaemonIdentityPayload
+	if err := json.Unmarshal(response["daemon"], &daemon); err != nil {
+		t.Fatalf("json.Unmarshal(daemon identity) error = %v", err)
+	}
+	if daemon.PID <= 0 || daemon.StartedAt.IsZero() || daemon.HTTPHost != "127.0.0.1" ||
+		daemon.HTTPPort != 2123 || daemon.UserHomeDir == "" || daemon.Version == "" {
+		t.Fatalf("daemon identity = %#v, want complete bounded runtime identity", daemon)
+	}
 }
 
 func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {

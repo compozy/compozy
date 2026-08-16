@@ -124,7 +124,7 @@ func (m *Manager) publishSessionCatalogWakeForEvent(session *Session, event acp.
 }
 
 func sessionCatalogEventFromInfo(kind CatalogEventKind, info *Info) CatalogEvent {
-	if info == nil {
+	if !isPublicSessionCatalogInfo(info) {
 		return CatalogEvent{}
 	}
 	return CatalogEvent{

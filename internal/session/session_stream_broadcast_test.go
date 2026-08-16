@@ -170,6 +170,42 @@ func (n *streamIdentityNotifier) OnAgentEventForSession(_ context.Context, sess 
 func TestSessionCatalogBroadcaster(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep daemon-owned sessions out of the public catalog stream", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cleanupTestManager(t, manager)
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+		defer cancel()
+
+		internalSessions := []*Session{
+			{
+				ID: "sess-memory-extractor", WorkspaceID: "ws-internal",
+				Lineage: &store.SessionLineage{SpawnRole: SpawnRoleMemoryExtractor},
+			},
+			{
+				ID: "sess-auto-title", WorkspaceID: "ws-internal",
+				Lineage: &store.SessionLineage{SpawnRole: SpawnRoleAutoTitle},
+			},
+			{ID: "sess-dream", WorkspaceID: "ws-internal", Type: SessionTypeDream},
+		}
+		for _, sess := range internalSessions {
+			manager.publishSessionCatalogWakeForEvent(sess, acp.AgentEvent{Type: acp.EventTypePermission})
+		}
+
+		select {
+		case event := <-events:
+			t.Fatalf("daemon-owned session woke the public catalog: %#v", event)
+		default:
+		}
+	})
+
 	t.Run("Should wake the owning workspace catalog for permission state changes", func(t *testing.T) {
 		t.Parallel()
 

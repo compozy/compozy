@@ -111,6 +111,9 @@ func loadObservedAgent(
 	if err != nil {
 		return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf("load config: %w", err)
 	}
+	if agentDef, ok := compozyconfig.BuiltinAgentDef(agentName); ok {
+		return cfg, agentDef, nil
+	}
 	agentDef, err := agentDefByName(resolvedWorkspace.Agents, agentName)
 	if err != nil {
 		return compozyconfig.Config{}, compozyconfig.AgentDef{}, fmt.Errorf("load agent %q: %w", agentName, err)

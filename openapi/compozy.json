@@ -154324,6 +154324,72 @@
         ]
       }
     },
+    "/api/status/identity": {
+      "get": {
+        "operationId": "getRuntimeIdentity",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "daemon": {
+                      "properties": {
+                        "http_host": {
+                          "type": "string"
+                        },
+                        "http_port": {
+                          "type": "integer"
+                        },
+                        "pid": {
+                          "type": "integer"
+                        },
+                        "started_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "user_home_dir": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "http_host",
+                        "http_port",
+                        "pid",
+                        "started_at",
+                        "user_home_dir",
+                        "version"
+                      ],
+                      "type": "object"
+                    },
+                    "schema_version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "daemon",
+                    "schema_version"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Get the bounded runtime identity",
+        "tags": [
+          "diagnostics"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/support/bundles": {
       "post": {
         "operationId": "createSupportBundle",
