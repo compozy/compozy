@@ -171,6 +171,8 @@ const (
 	CodeVaultRefUnresolved     = "vault_ref_unresolved"
 )
 
+const CodeExtensionAgentPluginComponentSkipped = "extension_agent_plugin_component_skipped"
+
 const (
 	CodeExtensionArchiveDigestMismatch   = "extension_archive_digest_mismatch"
 	CodeExtensionAgentConflict           = "extension_agent_conflict"
@@ -236,6 +238,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionInUse, Category: CategoryExtension},
 	{Code: CodeExtensionNotFound, Category: CategoryExtension},
 	{Code: CodeExtensionRuntimeUnavailable, Category: CategoryExtension},
+	{Code: CodeExtensionAgentPluginComponentSkipped, Category: CategoryExtension},
 	{Code: CodeFlagNotApplicable, Category: CategoryDaemon},
 	{Code: CodeForbiddenOperatorAction, Category: CategoryTask},
 	{Code: CodeForceOpRateLimited, Category: CategoryTask},

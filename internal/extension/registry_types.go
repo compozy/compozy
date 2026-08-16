@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"sync"
 	"time"
+
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 // Registry persists installed extension metadata in the global SQLite database.
@@ -23,6 +25,8 @@ type ExtensionInfo struct {
 	Source                   ExtensionSource
 	Enabled                  bool
 	ManifestPath             string
+	Format                   ExtensionFormat
+	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
 	InstalledAt              time.Time
 	Capabilities             CapabilitiesConfig
 	Permissions              PermissionsConfig
@@ -37,18 +41,32 @@ type ExtensionInfo struct {
 }
 
 type installConfig struct {
-	source          ExtensionSource
-	enabled         bool
-	replaceExisting bool
-	installedAt     *time.Time
-	registrySlug    *string
-	registryName    *string
-	remoteVersion   *string
-	provenance      *ExtensionProvenance
+	source           ExtensionSource
+	enabled          bool
+	replaceExisting  bool
+	installedAt      *time.Time
+	registrySlug     *string
+	registryName     *string
+	remoteVersion    *string
+	provenance       *ExtensionProvenance
+	boundaryObserver func(managedInstallBoundary) error
 }
 
 // InstallOption customizes one extension registry install operation.
 type InstallOption func(*installConfig)
+
+type managedInstallBoundary string
+
+const (
+	managedInstallBoundaryStaged     managedInstallBoundary = "staged"
+	managedInstallBoundaryFinalMoved managedInstallBoundary = "final_moved"
+)
+
+func withManagedInstallBoundaryObserver(observer func(managedInstallBoundary) error) InstallOption {
+	return func(cfg *installConfig) {
+		cfg.boundaryObserver = observer
+	}
+}
 
 // WithInstallSource overrides the persisted source tier for one install.
 func WithInstallSource(source ExtensionSource) InstallOption {

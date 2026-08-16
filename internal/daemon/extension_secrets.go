@@ -47,12 +47,12 @@ func (s *daemonExtensionService) SetExtensionSecrets(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
+	key, err := s.extensionSecretInstanceKey(ctx, name, actor)
+	if err != nil {
+		return contract.ExtensionSecretsPayload{}, err
+	}
 	var payload contract.ExtensionSecretsPayload
-	err := s.lifecycle.withName(ctx, name, func() error {
-		key, keyErr := s.extensionSecretInstanceKey(ctx, name, actor)
-		if keyErr != nil {
-			return keyErr
-		}
+	err = s.lifecycle.withInstance(ctx, key, func() error {
 		var setErr error
 		payload, setErr = s.setExtensionSecretsForInstance(ctx, key, req)
 		if setErr != nil {
@@ -75,11 +75,11 @@ func (s *daemonExtensionService) DeleteExtensionSecret(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return err
 	}
-	return s.lifecycle.withName(ctx, name, func() error {
-		key, keyErr := s.extensionSecretInstanceKey(ctx, name, actor)
-		if keyErr != nil {
-			return keyErr
-		}
+	key, err := s.extensionSecretInstanceKey(ctx, name, actor)
+	if err != nil {
+		return err
+	}
+	return s.lifecycle.withInstance(ctx, key, func() error {
 		if deleteErr := s.deleteExtensionSecretForInstance(ctx, key, envName); deleteErr != nil {
 			if !isExtensionSecretValidationRefusal(deleteErr) {
 				deleteErr = errors.Join(deleteErr, s.recordExtensionSecretsFailedEvent(ctx, actor, key))

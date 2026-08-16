@@ -11,7 +11,7 @@ ON CONFLICT(extension_name, workspace_id, env_name) DO UPDATE SET
   updated_at = excluded.updated_at;
 
 -- name: ListExtensionEnvBindings :many
-SELECT extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+SELECT extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
 FROM extension_env_bindings
 WHERE extension_name = sqlc.arg(extension_name)
   AND workspace_id = sqlc.arg(workspace_id)

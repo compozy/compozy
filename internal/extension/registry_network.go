@@ -250,11 +250,7 @@ func (r *Registry) currentNetworkRequirementDigest(key InstanceKey) (string, err
 		if err != nil {
 			return "", err
 		}
-		verified, err := verifyDevGeneration(link.OriginPath, link.BundleGeneration)
-		if err != nil {
-			return "", err
-		}
-		manifest = verified.Manifest
+		return strings.TrimSpace(link.NetworkRequirementDigest), nil
 	}
 	return NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
 }

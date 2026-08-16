@@ -94,6 +94,59 @@ func TestResolveOperatorHomeDirWithLookupFallsBackFromCompozyHome(t *testing.T) 
 	})
 }
 
+// Invariant: every extension instance maps to one contained segment under a
+// root disjoint from managed installs, including the legal package name "data".
+// Owner: Compozy home layout.
+// Canonical suite: home path tests.
+func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
+	t.Parallel()
+	paths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		extension   string
+		workspaceID string
+		wantSegment string
+	}{
+		{name: "Should encode a global dotted name", extension: "acme.tools", wantSegment: "acme.tools"},
+		{name: "Should encode a workspace instance", extension: "acme.tools", workspaceID: "abc-123", wantSegment: "acme.tools@ws-abc-123"},
+		{name: "Should keep the data package under the dedicated root", extension: "data", wantSegment: "data"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got, pathErr := paths.ExtensionDataPath(test.extension, test.workspaceID)
+			if pathErr != nil {
+				t.Fatalf("ExtensionDataPath() error = %v", pathErr)
+			}
+			if want := filepath.Join(paths.ExtensionDataRoot, test.wantSegment); got != want {
+				t.Fatalf("ExtensionDataPath() = %q, want %q", got, want)
+			}
+			if filepath.Dir(got) != paths.ExtensionDataRoot {
+				t.Fatalf("ExtensionDataPath() parent = %q, want dedicated root", filepath.Dir(got))
+			}
+		})
+	}
+
+	dataPath, err := paths.ExtensionDataPath("data", "")
+	if err != nil {
+		t.Fatalf("ExtensionDataPath(data) error = %v", err)
+	}
+	managedDataPath := filepath.Join(paths.HomeDir, "extensions", "data")
+	if dataPath == managedDataPath || filepath.Dir(dataPath) == managedDataPath {
+		t.Fatalf("data path %q overlaps managed install tree %q", dataPath, managedDataPath)
+	}
+
+	for _, invalid := range []string{"../escape", "name@workspace", "a/b"} {
+		if _, pathErr := paths.ExtensionDataPath(invalid, ""); pathErr == nil {
+			t.Fatalf("ExtensionDataPath(%q) error = nil, want containment rejection", invalid)
+		}
+	}
+}
+
 func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 	if got, want := DirName, ".compozy"; got != want {
 		t.Fatalf("DirName = %q, want %q", got, want)
@@ -130,6 +183,7 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		paths.SessionAttachmentsDir,
 		paths.RestartsDir,
 		paths.LogsDir,
+		paths.ExtensionDataRoot,
 	} {
 		info, err := os.Stat(dir)
 		if err != nil {

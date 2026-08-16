@@ -442,6 +442,8 @@ type Extension struct {
 	Source                   string         `json:"source"`
 	Enabled                  bool           `json:"enabled"`
 	ManifestPath             string         `json:"manifest_path"`
+	Format                   string         `json:"format"`
+	IngestDiagnosticsJson    string         `json:"ingest_diagnostics_json"`
 	InstalledAt              string         `json:"installed_at"`
 	ProvidesJson             string         `json:"provides_json"`
 	PermissionsJson          string         `json:"permissions_json"`
@@ -461,6 +463,8 @@ type ExtensionDevLink struct {
 	OriginPath               string         `json:"origin_path"`
 	BundleGeneration         string         `json:"bundle_generation"`
 	LinkedAt                 time.Time      `json:"linked_at"`
+	Format                   string         `json:"format"`
+	IngestDiagnosticsJson    string         `json:"ingest_diagnostics_json"`
 	NetworkRequirementDigest string         `json:"network_requirement_digest"`
 	NetworkConfirmedBy       sql.NullString `json:"network_confirmed_by"`
 	NetworkConfirmedAt       sql.NullString `json:"network_confirmed_at"`
@@ -471,6 +475,8 @@ type ExtensionEnvBinding struct {
 	WorkspaceID   string `json:"workspace_id"`
 	EnvName       string `json:"env_name"`
 	SecretRef     string `json:"secret_ref"`
+	McpServer     string `json:"mcp_server"`
+	HeaderName    string `json:"header_name"`
 	Kind          string `json:"kind"`
 	CreatedAt     string `json:"created_at"`
 	UpdatedAt     string `json:"updated_at"`

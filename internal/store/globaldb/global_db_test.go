@@ -165,6 +165,14 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		)
 		assertTableHasColumns(t, globalDB.db, "sessions", []string{"worktree_id"})
 		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{"worktree_id"})
+		assertTableHasColumns(t, globalDB.db, "extensions", []string{"format", "ingest_diagnostics_json"})
+		assertTableHasColumns(
+			t,
+			globalDB.db,
+			"extension_dev_links",
+			[]string{"format", "ingest_diagnostics_json"},
+		)
+		assertTableHasColumns(t, globalDB.db, "extension_env_bindings", []string{"mcp_server", "header_name"})
 		for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
 			assertTableHasColumns(t, globalDB.db, table, []string{
 				"network_spec_json",

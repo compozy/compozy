@@ -3056,6 +3056,79 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 			t.Fatalf("failed install event content = %#v, want %#v", failedInstallFields, wantInstallFields)
 		}
 	})
+
+	t.Run("Should serialize concurrent same-name portable installs by instance key", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		db := openDaemonTestGlobalDB(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		service := newDaemonExtensionService(
+			daemonExtensionServiceDeps{
+				Registry: registry, HomePaths: homePaths, Logger: discardLogger(), Now: time.Now,
+			},
+			withDaemonExtensionMarketplace(
+				compozyconfig.ExtensionsConfig{
+					Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true},
+				},
+				nil,
+			),
+		).(*daemonExtensionService)
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"operator",
+			taskpkg.OriginKindCLI,
+			"concurrent portable install",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		fixtureDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(fixtureDir, "plugin.json"), []byte(`{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "same-name-portable",
+  "version": "1.0.0"
+}`), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(plugin.json) error = %v", err)
+		}
+		req := contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: fixtureDir, AllowUnverified: true,
+		}
+		start := make(chan struct{})
+		results := make(chan error, 2)
+		for range 2 {
+			go func() {
+				<-start
+				_, installErr := service.Install(t.Context(), req, actor)
+				results <- installErr
+			}()
+		}
+		close(start)
+		var succeeded, conflicted int
+		for range 2 {
+			installErr := <-results
+			switch {
+			case installErr == nil:
+				succeeded++
+			case errors.Is(installErr, extensionpkg.ErrExtensionExists):
+				conflicted++
+			default:
+				t.Fatalf("concurrent Install() error = %v, want success or ErrExtensionExists", installErr)
+			}
+		}
+		if succeeded != 1 || conflicted != 1 {
+			t.Fatalf("concurrent results = success:%d conflict:%d, want 1/1", succeeded, conflicted)
+		}
+		infos, err := registry.List()
+		if err != nil {
+			t.Fatalf("registry.List() error = %v", err)
+		}
+		if len(infos) != 1 || infos[0].Name != "same-name-portable" {
+			t.Fatalf("registry.List() = %#v, want one same-name-portable row", infos)
+		}
+		if _, err := os.Stat(extensionpkg.ManagedInstallPath(homePaths, "same-name-portable")); err != nil {
+			t.Fatalf("os.Stat(managed install) error = %v", err)
+		}
+	})
 }
 
 func TestDaemonExtensionServiceInstallsPublishedSources(t *testing.T) {

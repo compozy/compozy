@@ -76,7 +76,7 @@ func (q *Queries) DeleteExtensionEnvBindingsByWorkspace(ctx context.Context, wor
 }
 
 const listExtensionEnvBindings = `-- name: ListExtensionEnvBindings :many
-SELECT extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+SELECT extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
 FROM extension_env_bindings
 WHERE extension_name = ?1
   AND workspace_id = ?2
@@ -102,6 +102,8 @@ func (q *Queries) ListExtensionEnvBindings(ctx context.Context, arg ListExtensio
 			&i.WorkspaceID,
 			&i.EnvName,
 			&i.SecretRef,
+			&i.McpServer,
+			&i.HeaderName,
 			&i.Kind,
 			&i.CreatedAt,
 			&i.UpdatedAt,

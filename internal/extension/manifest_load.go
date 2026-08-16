@@ -12,13 +12,26 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/extension/surfaces"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
-// LoadManifest reads one extension manifest from dir, preferring TOML over JSON.
+// LoadManifest reads one extension manifest from dir, preferring native
+// manifests over a supported Agent Plugins root.
 func LoadManifest(dir string) (*Manifest, error) {
+	return loadManifest(dir, "")
+}
+
+// LoadManifestWithAgentPluginDataDir loads a manifest with an explicit
+// instance-owned PLUGIN_DATA path for portable stdio server synthesis.
+func LoadManifestWithAgentPluginDataDir(dir string, dataDir string) (*Manifest, error) {
+	return loadManifest(dir, strings.TrimSpace(dataDir))
+}
+
+func loadManifest(dir string, dataDir string) (*Manifest, error) {
 	manifestDir := strings.TrimSpace(dir)
 	if manifestDir == "" {
 		return nil, &ManifestValidationError{
@@ -41,10 +54,73 @@ func LoadManifest(dir string) (*Manifest, error) {
 		return loadManifestJSON(jsonPath)
 	}
 
+	pluginPath := filepath.Join(manifestDir, agentPluginManifestFileName)
+	status, declared, err := agentplugin.ClassifyManifest(manifestDir)
+	if err != nil {
+		return nil, fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
+	}
+	switch status {
+	case agentplugin.SchemaSupported:
+		dataDirWasDefault := dataDir == ""
+		if dataDir == "" {
+			dataDir, err = defaultAgentPluginDataDir(manifestDir, filepath.Base(manifestDir))
+			if err != nil {
+				return nil, err
+			}
+		}
+		pkg, loadErr := agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: dataDir})
+		if loadErr != nil {
+			return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
+		}
+		if dataDirWasDefault {
+			resolvedDataDir, resolveErr := defaultAgentPluginDataDir(manifestDir, pkg.Name)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			if resolvedDataDir != dataDir {
+				pkg, loadErr = agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: resolvedDataDir})
+				if loadErr != nil {
+					return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
+				}
+			}
+		}
+		return SynthesizeAgentPluginManifest(pkg, manifestDir)
+	case agentplugin.SchemaUnsupportedVersion:
+		return nil, fmt.Errorf(
+			"extension: Agent Plugins manifest %q declares schema %q; supported schema is %q",
+			pluginPath,
+			declared,
+			agentplugin.PluginSchemaID,
+		)
+	case agentplugin.SchemaUnrelated:
+		if exists, statErr := fileExists(pluginPath); statErr != nil {
+			return nil, fmt.Errorf("extension: stat %q: %w", pluginPath, statErr)
+		} else if exists {
+			return nil, fmt.Errorf(
+				"extension: %q is not an Agent Plugins manifest; expected schema %q",
+				pluginPath,
+				agentplugin.PluginSchemaID,
+			)
+		}
+	}
+
 	return nil, &ManifestNotFoundError{
 		Dir:   manifestDir,
-		Paths: []string{tomlPath, jsonPath},
+		Paths: []string{tomlPath, jsonPath, pluginPath},
 	}
+}
+
+func defaultAgentPluginDataDir(manifestDir string, name string) (string, error) {
+	root := filepath.Clean(manifestDir)
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Dir(filepath.Dir(root)))
+	if err != nil {
+		return "", fmt.Errorf("extension: resolve Agent Plugins data home: %w", err)
+	}
+	dataDir, err := homePaths.ExtensionDataPath(name, "")
+	if err != nil {
+		return "", fmt.Errorf("extension: resolve Agent Plugins data path: %w", err)
+	}
+	return dataDir, nil
 }
 
 // Validate checks the manifest schema and daemon compatibility.
@@ -52,20 +128,24 @@ func (m *Manifest) Validate() error {
 	if err := requireField(manifestNameKey, m.Name); err != nil {
 		return err
 	}
-	if err := requireField("version", m.Version); err != nil {
-		return err
+	if m.Format != FormatAgentPlugin || strings.TrimSpace(m.Version) != "" {
+		if err := requireField("version", m.Version); err != nil {
+			return err
+		}
+		if err := validateSemanticVersionField("version", m.Version); err != nil {
+			return err
+		}
 	}
-	if err := validateSemanticVersionField("version", m.Version); err != nil {
-		return err
-	}
-	if err := requireField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
-		return err
-	}
-	if err := validateSemanticVersionField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
-		return err
-	}
-	if err := validateDaemonCompatibility(m.MinCompozyVersion); err != nil {
-		return err
+	if m.Format != FormatAgentPlugin {
+		if err := requireField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
+			return err
+		}
+		if err := validateSemanticVersionField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
+			return err
+		}
+		if err := validateDaemonCompatibility(m.MinCompozyVersion); err != nil {
+			return err
+		}
 	}
 	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
 		return err
@@ -252,6 +332,7 @@ func loadManifestTOMLContent(path string, data []byte) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	manifest.Format = FormatCompozy
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
@@ -282,6 +363,7 @@ func loadManifestJSONContent(path string, data []byte) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	manifest.Format = FormatCompozy
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}

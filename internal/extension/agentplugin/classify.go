@@ -27,21 +27,28 @@ func ClassifyManifest(dir string) (SchemaStatus, string, error) {
 	if err != nil {
 		return SchemaUnrelated, "", fmt.Errorf("read Agent Plugins manifest %q: %w", path, err)
 	}
+	status, declared := ClassifyManifestContent(content)
+	return status, declared, nil
+}
+
+// ClassifyManifestContent applies the same schema triage to manifest bytes
+// already acquired through a caller-owned filesystem capability.
+func ClassifyManifestContent(content []byte) (SchemaStatus, string) {
 	var root map[string]json.RawMessage
 	if err := json.Unmarshal(content, &root); err != nil {
-		return SchemaUnrelated, "", nil
+		return SchemaUnrelated, ""
 	}
 	var declared string
 	if err := json.Unmarshal(root[fieldSchema], &declared); err != nil {
-		return SchemaUnrelated, "", nil
+		return SchemaUnrelated, ""
 	}
 	switch {
 	case declared == PluginSchemaID:
-		return SchemaSupported, declared, nil
+		return SchemaSupported, declared
 	case strings.HasPrefix(declared, schemaPrefix):
-		return SchemaUnsupportedVersion, declared, nil
+		return SchemaUnsupportedVersion, declared
 	default:
-		return SchemaUnrelated, declared, nil
+		return SchemaUnrelated, declared
 	}
 }
 

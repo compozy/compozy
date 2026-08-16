@@ -1,0 +1,28 @@
+{
+    "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+    "mcpServers": {
+        "local": {
+            "type": "stdio",
+            "command": "node",
+            "args": ["${PLUGIN_ROOT}/server.js", "${PLUGIN_DATA}/state.json", "${UNKNOWN}"],
+            "env": {
+                "MODE": "review"
+            },
+            "cwd": "${PLUGIN_ROOT}"
+        },
+        "remote": {
+            "type": "streamable-http",
+            "url": "https://example.com/mcp",
+            "headers": {
+                "X-Tenant": "acme"
+            }
+        },
+        "legacy-events": {
+            "type": "sse",
+            "url": "https://example.com/events"
+        },
+        "malformed": {
+            "type": "stdio"
+        }
+    }
+}

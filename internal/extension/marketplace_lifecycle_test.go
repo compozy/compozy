@@ -17,9 +17,11 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
@@ -32,6 +34,211 @@ type lifecycleSource struct {
 	expectedSHA   string
 	closeErr      error
 	closeCount    int
+}
+
+// Invariant: portable install does not create instance data, successful
+// remove makes the deterministic key unreachable, and failed deletion either
+// quarantines residue or fails the removal.
+// Owner: managed extension lifecycle.
+// Canonical suite: marketplace managed lifecycle tests.
+func TestManagedAgentPluginDataLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should leave data absent at install and remove it with the extension", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		root := writeAgentPluginManifestFixture(t)
+		manifest, err := LoadManifest(root)
+		if err != nil {
+			t.Fatalf("LoadManifest() error = %v", err)
+		}
+		checksum, err := ComputeDirectoryChecksum(root)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+		}
+		if err := InstallLocalManaged(homePaths, env.registry, manifest, root, checksum); err != nil {
+			t.Fatalf("InstallLocalManaged() error = %v", err)
+		}
+		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "")
+		if err != nil {
+			t.Fatalf("ExtensionDataPath() error = %v", err)
+		}
+		if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(data after install) error = %v, want not-exist", statErr)
+		}
+		if err := os.MkdirAll(dataPath, 0o700); err != nil {
+			t.Fatalf("MkdirAll(data) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dataPath, "state.db"), []byte("state"), 0o600); err != nil {
+			t.Fatalf("WriteFile(data) error = %v", err)
+		}
+		removed, err := RemoveManagedExtension(t.Context(), env.registry, manifest.Name, nil)
+		if err != nil {
+			t.Fatalf("RemoveManagedExtension() error = %v", err)
+		}
+		if removed.Status != managedRemoveStatusRemoved {
+			t.Fatalf("RemoveManagedExtension() = %#v, want removed", removed)
+		}
+		if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(data after remove) error = %v, want not-exist", statErr)
+		}
+	})
+
+	t.Run("Should quarantine residue when direct deletion fails", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		dataPath := filepath.Join(root, "portable")
+		if err := os.Mkdir(dataPath, 0o700); err != nil {
+			t.Fatalf("Mkdir(data) error = %v", err)
+		}
+		fixedNow := time.Date(2026, 8, 15, 12, 0, 0, 123, time.UTC)
+		cleanup, err := removeExtensionDataPath(dataPath, extensionDataRemovalOps{
+			removeAll: func(string) error { return errors.New("injected delete failure") },
+			rename:    os.Rename,
+			now:       func() time.Time { return fixedNow },
+		})
+		if err == nil || !cleanup.quarantined {
+			t.Fatalf("removeExtensionDataPath() = %#v, %v; want quarantined warning", cleanup, err)
+		}
+		if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(reachable data) error = %v, want not-exist", statErr)
+		}
+		if _, statErr := os.Stat(cleanup.quarantinePath); statErr != nil {
+			t.Fatalf("Stat(quarantine) error = %v", statErr)
+		}
+	})
+
+	t.Run("Should fail when deletion and quarantine both fail", func(t *testing.T) {
+		t.Parallel()
+		dataPath := filepath.Join(t.TempDir(), "portable")
+		if err := os.Mkdir(dataPath, 0o700); err != nil {
+			t.Fatalf("Mkdir(data) error = %v", err)
+		}
+		cleanup, err := removeExtensionDataPath(dataPath, extensionDataRemovalOps{
+			removeAll: func(string) error { return errors.New("injected delete failure") },
+			rename:    func(string, string) error { return errors.New("injected quarantine failure") },
+			now:       time.Now,
+		})
+		if err == nil || cleanup.quarantined {
+			t.Fatalf("removeExtensionDataPath() = %#v, %v; want fatal cleanup failure", cleanup, err)
+		}
+		if _, statErr := os.Stat(dataPath); statErr != nil {
+			t.Fatalf("Stat(reachable data after failed remove) error = %v", statErr)
+		}
+	})
+
+	t.Run("Should complete removal with quarantined data and allow a clean reinstall", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		root := writeAgentPluginManifestFixture(t)
+		manifest, err := LoadManifest(root)
+		if err != nil {
+			t.Fatalf("LoadManifest() error = %v", err)
+		}
+		checksum, err := ComputeDirectoryChecksum(root)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+		}
+		if err := InstallLocalManaged(homePaths, env.registry, manifest, root, checksum); err != nil {
+			t.Fatalf("InstallLocalManaged() error = %v", err)
+		}
+		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "")
+		if err != nil {
+			t.Fatalf("ExtensionDataPath() error = %v", err)
+		}
+		if err := os.MkdirAll(dataPath, 0o700); err != nil {
+			t.Fatalf("MkdirAll(data) error = %v", err)
+		}
+		writeFile(t, filepath.Join(dataPath, "state"), "old")
+		fixedNow := time.Date(2026, 8, 15, 13, 0, 0, 0, time.UTC)
+		removed, err := removeManagedExtensionWithDataOps(
+			t.Context(),
+			env.registry,
+			manifest.Name,
+			nil,
+			extensionDataRemovalOps{
+				removeAll: func(string) error { return errors.New("injected delete failure") },
+				rename:    os.Rename,
+				now:       func() time.Time { return fixedNow },
+			},
+		)
+		if err != nil || len(removed.Warnings) != 1 {
+			t.Fatalf("removeManagedExtensionWithDataOps() = %#v, %v; want completed with warning", removed, err)
+		}
+		if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(reachable data) error = %v, want not-exist", statErr)
+		}
+		quarantine := fmt.Sprintf("%s.compozy-quarantine-%d", dataPath, fixedNow.UnixNano())
+		if _, statErr := os.Stat(quarantine); statErr != nil {
+			t.Fatalf("Stat(quarantine) error = %v", statErr)
+		}
+		if err := InstallLocalManaged(homePaths, env.registry, manifest, root, checksum); err != nil {
+			t.Fatalf("InstallLocalManaged(reinstall) error = %v", err)
+		}
+		if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(data after reinstall) error = %v, want clean absent data", statErr)
+		}
+	})
+
+	t.Run("Should restore the instance when deletion and quarantine both fail", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		root := writeAgentPluginManifestFixture(t)
+		manifest, err := LoadManifest(root)
+		if err != nil {
+			t.Fatalf("LoadManifest() error = %v", err)
+		}
+		checksum, err := ComputeDirectoryChecksum(root)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+		}
+		if err := InstallLocalManaged(homePaths, env.registry, manifest, root, checksum); err != nil {
+			t.Fatalf("InstallLocalManaged() error = %v", err)
+		}
+		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "")
+		if err != nil {
+			t.Fatalf("ExtensionDataPath() error = %v", err)
+		}
+		if err := os.MkdirAll(dataPath, 0o700); err != nil {
+			t.Fatalf("MkdirAll(data) error = %v", err)
+		}
+		writeFile(t, filepath.Join(dataPath, "state"), "preserve")
+		_, err = removeManagedExtensionWithDataOps(
+			t.Context(),
+			env.registry,
+			manifest.Name,
+			nil,
+			extensionDataRemovalOps{
+				removeAll: func(string) error { return errors.New("injected delete failure") },
+				rename:    func(string, string) error { return errors.New("injected quarantine failure") },
+				now:       time.Now,
+			},
+		)
+		if err == nil {
+			t.Fatal("removeManagedExtensionWithDataOps(double failure) error = nil, want failure")
+		}
+		if _, getErr := env.registry.Get(manifest.Name); getErr != nil {
+			t.Fatalf("registry.Get(restored) error = %v", getErr)
+		}
+		if _, statErr := os.Stat(ManagedInstallPath(homePaths, manifest.Name)); statErr != nil {
+			t.Fatalf("Stat(restored install) error = %v", statErr)
+		}
+		if data, readErr := os.ReadFile(filepath.Join(dataPath, "state")); readErr != nil || string(data) != "preserve" {
+			t.Fatalf("restored data = %q, %v; want preserve", data, readErr)
+		}
+	})
 }
 
 var _ registrypkg.Source = (*lifecycleSource)(nil)
@@ -118,6 +325,124 @@ func (s *lifecycleSource) packageSlug() string {
 }
 
 func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testing.T) {
+	t.Run("Should refresh a data-named package while preserving its isolated data and reject layout drift", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		env := newRegistryTestEnv(t)
+		source := newLifecycleSourceNamed(t, "data", "github", "1.0.0", "2.0.0", "3.0.0")
+		source.archives["1.0.0"] = lifecycleAgentPluginTarGz(t, "data", "1.0.0", false, map[string]string{
+			"skills/review/SKILL.md": "---\nname: wrong\ndescription: First diagnostic\n---\nBody.\n",
+		})
+		source.archives["2.0.0"] = lifecycleAgentPluginTarGz(t, "data", "2.0.0", false, map[string]string{
+			"skills/review/SKILL.md": "---\nname: review\n---\nMissing description.\n",
+		})
+		source.archives["3.0.0"] = lifecycleAgentPluginTarGz(t, "data", "3.0.0", true, nil)
+		loader := func(context.Context) ([]registrypkg.Source, error) {
+			return []registrypkg.Source{source}, nil
+		}
+		source.latestVersion = "1.0.0"
+		installed, err := InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceInstallRequest{
+				Slug: "acme/data", SourceFilter: "github",
+				PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
+		)
+		if err != nil {
+			t.Fatalf("InstallMarketplaceManaged(portable) error = %v", err)
+		}
+		if installed.Format != FormatAgentPlugin || len(installed.IngestDiagnostics) != 1 {
+			t.Fatalf("installed portable metadata = %#v, want format and first diagnostic", installed)
+		}
+		firstDiagnostics := cloneDiagnosticItems(installed.IngestDiagnostics)
+		dataPath, err := homePaths.ExtensionDataPath(installed.Name, "")
+		if err != nil {
+			t.Fatalf("ExtensionDataPath() error = %v", err)
+		}
+		if err := os.MkdirAll(dataPath, 0o700); err != nil {
+			t.Fatalf("MkdirAll(data) error = %v", err)
+		}
+		dataFile := filepath.Join(dataPath, "state.db")
+		writeFile(t, dataFile, "portable-state")
+		siblingDataPath, err := homePaths.ExtensionDataPath("sibling", "")
+		if err != nil {
+			t.Fatalf("ExtensionDataPath(sibling) error = %v", err)
+		}
+		if err := os.MkdirAll(siblingDataPath, 0o700); err != nil {
+			t.Fatalf("MkdirAll(sibling data) error = %v", err)
+		}
+		siblingDataFile := filepath.Join(siblingDataPath, "state.db")
+		writeFile(t, siblingDataFile, "sibling-state")
+
+		source.latestVersion = "2.0.0"
+		updates, err := UpdateMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceUpdateRequest{
+				Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
+			nil,
+		)
+		if err != nil || len(updates) != 1 || updates[0].Status != MarketplaceUpdateStatusUpdated {
+			t.Fatalf("UpdateMarketplaceManaged(portable) = %#v, %v; want updated", updates, err)
+		}
+		updated, err := env.registry.Get(installed.Name)
+		if err != nil {
+			t.Fatalf("registry.Get(updated) error = %v", err)
+		}
+		if updated.Enabled || updated.Format != FormatAgentPlugin || len(updated.IngestDiagnostics) != 1 ||
+			reflect.DeepEqual(updated.IngestDiagnostics, firstDiagnostics) {
+			t.Fatalf("updated portable metadata = %#v, want disabled with replaced diagnostic", updated)
+		}
+		if data, readErr := os.ReadFile(dataFile); readErr != nil || string(data) != "portable-state" {
+			t.Fatalf("portable data after update = %q, %v; want preserved", data, readErr)
+		}
+
+		source.latestVersion = "3.0.0"
+		if _, err := UpdateMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceUpdateRequest{
+				Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
+			},
+			nil,
+		); err == nil {
+			t.Fatal("UpdateMarketplaceManaged(client-layout drift) error = nil, want failure")
+		}
+		retained, err := env.registry.Get(installed.Name)
+		if err != nil {
+			t.Fatalf("registry.Get(after drift) error = %v", err)
+		}
+		if retained.RemoteVersion == nil || *retained.RemoteVersion != "2.0.0" ||
+			!reflect.DeepEqual(retained.IngestDiagnostics, updated.IngestDiagnostics) {
+			t.Fatalf("retained portable metadata = %#v, want version 2 diagnostics", retained)
+		}
+		if data, readErr := os.ReadFile(dataFile); readErr != nil || string(data) != "portable-state" {
+			t.Fatalf("portable data after drift = %q, %v; want preserved", data, readErr)
+		}
+
+		if _, err := RemoveManagedExtension(t.Context(), env.registry, installed.Name, nil); err != nil {
+			t.Fatalf("RemoveManagedExtension(data) error = %v", err)
+		}
+		if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(data package data after remove) error = %v, want not-exist", statErr)
+		}
+		if siblingData, readErr := os.ReadFile(siblingDataFile); readErr != nil || string(siblingData) != "sibling-state" {
+			t.Fatalf("sibling data after data package lifecycle = %q, %v; want untouched", siblingData, readErr)
+		}
+	})
+
 	t.Run("Should install update and remove managed marketplace extensions", func(t *testing.T) {
 		t.Parallel()
 
@@ -1470,16 +1795,42 @@ func lifecycleTarGzWithPayload(
 	for relativePath, content := range payload {
 		files[path.Join(name, relativePath)] = content
 	}
+	return lifecycleTarGzFiles(t, files)
+}
 
+func lifecycleAgentPluginTarGz(
+	t *testing.T,
+	name string,
+	version string,
+	clientLayout bool,
+	payload map[string]string,
+) []byte {
+	t.Helper()
+	prefix := name
+	if clientLayout {
+		prefix = path.Join(name, ".claude-plugin")
+	}
+	files := map[string]string{
+		path.Join(prefix, agentPluginManifestFileName): fmt.Sprintf(
+			`{"$schema":%q,"name":%q,"version":%q}`,
+			agentplugin.PluginSchemaID,
+			name,
+			version,
+		),
+	}
+	for relativePath, content := range payload {
+		files[path.Join(name, relativePath)] = content
+	}
+	return lifecycleTarGzFiles(t, files)
+}
+
+func lifecycleTarGzFiles(t *testing.T, files map[string]string) []byte {
+	t.Helper()
 	var buffer bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buffer)
 	tarWriter := tar.NewWriter(gzipWriter)
 	for name, content := range files {
-		header := &tar.Header{
-			Name: name,
-			Mode: 0o644,
-			Size: int64(len(content)),
-		}
+		header := &tar.Header{Name: name, Mode: 0o644, Size: int64(len(content))}
 		if err := tarWriter.WriteHeader(header); err != nil {
 			t.Fatalf("tarWriter.WriteHeader(%q) error = %v", name, err)
 		}

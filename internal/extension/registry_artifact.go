@@ -11,6 +11,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )
@@ -47,7 +48,7 @@ func resolveInstallArtifact(path string) (artifactRoot string, manifestPath stri
 	}
 
 	switch filepath.Base(absPath) {
-	case manifestTOMLFileName, manifestJSONFileName:
+	case manifestTOMLFileName, manifestJSONFileName, agentPluginManifestFileName:
 		return filepath.Dir(absPath), absPath, nil
 	default:
 		return "", "", fmt.Errorf("extension: install path %q must be an extension directory or manifest file", absPath)
@@ -69,9 +70,18 @@ func resolveManifestPath(dir string) (string, error) {
 		return jsonPath, nil
 	}
 
+	pluginPath := filepath.Join(dir, agentPluginManifestFileName)
+	status, _, err := agentplugin.ClassifyManifest(dir)
+	if err != nil {
+		return "", fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
+	}
+	if status == agentplugin.SchemaSupported {
+		return pluginPath, nil
+	}
+
 	return "", &ManifestNotFoundError{
 		Dir:   dir,
-		Paths: []string{tomlPath, jsonPath},
+		Paths: []string{tomlPath, jsonPath, pluginPath},
 	}
 }
 

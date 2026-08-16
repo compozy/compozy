@@ -5,12 +5,45 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
 // ErrPathOutsideRoot identifies an existing path whose resolved target escapes
 // the resolved root.
 var ErrPathOutsideRoot = errors.New("fileutil: resolved path is outside root")
+
+// CanonicalPathWithExistingPrefix resolves symlinks in the deepest existing
+// prefix while preserving any missing suffix components.
+func CanonicalPathWithExistingPrefix(path string) (string, error) {
+	absolute, err := filepath.Abs(filepath.Clean(strings.TrimSpace(path)))
+	if err != nil {
+		return "", fmt.Errorf("fileutil: make path %q absolute: %w", path, err)
+	}
+	existing := absolute
+	missing := make([]string, 0, 4)
+	for {
+		resolved, resolveErr := filepath.EvalSymlinks(existing)
+		if resolveErr == nil {
+			for _, component := range slices.Backward(missing) {
+				resolved = filepath.Join(resolved, component)
+			}
+			return filepath.Clean(resolved), nil
+		}
+		if !errors.Is(resolveErr, os.ErrNotExist) {
+			return "", fmt.Errorf("fileutil: resolve path %q: %w", existing, resolveErr)
+		}
+		if info, lstatErr := os.Lstat(existing); lstatErr == nil && info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("fileutil: path %q contains an unresolved symlink", path)
+		}
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			return "", fmt.Errorf("fileutil: resolve path %q: %w", absolute, resolveErr)
+		}
+		missing = append(missing, filepath.Base(existing))
+		existing = parent
+	}
+}
 
 // CanonicalExistingDirectory returns the absolute symlink-resolved identity of
 // an existing directory.

@@ -17,6 +17,7 @@ func (d *Daemon) extensionManagerDeps(
 	}
 	return extensionManagerDeps{
 		Registry:   extRegistry,
+		HomePaths:  d.homePaths,
 		Extensions: state.cfg.Extensions,
 		Sessions:   state.sessions,
 		Clarify:    state.clarify,

@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	yaml "gopkg.in/yaml.v3"
@@ -82,6 +84,7 @@ func locateInstallManifestRoot(
 	currentName := rootName
 	current := root
 	closeCurrentOnError := false
+	descended := false
 	defer func() {
 		if err == nil {
 			return
@@ -112,12 +115,22 @@ func locateInstallManifestRoot(
 			}, nil
 		}
 
+		if descended {
+			return nil, "", nil, fmt.Errorf("%w: %q", errInstallMissingManifest, currentName)
+		}
 		nextName, descend, descendErr := singleExtractionDirectory(current)
 		if descendErr != nil {
 			return nil, "", nil, descendErr
 		}
 		if !descend {
 			return nil, "", nil, fmt.Errorf("%w: %q", errInstallMissingManifest, currentName)
+		}
+		if isClientSpecificInstallDirectory(nextName) {
+			return nil, "", nil, fmt.Errorf(
+				"%w: archive contains client-specific layout %q; Agent Plugins require plugin.json at the package root",
+				errInstallMissingManifest,
+				nextName+"/plugin.json",
+			)
 		}
 
 		next, openErr := current.OpenDirectory(nextName)
@@ -143,6 +156,16 @@ func locateInstallManifestRoot(
 		currentName = nextName
 		current = next
 		closeCurrentOnError = true
+		descended = true
+	}
+}
+
+func isClientSpecificInstallDirectory(name string) bool {
+	switch strings.TrimSpace(name) {
+	case ".claude-plugin", ".codex-plugin", ".cursor-plugin":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -155,6 +178,10 @@ func manifestNameAtRoot(root *fileutil.Directory) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("registry: inspect manifest %q: %w", installerSkillManifestName, err)
 	}
+	hasAgentPluginManifest, err := manifestFileExists(root, installerAgentPluginManifestName)
+	if err != nil {
+		return "", fmt.Errorf("registry: inspect manifest %q: %w", installerAgentPluginManifestName, err)
+	}
 	switch {
 	case hasExtensionManifest && hasSkillManifest:
 		return "", fmt.Errorf(
@@ -166,6 +193,24 @@ func manifestNameAtRoot(root *fileutil.Directory) (string, error) {
 		return installerExtensionManifestName, nil
 	case hasSkillManifest:
 		return installerSkillManifestName, nil
+	case hasAgentPluginManifest:
+		content, readErr := readExtractionFile(root, installerAgentPluginManifestName)
+		if readErr != nil {
+			return "", fmt.Errorf("registry: read manifest %q: %w", installerAgentPluginManifestName, readErr)
+		}
+		status, declared := agentplugin.ClassifyManifestContent(content)
+		switch status {
+		case agentplugin.SchemaSupported:
+			return installerAgentPluginManifestName, nil
+		case agentplugin.SchemaUnsupportedVersion:
+			return "", fmt.Errorf(
+				"registry: unsupported Agent Plugins schema %q; supported schema is %q",
+				declared,
+				agentplugin.PluginSchemaID,
+			)
+		default:
+			return "", fmt.Errorf("%w: unrelated plugin.json", errInstallMissingManifest)
+		}
 	default:
 		return "", nil
 	}
@@ -240,6 +285,18 @@ func parseInstalledPackageMetadata(root *fileutil.Directory, manifestName string
 		return installedPackageMetadata{
 			name:    firstNonEmpty(meta.Name, meta.Extension.Name),
 			version: firstNonEmpty(meta.Version, meta.Extension.Version), verifyContent: string(content),
+		}, nil
+	case installerAgentPluginManifestName:
+		var meta agentPluginManifestHeader
+		if err := json.Unmarshal(content, &meta); err != nil {
+			return installedPackageMetadata{}, fmt.Errorf(
+				"registry: decode Agent Plugins manifest %q: %w",
+				manifestName,
+				err,
+			)
+		}
+		return installedPackageMetadata{
+			name: strings.TrimSpace(meta.Name), version: strings.TrimSpace(meta.Version), verifyContent: string(content),
 		}, nil
 	default:
 		return installedPackageMetadata{}, fmt.Errorf("registry: unsupported manifest %q", manifestName)

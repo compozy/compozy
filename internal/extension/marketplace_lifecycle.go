@@ -118,6 +118,8 @@ type marketplaceManagedInstall struct {
 	slug          string
 	detail        *registrypkg.Detail
 	manifest      *Manifest
+	stagingDir    string
+	installPath   string
 	finalDir      string
 	checksum      string
 	archiveDigest string
@@ -137,31 +139,14 @@ func InstallMarketplaceManaged(
 	loader MarketplaceSourceLoader,
 	req MarketplaceInstallRequest,
 ) (_ *ExtensionInfo, err error) {
-	if registry == nil {
-		return nil, errors.New("extension: registry is required")
-	}
-	prepared, err := prepareMarketplaceManagedInstall(ctx, homePaths, registry, loader, req)
+	prepared, err := PrepareMarketplaceManagedInstall(ctx, homePaths, registry, loader, req)
 	if err != nil {
 		return nil, err
 	}
-	provenance := marketplaceInstallProvenance(prepared, req)
-	if err := registry.Install(
-		prepared.manifest,
-		prepared.finalDir,
-		prepared.checksum,
-		WithInstallSource(SourceMarketplace),
-		WithInstallEnabled(false),
-		WithInstallRegistryMetadata(prepared.slug, strings.TrimSpace(prepared.detail.Source), prepared.remoteVersion),
-		WithInstallProvenance(provenance),
-	); err != nil {
-		return nil, errors.Join(err, removeExtensionDir(prepared.finalDir))
-	}
-
-	info, err := registry.Get(prepared.manifest.Name)
-	if err != nil {
-		return nil, err
-	}
-	return info, nil
+	defer func() {
+		err = errors.Join(err, prepared.Close())
+	}()
+	return prepared.Commit()
 }
 
 func prepareMarketplaceManagedInstall(
@@ -205,7 +190,12 @@ func prepareMarketplaceManagedInstall(
 	if err != nil {
 		return marketplaceManagedInstall{}, err
 	}
-	defer joinRemoveAll(&err, stagingDir, "extension: remove staged extension directory")
+	cleanupStaging := true
+	defer func() {
+		if cleanupStaging {
+			joinRemoveAll(&err, stagingDir, "extension: remove staged extension directory")
+		}
+	}()
 
 	result, err := installMarketplaceArchive(ctx, downloader, slug, req, stagingDir)
 	if err != nil {
@@ -218,26 +208,24 @@ func prepareMarketplaceManagedInstall(
 			return marketplaceManagedInstall{}, fmt.Errorf("extension: close marketplace registry source: %w", closeErr)
 		}
 	}
-	manifest, finalDir, moveDiagnostics, err := moveMarketplaceInstallIntoPlace(
-		homePaths,
-		registry,
-		slug,
-		result,
-	)
+	manifest, finalDir, err := inspectMarketplaceInstall(homePaths, slug, result)
 	if err != nil {
 		return marketplaceManagedInstall{}, err
 	}
+	cleanupStaging = false
 	return marketplaceManagedInstall{
 		slug:          slug,
 		detail:        detail,
 		manifest:      manifest,
+		stagingDir:    stagingDir,
+		installPath:   result.InstallPath,
 		finalDir:      finalDir,
 		checksum:      result.Checksum,
 		archiveDigest: result.ArchiveDigestSHA256,
 		digestMatched: result.DigestMatched,
 		remoteVersion: firstNonEmpty(result.Version, detail.Version, manifest.Version),
 		trust:         req.Trust,
-		cleanup:       appendRegistryCleanupDiagnostics(result.CleanupDiagnostics, moveDiagnostics),
+		cleanup:       append([]registrypkg.CleanupDiagnostic(nil), result.CleanupDiagnostics...),
 	}, nil
 }
 
@@ -297,28 +285,20 @@ func installMarketplaceArchive(
 	return result, err
 }
 
-func moveMarketplaceInstallIntoPlace(
+func inspectMarketplaceInstall(
 	homePaths compozyconfig.HomePaths,
-	registry LifecycleRegistry,
 	slug string,
 	result *registrypkg.InstallResult,
-) (*Manifest, string, []registrypkg.CleanupDiagnostic, error) {
+) (*Manifest, string, error) {
 	manifest, err := LoadManifest(result.InstallPath)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("extension: load installed extension manifest for %q: %w", slug, err)
-	}
-	if err := ensureExtensionNotInstalled(registry, manifest.Name); err != nil {
-		return nil, "", nil, err
+		return nil, "", fmt.Errorf("extension: load installed extension manifest for %q: %w", slug, err)
 	}
 	finalDir, err := ManagedInstallPathChecked(homePaths, manifest.Name)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", err
 	}
-	moveResult, err := registrypkg.MoveInstalledDir(result.InstallPath, finalDir, false)
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("extension: move %q into managed install path: %w", manifest.Name, err)
-	}
-	return manifest, finalDir, moveResult.CleanupDiagnostics, nil
+	return manifest, finalDir, nil
 }
 
 func marketplaceInstallProvenance(
@@ -381,6 +361,22 @@ func RemoveManagedExtension(
 	name string,
 	reload MutationReload,
 ) (_ ManagedRemoveResult, err error) {
+	return removeManagedExtensionWithDataOps(
+		ctx,
+		registry,
+		name,
+		reload,
+		defaultExtensionDataRemovalOps(),
+	)
+}
+
+func removeManagedExtensionWithDataOps(
+	ctx context.Context,
+	registry LifecycleRegistry,
+	name string,
+	reload MutationReload,
+	dataRemovalOps extensionDataRemovalOps,
+) (_ ManagedRemoveResult, err error) {
 	if registry == nil {
 		return ManagedRemoveResult{}, errors.New("extension: registry is required")
 	}
@@ -412,7 +408,23 @@ func RemoveManagedExtension(
 			)
 		}
 	}
-	return finalizeManagedExtensionRemoval(info.Name, installDir, change), nil
+	dataCleanup, dataCleanupErr := removeAgentPluginDataForInstall(*info, installDir, dataRemovalOps)
+	if dataCleanupErr != nil && !dataCleanup.quarantined {
+		restoreErr := restoreRemovedExtensionRecord(registry, *info, installDir, change)
+		if restoreErr == nil && reload != nil {
+			restoreErr = reload(ctx)
+		}
+		return ManagedRemoveResult{}, errors.Join(dataCleanupErr, restoreErr)
+	}
+	result := finalizeManagedExtensionRemoval(info.Name, installDir, change)
+	if dataCleanupErr != nil {
+		result.Warnings = append(result.Warnings, extensionDataCleanupWarning(
+			info.Name,
+			dataCleanup.quarantinePath,
+			dataCleanupErr,
+		))
+	}
+	return result, nil
 }
 
 // InstalledExtensionDir returns the root directory for a persisted extension
@@ -430,7 +442,7 @@ func InstalledExtensionDir(info ExtensionInfo) (string, error) {
 		)
 	}
 	switch filepath.Base(manifestPath) {
-	case "extension.toml", "extension.json":
+	case "extension.toml", "extension.json", agentPluginManifestFileName:
 	default:
 		return "", fmt.Errorf("extension: extension %q has an invalid manifest path %q", info.Name, info.ManifestPath)
 	}

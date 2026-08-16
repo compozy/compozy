@@ -77,6 +77,8 @@ func (m *Manager) stageDevelopmentLinkLocked(
 		OriginPath:               verified.OriginPath,
 		GenerationHash:           verified.GenerationHash,
 		NetworkRequirementDigest: verified.NetworkRequirementDigest,
+		Format:                   verified.Manifest.Format,
+		IngestDiagnostics:        verified.Manifest.IngestDiagnostics,
 	})
 }
 
@@ -128,6 +130,8 @@ func (m *Manager) restoreDevelopmentLinkSnapshot(key InstanceKey, snapshot *DevL
 		OriginPath:               snapshot.OriginPath,
 		GenerationHash:           snapshot.BundleGeneration,
 		NetworkRequirementDigest: snapshot.NetworkRequirementDigest,
+		Format:                   snapshot.Format,
+		IngestDiagnostics:        snapshot.IngestDiagnostics,
 	}); err != nil {
 		return err
 	}

@@ -120,12 +120,12 @@ func normalizeCWD(cwd *string, root string, dataRoot string) (string, error) {
 }
 
 func canonicalExistingPrefix(path string) (string, error) {
-	absolute, err := filepath.Abs(path)
+	absolute, err := filepath.Abs(filepath.Clean(path))
 	if err != nil {
 		return "", fmt.Errorf("make path absolute: %w", err)
 	}
-	existing := filepath.Clean(absolute)
-	missing := make([]string, 0)
+	existing := absolute
+	missing := make([]string, 0, 4)
 	for {
 		resolved, resolveErr := filepath.EvalSymlinks(existing)
 		if resolveErr == nil {

@@ -201,6 +201,8 @@ func registryInstallInfo(
 		Source:                   config.source,
 		Enabled:                  config.enabled,
 		ManifestPath:             manifestPath,
+		Format:                   normalizeExtensionFormat(resolvedManifest.Format),
+		IngestDiagnostics:        cloneDiagnosticItems(resolvedManifest.IngestDiagnostics),
 		InstalledAt:              installedAt,
 		Capabilities:             capabilities,
 		Permissions:              permissions,
@@ -222,6 +224,10 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 	if err != nil {
 		return fmt.Errorf("extension: marshal permissions for %q: %w", info.Name, err)
 	}
+	diagnosticsJSON, err := json.Marshal(info.IngestDiagnostics)
+	if err != nil {
+		return fmt.Errorf("extension: marshal ingest diagnostics for %q: %w", info.Name, err)
+	}
 	provenanceJSON, err := json.Marshal(info.Provenance)
 	if err != nil {
 		return fmt.Errorf("extension: marshal provenance for %q: %w", info.Name, err)
@@ -231,7 +237,7 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		INSERT INTO extensions (
 ` + registryInsertColumns + `
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	if replaceExisting {
 		query += `
@@ -239,6 +245,8 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 			version = excluded.version,
 			source = excluded.source,
 			manifest_path = excluded.manifest_path,
+			format = excluded.format,
+			ingest_diagnostics_json = excluded.ingest_diagnostics_json,
 			installed_at = excluded.installed_at,
 			provides_json = excluded.provides_json,
 			permissions_json = excluded.permissions_json,
@@ -269,6 +277,8 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		sourceText,
 		info.Enabled,
 		info.ManifestPath,
+		string(normalizeExtensionFormat(info.Format)),
+		string(diagnosticsJSON),
 		store.FormatTimestamp(info.InstalledAt),
 		string(capabilitiesJSON),
 		string(permissionsJSON),
@@ -289,4 +299,11 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 	}
 	r.invalidateEnabledBundledNames()
 	return nil
+}
+
+func normalizeExtensionFormat(format ExtensionFormat) ExtensionFormat {
+	if format == FormatAgentPlugin {
+		return FormatAgentPlugin
+	}
+	return FormatCompozy
 }

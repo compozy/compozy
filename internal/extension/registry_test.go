@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -66,6 +67,9 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 	if got.ManifestPath != filepath.Join(dir, manifestTOMLFileName) {
 		t.Fatalf("ManifestPath = %q, want %q", got.ManifestPath, filepath.Join(dir, manifestTOMLFileName))
 	}
+	if got.Format != FormatCompozy || len(got.IngestDiagnostics) != 0 {
+		t.Fatalf("native format state = %q/%#v, want compozy with no ingest diagnostics", got.Format, got.IngestDiagnostics)
+	}
 	if !got.InstalledAt.Equal(env.installedAt) {
 		t.Fatalf("InstalledAt = %v, want %v", got.InstalledAt, env.installedAt)
 	}
@@ -86,6 +90,79 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 			got.RemoteVersion,
 		)
 	}
+}
+
+// Invariant: format and recorded ingestion diagnostics round-trip on the row
+// that owns each global or workspace extension instance.
+// Owner: extension registry persistence.
+// Canonical suite: extension registry tests.
+func TestRegistryPersistsAgentPluginInstanceMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist global format and component skips from the verified artifact", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		root := writeAgentPluginManifestFixture(t)
+		writeFile(t, filepath.Join(root, "mcp.json"), fmt.Sprintf(`{
+  "$schema": %q,
+  "mcpServers": {
+    "legacy": {"type":"sse","url":"https://example.com/events"}
+  }
+}`, agentplugin.MCPSchemaID))
+		manifest, err := LoadManifest(root)
+		if err != nil {
+			t.Fatalf("LoadManifest() error = %v", err)
+		}
+		checksum, err := ComputeDirectoryChecksum(root)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)
+		}
+		if err := env.registry.Install(manifest, root, checksum); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		got, err := env.registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		if got.Format != FormatAgentPlugin || !reflect.DeepEqual(got.IngestDiagnostics, manifest.IngestDiagnostics) {
+			t.Fatalf("persisted metadata = %q/%#v, want %#v", got.Format, got.IngestDiagnostics, manifest.IngestDiagnostics)
+		}
+	})
+
+	t.Run("Should replace dev diagnostics atomically with the generation", func(t *testing.T) {
+		t.Parallel()
+		env := newRegistryTestEnv(t)
+		firstDiagnostics := AgentPluginDiagnostics("portable", []agentplugin.Diagnostic{{
+			Scope: "skill:first", Message: "description is required",
+		}})
+		first, err := env.registry.LinkDev(DevLinkRequest{
+			Name: "portable", WorkspaceID: "workspace-a", OriginPath: "/tmp/portable",
+			GenerationHash: strings.Repeat("a", 64), Format: FormatAgentPlugin,
+			IngestDiagnostics: firstDiagnostics,
+		})
+		if err != nil {
+			t.Fatalf("LinkDev(first) error = %v", err)
+		}
+		if first.Format != FormatAgentPlugin || !reflect.DeepEqual(first.IngestDiagnostics, firstDiagnostics) {
+			t.Fatalf("LinkDev(first) = %#v, want portable metadata", first)
+		}
+
+		secondDiagnostics := AgentPluginDiagnostics("portable", []agentplugin.Diagnostic{{
+			Scope: "mcp:second", Message: "invalid mcp server entry",
+		}})
+		second, err := env.registry.LinkDev(DevLinkRequest{
+			Name: "portable", WorkspaceID: "workspace-a", OriginPath: "/tmp/portable",
+			GenerationHash: strings.Repeat("b", 64), Format: FormatAgentPlugin,
+			IngestDiagnostics: secondDiagnostics,
+		})
+		if err != nil {
+			t.Fatalf("LinkDev(second) error = %v", err)
+		}
+		if second.BundleGeneration != strings.Repeat("b", 64) ||
+			!reflect.DeepEqual(second.IngestDiagnostics, secondDiagnostics) {
+			t.Fatalf("LinkDev(second) = %#v, want generation and replacement diagnostics", second)
+		}
+	})
 }
 
 func TestRegistryInstallRejectsExternalBridgeAdapters(t *testing.T) {

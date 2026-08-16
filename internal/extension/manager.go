@@ -252,6 +252,7 @@ type Manager struct {
 	lifecycleEventSink    LifecycleEventSink
 	sourceSessions        resources.SourceSessionManager
 	workspaceResolver     workspacepkg.RuntimeResolver
+	homePaths             compozyconfig.HomePaths
 	processRegistry       *toolruntime.Registry
 	logger                *slog.Logger
 	now                   func() time.Time

@@ -148,7 +148,11 @@ func extensionManifestPath(dir string) string {
 	if info, err := os.Stat(tomlPath); err == nil && info.Mode().IsRegular() {
 		return tomlPath
 	}
-	return filepath.Join(root, manifestJSONFileName)
+	jsonPath := filepath.Join(root, manifestJSONFileName)
+	if info, err := os.Stat(jsonPath); err == nil && info.Mode().IsRegular() {
+		return jsonPath
+	}
+	return filepath.Join(root, agentPluginManifestFileName)
 }
 
 func sourcePosition(data []byte, offset int) (int, int) {

@@ -11,11 +11,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -684,6 +687,104 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 				originalGrantActive,
 				replacementGrantActive,
 			)
+		}
+	})
+
+	t.Run("Should reload portable source generations atomically and retain the last good diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		workspace := newDevTestWorkspace(t, "workspace-portable")
+		origin := filepath.Join(workspace.RootDir, "portable-dev")
+		if err := os.MkdirAll(origin, 0o755); err != nil {
+			t.Fatalf("MkdirAll(portable origin) error = %v", err)
+		}
+		writeFile(t, filepath.Join(origin, agentPluginManifestFileName), fmt.Sprintf(
+			`{"$schema":%q,"name":"portable-dev","version":"1.0.0"}`,
+			agentplugin.PluginSchemaID,
+		))
+		skillPath := filepath.Join(origin, "skills", "review", "SKILL.md")
+		if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
+			t.Fatalf("MkdirAll(portable skill) error = %v", err)
+		}
+		writeFile(t, skillPath, "---\nname: review\ndescription: Review changes\n---\nReview the change.\n")
+		firstHash, err := ComputeDirectoryChecksum(origin)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(first) error = %v", err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		manager := NewManager(
+			env.registry,
+			WithHomePaths(homePaths),
+			WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
+		)
+		startDevTestManager(t, manager)
+		if _, err := manager.LinkDevelopmentFromOrigin(
+			testutil.Context(t), workspace.WorkspaceID, origin, firstHash,
+		); err != nil {
+			t.Fatalf("LinkDevelopmentFromOrigin() error = %v", err)
+		}
+
+		key := InstanceKey{Name: "portable-dev", WorkspaceID: workspace.WorkspaceID}
+		firstLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
+		if err != nil {
+			t.Fatalf("GetDevLink(first) error = %v", err)
+		}
+		if firstLink.Format != FormatAgentPlugin || len(firstLink.IngestDiagnostics) != 0 {
+			t.Fatalf("first dev link = %#v, want portable without diagnostics", firstLink)
+		}
+		wantDataDir, err := homePaths.ExtensionDataPath(key.Name, key.WorkspaceID)
+		if err != nil {
+			t.Fatalf("ExtensionDataPath() error = %v", err)
+		}
+		current, err := manager.GetForInstance(key)
+		if err != nil {
+			t.Fatalf("GetForInstance(first) error = %v", err)
+		}
+		if current.Manifest == nil || current.Manifest.Format != FormatAgentPlugin {
+			t.Fatalf("current manifest = %#v, want portable", current.Manifest)
+		}
+		if _, statErr := os.Stat(wantDataDir); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("portable dev data dir stat error = %v, want not created", statErr)
+		}
+
+		writeFile(t, skillPath, "---\nname: other\ndescription: Mismatch\n---\nMismatch.\n")
+		secondHash, err := ComputeDirectoryChecksum(origin)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(second) error = %v", err)
+		}
+		if _, err := manager.ReloadExtension(testutil.Context(t), key, secondHash); err != nil {
+			t.Fatalf("ReloadExtension(second) error = %v", err)
+		}
+		secondLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
+		if err != nil {
+			t.Fatalf("GetDevLink(second) error = %v", err)
+		}
+		if secondLink.BundleGeneration != secondHash || len(secondLink.IngestDiagnostics) != 1 {
+			t.Fatalf("second dev link = %#v, want generation and one diagnostic replaced atomically", secondLink)
+		}
+
+		writeFile(t, filepath.Join(origin, agentPluginManifestFileName), fmt.Sprintf(
+			`{"$schema":%q,"name":"Invalid Name","version":"1.0.0"}`,
+			agentplugin.PluginSchemaID,
+		))
+		fatalHash, err := ComputeDirectoryChecksum(origin)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(fatal) error = %v", err)
+		}
+		if _, err := manager.ReloadExtension(testutil.Context(t), key, fatalHash); err == nil {
+			t.Fatal("ReloadExtension(fatal manifest) error = nil, want validation failure")
+		}
+		retainedLink, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
+		if err != nil {
+			t.Fatalf("GetDevLink(retained) error = %v", err)
+		}
+		if retainedLink.BundleGeneration != secondHash ||
+			!reflect.DeepEqual(retainedLink.IngestDiagnostics, secondLink.IngestDiagnostics) {
+			t.Fatalf("retained dev link = %#v, want last-good generation and diagnostics %#v", retainedLink, secondLink)
 		}
 	})
 }
@@ -1391,12 +1492,12 @@ func TestVerifyDevGeneration(t *testing.T) {
 			validHash[:63],
 			validHash + "0",
 		} {
-			if _, err := verifyDevGeneration(origin, hostile); !errors.Is(err, ErrExtensionGenerationInvalid) {
+			if _, err := verifyDevGeneration(origin, hostile, nil); !errors.Is(err, ErrExtensionGenerationInvalid) {
 				t.Fatalf("verifyDevGeneration(%q) error = %v, want ErrExtensionGenerationInvalid", hostile, err)
 			}
 		}
 		writeFile(t, filepath.Join(origin, "dist", generationPrefix+validHash, "tampered.txt"), "tampered")
-		if _, err := verifyDevGeneration(origin, validHash); !errors.Is(err, ErrExtensionGenerationInvalid) {
+		if _, err := verifyDevGeneration(origin, validHash, nil); !errors.Is(err, ErrExtensionGenerationInvalid) {
 			t.Fatalf("verifyDevGeneration(tampered) error = %v, want ErrExtensionGenerationInvalid", err)
 		}
 	})
@@ -1422,7 +1523,7 @@ func TestVerifyDevGeneration(t *testing.T) {
 		if err := os.Symlink(outside, filepath.Join(dist, generationPrefix+hash)); err != nil {
 			t.Fatalf("os.Symlink() error = %v", err)
 		}
-		if _, err := verifyDevGeneration(origin, hash); !errors.Is(err, ErrExtensionGenerationInvalid) {
+		if _, err := verifyDevGeneration(origin, hash, nil); !errors.Is(err, ErrExtensionGenerationInvalid) {
 			t.Fatalf("verifyDevGeneration(escape) error = %v, want ErrExtensionGenerationInvalid", err)
 		}
 	})

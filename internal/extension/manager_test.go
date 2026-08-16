@@ -1260,13 +1260,18 @@ func TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot(t *testing.
 	manager := NewManager(nil)
 	root := t.TempDir()
 	inside := filepath.Join(root, "bin", "tool")
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("filepath.EvalSymlinks(root) error = %v", err)
+	}
+	canonicalInside := filepath.Join(canonicalRoot, "bin", "tool")
 
 	got, err := manager.resolveCommand(root, "./bin/tool")
 	if err != nil {
 		t.Fatalf("resolveCommand(relative) error = %v", err)
 	}
-	if got != inside {
-		t.Fatalf("resolveCommand(relative) = %q, want %q", got, inside)
+	if got != canonicalInside {
+		t.Fatalf("resolveCommand(relative) = %q, want %q", got, canonicalInside)
 	}
 
 	got, err = manager.resolveCommand(root, inside)
@@ -1306,8 +1311,9 @@ func TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot(t *testing.
 	if err != nil {
 		t.Fatalf("resolveResourcePath(within root) error = %v", err)
 	}
-	if resourceRoot != filepath.Join(root, "skills") {
-		t.Fatalf("resolveResourcePath(within root) = %q, want %q", resourceRoot, filepath.Join(root, "skills"))
+	wantResourceRoot := filepath.Join(canonicalRoot, "skills")
+	if resourceRoot != wantResourceRoot {
+		t.Fatalf("resolveResourcePath(within root) = %q, want %q", resourceRoot, wantResourceRoot)
 	}
 }
 
