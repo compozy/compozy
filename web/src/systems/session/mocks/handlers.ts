@@ -9,6 +9,8 @@ import {
 import {
   primarySessionFixture,
   sessionApprovalFixture,
+  sessionAttentionChangedFixture,
+  sessionCatalogChangedFixture,
   sessionEventsFixture,
   sessionFixtures,
   sessionHistoryFixture,
@@ -27,6 +29,7 @@ const storyWorkspaceNameById = new Map(
 );
 const sessionCatalogStreamEncoder = new TextEncoder();
 const attachmentBytes = new Map<string, { bytes: Uint8Array; attachment: SessionAttachment }>();
+const presenceLeases = new Map<string, string>();
 
 export function seedSessionAttachmentMock(
   workspaceId: string,
@@ -42,6 +45,10 @@ export function seedSessionAttachmentMock(
 
 export function resetSessionAttachmentMock(): void {
   attachmentBytes.clear();
+}
+
+export function resetSessionAttentionMock(): void {
+  presenceLeases.clear();
 }
 
 function attachmentStoreKey(workspaceId: string, sessionId: string, attachmentId: string): string {
@@ -75,7 +82,19 @@ function createSessionCatalogStreamResponse(): Response {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       controller.enqueue(
-        sessionCatalogStreamEncoder.encode(": storybook session catalog stream\n\n")
+        sessionCatalogStreamEncoder.encode(
+          [
+            ": storybook session catalog stream",
+            "",
+            "event: session_catalog_changed",
+            `data: ${JSON.stringify(sessionCatalogChangedFixture)}`,
+            "",
+            "event: session_attention_changed",
+            `data: ${JSON.stringify(sessionAttentionChangedFixture)}`,
+            "",
+            "",
+          ].join("\n")
+        )
       );
     },
   });
@@ -97,6 +116,14 @@ export const handlers: HttpHandler[] = [
     const agent = url.searchParams.get("agent")?.trim();
     const state = url.searchParams.get("state")?.trim();
     const resumable = url.searchParams.get("resumable");
+    const attentionOnly = url.searchParams.get("attention") === "true";
+    const badges = new Set(
+      url.searchParams
+        .getAll("badge")
+        .flatMap(value => value.split(","))
+        .map(value => value.trim())
+        .filter(Boolean)
+    );
     const archive = url.searchParams.get("archive");
     const limit = Math.max(1, Number(url.searchParams.get("limit") ?? 50));
     const sessions = [...sessionById.values()].filter(session => {
@@ -106,6 +133,15 @@ export const handlers: HttpHandler[] = [
       if (agent && session.agent_name !== agent) return false;
       if (state && session.state !== state) return false;
       if (resumable === "true" && !session.attachable) return false;
+      if (
+        attentionOnly &&
+        session.badge !== "waiting-for-input" &&
+        session.badge !== "waiting-for-auth" &&
+        session.badge !== "failed"
+      ) {
+        return false;
+      }
+      if (badges.size > 0 && !badges.has(session.badge)) return false;
       if (archive === "only" && session.archived_at === null) return false;
       if (archive !== "include" && archive !== "only" && session.archived_at !== null) return false;
       return true;
@@ -124,6 +160,35 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/sessions/catalog-stream", ({ response }) =>
     response.untyped(createSessionCatalogStreamResponse())
   ),
+  compozyApiMock.get("/api/sessions/attention-summary", () => {
+    const byWorkspace = new Map<string, { needs_you: number; finished: number }>();
+    let needsYou = 0;
+    let finished = 0;
+    for (const session of sessionById.values()) {
+      const workspaceId = session.workspace_id ?? "";
+      if (workspaceId === "") continue;
+      const totals = byWorkspace.get(workspaceId) ?? { needs_you: 0, finished: 0 };
+      if (
+        session.badge === "waiting-for-input" ||
+        session.badge === "waiting-for-auth" ||
+        session.badge === "failed"
+      ) {
+        needsYou += 1;
+        totals.needs_you += 1;
+      } else if (session.badge === "done") {
+        finished += 1;
+        totals.finished += 1;
+      }
+      byWorkspace.set(workspaceId, totals);
+    }
+    return HttpResponse.json({
+      needs_you: needsYou,
+      finished,
+      by_workspace: [...byWorkspace.entries()]
+        .map(([workspace_id, totals]) => ({ workspace_id, ...totals }))
+        .sort((left, right) => left.workspace_id.localeCompare(right.workspace_id)),
+    });
+  }),
   compozyApiMock.get("/api/sessions/{session_id}", ({ params }) => {
     const id = String(params.session_id);
     const session = sessionById.get(id);
@@ -202,6 +267,51 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ session });
   }),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions",
+    ({ params, request }) => {
+      const workspaceId = String(params.workspace_id);
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
+      if (!session || session.workspace_id !== workspaceId) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const status = new URL(request.url).searchParams.get("status")?.trim();
+      return HttpResponse.json({
+        interactions: session.pending_interactions.filter(
+          interaction => !status || interaction.status === status
+        ),
+      });
+    }
+  ),
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/presence",
+    async ({ params, request }) => {
+      const workspaceId = String(params.workspace_id);
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
+      if (!session || session.workspace_id !== workspaceId) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const body = await request.json();
+      if (body === null || typeof body !== "object") {
+        return HttpResponse.json({ error: "presence request is required" }, { status: 400 });
+      }
+      const visible = Reflect.get(body, "visible");
+      const leaseIdValue = Reflect.get(body, "lease_id");
+      const leaseId = typeof leaseIdValue === "string" ? leaseIdValue.trim() : "";
+      if (visible === true && leaseId === "") {
+        const issued = `lease:${id}`;
+        presenceLeases.set(issued, id);
+        return HttpResponse.json({ lease_id: issued });
+      }
+      if ((visible === true || visible === false) && presenceLeases.get(leaseId) === id) {
+        if (visible === false) presenceLeases.delete(leaseId);
+        return new HttpResponse(null, { status: 204 });
+      }
+      return HttpResponse.json({ error: "presence lease not found" }, { status: 404 });
+    }
+  ),
   compozyApiMock.delete("/api/workspaces/{workspace_id}/sessions/{session_id}", ({ params }) => {
     const id = String(params.session_id);
 

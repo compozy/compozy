@@ -152,6 +152,19 @@ func (n *hooksNotifier) DispatchSessionHealthUpdateAfter(
 	)
 }
 
+func (n *hooksNotifier) DispatchSessionAttentionChanged(
+	ctx context.Context,
+	payload hookspkg.SessionAttentionChangedPayload,
+) (hookspkg.SessionAttentionChangedPayload, error) {
+	return dispatchRuntime(
+		ctx,
+		n,
+		hookspkg.HookSessionAttentionChanged,
+		payload,
+		hookRuntime.DispatchSessionAttentionChanged,
+	)
+}
+
 func (n *hooksNotifier) DispatchNetworkPeerJoined(
 	ctx context.Context,
 	payload hookspkg.NetworkPeerJoinedPayload,

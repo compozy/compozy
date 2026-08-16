@@ -12,56 +12,63 @@ import (
 )
 
 type sessionInfoRow struct {
-	session              store.SessionInfo
-	name                 sql.NullString
-	worktreeID           sql.NullString
-	speedResolutionJSON  string
-	selectedProvider     string
-	selectedModel        string
-	selectedReasoning    string
-	selectedSpeed        string
-	networkSpecJSON      string
-	networkMode          string
-	networkChannel       sql.NullString
-	networkSource        string
-	sessionType          string
-	parentSessionID      sql.NullString
-	rootSessionID        sql.NullString
-	spawnDepth           int
-	spawnRole            sql.NullString
-	ttlExpiresAt         sql.NullString
-	autoStopOnParent     bool
-	spawnBudgetJSON      string
-	permissionPolicyJSON string
-	archivedAt           sql.NullString
-	acpSessionID         sql.NullString
-	stopReason           sql.NullString
-	stopDetail           sql.NullString
-	failureKind          sql.NullString
-	failureSummary       string
-	crashBundlePath      string
-	subprocessPID        int
-	subprocessStartedAt  sql.NullString
-	lastUpdateAt         sql.NullString
-	stallState           string
-	stallReason          string
-	activityJSON         string
-	attachedTo           string
-	attachExpiresAt      sql.NullString
-	transcriptEpoch      int64
-	soulSnapshotID       sql.NullString
-	soulDigest           string
-	parentSoulDigest     string
-	envID                string
-	envBackend           string
-	envProfile           string
-	envInstance          string
-	envState             string
-	envProviderStateJSON string
-	envLastSyncAt        sql.NullString
-	envLastSyncError     string
-	createdAtRaw         string
-	updatedAtRaw         string
+	session                store.SessionInfo
+	name                   sql.NullString
+	worktreeID             sql.NullString
+	speedResolutionJSON    string
+	selectedProvider       string
+	selectedModel          string
+	selectedReasoning      string
+	selectedSpeed          string
+	networkSpecJSON        string
+	networkMode            string
+	networkChannel         sql.NullString
+	networkSource          string
+	sessionType            string
+	parentSessionID        sql.NullString
+	rootSessionID          sql.NullString
+	spawnDepth             int
+	spawnRole              sql.NullString
+	ttlExpiresAt           sql.NullString
+	autoStopOnParent       bool
+	spawnBudgetJSON        string
+	permissionPolicyJSON   string
+	archivedAt             sql.NullString
+	acpSessionID           sql.NullString
+	stopReason             sql.NullString
+	stopDetail             sql.NullString
+	failureKind            sql.NullString
+	failureSummary         string
+	crashBundlePath        string
+	subprocessPID          int
+	subprocessStartedAt    sql.NullString
+	lastUpdateAt           sql.NullString
+	stallState             string
+	stallReason            string
+	activityJSON           string
+	attachedTo             string
+	attachExpiresAt        sql.NullString
+	transcriptEpoch        int64
+	pendingPermissionCount int
+	pendingClarifyCount    int
+	attentionRevision      int64
+	lastSettledRevision    int64
+	lastSeenRevision       int64
+	lastSeenAt             sql.NullString
+	attentionChangedAt     sql.NullString
+	soulSnapshotID         sql.NullString
+	soulDigest             string
+	parentSoulDigest       string
+	envID                  string
+	envBackend             string
+	envProfile             string
+	envInstance            string
+	envState               string
+	envProviderStateJSON   string
+	envLastSyncAt          sql.NullString
+	envLastSyncError       string
+	createdAtRaw           string
+	updatedAtRaw           string
 }
 
 func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
@@ -221,6 +228,9 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		session.AttachExpiresAt = &attachExpiresAt
 	}
 	session.TranscriptEpoch = row.transcriptEpoch
+	if err := populateSessionAttentionScanParts(session, row); err != nil {
+		return err
+	}
 	if row.archivedAt.Valid && strings.TrimSpace(row.archivedAt.String) != "" {
 		archivedAt, parseErr := store.ParseTimestamp(row.archivedAt.String)
 		if parseErr != nil {
@@ -289,6 +299,13 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.attachedTo,
 		&row.attachExpiresAt,
 		&row.transcriptEpoch,
+		&row.pendingPermissionCount,
+		&row.pendingClarifyCount,
+		&row.attentionRevision,
+		&row.lastSettledRevision,
+		&row.lastSeenRevision,
+		&row.lastSeenAt,
+		&row.attentionChangedAt,
 		&row.soulSnapshotID,
 		&row.soulDigest,
 		&row.parentSoulDigest,

@@ -103,10 +103,10 @@ func TestRuntimeHarnessPromptSessionWithEventsInvokesCallback(t *testing.T) {
 	}
 }
 
-func TestValidateUDSApprovalResponseChecksApprovedPayload(t *testing.T) {
+func TestValidateUDSApprovalResponseChecksCanonicalPayload(t *testing.T) {
 	t.Parallel()
 
-	body := []byte(`{"status":"approved"}`)
+	body := []byte(`{"outcome":"applied","request_id":"req-1","decision":"allow-once"}`)
 	if err := ValidateUDSApprovalResponse(http.StatusOK, body); err != nil {
 		t.Fatalf("ValidateUDSApprovalResponse() error = %v", err)
 	}
@@ -123,7 +123,7 @@ func TestValidateUDSApprovalResponseChecksApprovedPayload(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidateUDSApprovalResponse(pending) error = nil, want payload failure")
 	}
-	if !strings.Contains(err.Error(), "want approved") {
+	if !strings.Contains(err.Error(), "incomplete") {
 		t.Fatalf("ValidateUDSApprovalResponse(pending) error = %q, want payload mismatch", err)
 	}
 }

@@ -21,6 +21,7 @@ const (
 
 	ListSortRecent       = "recent"
 	ListSortLastActivity = "last_activity"
+	ListSortAttention    = "attention"
 
 	ArchiveExclude = store.SessionArchiveExclude
 	ArchiveOnly    = store.SessionArchiveOnly
@@ -48,6 +49,8 @@ type ListQuery struct {
 	RootSessionID   string
 	Search          string
 	Resumable       bool
+	AttentionOnly   bool
+	Badges          []Badge
 	Archive         store.SessionArchiveFilter
 	Sort            string
 	Cursor          string
@@ -73,6 +76,8 @@ type sessionListFingerprint struct {
 	RootSessionID   string                     `json:"root"`
 	Search          string                     `json:"q"`
 	Resumable       bool                       `json:"resumable"`
+	AttentionOnly   bool                       `json:"attention"`
+	Badges          []Badge                    `json:"badges"`
 	Archive         store.SessionArchiveFilter `json:"archive"`
 	Sort            string                     `json:"sort"`
 }
@@ -98,6 +103,9 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	after, err := decodeSessionListCursor(normalized.Cursor, fingerprint)
 	if err != nil {
 		return ListPage{}, err
+	}
+	if normalized.AttentionOnly || len(normalized.Badges) > 0 {
+		return m.listAttentionPage(ctx, normalized, pager, fingerprint, after)
 	}
 
 	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
@@ -190,10 +198,17 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
 	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
+	badges, err := ParseBadgeFilters(badgeStrings(query.Badges))
+	if err != nil {
+		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
+	}
+	query.Badges = badges
 	query.Archive = store.SessionArchiveFilter(strings.TrimSpace(string(query.Archive)))
 	query.Sort = strings.TrimSpace(query.Sort)
 	query.Cursor = strings.TrimSpace(query.Cursor)
-	if query.Sort == "" {
+	if (query.AttentionOnly || len(query.Badges) > 0) && query.Sort == "" {
+		query.Sort = ListSortAttention
+	} else if query.Sort == "" {
 		query.Sort = ListSortRecent
 	}
 	if query.Archive == "" {
@@ -209,7 +224,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrListQueryInvalid, MaxListLimit)
 	}
 	switch query.Sort {
-	case ListSortRecent, ListSortLastActivity:
+	case ListSortRecent, ListSortLastActivity, ListSortAttention:
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported sort %q", ErrListQueryInvalid, query.Sort)
 	}
@@ -229,6 +244,13 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if !sessionMatchesIdentityFilters(info, query) || !sessionMatchesLineageFilters(info, query) ||
 		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesArchiveFilter(info, query.Archive) {
+		return false
+	}
+	badge := BadgeForInfo(info)
+	if query.AttentionOnly && ClassForBadge(badge) != AttentionNeedsYou {
+		return false
+	}
+	if len(query.Badges) > 0 && !badgeFilterContains(query.Badges, badge) {
 		return false
 	}
 	search := strings.ToLower(strings.TrimSpace(query.Search))
@@ -307,6 +329,12 @@ func sessionCatalogPosition(info store.SessionInfo, sortKey string) store.Sessio
 			position.PrimaryAt = info.Liveness.LastUpdateAt.UTC()
 		}
 	}
+	if sortKey == ListSortAttention {
+		if info.AttentionChangedAt != nil && !info.AttentionChangedAt.IsZero() {
+			position.PrimaryAt = info.AttentionChangedAt.UTC()
+		}
+		position.SecondaryAt = info.UpdatedAt.UTC()
+	}
 	return position
 }
 
@@ -343,6 +371,8 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		RootSessionID:   query.RootSessionID,
 		Search:          query.Search,
 		Resumable:       query.Resumable,
+		AttentionOnly:   query.AttentionOnly,
+		Badges:          append([]Badge(nil), query.Badges...),
 		Archive:         query.Archive,
 		Sort:            query.Sort,
 	})
@@ -406,37 +436,44 @@ func projectSessionCatalogPage(
 
 func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 	return &Info{
-		ID:                   strings.TrimSpace(info.ID),
-		Name:                 strings.TrimSpace(info.Name),
-		AgentName:            strings.TrimSpace(info.AgentName),
-		Provider:             strings.TrimSpace(info.Provider),
-		Model:                strings.TrimSpace(info.Model),
-		ReasoningEffort:      strings.TrimSpace(info.ReasoningEffort),
-		Speed:                info.Speed,
-		SpeedResolution:      speedpkg.CloneResolution(info.SpeedResolution),
-		RuntimeStatus:        info.RuntimeStatus,
-		RuntimeTransition:    info.RuntimeTransition,
-		RuntimeFailure:       strings.TrimSpace(info.RuntimeFailure),
-		WorkspaceID:          strings.TrimSpace(info.WorkspaceID),
-		WorktreeID:           strings.TrimSpace(info.WorktreeID),
-		NetworkParticipation: info.NetworkSpecSnapshot(),
-		Type:                 Type(strings.TrimSpace(info.SessionType)),
-		Lineage:              store.CloneSessionLineage(info.Lineage),
-		State:                State(strings.TrimSpace(info.State)),
-		StopReason:           info.StopReason,
-		StopDetail:           strings.TrimSpace(info.StopDetail),
-		Failure:              store.CloneSessionFailure(info.Failure),
-		ACPSessionID:         stringValue(info.ACPSessionID),
-		Liveness:             store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:              cloneSessionSandboxMeta(info.Sandbox),
-		SoulSnapshotID:       strings.TrimSpace(info.SoulSnapshotID),
-		SoulDigest:           strings.TrimSpace(info.SoulDigest),
-		ParentSoulDigest:     strings.TrimSpace(info.ParentSoulDigest),
-		AttachedTo:           strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:      cloneTimePointer(info.AttachExpiresAt),
-		TranscriptEpoch:      info.TranscriptEpoch,
-		ArchivedAt:           cloneTimePointer(info.ArchivedAt),
-		CreatedAt:            info.CreatedAt,
-		UpdatedAt:            info.UpdatedAt,
+		ID:                     strings.TrimSpace(info.ID),
+		Name:                   strings.TrimSpace(info.Name),
+		AgentName:              strings.TrimSpace(info.AgentName),
+		Provider:               strings.TrimSpace(info.Provider),
+		Model:                  strings.TrimSpace(info.Model),
+		ReasoningEffort:        strings.TrimSpace(info.ReasoningEffort),
+		Speed:                  info.Speed,
+		SpeedResolution:        speedpkg.CloneResolution(info.SpeedResolution),
+		RuntimeStatus:          info.RuntimeStatus,
+		RuntimeTransition:      info.RuntimeTransition,
+		RuntimeFailure:         strings.TrimSpace(info.RuntimeFailure),
+		WorkspaceID:            strings.TrimSpace(info.WorkspaceID),
+		WorktreeID:             strings.TrimSpace(info.WorktreeID),
+		NetworkParticipation:   info.NetworkSpecSnapshot(),
+		Type:                   Type(strings.TrimSpace(info.SessionType)),
+		Lineage:                store.CloneSessionLineage(info.Lineage),
+		State:                  State(strings.TrimSpace(info.State)),
+		StopReason:             info.StopReason,
+		StopDetail:             strings.TrimSpace(info.StopDetail),
+		Failure:                store.CloneSessionFailure(info.Failure),
+		ACPSessionID:           stringValue(info.ACPSessionID),
+		Liveness:               store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:                cloneSessionSandboxMeta(info.Sandbox),
+		SoulSnapshotID:         strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:             strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest:       strings.TrimSpace(info.ParentSoulDigest),
+		AttachedTo:             strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:        cloneTimePointer(info.AttachExpiresAt),
+		TranscriptEpoch:        info.TranscriptEpoch,
+		PendingPermissionCount: info.PendingPermissionCount,
+		PendingClarifyCount:    info.PendingClarifyCount,
+		AttentionRevision:      info.AttentionRevision,
+		LastSettledRevision:    info.LastSettledRevision,
+		LastSeenRevision:       info.LastSeenRevision,
+		LastSeenAt:             cloneTimePointer(info.LastSeenAt),
+		AttentionChangedAt:     cloneTimePointer(info.AttentionChangedAt),
+		ArchivedAt:             cloneTimePointer(info.ArchivedAt),
+		CreatedAt:              info.CreatedAt,
+		UpdatedAt:              info.UpdatedAt,
 	}
 }

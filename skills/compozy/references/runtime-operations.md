@@ -136,6 +136,9 @@ cannot be validated fail closed.
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
     compozy session list --resumable -o json
+    compozy session list --attention -o json
+    compozy session list --badge done --all-workspaces -o json
+    compozy session list --summary -o json
     compozy session list --archived -o json
     compozy session list --include-archived -o json
     compozy session status <session-id> -o json
@@ -160,6 +163,7 @@ cannot be validated fail closed.
     compozy session soul refresh <session-id> --expected-digest sha256:old -o json
     compozy session approve <session-id> --request-id req_123 --turn-id turn_123 --decision allow-once
     compozy session clarify pending <session-id> -o json
+    compozy session interactions <session-id> -o json
     compozy session clarify answer <session-id> <request-id> --choice 1 -o json
     compozy session clarify answer <session-id> <request-id> --text "Use staging" -o json
     compozy session wait <session-id>
@@ -194,6 +198,44 @@ Rewind is available only for idle ordinary user sessions.
 It archives the removed suffix for audit. It does not undo file changes, tool or network effects,
 saved memory, or external provider actions. Use `--archive archived` or `--archive all` on events
 and history to inspect the discarded suffix.
+
+### Session attention and pending interactions
+
+Session badges have one daemon-owned precedence order. `waiting-for-auth`, `waiting-for-input`, and
+`failed` form the `needs-you` class. `done` means the latest settled turn has not been seen; it forms
+the `finished` class. A new turn, terminal lifecycle state, or higher-priority pending interaction
+always outranks `done`. CLI and API reads never mark a session seen.
+
+Use `compozy session list --attention` for the `needs-you` class, `--badge <token>` for an exact
+badge, and `--all-workspaces` to remove the workspace filter. `--summary` returns exact `needs_you`,
+`finished`, and per-workspace totals across the whole catalog. Attention lists default to
+`--sort attention`, ordered by the latest attention transition with a stable session-ID tie-break.
+
+`compozy session interactions <session-id>` lists the sanitized pending and restart-orphaned
+questions and permission requests. The same projection is available from
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/interactions` and is embedded in session
+detail and status payloads. Interaction IDs are durable across daemon restart; resolve the returned
+ID through the existing approve or clarify-answer surface instead of matching display text.
+
+Resolution outcomes are explicit. A live permission decision reports `applied`, and a live
+clarification answer reports `answered`. Resolving an orphaned request reports
+`resolved-after-restart`; repeating that resolution reports `already-resolved` with the original
+winning decision or answer. `queue-full` leaves the interaction untouched and is safe to retry.
+`compozy session status <session-id> -o json` returns both the canonical badge and this same bounded
+pending-interaction projection.
+
+Operator clients acquire a per-client visibility lease with
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence`. A first request with
+`{"visible":true}` returns `lease_id`; renew or release only that lease by sending the ID back.
+When a turn settles under any live lease, the daemon marks it seen and does not derive `done`.
+Leases expire after 15 seconds unless renewed. Presence, attention-summary, and cross-workspace
+catalog surfaces are operator-only; agent identity receives `403 agent_scope_denied`. Interaction
+discovery accepts a validated agent identity only for that agent's workspace.
+
+Subscribe to `session_attention_changed` on the session catalog stream for committed badge edges.
+Extension hooks use the separate async-only `session.attention.changed` event. Its payload carries
+`from`, `to`, `class`, `at`, and the session/workspace context; hook failure never rolls back the
+canonical attention change.
 
 Each accepted prompt records its immutable runtime snapshot with the authored user event. Omitting
 runtime flags uses the durable `selected` value first, then the current `effective` selection; both

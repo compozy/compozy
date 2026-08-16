@@ -149,6 +149,9 @@ func WithSessionHealthStore(store HealthStore) Option {
 func WithSessionCatalog(catalog store.SessionCatalog) Option {
 	return func(manager *Manager) {
 		manager.sessionCatalog = catalog
+		if attentionStore, ok := catalog.(store.SessionAttentionStore); ok {
+			manager.attentionStore = attentionStore
+		}
 		if creationStore, ok := catalog.(store.SessionCreationStore); ok {
 			manager.creationStore = creationStore
 		}
@@ -294,6 +297,20 @@ func WithNow(now func() time.Time) Option {
 func WithSessionIDGenerator(generator IDGenerator) Option {
 	return func(manager *Manager) {
 		manager.newSessionID = generator
+	}
+}
+
+// WithInteractionIDGenerator overrides pending-interaction id allocation.
+func WithInteractionIDGenerator(generator IDGenerator) Option {
+	return func(manager *Manager) {
+		manager.newInteractionID = generator
+	}
+}
+
+// WithPresenceLeaseIDGenerator overrides operator-presence lease id allocation.
+func WithPresenceLeaseIDGenerator(generator IDGenerator) Option {
+	return func(manager *Manager) {
+		manager.newPresenceLeaseID = generator
 	}
 }
 

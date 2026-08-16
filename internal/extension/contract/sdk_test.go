@@ -94,6 +94,11 @@ func TestHookContractsResolveDescriptors(t *testing.T) {
 				payload: "NetworkWorkClosedPayload",
 				patch:   "NetworkObservationPatch",
 			},
+			{
+				event:   hooks.HookSessionAttentionChanged,
+				payload: "SessionAttentionChangedPayload",
+				patch:   "SessionAttentionObservationPatch",
+			},
 		} {
 			contract, ok := byEvent[tc.event]
 			if !ok {

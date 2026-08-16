@@ -7452,8 +7452,12 @@ func (f *fakeSessionManager) PromptSynthetic(
 	return ch, nil
 }
 
-func (f *fakeSessionManager) ApprovePermission(context.Context, string, acp.ApproveRequest) error {
-	return nil
+func (f *fakeSessionManager) ApprovePermission(
+	context.Context,
+	string,
+	acp.ApproveRequest,
+) (session.ApprovalResult, error) {
+	return session.ApprovalResult{}, nil
 }
 
 func (f *fakeSessionManager) SetNetworkPeerLifecycle(session.NetworkPeerLifecycle) {}
@@ -10581,6 +10585,13 @@ func (f *fakeHookRuntime) DispatchSessionHealthUpdateAfter(
 	_ context.Context,
 	payload hookspkg.SessionHealthUpdateAfterPayload,
 ) (hookspkg.SessionHealthUpdateAfterPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionAttentionChanged(
+	_ context.Context,
+	payload hookspkg.SessionAttentionChangedPayload,
+) (hookspkg.SessionAttentionChangedPayload, error) {
 	return payload, nil
 }
 

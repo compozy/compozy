@@ -149,6 +149,8 @@ type Manager struct {
 	streamEvents          *sessionEventBroadcaster
 	catalogEventsMu       sync.Mutex
 	catalogEvents         *sessionCatalogBroadcaster
+	presenceMu            sync.Mutex
+	presenceLeases        map[sessionPresenceKey]sessionPresenceLease
 
 	logger                       *slog.Logger
 	driver                       AgentDriver
@@ -180,6 +182,7 @@ type Manager struct {
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore
 	sessionCatalog               store.SessionCatalog
+	attentionStore               store.SessionAttentionStore
 	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore
 	ledgerMaterializer           LedgerMaterializer
@@ -204,6 +207,8 @@ type Manager struct {
 	newSandboxID                 IDGenerator
 	newTurnID                    IDGenerator
 	newRepairEventID             IDGenerator
+	newInteractionID             IDGenerator
+	newPresenceLeaseID           IDGenerator
 	acquireSessionDBFamilyLease  sessionDBFamilyLeaseAcquirer
 	removeAllPath                func(path string) error
 	promptBufSize                int

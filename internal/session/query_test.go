@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -704,6 +705,165 @@ func TestNormalizeListQuery(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return exact summary counts beyond one catalog page", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &multiPagedRecordingSessionCatalog{
+			recordingSessionCatalog: newRecordingSessionCatalog(),
+			durable:                 attentionCatalogFixtures(105),
+		}
+		h := newHarness(t, WithSessionCatalog(catalog))
+
+		summary, err := h.manager.AttentionSummary(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("AttentionSummary() error = %v", err)
+		}
+		if got, want := summary.NeedsYou, 50; got != want {
+			t.Fatalf("AttentionSummary().NeedsYou = %d, want %d", got, want)
+		}
+		if got, want := summary.Finished, 25; got != want {
+			t.Fatalf("AttentionSummary().Finished = %d, want %d", got, want)
+		}
+		if got, want := len(summary.ByWorkspace), 3; got != want {
+			t.Fatalf("AttentionSummary().ByWorkspace length = %d, want %d", got, want)
+		}
+		if catalog.calls < 2 {
+			t.Fatalf("PageSessions() calls = %d, want at least 2", catalog.calls)
+		}
+		if got := []string{
+			summary.ByWorkspace[0].WorkspaceID,
+			summary.ByWorkspace[1].WorkspaceID,
+			summary.ByWorkspace[2].WorkspaceID,
+		}; !slices.Equal(got, []string{"ws-a", "ws-b", "ws-c"}) {
+			t.Fatalf("summary workspace order = %#v, want stable workspace order", got)
+		}
+	})
+
+	t.Run("Should page exact badge matches with a stable attention cursor", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &multiPagedRecordingSessionCatalog{
+			recordingSessionCatalog: newRecordingSessionCatalog(),
+			durable:                 attentionCatalogFixtures(105),
+		}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		query := ListQuery{Badges: []Badge{BadgeDone}, Limit: 13}
+		first, err := h.manager.ListPage(ctx, query)
+		if err != nil {
+			t.Fatalf("ListPage(first) error = %v", err)
+		}
+		if first.Total != 25 || len(first.Sessions) != 13 || !first.HasMore || first.NextCursor == "" {
+			t.Fatalf("ListPage(first) = %#v, want 13 of 25 with continuation", first)
+		}
+		query.Cursor = first.NextCursor
+		second, err := h.manager.ListPage(ctx, query)
+		if err != nil {
+			t.Fatalf("ListPage(second) error = %v", err)
+		}
+		if second.Total != 25 || len(second.Sessions) != 12 || second.HasMore || second.NextCursor != "" {
+			t.Fatalf("ListPage(second) = %#v, want remaining 12", second)
+		}
+		seen := make(map[string]struct{}, 25)
+		for _, page := range [][]*Info{first.Sessions, second.Sessions} {
+			for _, info := range page {
+				if got := BadgeForInfo(info); got != BadgeDone {
+					t.Fatalf("BadgeForInfo(%q) = %q, want %q", info.ID, got, BadgeDone)
+				}
+				if _, duplicate := seen[info.ID]; duplicate {
+					t.Fatalf("session %q appeared on both cursor pages", info.ID)
+				}
+				seen[info.ID] = struct{}{}
+			}
+		}
+	})
+}
+
+type multiPagedRecordingSessionCatalog struct {
+	*recordingSessionCatalog
+	durable []store.SessionInfo
+	calls   int
+}
+
+func (c *multiPagedRecordingSessionCatalog) PageSessions(
+	_ context.Context,
+	query store.SessionCatalogPageQuery,
+) (store.SessionCatalogPage, error) {
+	c.calls++
+	excluded := make(map[string]struct{}, len(query.ExcludeIDs))
+	for _, id := range query.ExcludeIDs {
+		excluded[id] = struct{}{}
+	}
+	candidates := make([]store.SessionInfo, 0, len(c.durable))
+	for index := range c.durable {
+		info := &c.durable[index]
+		if _, skip := excluded[info.ID]; skip {
+			continue
+		}
+		archived := info.ArchivedAt != nil
+		if query.Archive == store.SessionArchiveExclude && archived ||
+			query.Archive == store.SessionArchiveOnly && !archived {
+			continue
+		}
+		candidates = append(candidates, *info)
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return compareSessionCatalogPosition(
+			sessionCatalogPosition(candidates[i], query.Sort),
+			sessionCatalogPosition(candidates[j], query.Sort),
+		) < 0
+	})
+	if query.After != nil {
+		filtered := candidates[:0]
+		for index := range candidates {
+			info := &candidates[index]
+			if compareSessionCatalogPosition(sessionCatalogPosition(*info, query.Sort), *query.After) > 0 {
+				filtered = append(filtered, *info)
+			}
+		}
+		candidates = filtered
+	}
+	total := len(candidates)
+	if len(candidates) > query.Limit {
+		candidates = candidates[:query.Limit]
+	}
+	return store.SessionCatalogPage{Sessions: candidates, Total: total}, nil
+}
+
+func attentionCatalogFixtures(count int) []store.SessionInfo {
+	base := time.Date(2026, 8, 15, 20, 0, 0, 0, time.UTC)
+	infos := make([]store.SessionInfo, 0, count)
+	for index := range count {
+		workspaceID := []string{"ws-a", "ws-b", "ws-c"}[index%3]
+		changedAt := base.Add(time.Duration(index/2) * time.Second)
+		info := store.SessionInfo{
+			ID:                 fmt.Sprintf("sess-attention-%03d", index),
+			Name:               fmt.Sprintf("Attention %03d", index),
+			AgentName:          "coder",
+			WorkspaceID:        workspaceID,
+			SessionType:        string(SessionTypeUser),
+			State:              string(StateActive),
+			AttentionChangedAt: &changedAt,
+			CreatedAt:          base.Add(-time.Duration(index) * time.Minute),
+			UpdatedAt:          base.Add(time.Duration(index) * time.Second),
+		}
+		switch {
+		case index < 40:
+			info.PendingPermissionCount = 1
+		case index < 50:
+			info.PendingClarifyCount = 1
+		case index < 75:
+			info.AttentionRevision = 1
+			info.LastSettledRevision = 1
+		}
+		infos = append(infos, info)
+	}
+	return infos
 }
 
 type pagedRecordingSessionCatalog struct {

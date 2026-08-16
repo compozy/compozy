@@ -11,6 +11,14 @@ import (
 
 const sessionCatalogSubscriberBuffer = 64
 
+// CatalogEventName identifies one named SSE delivery on the catalog stream.
+type CatalogEventName string
+
+const (
+	CatalogEventNameChanged   CatalogEventName = "session_catalog_changed"
+	CatalogEventNameAttention CatalogEventName = "session_attention_changed"
+)
+
 // CatalogEventKind identifies a durable session-catalog mutation.
 type CatalogEventKind string
 
@@ -23,9 +31,11 @@ const (
 
 // CatalogEvent identifies the workspace-scoped catalog snapshot to reconcile.
 type CatalogEvent struct {
+	Name        CatalogEventName
 	Kind        CatalogEventKind
 	WorkspaceID string
 	SessionID   string
+	Attention   *AttentionEvent
 }
 
 type sessionCatalogBroadcaster struct {
@@ -117,7 +127,7 @@ func (m *Manager) publishSessionCatalogEvent(event CatalogEvent) {
 }
 
 func (m *Manager) publishSessionCatalogWakeForEvent(session *Session, event acp.AgentEvent) {
-	if event.Type != acp.EventTypePermission || session == nil {
+	if session == nil || !catalogWakeEventType(event.Type) {
 		return
 	}
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
@@ -128,8 +138,28 @@ func sessionCatalogEventFromInfo(kind CatalogEventKind, info *Info) CatalogEvent
 		return CatalogEvent{}
 	}
 	return CatalogEvent{
+		Name:        CatalogEventNameChanged,
 		Kind:        kind,
 		WorkspaceID: strings.TrimSpace(info.WorkspaceID),
 		SessionID:   strings.TrimSpace(info.ID),
+	}
+}
+
+func catalogWakeEventType(eventType string) bool {
+	switch eventType {
+	case acp.EventTypePermission, acp.EventTypeClarify, acp.EventTypeDone, acp.EventTypeError:
+		return true
+	default:
+		return false
+	}
+}
+
+func sessionAttentionCatalogEvent(event AttentionEvent) CatalogEvent {
+	cloned := event
+	return CatalogEvent{
+		Name:        CatalogEventNameAttention,
+		WorkspaceID: strings.TrimSpace(event.WorkspaceID),
+		SessionID:   strings.TrimSpace(event.SessionID),
+		Attention:   &cloned,
 	}
 }

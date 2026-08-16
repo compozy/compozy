@@ -57,6 +57,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		AttachedTo:                   strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:              cloneTimePtr(info.AttachExpiresAt),
 		TranscriptEpoch:              info.TranscriptEpoch,
+		AttentionChangedAt:           cloneTimePtr(info.AttentionChangedAt),
+		PendingInteractions:          PendingInteractionPayloadsFromStore(info.PendingInteractions),
 		ArchivedAt:                   cloneTimePtr(info.ArchivedAt),
 		StopReason:                   info.StopReason,
 		StopDetail:                   info.StopDetail,
@@ -116,11 +118,41 @@ func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload
 		AttachedTo:               strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAt),
 		TranscriptEpoch:          info.TranscriptEpoch,
+		PendingPermissionCount:   info.PendingPermissionCount,
+		PendingClarifyCount:      info.PendingClarifyCount,
+		AttentionRevision:        info.AttentionRevision,
+		LastSettledRevision:      info.LastSettledRevision,
+		LastSeenRevision:         info.LastSeenRevision,
+		LastSeenAt:               cloneTimePtr(info.LastSeenAt),
+		AttentionChangedAt:       cloneTimePtr(info.AttentionChangedAt),
 		ArchivedAt:               cloneTimePtr(info.ArchivedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}
 	return SessionPayloadFromInfo(converted)
+}
+
+// PendingInteractionPayloadsFromStore converts canonical records into sanitized wire payloads.
+func PendingInteractionPayloadsFromStore(values []store.PendingInteraction) []contract.PendingInteractionPayload {
+	result := make([]contract.PendingInteractionPayload, 0, len(values))
+	for _, value := range values {
+		value = store.SanitizePendingInteraction(value)
+		result = append(result, contract.PendingInteractionPayload{
+			InteractionID:     strings.TrimSpace(value.InteractionID),
+			Kind:              strings.TrimSpace(value.Kind),
+			ProviderRequestID: strings.TrimSpace(value.ProviderRequestID),
+			TurnID:            strings.TrimSpace(value.TurnID),
+			Title:             strings.TrimSpace(value.Title),
+			Choices:           append([]string(nil), value.Payload.Choices...),
+			Decisions:         append([]string(nil), value.Payload.Decisions...),
+			Status:            strings.TrimSpace(value.Status),
+			CreatedAt:         value.CreatedAt.UTC(),
+			ResolvedAt:        cloneTimePtr(value.ResolvedAt),
+			Resolution:        strings.TrimSpace(value.Resolution),
+			ResolvedBy:        strings.TrimSpace(value.ResolvedBy),
+		})
+	}
+	return result
 }
 
 func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelectionPayload {

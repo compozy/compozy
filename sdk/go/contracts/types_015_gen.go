@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type NetworkThreadMessagesResponse struct {
+	Messages []NetworkConversationMessagePayload `json:"messages"`
+	Page     CursorPagePayload                   `json:"page"`
+}
+
 type NetworkThreadOpenedPayload struct {
 	Event       HookEvent  `json:"event"`
 	Timestamp   time.Time  `json:"timestamp"`
@@ -247,5 +252,3 @@ type PayloadBase struct {
 	Event     HookEvent `json:"event"`
 	Timestamp time.Time `json:"timestamp"`
 }
-
-type PermissionDeniedPatch struct{}

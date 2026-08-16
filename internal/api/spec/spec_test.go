@@ -651,6 +651,22 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeEveryNamedSessionCatalogStreamPayload",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				operation := operationFor(t, doc, "/api/sessions/catalog-stream", "GET")
+				stream := responseSchema(t, operation, 200, specContentTypeEventStream)
+				if len(stream.OneOf) != 2 {
+					t.Fatalf("session catalog SSE response oneOf = %#v, want two named payloads", stream.OneOf)
+				}
+				catalog := stream.OneOf[0].Value
+				attention := stream.OneOf[1].Value
+				assertRequired(t, catalog, "kind", "workspace_id", "session_id")
+				assertRequired(t, attention, "session_id", "workspace_id", "from", "to", "class", "at")
+			},
+		},
+		{
 			name: "ShouldDescribeSessionTranscriptStreamAndDirectReadContracts",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

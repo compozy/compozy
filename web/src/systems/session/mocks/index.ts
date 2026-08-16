@@ -1,4 +1,4 @@
-export { handlers } from "./handlers";
+export { handlers, resetSessionAttentionMock } from "./handlers";
 export {
   assistantMessageFixture,
   bashToolMessageFixture,
@@ -17,6 +17,8 @@ export {
   sessionRuntime,
   searchToolMessageFixture,
   sessionApprovalFixture,
+  sessionAttentionChangedFixture,
+  sessionCatalogChangedFixture,
   sessionCommandCatalogFixture,
   sessionEventsFixture,
   sessionFixtures,

@@ -1697,13 +1697,17 @@ func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
 		return nil
 	}
 
-	err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
+	result, err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
 		RequestID: "req-1",
 		TurnID:    "turn-1",
 		Decision:  "allow-once",
 	})
 	if err != nil {
 		t.Fatalf("ApprovePermission() error = %v", err)
+	}
+	if result.Outcome != store.PendingInteractionOutcomeApplied ||
+		result.RequestID != "req-1" || result.Decision != "allow-once" {
+		t.Fatalf("ApprovePermission() result = %#v", result)
 	}
 	if !called {
 		t.Fatal("ApprovePermission() did not reach the active session process")
@@ -1722,7 +1726,7 @@ func TestApprovePermissionReturnsNotActiveForStoppedSession(t *testing.T) {
 		t.Fatalf("Stop() error = %v", err)
 	}
 
-	err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
+	_, err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
 		RequestID: "req-1",
 		Decision:  "allow-once",
 	})
@@ -1770,7 +1774,7 @@ func TestApprovePermissionMapsPendingLookupErrors(t *testing.T) {
 			h.driver.approveHook = func(*fakeProcess, acp.ApproveRequest) error {
 				return tc.hookErr
 			}
-			err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
+			_, err := h.manager.ApprovePermission(testutil.Context(t), session.ID, acp.ApproveRequest{
 				RequestID: "req-1",
 				Decision:  "allow-once",
 			})

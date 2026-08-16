@@ -38,19 +38,34 @@ func (m *Manager) persistSessionLifecycleStateLocked(ctx context.Context, sessio
 			if err := m.registerSessionCreation(ctx, info, meta, *identity); err != nil {
 				return err
 			}
-			m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
-			return nil
+			return m.finishSessionCatalogPersistence(ctx, session)
 		}
 		if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
 			return fmt.Errorf("session: register catalog state for %q: %w", session.ID, err)
 		}
-		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
-		return nil
+		return m.finishSessionCatalogPersistence(ctx, session)
 	}
-	if err := m.sessionCatalog.UpdateSessionState(ctx, sessionCatalogStateUpdate(info)); err != nil {
+	before, err := m.durableSessionInfoForLifecycleTransition(ctx, session.ID)
+	if err != nil {
+		return err
+	}
+	update := sessionCatalogStateUpdate(info)
+	update.AttentionTransition = BadgeForInfo(before) != BadgeForInfo(info)
+	if err := m.sessionCatalog.UpdateSessionState(ctx, update); err != nil {
 		return fmt.Errorf("session: update catalog state for %q: %w", session.ID, err)
 	}
-	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+	if err := m.hydrateSessionAttention(ctx, session); err != nil {
+		return err
+	}
+	m.publishLifecycleAttentionTransition(ctx, before, session.Info())
+	return nil
+}
+
+func (m *Manager) finishSessionCatalogPersistence(ctx context.Context, session *Session) error {
+	if err := m.hydrateSessionAttention(ctx, session); err != nil {
+		return err
+	}
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
 	return nil
 }
 
@@ -164,6 +179,13 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
 		TranscriptEpoch:          info.TranscriptEpoch,
+		PendingPermissionCount:   info.PendingPermissionCount,
+		PendingClarifyCount:      info.PendingClarifyCount,
+		AttentionRevision:        info.AttentionRevision,
+		LastSettledRevision:      info.LastSettledRevision,
+		LastSeenRevision:         info.LastSeenRevision,
+		LastSeenAt:               cloneTimePointer(info.LastSeenAt),
+		AttentionChangedAt:       cloneTimePointer(info.AttentionChangedAt),
 		ArchivedAt:               cloneTimePointer(info.ArchivedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,

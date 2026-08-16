@@ -12,6 +12,7 @@ import (
 )
 
 type StubSessionManager struct {
+	Attention                    StubSessionAttention
 	CreateFn                     func(context.Context, session.CreateOpts) (*session.Session, error)
 	CreateAcceptedFn             func(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
 	CreateWorktreeForkAcceptedFn func(context.Context, string, session.CreateAcceptedOpts) (*session.Info, error)
@@ -62,7 +63,7 @@ type StubSessionManager struct {
 	) (session.SendPromptResult, error)
 	CancelQueuedFn func(context.Context, string, string) (session.SendPromptResult, error)
 	CancelPromptFn func(context.Context, string) error
-	ApproveFn      func(context.Context, string, acp.ApproveRequest) error
+	ApproveFn      func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error)
 	InputQueueFn   func(context.Context, string) (session.InputQueueSummary, error)
 }
 
@@ -479,11 +480,15 @@ func (s StubSessionManager) CancelPrompt(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s StubSessionManager) ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error {
+func (s StubSessionManager) ApprovePermission(
+	ctx context.Context,
+	id string,
+	req acp.ApproveRequest,
+) (session.ApprovalResult, error) {
 	if s.ApproveFn != nil {
 		return s.ApproveFn(ctx, id, req)
 	}
-	return nil
+	return session.ApprovalResult{}, nil
 }
 
 func (s StubSessionManager) InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error) {

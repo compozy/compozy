@@ -18,7 +18,7 @@ import (
 
 // GetSessionHealth returns metadata-only session health and wake eligibility.
 func (h *BaseHandlers) GetSessionHealth(c *gin.Context) {
-	health, ok := h.sessionHealthPayloadForRoute(c)
+	health, _, ok := h.sessionHealthPayloadForRoute(c)
 	if !ok {
 		return
 	}
@@ -27,7 +27,7 @@ func (h *BaseHandlers) GetSessionHealth(c *gin.Context) {
 
 // GetSessionStatus returns compact session health with wake state when available.
 func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
-	health, ok := h.sessionHealthPayloadForRoute(c)
+	health, badge, ok := h.sessionHealthPayloadForRoute(c)
 	if !ok {
 		return
 	}
@@ -36,12 +36,22 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		WorkspaceID:         health.WorkspaceID,
 		AgentName:           health.AgentName,
 		State:               health.State,
+		Badge:               badge,
 		Health:              health.Health,
 		ActivePrompt:        health.ActivePrompt,
 		Attachable:          health.Attachable,
 		EligibleForWake:     health.EligibleForWake,
 		IneligibilityReason: health.IneligibilityReason,
+		PendingInteractions: make([]contract.PendingInteractionPayload, 0),
 		UpdatedAt:           health.UpdatedAt,
+	}
+	if manager, available := h.Sessions.(SessionAttentionManager); available {
+		interactions, err := manager.PendingInteractions(c.Request.Context(), health.SessionID, nil)
+		if err != nil {
+			h.respondError(c, http.StatusInternalServerError, err)
+			return
+		}
+		response.PendingInteractions = PendingInteractionPayloadsFromStore(interactions)
 	}
 	if h.HeartbeatStatus != nil {
 		status, err := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, false)
@@ -63,7 +73,7 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	health, ok := h.sessionHealthPayloadForRoute(c)
+	health, _, ok := h.sessionHealthPayloadForRoute(c)
 	if !ok {
 		return
 	}

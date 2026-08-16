@@ -1,0 +1,58 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "attention",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "You exercise the attention truth contract.",
+            "turns": [
+                {
+                    "name": "bind",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "noop"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["ready"]
+                        }
+                    ]
+                },
+                {
+                    "name": "permission",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "request permission"
+                    },
+                    "steps": [
+                        {
+                            "kind": "permission",
+                            "tool_call_id": "attention-permission",
+                            "title": "Modify protected file",
+                            "tool_kind": "edit",
+                            "path": "protected.txt",
+                            "status": "pending",
+                            "expect_decision": "allow-once",
+                            "emit_decision": true
+                        }
+                    ]
+                },
+                {
+                    "name": "complete",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "complete turn"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["completed"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

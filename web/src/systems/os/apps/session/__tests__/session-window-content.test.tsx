@@ -86,6 +86,7 @@ const deadSession: SessionPayload = {
   archived_at: null,
   attachable: false,
   available_commands: [],
+  pending_interactions: [],
   badge: "stopped",
   created_at: "2026-08-13T12:00:00Z",
   failure: { kind: "process_exit", summary: "Codex exited" },

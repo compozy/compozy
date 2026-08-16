@@ -12,14 +12,16 @@ import (
 type Badge string
 
 const (
-	BadgeRunning        Badge = "running"
-	BadgeIdle           Badge = "idle"
-	BadgeUnhealthy      Badge = "unhealthy"
-	BadgeHung           Badge = "hung"
-	BadgeWaitingForAuth Badge = "waiting-for-auth"
-	BadgeStopped        Badge = "stopped"
-	BadgeFailed         Badge = "failed"
-	BadgeUnknown        Badge = "unknown"
+	BadgeRunning         Badge = "running"
+	BadgeIdle            Badge = "idle"
+	BadgeUnhealthy       Badge = "unhealthy"
+	BadgeHung            Badge = "hung"
+	BadgeWaitingForAuth  Badge = "waiting-for-auth"
+	BadgeWaitingForInput Badge = "waiting-for-input"
+	BadgeDone            Badge = "done"
+	BadgeStopped         Badge = "stopped"
+	BadgeFailed          Badge = "failed"
+	BadgeUnknown         Badge = "unknown"
 )
 
 // BadgeInputs are the runtime-truth fields used to compute a session badge.
@@ -29,13 +31,15 @@ type BadgeInputs struct {
 	Health              heartbeat.SessionHealthStatus
 	Failure             *store.SessionFailure
 	PendingAuth         bool
+	PendingClarify      bool
 	ActivePrompt        bool
 	Stalled             bool
+	Unseen              bool
 	IneligibilityReason string
 }
 
 // CanonicalBadge collapses runtime state, health, and failure classification into
-// the stable eight-token badge vocabulary used by API, CLI, and web clients.
+// the stable ten-token badge vocabulary used by API, CLI, and web clients.
 func CanonicalBadge(input BadgeInputs) Badge {
 	failure := store.CloneSessionFailure(input.Failure)
 	terminal := input.State == StateStopped || input.HealthState == heartbeat.SessionHealthStateStopped
@@ -47,6 +51,9 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	}
 	if input.PendingAuth || failureKindIsAuth(failure) {
 		return BadgeWaitingForAuth
+	}
+	if input.PendingClarify {
+		return BadgeWaitingForInput
 	}
 	if input.Stalled {
 		return BadgeHung
@@ -64,8 +71,10 @@ func CanonicalBadge(input BadgeInputs) Badge {
 		input.HealthState == heartbeat.SessionHealthStatePrompting {
 		return BadgeRunning
 	}
-	if input.State == StateActive || input.HealthState == heartbeat.SessionHealthStateIdle ||
-		input.HealthState == heartbeat.SessionHealthStateDetached {
+	if idleEligibleBadgeInput(input) && input.Unseen {
+		return BadgeDone
+	}
+	if idleEligibleBadgeInput(input) {
 		return BadgeIdle
 	}
 	return BadgeUnknown
@@ -85,10 +94,12 @@ func BadgeForInfo(info *Info) Badge {
 		return BadgeUnknown
 	}
 	return CanonicalBadge(BadgeInputs{
-		State:       info.State,
-		Failure:     info.Failure,
-		PendingAuth: info.PendingPermission || infoFailureNeedsAuth(info.Failure),
-		Stalled:     infoHasDetectedStall(info),
+		State:          info.State,
+		Failure:        info.Failure,
+		PendingAuth:    info.PendingPermission || info.PendingPermissionCount > 0 || infoFailureNeedsAuth(info.Failure),
+		PendingClarify: info.PendingClarifyCount > 0,
+		Stalled:        infoHasDetectedStall(info),
+		Unseen:         info.LastSettledRevision > info.LastSeenRevision,
 		ActivePrompt: info.Liveness != nil &&
 			info.Liveness.Activity != nil &&
 			strings.TrimSpace(info.Liveness.Activity.TurnID) != "",
@@ -137,15 +148,25 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 		failure = info.Failure
 	}
 	pendingPermission := info != nil && info.PendingPermission
+	pendingPermissionCount := info != nil && info.PendingPermissionCount > 0
+	pendingClarify := info != nil && info.PendingClarifyCount > 0
+	unseen := info != nil && info.LastSettledRevision > info.LastSeenRevision
 	return CanonicalBadge(BadgeInputs{
 		State:               state,
 		HealthState:         health.State,
 		Health:              health.Health,
 		Failure:             failure,
-		PendingAuth:         pendingPermission || infoFailureNeedsAuth(failure),
+		PendingAuth:         pendingPermission || pendingPermissionCount || infoFailureNeedsAuth(failure),
+		PendingClarify:      pendingClarify,
 		ActivePrompt:        health.ActivePrompt,
+		Unseen:              unseen,
 		IneligibilityReason: health.IneligibilityReason,
 	})
+}
+
+func idleEligibleBadgeInput(input BadgeInputs) bool {
+	return input.State == StateActive || input.HealthState == heartbeat.SessionHealthStateIdle ||
+		input.HealthState == heartbeat.SessionHealthStateDetached
 }
 
 func failureKindIsAuth(failure *store.SessionFailure) bool {

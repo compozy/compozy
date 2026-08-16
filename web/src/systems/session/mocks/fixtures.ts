@@ -1,6 +1,8 @@
 import type {
   PermissionRequest,
   SessionApprovalResponse,
+  SessionAttentionEventPayload,
+  SessionCatalogEventPayload,
   SessionEventPayload,
   SessionPayload,
   SessionRepairPayload,
@@ -26,7 +28,11 @@ function liveParticipation(workspaceId: string, channelId: string) {
   return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
 }
 
-export const sessionFixtures: SessionPayload[] = [
+type SessionFixtureInput = Omit<SessionPayload, "pending_interactions"> & {
+  pending_interactions?: SessionPayload["pending_interactions"];
+};
+
+const sessionFixtureRows: SessionFixtureInput[] = [
   {
     id: storySessionIds.frontend,
     name: "Landing page launch QA",
@@ -78,7 +84,20 @@ export const sessionFixtures: SessionPayload[] = [
     workspace_id: storyWorkspaceIds.hq,
     workspace_path: storyWorkspacePaths.hq,
     state: "active",
-    badge: "running",
+    badge: "waiting-for-input",
+    attention_changed_at: "2026-04-17T18:11:30Z",
+    pending_interactions: [
+      {
+        interaction_id: "interaction_story_clarify",
+        kind: "clarify",
+        provider_request_id: "clarify_story_launch_channel",
+        turn_id: "turn_story_clarify",
+        title: "Which launch channel should lead?",
+        choices: ["Stable", "Preview"],
+        status: "pending",
+        created_at: "2026-04-17T18:11:30Z",
+      },
+    ],
     attachable: true,
     archived_at: null,
     available_commands: [],
@@ -97,7 +116,20 @@ export const sessionFixtures: SessionPayload[] = [
     workspace_id: storyWorkspaceIds.finance,
     workspace_path: storyWorkspacePaths.finance,
     state: "active",
-    badge: "running",
+    badge: "waiting-for-auth",
+    attention_changed_at: "2026-04-17T18:13:30Z",
+    pending_interactions: [
+      {
+        interaction_id: "interaction_story_permission",
+        kind: "permission",
+        provider_request_id: "permission_story_revenue_export",
+        turn_id: "turn_story_permission",
+        title: "Export the launch revenue report",
+        decisions: ["allow-once", "reject-once"],
+        status: "pending",
+        created_at: "2026-04-17T18:13:30Z",
+      },
+    ],
     attachable: true,
     archived_at: null,
     available_commands: [],
@@ -116,7 +148,8 @@ export const sessionFixtures: SessionPayload[] = [
     workspace_id: storyWorkspaceIds.hq,
     workspace_path: storyWorkspacePaths.hq,
     state: "active",
-    badge: "running",
+    badge: "done",
+    attention_changed_at: "2026-04-17T18:14:30Z",
     attachable: true,
     archived_at: null,
     available_commands: [],
@@ -262,7 +295,27 @@ export const sessionFixtures: SessionPayload[] = [
   },
 ];
 
+export const sessionFixtures: SessionPayload[] = sessionFixtureRows.map(session => ({
+  ...session,
+  pending_interactions: session.pending_interactions ?? [],
+}));
+
 export const primarySessionFixture: SessionPayload = sessionFixtures[0]!;
+
+export const sessionCatalogChangedFixture: SessionCatalogEventPayload = {
+  kind: "upserted",
+  session_id: storySessionIds.cto,
+  workspace_id: storyWorkspaceIds.hq,
+};
+
+export const sessionAttentionChangedFixture: SessionAttentionEventPayload = {
+  session_id: storySessionIds.cto,
+  workspace_id: storyWorkspaceIds.hq,
+  from: "running",
+  to: "waiting-for-input",
+  class: "needs-you",
+  at: "2026-04-17T18:11:30Z",
+};
 
 export const sessionEventsFixture: SessionEventPayload[] = [
   {
@@ -678,7 +731,9 @@ export const sessionTranscriptPermissionFixture: TranscriptMessage[] = [
 ];
 
 export const sessionApprovalFixture: SessionApprovalResponse = {
-  status: "approved",
+  outcome: "applied",
+  request_id: "perm_launch_001",
+  decision: "allow-once",
 };
 
 export const permissionRequestFixture: PermissionRequest = {

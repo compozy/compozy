@@ -240,25 +240,50 @@ func sessionRepairBundle(record SessionRepairRecord) outputBundle {
 
 func sessionApprovalBundle(sessionID string, record SessionApprovalRecord) outputBundle {
 	payload := struct {
-		SessionID string `json:"session_id"`
-		Status    string `json:"status"`
+		SessionID        string `json:"session_id"`
+		Outcome          string `json:"outcome"`
+		InteractionID    string `json:"interaction_id,omitempty"`
+		RequestID        string `json:"request_id"`
+		Decision         string `json:"decision"`
+		ResolvedDecision string `json:"resolved_decision,omitempty"`
 	}{
-		SessionID: strings.TrimSpace(sessionID),
-		Status:    strings.TrimSpace(record.Status),
+		SessionID:        strings.TrimSpace(sessionID),
+		Outcome:          strings.TrimSpace(record.Outcome),
+		InteractionID:    strings.TrimSpace(record.InteractionID),
+		RequestID:        strings.TrimSpace(record.RequestID),
+		Decision:         strings.TrimSpace(record.Decision),
+		ResolvedDecision: strings.TrimSpace(record.ResolvedDecision),
 	}
 	return outputBundle{
 		jsonValue: payload,
 		human: func() (string, error) {
 			return renderHumanSection("Session Approval", []keyValue{
 				{Label: sessionSessionValue, Value: stringOrDash(payload.SessionID)},
-				{Label: sessionStatusValue, Value: stringOrDash(payload.Status)},
+				{Label: taskOutcomeValue, Value: stringOrDash(payload.Outcome)},
+				{Label: "Request", Value: stringOrDash(payload.RequestID)},
+				{Label: "Decision", Value: stringOrDash(payload.Decision)},
+				{Label: "Resolved Decision", Value: stringOrDash(payload.ResolvedDecision)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"session_approval",
-				[]string{sessionSessionIDKey, sessionStatusKey},
-				[]string{payload.SessionID, payload.Status},
+				[]string{
+					sessionSessionIDKey,
+					cliOutcomeKey,
+					"interaction_id",
+					sessionRequestIDKey,
+					loopDecisionKey,
+					"resolved_decision",
+				},
+				[]string{
+					payload.SessionID,
+					payload.Outcome,
+					payload.InteractionID,
+					payload.RequestID,
+					payload.Decision,
+					payload.ResolvedDecision,
+				},
 			), nil
 		},
 	}

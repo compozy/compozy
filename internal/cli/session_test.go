@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestParseSinceFlagRFC3339(t *testing.T) {
@@ -1067,6 +1069,154 @@ func TestSessionListDefaultsToExactActiveState(t *testing.T) {
 	}
 }
 
+func TestSessionListAttentionFiltersAndSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass needs-you filtering with attention-first ordering", func(t *testing.T) {
+		t.Parallel()
+
+		var seenQuery SessionListQuery
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				seenQuery = query
+				return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: session.DefaultListLimit}}, nil
+			},
+		})
+		if _, _, err := executeRootCommand(t, deps, "session", "list", "--attention", "-o", "json"); err != nil {
+			t.Fatalf("executeRootCommand(session list --attention) error = %v", err)
+		}
+		if !seenQuery.Attention || seenQuery.Sort != session.ListSortAttention || seenQuery.State != "" {
+			t.Fatalf("ListSessions() query = %#v, want attention filter without implicit state", seenQuery)
+		}
+	})
+
+	t.Run("Should pass exact badges across every workspace", func(t *testing.T) {
+		t.Parallel()
+
+		var seenQuery SessionListQuery
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				seenQuery = query
+				return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: session.DefaultListLimit}}, nil
+			},
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				t.Fatal("GetWorkspace() called for --all-workspaces")
+				return WorkspaceDetailRecord{}, nil
+			},
+		})
+		deps.getenv = func(key string) string {
+			if key == workspaceEnvName {
+				return "workspace-from-environment"
+			}
+			return ""
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "list", "--badge", "done", "--all-workspaces", "-o", "json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(session list --badge done) error = %v", err)
+		}
+		if seenQuery.Workspace != "" || seenQuery.Sort != session.ListSortAttention ||
+			!slices.Equal(seenQuery.Badges, []session.Badge{session.BadgeDone}) {
+			t.Fatalf("ListSessions() query = %#v, want exact cross-workspace done filter", seenQuery)
+		}
+	})
+
+	t.Run("Should reject an unknown badge with usage exit code", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, &stubClient{}),
+			"session", "list", "--badge", "sleeping",
+		)
+		if err == nil || cliExitCodeForError(err) != 65 {
+			t.Fatalf("session list invalid badge error = %v, exit = %d, want exit 65", err, cliExitCodeForError(err))
+		}
+		if !strings.Contains(err.Error(), string(session.BadgeWaitingForInput)) ||
+			!strings.Contains(err.Error(), string(session.BadgeDone)) {
+			t.Fatalf("session list invalid badge error = %q, want canonical vocabulary", err)
+		}
+	})
+
+	t.Run("Should render the exact operator-wide summary", func(t *testing.T) {
+		t.Parallel()
+
+		want := SessionAttentionSummaryRecord{
+			NeedsYou: 7,
+			Finished: 3,
+			ByWorkspace: []contract.WorkspaceAttentionSummaryPayload{
+				{WorkspaceID: "ws-a", NeedsYou: 4, Finished: 1},
+				{WorkspaceID: "ws-b", NeedsYou: 3, Finished: 2},
+			},
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionAttentionSummaryFn: func(context.Context) (SessionAttentionSummaryRecord, error) {
+				return want, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "list", "--summary", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session list --summary) error = %v", err)
+		}
+		var got SessionAttentionSummaryRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(session attention summary) error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("session attention summary = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func TestSessionInteractionsRendersSanitizedProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should request and render the canonical pending interactions", func(t *testing.T) {
+		t.Parallel()
+
+		createdAt := fixedTestNow.Add(-time.Minute)
+		want := SessionInteractionsRecord{Interactions: []contract.PendingInteractionPayload{
+			{
+				InteractionID: "interaction-1", Kind: "clarify", ProviderRequestID: "request-1",
+				Status: "pending", Title: "Choose a deployment", CreatedAt: createdAt,
+			},
+		}}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionInteractionsFn: func(_ context.Context, id string, statuses []string) (SessionInteractionsRecord, error) {
+				if id != "sess-1" || len(statuses) != 0 {
+					t.Fatalf("ListSessionInteractions() id = %q statuses = %#v", id, statuses)
+				}
+				return want, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "interactions", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session interactions) error = %v", err)
+		}
+		var got SessionInteractionsRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(session interactions) error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("session interactions = %#v, want %#v", got, want)
+		}
+
+		bundle := sessionInteractionsBundle(want)
+		human, humanErr := bundle.human()
+		if humanErr != nil || !strings.Contains(human, "interaction-1") ||
+			!strings.Contains(human, "Choose a deployment") {
+			t.Fatalf("session interactions human = %q, error = %v", human, humanErr)
+		}
+		toon, toonErr := bundle.toon()
+		if toonErr != nil || !strings.Contains(toon, "interaction-1") ||
+			!strings.Contains(toon, "request-1") {
+			t.Fatalf("session interactions toon = %q, error = %v", toon, toonErr)
+		}
+	})
+}
+
 func TestSessionListResolvesOptionalWorkspaceOverride(t *testing.T) {
 	t.Parallel()
 
@@ -1261,7 +1411,11 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 			if request.ChoiceIndex == nil || *request.ChoiceIndex != wireChoice || request.Text != "" {
 				t.Fatalf("answer request = %#v, want zero-based choice %d", request, wireChoice)
 			}
-			return ClarificationAnswerRecord{Choice: &wireChoice}, nil
+			return ClarificationAnswerRecord{
+				ClarifyAnswer: toolspkg.ClarifyAnswer{Choice: &wireChoice},
+				Outcome:       "answered",
+				RequestID:     requestID,
+			}, nil
 		},
 	})
 
@@ -1285,7 +1439,8 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 		t.Fatalf("json.Unmarshal(session clarify answer) error = %v", err)
 	}
-	if got.Choice == nil || *got.Choice != wireChoice || got.Text != "" || got.Fallback {
+	if got.Choice == nil || *got.Choice != wireChoice || got.Text != "" || got.Fallback ||
+		got.Outcome != "answered" || got.RequestID != "req-1" {
 		t.Fatalf("clarification answer = %#v, want exact wire result", got)
 	}
 }
@@ -1751,6 +1906,7 @@ func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 				AgentName:       "coder",
 				WorkspaceID:     "ws-1",
 				State:           "idle",
+				Badge:           session.BadgeWaitingForInput,
 				Health:          "healthy",
 				Attachable:      true,
 				EligibleForWake: true,
@@ -1768,8 +1924,17 @@ func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.SessionID != "sess-1" || decoded.State != "idle" || !decoded.EligibleForWake {
+	if decoded.SessionID != "sess-1" || decoded.State != "idle" ||
+		decoded.Badge != session.BadgeWaitingForInput || !decoded.EligibleForWake {
 		t.Fatalf("decoded = %#v, want sess-1 eligible idle health", decoded)
+	}
+
+	human, _, err := executeRootCommand(t, deps, "session", "status", "sess-1")
+	if err != nil {
+		t.Fatalf("executeRootCommand(human) error = %v", err)
+	}
+	if !strings.Contains(human, string(session.BadgeWaitingForInput)) {
+		t.Fatalf("human status = %q, want badge %q", human, session.BadgeWaitingForInput)
 	}
 }
 

@@ -82,6 +82,7 @@ var HookSpawnCreatedContract = HookContract[SpawnCreatedPayload, SpawnObservatio
 var HookSpawnParentStoppedContract = HookContract[SpawnParentStoppedPayload, SpawnObservationPatch]{Event: HookEventSpawnParentStopped}
 var HookSpawnTtlExpiredContract = HookContract[SpawnTTLExpiredPayload, SpawnObservationPatch]{Event: HookEventSpawnTtlExpired}
 var HookSpawnReapedContract = HookContract[SpawnReapedPayload, SpawnObservationPatch]{Event: HookEventSpawnReaped}
+var HookSessionAttentionChangedContract = HookContract[SessionAttentionChangedPayload, SessionAttentionObservationPatch]{Event: HookEventSessionAttentionChanged}
 var HookNetworkThreadOpenedContract = HookContract[NetworkThreadOpenedPayload, NetworkObservationPatch]{Event: HookEventNetworkThreadOpened}
 var HookNetworkDirectRoomOpenedContract = HookContract[NetworkDirectRoomOpenedPayload, NetworkObservationPatch]{Event: HookEventNetworkDirectRoomOpened}
 var HookNetworkMessagePersistedContract = HookContract[NetworkMessagePersistedPayload, NetworkObservationPatch]{Event: HookEventNetworkMessagePersisted}

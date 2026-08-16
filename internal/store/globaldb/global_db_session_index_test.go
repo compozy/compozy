@@ -863,6 +863,324 @@ func TestSessionCatalogPagingIndexesFreshDB(t *testing.T) {
 	})
 }
 
+func TestSessionAttentionSeenFenceIsMonotonicAndPassiveReadsArePure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	sessionID := registerAttentionSession(t, globalDB, store.SessionAttention{
+		AttentionRevision:   3,
+		LastSettledRevision: 3,
+		LastSeenRevision:    1,
+	})
+	beforeRead, err := globalDB.GetSessionAttention(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("GetSessionAttention(before read) error = %v", err)
+	}
+	if _, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: sessionID, Limit: 1}); err != nil {
+		t.Fatalf("ListSessions(passive) error = %v", err)
+	}
+	afterRead, err := globalDB.GetSessionAttention(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("GetSessionAttention(after read) error = %v", err)
+	}
+	if afterRead.AttentionRevision != beforeRead.AttentionRevision ||
+		afterRead.LastSeenRevision != beforeRead.LastSeenRevision || afterRead.LastSeenAt != nil {
+		t.Fatalf("passive read changed attention = %#v, before %#v", afterRead, beforeRead)
+	}
+
+	seenAt := time.Date(2026, 8, 15, 18, 5, 0, 0, time.UTC)
+	commit, err := globalDB.MarkSessionSeen(ctx, sessionID, seenAt)
+	if err != nil {
+		t.Fatalf("MarkSessionSeen() error = %v", err)
+	}
+	if commit.After.AttentionRevision != 4 || commit.After.LastSeenRevision != 4 ||
+		commit.After.LastSeenAt == nil || !commit.After.LastSeenAt.Equal(seenAt) || commit.After.Unseen() {
+		t.Fatalf("MarkSessionSeen() after = %#v, want advanced seen fence", commit.After)
+	}
+	idempotent, err := globalDB.MarkSessionSeen(ctx, sessionID, seenAt.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("MarkSessionSeen(idempotent) error = %v", err)
+	}
+	if idempotent.Outcome != "already-seen" || idempotent.After.AttentionRevision != 4 ||
+		idempotent.After.LastSeenRevision != 4 || !idempotent.After.LastSeenAt.Equal(seenAt) {
+		t.Fatalf("MarkSessionSeen(idempotent) = %#v, want unchanged fence", idempotent)
+	}
+}
+
+func TestSessionAttentionLifecycleUpdateBumpsOrderingFenceAtomically(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	sessionID := registerAttentionSession(t, globalDB, store.SessionAttention{AttentionRevision: 7})
+	changedAt := time.Date(2026, 8, 15, 18, 6, 0, 0, time.UTC)
+	if err := globalDB.UpdateSessionState(ctx, store.SessionStateUpdate{
+		ID: sessionID, State: globalDBSessionStateStopped,
+		AttentionTransition: true, UpdatedAt: changedAt,
+	}); err != nil {
+		t.Fatalf("UpdateSessionState(attention edge) error = %v", err)
+	}
+	attention, err := globalDB.GetSessionAttention(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("GetSessionAttention() error = %v", err)
+	}
+	if attention.AttentionRevision != 8 || attention.AttentionChangedAt == nil ||
+		!attention.AttentionChangedAt.Equal(changedAt) {
+		t.Fatalf("attention after lifecycle edge = %#v, want revision 8 at %v", attention, changedAt)
+	}
+}
+
+func TestPendingInteractionCanonicalTransactionRedactsAndRollsBackTogether(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	sessionID := registerAttentionSession(t, globalDB, store.SessionAttention{})
+	createdAt := time.Date(2026, 8, 15, 18, 7, 0, 0, time.UTC)
+	if _, err := globalDB.db.ExecContext(ctx, `CREATE TRIGGER fail_attention_projection
+BEFORE UPDATE OF pending_clarify_count ON sessions
+BEGIN SELECT RAISE(ABORT, 'injected attention projection failure'); END`); err != nil {
+		t.Fatalf("create failure trigger error = %v", err)
+	}
+	_, err := globalDB.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+		InteractionID: "int-rollback", SessionID: sessionID,
+		Kind: store.PendingInteractionKindClarify, ProviderRequestID: "clarify-rollback",
+		Title: "rollback", CreatedAt: createdAt,
+	})
+	if err == nil {
+		t.Fatal("CreatePendingInteraction(injected failure) error = nil")
+	}
+	if _, err := globalDB.db.ExecContext(ctx, `DROP TRIGGER fail_attention_projection`); err != nil {
+		t.Fatalf("drop failure trigger error = %v", err)
+	}
+	assertPendingInteractionRowCount(t, globalDB.db, sessionID, 0)
+	attention, err := globalDB.GetSessionAttention(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("GetSessionAttention(after rollback) error = %v", err)
+	}
+	if attention.PendingClarifyCount != 0 || attention.AttentionRevision != 0 ||
+		attention.AttentionChangedAt != nil {
+		t.Fatalf("attention after rollback = %#v, want zero projection", attention)
+	}
+
+	const secret = "compozy_claim_PENDING_SECRET_123"
+	commit, err := globalDB.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+		InteractionID: "int-redacted", SessionID: sessionID,
+		Kind: store.PendingInteractionKindClarify, ProviderRequestID: "clarify-redacted",
+		TurnID: "turn-1", Title: strings.Repeat("title ", 50) + secret,
+		Payload:   store.PendingInteractionPayload{Choices: []string{strings.Repeat("choice ", 30) + secret}},
+		CreatedAt: createdAt.Add(time.Second),
+	})
+	if err != nil {
+		t.Fatalf("CreatePendingInteraction(redacted) error = %v", err)
+	}
+	if commit.After.PendingClarifyCount != 1 || commit.After.AttentionRevision != 1 ||
+		commit.After.AttentionChangedAt == nil {
+		t.Fatalf("CreatePendingInteraction() commit = %#v, want coupled projection", commit)
+	}
+	listed, err := globalDB.ListPendingInteractions(ctx, sessionID, nil)
+	if err != nil {
+		t.Fatalf("ListPendingInteractions() error = %v", err)
+	}
+	if len(listed) != 1 || strings.Contains(listed[0].Title, secret) ||
+		len(listed[0].Title) > store.PendingInteractionTitleMaxBytes || len(listed[0].Payload.Choices) != 1 ||
+		strings.Contains(listed[0].Payload.Choices[0], secret) ||
+		len(listed[0].Payload.Choices[0]) > store.PendingInteractionChoiceMaxBytes {
+		t.Fatalf("listed interaction = %#v, want bounded redacted content", listed)
+	}
+	resolved, err := globalDB.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+		InteractionID: "int-redacted",
+		Status:        store.PendingInteractionStatusResolved,
+		Resolution:    strings.Repeat("resolution ", 40) + secret,
+		ResolvedBy:    "operator:test",
+		At:            createdAt.Add(2 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("TransitionPendingInteraction(resolved) error = %v", err)
+	}
+	if resolved.After.PendingClarifyCount != 0 || resolved.After.AttentionRevision != 2 ||
+		resolved.Interaction == nil || strings.Contains(resolved.Interaction.Resolution, secret) ||
+		len(resolved.Interaction.Resolution) > store.PendingInteractionResolutionMaxBytes {
+		t.Fatalf("resolved interaction commit = %#v, want bounded redacted resolution", resolved)
+	}
+
+	for index, requestID := range []string{"permission-concurrent-a", "permission-concurrent-b"} {
+		if _, err := globalDB.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+			InteractionID: "int-" + requestID, SessionID: sessionID,
+			Kind: store.PendingInteractionKindPermission, ProviderRequestID: requestID,
+			Title: "Approve concurrent request", CreatedAt: createdAt.Add(time.Duration(index+3) * time.Second),
+		}); err != nil {
+			t.Fatalf("CreatePendingInteraction(%s) error = %v", requestID, err)
+		}
+	}
+	concurrentAttention, err := globalDB.GetSessionAttention(ctx, sessionID)
+	if err != nil || concurrentAttention.PendingPermissionCount != 2 {
+		t.Fatalf("attention with concurrent permissions = %#v, %v, want count 2", concurrentAttention, err)
+	}
+	if _, err := globalDB.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+		InteractionID: "int-permission-concurrent-a",
+		Status:        store.PendingInteractionStatusResolved,
+		Resolution:    "allow-once",
+		ResolvedBy:    "operator:test",
+		At:            createdAt.Add(6 * time.Second),
+	}); err != nil {
+		t.Fatalf("TransitionPendingInteraction(concurrent first) error = %v", err)
+	}
+	actionable, err := globalDB.ListPendingInteractions(ctx, sessionID, nil)
+	if err != nil {
+		t.Fatalf("ListPendingInteractions(concurrent remaining) error = %v", err)
+	}
+	if len(actionable) != 1 || actionable[0].InteractionID != "int-permission-concurrent-b" {
+		t.Fatalf("actionable concurrent interactions = %#v, want only request b", actionable)
+	}
+}
+
+func TestOrphanInteractionResolutionCouplesQueueAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	sessionID := registerAttentionSession(t, globalDB, store.SessionAttention{})
+	now := time.Date(2026, 8, 15, 18, 8, 0, 0, time.UTC)
+	if _, err := globalDB.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+		InteractionID: "int-orphan", SessionID: sessionID,
+		Kind: store.PendingInteractionKindPermission, ProviderRequestID: "permission-orphan",
+		Title: "Approve command", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreatePendingInteraction() error = %v", err)
+	}
+	if _, err := globalDB.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+		InteractionID: "int-orphan", Status: store.PendingInteractionStatusOrphaned, At: now.Add(time.Second),
+	}); err != nil {
+		t.Fatalf("TransitionPendingInteraction(orphan) error = %v", err)
+	}
+	if _, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+		ID: "input-existing", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+		Text: "existing", QueueCap: 1, Now: now.Add(2 * time.Second),
+	}); err != nil {
+		t.Fatalf("EnqueueSessionInput(existing) error = %v", err)
+	}
+	transition := store.PendingInteractionTransition{
+		InteractionID: "int-orphan", Status: store.PendingInteractionStatusResolved,
+		Resolution: "allow-once", ResolvedBy: "operator:test", At: now.Add(3 * time.Second),
+		OrphanInput: &store.SessionInputQueueInsert{
+			ID: "input-orphan", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+			Text: "allow-once", QueueCap: 1, Now: now.Add(3 * time.Second),
+		},
+	}
+	if _, err := globalDB.TransitionPendingInteraction(ctx, transition); !errors.Is(
+		err,
+		store.ErrSessionInputQueueFull,
+	) {
+		t.Fatalf("TransitionPendingInteraction(queue full) error = %v", err)
+	}
+	actionable, err := globalDB.ListPendingInteractions(ctx, sessionID, nil)
+	if err != nil {
+		t.Fatalf("ListPendingInteractions(after queue full) error = %v", err)
+	}
+	if len(actionable) != 1 || actionable[0].Status != store.PendingInteractionStatusOrphaned {
+		t.Fatalf("actionable after queue full = %#v, want untouched orphan", actionable)
+	}
+	attention, err := globalDB.GetSessionAttention(ctx, sessionID)
+	if err != nil || attention.PendingPermissionCount != 1 {
+		t.Fatalf("attention after queue full = %#v, %v, want pending count 1", attention, err)
+	}
+
+	transition.OrphanInput.QueueCap = 2
+	resolved, err := globalDB.TransitionPendingInteraction(ctx, transition)
+	if err != nil {
+		t.Fatalf("TransitionPendingInteraction(after restart) error = %v", err)
+	}
+	if resolved.Outcome != "resolved-after-restart" || resolved.After.PendingPermissionCount != 0 {
+		t.Fatalf("resolved outcome = %#v, want resolved-after-restart", resolved)
+	}
+	duplicate, err := globalDB.TransitionPendingInteraction(ctx, transition)
+	if err != nil {
+		t.Fatalf("TransitionPendingInteraction(duplicate) error = %v", err)
+	}
+	if duplicate.Outcome != "already-resolved" {
+		t.Fatalf("duplicate outcome = %q, want already-resolved", duplicate.Outcome)
+	}
+	queued, err := globalDB.ListPendingSessionInputs(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("ListPendingSessionInputs() error = %v", err)
+	}
+	if len(queued) != 2 || queued[1].ID != "input-orphan" {
+		t.Fatalf("pending inputs = %#v, want one atomic orphan-resolution enqueue", queued)
+	}
+}
+
+func registerAttentionSession(
+	t *testing.T,
+	globalDB *GlobalDB,
+	attention store.SessionAttention,
+) string {
+	t.Helper()
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"attention-workspace",
+		filepath.Join(t.TempDir(), "attention-workspace"),
+	)
+	sessionID := "sess-attention"
+	now := time.Date(2026, 8, 15, 18, 0, 0, 0, time.UTC)
+	if err := globalDB.RegisterSession(testutil.Context(t), store.SessionInfo{
+		ID: sessionID, Name: "Attention", AgentName: "coder",
+		RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID,
+		SessionType: "user", State: globalDBSessionStateActive,
+		PendingPermissionCount: attention.PendingPermissionCount,
+		PendingClarifyCount:    attention.PendingClarifyCount,
+		AttentionRevision:      attention.AttentionRevision,
+		LastSettledRevision:    attention.LastSettledRevision,
+		LastSeenRevision:       attention.LastSeenRevision,
+		LastSeenAt:             attention.LastSeenAt,
+		AttentionChangedAt:     attention.AttentionChangedAt,
+		CreatedAt:              now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`UPDATE sessions SET pending_permission_count = ?, pending_clarify_count = ?,
+attention_revision = ?, last_settled_revision = ?, last_seen_revision = ?,
+last_seen_at = ?, attention_changed_at = ? WHERE id = ?`,
+		attention.PendingPermissionCount,
+		attention.PendingClarifyCount,
+		attention.AttentionRevision,
+		attention.LastSettledRevision,
+		attention.LastSeenRevision,
+		nullableAttentionTestTime(attention.LastSeenAt),
+		nullableAttentionTestTime(attention.AttentionChangedAt),
+		sessionID,
+	); err != nil {
+		t.Fatalf("seed session attention error = %v", err)
+	}
+	return sessionID
+}
+
+func nullableAttentionTestTime(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return store.FormatTimestamp(*value)
+}
+
+func assertPendingInteractionRowCount(t *testing.T, db *sql.DB, sessionID string, want int) {
+	t.Helper()
+	var got int
+	if err := db.QueryRowContext(
+		testutil.Context(t),
+		"SELECT COUNT(*) FROM session_pending_interactions WHERE session_id = ?",
+		sessionID,
+	).Scan(&got); err != nil {
+		t.Fatalf("count pending interaction rows error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("pending interaction rows = %d, want %d", got, want)
+	}
+}
+
 func sessionInfoForWorkspaceStateIndexTest(
 	id string,
 	workspaceID string,

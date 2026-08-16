@@ -60,22 +60,24 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	ID                           string                `json:"id"`
-	Name                         string                `json:"name,omitempty"`
-	AgentName                    string                `json:"agent_name"`
-	Runtime                      SessionRuntimePayload `json:"runtime"`
-	WorkspaceID                  string                `json:"workspace_id,omitempty"`
-	WorkspacePath                string                `json:"workspace_path,omitempty"`
-	WorktreeID                   string                `json:"worktree_id,omitempty"`
-	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation,omitempty"`
-	Type                         session.Type          `json:"type,omitempty"`
-	State                        session.State         `json:"state"`
-	Badge                        session.Badge         `json:"badge"`
-	Attachable                   bool                  `json:"attachable"`
-	AttachedTo                   string                `json:"attached_to,omitempty"`
-	AttachExpiresAt              *time.Time            `json:"attach_expires_at,omitempty"`
-	TranscriptEpoch              int64                 `json:"transcript_epoch,omitempty"`
-	ArchivedAt                   *time.Time            `json:"archived_at"`
+	ID                           string                      `json:"id"`
+	Name                         string                      `json:"name,omitempty"`
+	AgentName                    string                      `json:"agent_name"`
+	Runtime                      SessionRuntimePayload       `json:"runtime"`
+	WorkspaceID                  string                      `json:"workspace_id,omitempty"`
+	WorkspacePath                string                      `json:"workspace_path,omitempty"`
+	WorktreeID                   string                      `json:"worktree_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec         `json:"resolved_network_participation,omitempty"`
+	Type                         session.Type                `json:"type,omitempty"`
+	State                        session.State               `json:"state"`
+	Badge                        session.Badge               `json:"badge"`
+	Attachable                   bool                        `json:"attachable"`
+	AttachedTo                   string                      `json:"attached_to,omitempty"`
+	AttachExpiresAt              *time.Time                  `json:"attach_expires_at,omitempty"`
+	TranscriptEpoch              int64                       `json:"transcript_epoch,omitempty"`
+	AttentionChangedAt           *time.Time                  `json:"attention_changed_at,omitempty"`
+	PendingInteractions          []PendingInteractionPayload `json:"pending_interactions"`
+	ArchivedAt                   *time.Time                  `json:"archived_at"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.

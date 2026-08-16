@@ -108,7 +108,7 @@ type SessionManager interface {
 	) (session.SendPromptResult, error)
 	CancelQueuedPrompt(ctx context.Context, id string, queueEntryID string) (session.SendPromptResult, error)
 	CancelPrompt(ctx context.Context, id string) error
-	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error
+	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) (session.ApprovalResult, error)
 	InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error)
 }
 

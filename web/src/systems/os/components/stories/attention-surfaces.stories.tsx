@@ -37,6 +37,7 @@ function session(
     attachable: true,
     archived_at: null,
     available_commands: [],
+    pending_interactions: [],
     created_at: "2026-07-20T12:00:00Z",
     updated_at: "2026-07-20T12:01:00Z",
   };

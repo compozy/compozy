@@ -46,6 +46,7 @@ export type {
   GoalPromptMeta,
   SessionAttachResponse,
   SessionBadge,
+  SessionAttentionEventPayload,
   SessionCatalogEventPayload,
   SessionCommandPayload,
   SessionCommandsResponse,

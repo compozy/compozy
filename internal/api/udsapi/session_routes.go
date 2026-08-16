@@ -7,6 +7,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	{
 		sessions.GET("", handlers.ListSessions)
 		sessions.GET("/catalog-stream", handlers.StreamSessionCatalog)
+		sessions.GET("/attention-summary", handlers.SessionAttentionSummary)
 		sessions.GET("/:session_id", handlers.GetSessionByID)
 		sessions.GET("/:session_id/owner", handlers.GetSessionOwner)
 		sessions.POST("", handlers.CreateSession)
@@ -20,6 +21,8 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.POST("/:session_id/soul/refresh", handlers.RefreshSessionSoul)
 		workspaceSessions.GET("/:session_id/health", handlers.GetSessionHealth)
 		workspaceSessions.GET("/:session_id/status", handlers.GetSessionStatus)
+		workspaceSessions.POST("/:session_id/presence", handlers.SessionPresence)
+		workspaceSessions.GET("/:session_id/interactions", handlers.ListSessionInteractions)
 		workspaceSessions.GET("/:session_id/inspect", handlers.InspectSession)
 		workspaceSessions.DELETE("/:session_id", handlers.DeleteSession)
 		workspaceSessions.POST("/:session_id/stop", handlers.StopSession)

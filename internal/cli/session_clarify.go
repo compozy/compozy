@@ -141,16 +141,33 @@ func sessionClarificationAnswerBundle(answer ClarificationAnswerRecord) outputBu
 		jsonValue: answer,
 		human: func() (string, error) {
 			return renderHumanSection("Session Question Answered", []keyValue{
+				{Label: taskOutcomeValue, Value: stringOrDash(answer.Outcome)},
+				{Label: "Request", Value: stringOrDash(answer.RequestID)},
 				{Label: "Choice", Value: clarificationHumanChoice(answer)},
 				{Label: "Text", Value: stringOrDash(answer.Text)},
+				{Label: "Resolved Answer", Value: stringOrDash(answer.ResolvedAnswer)},
 				{Label: "Fallback", Value: strconv.FormatBool(answer.Fallback)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"clarification_answer",
-				[]string{"choice", sessionClarifyTextFlag, "fallback"},
-				[]string{clarificationWireChoice(answer), answer.Text, strconv.FormatBool(answer.Fallback)},
+				[]string{
+					cliOutcomeKey,
+					sessionRequestIDKey,
+					"choice",
+					sessionClarifyTextFlag,
+					"resolved_answer",
+					"fallback",
+				},
+				[]string{
+					answer.Outcome,
+					answer.RequestID,
+					clarificationWireChoice(answer),
+					answer.Text,
+					answer.ResolvedAnswer,
+					strconv.FormatBool(answer.Fallback),
+				},
 			), nil
 		},
 	}

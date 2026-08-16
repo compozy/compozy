@@ -91,6 +91,8 @@ const (
 	sdkSandboxSyncBeforePatchValue              = "SandboxSyncBeforePatch"
 	sdkSandboxSyncBeforePayloadValue            = "SandboxSyncBeforePayload"
 	sdkSessionContextValue                      = "SessionContext"
+	sdkSessionAttentionChangedPayloadValue      = "SessionAttentionChangedPayload"
+	sdkSessionAttentionObservationPatchValue    = "SessionAttentionObservationPatch"
 	sdkSessionCreatePatchValue                  = "SessionCreatePatch"
 	sdkSessionHealthUpdateAfterPayloadValue     = "SessionHealthUpdateAfterPayload"
 	sdkSessionLifecyclePayloadValue             = "SessionLifecyclePayload"
@@ -297,6 +299,8 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkAgentHeartbeatWakeBeforePayloadValue, Value: hooks.AgentHeartbeatWakeBeforePayload{}},
 	{Name: sdkAgentHeartbeatWakeAfterPayloadValue, Value: hooks.AgentHeartbeatWakeAfterPayload{}},
 	{Name: sdkSessionHealthUpdateAfterPayloadValue, Value: hooks.SessionHealthUpdateAfterPayload{}},
+	{Name: sdkSessionAttentionChangedPayloadValue, Value: hooks.SessionAttentionChangedPayload{}},
+	{Name: sdkSessionAttentionObservationPatchValue, Value: hooks.SessionAttentionObservationPatch{}},
 	{Name: sdkAuthoredContextObservationPatchValue, Value: hooks.AuthoredContextObservationPatch{}},
 	{Name: sdkNetworkPayloadValue, Value: hooks.NetworkPayload{}},
 	{Name: sdkNetworkObservationPatchValue, Value: hooks.NetworkObservationPatch{}},

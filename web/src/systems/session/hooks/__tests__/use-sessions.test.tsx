@@ -66,6 +66,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
     updated_at: "2026-04-06T10:00:00Z",
     ...overrides,
     archived_at: overrides.archived_at ?? null,
+    pending_interactions: overrides.pending_interactions ?? [],
   };
 }
 
@@ -276,6 +277,7 @@ describe("useSession", () => {
       attachable: true,
       archived_at: null,
       available_commands: [],
+      pending_interactions: [],
       created_at: "2026-04-06T10:00:00Z",
       updated_at: "2026-04-06T10:00:00Z",
     });

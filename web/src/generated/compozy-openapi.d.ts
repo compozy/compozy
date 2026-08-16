@@ -2825,6 +2825,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/attention-summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get exact session attention counts */
+    get: operations["getSessionAttentionSummary"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/catalog-stream": {
     parameters: {
       query?: never;
@@ -5686,6 +5703,40 @@ export interface paths {
     get: operations["inspectSession"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pending session interactions */
+    get: operations["listSessionInteractions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/presence": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Update operator session presence */
+    post: operations["updateSessionPresence"];
     delete?: never;
     options?: never;
     head?: never;
@@ -12333,6 +12384,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -12402,6 +12455,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -36090,6 +36159,7 @@ export interface operations {
           | "spawn.parent_stopped"
           | "spawn.ttl_expired"
           | "spawn.reaped"
+          | "session.attention.changed"
           | "network.thread.opened"
           | "network.direct_room.opened"
           | "network.message.persisted"
@@ -50604,10 +50674,14 @@ export interface operations {
         q?: string;
         /** @description Only list sessions eligible for explicit attach */
         resumable?: boolean;
+        /** @description Only list sessions in the needs-you attention class */
+        attention?: boolean;
+        /** @description Filter by comma-separated exact session badges */
+        badge?: string;
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
-        sort?: "recent" | "last_activity";
+        sort?: "recent" | "last_activity" | "attention";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */
@@ -50664,6 +50738,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -50733,6 +50809,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -51156,6 +51248,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -51225,6 +51319,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -51525,6 +51635,121 @@ export interface operations {
       };
     };
   };
+  getSessionAttentionSummary: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            by_workspace: {
+              finished: number;
+              needs_you: number;
+              workspace_id: string;
+            }[];
+            finished: number;
+            needs_you: number;
+          };
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session attention is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   streamSessionCatalog: {
     parameters: {
       query?: never;
@@ -51540,11 +51765,21 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": {
-            kind: string;
-            session_id: string;
-            workspace_id: string;
-          };
+          "text/event-stream":
+            | {
+                kind: string;
+                session_id: string;
+                workspace_id: string;
+              }
+            | {
+                /** Format: date-time */
+                at: string;
+                class: string;
+                from: string;
+                session_id: string;
+                to: string;
+                workspace_id: string;
+              };
         };
       };
       /** @description Internal server error */
@@ -51661,6 +51896,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -51730,6 +51967,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -53115,6 +53368,7 @@ export interface operations {
                   | "spawn.parent_stopped"
                   | "spawn.ttl_expired"
                   | "spawn.reaped"
+                  | "session.attention.changed"
                   | "network.thread.opened"
                   | "network.direct_room.opened"
                   | "network.message.persisted"
@@ -53412,6 +53666,7 @@ export interface operations {
                   | "spawn.parent_stopped"
                   | "spawn.ttl_expired"
                   | "spawn.reaped"
+                  | "session.attention.changed"
                   | "network.thread.opened"
                   | "network.direct_room.opened"
                   | "network.message.persisted"
@@ -53940,6 +54195,7 @@ export interface operations {
               | "spawn.parent_stopped"
               | "spawn.ttl_expired"
               | "spawn.reaped"
+              | "session.attention.changed"
               | "network.thread.opened"
               | "network.direct_room.opened"
               | "network.message.persisted"
@@ -89291,6 +89547,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -89360,6 +89618,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -91190,6 +91464,7 @@ export interface operations {
           | "spawn.parent_stopped"
           | "spawn.ttl_expired"
           | "spawn.reaped"
+          | "session.attention.changed"
           | "network.thread.opened"
           | "network.direct_room.opened"
           | "network.message.persisted"
@@ -105057,6 +105332,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -105126,6 +105403,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -105500,6 +105793,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -105569,6 +105864,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -105952,6 +106263,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -106021,6 +106334,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -109337,6 +109666,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -109406,6 +109737,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -109760,6 +110107,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -109829,6 +110178,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -110130,7 +110495,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            status: string;
+            decision: string;
+            interaction_id?: string;
+            outcome: string;
+            request_id: string;
+            resolved_decision?: string;
           };
         };
       };
@@ -110276,6 +110645,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -110345,6 +110716,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -110685,6 +111072,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -110754,6 +111143,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -111862,6 +112267,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -111931,6 +112338,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -113292,6 +113715,412 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listSessionInteractions: {
+    parameters: {
+      query?: {
+        /** @description Filter by interaction status */
+        status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            interactions: {
+              choices?: string[];
+              /** Format: date-time */
+              created_at: string;
+              decisions?: string[];
+              interaction_id: string;
+              kind: string;
+              provider_request_id: string;
+              resolution?: string;
+              /** Format: date-time */
+              resolved_at?: string | null;
+              resolved_by?: string;
+              status: string;
+              title?: string;
+              turn_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid interaction status */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session attention is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSessionPresence: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          lease_id?: string;
+          visible: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Presence lease acquired */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            lease_id: string;
+          };
+        };
+      };
+      /** @description Presence lease renewed or released */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid presence request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session or lease not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Presence lease ownership mismatch */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session attention is unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -115527,6 +116356,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -115596,6 +116427,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -116071,6 +116918,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -116140,6 +116989,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -116509,6 +117374,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -116578,6 +117445,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -116905,6 +117788,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -116974,6 +117859,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -117537,6 +118438,7 @@ export interface operations {
             active_prompt: boolean;
             agent_name: string;
             attachable: boolean;
+            badge: string;
             eligible_for_wake: boolean;
             /** @enum {string} */
             health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
@@ -117549,6 +118451,22 @@ export interface operations {
               | "session_health_hung"
               | "session_health_dead"
               | "session_health_unknown";
+            pending_interactions: {
+              choices?: string[];
+              /** Format: date-time */
+              created_at: string;
+              decisions?: string[];
+              interaction_id: string;
+              kind: string;
+              provider_request_id: string;
+              resolution?: string;
+              /** Format: date-time */
+              resolved_at?: string | null;
+              resolved_by?: string;
+              status: string;
+              title?: string;
+              turn_id?: string;
+            }[];
             session_id: string;
             /** @enum {string} */
             state: "idle" | "prompting" | "stopped" | "detached";
@@ -119677,6 +120595,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -119746,6 +120666,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -120153,6 +121089,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -120222,6 +121160,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {

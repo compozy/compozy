@@ -251,6 +251,10 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.SessionHealthUpdateAfterPayload,
 	) (hookspkg.SessionHealthUpdateAfterPayload, error)
+	DispatchSessionAttentionChanged(
+		context.Context,
+		hookspkg.SessionAttentionChangedPayload,
+	) (hookspkg.SessionAttentionChangedPayload, error)
 	DispatchNetworkPeerJoined(
 		context.Context,
 		hookspkg.NetworkPeerJoinedPayload,

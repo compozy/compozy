@@ -22,6 +22,10 @@ type sessionListFlags struct {
 	rootFilter      string
 	search          string
 	resumable       bool
+	attention       bool
+	badgeFilters    []string
+	allWorkspaces   bool
+	summary         bool
 	archived        bool
 	includeArchived bool
 	includeHealth   bool
@@ -60,36 +64,52 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.rootFilter, "root", "", "Filter by exact root session id (includes the root itself)")
 	cmd.Flags().StringVar(&flags.search, "query", "", "Search session id, name, agent, provider, or channel")
 	cmd.Flags().BoolVar(&flags.resumable, "resumable", false, "Show only sessions eligible for resume attach")
+	cmd.Flags().BoolVar(&flags.attention, "attention", false, "Show only sessions that need operator attention")
+	cmd.Flags().StringSliceVar(&flags.badgeFilters, "badge", nil, "Filter by exact badge (repeat or comma-separate)")
+	cmd.Flags().BoolVar(&flags.allWorkspaces, "all-workspaces", false, "List sessions across every workspace")
+	cmd.Flags().BoolVar(&flags.summary, "summary", false, "Show exact attention counts across workspaces")
 	cmd.Flags().BoolVar(&flags.archived, "archived", false, "Show only archived sessions")
 	cmd.Flags().BoolVar(&flags.includeArchived, "include-archived", false, "Include archived sessions")
 	cmd.Flags().
 		BoolVar(&flags.includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
-	cmd.Flags().StringVar(&flags.sortKey, "sort", "", "Sort by recent or last_activity")
+	cmd.Flags().StringVar(&flags.sortKey, "sort", "", "Sort by recent, last_activity, or attention")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
 	return cmd
 }
 
 func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionListFlags) error {
-	if flags.archived && flags.includeArchived {
-		return errors.New("cli: --archived and --include-archived are mutually exclusive")
+	badges, err := validateSessionListFlags(cmd, flags)
+	if err != nil {
+		return err
 	}
 	client, err := clientFromDeps(deps)
 	if err != nil {
 		return err
 	}
-	workspaceID, err := resolveOptionalWorkspaceOverride(
-		cmd.Context(),
-		cmd,
-		deps,
-		client,
-		flags.workspaceFilter,
-	)
-	if err != nil {
-		return err
+	if flags.summary {
+		summary, summaryErr := client.GetSessionAttentionSummary(cmd.Context())
+		if summaryErr != nil {
+			return summaryErr
+		}
+		return writeCommandOutput(cmd, sessionAttentionSummaryBundle(summary))
+	}
+	workspaceID := ""
+	if !flags.allWorkspaces {
+		workspaceID, err = resolveOptionalWorkspaceOverride(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			flags.workspaceFilter,
+		)
+		if err != nil {
+			return err
+		}
 	}
 	state := strings.TrimSpace(flags.stateFilter)
-	if state == "" && !flags.includeAll && !flags.resumable && !flags.archived && !flags.includeArchived {
+	if state == "" && !flags.includeAll && !flags.resumable && !flags.attention && len(badges) == 0 &&
+		!flags.archived && !flags.includeArchived {
 		state = string(session.StateActive)
 	}
 	archive := string(session.ArchiveExclude)
@@ -101,6 +121,8 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 	sort := strings.TrimSpace(flags.sortKey)
 	if sort == "" && flags.resumable {
 		sort = session.ListSortLastActivity
+	} else if sort == "" && (flags.attention || len(badges) > 0) {
+		sort = session.ListSortAttention
 	}
 	page, err := client.ListSessions(cmd.Context(), SessionListQuery{
 		Workspace:     workspaceID,
@@ -112,6 +134,8 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 		Root:          flags.rootFilter,
 		Query:         flags.search,
 		Resumable:     flags.resumable,
+		Attention:     flags.attention,
+		Badges:        badges,
 		Archive:       archive,
 		IncludeHealth: flags.includeHealth,
 		Limit:         flags.limit,
@@ -122,6 +146,39 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 		return err
 	}
 	return writeCommandOutput(cmd, sessionListBundle(page, deps.now))
+}
+
+func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]session.Badge, error) {
+	if flags.archived && flags.includeArchived {
+		return nil, errors.New("cli: --archived and --include-archived are mutually exclusive")
+	}
+	if flags.allWorkspaces && cmd.Flags().Changed(workspaceSkillSource) {
+		return nil, errors.New("cli: --all-workspaces and --workspace are mutually exclusive")
+	}
+	badges, err := session.ParseBadgeFilters(flags.badgeFilters)
+	if err != nil {
+		return nil, withCommandExitCode(65, err)
+	}
+	if flags.attention && len(badges) > 0 {
+		return nil, errors.New("cli: --attention and --badge are mutually exclusive")
+	}
+	if (flags.attention || len(badges) > 0) && flags.sortKey != "" && flags.sortKey != session.ListSortAttention {
+		return nil, errors.New("cli: attention filters require --sort attention")
+	}
+	if flags.summary && sessionListHasRowFilters(flags) {
+		return nil, errors.New("cli: --summary cannot be combined with session row filters")
+	}
+	return badges, nil
+}
+
+func sessionListHasRowFilters(flags sessionListFlags) bool {
+	return flags.includeAll || strings.TrimSpace(flags.workspaceFilter) != "" ||
+		strings.TrimSpace(flags.worktreeFilter) != "" || strings.TrimSpace(flags.stateFilter) != "" ||
+		strings.TrimSpace(flags.typeFilter) != "" || strings.TrimSpace(flags.agentFilter) != "" ||
+		strings.TrimSpace(flags.parentFilter) != "" || strings.TrimSpace(flags.rootFilter) != "" ||
+		strings.TrimSpace(flags.search) != "" || flags.resumable || flags.attention || len(flags.badgeFilters) > 0 ||
+		flags.archived || flags.includeArchived || flags.includeHealth || flags.limit != 0 ||
+		strings.TrimSpace(flags.sortKey) != "" || strings.TrimSpace(flags.cursor) != ""
 }
 
 func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle {

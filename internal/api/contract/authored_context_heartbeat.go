@@ -1,6 +1,10 @@
 package contract
 
-import "time"
+import (
+	"time"
+
+	"github.com/compozy/compozy/internal/session"
+)
 
 // HeartbeatTimeWindowPayload is one authored local wall-clock active or quiet window.
 type HeartbeatTimeWindowPayload struct {
@@ -238,12 +242,14 @@ type SessionStatusResponse struct {
 	WorkspaceID         string                           `json:"workspace_id"`
 	AgentName           string                           `json:"agent_name"`
 	State               SessionHealthState               `json:"state"`
+	Badge               session.Badge                    `json:"badge"`
 	Health              SessionHealthStatus              `json:"health"`
 	ActivePrompt        bool                             `json:"active_prompt"`
 	Attachable          bool                             `json:"attachable"`
 	EligibleForWake     bool                             `json:"eligible_for_wake"`
 	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
 	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
+	PendingInteractions []PendingInteractionPayload      `json:"pending_interactions"`
 	UpdatedAt           time.Time                        `json:"updated_at"`
 }
 

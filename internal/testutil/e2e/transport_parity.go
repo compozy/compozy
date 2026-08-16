@@ -176,8 +176,8 @@ func ValidateUDSApprovalResponse(statusCode int, body []byte) error {
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return fmt.Errorf("decode UDS approval response: %w", err)
 	}
-	if payload.Status != "approved" {
-		return fmt.Errorf("UDS approve status payload = %q, want approved", payload.Status)
+	if payload.Outcome == "" || payload.RequestID == "" || payload.Decision == "" {
+		return fmt.Errorf("UDS approve payload is incomplete: %#v", payload)
 	}
 	return nil
 }

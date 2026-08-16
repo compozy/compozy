@@ -7,6 +7,55 @@ import (
 	"time"
 )
 
+type TaskDashboard struct {
+	Totals          TaskDashboardTotalsPayload            `json:"totals"`
+	Cards           TaskDashboardCardsPayload             `json:"cards"`
+	StatusBreakdown []TaskDashboardStatusBreakdownPayload `json:"status_breakdown,omitempty"`
+	Queue           TaskDashboardQueuePayload             `json:"queue"`
+	Health          TaskDashboardHealthPayload            `json:"health"`
+	ActiveRuns      TaskDashboardActiveRunsPayload        `json:"active_runs"`
+	Freshness       TaskDashboardFreshnessPayload         `json:"freshness"`
+}
+
+type TaskDashboardActiveRunPayload struct {
+	TaskID                       string        `json:"task_id"`
+	TaskIdentifier               string        `json:"task_identifier,omitempty"`
+	TaskTitle                    string        `json:"task_title"`
+	TaskStatus                   Status        `json:"task_status"`
+	TaskPriority                 Priority      `json:"task_priority,omitempty"`
+	TaskOwner                    *Ownership    `json:"task_owner,omitempty"`
+	Scope                        TaskScope     `json:"scope"`
+	WorkspaceID                  string        `json:"workspace_id,omitempty"`
+	LatestEventSeq               int64         `json:"latest_event_seq"`
+	RunID                        string        `json:"run_id"`
+	RunStatus                    TaskRunStatus `json:"run_status"`
+	Attempt                      int           `json:"attempt"`
+	MaxAttempts                  int           `json:"max_attempts"`
+	SessionID                    string        `json:"session_id,omitempty"`
+	ResolvedNetworkParticipation *Spec         `json:"resolved_network_participation,omitempty"`
+	LastActivityAt               time.Time     `json:"last_activity_at"`
+	AgeMilli                     int64         `json:"age_ms"`
+	HealthStatus                 string        `json:"health_status"`
+	Stuck                        bool          `json:"stuck"`
+	Error                        string        `json:"error,omitempty"`
+}
+
+type TaskDashboardActiveRunsPayload struct {
+	Total    int                             `json:"total"`
+	Running  int                             `json:"running"`
+	Starting int                             `json:"starting"`
+	Claimed  int                             `json:"claimed"`
+	Queued   int                             `json:"queued"`
+	Items    []TaskDashboardActiveRunPayload `json:"items,omitempty"`
+}
+
+type TaskDashboardBlockedCardPayload struct {
+	Tasks                int    `json:"tasks"`
+	AwaitingApproval     int    `json:"awaiting_approval"`
+	AwaitingDependencies int    `json:"awaiting_dependencies"`
+	HealthStatus         string `json:"health_status"`
+}
+
 type TaskDashboardCardsPayload struct {
 	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
 	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
@@ -192,33 +241,4 @@ type TaskInboxItemPayload struct {
 	LatestActivityAt time.Time              `json:"latest_activity_at"`
 	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
 	Triage           TaskTriageStatePayload `json:"triage"`
-}
-
-type TaskInboxLane string
-
-type TaskInboxLaneGroupPayload struct {
-	Lane        TaskInboxLane          `json:"lane"`
-	Count       int                    `json:"count"`
-	UnreadCount int                    `json:"unread_count"`
-	Items       []TaskInboxItemPayload `json:"items,omitempty"`
-}
-
-type TaskInboxParams struct {
-	Scope     CatalogScope  `json:"scope,omitempty"`
-	Workspace string        `json:"workspace,omitempty"`
-	Worktree  string        `json:"worktree,omitempty"`
-	OwnerKind OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef  string        `json:"owner_ref,omitempty"`
-	Lane      TaskInboxLane `json:"lane,omitempty"`
-	Status    Status        `json:"status,omitempty"`
-	Priority  Priority      `json:"priority,omitempty"`
-	Unread    *bool         `json:"unread,omitempty"`
-	Query     string        `json:"query,omitempty"`
-	Cursor    string        `json:"cursor,omitempty"`
-	Limit     int           `json:"limit,omitempty"`
-}
-
-type TaskInboxPriorityFacetPayload struct {
-	Priority Priority `json:"priority"`
-	Count    int      `json:"count"`
 }

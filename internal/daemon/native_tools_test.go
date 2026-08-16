@@ -108,8 +108,8 @@ func (nativeClarifyBrokerStub) Answer(
 	toolspkg.Scope,
 	string,
 	toolspkg.ClarifyAnswerRequest,
-) (toolspkg.ClarifyAnswer, error) {
-	return toolspkg.ClarifyAnswer{}, errors.New("native clarify broker stub: unexpected Answer call")
+) (toolspkg.ClarifyAnswerResult, error) {
+	return toolspkg.ClarifyAnswerResult{}, errors.New("native clarify broker stub: unexpected Answer call")
 }
 
 func (m *nativeSessionPageHealthManager) SessionHealthForPage(

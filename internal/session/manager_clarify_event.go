@@ -36,9 +36,13 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 		info.AgentName != strings.TrimSpace(event.Request.AgentName) {
 		return fmt.Errorf("session: clarification ownership mismatch for %q", sessionID)
 	}
+	attentionCommitted, err := m.applyClarifyAttentionEvent(ctx, active, event)
+	if err != nil {
+		return fmt.Errorf("session: persist canonical clarification attention: %w", err)
+	}
 	payload, err := json.Marshal(event)
 	if err != nil {
-		return fmt.Errorf("session: marshal clarification event: %w", err)
+		return m.handleClarifyTranscriptFailure(ctx, active, event, attentionCommitted, err)
 	}
 	turnID := "clarify:" + event.Request.RequestID
 	content, err := transcript.MarshalAgentEvent(acp.AgentEvent{
@@ -49,7 +53,7 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 		Raw:       payload,
 	}.WithRequestID(event.Request.RequestID))
 	if err != nil {
-		return fmt.Errorf("session: encode clarification event: %w", err)
+		return m.handleClarifyTranscriptFailure(ctx, active, event, attentionCommitted, err)
 	}
 	persisted, err := m.appendDurableSessionEvent(ctx, sessionID, store.SessionEvent{
 		ID:        event.Request.RequestID + "-" + string(event.Status),
@@ -61,8 +65,28 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 		Timestamp: event.At.UTC(),
 	})
 	if err != nil {
-		return fmt.Errorf("session: persist clarification event: %w", err)
+		return m.handleClarifyTranscriptFailure(ctx, active, event, attentionCommitted, err)
 	}
 	m.publishSessionEvent(ctx, active, persisted)
+	return nil
+}
+
+func (m *Manager) handleClarifyTranscriptFailure(
+	ctx context.Context,
+	target *Session,
+	event toolspkg.ClarifyEvent,
+	attentionCommitted bool,
+	err error,
+) error {
+	if !attentionCommitted {
+		return err
+	}
+	m.sessionLogger(target).WarnContext(
+		ctx,
+		"session: append clarification transcript event failed after canonical commit",
+		"request_id", event.Request.RequestID,
+		"status", event.Status,
+		"error", err,
+	)
 	return nil
 }

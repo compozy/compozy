@@ -70,11 +70,52 @@ Use `--cursor` to continue with the same filters and sort. A cursor from another
 is rejected instead of crossing catalog boundaries. See the generated
 [`compozy session list`](/docs/cli/session/list) reference for every flag.
 
+## Find sessions that need attention
+
+Session badges come from one daemon-owned precedence order. `waiting-for-auth`,
+`waiting-for-input`, and `failed` mean the session needs you. `done` means a turn settled while no
+operator client was visibly focused on the session, and the result has not been seen yet. Starting a
+new turn or entering a terminal lifecycle state outranks `done`; reading a session through the CLI or
+API never clears it.
+
+Use `compozy session list --attention` for sessions that need you, or `--badge done` for finished
+sessions with unseen results. `--all-workspaces` removes the workspace filter, while `--summary`
+returns exact needs-you and finished totals for every workspace. Attention results use
+`attention_changed_at` for stable newest-first ordering. The generated
+[`compozy session list`](/docs/cli/session/list) and [Sessions API](/docs/api/sessions) references own
+the exact flags, paths, and response schemas.
+
+Questions and permission requests are durable interaction records. List the actionable projection
+with [`compozy session interactions <session-id>`](/docs/cli/session/interactions) or
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/interactions`. Titles, choices, and
+resolutions are redacted and bounded before they reach a response. Pending records survive daemon
+restart; a request whose provider turn no longer exists is returned as orphaned and keeps the same
+interaction ID for explicit resolution.
+
+Resolution outcomes distinguish the live and restart paths. A live permission decision reports
+`applied`, and a live clarification answer reports `answered`. Resolving an orphaned request reports
+`resolved-after-restart`; a repeat returns `already-resolved` with the original winning decision or
+answer. `queue-full` leaves the interaction pending and is safe to retry. Structured session status
+returns the canonical badge and the same bounded interaction projection.
+
+Visible operator clients keep a per-client lease through
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence`. A live lease makes a settling
+turn seen, so it remains `idle` instead of becoming `done`. Each client renews and releases only its
+own opaque `lease_id`; abandoned leases expire after 15 seconds. Presence, attention summaries, and
+cross-workspace catalog reads are operator surfaces and reject agent identity with
+`403 agent_scope_denied`. Interaction discovery accepts a validated agent identity only for that
+agent's workspace.
+
 Browser clients can subscribe once to `GET /api/sessions/catalog-stream`. Each
 `session_catalog_changed` event identifies an `upserted` or `deleted` session and includes its
 authoritative `workspace_id`. The event is a wake signal, not a row delta: reconcile the counted
 catalog page for that workspace after every event. Catalog caches remain workspace-scoped, so an
 event must invalidate only keys owned by its `workspace_id`.
+
+The same stream emits `session_attention_changed` after a committed badge edge. Its payload carries
+the old and new badge, the new attention class, `workspace_id`, and the canonical transition time.
+Extensions can observe the matching async-only `session.attention.changed` hook; observer failure
+does not roll back session state.
 
 The reading order follows the lifecycle. Start with lifecycle for state names and stop
 classification, move to events when you need the durable record, then use resume attach and

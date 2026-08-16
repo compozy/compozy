@@ -135,6 +135,7 @@ const createdSession: SessionPayload = {
   attachable: true,
   archived_at: null,
   available_commands: [],
+  pending_interactions: [],
   runtime: { status: "unbound", selection_revision: 0 },
   created_at: "2026-04-20T10:00:00Z",
   updated_at: "2026-04-20T10:00:01Z",

@@ -122,6 +122,10 @@ func matchSessionHealthUpdateAfter(matcher HookMatcher, payload SessionHealthUpd
 	return matcher.MatchesSession(payload.SessionContext)
 }
 
+func matchSessionAttention(matcher HookMatcher, payload SessionAttentionChangedPayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
 func matchSessionMessagePersisted(matcher HookMatcher, payload SessionMessagePersistedPayload) bool {
 	return matcher.MatchesSession(payload.SessionContext)
 }

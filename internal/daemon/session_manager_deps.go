@@ -68,6 +68,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Compaction:      state.notifier,
 			Spawn:           state.notifier,
 			AuthoredContext: state.notifier,
+			Attention:       state.notifier,
 		},
 		PromptAssembler:      state.promptAssembler,
 		StartupPromptOverlay: state.startupOverlay,

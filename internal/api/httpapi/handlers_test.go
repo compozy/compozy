@@ -204,6 +204,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/roles",
 		"GET /api/roles/:role",
 		"GET /api/sessions",
+		"GET /api/sessions/attention-summary",
 		"GET /api/sessions/catalog-stream",
 		"GET /api/sessions/:session_id",
 		"GET /api/sessions/:session_id/owner",
@@ -215,6 +216,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/interactions",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/recap",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/usage",
@@ -414,6 +416,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/rewind",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/presence",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id/steer",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
@@ -3569,8 +3572,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 
 	t.Run("Should session not found", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
-				return session.ErrSessionNotFound
+			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
+				return session.ApprovalResult{}, session.ErrSessionNotFound
 			},
 		}, stubObserver{}, homePaths))
 		recorder := performRequest(
@@ -3587,8 +3590,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 
 	t.Run("Should pending permission missing", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
-				return session.ErrPendingPermissionNotFound
+			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
+				return session.ApprovalResult{}, session.ErrPendingPermissionNotFound
 			},
 		}, stubObserver{}, homePaths))
 		recorder := performRequest(
@@ -3605,8 +3608,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 
 	t.Run("Should session not active", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
-				return session.ErrSessionNotActive
+			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
+				return session.ApprovalResult{}, session.ErrSessionNotActive
 			},
 		}, stubObserver{}, homePaths))
 		recorder := performRequest(
@@ -3627,10 +3630,18 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			gotReq acp.ApproveRequest
 		)
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(_ context.Context, id string, req acp.ApproveRequest) error {
+			ApproveFn: func(
+				_ context.Context,
+				id string,
+				req acp.ApproveRequest,
+			) (session.ApprovalResult, error) {
 				gotID = id
 				gotReq = req
-				return nil
+				return session.ApprovalResult{
+					Outcome:   "applied",
+					RequestID: req.RequestID,
+					Decision:  req.Decision,
+				}, nil
 			},
 		}, stubObserver{}, homePaths))
 		recorder := performRequest(
@@ -3648,6 +3659,12 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 		if gotReq.RequestID != "req-1" || gotReq.TurnID != "turn-1" || gotReq.Decision != "allow-always" {
 			t.Fatalf("approve request = %#v", gotReq)
+		}
+		var response contract.SessionApprovalResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Outcome != "applied" || response.RequestID != "req-1" ||
+			response.Decision != "allow-always" {
+			t.Fatalf("approve response = %#v", response)
 		}
 	})
 }

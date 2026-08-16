@@ -79,6 +79,7 @@ function sessionFixture(overrides: Partial<SessionPayload> = {}): SessionPayload
     updated_at: "2026-07-20T12:01:00Z",
     ...overrides,
     archived_at: overrides.archived_at ?? null,
+    pending_interactions: overrides.pending_interactions ?? [],
   };
 }
 

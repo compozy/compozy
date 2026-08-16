@@ -48,7 +48,11 @@ type SendPromptResultResponse struct {
 
 // SessionApprovalResponse wraps the approve-session success payload.
 type SessionApprovalResponse struct {
-	Status string `json:"status"`
+	Outcome          string `json:"outcome"`
+	InteractionID    string `json:"interaction_id,omitempty"`
+	RequestID        string `json:"request_id"`
+	Decision         string `json:"decision"`
+	ResolvedDecision string `json:"resolved_decision,omitempty"`
 }
 
 // AgentsResponse wraps the shared agent list payload.

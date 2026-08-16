@@ -159,6 +159,8 @@ type stubClient struct {
 	rewindSessionFn              func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
 	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
+	listSessionInteractionsFn    func(context.Context, string, []string) (SessionInteractionsRecord, error)
+	getSessionAttentionSummaryFn func(context.Context) (SessionAttentionSummaryRecord, error)
 	answerSessionClarificationFn func(
 		context.Context,
 		string,
@@ -1523,6 +1525,26 @@ func (s *stubClient) ListSessionCommands(
 		return s.listSessionCommandsFn(ctx, id)
 	}
 	return SessionCommandsRecord{}, errors.New("unexpected ListSessionCommands call")
+}
+
+func (s *stubClient) ListSessionInteractions(
+	ctx context.Context,
+	id string,
+	statuses []string,
+) (SessionInteractionsRecord, error) {
+	if s.listSessionInteractionsFn != nil {
+		return s.listSessionInteractionsFn(ctx, id, statuses)
+	}
+	return SessionInteractionsRecord{}, errors.New("unexpected ListSessionInteractions call")
+}
+
+func (s *stubClient) GetSessionAttentionSummary(
+	ctx context.Context,
+) (SessionAttentionSummaryRecord, error) {
+	if s.getSessionAttentionSummaryFn != nil {
+		return s.getSessionAttentionSummaryFn(ctx)
+	}
+	return SessionAttentionSummaryRecord{}, errors.New("unexpected GetSessionAttentionSummary call")
 }
 
 func (s *stubClient) CreateSession(

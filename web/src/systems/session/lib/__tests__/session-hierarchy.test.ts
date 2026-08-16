@@ -29,6 +29,7 @@ function treeSession(
     attachable: true,
     archived_at: null,
     available_commands: [],
+    pending_interactions: [],
     ...(options.parent
       ? {
           lineage: {

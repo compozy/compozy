@@ -43,7 +43,7 @@ type sessionManagerStub struct {
 	) (session.SendPromptResult, error)
 	cancelQueued      func(context.Context, string, string) (session.SendPromptResult, error)
 	cancelPrompt      func(context.Context, string) error
-	approvePermission func(context.Context, string, acp.ApproveRequest) error
+	approvePermission func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error)
 }
 
 func (s sessionManagerStub) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -326,9 +326,13 @@ func (s sessionManagerStub) CancelPrompt(ctx context.Context, id string) error {
 	return session.ErrSessionNotFound
 }
 
-func (s sessionManagerStub) ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error {
+func (s sessionManagerStub) ApprovePermission(
+	ctx context.Context,
+	id string,
+	req acp.ApproveRequest,
+) (session.ApprovalResult, error) {
 	if s.approvePermission != nil {
 		return s.approvePermission(ctx, id, req)
 	}
-	return session.ErrSessionNotFound
+	return session.ApprovalResult{}, session.ErrSessionNotFound
 }

@@ -14,6 +14,31 @@ const testQueueAttachmentID = "att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 func TestServiceNewInsertAttachments(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should prepare a validated queue insert without persisting it", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := &recordingQueueStore{}
+		service, err := New(queueStore, Config{QueueCap: 10, MaxTextBytes: 64 << 10})
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		insert, err := service.PrepareQueue(InputRequest{
+			SessionID:  "sess-prepare",
+			Text:       "prepared response",
+			Generation: 3,
+		})
+		if err != nil {
+			t.Fatalf("PrepareQueue() error = %v", err)
+		}
+		if insert.ID == "" || insert.SessionID != "sess-prepare" ||
+			insert.Mode != store.SessionInputQueueModeQueue || insert.SessionGeneration != 3 {
+			t.Fatalf("PrepareQueue() = %#v", insert)
+		}
+		if queueStore.enqueueCalls != 0 {
+			t.Fatalf("EnqueueSessionInput() calls = %d, want 0", queueStore.enqueueCalls)
+		}
+	})
+
 	t.Run("Should accept empty text when at least one attachment is present", func(t *testing.T) {
 		t.Parallel()
 
@@ -239,12 +264,15 @@ func testQueueAttachment() store.SessionInputAttachment {
 	}
 }
 
-type recordingQueueStore struct{}
+type recordingQueueStore struct {
+	enqueueCalls int
+}
 
 func (s *recordingQueueStore) EnqueueSessionInput(
 	_ context.Context,
 	req store.SessionInputQueueInsert,
 ) (store.SessionInputQueueEntry, int, error) {
+	s.enqueueCalls++
 	return store.SessionInputQueueEntry{ID: req.ID, SessionID: req.SessionID, Attachments: req.Attachments}, 1, nil
 }
 

@@ -97,6 +97,7 @@ function makeSession(state: SessionPayload["state"], turnId?: string): SessionPa
     attachable: state !== "stopped",
     archived_at: null,
     available_commands: [],
+    pending_interactions: [],
     type: "user",
     created_at: "2026-04-17T10:00:00Z",
     updated_at: "2026-04-17T10:00:00Z",

@@ -42,6 +42,7 @@ const (
 	sessionNameKey        = "name"
 	sessionNewKey         = "new"
 	sessionProviderKey    = "provider"
+	sessionRequestIDKey   = "request_id"
 	sessionSessionIDKey   = "session_id"
 	sessionStateKey       = "state"
 	sessionStatusKey      = "status"

@@ -206,7 +206,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		}
 	})
 
-	t.Run("Should wake the owning workspace catalog for permission state changes", func(t *testing.T) {
+	t.Run("Should wake the owning workspace catalog for every attention event type", func(t *testing.T) {
 		t.Parallel()
 
 		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
@@ -221,26 +221,33 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		defer cancel()
 
 		session := &Session{ID: "sess-attention", WorkspaceID: "ws-attention"}
-		manager.publishSessionCatalogWakeForEvent(session, acp.AgentEvent{Type: acp.EventTypePermission})
-
-		select {
-		case event := <-events:
-			want := CatalogEvent{
-				Kind:        CatalogEventUpserted,
-				WorkspaceID: "ws-attention",
-				SessionID:   "sess-attention",
+		for _, eventType := range []string{
+			acp.EventTypePermission,
+			acp.EventTypeClarify,
+			acp.EventTypeDone,
+			acp.EventTypeError,
+		} {
+			manager.publishSessionCatalogWakeForEvent(session, acp.AgentEvent{Type: eventType})
+			select {
+			case event := <-events:
+				want := CatalogEvent{
+					Name:        CatalogEventNameChanged,
+					Kind:        CatalogEventUpserted,
+					WorkspaceID: "ws-attention",
+					SessionID:   "sess-attention",
+				}
+				if event != want {
+					t.Fatalf("catalog event for %q = %#v, want %#v", eventType, event, want)
+				}
+			default:
+				t.Fatalf("attention event %q did not wake the session catalog", eventType)
 			}
-			if event != want {
-				t.Fatalf("catalog event = %#v, want %#v", event, want)
-			}
-		default:
-			t.Fatal("permission state change did not wake the session catalog")
 		}
 
 		manager.publishSessionCatalogWakeForEvent(session, acp.AgentEvent{Type: acp.EventTypeAgentMessage})
 		select {
 		case event := <-events:
-			t.Fatalf("non-permission event woke the catalog: %#v", event)
+			t.Fatalf("non-attention event woke the catalog: %#v", event)
 		default:
 		}
 	})
@@ -288,6 +295,82 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatal("catalog event channel remains open after cancel")
 		}
 	})
+
+	t.Run("Should publish one complete attention edge only when the badge changes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		at := time.Date(2026, 8, 15, 18, 2, 41, 0, time.UTC)
+		catalog := newRecordingSessionCatalog()
+		if err := catalog.RegisterSession(ctx, store.SessionInfo{
+			ID: "sess-attention", AgentName: "coder", WorkspaceID: "ws-attention",
+			SessionType: string(SessionTypeUser), State: string(StateActive),
+			CreatedAt: at.Add(-time.Hour), UpdatedAt: at.Add(-time.Minute),
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+		manager, err := NewManager(
+			WithHomePaths(testHomePaths(t)),
+			WithSessionCatalog(catalog),
+			WithNow(func() time.Time { return at }),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cleanupTestManager(t, manager)
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(ctx)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+		defer cancel()
+
+		changedAt := at
+		manager.publishAttentionCommit(ctx, "sess-attention", store.SessionAttentionCommit{
+			Before: store.SessionAttention{AttentionRevision: 1},
+			After: store.SessionAttention{
+				PendingClarifyCount: 1,
+				AttentionRevision:   2,
+				AttentionChangedAt:  &changedAt,
+			},
+		})
+		assertCatalogEventName(t, events, CatalogEventNameChanged)
+		attention := assertCatalogEventName(t, events, CatalogEventNameAttention)
+		if attention.Attention == nil || attention.Attention.SessionID != "sess-attention" ||
+			attention.Attention.WorkspaceID != "ws-attention" || attention.Attention.From != BadgeIdle ||
+			attention.Attention.To != BadgeWaitingForInput || attention.Attention.Class != AttentionNeedsYou ||
+			!attention.Attention.At.Equal(at) {
+			t.Fatalf("attention event = %#v, want canonical edge payload", attention.Attention)
+		}
+
+		manager.publishAttentionCommit(ctx, "sess-attention", store.SessionAttentionCommit{
+			Before: store.SessionAttention{PendingClarifyCount: 1, AttentionRevision: 2},
+			After:  store.SessionAttention{PendingClarifyCount: 1, AttentionRevision: 3},
+		})
+		assertCatalogEventName(t, events, CatalogEventNameChanged)
+		select {
+		case unexpected := <-events:
+			t.Fatalf("same-badge commit published %#v, want no attention edge", unexpected)
+		default:
+		}
+	})
+}
+
+func assertCatalogEventName(
+	t *testing.T,
+	events <-chan CatalogEvent,
+	want CatalogEventName,
+) CatalogEvent {
+	t.Helper()
+	select {
+	case event := <-events:
+		if event.Name != want {
+			t.Fatalf("catalog event name = %q, want %q", event.Name, want)
+		}
+		return event
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for catalog event %q", want)
+		return CatalogEvent{}
+	}
 }
 
 func TestManagerAppendSessionEventIfAbsent(t *testing.T) {

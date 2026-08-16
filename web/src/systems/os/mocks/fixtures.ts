@@ -2,12 +2,26 @@ import type {
   CompozyApiJsonResponseFor,
   CompozyApiOkJsonResponseFor,
 } from "@/storybook/openapi-msw";
-import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
+import {
+  storyDefaultWorkspaceId,
+  storySessionIds,
+  storyWorkspaceIds,
+} from "@/storybook/fintech-scenario";
+import type { SessionAttentionEventPayload } from "@/systems/session";
 
 import { resolveAppForPath } from "../lib/app-registry";
 
 export const windowManagerStoryDesktopId = "desktop-launch";
 export const windowManagerStoryWindowId = "w-story-settings";
+
+export const osSessionAttentionEventFixture: SessionAttentionEventPayload = {
+  session_id: storySessionIds.cto,
+  workspace_id: storyWorkspaceIds.hq,
+  from: "running",
+  to: "waiting-for-input",
+  class: "needs-you",
+  at: "2026-04-17T18:11:30Z",
+};
 
 /**
  * Window IDs are opaque and generated (ADR-010); stories keep them

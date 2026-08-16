@@ -18607,6 +18607,11 @@
                             "attached_to": {
                               "type": "string"
                             },
+                            "attention_changed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
                             "available_commands": {
                               "items": {
                                 "properties": {
@@ -18854,6 +18859,66 @@
                             },
                             "name": {
                               "type": "string"
+                            },
+                            "pending_interactions": {
+                              "items": {
+                                "properties": {
+                                  "choices": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "created_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "decisions": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "interaction_id": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "type": "string"
+                                  },
+                                  "provider_request_id": {
+                                    "type": "string"
+                                  },
+                                  "resolution": {
+                                    "type": "string"
+                                  },
+                                  "resolved_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "resolved_by": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "turn_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "created_at",
+                                  "interaction_id",
+                                  "kind",
+                                  "provider_request_id",
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
                             },
                             "resolved_network_participation": {
                               "nullable": true,
@@ -19287,6 +19352,7 @@
                             "badge",
                             "created_at",
                             "id",
+                            "pending_interactions",
                             "runtime",
                             "state",
                             "updated_at"
@@ -84551,6 +84617,7 @@
                 "spawn.parent_stopped",
                 "spawn.ttl_expired",
                 "spawn.reaped",
+                "session.attention.changed",
                 "network.thread.opened",
                 "network.direct_room.opened",
                 "network.message.persisted",
@@ -121587,6 +121654,22 @@
             }
           },
           {
+            "description": "Only list sessions in the needs-you attention class",
+            "in": "query",
+            "name": "attention",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter by comma-separated exact session badges",
+            "in": "query",
+            "name": "badge",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Archived session visibility",
             "in": "query",
             "name": "archive",
@@ -121606,7 +121689,8 @@
             "schema": {
               "enum": [
                 "recent",
-                "last_activity"
+                "last_activity",
+                "attention"
               ],
               "type": "string"
             }
@@ -121746,6 +121830,11 @@
                             "type": "boolean"
                           },
                           "attached_to": {
+                            "type": "string"
+                          },
+                          "attention_changed_at": {
+                            "format": "date-time",
+                            "nullable": true,
                             "type": "string"
                           },
                           "available_commands": {
@@ -121995,6 +122084,66 @@
                           },
                           "name": {
                             "type": "string"
+                          },
+                          "pending_interactions": {
+                            "items": {
+                              "properties": {
+                                "choices": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "created_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "decisions": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "interaction_id": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "provider_request_id": {
+                                  "type": "string"
+                                },
+                                "resolution": {
+                                  "type": "string"
+                                },
+                                "resolved_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "resolved_by": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "turn_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "created_at",
+                                "interaction_id",
+                                "kind",
+                                "provider_request_id",
+                                "status"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
                           },
                           "resolved_network_participation": {
                             "nullable": true,
@@ -122428,6 +122577,7 @@
                           "badge",
                           "created_at",
                           "id",
+                          "pending_interactions",
                           "runtime",
                           "state",
                           "updated_at"
@@ -123165,6 +123315,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -123412,6 +123567,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -123845,6 +124060,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -124237,6 +124453,285 @@
         ]
       }
     },
+    "/api/sessions/attention-summary": {
+      "get": {
+        "operationId": "getSessionAttentionSummary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "by_workspace": {
+                      "items": {
+                        "properties": {
+                          "finished": {
+                            "type": "integer"
+                          },
+                          "needs_you": {
+                            "type": "integer"
+                          },
+                          "workspace_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "finished",
+                          "needs_you",
+                          "workspace_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "finished": {
+                      "type": "integer"
+                    },
+                    "needs_you": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "by_workspace",
+                    "finished",
+                    "needs_you"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session attention is unavailable"
+          }
+        },
+        "summary": "Get exact session attention counts",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/sessions/catalog-stream": {
       "get": {
         "operationId": "streamSessionCatalog",
@@ -124245,23 +124740,59 @@
             "content": {
               "text/event-stream": {
                 "schema": {
-                  "properties": {
-                    "kind": {
-                      "type": "string"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "session_id",
+                        "workspace_id"
+                      ],
+                      "type": "object"
                     },
-                    "session_id": {
-                      "type": "string"
-                    },
-                    "workspace_id": {
-                      "type": "string"
+                    {
+                      "properties": {
+                        "at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "class": {
+                          "type": "string"
+                        },
+                        "from": {
+                          "type": "string"
+                        },
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "class",
+                        "from",
+                        "session_id",
+                        "to",
+                        "workspace_id"
+                      ],
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "kind",
-                    "session_id",
-                    "workspace_id"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
@@ -124542,6 +125073,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -124789,6 +125325,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -125222,6 +125818,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -128259,6 +128856,7 @@
                                   "spawn.parent_stopped",
                                   "spawn.ttl_expired",
                                   "spawn.reaped",
+                                  "session.attention.changed",
                                   "network.thread.opened",
                                   "network.direct_room.opened",
                                   "network.message.persisted",
@@ -128928,6 +129526,7 @@
                                   "spawn.parent_stopped",
                                   "spawn.ttl_expired",
                                   "spawn.reaped",
+                                  "session.attention.changed",
                                   "network.thread.opened",
                                   "network.direct_room.opened",
                                   "network.message.persisted",
@@ -130592,6 +131191,7 @@
                           "spawn.parent_stopped",
                           "spawn.ttl_expired",
                           "spawn.reaped",
+                          "session.attention.changed",
                           "network.thread.opened",
                           "network.direct_room.opened",
                           "network.message.persisted",
@@ -218575,6 +219175,11 @@
                           "attached_to": {
                             "type": "string"
                           },
+                          "attention_changed_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "available_commands": {
                             "items": {
                               "properties": {
@@ -218822,6 +219427,66 @@
                           },
                           "name": {
                             "type": "string"
+                          },
+                          "pending_interactions": {
+                            "items": {
+                              "properties": {
+                                "choices": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "created_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "decisions": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "interaction_id": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "provider_request_id": {
+                                  "type": "string"
+                                },
+                                "resolution": {
+                                  "type": "string"
+                                },
+                                "resolved_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "resolved_by": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "turn_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "created_at",
+                                "interaction_id",
+                                "kind",
+                                "provider_request_id",
+                                "status"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
                           },
                           "resolved_network_participation": {
                             "nullable": true,
@@ -219255,6 +219920,7 @@
                           "badge",
                           "created_at",
                           "id",
+                          "pending_interactions",
                           "runtime",
                           "state",
                           "updated_at"
@@ -223847,6 +224513,7 @@
                 "spawn.parent_stopped",
                 "spawn.ttl_expired",
                 "spawn.reaped",
+                "session.attention.changed",
                 "network.thread.opened",
                 "network.direct_room.opened",
                 "network.message.persisted",
@@ -261964,6 +262631,11 @@
                               "attached_to": {
                                 "type": "string"
                               },
+                              "attention_changed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
                               "available_commands": {
                                 "items": {
                                   "properties": {
@@ -262211,6 +262883,66 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "pending_interactions": {
+                                "items": {
+                                  "properties": {
+                                    "choices": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "created_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "decisions": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "interaction_id": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "provider_request_id": {
+                                      "type": "string"
+                                    },
+                                    "resolution": {
+                                      "type": "string"
+                                    },
+                                    "resolved_at": {
+                                      "format": "date-time",
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "resolved_by": {
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "turn_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "created_at",
+                                    "interaction_id",
+                                    "kind",
+                                    "provider_request_id",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
                               },
                               "resolved_network_participation": {
                                 "nullable": true,
@@ -262644,6 +263376,7 @@
                               "badge",
                               "created_at",
                               "id",
+                              "pending_interactions",
                               "runtime",
                               "state",
                               "updated_at"
@@ -263267,6 +264000,11 @@
                               "attached_to": {
                                 "type": "string"
                               },
+                              "attention_changed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
                               "available_commands": {
                                 "items": {
                                   "properties": {
@@ -263514,6 +264252,66 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "pending_interactions": {
+                                "items": {
+                                  "properties": {
+                                    "choices": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "created_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "decisions": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "interaction_id": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "provider_request_id": {
+                                      "type": "string"
+                                    },
+                                    "resolution": {
+                                      "type": "string"
+                                    },
+                                    "resolved_at": {
+                                      "format": "date-time",
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "resolved_by": {
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "turn_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "created_at",
+                                    "interaction_id",
+                                    "kind",
+                                    "provider_request_id",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
                               },
                               "resolved_network_participation": {
                                 "nullable": true,
@@ -263947,6 +264745,7 @@
                               "badge",
                               "created_at",
                               "id",
+                              "pending_interactions",
                               "runtime",
                               "state",
                               "updated_at"
@@ -264593,6 +265392,11 @@
                               "attached_to": {
                                 "type": "string"
                               },
+                              "attention_changed_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
                               "available_commands": {
                                 "items": {
                                   "properties": {
@@ -264840,6 +265644,66 @@
                               },
                               "name": {
                                 "type": "string"
+                              },
+                              "pending_interactions": {
+                                "items": {
+                                  "properties": {
+                                    "choices": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "created_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "decisions": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "interaction_id": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "provider_request_id": {
+                                      "type": "string"
+                                    },
+                                    "resolution": {
+                                      "type": "string"
+                                    },
+                                    "resolved_at": {
+                                      "format": "date-time",
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "resolved_by": {
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "turn_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "created_at",
+                                    "interaction_id",
+                                    "kind",
+                                    "provider_request_id",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
                               },
                               "resolved_network_participation": {
                                 "nullable": true,
@@ -265273,6 +266137,7 @@
                               "badge",
                               "created_at",
                               "id",
+                              "pending_interactions",
                               "runtime",
                               "state",
                               "updated_at"
@@ -273705,6 +274570,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -273952,6 +274822,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -274385,6 +275315,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -274694,6 +275625,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -274941,6 +275877,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -275374,6 +276370,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -275749,12 +276746,26 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "status": {
+                    "decision": {
+                      "type": "string"
+                    },
+                    "interaction_id": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "resolved_decision": {
                       "type": "string"
                     }
                   },
                   "required": [
-                    "status"
+                    "decision",
+                    "outcome",
+                    "request_id"
                   ],
                   "type": "object"
                 }
@@ -276111,6 +277122,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -276358,6 +277374,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -276791,6 +277867,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -277273,6 +278350,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -277520,6 +278602,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -277953,6 +279095,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -280326,6 +281469,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -280573,6 +281721,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -281006,6 +282214,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -284171,6 +285380,1012 @@
           }
         },
         "summary": "Inspect session health, wake audit, and policy correlation metadata",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions": {
+      "get": {
+        "operationId": "listSessionInteractions",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by interaction status",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "enum": [
+                "pending",
+                "orphaned",
+                "resolved",
+                "timed_out",
+                "canceled"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "interactions": {
+                      "items": {
+                        "properties": {
+                          "choices": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "decisions": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "interaction_id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "provider_request_id": {
+                            "type": "string"
+                          },
+                          "resolution": {
+                            "type": "string"
+                          },
+                          "resolved_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "resolved_by": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "turn_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "created_at",
+                          "interaction_id",
+                          "kind",
+                          "provider_request_id",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "interactions"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid interaction status"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session attention is unavailable"
+          }
+        },
+        "summary": "List pending session interactions",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/presence": {
+      "post": {
+        "operationId": "updateSessionPresence",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "lease_id": {
+                    "type": "string"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "visible"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "lease_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "lease_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Presence lease acquired"
+          },
+          "204": {
+            "description": "Presence lease renewed or released"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid presence request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session or lease not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Presence lease ownership mismatch"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session attention is unavailable"
+          }
+        },
+        "summary": "Update operator session presence",
         "tags": [
           "sessions"
         ],
@@ -289291,6 +291506,11 @@
                             "attached_to": {
                               "type": "string"
                             },
+                            "attention_changed_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
                             "available_commands": {
                               "items": {
                                 "properties": {
@@ -289538,6 +291758,66 @@
                             },
                             "name": {
                               "type": "string"
+                            },
+                            "pending_interactions": {
+                              "items": {
+                                "properties": {
+                                  "choices": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "created_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "decisions": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "interaction_id": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "type": "string"
+                                  },
+                                  "provider_request_id": {
+                                    "type": "string"
+                                  },
+                                  "resolution": {
+                                    "type": "string"
+                                  },
+                                  "resolved_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "resolved_by": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "turn_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "created_at",
+                                  "interaction_id",
+                                  "kind",
+                                  "provider_request_id",
+                                  "status"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
                             },
                             "resolved_network_participation": {
                               "nullable": true,
@@ -289971,6 +292251,7 @@
                             "badge",
                             "created_at",
                             "id",
+                            "pending_interactions",
                             "runtime",
                             "state",
                             "updated_at"
@@ -290828,6 +293109,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -291075,6 +293361,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -291508,6 +293854,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -292030,6 +294377,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -292277,6 +294629,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -292710,6 +295122,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -293201,6 +295614,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -293448,6 +295866,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -293881,6 +296359,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -295005,6 +297484,9 @@
                     "attachable": {
                       "type": "boolean"
                     },
+                    "badge": {
+                      "type": "string"
+                    },
                     "eligible_for_wake": {
                       "type": "boolean"
                     },
@@ -295029,6 +297511,66 @@
                         "session_health_unknown"
                       ],
                       "type": "string"
+                    },
+                    "pending_interactions": {
+                      "items": {
+                        "properties": {
+                          "choices": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "decisions": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "interaction_id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "provider_request_id": {
+                            "type": "string"
+                          },
+                          "resolution": {
+                            "type": "string"
+                          },
+                          "resolved_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "resolved_by": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "turn_id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "created_at",
+                          "interaction_id",
+                          "kind",
+                          "provider_request_id",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "session_id": {
                       "type": "string"
@@ -295125,8 +297667,10 @@
                     "active_prompt",
                     "agent_name",
                     "attachable",
+                    "badge",
                     "eligible_for_wake",
                     "health",
+                    "pending_interactions",
                     "session_id",
                     "state",
                     "updated_at",
@@ -299781,6 +302325,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -300028,6 +302577,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -300461,6 +303070,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"
@@ -301109,6 +303719,11 @@
                         "attached_to": {
                           "type": "string"
                         },
+                        "attention_changed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "available_commands": {
                           "items": {
                             "properties": {
@@ -301356,6 +303971,66 @@
                         },
                         "name": {
                           "type": "string"
+                        },
+                        "pending_interactions": {
+                          "items": {
+                            "properties": {
+                              "choices": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "created_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "decisions": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "interaction_id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "provider_request_id": {
+                                "type": "string"
+                              },
+                              "resolution": {
+                                "type": "string"
+                              },
+                              "resolved_at": {
+                                "format": "date-time",
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "resolved_by": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "turn_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "created_at",
+                              "interaction_id",
+                              "kind",
+                              "provider_request_id",
+                              "status"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "resolved_network_participation": {
                           "nullable": true,
@@ -301789,6 +304464,7 @@
                         "badge",
                         "created_at",
                         "id",
+                        "pending_interactions",
                         "runtime",
                         "state",
                         "updated_at"

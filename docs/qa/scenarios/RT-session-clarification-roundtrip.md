@@ -4,9 +4,9 @@ area: RT
 title: Answer a live agent clarification
 persona: Théo
 journey: J-answer-agent-requests
-expected: A live session shows one truthful clarification card, accepts an offered choice or free text through Web, CLI, HTTP, or UDS, resumes the waiting tool with the same structured answer, and keeps resolved, timed-out, or canceled evidence after reload without exposing another workspace.
+expected: A live session derives `waiting-for-input`, exposes one sanitized clarification through status and interaction discovery, accepts an offered choice or free text through Web, CLI, HTTP, or UDS, resumes the live tool with `answered`, resolves a restart-orphaned request with `resolved-after-restart`, returns the original winner on duplicate resolution, and keeps all evidence workspace-isolated.
 entry_points: Web session timeline; compozy__clarify; compozy session clarify pending/answer; GET/POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -35,6 +35,10 @@ now owns approvals + clarify); settles US-002 (D7, ADR-001).
 Phase D remediation 2026-07-19: keep the durable pending question visible when the live
 clarification read fails, with an explicit retry before answer controls return. Status remains
 `untested` for the next QA cycle.
+
+QA impact 2026-08-16: Task 01 made pending clarifications canonical across daemon restart, added
+the `waiting-for-input` badge and status/interaction projections, and made orphan resolution resume
+through the durable input queue. Reset to `untested`; task_08 owns the cross-surface walk.
 
 Forensic evidence contract (SD-006) — each item cites timestamp, exact command, observed output:
 

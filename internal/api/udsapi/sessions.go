@@ -36,12 +36,19 @@ func (h *Handlers) approveSession(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Sessions.ApprovePermission(c.Request.Context(), sessionID, approve); err != nil {
+	result, err := h.Sessions.ApprovePermission(c.Request.Context(), sessionID, approve)
+	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.SessionApprovalResponse{Status: "approved"})
+	c.JSON(http.StatusOK, contract.SessionApprovalResponse{
+		Outcome:          result.Outcome,
+		InteractionID:    result.InteractionID,
+		RequestID:        result.RequestID,
+		Decision:         result.Decision,
+		ResolvedDecision: result.ResolvedDecision,
+	})
 }
 
 func (h *Handlers) cancelSessionPrompt(c *gin.Context) {

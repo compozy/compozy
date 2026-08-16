@@ -93,6 +93,14 @@ type Info struct {
 	AttachedTo               string
 	AttachExpiresAt          *time.Time
 	TranscriptEpoch          int64
+	PendingPermissionCount   int
+	PendingClarifyCount      int
+	AttentionRevision        int64
+	LastSettledRevision      int64
+	LastSeenRevision         int64
+	LastSeenAt               *time.Time
+	AttentionChangedAt       *time.Time
+	PendingInteractions      []store.PendingInteraction
 	ArchivedAt               *time.Time
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
@@ -144,6 +152,14 @@ type Session struct {
 	AttachedTo               string
 	AttachExpiresAt          *time.Time
 	TranscriptEpoch          int64
+	PendingPermissionCount   int
+	PendingClarifyCount      int
+	AttentionRevision        int64
+	LastSettledRevision      int64
+	LastSeenRevision         int64
+	LastSeenAt               *time.Time
+	AttentionChangedAt       *time.Time
+	PendingInteractions      []store.PendingInteraction
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 	creationProfile          *store.SessionCreationProfile

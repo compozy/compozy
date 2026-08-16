@@ -25,6 +25,7 @@ function sidebarSession(
     attachable: true,
     archived_at: null,
     available_commands: [],
+    pending_interactions: [],
     ...(parentId
       ? {
           lineage: {

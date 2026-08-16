@@ -201,46 +201,6 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 	return nil
 }
 
-// ApprovePermission resolves one pending interactive permission request for an active session.
-func (m *Manager) ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error {
-	if ctx == nil {
-		return errors.New("session: approval context is required")
-	}
-	if err := req.Validate(); err != nil {
-		return err
-	}
-
-	target := strings.TrimSpace(id)
-	if target == "" {
-		return errors.New("session: session id is required")
-	}
-
-	session, ok := m.Get(target)
-	if !ok {
-		meta, err := m.readMetaWithContext(ctx, target)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
-	}
-
-	if err := session.ApprovePermission(ctx, req); err != nil {
-		switch {
-		case errors.Is(err, ErrSessionNotActive):
-			return err
-		case errors.Is(err, acp.ErrPendingPermissionNotFound):
-			return fmt.Errorf("%w: %s", ErrPendingPermissionNotFound, target)
-		case errors.Is(err, acp.ErrPendingPermissionConflict):
-			return fmt.Errorf("%w: %s", ErrPendingPermissionConflict, target)
-		case errors.Is(err, acp.ErrPermissionDecisionUnsupported):
-			return fmt.Errorf("%w: %s", ErrInvalidPermissionDecision, target)
-		default:
-			return err
-		}
-	}
-	return nil
-}
-
 // RequestPermission asks an active session's permission path for a tool-call decision.
 func (m *Manager) RequestPermission(
 	ctx context.Context,

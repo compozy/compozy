@@ -62,30 +62,32 @@ func (h *BaseHandlers) rejectExpectedDigestHeader(
 	return true
 }
 
-func (h *BaseHandlers) sessionHealthPayloadForRoute(c *gin.Context) (contract.SessionHealthPayload, bool) {
+func (h *BaseHandlers) sessionHealthPayloadForRoute(
+	c *gin.Context,
+) (contract.SessionHealthPayload, session.Badge, bool) {
 	if h.SessionHealth == nil {
 		h.respondError(c, StatusForHeartbeatError(errSessionHealthMissing), errSessionHealthMissing)
-		return contract.SessionHealthPayload{}, false
+		return contract.SessionHealthPayload{}, "", false
 	}
-	scope, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
-		return contract.SessionHealthPayload{}, false
+		return contract.SessionHealthPayload{}, "", false
 	}
 	health, err := h.SessionHealth.GetSessionHealth(c.Request.Context(), sessionID)
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
-		return contract.SessionHealthPayload{}, false
+		return contract.SessionHealthPayload{}, "", false
 	}
 	if strings.TrimSpace(health.WorkspaceID) != scope.SessionWorkspaceID() {
 		h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
-		return contract.SessionHealthPayload{}, false
+		return contract.SessionHealthPayload{}, "", false
 	}
 	payload, err := contract.SessionHealthPayloadFromDomain(health)
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
-		return contract.SessionHealthPayload{}, false
+		return contract.SessionHealthPayload{}, "", false
 	}
-	return payload, true
+	return payload, session.BadgeForHealth(info, health), true
 }
 
 func (h *BaseHandlers) sessionPayloadWithOptionalHealth(

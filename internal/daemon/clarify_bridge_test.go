@@ -19,6 +19,55 @@ import (
 func TestClarifyBridgeLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should delegate a missing live handle to durable orphan resolution", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			gotScope     toolspkg.Scope
+			gotRequestID string
+			gotRequest   toolspkg.ClarifyAnswerRequest
+		)
+		publisher := &orphanClarifyPublisher{
+			clarifyPublisherStub: newClarifyPublisherStub(),
+			resolve: func(
+				_ context.Context,
+				scope toolspkg.Scope,
+				requestID string,
+				request toolspkg.ClarifyAnswerRequest,
+			) (toolspkg.ClarifyAnswerResult, error) {
+				gotScope = scope
+				gotRequestID = requestID
+				gotRequest = request
+				return toolspkg.ClarifyAnswerResult{
+					ClarifyAnswer:  toolspkg.ClarifyAnswer{Text: "safe"},
+					Outcome:        store.PendingInteractionOutcomeResolvedAfterRestart,
+					InteractionID:  "interaction-one",
+					RequestID:      requestID,
+					ResolvedAnswer: "safe",
+				}, nil
+			},
+		}
+		bridge := newTestClarifyBridge(t, time.Second, publisher)
+		scope := testClarifyScope()
+		scope.Operator = true
+		result, err := bridge.Answer(
+			testutil.Context(t),
+			scope,
+			"request-orphan",
+			toolspkg.ClarifyAnswerRequest{Text: " safe "},
+		)
+		if err != nil {
+			t.Fatalf("Answer(orphan) error = %v", err)
+		}
+		if gotScope != scope || gotRequestID != "request-orphan" || gotRequest.Text != " safe " {
+			t.Fatalf("orphan resolver call = %#v/%q/%#v", gotScope, gotRequestID, gotRequest)
+		}
+		if result.Outcome != store.PendingInteractionOutcomeResolvedAfterRestart ||
+			result.ResolvedAnswer != "safe" {
+			t.Fatalf("Answer(orphan) = %#v", result)
+		}
+	})
+
 	t.Run("Should resolve a bounded choice and release the blocked caller", func(t *testing.T) {
 		t.Parallel()
 
@@ -44,7 +93,9 @@ func TestClarifyBridgeLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Answer() error = %v", err)
 		}
-		if answer.Choice == nil || *answer.Choice != choice || answer.Text != "" || answer.Fallback {
+		if answer.Choice == nil || *answer.Choice != choice || answer.Text != "" || answer.Fallback ||
+			answer.Outcome != store.PendingInteractionOutcomeAnswered ||
+			answer.RequestID != pending[0].RequestID || answer.ResolvedAnswer != "Safe" {
 			t.Fatalf("Answer() = %#v, want resolved choice %d", answer, choice)
 		}
 		got := awaitClarifyResult(t, result)
@@ -216,7 +267,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		publisher.awaitPendingPublish(t)
 
-		answerResult := make(chan clarifyResult, 1)
+		answerResult := make(chan clarifyAnswerCallResult, 1)
 		go func() {
 			answer, err := bridge.Answer(
 				testutil.Context(t),
@@ -224,7 +275,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 				"clarify-request",
 				toolspkg.ClarifyAnswerRequest{Text: "yes"},
 			)
-			answerResult <- clarifyResult{answer: answer, err: err}
+			answerResult <- clarifyAnswerCallResult{answer: answer, err: err}
 		}()
 		select {
 		case answer := <-answerResult:
@@ -236,7 +287,7 @@ func TestClarifyBridgeFailurePaths(t *testing.T) {
 		if event := publisher.delegate.await(t); event.Status != toolspkg.ClarifyStatusPending {
 			t.Fatalf("pending event status = %q, want %q", event.Status, toolspkg.ClarifyStatusPending)
 		}
-		if answer := awaitClarifyResult(t, answerResult); answer.err != nil || answer.answer.Text != "yes" {
+		if answer := awaitClarifyAnswerCallResult(t, answerResult); answer.err != nil || answer.answer.Text != "yes" {
 			t.Fatalf("Answer() result = %#v, want yes", answer)
 		}
 		if got := awaitClarifyResult(t, result); got.err != nil || got.answer.Text != "yes" {
@@ -463,6 +514,25 @@ func awaitClarifyResult(t *testing.T, result <-chan clarifyResult) clarifyResult
 	}
 }
 
+type clarifyAnswerCallResult struct {
+	answer toolspkg.ClarifyAnswerResult
+	err    error
+}
+
+func awaitClarifyAnswerCallResult(
+	t *testing.T,
+	result <-chan clarifyAnswerCallResult,
+) clarifyAnswerCallResult {
+	t.Helper()
+	select {
+	case got := <-result:
+		return got
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for clarification answer result")
+		return clarifyAnswerCallResult{}
+	}
+}
+
 func awaitPendingClarification(
 	t *testing.T,
 	bridge *clarifyBridge,
@@ -491,6 +561,25 @@ type clarifyPublisherStub struct {
 	events   []toolspkg.ClarifyEvent
 	failures map[toolspkg.ClarifyStatus]error
 	wake     chan toolspkg.ClarifyEvent
+}
+
+type orphanClarifyPublisher struct {
+	*clarifyPublisherStub
+	resolve func(
+		context.Context,
+		toolspkg.Scope,
+		string,
+		toolspkg.ClarifyAnswerRequest,
+	) (toolspkg.ClarifyAnswerResult, error)
+}
+
+func (s *orphanClarifyPublisher) ResolveOrphanedClarification(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	requestID string,
+	request toolspkg.ClarifyAnswerRequest,
+) (toolspkg.ClarifyAnswerResult, error) {
+	return s.resolve(ctx, scope, requestID, request)
 }
 
 func newClarifyPublisherStub() *clarifyPublisherStub {
