@@ -31,6 +31,7 @@ type sessionInfoRow struct {
 	spawnRole              sql.NullString
 	ttlExpiresAt           sql.NullString
 	autoStopOnParent       bool
+	notifyCreator          bool
 	spawnBudgetJSON        string
 	permissionPolicyJSON   string
 	archivedAt             sql.NullString
@@ -120,6 +121,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		row.spawnRole,
 		row.ttlExpiresAt,
 		row.autoStopOnParent,
+		row.notifyCreator,
 		row.spawnBudgetJSON,
 		row.permissionPolicyJSON,
 	)
@@ -280,6 +282,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.spawnRole,
 		&row.ttlExpiresAt,
 		&row.autoStopOnParent,
+		&row.notifyCreator,
 		&row.spawnBudgetJSON,
 		&row.permissionPolicyJSON,
 		&row.session.State,
@@ -379,6 +382,7 @@ func scanSessionLineage(
 	spawnRole sql.NullString,
 	ttlExpiresAt sql.NullString,
 	autoStopOnParent bool,
+	notifyCreator bool,
 	spawnBudgetJSON string,
 	permissionPolicyJSON string,
 ) (*store.SessionLineage, error) {
@@ -396,6 +400,7 @@ func scanSessionLineage(
 		SpawnDepth:       spawnDepth,
 		SpawnRole:        sessionNullString(spawnRole),
 		AutoStopOnParent: autoStopOnParent,
+		NotifyCreator:    notifyCreator,
 		SpawnBudget:      budget,
 		PermissionPolicy: policy,
 	}

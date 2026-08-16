@@ -160,7 +160,7 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 			t.Fatalf("stored agent_message events = %d, want 1", got)
 		}
 
-		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
 		select {

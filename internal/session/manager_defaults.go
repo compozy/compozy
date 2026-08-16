@@ -42,6 +42,15 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.newTurnID == nil {
 		m.newTurnID = newIDGenerator("turn")
 	}
+	if m.newWaitID == nil {
+		m.newWaitID = newULIDGenerator("wait")
+	}
+	if m.newWaitTimer == nil {
+		m.newWaitTimer = newRealWaitTimer
+	}
+	if m.newWaitAfterFunc == nil {
+		m.newWaitAfterFunc = newRealWaitAfterFunc
+	}
 	if m.promptBufSize <= 0 {
 		m.promptBufSize = defaultPromptBufferSize
 	}

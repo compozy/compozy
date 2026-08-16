@@ -163,10 +163,11 @@ func (p ClarifyPending) Clone() ClarifyPending {
 
 // ClarifyEvent is the durable session/SSE lifecycle payload.
 type ClarifyEvent struct {
-	Status  ClarifyStatus  `json:"status"`
-	Request ClarifyPending `json:"request"`
-	Answer  *ClarifyAnswer `json:"answer,omitempty"`
-	At      time.Time      `json:"at"`
+	Status     ClarifyStatus  `json:"status"`
+	Request    ClarifyPending `json:"request"`
+	Answer     *ClarifyAnswer `json:"answer,omitempty"`
+	ResolvedBy string         `json:"resolved_by,omitempty"`
+	At         time.Time      `json:"at"`
 }
 
 // Validate ensures lifecycle evidence cannot represent an impossible transition.

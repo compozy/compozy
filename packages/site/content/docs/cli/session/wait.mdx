@@ -1,11 +1,11 @@
 ---
 title: "compozy session wait"
-description: "Block until a session stops"
+description: "Wait for a session state"
 ---
 
 ## compozy session wait
 
-Block until a session stops
+Wait for a session state
 
 ```
 compozy session wait <id> [flags]
@@ -14,14 +14,20 @@ compozy session wait <id> [flags]
 ### Examples
 
 ```
-  # Block until a session emits its stopped event
-  compozy session wait sess_1234
+  # Wait until a session needs input or becomes idle
+  compozy session wait sess_1234 --until waiting-for-input,idle --timeout 120s
+
+  # Keep waiting through bounded, gapless server requests
+  compozy session wait sess_1234 --unbounded
 ```
 
 ### Options
 
 ```
-  -h, --help   help for wait
+  -h, --help               help for wait
+      --timeout duration   Maximum wait duration (default 5m0s)
+      --unbounded          Keep waiting through bounded server requests
+      --until strings      Session states to wait for
 ```
 
 ### Options inherited from parent commands

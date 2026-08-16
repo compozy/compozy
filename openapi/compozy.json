@@ -12340,6 +12340,9 @@
                                 "auto_stop_on_parent": {
                                   "type": "boolean"
                                 },
+                                "notify_creator": {
+                                  "type": "boolean"
+                                },
                                 "parent_session_id": {
                                   "type": "string"
                                 },
@@ -12432,6 +12435,7 @@
                               },
                               "required": [
                                 "auto_stop_on_parent",
+                                "notify_creator",
                                 "permission_policy",
                                 "spawn_budget",
                                 "spawn_depth"
@@ -16163,6 +16167,9 @@
                                 "auto_stop_on_parent": {
                                   "type": "boolean"
                                 },
+                                "notify_creator": {
+                                  "type": "boolean"
+                                },
                                 "parent_session_id": {
                                   "type": "string"
                                 },
@@ -16255,6 +16262,7 @@
                               },
                               "required": [
                                 "auto_stop_on_parent",
+                                "notify_creator",
                                 "permission_policy",
                                 "spawn_budget",
                                 "spawn_depth"
@@ -18718,6 +18726,10 @@
                   "name": {
                     "type": "string"
                   },
+                  "notify_creator": {
+                    "nullable": true,
+                    "type": "boolean"
+                  },
                   "permissions": {
                     "properties": {
                       "mcp_servers": {
@@ -18818,6 +18830,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -18910,6 +18925,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -19207,6 +19223,9 @@
                                 "auto_stop_on_parent": {
                                   "type": "boolean"
                                 },
+                                "notify_creator": {
+                                  "type": "boolean"
+                                },
                                 "parent_session_id": {
                                   "type": "string"
                                 },
@@ -19299,6 +19318,7 @@
                               },
                               "required": [
                                 "auto_stop_on_parent",
+                                "notify_creator",
                                 "permission_policy",
                                 "spawn_budget",
                                 "spawn_depth"
@@ -122434,6 +122454,9 @@
                               "auto_stop_on_parent": {
                                 "type": "boolean"
                               },
+                              "notify_creator": {
+                                "type": "boolean"
+                              },
                               "parent_session_id": {
                                 "type": "string"
                               },
@@ -122526,6 +122549,7 @@
                             },
                             "required": [
                               "auto_stop_on_parent",
+                              "notify_creator",
                               "permission_policy",
                               "spawn_budget",
                               "spawn_depth"
@@ -123917,6 +123941,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -124009,6 +124036,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -125707,6 +125735,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -125799,6 +125830,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -221257,6 +221289,9 @@
                               "auto_stop_on_parent": {
                                 "type": "boolean"
                               },
+                              "notify_creator": {
+                                "type": "boolean"
+                              },
                               "parent_session_id": {
                                 "type": "string"
                               },
@@ -221349,6 +221384,7 @@
                             },
                             "required": [
                               "auto_stop_on_parent",
+                              "notify_creator",
                               "permission_policy",
                               "spawn_budget",
                               "spawn_depth"
@@ -264713,6 +264749,9 @@
                                   "auto_stop_on_parent": {
                                     "type": "boolean"
                                   },
+                                  "notify_creator": {
+                                    "type": "boolean"
+                                  },
                                   "parent_session_id": {
                                     "type": "string"
                                   },
@@ -264805,6 +264844,7 @@
                                 },
                                 "required": [
                                   "auto_stop_on_parent",
+                                  "notify_creator",
                                   "permission_policy",
                                   "spawn_budget",
                                   "spawn_depth"
@@ -266082,6 +266122,9 @@
                                   "auto_stop_on_parent": {
                                     "type": "boolean"
                                   },
+                                  "notify_creator": {
+                                    "type": "boolean"
+                                  },
                                   "parent_session_id": {
                                     "type": "string"
                                   },
@@ -266174,6 +266217,7 @@
                                 },
                                 "required": [
                                   "auto_stop_on_parent",
+                                  "notify_creator",
                                   "permission_policy",
                                   "spawn_budget",
                                   "spawn_depth"
@@ -267474,6 +267518,9 @@
                                   "auto_stop_on_parent": {
                                     "type": "boolean"
                                   },
+                                  "notify_creator": {
+                                    "type": "boolean"
+                                  },
                                   "parent_session_id": {
                                     "type": "string"
                                   },
@@ -267566,6 +267613,7 @@
                                 },
                                 "required": [
                                   "auto_stop_on_parent",
+                                  "notify_creator",
                                   "permission_policy",
                                   "spawn_budget",
                                   "spawn_depth"
@@ -276652,6 +276700,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -276744,6 +276795,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -277707,6 +277759,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -277799,6 +277854,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -279204,6 +279260,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -279296,6 +279355,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -280432,6 +280492,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -280524,6 +280587,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -283551,6 +283615,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -283643,6 +283710,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -290730,6 +290798,212 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel": {
+      "post": {
+        "operationId": "cancelSessionPrompt",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "session_id": {
+                      "type": "string"
+                    },
+                    "turn_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "outcome",
+                    "session_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Cancellation result"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Cancel the active session prompt",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue": {
       "get": {
         "operationId": "listSessionInputs",
@@ -293588,6 +293862,9 @@
                                 "auto_stop_on_parent": {
                                   "type": "boolean"
                                 },
+                                "notify_creator": {
+                                  "type": "boolean"
+                                },
                                 "parent_session_id": {
                                   "type": "string"
                                 },
@@ -293680,6 +293957,7 @@
                               },
                               "required": [
                                 "auto_stop_on_parent",
+                                "notify_creator",
                                 "permission_policy",
                                 "spawn_budget",
                                 "spawn_depth"
@@ -295191,6 +295469,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -295283,6 +295564,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -296459,6 +296741,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -296551,6 +296836,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -297696,6 +297982,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -297788,6 +298077,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -304407,6 +304697,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -304499,6 +304792,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"
@@ -305497,6 +305791,629 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/wait": {
+      "post": {
+        "operationId": "waitForSession",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "epoch": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "resume_id": {
+                    "type": "string"
+                  },
+                  "timeout_ms": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "until": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "timeout_ms"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "outcome": {
+                      "type": "string"
+                    },
+                    "resume_id": {
+                      "type": "string"
+                    },
+                    "revision": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "session_id": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "until": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "waited_ms": {
+                      "format": "int64",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "outcome",
+                    "revision",
+                    "session_id",
+                    "waited_ms"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Wait completed or timed out"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Malformed wait request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Wait limit reached or registration in use"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session gone or wait registration expired"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid wait request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session wait is unavailable"
+          }
+        },
+        "summary": "Wait for a session state",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork": {
       "post": {
         "operationId": "forkSessionToWorktree",
@@ -305801,6 +306718,9 @@
                             "auto_stop_on_parent": {
                               "type": "boolean"
                             },
+                            "notify_creator": {
+                              "type": "boolean"
+                            },
                             "parent_session_id": {
                               "type": "string"
                             },
@@ -305893,6 +306813,7 @@
                           },
                           "required": [
                             "auto_stop_on_parent",
+                            "notify_creator",
                             "permission_policy",
                             "spawn_budget",
                             "spawn_depth"

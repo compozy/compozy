@@ -184,6 +184,7 @@ type Session struct {
 	currentSkillInvocations []commandpkg.Invocation
 	currentPromptCancel     context.CancelFunc
 	currentPromptCancelTurn string
+	promptCancelRequested   bool
 	currentPromptDone       chan struct{}
 	providerRedactions      []func()
 }

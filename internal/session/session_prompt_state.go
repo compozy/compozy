@@ -140,6 +140,7 @@ func (s *Session) setCurrentPromptCancel(cancel context.CancelFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentPromptCancel = cancel
+	s.promptCancelRequested = false
 }
 
 func (s *Session) cancelCurrentPrompt() bool {
@@ -162,21 +163,38 @@ func (s *Session) requestCurrentPromptCancellation() (
 	*AgentProcess,
 	context.CancelFunc,
 	bool,
+	bool,
 ) {
 	if s == nil {
-		return "", nil, nil, false
+		return "", nil, nil, false, false
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.promptSetupCount == 0 && s.currentTurnSource == "" && s.currentTurnID == "" {
-		return "", nil, nil, false
+		return "", nil, nil, false, false
 	}
 	turnID := strings.TrimSpace(s.currentTurnID)
+	if s.promptCancelRequested {
+		return turnID, s.process, nil, true, true
+	}
+	s.promptCancelRequested = true
 	if turnID != "" {
 		s.currentPromptCancelTurn = turnID
 	}
-	return turnID, s.process, s.currentPromptCancel, true
+	return turnID, s.process, s.currentPromptCancel, true, false
+}
+
+func (s *Session) retryCurrentPromptCancellation(turnID string) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if strings.TrimSpace(turnID) == strings.TrimSpace(s.currentTurnID) {
+		s.promptCancelRequested = false
+	}
 }
 
 func (s *Session) promptCancellationRequested(turnID string) bool {
@@ -270,4 +288,5 @@ func (s *Session) clearCurrentPromptCancel() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentPromptCancel = nil
+	s.promptCancelRequested = false
 }

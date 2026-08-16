@@ -14,6 +14,7 @@ type SessionLineage struct {
 	SpawnRole        string                  `json:"spawn_role,omitempty"`
 	TTLExpiresAt     *time.Time              `json:"ttl_expires_at,omitempty"`
 	AutoStopOnParent bool                    `json:"auto_stop_on_parent"`
+	NotifyCreator    bool                    `json:"notify_creator"`
 	SpawnBudget      SessionSpawnBudget      `json:"spawn_budget"`
 	PermissionPolicy SessionPermissionPolicy `json:"permission_policy"`
 }

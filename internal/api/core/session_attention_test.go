@@ -149,6 +149,178 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 	})
 }
 
+func TestBaseHandlersSessionWait(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the normalized state outcome and revision fence", func(t *testing.T) {
+		t.Parallel()
+
+		manager := attentionRouteSessionManager()
+		manager.Attention.WaitFn = func(
+			_ context.Context,
+			request session.WaitRequest,
+		) (session.WaitOutcome, error) {
+			if request.SessionID != "sess-attention" || request.Timeout != 2*time.Minute ||
+				request.Epoch != 7 || request.ResumeID != "resume-1" ||
+				len(request.Until) != 2 || request.Until[0] != session.BadgeWaitingForInput ||
+				request.Until[1] != session.BadgeIdle {
+				t.Fatalf("WaitForBadge() request = %#v, want normalized route request", request)
+			}
+			return session.WaitOutcome{
+				Outcome:  session.WaitResultStateReached,
+				State:    session.BadgeWaitingForInput,
+				Waited:   38 * time.Second,
+				Revision: 19,
+			}, nil
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-1/sessions/sess-attention/wait",
+			[]byte(`{"until":["waiting-for-input","idle","idle"],"timeout_ms":120000,"epoch":7,"resume_id":"resume-1"}`),
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("session wait status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.SessionWaitResponse
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if payload.SessionID != "sess-attention" || payload.Outcome != "state-reached" ||
+			payload.State != "waiting-for-input" || payload.WaitedMS != 38_000 || payload.Revision != 19 ||
+			len(payload.Until) != 2 {
+			t.Fatalf("session wait payload = %#v, want state outcome with fence", payload)
+		}
+	})
+
+	t.Run("Should return timeout as a resumable successful outcome", func(t *testing.T) {
+		t.Parallel()
+
+		manager := attentionRouteSessionManager()
+		manager.Attention.WaitFn = func(
+			_ context.Context,
+			request session.WaitRequest,
+		) (session.WaitOutcome, error) {
+			if len(request.Until) != 5 || request.Until[0] != session.BadgeWaitingForInput ||
+				request.Until[4] != session.BadgeFailed {
+				t.Fatalf("WaitForBadge() default until = %#v, want settled set", request.Until)
+			}
+			return session.WaitOutcome{
+				Outcome:  session.WaitResultTimeout,
+				Waited:   request.Timeout,
+				Revision: 23,
+				ResumeID: "wait-23",
+			}, nil
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-1/sessions/sess-attention/wait",
+			[]byte(`{"timeout_ms":5000}`),
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("session wait timeout status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.SessionWaitResponse
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if payload.Outcome != "timeout" || payload.WaitedMS != 5_000 ||
+			payload.ResumeID != "wait-23" || payload.Revision != 23 || len(payload.Until) != 5 {
+			t.Fatalf("session wait timeout payload = %#v, want resumable 200", payload)
+		}
+	})
+
+	t.Run("Should reject invalid state and timeout before registering", func(t *testing.T) {
+		t.Parallel()
+
+		manager := attentionRouteSessionManager()
+		manager.Attention.WaitFn = func(
+			context.Context,
+			session.WaitRequest,
+		) (session.WaitOutcome, error) {
+			t.Fatal("WaitForBadge() called for invalid request")
+			return session.WaitOutcome{}, nil
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+		tests := []struct {
+			name string
+			body string
+			code string
+		}{
+			{name: "Should reject an unknown state", body: `{"until":["sleeping"],"timeout_ms":1}`, code: "invalid_state"},
+			{name: "Should reject an omitted timeout", body: `{}`, code: "invalid_wait"},
+			{name: "Should reject an oversized timeout", body: `{"timeout_ms":1800001}`, code: "invalid_wait"},
+		}
+		for _, test := range tests {
+			test := test
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				response := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPost,
+					"/workspaces/ws-1/sessions/sess-attention/wait",
+					[]byte(test.body),
+				)
+				if response.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("invalid wait status = %d, want 422; body=%s", response.Code, response.Body.String())
+				}
+				var payload contract.ErrorPayload
+				testutil.DecodeJSONResponse(t, response, &payload)
+				if payload.Code != test.code {
+					t.Fatalf("invalid wait code = %q, want %q", payload.Code, test.code)
+				}
+			})
+		}
+	})
+
+	t.Run("Should distinguish a gone session from an expired resume", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			outcome session.WaitOutcome
+			err     error
+			code    string
+		}{
+			{name: "Should return session gone for identity loss", outcome: session.WaitOutcome{Outcome: session.WaitResultSessionGone}, code: "session_gone"},
+			{name: "Should return wait expired for a stale resume id", err: session.ErrWaitExpired, code: "wait_expired"},
+		}
+		for _, test := range tests {
+			test := test
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				manager := attentionRouteSessionManager()
+				manager.Attention.WaitFn = func(
+					context.Context,
+					session.WaitRequest,
+				) (session.WaitOutcome, error) {
+					return test.outcome, test.err
+				}
+				fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+				response := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPost,
+					"/workspaces/ws-1/sessions/sess-attention/wait",
+					[]byte(`{"timeout_ms":5000}`),
+				)
+				if response.Code != http.StatusGone {
+					t.Fatalf("gone wait status = %d, want 410; body=%s", response.Code, response.Body.String())
+				}
+				var payload contract.ErrorPayload
+				testutil.DecodeJSONResponse(t, response, &payload)
+				if payload.Code != test.code {
+					t.Fatalf("gone wait code = %q, want %q", payload.Code, test.code)
+				}
+			})
+		}
+	})
+}
+
 func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 	t.Parallel()
 

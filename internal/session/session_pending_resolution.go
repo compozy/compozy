@@ -70,7 +70,28 @@ func (m *Manager) ApprovePermission(
 		return ApprovalResult{}, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
 	}
 	if err := active.ApprovePermission(ctx, req); err != nil {
-		return ApprovalResult{}, approvalError(target, err)
+		mappedErr := approvalError(target, err)
+		if m.attentionStore == nil ||
+			(!errors.Is(mappedErr, ErrPendingPermissionNotFound) &&
+				!errors.Is(mappedErr, ErrPendingPermissionConflict)) {
+			return ApprovalResult{}, mappedErr
+		}
+		winner, lookupErr := m.interactionForResolution(
+			ctx,
+			target,
+			store.PendingInteractionKindPermission,
+			identity,
+		)
+		if lookupErr != nil {
+			if errors.Is(lookupErr, store.ErrPendingInteractionNotFound) {
+				return ApprovalResult{}, mappedErr
+			}
+			return ApprovalResult{}, lookupErr
+		}
+		if winner.Status == store.PendingInteractionStatusPending {
+			return ApprovalResult{}, mappedErr
+		}
+		return m.resolveOrphanedPermission(ctx, target, winner, req.Decision)
 	}
 	return ApprovalResult{
 		Outcome:   store.PendingInteractionOutcomeApplied,
@@ -105,7 +126,7 @@ func (m *Manager) resolveOrphanedPermission(
 		sessionID,
 		interaction,
 		decision,
-		"operator:control",
+		resolvedByFromContext(ctx, "operator:control"),
 	)
 	if err != nil {
 		return ApprovalResult{}, err
@@ -165,7 +186,7 @@ func (m *Manager) ResolveOrphanedClarification(
 		sessionID,
 		interaction,
 		answer.Resolution(question),
-		"operator:control",
+		resolvedByFromContext(ctx, "operator:control"),
 	)
 	if errors.Is(err, errPendingInteractionNotOrphaned) {
 		return toolspkg.ClarifyAnswerResult{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, target)

@@ -72,6 +72,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTa
 	if targets.tasks != nil {
 		appendWrappedError(errs, "daemon: shutdown task runtime", targets.tasks.shutdown(ctx))
 	}
+	if targets.sessionWakeBridge != nil {
+		appendWrappedError(errs, "daemon: shutdown session wake bridge", targets.sessionWakeBridge.shutdown(ctx))
+	}
 	targets.runtimeWorkers.shutdown(ctx, errs)
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)

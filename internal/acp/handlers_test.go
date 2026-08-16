@@ -475,8 +475,9 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	}
 
 	if err := proc.ResolvePermission(ApproveRequest{
-		RequestID: requestID,
-		Decision:  string(decisionAllowAlways),
+		RequestID:  requestID,
+		Decision:   string(decisionAllowAlways),
+		ResolvedBy: "agent_session:sess-creator",
 	}); err != nil {
 		t.Fatalf("ResolvePermission() error = %v", err)
 	}
@@ -499,6 +500,9 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	finalEvents := collectEventsUntilCount(t, active.events, 1)
 	if len(finalEvents) != 1 || finalEvents[0].Decision != string(decisionAllowAlways) {
 		t.Fatalf("final permission events = %#v, want allow-always decision", finalEvents)
+	}
+	if finalEvents[0].ResolvedBy != "agent_session:sess-creator" {
+		t.Fatalf("final permission resolved_by = %q, want acting session", finalEvents[0].ResolvedBy)
 	}
 }
 
@@ -746,6 +750,7 @@ func TestEmitPermissionEvent(t *testing.T) {
 				"tool-1",
 				"/tmp/demo.txt",
 				tt.decision,
+				"provider",
 				raw,
 			)
 			event := collectEventsUntilCount(t, active.events, 1)[0]

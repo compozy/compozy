@@ -13,6 +13,25 @@ type SessionPresenceResponse struct {
 	LeaseID string `json:"lease_id"`
 }
 
+// SessionWaitRequest starts or resumes one bounded session badge wait.
+type SessionWaitRequest struct {
+	Until     []string `json:"until,omitempty"`
+	TimeoutMS int64    `json:"timeout_ms"`
+	Epoch     int64    `json:"epoch,omitempty"`
+	ResumeID  string   `json:"resume_id,omitempty"`
+}
+
+// SessionWaitResponse reports one bounded wait outcome and its catalog fence.
+type SessionWaitResponse struct {
+	SessionID string   `json:"session_id"`
+	Outcome   string   `json:"outcome"`
+	State     string   `json:"state,omitempty"`
+	WaitedMS  int64    `json:"waited_ms"`
+	Until     []string `json:"until,omitempty"`
+	Revision  int64    `json:"revision"`
+	ResumeID  string   `json:"resume_id,omitempty"`
+}
+
 // PendingInteractionPayload is the sanitized public interaction projection.
 type PendingInteractionPayload struct {
 	InteractionID     string     `json:"interaction_id"`

@@ -88,6 +88,7 @@ type bootState struct {
 	worktrees              *worktree.Service
 	windowManagerBootState
 	sessions              SessionManager
+	sessionWakeBridge     *sessionWakeBridge
 	hostedMCP             *mcppkg.HostedService
 	providerVault         *vault.Service
 	modelCatalog          *modelCatalogRuntime

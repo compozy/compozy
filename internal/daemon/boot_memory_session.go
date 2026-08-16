@@ -25,6 +25,17 @@ func (d *Daemon) bootMemorySessionRuntime(
 		return err
 	}
 	state.participationResolver = resolver
+	sessionWakeBridge, err := newSessionWakeBridge(ctx, func() sessionWakeSessionManager {
+		if state == nil || state.sessions == nil {
+			return nil
+		}
+		return state.sessions
+	}, state.logger)
+	if err != nil {
+		return fmt.Errorf("daemon: create session wake bridge: %w", err)
+	}
+	state.sessionWakeBridge = sessionWakeBridge
+	cleanup.add(sessionWakeBridge.shutdown)
 
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {

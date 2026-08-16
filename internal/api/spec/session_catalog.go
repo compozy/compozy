@@ -11,9 +11,57 @@ func sessionCatalogOperations() []OperationSpec {
 	return []OperationSpec{
 		sessionCatalogListOperation(),
 		sessionCatalogStreamOperation(),
+		sessionWaitOperation(),
+		sessionPromptCancelOperation(),
 		sessionPresenceOperation(),
 		sessionInteractionsOperation(),
 		sessionAttentionSummaryOperation(),
+	}
+}
+
+func sessionPromptCancelOperation() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel",
+		OperationID: "cancelSessionPrompt",
+		Summary:     "Cancel the active session prompt",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Cancellation result", Body: contract.SessionPromptCancelResponse{}},
+			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func sessionWaitOperation() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/wait",
+		OperationID: "waitForSession",
+		Summary:     "Wait for a session state",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		RequestBody: contract.SessionWaitRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Wait completed or timed out", Body: contract.SessionWaitResponse{}},
+			{Status: 400, Description: "Malformed wait request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Wait limit reached or registration in use", Body: contract.ErrorPayload{}},
+			{Status: 410, Description: "Session gone or wait registration expired", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid wait request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Session wait is unavailable", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
 	}
 }
 

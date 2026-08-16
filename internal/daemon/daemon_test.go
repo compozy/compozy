@@ -5107,6 +5107,9 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if capturedDeps.SandboxRegistry == nil {
 		t.Fatal("boot() did not inject the session manager sandbox registry")
 	}
+	if capturedDeps.SpawnWakeNotifier == nil || capturedDeps.SpawnWakeNotifier != d.sessionWakeBridge {
+		t.Fatal("boot() did not inject the daemon-owned session wake bridge")
+	}
 	if capturedDeps.SessionCompaction != cfg.Session.Compaction {
 		t.Fatalf(
 			"session compaction config = %#v, want %#v",
@@ -7420,8 +7423,11 @@ func (f *fakeSessionManager) PromotePendingInputToSteer(
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
-func (f *fakeSessionManager) CancelPrompt(context.Context, string) error {
-	return nil
+func (f *fakeSessionManager) CancelPrompt(
+	context.Context,
+	string,
+) (session.PromptCancelResult, error) {
+	return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled}, nil
 }
 
 func (f *fakeSessionManager) PromptSynthetic(

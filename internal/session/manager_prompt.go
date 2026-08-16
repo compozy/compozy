@@ -10,7 +10,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/transcript"
 )
 
 type promptSubmissionPath string
@@ -134,71 +133,6 @@ func (m *Manager) PromptLifecycleContinuation(
 		)
 	}
 	return m.submitPromptRequest(ctx, req)
-}
-
-// CancelPrompt cancels prompt setup/execution for a known session.
-func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
-	if m == nil {
-		return errors.New("session: manager is required")
-	}
-	if ctx == nil {
-		return errors.New("session: cancel prompt context is required")
-	}
-
-	target := strings.TrimSpace(id)
-	if target == "" {
-		return errors.New("session: session id is required")
-	}
-
-	session, ok := m.Get(target)
-	if !ok {
-		if _, err := m.readMetaWithContext(ctx, target); err != nil {
-			return err
-		}
-		return nil
-	}
-	turnID, proc, cancelPrompt, prompting := session.requestCurrentPromptCancellation()
-	if !prompting {
-		return nil
-	}
-	if cancelPrompt != nil {
-		cancelPrompt()
-	}
-
-	if proc == nil {
-		m.emitTranscriptMarker(
-			ctx,
-			session,
-			turnID,
-			transcript.MarkerPromptCancel,
-			"Prompt canceled by operator.",
-			map[string]any{transcriptMarkerEvidenceSourceKey: "cancel_prompt"},
-		)
-		return nil
-	}
-
-	cancelErr := m.driver.Cancel(ctx, proc)
-	if cancelErr != nil {
-		if isProcessDone(proc) {
-			return nil
-		}
-		return fmt.Errorf("session: cancel prompt for %q: %w", target, cancelErr)
-	}
-	if scoped, ok := m.driver.(ScopedInterrupter); ok && strings.TrimSpace(turnID) != "" {
-		if _, err := scoped.Interrupt(ctx, target, turnID); err != nil &&
-			!errors.Is(err, ErrScopedInterruptNotFound) {
-			return fmt.Errorf("session: interrupt scoped tools for %q: %w", target, err)
-		}
-	}
-	m.emitTranscriptMarker(
-		ctx,
-		session,
-		turnID,
-		transcript.MarkerPromptCancel,
-		"Prompt canceled by operator.",
-		map[string]any{transcriptMarkerEvidenceSourceKey: "cancel_prompt"},
-	)
-	return nil
 }
 
 // RequestPermission asks an active session's permission path for a tool-call decision.

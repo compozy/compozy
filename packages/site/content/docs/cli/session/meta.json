@@ -13,6 +13,7 @@
         "list",
         "new",
         "prompt",
+        "prompt-cancel",
         "recap",
         "remove",
         "rename",

@@ -79,6 +79,63 @@ type nativeNotificationSessionManager struct {
 	err      error
 }
 
+type nativeOrchestrationSessionManager struct {
+	apitest.StubSessionManager
+	waitFn  func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
+	spawnFn func(context.Context, session.SpawnOpts) (*session.Session, error)
+}
+
+type nativeCoreOnlySessionManager struct {
+	core.SessionManager
+}
+
+func (m *nativeOrchestrationSessionManager) WaitForBadge(
+	ctx context.Context,
+	req session.WaitRequest,
+) (session.WaitOutcome, error) {
+	return m.waitFn(ctx, req)
+}
+
+func (m *nativeOrchestrationSessionManager) Spawn(
+	ctx context.Context,
+	opts session.SpawnOpts,
+) (*session.Session, error) {
+	return m.spawnFn(ctx, opts)
+}
+
+type nativeOrchestrationClarifyBroker struct {
+	answerFn func(
+		context.Context,
+		toolspkg.Scope,
+		string,
+		toolspkg.ClarifyAnswerRequest,
+	) (toolspkg.ClarifyAnswerResult, error)
+}
+
+func (nativeOrchestrationClarifyBroker) Ask(
+	context.Context,
+	toolspkg.Scope,
+	toolspkg.ClarifyQuestion,
+) (toolspkg.ClarifyAnswer, error) {
+	return toolspkg.ClarifyAnswer{}, errors.New("native orchestration clarify broker: unexpected Ask call")
+}
+
+func (nativeOrchestrationClarifyBroker) Pending(
+	context.Context,
+	toolspkg.Scope,
+) ([]toolspkg.ClarifyPending, error) {
+	return nil, errors.New("native orchestration clarify broker: unexpected Pending call")
+}
+
+func (b nativeOrchestrationClarifyBroker) Answer(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	requestID string,
+	request toolspkg.ClarifyAnswerRequest,
+) (toolspkg.ClarifyAnswerResult, error) {
+	return b.answerFn(ctx, scope, requestID, request)
+}
+
 func (m *nativeNotificationSessionManager) PublishOperatorNotification(
 	ctx context.Context,
 	req session.NotifyRequest,
@@ -237,6 +294,272 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should execute the session orchestration tool chain with scoped typed results", func(t *testing.T) {
+		t.Parallel()
+
+		const workspaceID = "ws-orchestration"
+		const callerID = "sess-caller"
+		const targetID = "sess-target"
+		ttl := time.Date(2026, 8, 16, 18, 0, 0, 0, time.UTC)
+		var waitRequest session.WaitRequest
+		var spawnOpts session.SpawnOpts
+		var stopTarget string
+		var approval acp.ApproveRequest
+		var canceledTarget string
+		base := nativeNetworkTestSessionManager(workspaceID)
+		base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			switch strings.TrimSpace(id) {
+			case callerID:
+				return &session.Info{ID: callerID, AgentName: "creator", WorkspaceID: workspaceID, State: session.StateActive}, nil
+			case targetID:
+				return &session.Info{ID: targetID, AgentName: "worker", WorkspaceID: workspaceID, State: session.StateActive}, nil
+			default:
+				return nil, session.ErrSessionNotFound
+			}
+		}
+		base.StopWithCauseFn = func(_ context.Context, id string, _ session.StopCause, _ string) error {
+			stopTarget = id
+			return nil
+		}
+		base.ApproveFn = func(_ context.Context, id string, req acp.ApproveRequest) (session.ApprovalResult, error) {
+			if id != targetID {
+				t.Fatalf("ApprovePermission() session = %q, want %q", id, targetID)
+			}
+			approval = req
+			return session.ApprovalResult{Outcome: "applied", RequestID: req.RequestID, Decision: req.Decision}, nil
+		}
+		base.CancelPromptFn = func(_ context.Context, id string) (session.PromptCancelResult, error) {
+			canceledTarget = id
+			return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled, TurnID: "turn-1"}, nil
+		}
+		manager := &nativeOrchestrationSessionManager{
+			StubSessionManager: base,
+			waitFn: func(_ context.Context, req session.WaitRequest) (session.WaitOutcome, error) {
+				waitRequest = req
+				return session.WaitOutcome{
+					Outcome: session.WaitResultStateReached, State: session.BadgeIdle,
+					Waited: 25 * time.Millisecond, Revision: 7,
+				}, nil
+			},
+			spawnFn: func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
+				spawnOpts = opts
+				return &session.Session{
+					ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID,
+					State: session.StateActive, Type: session.SessionTypeSpawned,
+					Lineage: &store.SessionLineage{
+						ParentSessionID: callerID, RootSessionID: callerID, SpawnDepth: 1,
+						SpawnRole: "worker", TTLExpiresAt: &ttl, NotifyCreator: opts.NotifyCreator,
+					},
+				}, nil
+			},
+		}
+		var clarifyChoice *int
+		clarify := nativeOrchestrationClarifyBroker{answerFn: func(
+			_ context.Context,
+			scope toolspkg.Scope,
+			requestID string,
+			request toolspkg.ClarifyAnswerRequest,
+		) (toolspkg.ClarifyAnswerResult, error) {
+			if scope.SessionID != targetID || scope.WorkspaceID != workspaceID || requestID != "clr-1" {
+				t.Fatalf("clarify answer scope/request = %#v/%q", scope, requestID)
+			}
+			clarifyChoice = request.ChoiceIndex
+			return toolspkg.ClarifyAnswerResult{
+				Outcome: "answered", RequestID: requestID, ResolvedAnswer: "second",
+			}, nil
+		}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeNetworkTestWorkspaceService(t),
+			Clarify: func() toolspkg.ClarifyBroker { return clarify },
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: workspaceID, SessionID: callerID, AgentName: "creator"}
+		calls := []struct {
+			id    toolspkg.ToolID
+			input string
+			want  string
+		}{
+			{toolspkg.ToolIDSessionWait, `{"session_id":"sess-target","until":["idle"],"timeout_ms":120000}`, `"outcome":"state-reached"`},
+			{toolspkg.ToolIDSessionSpawn, `{"agent_name":"researcher","ttl_seconds":3600,"notify_creator":false}`, `"session_id":"sess-child"`},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target"}`, `"state":"stopped"`},
+			{toolspkg.ToolIDSessionApprove, `{"session_id":"sess-target","request_id":"perm-1","decision":"allow-once"}`, `"outcome":"applied"`},
+			{toolspkg.ToolIDSessionClarifyAnswer, `{"session_id":"sess-target","request_id":"clr-1","choice":2}`, `"outcome":"answered"`},
+			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-target"}`, `"turn_id":"turn-1"`},
+		}
+		for _, call := range calls {
+			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: call.id, Input: json.RawMessage(call.input),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(%s) error = %v", call.id, err)
+			}
+			if !bytes.Contains(result.Structured, []byte(call.want)) {
+				t.Fatalf("Registry.Call(%s) result = %s, want %s", call.id, result.Structured, call.want)
+			}
+		}
+		if waitRequest.SessionID != targetID || waitRequest.Timeout != 2*time.Minute ||
+			!slices.Equal(waitRequest.Until, []session.Badge{session.BadgeIdle}) {
+			t.Fatalf("WaitForBadge() request = %#v", waitRequest)
+		}
+		if spawnOpts.ParentSessionID != callerID || spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
+			t.Fatalf("Spawn() opts = %#v, want explicit notify_creator=false", spawnOpts)
+		}
+		if stopTarget != targetID || approval.RequestID != "perm-1" ||
+			approval.ResolvedBy != "agent_session:"+callerID || canceledTarget != targetID {
+			t.Fatalf("stop/approve/cancel targets = %q/%#v/%q", stopTarget, approval, canceledTarget)
+		}
+		if clarifyChoice == nil || *clarifyChoice != 1 {
+			t.Fatalf("clarify choice_index = %#v, want zero-based 1", clarifyChoice)
+		}
+	})
+
+	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &nativeOrchestrationSessionManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-native"),
+			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
+				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run")
+			},
+			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+				return nil, errors.New("Spawn() must not run")
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeNetworkTestWorkspaceService(t),
+			Clarify: func() toolspkg.ClarifyBroker { return nativeClarifyBrokerStub{} },
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-self", AgentName: "coder"}
+		cases := []struct {
+			id     toolspkg.ToolID
+			input  string
+			reason toolspkg.ReasonCode
+		}{
+			{toolspkg.ToolIDSessionWait, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
+			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
+			{toolspkg.ToolIDSessionApprove, `{"session_id":"sess-self","request_id":"perm-1","decision":"allow-once"}`, toolspkg.ReasonApprovalSelfDenied},
+			{toolspkg.ToolIDSessionClarifyAnswer, `{"session_id":"sess-self","request_id":"clr-1","text":"answer"}`, toolspkg.ReasonApprovalSelfDenied},
+		}
+		for _, testCase := range cases {
+			_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: testCase.id, Input: json.RawMessage(testCase.input),
+			})
+			requireToolReason(t, err, toolspkg.ErrToolDenied, testCase.reason)
+		}
+	})
+
+	t.Run("Should deny every targeted orchestration action across workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		base := nativeNetworkTestSessionManager("ws-native")
+		base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			workspaceID := "ws-native"
+			if strings.TrimSpace(id) == "sess-foreign" {
+				workspaceID = "ws-foreign"
+			}
+			return &session.Info{
+				ID: strings.TrimSpace(id), AgentName: "coder", WorkspaceID: workspaceID, State: session.StateActive,
+			}, nil
+		}
+		manager := &nativeOrchestrationSessionManager{
+			StubSessionManager: base,
+			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
+				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run across workspaces")
+			},
+			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+				return nil, errors.New("Spawn() is not part of targeted cross-workspace calls")
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeNetworkTestWorkspaceService(t),
+			Clarify: func() toolspkg.ClarifyBroker { return nativeClarifyBrokerStub{} },
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-caller", AgentName: "coder"}
+		calls := []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDSessionWait, `{"session_id":"sess-foreign"}`},
+			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-foreign"}`},
+			{toolspkg.ToolIDSessionApprove, `{"session_id":"sess-foreign","request_id":"perm-1","decision":"allow-once"}`},
+			{toolspkg.ToolIDSessionClarifyAnswer, `{"session_id":"sess-foreign","request_id":"clr-1","text":"answer"}`},
+			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-foreign"}`},
+		}
+		for _, call := range calls {
+			_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: call.id, Input: json.RawMessage(call.input),
+			})
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		}
+	})
+
+	t.Run("Should report wait and spawn unavailable without their domain services", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeCoreOnlySessionManager{
+				SessionManager: nativeNetworkTestSessionManager("ws-native"),
+			},
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		views, err := registry.DiagnosticProjection(t.Context(), toolspkg.Scope{
+			WorkspaceID: "ws-native", SessionID: "sess-caller", AgentName: "coder",
+		})
+		if err != nil {
+			t.Fatalf("DiagnosticProjection() error = %v", err)
+		}
+		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDSessionWait)
+		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDSessionSpawn)
+		requireNativeToolAvailable(t, views, toolspkg.ToolIDSessionStop)
+		requireNativeToolAvailable(t, views, toolspkg.ToolIDSessionPromptCancel)
+	})
+
+	t.Run("Should require every session orchestration dependency before advertising tools", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &nativeOrchestrationSessionManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-native"),
+			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
+				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run without workspace resolution")
+			},
+			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
+				return nil, errors.New("Spawn() must not run without workspace resolution")
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager,
+			Clarify:  func() toolspkg.ClarifyBroker { return nativeClarifyBrokerStub{} },
+		}, nativeApproveAllPolicyInputs())
+		views, err := registry.DiagnosticProjection(t.Context(), toolspkg.Scope{
+			WorkspaceID: "ws-native", SessionID: "sess-caller", AgentName: "coder",
+		})
+		if err != nil {
+			t.Fatalf("DiagnosticProjection() error = %v", err)
+		}
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDSessionWait,
+			toolspkg.ToolIDSessionSpawn,
+			toolspkg.ToolIDSessionStop,
+			toolspkg.ToolIDSessionApprove,
+			toolspkg.ToolIDSessionClarifyAnswer,
+			toolspkg.ToolIDSessionPromptCancel,
+		} {
+			requireNativeToolUnavailableReason(t, views, id)
+		}
+
+		clarifyOnlyRegistry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Clarify:    func() toolspkg.ClarifyBroker { return nativeClarifyBrokerStub{} },
+		}, nativeApproveAllPolicyInputs())
+		clarifyOnlyViews, err := clarifyOnlyRegistry.DiagnosticProjection(t.Context(), toolspkg.Scope{
+			WorkspaceID: "ws-native", SessionID: "sess-caller", AgentName: "coder",
+		})
+		if err != nil {
+			t.Fatalf("DiagnosticProjection(clarify only) error = %v", err)
+		}
+		requireNativeToolUnavailableReason(t, clarifyOnlyViews, toolspkg.ToolIDSessionClarifyAnswer)
+	})
 
 	t.Run("Should notify from the bound session without crossing workspaces", func(t *testing.T) {
 		t.Parallel()

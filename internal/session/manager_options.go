@@ -74,6 +74,13 @@ func WithNotifier(notifier Notifier) Option {
 	}
 }
 
+// WithSpawnWakeNotifier injects creator wake delivery for spawned sessions.
+func WithSpawnWakeNotifier(notifier SpawnWakeNotifier) Option {
+	return func(manager *Manager) {
+		manager.spawnWakeNotifier = notifier
+	}
+}
+
 // WithHookSet injects the grouped hook dispatch surface used by the session
 // manager for lifecycle and runtime hook points.
 func WithHookSet(hooks HookSet) Option {

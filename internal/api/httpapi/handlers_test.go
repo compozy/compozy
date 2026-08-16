@@ -422,6 +422,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/presence",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/wait",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id/steer",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
@@ -3281,11 +3282,14 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		CancelPromptFn: func(_ context.Context, id string) error {
+		CancelPromptFn: func(_ context.Context, id string) (session.PromptCancelResult, error) {
 			if id != "sess-123" {
 				t.Fatalf("CancelPrompt() id = %q, want sess-123", id)
 			}
-			return nil
+			return session.PromptCancelResult{
+				Outcome: session.PromptCancelOutcomeCanceled,
+				TurnID:  "turn-1",
+			}, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -3301,8 +3305,10 @@ func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
-	if got := recorder.Body.String(); got != "" {
-		t.Fatalf("body = %q, want empty", got)
+	var payload contract.SessionPromptCancelResponse
+	apitestutil.DecodeJSONResponse(t, recorder, &payload)
+	if payload.SessionID != "sess-123" || payload.Outcome != "canceled" || payload.TurnID != "turn-1" {
+		t.Fatalf("prompt cancel payload = %#v, want canceled turn", payload)
 	}
 }
 

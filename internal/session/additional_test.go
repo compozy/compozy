@@ -975,12 +975,13 @@ func TestMarshalAgentEvent(t *testing.T) {
 
 	totalTokens := int64(4)
 	payload, err := marshalAgentEvent(acp.AgentEvent{
-		Type:      acp.EventTypeDone,
-		SessionID: "acp-1",
-		TurnID:    "turn-1",
-		Timestamp: time.Now().UTC(),
-		Text:      "done",
-		Error:     "none",
+		Type:       acp.EventTypeDone,
+		SessionID:  "acp-1",
+		TurnID:     "turn-1",
+		Timestamp:  time.Now().UTC(),
+		Text:       "done",
+		Error:      "none",
+		ResolvedBy: "agent_session:sess-creator",
 		Usage: &acp.TokenUsage{
 			TurnID:      "turn-1",
 			TotalTokens: &totalTokens,
@@ -1003,6 +1004,16 @@ func TestMarshalAgentEvent(t *testing.T) {
 	}
 	if decoded["text"] != "done" {
 		t.Fatalf("decoded[text] = %v, want %q", decoded["text"], "done")
+	}
+	if decoded["resolved_by"] != "agent_session:sess-creator" {
+		t.Fatalf("decoded[resolved_by] = %v, want acting session", decoded["resolved_by"])
+	}
+	replayed, err := transcript.UnmarshalAgentEvent(payload)
+	if err != nil {
+		t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+	}
+	if replayed.ResolvedBy != "agent_session:sess-creator" {
+		t.Fatalf("replayed.ResolvedBy = %q, want acting session", replayed.ResolvedBy)
 	}
 
 	var rawDecoded map[string]any

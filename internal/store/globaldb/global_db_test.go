@@ -166,6 +166,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		)
 		assertTableHasColumns(t, globalDB.db, "sessions", []string{
 			"worktree_id",
+			"notify_creator",
 			"pending_permission_count",
 			"pending_clarify_count",
 			"attention_revision",
@@ -2981,6 +2982,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"spawn_role",
 				"ttl_expires_at",
 				"auto_stop_on_parent",
+				"notify_creator",
 				"spawn_budget_json",
 				"permission_policy_json",
 				"soul_snapshot_id",

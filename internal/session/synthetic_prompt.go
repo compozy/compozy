@@ -92,7 +92,7 @@ func (m *Manager) interruptAndSubmitSyntheticPrompt(
 	}
 	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.supervision.TimeoutCancelGrace)
 	defer cancel()
-	if err := m.CancelPrompt(cancelCtx, session.ID); err != nil {
+	if _, err := m.CancelPrompt(cancelCtx, session.ID); err != nil {
 		return nil, err
 	}
 	return m.enqueueSyntheticPrompt(context.WithoutCancel(ctx), req), nil

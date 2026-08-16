@@ -331,6 +331,8 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.PATCH("/workspaces/:workspace_id/sessions/:session_id", handlers.RenameSession)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/commands", handlers.GetSessionCommands)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/presence", handlers.SessionPresence)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/wait", handlers.SessionWait)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt/cancel", handlers.CancelSessionPrompt)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/interactions", handlers.ListSessionInteractions)
 	engine.DELETE("/workspaces/:workspace_id/sessions/:session_id", handlers.DeleteSession)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/stop", handlers.StopSession)

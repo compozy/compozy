@@ -45,8 +45,10 @@ func (m *Manager) publishAttentionCommit(
 		Class:       ClassForBadge(to),
 		At:          at,
 	}
+	m.publishWaitBadgeEdge(&after, to)
 	m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
 	m.dispatchSessionAttentionChanged(ctx, &after, event)
+	m.dispatchSpawnWake(ctx, &after, to)
 }
 
 func (m *Manager) sessionInfoForAttentionEvent(ctx context.Context, sessionID string) (*Info, error) {

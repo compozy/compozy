@@ -5813,6 +5813,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel the active session prompt */
+    post: operations["cancelSessionPrompt"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue": {
     parameters: {
       query?: never;
@@ -6098,6 +6115,23 @@ export interface paths {
     get: operations["getSessionUsage"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/wait": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Wait for a session state */
+    post: operations["waitForSession"];
     delete?: never;
     options?: never;
     head?: never;
@@ -10266,6 +10300,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -11597,6 +11632,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -12527,6 +12563,7 @@ export interface operations {
           idempotency_key?: string;
           model?: string;
           name?: string;
+          notify_creator?: boolean | null;
           permissions: {
             mcp_servers: string[];
             network_channels: string[];
@@ -12557,6 +12594,7 @@ export interface operations {
             spawn: {
               lineage: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -12667,6 +12705,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -51023,6 +51062,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -51533,6 +51573,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -52190,6 +52231,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -90473,6 +90515,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -106258,6 +106301,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -106719,6 +106763,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -107189,6 +107234,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -110592,6 +110638,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -111033,6 +111080,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -111571,6 +111619,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -111998,6 +112047,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -113193,6 +113243,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -116135,6 +116186,93 @@ export interface operations {
       };
     };
   };
+  cancelSessionPrompt: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Cancellation result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            outcome: string;
+            session_id: string;
+            turn_id?: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listSessionInputs: {
     parameters: {
       query?: never;
@@ -117282,6 +117420,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -117844,6 +117983,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -118300,6 +118440,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -118714,6 +118855,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -121521,6 +121663,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -121903,6 +122046,256 @@ export interface operations {
       };
     };
   };
+  waitForSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: int64 */
+          epoch?: number;
+          resume_id?: string;
+          /** Format: int64 */
+          timeout_ms: number;
+          until?: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Wait completed or timed out */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            outcome: string;
+            resume_id?: string;
+            /** Format: int64 */
+            revision: number;
+            session_id: string;
+            state?: string;
+            until?: string[];
+            /** Format: int64 */
+            waited_ms: number;
+          };
+        };
+      };
+      /** @description Malformed wait request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Wait limit reached or registration in use */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session gone or wait registration expired */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid wait request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session wait is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   forkSessionToWorktree: {
     parameters: {
       query?: never;
@@ -122015,6 +122408,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];

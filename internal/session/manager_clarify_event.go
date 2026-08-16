@@ -23,6 +23,9 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 	if ctx == nil {
 		return errors.New("session: clarification event context is required")
 	}
+	if event.Status == toolspkg.ClarifyStatusResolved {
+		event.ResolvedBy = resolvedByFromContext(ctx, pendingInteractionActorOperator)
+	}
 	if err := event.Validate(); err != nil {
 		return err
 	}
@@ -46,11 +49,12 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 	}
 	turnID := "clarify:" + event.Request.RequestID
 	content, err := transcript.MarshalAgentEvent(acp.AgentEvent{
-		Type:      EventTypeClarify,
-		SessionID: sessionID,
-		TurnID:    turnID,
-		Timestamp: event.At.UTC(),
-		Raw:       payload,
+		Type:       EventTypeClarify,
+		SessionID:  sessionID,
+		TurnID:     turnID,
+		Timestamp:  event.At.UTC(),
+		ResolvedBy: event.ResolvedBy,
+		Raw:        payload,
 	}.WithRequestID(event.Request.RequestID))
 	if err != nil {
 		return m.handleClarifyTranscriptFailure(ctx, active, event, attentionCommitted, err)

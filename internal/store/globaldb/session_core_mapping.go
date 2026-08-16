@@ -96,6 +96,7 @@ func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record *ses
 	params.SpawnRole = nullableSessionString(lineage.SpawnRole)
 	params.TtlExpiresAt = nullableSessionTimePointer(lineage.TTLExpiresAt)
 	params.AutoStopOnParent = lineage.AutoStopOnParent
+	params.NotifyCreator = lineage.NotifyCreator
 	params.SpawnBudgetJson = record.spawnBudgetJSON
 	params.PermissionPolicyJson = record.permissionPolicyJSON
 }

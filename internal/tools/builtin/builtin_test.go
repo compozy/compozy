@@ -234,6 +234,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionUnarchive])
 		})
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
+		assertSessionClarifyAnswerSchema(t, descriptors[toolspkg.ToolIDSessionClarifyAnswer])
 		assertSessionRuntimeMutationSchemas(t, descriptors)
 		assertSessionInputSchemas(t, descriptors)
 	})
@@ -1297,6 +1298,10 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_archive", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_approve", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_clarify_answer", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_describe", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_events", risk: toolspkg.RiskRead,
@@ -1319,6 +1324,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_prompt_cancel", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_rewind", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_runtime_clear", risk: toolspkg.RiskMutating,
@@ -1327,8 +1334,14 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_spawn", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_stop", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_unarchive", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_wait", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__skill_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__skill_search", risk: toolspkg.RiskRead,
@@ -1800,6 +1813,50 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		})
 	}
 	assertSessionPromptMutationOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
+}
+
+func assertSessionClarifyAnswerSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+	t.Helper()
+	compiled := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
+	for _, testCase := range []struct {
+		name    string
+		payload string
+		valid   bool
+	}{
+		{
+			name:    "Should accept one choice",
+			payload: `{"session_id":"sess-1","request_id":"clr-1","choice":1}`,
+			valid:   true,
+		},
+		{
+			name:    "Should accept one text answer",
+			payload: `{"session_id":"sess-1","request_id":"clr-1","text":"Use staging"}`,
+			valid:   true,
+		},
+		{
+			name:    "Should reject a missing answer",
+			payload: `{"session_id":"sess-1","request_id":"clr-1"}`,
+		},
+		{
+			name:    "Should reject choice and text together",
+			payload: `{"session_id":"sess-1","request_id":"clr-1","choice":1,"text":"Use staging"}`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(testCase.payload))
+			if err != nil {
+				t.Fatalf("%s payload parse error = %v", descriptor.ID, err)
+			}
+			err = compiled.Validate(instance)
+			if testCase.valid && err != nil {
+				t.Fatalf("%s input schema rejected payload: %v", descriptor.ID, err)
+			}
+			if !testCase.valid && err == nil {
+				t.Fatalf("%s input schema accepted forbidden payload", descriptor.ID)
+			}
+		})
+	}
 }
 
 func validationErrorContainsKind(
@@ -2665,7 +2722,12 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(sessions, toolspkg.ToolIDSessionDescribe) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionHealth) ||
 			!slices.Contains(sessions, toolspkg.ToolIDNotify) ||
-			slices.Contains(sessions, toolspkg.ToolID("compozy__session_stop")) {
+			!slices.Contains(sessions, toolspkg.ToolIDSessionWait) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionSpawn) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionStop) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionApprove) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionClarifyAnswer) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionPromptCancel) {
 			t.Fatalf("sessions toolset expansion = %#v, want session read and mutation tools", sessions)
 		}
 

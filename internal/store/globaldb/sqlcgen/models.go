@@ -1461,6 +1461,7 @@ type Session struct {
 	SpawnRole                sql.NullString `json:"spawn_role"`
 	TtlExpiresAt             sql.NullString `json:"ttl_expires_at"`
 	AutoStopOnParent         bool           `json:"auto_stop_on_parent"`
+	NotifyCreator            bool           `json:"notify_creator"`
 	SpawnBudgetJson          string         `json:"spawn_budget_json"`
 	PermissionPolicyJson     string         `json:"permission_policy_json"`
 	SoulSnapshotID           sql.NullString `json:"soul_snapshot_id"`

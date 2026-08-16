@@ -489,7 +489,8 @@ func (b *loopActionSessionBinder) CancelActionSession(
 	if b == nil || b.sessions == nil {
 		return nil
 	}
-	return b.sessions.CancelPrompt(ctx, strings.TrimSpace(binding.SessionID))
+	_, err := b.sessions.CancelPrompt(ctx, strings.TrimSpace(binding.SessionID))
+	return err
 }
 
 func bindingMismatch(detail string) error {

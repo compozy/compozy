@@ -98,6 +98,18 @@ const (
 	ToolIDSessionEvents ToolID = "compozy__session_events"
 	// ToolIDSessionDescribe reads a composite read-only session description.
 	ToolIDSessionDescribe ToolID = "compozy__session_describe"
+	// ToolIDSessionWait waits for one bounded session badge transition.
+	ToolIDSessionWait ToolID = "compozy__session_wait"
+	// ToolIDSessionSpawn creates one governed child session for the caller.
+	ToolIDSessionSpawn ToolID = "compozy__session_spawn"
+	// ToolIDSessionStop stops one sibling or child session.
+	ToolIDSessionStop ToolID = "compozy__session_stop"
+	// ToolIDSessionApprove resolves one pending permission request.
+	ToolIDSessionApprove ToolID = "compozy__session_approve"
+	// ToolIDSessionClarifyAnswer resolves one pending clarification request.
+	ToolIDSessionClarifyAnswer ToolID = "compozy__session_clarify_answer"
+	// ToolIDSessionPromptCancel cancels one in-flight session prompt.
+	ToolIDSessionPromptCancel ToolID = "compozy__session_prompt_cancel"
 	// ToolIDNotify sends one bounded operator notification from the bound session.
 	ToolIDNotify ToolID = "compozy__notify"
 	// ToolIDSessionHealth reads metadata-only session health and wake eligibility.

@@ -64,11 +64,15 @@ func (m *Manager) applyAttentionAgentEvent(
 	if interaction == nil {
 		return false, nil
 	}
+	resolvedBy := strings.TrimSpace(event.ResolvedBy)
+	if resolvedBy == "" {
+		resolvedBy = "provider"
+	}
 	_, err := m.transitionPendingInteraction(ctx, store.PendingInteractionTransition{
 		InteractionID: interaction.InteractionID,
 		Status:        store.PendingInteractionStatusResolved,
 		Resolution:    event.Decision,
-		ResolvedBy:    "provider",
+		ResolvedBy:    resolvedBy,
 		At:            event.Timestamp,
 	})
 	return err == nil, err
@@ -143,7 +147,7 @@ func (m *Manager) applyClarifyAttentionEvent(
 			Choices:  append([]string(nil), event.Request.Choices...),
 		}
 		transition.Resolution = event.Answer.Resolution(question)
-		transition.ResolvedBy = pendingInteractionActorOperator
+		transition.ResolvedBy = event.ResolvedBy
 	}
 	_, err = m.transitionPendingInteraction(ctx, transition)
 	return err == nil, err

@@ -166,6 +166,7 @@ cannot be validated fail closed.
     compozy session interactions <session-id> -o json
     compozy session clarify answer <session-id> <request-id> --choice 1 -o json
     compozy session clarify answer <session-id> <request-id> --text "Use staging" -o json
+    compozy session prompt-cancel <session-id> -o json
     compozy session wait <session-id>
 
 `compozy session new` is promptless and accepts no runtime selection. It returns the durable active,
@@ -237,6 +238,21 @@ Extension hooks use the separate async-only `session.attention.changed` event. I
 `from`, `to`, `class`, `at`, and the session/workspace context; hook failure never rolls back the
 canonical attention change.
 
+### Waiting for session state
+
+`compozy session wait <session-id>` blocks until the session settles or needs someone. The default
+target set is `waiting-for-input`, `waiting-for-auth`, `idle`, `stopped`, and `failed`; `done` also
+satisfies `idle`. Override it with `--until`, bound the request with `--timeout` (default 5 minutes),
+or use `--unbounded` to let the CLI transparently resume bounded server waits without a blind spot.
+Valid explicit targets also include `done`, `running`, `hung`, and `unhealthy`.
+
+The structured result names `state-reached`, `timeout`, `session-gone`, `canceled`, or `overflow`,
+plus the observed state, elapsed milliseconds, and attention revision when available. Exit `75`
+means timeout, `69` means the session or daemon is unavailable, and `65` means an invalid target.
+The HTTP/UDS wait route always requires a positive `timeout_ms` no greater than 1,800,000; timeout is
+a normal `200` result, while a gone session returns `410`. Server waits are always bounded even when
+the CLI uses `--unbounded`.
+
 Each accepted prompt records its immutable runtime snapshot with the authored user event. Omitting
 runtime flags uses the durable `selected` value first, then the current `effective` selection; both
 being absent is invalid while the session is unbound. A queued prompt retains its submitted snapshot until dispatch. An interrupt advances the
@@ -285,6 +301,12 @@ configuration or replacement restores the prior binding and reports the runtime 
 user event is persisted only after a runtime is ready, rollback creates no user prompt event to retry.
 Read `runtime.transition` to distinguish `initial_bind`, `live_configuration`, and
 `process_replacement`.
+
+Use `compozy session prompt-cancel <session-id>` to cancel only the current prompt while keeping the
+session alive. The result is `canceled` with the affected `turn_id`, or `nothing-in-flight` when the
+session has no active prompt. Repeating the command is safe: it follows the same idempotent
+cancellation path used by HTTP, UDS, and `compozy__session_prompt_cancel`. The CLI exits `0` for a
+cancel and `66` for nothing in flight.
 
 If a CompozyOS-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 
@@ -364,6 +386,12 @@ The session catalog is counted and workspace-scoped. Dream sessions are internal
 
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
 
+`compozy spawn` and `compozy__session_spawn` create governed children with a required TTL and
+permission subsets. The parent receives one sanitized synthetic turn when an eligible child stops,
+fails, or enters a needs-you state. This `notify_creator` behavior defaults to on and has no
+`config.toml` key. Use `--no-notify-creator` in the CLI or explicit `notify_creator: false` in the
+HTTP/UDS or native-tool request to opt out for that child.
+
 ## MCP Serve
 
 Use `compozy mcp serve` to expose the approved Host API subset to a trusted external MCP client over
@@ -403,10 +431,10 @@ First-run onboarding completion is a global instance flag (stored in the `app_me
 
 The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot registers the operator `$HOME` as the default workspace before the wizard starts, so the workspace step should not require manual project registration on a clean machine.
 
-Native session tools are read-oriented. Clarification answers, recap, repair, approval, session
-inspect, and Soul refresh use CLI/HTTP/UDS management surfaces unless the live registry exposes a
-scoped native tool. `compozy__clarify` asks from inside the active session; it does not answer another
-session's question.
+Native session tools include scoped wait, governed spawn, stop, approval, clarification answer, and
+prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS management surfaces unless
+the live registry exposes a matching tool. `compozy__clarify` asks from inside the active session;
+`compozy__session_clarify_answer` answers a pending question on another same-workspace session.
 
 ## Gateway Exposure and Device Authentication
 

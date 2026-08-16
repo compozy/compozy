@@ -163,6 +163,8 @@ type stubClient struct {
 	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
 	listSessionInteractionsFn    func(context.Context, string, []string) (SessionInteractionsRecord, error)
 	getSessionAttentionSummaryFn func(context.Context) (SessionAttentionSummaryRecord, error)
+	waitSessionFn                func(context.Context, string, string, SessionWaitRequest) (SessionWaitRecord, error)
+	cancelSessionPromptFn        func(context.Context, string) (SessionPromptCancelRecord, error)
 	answerSessionClarificationFn func(
 		context.Context,
 		string,
@@ -1568,6 +1570,28 @@ func (s *stubClient) GetSessionAttentionSummary(
 		return s.getSessionAttentionSummaryFn(ctx)
 	}
 	return SessionAttentionSummaryRecord{}, errors.New("unexpected GetSessionAttentionSummary call")
+}
+
+func (s *stubClient) WaitSession(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	request SessionWaitRequest,
+) (SessionWaitRecord, error) {
+	if s.waitSessionFn != nil {
+		return s.waitSessionFn(ctx, workspaceID, sessionID, request)
+	}
+	return SessionWaitRecord{}, errors.New("unexpected WaitSession call")
+}
+
+func (s *stubClient) CancelSessionPrompt(
+	ctx context.Context,
+	sessionID string,
+) (SessionPromptCancelRecord, error) {
+	if s.cancelSessionPromptFn != nil {
+		return s.cancelSessionPromptFn(ctx, sessionID)
+	}
+	return SessionPromptCancelRecord{}, errors.New("unexpected CancelSessionPrompt call")
 }
 
 func (s *stubClient) CreateSession(

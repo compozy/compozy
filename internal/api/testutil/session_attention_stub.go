@@ -13,6 +13,7 @@ type StubSessionAttention struct {
 	PresenceFn func(context.Context, string, string, bool) (string, error)
 	PendingFn  func(context.Context, string, []string) ([]store.PendingInteraction, error)
 	SummaryFn  func(context.Context) (store.SessionAttentionSummary, error)
+	WaitFn     func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
 }
 
 // SessionPresence acquires, renews, or releases a test presence lease.
@@ -48,4 +49,16 @@ func (s StubSessionManager) AttentionSummary(ctx context.Context) (store.Session
 	return store.SessionAttentionSummary{}, nil
 }
 
+// WaitForBadge returns the configured bounded test wait outcome.
+func (s StubSessionManager) WaitForBadge(
+	ctx context.Context,
+	request session.WaitRequest,
+) (session.WaitOutcome, error) {
+	if s.Attention.WaitFn != nil {
+		return s.Attention.WaitFn(ctx, request)
+	}
+	return session.WaitOutcome{}, session.ErrWaitValidation
+}
+
 var _ core.SessionAttentionManager = (*StubSessionManager)(nil)
+var _ core.SessionWaitManager = (*StubSessionManager)(nil)

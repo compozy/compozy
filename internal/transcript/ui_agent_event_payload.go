@@ -23,6 +23,7 @@ type UIAgentEventPayload struct {
 	Action           string                `json:"action,omitempty"`
 	Resource         string                `json:"resource,omitempty"`
 	Decision         string                `json:"decision,omitempty"`
+	ResolvedBy       string                `json:"resolved_by,omitempty"`
 	Error            string                `json:"error,omitempty"`
 	Failure          *store.SessionFailure `json:"failure,omitempty"`
 	Goal             *acp.GoalPromptMeta   `json:"goal,omitempty"`
@@ -38,7 +39,8 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 		Type: event.Type, SessionID: event.SessionID, TurnID: event.TurnID, RequestID: event.RequestIDValue(),
 		Text: event.Text, Title: event.Title, ToolCallID: event.ToolCallID, StopReason: event.StopReason,
 		PromptStopReason: event.PromptStopReason, Action: event.Action, Resource: event.Resource,
-		Decision: event.Decision, Error: event.Error, Failure: store.CloneSessionFailure(event.Failure),
+		Decision: event.Decision, ResolvedBy: event.ResolvedBy,
+		Error: event.Error, Failure: store.CloneSessionFailure(event.Failure),
 		Goal:  acp.CloneGoalPromptMeta(event.Goal),
 		Usage: uiTokenUsagePayloadFromUsage(event.Usage), Runtime: cloneRuntimeActivity(event.Runtime),
 		Raw: payloadJSONBytes(event.Raw),

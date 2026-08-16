@@ -169,7 +169,7 @@ func (r *loopGateJudgeRunner) revokeExecution(ctx context.Context, correlationID
 	}
 	var cancelErr error
 	if sessionID != "" {
-		if err := r.sessions.CancelPrompt(ctx, sessionID); err != nil {
+		if _, err := r.sessions.CancelPrompt(ctx, sessionID); err != nil {
 			cancelErr = fmt.Errorf("daemon: cancel loop judge prompt %q: %w", sessionID, err)
 		}
 	}
@@ -215,7 +215,7 @@ func collectLoopJudgeResult(
 				"daemon: verdict-only judge attempted tool activity %q",
 				strings.TrimSpace(event.ToolCallID),
 			)
-			if cancelErr := sessions.CancelPrompt(ctx, sessionID); cancelErr != nil {
+			if _, cancelErr := sessions.CancelPrompt(ctx, sessionID); cancelErr != nil {
 				return looppkg.ActionPromptResult{}, errors.Join(activityErr, cancelErr)
 			}
 			return looppkg.ActionPromptResult{}, activityErr

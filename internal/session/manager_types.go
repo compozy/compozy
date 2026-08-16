@@ -154,6 +154,10 @@ type Manager struct {
 	notifyMu              sync.Mutex
 	notifyConfig          compozyconfig.AttentionConfig
 	notifyLastBySession   map[string]time.Time
+	waitRegistry          *sessionWaitRegistry
+	spawnWakeMu           sync.Mutex
+	spawnWakeEventIDs     map[string]struct{}
+	spawnWakeEventOrder   []string
 
 	logger                       *slog.Logger
 	driver                       AgentDriver
@@ -161,6 +165,7 @@ type Manager struct {
 	networkPeers                 NetworkPeerLifecycle
 	participationResolver        participation.Resolver
 	turnEndNotifier              TurnEndNotifier
+	spawnWakeNotifier            SpawnWakeNotifier
 	inputAugmenter               PromptInputAugmenter
 	commandService               CommandService
 	inputQueue                   *inputqueue.Service
@@ -213,6 +218,9 @@ type Manager struct {
 	newInteractionID             IDGenerator
 	newPresenceLeaseID           IDGenerator
 	newNotificationID            IDGenerator
+	newWaitID                    IDGenerator
+	newWaitTimer                 waitTimerFactory
+	newWaitAfterFunc             waitAfterFunc
 	acquireSessionDBFamilyLease  sessionDBFamilyLeaseAcquirer
 	removeAllPath                func(path string) error
 	promptBufSize                int

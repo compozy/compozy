@@ -20,6 +20,7 @@ type SessionManagerDeps struct {
 	HomePaths              compozyconfig.HomePaths
 	Logger                 *slog.Logger
 	Notifier               session.Notifier
+	SpawnWakeNotifier      session.SpawnWakeNotifier
 	Hooks                  session.HookSet
 	PromptAssembler        session.PromptAssembler
 	StartupPromptOverlay   session.StartupPromptOverlay
@@ -55,9 +56,10 @@ type SessionManagerDeps struct {
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 	return SessionManagerDeps{
-		HomePaths: d.homePaths,
-		Logger:    state.logger,
-		Notifier:  d.sessionNotifier(state),
+		HomePaths:         d.homePaths,
+		Logger:            state.logger,
+		Notifier:          d.sessionNotifier(state),
+		SpawnWakeNotifier: state.sessionWakeBridge,
 		Hooks: session.HookSet{
 			Session:         state.notifier,
 			Sandbox:         state.notifier,

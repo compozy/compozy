@@ -23,6 +23,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithLifecycleContext(ctx),
 			session.WithLogger(deps.Logger),
 			session.WithNotifier(deps.Notifier),
+			session.WithSpawnWakeNotifier(deps.SpawnWakeNotifier),
 			session.WithHookSet(deps.Hooks),
 			session.WithPromptAssembler(deps.PromptAssembler),
 			session.WithStartupPromptOverlay(deps.StartupPromptOverlay),

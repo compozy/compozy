@@ -218,6 +218,7 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 					SpawnRole:        request.SpawnRole,
 					TTLExpiresAt:     &ttl,
 					AutoStopOnParent: request.AutoStopOnParent,
+					NotifyCreator:    request.NotifyCreator == nil || *request.NotifyCreator,
 					SpawnBudget: contract.SpawnBudgetPayload{
 						MaxChildren: 5,
 						MaxDepth:    1,
@@ -278,6 +279,7 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			gotRequest.SpawnRole != "worker" ||
 			gotRequest.TTLSeconds != 120 ||
 			!gotRequest.AutoStopOnParent ||
+			gotRequest.NotifyCreator != nil ||
 			gotRequest.IdempotencyKey != "spawn-1" {
 			t.Fatalf("spawn request = %#v, want parsed bounded spawn request", gotRequest)
 		}
@@ -302,6 +304,29 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 		}
 		if output.Session.ID != "sess-child" || output.Lineage.ParentSessionID != "sess-agent" {
 			t.Fatalf("spawn output = %#v, want child session with parent lineage", output)
+		}
+
+		defaultStdout, _, err := executeRootCommand(
+			t, deps, "spawn", "--agent", "coder", "--ttl-seconds", "120",
+		)
+		if err != nil {
+			t.Fatalf("compozy spawn with default wake error = %v", err)
+		}
+		if !strings.Contains(defaultStdout, "Wake") || !strings.Contains(defaultStdout, "on-settle (default)") {
+			t.Fatalf("default spawn output = %q, want effective wake state", defaultStdout)
+		}
+
+		disabledStdout, _, err := executeRootCommand(
+			t, deps, "spawn", "--agent", "coder", "--ttl-seconds", "120", "--no-notify-creator",
+		)
+		if err != nil {
+			t.Fatalf("compozy spawn --no-notify-creator error = %v", err)
+		}
+		if gotRequest.NotifyCreator == nil || *gotRequest.NotifyCreator {
+			t.Fatalf("spawn request = %#v, want explicit notify_creator=false", gotRequest)
+		}
+		if !strings.Contains(disabledStdout, "Wake") || !strings.Contains(disabledStdout, "off") {
+			t.Fatalf("disabled spawn output = %q, want wake off", disabledStdout)
 		}
 	})
 }

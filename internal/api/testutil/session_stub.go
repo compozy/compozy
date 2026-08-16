@@ -62,7 +62,7 @@ type StubSessionManager struct {
 		context.Context, string, string, session.PromotePendingInputOpts,
 	) (session.SendPromptResult, error)
 	CancelQueuedFn func(context.Context, string, string) (session.SendPromptResult, error)
-	CancelPromptFn func(context.Context, string) error
+	CancelPromptFn func(context.Context, string) (session.PromptCancelResult, error)
 	ApproveFn      func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error)
 	InputQueueFn   func(context.Context, string) (session.InputQueueSummary, error)
 }
@@ -473,11 +473,11 @@ func (s StubSessionManager) PromotePendingInputToSteer(
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) CancelPrompt(ctx context.Context, id string) error {
+func (s StubSessionManager) CancelPrompt(ctx context.Context, id string) (session.PromptCancelResult, error) {
 	if s.CancelPromptFn != nil {
 		return s.CancelPromptFn(ctx, id)
 	}
-	return nil
+	return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeNothingInFlight}, nil
 }
 
 func (s StubSessionManager) ApprovePermission(

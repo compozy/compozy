@@ -579,9 +579,12 @@ func (s *networkWakePrompterStub) PromptNetwork(
 	return events, nil
 }
 
-func (s *networkWakePrompterStub) CancelPrompt(context.Context, string) error {
+func (s *networkWakePrompterStub) CancelPrompt(
+	context.Context,
+	string,
+) (session.PromptCancelResult, error) {
 	s.cancelCalls++
-	return s.cancelErr
+	return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled}, s.cancelErr
 }
 
 type networkWakeStoreStub struct {

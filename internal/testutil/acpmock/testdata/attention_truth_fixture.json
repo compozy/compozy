@@ -21,6 +21,37 @@
                     ]
                 },
                 {
+                    "name": "hold-until-canceled",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "hold turn"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "holding"
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "session-wake",
+                    "match": {
+                        "turn_source": "synthetic"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["session wake observed"]
+                        }
+                    ]
+                },
+                {
                     "name": "permission",
                     "match": {
                         "turn_source": "user",

@@ -723,8 +723,22 @@ func TestCancelPrompt(t *testing.T) {
 			t.Fatal("session IsPrompting() = false after driver prompt started")
 		}
 
-		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		cancelResult, err := h.manager.CancelPrompt(
+			WithActingSession(testutil.Context(t), "sess-creator"),
+			session.ID,
+		)
+		if err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if cancelResult.Outcome != PromptCancelOutcomeCanceled || strings.TrimSpace(cancelResult.TurnID) == "" {
+			t.Fatalf("CancelPrompt() = %#v, want canceled turn", cancelResult)
+		}
+		repeated, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("CancelPrompt(repeated) error = %v", err)
+		}
+		if repeated != cancelResult {
+			t.Fatalf("CancelPrompt(repeated) = %#v, want idempotent %#v", repeated, cancelResult)
 		}
 		if got := h.driver.cancelCalls; got != 1 {
 			t.Fatalf("driver cancel calls = %d, want 1", got)
@@ -771,6 +785,11 @@ func TestCancelPrompt(t *testing.T) {
 		if session.IsPrompting() {
 			t.Fatal("session IsPrompting() = true after canceled prompt drain")
 		}
+		marker := requireTranscriptMarker(t, h.manager, session.ID, transcript.MarkerPromptCancel)
+		if marker.Evidence["actor_kind"] != actingSessionActorKind ||
+			marker.Evidence["actor_id"] != "sess-creator" {
+			t.Fatalf("prompt cancel marker evidence = %#v, want acting session", marker.Evidence)
+		}
 		active, ok := h.manager.Get(session.ID)
 		if !ok {
 			t.Fatal("session removed after prompt cancellation")
@@ -813,7 +832,7 @@ func TestCancelPrompt(t *testing.T) {
 		session.setCurrentTurnSource(TurnSourceUser)
 		session.setCurrentPromptCancel(cancelPrompt)
 
-		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
 		select {
@@ -842,7 +861,7 @@ func TestCancelPrompt(t *testing.T) {
 		session.setCurrentTurnSource(TurnSourceUser)
 		session.clearProcess(time.Now().UTC())
 
-		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
 		if got := h.driver.cancelCalls; got != 0 {
@@ -865,11 +884,79 @@ func TestCancelPrompt(t *testing.T) {
 		}
 		h.driver.lastProcess().exit()
 
-		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
 		if got := h.driver.cancelCalls; got != 1 {
 			t.Fatalf("driver cancel calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should allow retry when the live provider cancel fails", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			session.clearCurrentTurnSource()
+			reportSessionStop(t, h, session.ID)
+		})
+
+		session.setCurrentTurnSource(TurnSourceUser)
+		var attempts atomic.Int32
+		h.driver.cancelHook = func(_ *fakeProcess) error {
+			if attempts.Add(1) == 1 {
+				return errors.New("test: transient provider cancel failure")
+			}
+			return nil
+		}
+
+		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err == nil {
+			t.Fatal("CancelPrompt(first) error = nil, want provider failure")
+		}
+		result, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("CancelPrompt(retry) error = %v", err)
+		}
+		if result.Outcome != PromptCancelOutcomeCanceled {
+			t.Fatalf("CancelPrompt(retry) = %#v, want canceled", result)
+		}
+		if got := h.driver.cancelCalls; got != 2 {
+			t.Fatalf("driver cancel calls = %d, want 2", got)
+		}
+	})
+
+	t.Run("Should allow retry when scoped tool interruption fails", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			session.clearCurrentTurnSource()
+			reportSessionStop(t, h, session.ID)
+		})
+
+		session.setCurrentTurnID("turn-scoped-retry")
+		session.setCurrentTurnSource(TurnSourceUser)
+		h.driver.interruptErr = errors.New("test: transient scoped interrupt failure")
+
+		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err == nil {
+			t.Fatal("CancelPrompt(first) error = nil, want scoped interrupt failure")
+		}
+		h.driver.interruptErr = nil
+
+		result, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("CancelPrompt(retry) error = %v", err)
+		}
+		if result.Outcome != PromptCancelOutcomeCanceled || result.TurnID != "turn-scoped-retry" {
+			t.Fatalf("CancelPrompt(retry) = %#v, want canceled scoped turn", result)
+		}
+		if got := h.driver.cancelCalls; got != 2 {
+			t.Fatalf("driver cancel calls = %d, want 2", got)
+		}
+		if got := len(h.driver.interruptScopes); got != 2 {
+			t.Fatalf("driver interrupt calls = %d, want 2", got)
 		}
 	})
 
@@ -882,8 +969,12 @@ func TestCancelPrompt(t *testing.T) {
 			reportSessionStop(t, h, session.ID)
 		})
 
-		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		result, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
+		if err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if result.Outcome != PromptCancelOutcomeNothingInFlight {
+			t.Fatalf("CancelPrompt() = %#v, want nothing-in-flight", result)
 		}
 		if got := h.driver.cancelCalls; got != 0 {
 			t.Fatalf("driver cancel calls = %d, want 0", got)
@@ -899,8 +990,12 @@ func TestCancelPrompt(t *testing.T) {
 			t.Fatalf("Stop() error = %v", err)
 		}
 
-		if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		result, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
+		if err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		if result.Outcome != PromptCancelOutcomeNothingInFlight {
+			t.Fatalf("CancelPrompt() = %#v, want nothing-in-flight", result)
 		}
 		if got := h.driver.cancelCalls; got != 0 {
 			t.Fatalf("driver cancel calls = %d, want 0", got)
@@ -912,7 +1007,7 @@ func TestCancelPrompt(t *testing.T) {
 
 		h := newHarness(t)
 
-		err := h.manager.CancelPrompt(testutil.Context(t), "missing")
+		_, err := h.manager.CancelPrompt(testutil.Context(t), "missing")
 		if !errors.Is(err, ErrSessionNotFound) {
 			t.Fatalf("CancelPrompt(missing) error = %v, want ErrSessionNotFound", err)
 		}

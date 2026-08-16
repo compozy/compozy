@@ -45,6 +45,7 @@ type AgentEvent struct {
 	Action            string
 	Resource          string
 	Decision          string
+	ResolvedBy        string
 	Error             string
 	Failure           *store.SessionFailure
 	Synthetic         *PromptSyntheticMeta

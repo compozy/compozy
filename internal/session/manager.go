@@ -79,6 +79,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		presenceLeases:        make(map[sessionPresenceKey]sessionPresenceLease),
 		notifyConfig:          compozyconfig.DefaultAttentionConfig(),
 		notifyLastBySession:   make(map[string]time.Time),
+		spawnWakeEventIDs:     make(map[string]struct{}),
 		logger:                slog.Default(),
 		driver:                NewACPDriverAdapter(acp.New()),
 		homePaths:             homePaths,
@@ -101,6 +102,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		newInteractionID:            newULIDGenerator("int"),
 		newPresenceLeaseID:          newULIDGenerator("prl"),
 		newNotificationID:           newULIDGenerator("ntf"),
+		newWaitID:                   newULIDGenerator("wait"),
 		acquireSessionDBFamilyLease: sessiondb.AcquireFamilyLease,
 		promptBufSize:               defaultPromptBufferSize,
 		soulRefreshTimeout:          defaultLifecycleTimeout,
@@ -115,6 +117,11 @@ func NewManager(opts ...Option) (*Manager, error) {
 	if err := manager.applyRuntimeDefaults(); err != nil {
 		return nil, err
 	}
+	manager.waitRegistry = newSessionWaitRegistry(
+		manager.newWaitID,
+		manager.now,
+		manager.newWaitAfterFunc,
+	)
 	if err := compozyconfig.EnsureHomeLayout(manager.homePaths); err != nil {
 		return nil, fmt.Errorf("session: ensure home layout: %w", err)
 	}
@@ -433,6 +440,7 @@ func (m *Manager) remove(id string) {
 	m.soulLocksMu.Unlock()
 
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotFound)
+	m.forgetSpawnWakeEvents(target)
 }
 
 func (m *Manager) removeActive(id string) {
@@ -446,6 +454,7 @@ func (m *Manager) removeActive(id string) {
 	m.soulLocksMu.Lock()
 	delete(m.soulLocks, target)
 	m.soulLocksMu.Unlock()
+	m.forgetSpawnWakeEvents(target)
 
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotActive)
 }

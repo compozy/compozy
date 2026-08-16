@@ -13,6 +13,7 @@ const (
 	spawnProviderValue  = "Provider"
 	spawnRootValue      = "Root"
 	spawnSessionValue   = "Session"
+	spawnWakeValue      = "Wake"
 	spawnWorkspaceValue = "Workspace"
 )
 
@@ -26,6 +27,7 @@ type spawnCommandFlags struct {
 	spawnRole        string
 	ttlSeconds       int64
 	autoStopOnParent bool
+	noNotifyCreator  bool
 	tools            []string
 	skills           []string
 	mcpServers       []string
@@ -69,6 +71,7 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 	cmd.Flags().StringVar(&flags.spawnRole, "role", "worker", "Child spawn role")
 	cmd.Flags().Int64Var(&flags.ttlSeconds, "ttl-seconds", 0, "Mandatory child TTL in seconds")
 	cmd.Flags().BoolVar(&flags.autoStopOnParent, "auto-stop-on-parent", true, "Stop the child when the parent stops")
+	cmd.Flags().BoolVar(&flags.noNotifyCreator, "no-notify-creator", false, "Do not wake this session when the child needs attention or stops")
 	cmd.Flags().StringArrayVar(&flags.tools, "tool", nil, "Allowed tool atom (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.skills, "skill", nil, "Allowed skill atom (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.mcpServers, "mcp-server", nil, "Allowed MCP server id (repeatable)")
@@ -88,7 +91,7 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 
 func runSpawnCommand(deps commandDeps, flags *spawnCommandFlags) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
-		request, err := flags.request()
+		request, err := flags.request(cmd.Flags().Changed("no-notify-creator"))
 		if err != nil {
 			return err
 		}
@@ -108,7 +111,7 @@ func runSpawnCommand(deps commandDeps, flags *spawnCommandFlags) func(*cobra.Com
 	}
 }
 
-func (flags *spawnCommandFlags) request() (AgentSpawnRequest, error) {
+func (flags *spawnCommandFlags) request(notifyFlagChanged bool) (AgentSpawnRequest, error) {
 	if strings.TrimSpace(flags.agentName) == "" {
 		return AgentSpawnRequest{}, fmt.Errorf("cli: --agent is required")
 	}
@@ -118,7 +121,7 @@ func (flags *spawnCommandFlags) request() (AgentSpawnRequest, error) {
 	if strings.EqualFold(strings.TrimSpace(flags.spawnRole), "coordinator") {
 		return AgentSpawnRequest{}, fmt.Errorf("cli: coordinator spawn role is not supported")
 	}
-	return AgentSpawnRequest{
+	request := AgentSpawnRequest{
 		AgentName:        strings.TrimSpace(flags.agentName),
 		Provider:         strings.TrimSpace(flags.provider),
 		Model:            strings.TrimSpace(flags.model),
@@ -137,7 +140,12 @@ func (flags *spawnCommandFlags) request() (AgentSpawnRequest, error) {
 			SandboxProfiles: trimSpawnAtoms(flags.sandboxProfiles),
 		},
 		IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
-	}, nil
+	}
+	if notifyFlagChanged {
+		notifyCreator := !flags.noNotifyCreator
+		request.NotifyCreator = &notifyCreator
+	}
+	return request, nil
 }
 
 func trimSpawnAtoms(values []string) []string {
@@ -159,6 +167,10 @@ func agentSpawnBundle(record *AgentSpawnRecord) outputBundle {
 	return outputBundle{
 		jsonValue: record,
 		human: func() (string, error) {
+			wake := "off"
+			if record.Lineage.NotifyCreator {
+				wake = "on-settle (default)"
+			}
 			return renderHumanBlocks(
 				renderHumanSection("Spawn", []keyValue{
 					{Label: spawnSessionValue, Value: stringOrDash(record.Session.ID)},
@@ -170,6 +182,7 @@ func agentSpawnBundle(record *AgentSpawnRecord) outputBundle {
 					{Label: "Depth", Value: fmt.Sprintf("%d", record.Lineage.SpawnDepth)},
 					{Label: roleOutputLabel, Value: stringOrDash(record.Lineage.SpawnRole)},
 					{Label: "TTL Expires", Value: stringOrDash(formatTimePtr(record.Lineage.TTLExpiresAt))},
+					{Label: spawnWakeValue, Value: wake},
 				}),
 			), nil
 		},

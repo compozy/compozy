@@ -50,16 +50,3 @@ func (h *Handlers) approveSession(c *gin.Context) {
 		ResolvedDecision: result.ResolvedDecision,
 	})
 }
-
-func (h *Handlers) cancelSessionPrompt(c *gin.Context) {
-	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
-	if !ok {
-		return
-	}
-	if err := h.Sessions.CancelPrompt(c.Request.Context(), sessionID); err != nil {
-		core.RespondError(c, core.StatusForSessionError(err), err, true)
-		return
-	}
-
-	c.Status(http.StatusOK)
-}
