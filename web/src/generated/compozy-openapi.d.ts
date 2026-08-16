@@ -30336,6 +30336,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -30588,6 +30589,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -31091,6 +31093,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -31367,6 +31370,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -32108,6 +32112,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -32418,6 +32423,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -33280,6 +33286,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -36824,6 +36831,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -36998,6 +37006,7 @@ export interface operations {
               description: string;
               downloads?: number | null;
               entry_id: string;
+              format?: string;
               install_slug?: string;
               installed: boolean;
               installed_name?: string;
@@ -37195,6 +37204,7 @@ export interface operations {
               description: string;
               downloads?: number | null;
               entry_id: string;
+              format?: string;
               install_slug?: string;
               installed: boolean;
               installed_name?: string;

@@ -219,6 +219,35 @@ describe("extensions MSW handlers", () => {
       "otel-bridge",
       "slack-notify",
       "dep-kit-ops",
+      "acme.tools",
+      "legacy-notes",
     ]);
+  });
+
+  /**
+   * The inventory route carries the daemon's recorded skips beside the kit items; a mock that
+   * dropped them would let the Skipped section pass its own tests against data the route never sends.
+   */
+  it("Should replay recorded ingest diagnostics on the inventory route", async () => {
+    const degraded = (await (
+      await fetch(`${API}/api/extensions/legacy-notes/inventory`)
+    ).json()) as {
+      diagnostics: Array<{ code: string; evidence?: Record<string, unknown> }>;
+      format: string;
+      items: unknown[];
+    };
+    expect(degraded.format).toBe("agent-plugin");
+    expect(degraded.items).toEqual([]);
+    expect(degraded.diagnostics.map(item => item.evidence?.scope)).toEqual([
+      "mcp:notes-index",
+      "skill:release-notes",
+    ]);
+
+    const healthy = (await (await fetch(`${API}/api/extensions/otel-bridge/inventory`)).json()) as {
+      diagnostics: unknown[];
+      format: string;
+    };
+    expect(healthy.format).toBe("compozy");
+    expect(healthy.diagnostics).toEqual([]);
   });
 });

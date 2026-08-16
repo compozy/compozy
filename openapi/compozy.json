@@ -68547,6 +68547,9 @@
                               "entry_id": {
                                 "type": "string"
                               },
+                              "format": {
+                                "type": "string"
+                              },
                               "install_slug": {
                                 "type": "string"
                               },
@@ -69333,6 +69336,9 @@
                               "type": "integer"
                             },
                             "entry_id": {
+                              "type": "string"
+                            },
+                            "format": {
                               "type": "string"
                             },
                             "install_slug": {
@@ -70838,6 +70844,9 @@
                             "entry_id": {
                               "type": "string"
                             },
+                            "format": {
+                              "type": "string"
+                            },
                             "install_slug": {
                               "type": "string"
                             },
@@ -72169,6 +72178,9 @@
                               "type": "integer"
                             },
                             "entry_id": {
+                              "type": "string"
+                            },
+                            "format": {
                               "type": "string"
                             },
                             "install_slug": {
@@ -73726,6 +73738,9 @@
                             "entry_id": {
                               "type": "string"
                             },
+                            "format": {
+                              "type": "string"
+                            },
                             "install_slug": {
                               "type": "string"
                             },
@@ -74659,6 +74674,9 @@
                               "type": "integer"
                             },
                             "entry_id": {
+                              "type": "string"
+                            },
+                            "format": {
                               "type": "string"
                             },
                             "install_slug": {
@@ -77046,6 +77064,9 @@
                               "type": "integer"
                             },
                             "entry_id": {
+                              "type": "string"
+                            },
+                            "format": {
                               "type": "string"
                             },
                             "install_slug": {
@@ -86490,6 +86511,9 @@
                                 "entry_id": {
                                   "type": "string"
                                 },
+                                "format": {
+                                  "type": "string"
+                                },
                                 "install_slug": {
                                   "type": "string"
                                 },
@@ -86989,6 +87013,9 @@
                             "type": "integer"
                           },
                           "entry_id": {
+                            "type": "string"
+                          },
+                          "format": {
                             "type": "string"
                           },
                           "install_slug": {
@@ -87536,6 +87563,9 @@
                           "type": "integer"
                         },
                         "entry_id": {
+                          "type": "string"
+                        },
+                        "format": {
                           "type": "string"
                         },
                         "install_slug": {

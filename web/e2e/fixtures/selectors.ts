@@ -256,8 +256,12 @@ export const knowledgeOperatorTestIds = {
 export const marketplaceOperatorTestIds = {
   extensionAutomationStarted: "extension-automation-started",
   extensionEnvironmentState: "extension-environment-state",
+  extensionFormatBadge: "extension-format-badge",
   extensionKitInventory: "extension-kit-inventory",
   extensionKitInventoryItem: "extension-kit-inventory-item",
+  extensionSkippedComponents: "extension-skipped-components",
+  extensionSkippedRow: "extension-skipped-row",
+  extensionSkippedZeroResources: "extension-skipped-zero-resources",
   extensionNetworkConfirmAccept: "extension-network-confirm-accept",
   extensionNetworkConfirmDialog: "extension-network-confirm-dialog",
   extensionNetworkConfirmDigest: "extension-network-confirm-digest",
@@ -534,8 +538,12 @@ export interface MarketplaceOperatorSelectors {
   kindUpdates(kind: string): Locator;
   extensionAutomationStarted: Locator;
   extensionEnvironmentState: Locator;
+  extensionFormatBadge: Locator;
   extensionKitInventory: Locator;
   extensionKitInventoryItem: Locator;
+  extensionSkippedComponents: Locator;
+  extensionSkippedRow: Locator;
+  extensionSkippedZeroResources: Locator;
   extensionNetworkConfirmAccept: Locator;
   extensionNetworkConfirmDialog: Locator;
   extensionNetworkConfirmDigest: Locator;
@@ -1225,9 +1233,17 @@ export function marketplaceOperatorSelectors(
     extensionEnvironmentState: page.getByTestId(
       marketplaceOperatorTestIds.extensionEnvironmentState
     ),
+    extensionFormatBadge: page.getByTestId(marketplaceOperatorTestIds.extensionFormatBadge),
     extensionKitInventory: page.getByTestId(marketplaceOperatorTestIds.extensionKitInventory),
     extensionKitInventoryItem: page.getByTestId(
       marketplaceOperatorTestIds.extensionKitInventoryItem
+    ),
+    extensionSkippedComponents: page.getByTestId(
+      marketplaceOperatorTestIds.extensionSkippedComponents
+    ),
+    extensionSkippedRow: page.getByTestId(marketplaceOperatorTestIds.extensionSkippedRow),
+    extensionSkippedZeroResources: page.getByTestId(
+      marketplaceOperatorTestIds.extensionSkippedZeroResources
     ),
     extensionNetworkConfirmAccept: page.getByTestId(
       marketplaceOperatorTestIds.extensionNetworkConfirmAccept

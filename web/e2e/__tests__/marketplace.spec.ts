@@ -2642,3 +2642,198 @@ test.describe("Extension update affordance", () => {
     await expect(installedCard.getByRole("button", { exact: true, name: "Update" })).toHaveCount(0);
   });
 });
+
+/**
+ * E2E-004 / E2E-005: the portable format is only real to an operator if the marker survives the
+ * whole acquisition path — card, dialogs, installed surfaces, inventory — and if a drifted upstream
+ * fails where the operator is looking, not in a toast that has already gone.
+ */
+test.describe("Agent Plugins marketplace journeys", () => {
+  const extensionName = "acme.tools";
+  const repository = "acme/acme-tools";
+  const catalogEntryID = "browser-agent-plugin";
+  const driftedName = "drifted.tools";
+  const driftedRepository = "acme/drifted-tools";
+  const driftedEntryID = "browser-drifted-plugin";
+
+  test.describe("Portable catalog entry", () => {
+    test.use({
+      runtimeOptions: {
+        extensionsAllowUnverified: true,
+        seed: {
+          extensionRegistry: {
+            description: "Portable package with one skill and one skipped sse server.",
+            extensionName,
+            layout: "agent-plugin",
+            releases: [{ tag: "v2.1.0", version: "2.1.0" }],
+            repository,
+          },
+          marketplaceCatalog: {
+            extensions: [
+              {
+                artifact_url: `https://github.com/${repository}/releases/download/v2.1.0/${extensionName}.tar.gz`,
+                author: "acme",
+                description: "Deploy checks and a tools API server in the Agent Plugins format.",
+                digest_release_tag: "v2.1.0",
+                entry_id: catalogEntryID,
+                format: "agent-plugin",
+                install_slug: repository,
+                name: extensionName,
+                repository: `https://github.com/${repository}`,
+                tier: "unverified",
+                version: "2.1.0",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    // E2E-004
+    test("operator installs a badged catalog entry and reads its ingested and skipped components", async ({
+      appPage,
+      runtime,
+    }) => {
+      await ensureGlobalWorkspace(runtime);
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      await completeOnboardingIfPrompted(appPage);
+      await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
+        waitUntil: "domcontentloaded",
+      });
+
+      const marketplaceWin = appWindow(appPage, "marketplace");
+      await expect(marketplaceWin).toBeVisible();
+      const marketplace = marketplaceOperatorSelectors(marketplaceWin);
+      await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
+
+      // The curated marker is the only format signal available before anything is installed.
+      const catalogCard = marketplace.card(catalogEntryID);
+      await expect(catalogCard).toBeVisible({ timeout: 20_000 });
+      await expect(catalogCard.getByTestId("extension-format-badge")).toHaveText("agent plugin");
+
+      const installResponse = appPage.waitForResponse(
+        response =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/extensions"
+      );
+      await marketplace.action(catalogEntryID).click();
+
+      // The entry is unverified, so the unchanged trust dialog gates the install.
+      const trustDialog = marketplace.extensionTrustDialog;
+      await expect(trustDialog).toBeVisible({ timeout: 20_000 });
+      await expect(trustDialog).not.toContainText(/permission/i);
+      await marketplace.extensionTrustConfirm.click();
+      expect((await installResponse).status()).toBe(201);
+
+      // Payload truth from here on: detection, not the feed, decided what was ingested.
+      await expect
+        .poll(
+          async () => {
+            const payload = await runtime.requestJSON<{ extension: { format: string } }>(
+              `/api/extensions/${extensionName}`
+            );
+            return payload.extension.format;
+          },
+          { timeout: 20_000 }
+        )
+        .toBe("agent-plugin");
+
+      await appPage.goto(runtime.url("/marketplace/extensions"), {
+        waitUntil: "domcontentloaded",
+      });
+      const installedCard = appPage
+        .getByTestId(`marketplace-installed-card-${extensionName}`)
+        .or(appPage.getByTestId(`marketplace-installed-card-${catalogEntryID}`))
+        .first();
+      await expect(installedCard).toBeVisible({ timeout: 20_000 });
+      await expect(installedCard.getByTestId("extension-format-badge")).toHaveText("agent plugin");
+
+      await installedCard.getByRole("link", { name: `View ${extensionName} details` }).click();
+      const detail = marketplaceOperatorSelectors(appWindow(appPage, "marketplace"));
+      await expect(detail.detail).toBeVisible({ timeout: 20_000 });
+      await expect(detail.extensionFormatBadge.first()).toHaveText("agent plugin");
+
+      // The kit lists what came in; the Skipped section names what did not, with the daemon's reason.
+      await expect(detail.extensionKitInventory).toBeVisible({ timeout: 20_000 });
+      await expect(detail.extensionKitInventoryItem.first()).toBeVisible();
+      await expect(detail.extensionSkippedComponents).toBeVisible();
+      const skippedRow = detail.extensionSkippedRow.first();
+      await expect(skippedRow).toContainText("mcp: legacy-events");
+      await expect(skippedRow).toContainText("sse transport is not supported");
+      // Something was ingested, so the degraded zero-count line must stay absent.
+      await expect(detail.extensionSkippedZeroResources).toHaveCount(0);
+    });
+  });
+
+  test.describe("Drifted catalog entry", () => {
+    test.use({
+      runtimeOptions: {
+        extensionsAllowUnverified: true,
+        seed: {
+          extensionRegistry: {
+            description: "Upstream drifted to a Claude Code plugin layout.",
+            extensionName: driftedName,
+            layout: "client-layout",
+            releases: [{ tag: "v1.0.0", version: "1.0.0" }],
+            repository: driftedRepository,
+          },
+          marketplaceCatalog: {
+            extensions: [
+              {
+                artifact_url: `https://github.com/${driftedRepository}/releases/download/v1.0.0/${driftedName}.tar.gz`,
+                author: "acme",
+                description: "A curated entry whose upstream no longer ships the standard layout.",
+                digest_release_tag: "v1.0.0",
+                entry_id: driftedEntryID,
+                format: "agent-plugin",
+                install_slug: driftedRepository,
+                name: driftedName,
+                repository: `https://github.com/${driftedRepository}`,
+                tier: "unverified",
+                version: "1.0.0",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    // E2E-005
+    test("operator reads the layout diagnostic in the dialog when a curated entry has drifted", async ({
+      appPage,
+      runtime,
+    }) => {
+      await ensureGlobalWorkspace(runtime);
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      await completeOnboardingIfPrompted(appPage);
+      await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
+        waitUntil: "domcontentloaded",
+      });
+
+      const marketplaceWin = appWindow(appPage, "marketplace");
+      await expect(marketplaceWin).toBeVisible();
+      const marketplace = marketplaceOperatorSelectors(marketplaceWin);
+      await expect(marketplace.kind("extension")).toBeVisible({ timeout: 20_000 });
+      await expect(marketplace.card(driftedEntryID)).toBeVisible({ timeout: 20_000 });
+
+      await marketplace.action(driftedEntryID).click();
+      const trustDialog = marketplace.extensionTrustDialog;
+      await expect(trustDialog).toBeVisible({ timeout: 20_000 });
+      await marketplace.extensionTrustConfirm.click();
+
+      // The failure has to be legible where the operator is looking — the dialog stays open and
+      // renders the deterministic layout diagnostic, never a toast the operator can miss.
+      const failure = trustDialog.getByRole("alert");
+      await expect(failure).toBeVisible({ timeout: 20_000 });
+      await expect(failure).toContainText(".claude-plugin/plugin.json");
+      await expect(failure).toContainText("Agent Plugins");
+      await expect(trustDialog).toBeVisible();
+
+      // Nothing was installed: the failed entry leaves no instance behind.
+      const installed = await runtime.requestJSON<{ extensions: Array<{ name: string }> }>(
+        "/api/extensions"
+      );
+      expect(installed.extensions.some(entry => entry.name === driftedName)).toBe(false);
+    });
+  });
+});

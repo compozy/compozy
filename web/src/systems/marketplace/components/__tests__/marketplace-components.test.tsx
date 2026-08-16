@@ -26,6 +26,7 @@ import { MarketplaceActionDialogs } from "../marketplace-action-dialogs";
 import { MCPInstallDialog } from "../mcp-install-dialog";
 import { buildMCPInstallRequest } from "../mcp-install-model";
 import type { SkillPayload } from "@/systems/skill";
+import { extensionTrustFacts } from "@/systems/extensions";
 import { useMCPAuthorize } from "@/systems/settings";
 
 const mocks = vi.hoisted(() => {
@@ -1753,5 +1754,67 @@ describe("Marketplace cards and actions", () => {
   it("Should render marketplace grid of cards", () => {
     render(<MarketplaceGrid entries={marketplaceListings.skill.slice(0, 2)} onAction={vi.fn()} />);
     expect(screen.getByTestId("marketplace-grid")).toHaveAttribute("data-view", "cards");
+  });
+
+  // UT-050: browsing is the only place the curated marker can speak, so the card must render it —
+  // and stay silent for the native entries that carry none.
+  it("Should render the format badge from a curated entry's marker and nothing without one", () => {
+    const portable = marketplaceListings.extension.find(entry => entry.format === "agent-plugin")!;
+    const native = marketplaceListings.extension[0]!;
+    const view = render(<MarketplaceCard entry={portable} onAction={vi.fn()} />);
+
+    expect(
+      within(screen.getByTestId(`marketplace-card-${portable.entry_id}`)).getByTestId(
+        "extension-format-badge"
+      )
+    ).toHaveTextContent("agent plugin");
+
+    view.rerender(<MarketplaceCard entry={native} onAction={vi.fn()} />);
+    expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
+
+    view.rerender(<MarketplaceDetailLede data={{ entry: portable }} />);
+    expect(
+      within(screen.getByTestId("marketplace-detail-lede")).getByTestId("extension-format-badge")
+    ).toBeInTheDocument();
+  });
+
+  // Once installed, the daemon's recorded format is the truth the card renders; the badge sits
+  // beside the trust badges without merging into them.
+  it("Should render the installed card badge from the daemon's recorded format", () => {
+    const handlers = {
+      onAction: vi.fn(),
+      onAuthorize: vi.fn(),
+      onEditMCP: vi.fn(),
+      onRemove: vi.fn(),
+      onToggleEnabled: vi.fn(),
+    };
+    const entry = {
+      ...marketplaceListings.extension[0]!,
+      format: "agent-plugin",
+      installed: true,
+      update_available: false,
+    };
+    const item = {
+      entry,
+      extensionEnabled: true,
+      extensionFacts: extensionTrustFacts({
+        digest_matched: true,
+        installed_from: "marketplace_registry",
+        registry_tier: "official",
+      }),
+    };
+    const view = render(<MarketplaceInstalledCard item={item} {...handlers} />);
+
+    const card = screen.getByTestId(`marketplace-installed-card-${entry.entry_id}`);
+    expect(within(card).getByTestId("extension-format-badge")).toHaveTextContent("agent plugin");
+    expect(within(card).getByTestId("extension-digest-matched-badge")).toBeInTheDocument();
+
+    view.rerender(
+      <MarketplaceInstalledCard
+        item={{ ...item, entry: { ...entry, format: "compozy" } }}
+        {...handlers}
+      />
+    );
+    expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
   });
 });

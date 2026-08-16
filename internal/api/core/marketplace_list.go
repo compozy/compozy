@@ -196,6 +196,8 @@ type marketplaceInstall struct {
 	name       string
 	version    string
 	managePath string
+	// format is the installed instance's own truth, recorded at ingestion.
+	format string
 }
 
 type marketplaceInstallIndex struct {
@@ -277,6 +279,7 @@ func (h *BaseHandlers) extensionInstallIndex(
 			name:       strings.TrimSpace(item.Name),
 			version:    strings.TrimSpace(item.Version),
 			managePath: marketplaceExtensionsInstalledPath,
+			format:     strings.TrimSpace(item.Format),
 		}
 		if entryID := strings.TrimSpace(item.Provenance.CatalogEntryID); entryID != "" {
 			index.byEntryID[entryID] = installation
@@ -348,6 +351,7 @@ func (h *BaseHandlers) curatedMarketplaceListing(
 		InstallSlug:      marketplaceInstallSlug(details),
 		Transport:        marketplaceTransport(details),
 		Tier:             entry.Tier,
+		Format:           marketplaceListingFormat(details, installation, isInstalled),
 		PublishedAt:      entry.PublishedAt,
 		UpdatedAt:        entry.UpdatedAt,
 		Installed:        isInstalled,
@@ -370,6 +374,25 @@ func (h *BaseHandlers) curatedMarketplaceListing(
 	}
 	result.Trust = &trust
 	return result, nil
+}
+
+// marketplaceListingFormat resolves the one format a surface may render. Before install the curated
+// marker is all we have; once an instance exists its recorded format is authoritative, because
+// detection — not the feed — decided what was ingested.
+func marketplaceListingFormat(
+	details marketplacepkg.EntryDetails,
+	installation marketplaceInstall,
+	isInstalled bool,
+) string {
+	if isInstalled {
+		if format := strings.TrimSpace(installation.format); format != "" {
+			return format
+		}
+	}
+	if details.Extension == nil {
+		return ""
+	}
+	return strings.TrimSpace(details.Extension.Format)
 }
 
 func marketplaceInstallSlug(details marketplacepkg.EntryDetails) string {

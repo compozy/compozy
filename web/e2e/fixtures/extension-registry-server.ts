@@ -9,6 +9,13 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const DEFAULT_HOST = "127.0.0.1";
 
+/**
+ * Package layout an archived release carries. `native` is the Compozy manifest; `agent-plugin` is
+ * the portable standard layout; `client-layout` is the drifted Claude Code shape the installer
+ * refuses by design.
+ */
+export type BrowserExtensionLayout = "native" | "agent-plugin" | "client-layout";
+
 /** One published extension release the daemon's GitHub source can resolve and download. */
 export interface BrowserExtensionReleaseSeed {
   /** Release tag, e.g. `v0.1.0`. */
@@ -21,8 +28,16 @@ export interface BrowserExtensionRegistrySeed {
   repository: string;
   extensionName: string;
   description?: string;
+  /** Defaults to the native Compozy manifest layout. */
+  layout?: BrowserExtensionLayout;
   releases: BrowserExtensionReleaseSeed[];
 }
+
+const PLUGIN_SCHEMA_ID = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
+const MCP_SCHEMA_ID = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";
+/** The one server the conformance ladder records as skipped: `sse` is out of scope by decision. */
+export const SKIPPED_PLUGIN_SERVER_NAME = "legacy-events";
+export const INGESTED_PLUGIN_SKILL_NAME = "deploy-check";
 
 interface RegistryAsset {
   archive: Buffer;
@@ -222,21 +237,120 @@ async function buildExtensionArchive(
   const stageRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-extension-release-"));
   const packageDir = path.join(stageRoot, seed.extensionName);
   await mkdir(packageDir, { recursive: true });
+  const entries = await writePackageLayout(seed, release, packageDir);
+  const archivePath = path.join(stageRoot, "package.tar.gz");
+  await execFileAsync("tar", ["-czf", archivePath, "-C", packageDir, ...entries]);
+  return await readFile(archivePath);
+}
+
+/** Writes the seeded layout and returns the archive members, so each layout stays self-describing. */
+async function writePackageLayout(
+  seed: BrowserExtensionRegistrySeed,
+  release: BrowserExtensionReleaseSeed,
+  packageDir: string
+): Promise<string[]> {
+  const description = seed.description ?? "Browser lane extension release";
+  switch (seed.layout ?? "native") {
+    case "agent-plugin":
+      return await writeAgentPluginLayout(seed, release, packageDir, description);
+    case "client-layout":
+      return await writeClientPluginLayout(seed, release, packageDir, description);
+    case "native":
+      await writeFile(
+        path.join(packageDir, "extension.toml"),
+        [
+          "[extension]",
+          `name = ${JSON.stringify(seed.extensionName)}`,
+          `version = ${JSON.stringify(release.version)}`,
+          `description = ${JSON.stringify(description)}`,
+          'min_compozy_version = "0.0.0"',
+          "",
+        ].join("\n"),
+        "utf8"
+      );
+      return ["extension.toml"];
+  }
+}
+
+/**
+ * Standard layout: root `plugin.json`, one discoverable skill, and an `mcp.json` declaring one
+ * synthesizable stdio server plus one `sse` server the ladder records as a skip. The skip is the
+ * point — it is what the inventory panel's Skipped section has to render.
+ */
+async function writeAgentPluginLayout(
+  seed: BrowserExtensionRegistrySeed,
+  release: BrowserExtensionReleaseSeed,
+  packageDir: string,
+  description: string
+): Promise<string[]> {
   await writeFile(
-    path.join(packageDir, "extension.toml"),
+    path.join(packageDir, "plugin.json"),
+    `${JSON.stringify(
+      {
+        $schema: PLUGIN_SCHEMA_ID,
+        description,
+        name: seed.extensionName,
+        version: release.version,
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+  await writeFile(
+    path.join(packageDir, "mcp.json"),
+    `${JSON.stringify(
+      {
+        $schema: MCP_SCHEMA_ID,
+        mcpServers: {
+          "tools-api": { type: "streamable-http", url: "https://tools.example.test/mcp" },
+          [SKIPPED_PLUGIN_SERVER_NAME]: { type: "sse", url: "https://events.example.test/sse" },
+        },
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+  const skillDir = path.join(packageDir, "skills", INGESTED_PLUGIN_SKILL_NAME);
+  await mkdir(skillDir, { recursive: true });
+  await writeFile(
+    path.join(skillDir, "SKILL.md"),
     [
-      "[extension]",
-      `name = ${JSON.stringify(seed.extensionName)}`,
-      `version = ${JSON.stringify(release.version)}`,
-      `description = ${JSON.stringify(seed.description ?? "Browser lane extension release")}`,
-      'min_compozy_version = "0.0.0"',
+      "---",
+      `name: ${INGESTED_PLUGIN_SKILL_NAME}`,
+      "description: Run the deployment preflight checks this package ships.",
+      "---",
+      "",
+      "# Deploy check",
+      "",
+      "Run the preflight checks before promoting a release.",
       "",
     ].join("\n"),
     "utf8"
   );
-  const archivePath = path.join(stageRoot, "package.tar.gz");
-  await execFileAsync("tar", ["-czf", archivePath, "-C", packageDir, "extension.toml"]);
-  return await readFile(archivePath);
+  return ["plugin.json", "mcp.json", "skills"];
+}
+
+/** Claude Code's client-specific shape: a `.claude-plugin/plugin.json` with no conformant root. */
+async function writeClientPluginLayout(
+  seed: BrowserExtensionRegistrySeed,
+  release: BrowserExtensionReleaseSeed,
+  packageDir: string,
+  description: string
+): Promise<string[]> {
+  const clientDir = path.join(packageDir, ".claude-plugin");
+  await mkdir(clientDir, { recursive: true });
+  await writeFile(
+    path.join(clientDir, "plugin.json"),
+    `${JSON.stringify(
+      { description, name: seed.extensionName, version: release.version },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
+  return [".claude-plugin"];
 }
 
 export async function closeExtensionRegistryServer(server: Server | undefined): Promise<void> {

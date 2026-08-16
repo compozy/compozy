@@ -171,6 +171,8 @@ export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplace
   author?: string;
   digest_release_tag?: string;
   digest_sha256?: string;
+  /** Curated display marker; install-time detection stays authoritative. */
+  format?: "compozy" | "agent-plugin";
   install_slug: string;
   repository?: string;
   tier: "official" | "community" | "unverified";

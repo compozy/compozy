@@ -1,5 +1,6 @@
 import type {
   ExtensionEntry,
+  ExtensionInventoryDiagnostic,
   ExtensionKitItem,
   ExtensionLogsSnapshot,
   ExtensionProvenance,
@@ -45,6 +46,40 @@ export const extensionProvenanceFixtures: Record<string, ExtensionProvenance> = 
     source_url: "https://compozy.com/registry/community/slack-notify",
     warnings: [trustWarning],
   },
+};
+
+/** One recorded ingest skip: the package declared an `sse` server the ladder refuses to synthesize. */
+const skippedSSEServer: ExtensionInventoryDiagnostic = {
+  category: "extension",
+  code: "extension_agent_plugin_component_skipped",
+  data_freshness: "live",
+  evidence: { component: "mcp_server", scope: "mcp:legacy-events" },
+  id: "extension/acme.tools/agent-plugin/mcp:legacy-events",
+  message: 'mcp server "legacy-events": unsupported transport "sse"',
+  severity: "warn",
+  title: "Component skipped",
+};
+
+const skippedMalformedSkill: ExtensionInventoryDiagnostic = {
+  category: "extension",
+  code: "extension_agent_plugin_component_skipped",
+  data_freshness: "live",
+  evidence: { component: "skill", scope: "skill:release-notes" },
+  id: "extension/legacy-notes/agent-plugin/skill:release-notes",
+  message: 'skill "release-notes": SKILL.md frontmatter is missing a description',
+  severity: "warn",
+  title: "Component skipped",
+};
+
+const skippedStdioServer: ExtensionInventoryDiagnostic = {
+  category: "extension",
+  code: "extension_agent_plugin_component_skipped",
+  data_freshness: "live",
+  evidence: { component: "mcp_server", scope: "mcp:notes-index" },
+  id: "extension/legacy-notes/agent-plugin/mcp:notes-index",
+  message: 'mcp server "notes-index": command is required for stdio transport',
+  severity: "warn",
+  title: "Component skipped",
 };
 
 export const extensionFixtures: ExtensionEntry[] = [
@@ -146,22 +181,79 @@ export const extensionFixtures: ExtensionEntry[] = [
     update_available: false,
     version: "1.0.0",
   },
+  /** Portable package ingested from the Agent Plugins format, with one recorded component skip. */
+  {
+    capabilities: [],
+    consecutive_failures: 0,
+    daemon_running: false,
+    diagnostics: [skippedSSEServer],
+    digest_matched: true,
+    enabled: true,
+    format: "agent-plugin",
+    missing_env: [],
+    name: "acme.tools",
+    network_confirmation_required: false,
+    permissions: [],
+    requires_env: [],
+    restart_backoff_ms: 0,
+    source: "git",
+    state: "stopped",
+    type: "backend",
+    update_available: false,
+    version: "2.1.0",
+  },
+  /** Fully degraded: every declared component was skipped, so nothing was ingested. */
+  {
+    capabilities: [],
+    consecutive_failures: 0,
+    daemon_running: false,
+    diagnostics: [skippedStdioServer, skippedMalformedSkill],
+    digest_matched: true,
+    enabled: false,
+    format: "agent-plugin",
+    missing_env: [],
+    name: "legacy-notes",
+    network_confirmation_required: false,
+    permissions: [],
+    requires_env: [],
+    restart_backoff_ms: 0,
+    source: "git",
+    state: "stopped",
+    type: "backend",
+    update_available: false,
+    version: "0.4.0",
+  },
 ];
 
 /** Shipped-vs-live kit resources keyed by extension name, mirroring the inventory route. */
 export const extensionInventoryFixtures: Record<string, ExtensionKitItem[]> = {
+  "acme.tools": [
+    { id: "acme.tools/deploy-check", kind: "skill", live: true, name: "deploy-check" },
+    { id: "acme.tools/tools-api", kind: "mcp_server", live: true, name: "tools-api" },
+  ],
   "dep-kit-ops": [
     { id: "dep-reviewer", kind: "agent", live: false, name: "dep-reviewer" },
     { id: "release-notes", kind: "agent", live: false, name: "release-notes" },
     { id: "weekly-audit", kind: "automation", live: false, name: "weekly-audit" },
     { id: "dep-board", kind: "layout", live: false, name: "dep-board" },
   ],
+  "legacy-notes": [],
   "otel-bridge": [
     { id: "span-export", kind: "automation", live: true, name: "span-export" },
     { id: "collector-health", kind: "agent", live: true, name: "collector-health" },
   ],
   "slack-notify": [],
 };
+
+/**
+ * Recorded diagnostics the inventory route replays beside the kit items. Ingest skips first, live
+ * runtime entries after — the daemon's own total order.
+ */
+export const extensionInventoryDiagnosticsFixtures: Record<string, ExtensionInventoryDiagnostic[]> =
+  {
+    "acme.tools": [skippedSSEServer],
+    "legacy-notes": [skippedStdioServer, skippedMalformedSkill],
+  };
 
 /** Workspace dev overlay: shadows the published row without owning its lifecycle. */
 export const DEV_EXTENSION_WORKSPACE_ID = "ws_northstar";

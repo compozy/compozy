@@ -15,6 +15,13 @@ const (
 	extensionTierUnverified = "unverified"
 )
 
+// Display-only format markers. Install-time detection stays authoritative — an entry may omit the
+// marker and still resolve to a portable package.
+const (
+	ExtensionFormatCompozy     = "compozy"
+	ExtensionFormatAgentPlugin = "agent-plugin"
+)
+
 type extensionEntry struct {
 	entryCommon
 	InstallSlug  string `json:"install_slug"`
@@ -23,6 +30,7 @@ type extensionEntry struct {
 	Tier         string `json:"tier,omitempty"`
 	Author       string `json:"author,omitempty"`
 	Repository   string `json:"repository,omitempty"`
+	Format       string `json:"format,omitempty"`
 }
 
 func decodeExtensionEntry(raw []byte) (Entry, error) {
@@ -64,6 +72,9 @@ func decodeExtensionEntry(raw []byte) (Entry, error) {
 			tier,
 		)
 	}
+	if _, err := normalizeExtensionFormat(value.EntryID, value.Format); err != nil {
+		return Entry{}, err
+	}
 	entry, err := commonEntry(KindExtension, value.entryCommon, value)
 	if err != nil {
 		return Entry{}, err
@@ -72,6 +83,24 @@ func decodeExtensionEntry(raw []byte) (Entry, error) {
 	entry.DigestSHA256 = strings.ToLower(strings.TrimSpace(value.DigestSHA256))
 	entry.Tier = tier
 	return entry, nil
+}
+
+// normalizeExtensionFormat resolves the optional display marker to the closed format set. An absent
+// marker means the native Compozy format — the same default the daemon persists for an unmarked row.
+func normalizeExtensionFormat(entryID string, raw string) (string, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	switch trimmed {
+	case "":
+		return ExtensionFormatCompozy, nil
+	case ExtensionFormatCompozy, ExtensionFormatAgentPlugin:
+		return trimmed, nil
+	default:
+		return "", fmt.Errorf(
+			"marketplace catalog extension entry %q has unsupported format %q",
+			strings.TrimSpace(entryID),
+			trimmed,
+		)
+	}
 }
 
 func validateExtensionArtifactURL(entryID string, raw string) error {

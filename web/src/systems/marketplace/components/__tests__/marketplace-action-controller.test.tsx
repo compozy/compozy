@@ -707,6 +707,32 @@ describe("useMarketplaceActionController", () => {
     });
   });
 
+  // IT-015 / US-016.EC-3: a portable package is synthesized into resources only and requests no host
+  // permissions, so its consent gate shows the daemon's warnings and never a permission grant list.
+  it("Should install a curated portable entry through consent without listing permission grants", async () => {
+    const user = userEvent.setup();
+    const portable = marketplaceListings.extension.find(entry => entry.format === "agent-plugin")!;
+    setup(portable);
+
+    await user.click(screen.getByRole("button", { name: "Run action" }));
+
+    const dialog = await screen.findByTestId("extension-trust-dialog");
+    expect(dialog).toHaveTextContent("Unsigned package");
+    expect(dialog).not.toHaveTextContent(/permission/i);
+    expect(dialog).not.toHaveTextContent(/grant/i);
+    expect(mocks.installExtension).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+    await waitFor(() =>
+      expect(mocks.installExtension).toHaveBeenLastCalledWith({
+        allow_unverified: true,
+        ref: portable.install_slug,
+        source: "curated",
+        version: portable.version,
+      })
+    );
+  });
+
   it("Should track overlapping entries by full kind and entry identity", async () => {
     const user = userEvent.setup();
     let resolveSkill: ((value: unknown) => void) | undefined;
