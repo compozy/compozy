@@ -47,7 +47,7 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 	githubServer := newDistributionGitHubTLSServer(t, credential)
 	t.Cleanup(githubServer.Close)
 	caPath := writeDistributionGitHubTestCA(t, githubServer.Server)
-	fixtureDir := filepath.Join("..", "extension", "testdata", "agent-plugin-conformant")
+	fixtureDir := agentPluginConformantFixtureDir(t)
 	seedPortableDistributionRelease(
 		t,
 		githubServer,
@@ -364,11 +364,11 @@ func testDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
 	assertPortableRuntimeEnvironment(t, result, harness, installed.Name, dataPath)
 }
 
-func preparePortableAgentPluginGitSource(t testing.TB, ctx context.Context) string {
+func preparePortableAgentPluginGitSource(t *testing.T, ctx context.Context) string {
 	t.Helper()
 
 	sourceDir := filepath.Join(t.TempDir(), "acme-tools")
-	fixtureDir := filepath.Join("..", "extension", "testdata", "agent-plugin-conformant")
+	fixtureDir := agentPluginConformantFixtureDir(t)
 	if err := os.CopyFS(sourceDir, os.DirFS(fixtureDir)); err != nil {
 		t.Fatalf("CopyFS(agent-plugin-conformant) error = %v", err)
 	}
@@ -385,6 +385,17 @@ func preparePortableAgentPluginGitSource(t testing.TB, ctx context.Context) stri
 		}
 	}
 	return sourceDir
+}
+
+func agentPluginConformantFixtureDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(
+		extensionAuthoringE2ERepoRoot(t),
+		"internal",
+		"extension",
+		"testdata",
+		"agent-plugin-conformant",
+	)
 }
 
 func runAgentPluginHumanCLI(
