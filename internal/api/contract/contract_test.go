@@ -3,6 +3,7 @@ package contract_test
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -180,6 +181,31 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 			t.Fatalf("domain conversion aliases wire layout: %#v", wire.Desktops[0])
 		}
 	})
+}
+
+func TestLoopTimeTravelEnumValuesShouldRemainOrderedAndComplete(t *testing.T) {
+	t.Parallel()
+
+	wantOrigins := []string{
+		"initial", "stop_when", "reattempt", "gate_revise", "gate_next_generation",
+		"dod_retry", "ratchet_restore", "requeue", "operator_rerun", "fork_seed",
+	}
+	if got := contract.LoopGenerationOriginValues(); !reflect.DeepEqual(got, wantOrigins) {
+		t.Fatalf("LoopGenerationOriginValues() = %#v, want %#v", got, wantOrigins)
+	}
+	wantNewEvents := []string{
+		"request_opened", "request_answered", "request_expired", "request_canceled",
+		"node_amended", "route_taken", "branch_pruned", "run_forked",
+	}
+	values := contract.LoopRunEventKindValues()
+	for _, want := range wantNewEvents {
+		if !slices.Contains(values, want) {
+			t.Fatalf("LoopRunEventKindValues() = %#v, missing %q", values, want)
+		}
+	}
+	if slices.Contains(values, "unknown") {
+		t.Fatalf("LoopRunEventKindValues() unexpectedly contains unknown")
+	}
 }
 
 func TestWindowManagerV3WireContract(t *testing.T) {

@@ -74,6 +74,7 @@ export const LOOP_RUN_EVENT_KINDS = [
   "request_canceled",
   "node_amended",
   "branch_pruned",
+  "run_forked",
 ] as const;
 
 export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];
@@ -87,6 +88,8 @@ const LOOP_GENERATION_ORIGINS = [
   "dod_retry",
   "ratchet_restore",
   "requeue",
+  "operator_rerun",
+  "fork_seed",
 ] as const;
 
 export type LoopGenerationOriginValue = (typeof LOOP_GENERATION_ORIGINS)[number];
@@ -133,6 +136,7 @@ export const LOOP_RUN_LIFECYCLE_EVENT_KINDS = [
   "duplicate_suppressed",
   "target_breaker_transition",
   "branch_pruned",
+  "run_forked",
 ] as const;
 
 export const LOOP_WATCH_EVENT_KINDS = [

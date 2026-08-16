@@ -42,6 +42,7 @@ const (
 	LoopRunEventRequestCanceled      LoopRunEventKind = "request_canceled"
 	LoopRunEventNodeAmended          LoopRunEventKind = "node_amended"
 	LoopRunEventBranchPruned         LoopRunEventKind = "branch_pruned"
+	LoopRunEventRunForked            LoopRunEventKind = "run_forked"
 )
 
 // LoopRunStatusValues returns the closed public loop run status vocabulary.
@@ -135,6 +136,7 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventRequestCanceled),
 		string(LoopRunEventNodeAmended),
 		string(LoopRunEventBranchPruned),
+		string(LoopRunEventRunForked),
 	}
 }
 
@@ -159,6 +161,7 @@ func LoopRunTransitionCauseValues() []string {
 		string(LoopRunTransitionCauseWatchPoll),
 		string(LoopRunTransitionCauseWatchEvents),
 		string(LoopRunTransitionCauseCoordinatorFailure),
+		string(LoopRunTransitionCauseOperatorRerun),
 	}
 }
 
@@ -173,6 +176,8 @@ func LoopGenerationOriginValues() []string {
 		string(LoopGenerationOriginDoDRetry),
 		string(LoopGenerationOriginRatchetRestore),
 		string(LoopGenerationOriginRequeue),
+		string(LoopGenerationOriginOperatorRerun),
+		string(LoopGenerationOriginForkSeed),
 	}
 }
 
@@ -225,5 +230,6 @@ func LoopRunLifecycleEventKindValues() []string {
 		string(LoopRunEventDuplicateSuppressed),
 		string(LoopRunEventTargetBreaker),
 		string(LoopRunEventBranchPruned),
+		string(LoopRunEventRunForked),
 	}
 }

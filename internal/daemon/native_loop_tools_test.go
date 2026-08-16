@@ -1617,6 +1617,24 @@ func (s *nativeLoopServiceStub) GetLoopRun(
 	return contract.LoopRunResponse{}, errors.New("unexpected GetLoopRun call")
 }
 
+func (s *nativeLoopServiceStub) DiffLoopRun(
+	context.Context, string, string, looppkg.DiffQuery,
+) (contract.LoopDiffResponse, error) {
+	return contract.LoopDiffResponse{}, errors.New("unexpected DiffLoopRun call")
+}
+
+func (s *nativeLoopServiceStub) RerunLoopRun(
+	context.Context, string, string, contract.RerunLoopRequest, taskpkg.ActorContext,
+) (contract.RerunLoopResponse, error) {
+	return contract.RerunLoopResponse{}, errors.New("unexpected RerunLoopRun call")
+}
+
+func (s *nativeLoopServiceStub) ForkLoopRun(
+	context.Context, string, string, contract.ForkLoopRequest, taskpkg.ActorContext,
+) (contract.ForkLoopResponse, error) {
+	return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
+}
+
 func (s *nativeLoopServiceStub) CancelLoopRun(
 	ctx context.Context,
 	workspaceID string,

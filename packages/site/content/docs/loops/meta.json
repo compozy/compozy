@@ -6,6 +6,7 @@
         "---Operate---",
         "catalog",
         "running",
+        "time-travel",
         "human-requests",
         "failure-handling",
         "ratchet",

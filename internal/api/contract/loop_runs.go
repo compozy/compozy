@@ -19,7 +19,14 @@ const (
 	LoopGenerationOriginDoDRetry           LoopGenerationOrigin = "dod_retry"
 	LoopGenerationOriginRatchetRestore     LoopGenerationOrigin = "ratchet_restore"
 	LoopGenerationOriginRequeue            LoopGenerationOrigin = "requeue"
+	LoopGenerationOriginOperatorRerun      LoopGenerationOrigin = "operator_rerun"
+	LoopGenerationOriginForkSeed           LoopGenerationOrigin = "fork_seed"
 )
+
+type LoopForkRef struct {
+	RunID      string `json:"run_id"`
+	Generation int64  `json:"generation"`
+}
 
 // LoopGateVerdictOutcome is the machine gate verdict vocabulary.
 type LoopGateVerdictOutcome string
@@ -44,6 +51,8 @@ type LoopRunPayload struct {
 	Generation                   int64                 `json:"generation"`
 	BestGeneration               *int64                `json:"best_generation,omitempty"`
 	BestScore                    *float64              `json:"best_score,omitempty"`
+	ForkedFrom                   *LoopForkRef          `json:"forked_from,omitempty"`
+	Forks                        []LoopForkRef         `json:"forks"`
 	ReattemptStrategy            LoopReattemptStrategy `json:"reattempt_strategy"`
 	CreatedAt                    time.Time             `json:"created_at"`
 	StartedAt                    time.Time             `json:"started_at"`

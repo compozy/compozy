@@ -160,7 +160,7 @@ response can therefore look like this:
 ```
 
 Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, `gate_revise`,
-`gate_next_generation`, `dod_retry`, `ratchet_restore`, and `requeue`. See
+`gate_next_generation`, `dod_retry`, `ratchet_restore`, `requeue`, `operator_rerun`, and `fork_seed`. See
 [Ratchets](/docs/loops/ratchet) for how a scored best changes succession.
 
 ## Every surface, not just the UI
@@ -183,6 +183,9 @@ Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, 
 | List requests   | `compozy loop requests`                         | `GET /loop-requests`                      | `compozy__loop_requests`                       |
 | Request detail  | `compozy loop request`                          | `GET /loop-runs/:id/nodes/:node/request`  | `compozy__loop_request`                        |
 | Answer request  | `compozy loop respond`                          | `POST /loop-runs/:id/nodes/:node/respond` | `compozy__loop_respond`                        |
+| Diff history    | `compozy loop diff`                             | `GET /loop-runs/:id/diff`                 | `compozy__loop_diff`                           |
+| Rerun from node | `compozy loop rerun`                            | `POST /loop-runs/:id/rerun`               | `compozy__loop_rerun`                          |
+| Fork run        | `compozy loop fork`                             | `POST /loop-runs/:id/fork`                | `compozy__loop_fork`                           |
 
 Pass `--item` or `item_index` to pause, resume, cancel, or kill one fan-out cell without changing
 its siblings. Amendments apply only to a settled output while its run, node, or cell is parked.
@@ -190,6 +193,9 @@ They append provenance and an effective-output overlay; the recorded generation 
 unchanged. Resume or downstream execution reads the newest amendment. Run detail returns
 `amendments[]` with bounded, redacted values or a byte-size and content-hash summary for large data.
 There is no API that reads an amendment's private output reference directly.
+
+Run history also exposes two-way fork lineage: a child carries `forked_from`, and the source lists
+`forks`. See [Time travel](/docs/loops/time-travel) for diff, rerun, fork, and idempotency rules.
 
 Live events stream from `GET /loop-runs/:id/events` (SSE). HTTP routes are workspace-scoped under
 `/api/workspaces/{workspace_id}/…`; the [Loops API](/docs/api/loops) reference lists

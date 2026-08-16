@@ -94,6 +94,7 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		originCreation:  row.OriginCreationDigest,
 		networkSpecJSON: row.NetworkSpecJson, networkMode: row.NetworkMode,
 		networkChannel: row.NetworkChannel, networkSource: row.NetworkSource,
+		forkedFromRunID: row.ForkedFromRunID, forkedFromGen: row.ForkedFromGeneration,
 	}
 	run, err := values.toRun()
 	if err != nil {

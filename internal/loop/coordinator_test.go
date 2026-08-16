@@ -20,6 +20,70 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
+func TestCoordinatorOperatorRerunPlanner(t *testing.T) {
+	t.Parallel()
+
+	graph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput)},
+			{ID: "fan", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
+			{ID: "shard", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+			{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent)},
+		},
+		Edges: []dsl.Edge{{From: "load", To: "fan"}, {From: "fan", To: "shard"}, {From: "shard", To: "publish"}},
+	}
+
+	t.Run("Should rerun the selected lane and transitive dependents while carrying siblings UT-070 UT-075", func(t *testing.T) {
+		t.Parallel()
+
+		lane := 1
+		current := []GenerationOutput{
+			{Generation: 2, NodeID: "load", Status: generationOutputSucceeded, OutputRef: "load"},
+			{Generation: 2, NodeID: "fan", Status: generationOutputSucceeded, OutputRef: "fan"},
+			{Generation: 2, NodeID: "shard", ItemIndex: 0, Status: generationOutputSucceeded, OutputRef: "s0"},
+			{Generation: 2, NodeID: "shard", ItemIndex: 1, Status: generationOutputFailed, OutputRef: "s1"},
+			{Generation: 2, NodeID: "publish", ItemIndex: 0, Status: generationOutputSucceeded, OutputRef: "p0"},
+			{Generation: 2, NodeID: "publish", ItemIndex: 1, Status: generationOutputFailed, OutputRef: "p1"},
+		}
+		next, labels, err := planOperatorRerun(graph, current, "shard", &lane, 3)
+		if err != nil {
+			t.Fatalf("planOperatorRerun() error = %v", err)
+		}
+		if want := []string{"publish[1]", "shard[1]"}; !reflect.DeepEqual(labels, want) {
+			t.Fatalf("rerun labels = %#v, want %#v", labels, want)
+		}
+		byCell := make(map[generationOutputKey]GenerationOutput, len(next))
+		for _, output := range next {
+			byCell[generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}] = output
+		}
+		if got := byCell[generationOutputKey{nodeID: "shard", itemIndex: 1}]; got.Status != generationOutputPending || got.OutputRef != "" {
+			t.Fatalf("selected shard lane = %#v, want pending without carried output", got)
+		}
+		if got := byCell[generationOutputKey{nodeID: "publish", itemIndex: 1}]; got.Status != generationOutputPending || got.OutputRef != "" {
+			t.Fatalf("dependent publish lane = %#v, want pending without carried output", got)
+		}
+		if got := byCell[generationOutputKey{nodeID: "shard", itemIndex: 0}]; got.Status != generationOutputSucceeded || got.OutputRef != "s0" {
+			t.Fatalf("sibling shard lane = %#v, want carried", got)
+		}
+		if got := byCell[generationOutputKey{nodeID: "load", itemIndex: 0}]; got.Generation != 3 || got.OutputRef != "load" {
+			t.Fatalf("upstream load = %#v, want generation-3 carry", got)
+		}
+	})
+
+	t.Run("Should reject parked and unsettled targets UT-073", func(t *testing.T) {
+		t.Parallel()
+
+		for _, status := range []string{generationOutputWaiting, generationOutputRunning} {
+			_, _, err := planOperatorRerun(graph, []GenerationOutput{{
+				Generation: 2, NodeID: "shard", Status: status,
+			}}, "shard", nil, 3)
+			if !errors.Is(err, ErrRerunNodeUnsettled) {
+				t.Fatalf("planOperatorRerun(status=%q) error = %v, want ErrRerunNodeUnsettled", status, err)
+			}
+		}
+	})
+}
+
 func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 	t.Run("Should materialize ready layer plan", func(t *testing.T) {
 		t.Parallel()

@@ -43,6 +43,9 @@ const (
 	loopRequestKey    = "request"
 	loopRespondKey    = "respond"
 	loopAmendKey      = "amend"
+	loopDiffKey       = "diff"
+	loopRerunKey      = "rerun"
+	loopForkKey       = "fork"
 	loopEditKey       = "edit"
 	loopDeleteKey     = "delete"
 )
@@ -76,6 +79,9 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLoopRequestsCommand(deps))
 	cmd.AddCommand(newLoopRequestCommand(deps))
 	cmd.AddCommand(newLoopRespondCommand(deps))
+	cmd.AddCommand(newLoopDiffCommand(deps))
+	cmd.AddCommand(newLoopRerunCommand(deps))
+	cmd.AddCommand(newLoopForkCommand(deps))
 	cmd.AddCommand(newLoopEditCommand(deps))
 	cmd.AddCommand(newLoopDeleteCommand(deps))
 	return cmd

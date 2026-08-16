@@ -16,7 +16,7 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 
 ## The Tool Set And CLI Verbs
 
-Toolset `compozy__loops` — 27 native tools. All 25 Loop tools have matching `compozy loop` verbs;
+Toolset `compozy__loops` — 30 native tools. All 28 Loop tools have matching `compozy loop` verbs;
 the two session-bound Goal tools use the session command/native report surfaces. The CLI adds one verb
 (`edit`) that has no native tool.
 
@@ -31,6 +31,9 @@ the two session-bound Goal tools use the session command/native report surfaces.
 | `compozy__loop_request`      | read                            | `compozy loop request`      | Read one request with its full redacted context.                             |
 | `compozy__loop_respond`      | mutating · **capability-gated** | `compozy loop respond`      | Admit one schema-valid request answer or review decision.                    |
 | `compozy__loop_node_amend`   | mutating · **capability-gated** | `compozy loop node amend`   | Append an overlay to one parked, settled node output.                        |
+| `compozy__loop_diff`         | read                            | `compozy loop diff`         | Compare generations or same-Loop runs.                                       |
+| `compozy__loop_rerun`        | mutating · **capability-gated** | `compozy loop rerun`        | Rerun one settled node and its dependents.                                   |
+| `compozy__loop_fork`         | mutating · **capability-gated** | `compozy loop fork`         | Create a linked run from a historical generation.                            |
 | `compozy__loop_create`       | mutating                        | `compozy loop create`       | Create/fork, or CAS-publish when `expected_version` is set.                  |
 | `compozy__loop_run`          | mutating                        | `compozy loop run`          | Start a run, or dry-run with `dry: true` / `--dry-run`.                      |
 | `compozy__loop_configure`    | mutating                        | `compozy loop configure`    | Write per-Loop runtime config overrides.                                     |
@@ -92,7 +95,8 @@ and run status exposes bounded, redacted `amendments`; private output refs have 
 Use `compozy loop status` / `compozy__loop_status` for detail. The run carries its current
 `generation` plus optional `best_generation`/`best_score`; `generations[]` carries durable
 `parent_generation`, `origin`, `verdicts[]`, and outputs. Origins are `initial`, `stop_when`,
-`reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`, `ratchet_restore`, and `requeue`. Each verdict
+`reattempt`, `gate_revise`, `gate_next_generation`, `dod_retry`, `ratchet_restore`, `requeue`,
+`operator_rerun`, and `fork_seed`. Each verdict
 has `gate_id`, machine `outcome`, optional `score`, and optional `route_cause_rank`. The list surfaces
 remain summaries; use status when an agent needs the lineage or gate decisions.
 
@@ -100,6 +104,13 @@ Best fields are absent until an approved finite metric score establishes a basel
 `ratchet_restore` generation may point `parent_generation` at an older best while `previous.*`
 still describes generation `N-1`. On `exhausted` or `stalled`, inspect `best_generation` rather than
 assuming the last generation is the best candidate.
+
+Use `compozy__loop_diff` for an ungated workspace read. `compozy__loop_rerun` opens a same-run
+`operator_rerun` generation from a settled node and its dependents. `compozy__loop_fork` creates a linked
+run whose settled generation 1 is `fork_seed` and whose full body first executes in generation 2. Rerun
+and fork require `loops.timetravel`; an agent cannot apply either operation to its own executing run.
+Pass `request_id` for replay-safe transport retries. The same key with different arguments returns
+`timetravel_key_reuse`; omitting it creates a fresh operation.
 
 ## The Authoring Loop
 

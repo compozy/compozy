@@ -9,6 +9,8 @@ const ORIGIN_LABELS: Record<LoopRunGeneration["origin"], string> = {
   dod_retry: "Definition-of-done retry",
   ratchet_restore: "Ratchet restore",
   requeue: "Manual requeue",
+  operator_rerun: "Operator rerun",
+  fork_seed: "Fork seed",
 };
 
 export function isLoopGenerationOrigin(value: string): value is LoopRunGeneration["origin"] {

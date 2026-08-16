@@ -291,7 +291,9 @@ var loopTools = []toolspkg.Descriptor{
 }
 
 func loopDescriptors() []toolspkg.Descriptor {
-	return append(append([]toolspkg.Descriptor(nil), loopTools...), loopRequestTools...)
+	descriptors := append([]toolspkg.Descriptor(nil), loopTools...)
+	descriptors = append(descriptors, loopRequestTools...)
+	return append(descriptors, loopTimeTravelTools...)
 }
 
 func nativeLoopDescriptor(
@@ -325,6 +327,12 @@ func nativeLoopDescriptor(
 		descriptor.OutputSchema = json.RawMessage(loopRespondOutputSchema)
 	case toolspkg.ToolIDLoopNodeAmend:
 		descriptor.OutputSchema = json.RawMessage(loopNodeAmendOutputSchema)
+	case toolspkg.ToolIDLoopDiff:
+		descriptor.OutputSchema = json.RawMessage(loopDiffOutputSchema)
+	case toolspkg.ToolIDLoopRerun:
+		descriptor.OutputSchema = json.RawMessage(loopRerunOutputSchema)
+	case toolspkg.ToolIDLoopFork:
+		descriptor.OutputSchema = json.RawMessage(loopForkOutputSchema)
 	case toolspkg.ToolIDLoopCancel,
 		toolspkg.ToolIDLoopKill,
 		toolspkg.ToolIDLoopNodePause,
@@ -339,6 +347,9 @@ func nativeLoopDescriptor(
 	}
 	if id == toolspkg.ToolIDLoopRespond || id == toolspkg.ToolIDLoopNodeAmend {
 		return withRequiredCapabilities(descriptor, "loops.respond")
+	}
+	if id == toolspkg.ToolIDLoopRerun || id == toolspkg.ToolIDLoopFork {
+		return withRequiredCapabilities(descriptor, "loops.timetravel")
 	}
 	return descriptor
 }

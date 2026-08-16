@@ -58,5 +58,6 @@ export const heroRunFixtures: LoopRun[] = [
     started_origin_kind: "manual",
     started_by_ref: "pedro",
     inputs: { slug: "search-reindex" },
+    forks: [],
   },
 ];

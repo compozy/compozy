@@ -370,6 +370,12 @@ const (
 	ToolIDLoopRespond ToolID = "compozy__loop_respond"
 	// ToolIDLoopNodeAmend appends one effective-output amendment.
 	ToolIDLoopNodeAmend ToolID = "compozy__loop_node_amend"
+	// ToolIDLoopDiff compares generations or same-loop runs.
+	ToolIDLoopDiff ToolID = "compozy__loop_diff"
+	// ToolIDLoopRerun reopens execution from one settled node.
+	ToolIDLoopRerun ToolID = "compozy__loop_rerun"
+	// ToolIDLoopFork creates a linked run from one historical generation.
+	ToolIDLoopFork ToolID = "compozy__loop_fork"
 	// ToolIDLoopDelete deletes one user-authored Loop definition.
 	ToolIDLoopDelete ToolID = "compozy__loop_delete"
 	// ToolIDAutomationJobsList lists automation jobs through the automation manager.

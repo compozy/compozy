@@ -107,6 +107,8 @@ const (
 	TransitionCauseWatchEvents TransitionCause = "watch_events"
 	// TransitionCauseCoordinatorFailure records an execution failure before a boundary settled.
 	TransitionCauseCoordinatorFailure TransitionCause = "coordinator_failure"
+	// TransitionCauseOperatorRerun records reactivation from a settled generation.
+	TransitionCauseOperatorRerun TransitionCause = "operator_rerun"
 )
 
 // GateDecision is the closed approval decision vocabulary consumed by Approve.
@@ -208,6 +210,8 @@ type Run struct {
 	Generation            int
 	BestGeneration        *int64
 	BestScore             *float64
+	ForkedFrom            *ForkRef
+	Forks                 []ForkRef
 	ReattemptStrategy     ReattemptStrategy
 	CreatedAt             time.Time
 	StartedAt             time.Time
@@ -415,4 +419,11 @@ type Service interface {
 	GetConfigSnapshot(ctx context.Context, ws WorkspaceID, name string) (ConfigSnapshot, error)
 	Get(ctx context.Context, ws WorkspaceID, runID RunID) (*Run, error)
 	Transition(ctx context.Context, runID RunID, to Status, cause TransitionCause) error
+}
+
+// TimeTravelService exposes the optional historical read and mutation surface.
+type TimeTravelService interface {
+	DiffRun(ctx context.Context, workspaceID WorkspaceID, query DiffQuery) (DiffResult, error)
+	RerunFromNode(ctx context.Context, input RerunInput) (RerunResult, error)
+	ForkRun(ctx context.Context, input ForkInput) (StartResult, error)
 }

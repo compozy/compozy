@@ -35,6 +35,7 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
     last_progress_at: "2026-07-05T12:00:00Z",
     definition_version: 1,
     ...overrides,
+    forks: overrides.forks ?? [],
   };
 }
 

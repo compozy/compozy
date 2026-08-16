@@ -97,6 +97,7 @@ function buildRun(
     definition_digest: "sha256:mock-loop-definition",
     start_metadata: {},
     ...overrides,
+    forks: overrides.forks ?? [],
   };
 }
 

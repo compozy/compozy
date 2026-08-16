@@ -124,6 +124,17 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 	}
 	payload.BestGeneration = cloneOptional(run.BestGeneration)
 	payload.BestScore = cloneOptional(run.BestScore)
+	payload.Forks = make([]contract.LoopForkRef, 0, len(run.Forks))
+	for _, fork := range run.Forks {
+		payload.Forks = append(payload.Forks, contract.LoopForkRef{
+			RunID: string(fork.RunID), Generation: fork.Generation,
+		})
+	}
+	if run.ForkedFrom != nil {
+		payload.ForkedFrom = &contract.LoopForkRef{
+			RunID: string(run.ForkedFrom.RunID), Generation: run.ForkedFrom.Generation,
+		}
+	}
 	return payload, nil
 }
 

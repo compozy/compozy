@@ -389,3 +389,29 @@ type nativeLoopNodeAmendInput struct {
 	Payload     json.RawMessage `json:"payload"`
 	Reason      string          `json:"reason,omitempty"`
 }
+
+type nativeLoopDiffInput struct {
+	WorkspaceID       string `json:"workspace,omitempty"`
+	RunID             string `json:"run_id"`
+	Generation        int64  `json:"generation,omitempty"`
+	AgainstGeneration int64  `json:"against_generation,omitempty"`
+	AgainstRunID      string `json:"against_run,omitempty"`
+}
+
+type nativeLoopRerunInput struct {
+	WorkspaceID string `json:"workspace,omitempty"`
+	RunID       string `json:"run_id"`
+	FromNode    string `json:"from_node"`
+	ItemIndex   *int   `json:"item_index,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+	RequestID   string `json:"request_id,omitempty"`
+}
+
+type nativeLoopForkInput struct {
+	WorkspaceID string         `json:"workspace,omitempty"`
+	RunID       string         `json:"run_id"`
+	Generation  int64          `json:"generation"`
+	Inputs      map[string]any `json:"inputs,omitempty"`
+	Reason      string         `json:"reason,omitempty"`
+	RequestID   string         `json:"request_id,omitempty"`
+}

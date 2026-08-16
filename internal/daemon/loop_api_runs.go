@@ -125,6 +125,12 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 	}
 	payloads := make([]contract.LoopRunPayload, 0, len(runs))
 	for _, run := range runs {
+		if lineage, ok := s.persistence.(looppkg.TimeTravelStore); ok {
+			run.Forks, err = lineage.ListForks(ctx, ws, run.ID)
+			if err != nil {
+				return contract.LoopRunsResponse{}, err
+			}
+		}
 		payload, err := loopRunPayload(run)
 		if err != nil {
 			return contract.LoopRunsResponse{}, err

@@ -27,7 +27,7 @@ const loopRunSelectColumnsSQL = `
 	goal_context_nudge_ratio, origin_kind, origin_session_id,
 	origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest,
 	network_spec_json, network_mode, network_channel, network_source, best_generation, best_score,
-	completion_state`
+	completion_state, forked_from_run_id, forked_from_generation`
 
 // CreateLoopRunForStart atomically applies the loop concurrency policy and persists a new run.
 func (g *LoopRepo) CreateLoopRunForStart(
@@ -165,6 +165,13 @@ func insertLoopRun(
 	err = sqlcgen.New(exec).InsertLoopRun(ctx, params)
 	if err != nil {
 		return fmt.Errorf("store: insert loop run %q: %w", run.ID, err)
+	}
+	if run.ForkedFrom != nil {
+		if _, err := exec.ExecContext(ctx, `UPDATE loop_runs
+			SET forked_from_run_id = ?, forked_from_generation = ? WHERE id = ?`,
+			run.ForkedFrom.RunID, run.ForkedFrom.Generation, run.ID); err != nil {
+			return fmt.Errorf("store: persist fork lineage for run %q: %w", run.ID, err)
+		}
 	}
 	return appendLoopRunStatusEvent(
 		ctx,

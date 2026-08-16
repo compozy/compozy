@@ -67,6 +67,7 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 		loopRunEventRequestCanceled:         {},
 		loopRunEventNodeAmended:             {},
 		loopRunEventBranchPruned:            {},
+		loopRunEventRunForked:               {},
 	}
 	for _, kind := range contract.LoopRunEventKindValues() {
 		t.Run("Should accept public kind "+kind, func(t *testing.T) {
@@ -87,6 +88,205 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a time-travel operation and its generation or child run commit atomically under one
+// workspace-scoped intent key. The canonical GlobalDB Loop suite owns replay, lineage, seed, and coordinator truth.
+func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reactivate a terminal run once and replay an explicit rerun key UT-071 UT-074 UT-076 UT-077", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 16, 0, 0, 0, time.UTC)
+		source, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-rerun-atomic", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, attempt, epoch
+		) VALUES (?, 1, 'finish', 0, 'failed', 1, 0)`, source.ID); err != nil {
+			t.Fatalf("insert source output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_runs SET status = 'done' WHERE id = ?`, source.ID); err != nil {
+			t.Fatalf("terminalize source error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE task_runs SET status = 'completed', ended_at = ?
+			WHERE loop_run_id = ? AND run_kind = 'coordinator'`, now.Add(30*time.Second), source.ID); err != nil {
+			t.Fatalf("complete source coordinator error = %v", err)
+		}
+		source.Status = looppkg.StatusDone
+		actor := operatorActorContextForTest("operator:rerun")
+		generation := int64(2)
+		rerunDigest := strings.Repeat("a", 64)
+		request := looppkg.RerunStoreRequest{
+			WorkspaceID: source.WorkspaceID,
+			Source:      source,
+			NextOutputs: []looppkg.GenerationOutput{{
+				Generation: 2, NodeID: "finish", Status: "pending", Attempt: 1,
+			}},
+			Intent: looppkg.GenerationIntent{
+				Generation: 2, ParentGeneration: 1, Origin: looppkg.OriginOperatorRerun,
+			},
+			Operation: looppkg.TimeTravelOp{
+				ID: "loopop-rerun-atomic", Kind: "rerun", IdempotencyKey: "rerun-key",
+				RequestDigest: rerunDigest, SourceRunID: source.ID, SourceGeneration: new(int64),
+				FromNode: "finish", Actor: actor, Reason: "retry failed finish", ResultRunID: source.ID,
+				ResultGeneration: &generation, CreatedAt: now.Add(time.Minute),
+			},
+			RequestDigest: rerunDigest, IdempotencyKey: "rerun-key", At: now.Add(time.Minute),
+		}
+		*request.Operation.SourceGeneration = 1
+		result, replayed, err := globalDB.CreateRerun(ctx, request)
+		if err != nil || replayed || result.Generation != 2 || result.ParentGeneration != 1 {
+			t.Fatalf("CreateRerun() = %#v replayed=%v error=%v", result, replayed, err)
+		}
+		persisted, err := globalDB.GetLoopRun(ctx, source.WorkspaceID, source.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun() error = %v", err)
+		}
+		if persisted.Status != looppkg.StatusRunning || persisted.Generation != 2 {
+			t.Fatalf("reactivated run = %#v, want running generation 2", persisted)
+		}
+		if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, source.ID); got != 2 {
+			t.Fatalf("coordinator task runs = %d, want initial plus rerun", got)
+		}
+		replay, replayed, err := globalDB.CreateRerun(ctx, request)
+		if err != nil || !replayed || replay.RunID != source.ID || replay.Generation != 2 {
+			t.Fatalf("CreateRerun(replay) = %#v replayed=%v error=%v", replay, replayed, err)
+		}
+		var operations int
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM loop_timetravel_ops
+			WHERE workspace_id = ? AND idempotency_key = 'rerun-key'`, source.WorkspaceID).Scan(&operations); err != nil {
+			t.Fatalf("count rerun operations error = %v", err)
+		}
+		if operations != 1 {
+			t.Fatalf("rerun operation count = %d, want 1", operations)
+		}
+		mismatch := request
+		mismatch.RequestDigest = strings.Repeat("b", 64)
+		_, _, err = globalDB.CreateRerun(ctx, mismatch)
+		if !errors.Is(err, looppkg.ErrTimeTravelKeyReuse) {
+			t.Fatalf("CreateRerun(key reuse) error = %v, want ErrTimeTravelKeyReuse", err)
+		}
+	})
+
+	t.Run("Should seed and link a fork or abort the whole transaction UT-078 through UT-082b", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 17, 0, 0, 0, time.UTC)
+		source, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-fork-source", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		payload := json.RawMessage(`{"result":"baseline"}`)
+		outputRef := looppkg.OutputRefForPayload(payload)
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_output_blobs (
+			output_ref, payload_json, byte_size, created_at, last_used_at
+		) VALUES (?, ?, ?, ?, ?)`, outputRef, payload, len(payload), now, now); err != nil {
+			t.Fatalf("insert source blob error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
+		) VALUES (?, 1, 'finish', 0, 'succeeded', ?, 1, 0)`, source.ID, outputRef); err != nil {
+			t.Fatalf("insert source output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_runs SET status = 'done' WHERE id = ?`, source.ID); err != nil {
+			t.Fatalf("terminalize source error = %v", err)
+		}
+		source.Status = looppkg.StatusDone
+		before, err := globalDB.GetLoopRun(ctx, source.WorkspaceID, source.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun(source before) error = %v", err)
+		}
+		child := testLoopRun("looprun-fork-child", now.Add(time.Minute), looppkg.StatusRunning)
+		child.Generation = 1
+		child.ForkedFrom = &looppkg.ForkRef{RunID: source.ID, Generation: 1}
+		child.DefinitionDigest = source.DefinitionDigest
+		child.DefinitionSnapshot = append(json.RawMessage(nil), source.DefinitionSnapshot...)
+		child.Inputs = map[string]any{"tasks": "override-ref"}
+		sourceGeneration := int64(1)
+		forkDigest := strings.Repeat("c", 64)
+		request := looppkg.ForkStoreRequest{
+			Source: source, Child: child,
+			SeedOutputs: []looppkg.GenerationOutput{{
+				Generation: 1, NodeID: "finish", Status: "succeeded", OutputRef: outputRef, Attempt: 1,
+			}},
+			Concurrency: dsl.ConcurrencyAllow,
+			Operation: looppkg.TimeTravelOp{
+				ID: "loopop-fork-atomic", Kind: "fork", IdempotencyKey: "fork-key",
+				RequestDigest: forkDigest, SourceRunID: source.ID, SourceGeneration: &sourceGeneration,
+				Actor: operatorActorContextForTest("operator:fork"), Reason: "compare a safer input",
+				ResultRunID: child.ID, CreatedAt: now.Add(time.Minute),
+			},
+			RequestDigest: forkDigest, IdempotencyKey: "fork-key", At: now.Add(time.Minute),
+		}
+		created, replayed, err := globalDB.CreateFork(ctx, request)
+		if err != nil || replayed || created.ID != child.ID {
+			t.Fatalf("CreateFork() = %#v replayed=%v error=%v", created, replayed, err)
+		}
+		persisted, err := globalDB.GetLoopRun(ctx, child.WorkspaceID, child.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun(child) error = %v", err)
+		}
+		if persisted.Generation != 1 || persisted.ForkedFrom == nil || *persisted.ForkedFrom != *child.ForkedFrom {
+			t.Fatalf("persisted fork = %#v", persisted)
+		}
+		generations, err := globalDB.ListGenerations(ctx, string(child.WorkspaceID), string(child.ID))
+		if err != nil {
+			t.Fatalf("ListGenerations(child) error = %v", err)
+		}
+		if len(generations) != 2 || generations[0].Origin != looppkg.OriginForkSeed ||
+			generations[1].Origin != looppkg.OriginInitial || generations[1].ParentGeneration != 1 {
+			t.Fatalf("fork generations = %#v", generations)
+		}
+		outputs, err := globalDB.ListGenerationOutputs(ctx, child.WorkspaceID, child.ID, 1)
+		if err != nil || len(outputs) != 1 || outputs[0].OutputRef != outputRef {
+			t.Fatalf("fork seed outputs = %#v error=%v", outputs, err)
+		}
+		if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, child.ID); got != 1 {
+			t.Fatalf("fork coordinator task runs = %d, want generation-2 reservation", got)
+		}
+		forks, err := globalDB.ListForks(ctx, source.WorkspaceID, source.ID)
+		if err != nil || len(forks) != 1 || forks[0].RunID != child.ID || forks[0].Generation != 1 {
+			t.Fatalf("ListForks() = %#v error=%v", forks, err)
+		}
+		after, err := globalDB.GetLoopRun(ctx, source.WorkspaceID, source.ID)
+		if err != nil || !reflect.DeepEqual(before, after) {
+			t.Fatalf("source after fork = %#v error=%v, want byte-identical projection %#v", after, err, before)
+		}
+		replay, replayed, err := globalDB.CreateFork(ctx, request)
+		if err != nil || !replayed || replay.ID != child.ID {
+			t.Fatalf("CreateFork(replay) = %#v replayed=%v error=%v", replay, replayed, err)
+		}
+
+		missing := request
+		missing.Child = child
+		missing.Child.ID = "looprun-fork-missing-blob"
+		missing.Child.ForkedFrom = &looppkg.ForkRef{RunID: source.ID, Generation: 1}
+		missing.SeedOutputs = []looppkg.GenerationOutput{{
+			Generation: 1, NodeID: "finish", Status: "succeeded", OutputRef: "sha256:missing", Attempt: 1,
+		}}
+		missing.Operation.ID = "loopop-fork-missing-blob"
+		missing.Operation.IdempotencyKey = ""
+		missing.Operation.ResultRunID = missing.Child.ID
+		missing.IdempotencyKey = ""
+		_, _, err = globalDB.CreateFork(ctx, missing)
+		if !errors.Is(err, looppkg.ErrOutputRefNotFound) {
+			t.Fatalf("CreateFork(missing blob) error = %v, want ErrOutputRefNotFound", err)
+		}
+		if _, err := globalDB.GetLoopRun(ctx, missing.Child.WorkspaceID, missing.Child.ID); !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("GetLoopRun(partial missing-blob child) error = %v, want ErrRunNotFound", err)
+		}
+	})
 }
 
 // Invariant: one request row and its request wait form a single-winner, workspace-scoped lifecycle.

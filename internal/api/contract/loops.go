@@ -66,6 +66,7 @@ const (
 	LoopRunTransitionCauseWatchPoll          LoopRunTransitionCause = "watch_poll"
 	LoopRunTransitionCauseWatchEvents        LoopRunTransitionCause = "watch_events"
 	LoopRunTransitionCauseCoordinatorFailure LoopRunTransitionCause = "coordinator_failure"
+	LoopRunTransitionCauseOperatorRerun      LoopRunTransitionCause = "operator_rerun"
 )
 
 // LoopNodeClass is the public loop graph node class vocabulary.

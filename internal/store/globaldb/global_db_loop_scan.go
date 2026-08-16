@@ -54,6 +54,8 @@ type loopRunScanValues struct {
 	bestGeneration    sql.NullInt64
 	bestScore         sql.NullFloat64
 	completionState   string
+	forkedFromRunID   sql.NullString
+	forkedFromGen     sql.NullInt64
 }
 
 func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
@@ -114,6 +116,8 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.bestGeneration,
 		&v.bestScore,
 		&v.completionState,
+		&v.forkedFromRunID,
+		&v.forkedFromGen,
 	)
 }
 
@@ -201,6 +205,15 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 	run.SetNetworkSpec(networkSpec)
 	if err := applyLoopRunBest(&run, v.bestGeneration, v.bestScore); err != nil {
 		return looppkg.Run{}, err
+	}
+	if v.forkedFromRunID.Valid != v.forkedFromGen.Valid {
+		return looppkg.Run{}, fmt.Errorf("%w: loop run %q fork lineage is incomplete", looppkg.ErrValidation, run.ID)
+	}
+	if v.forkedFromRunID.Valid {
+		run.ForkedFrom = &looppkg.ForkRef{
+			RunID:      looppkg.RunID(strings.TrimSpace(v.forkedFromRunID.String)),
+			Generation: v.forkedFromGen.Int64,
+		}
 	}
 	return run, nil
 }

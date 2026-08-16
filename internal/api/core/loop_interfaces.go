@@ -90,6 +90,21 @@ type LoopService interface {
 	) (contract.LoopAnnotationsResponse, error)
 	ListLoopRuns(ctx context.Context, workspaceID string, query LoopRunListQuery) (contract.LoopRunsResponse, error)
 	GetLoopRun(ctx context.Context, workspaceID string, runID string) (contract.LoopRunResponse, error)
+	DiffLoopRun(ctx context.Context, workspaceID string, runID string, query looppkg.DiffQuery) (contract.LoopDiffResponse, error)
+	RerunLoopRun(
+		context.Context,
+		string,
+		string,
+		contract.RerunLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.RerunLoopResponse, error)
+	ForkLoopRun(
+		context.Context,
+		string,
+		string,
+		contract.ForkLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.ForkLoopResponse, error)
 	GetSessionGoal(ctx context.Context, workspaceID string, sessionID string) (*session.GoalSnapshot, error)
 	ListGoalTurns(
 		ctx context.Context,

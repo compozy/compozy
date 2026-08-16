@@ -213,6 +213,7 @@ export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRun
     },
     resolved_network_participation: buildLocalNetworkParticipationFixture(),
     ...overrides,
+    forks: overrides.forks ?? [],
   };
 }
 

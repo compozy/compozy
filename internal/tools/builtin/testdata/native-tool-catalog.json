@@ -1227,6 +1227,35 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__loop_diff",
+    "native_name": "loop_diff",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "85144fc0e6b48d6434e7680a557b2a7b3e0f266b5402d2691bfdb80356cca6d3",
+    "output_schema_digest": "d5bd83885de8a09ecd005a61d0b961156dd97419671928db64815ab9a5a363a0"
+  },
+  {
+    "tool_id": "compozy__loop_fork",
+    "native_name": "loop_fork",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e80994ee64076ba15a5bf117881ac6c7affa298c4178d0f9c865a91eee632ce5",
+    "output_schema_digest": "854ac55790459dbdb7b7bd738cad003908a90ddce5f8c0cb2153cc5c1ee12f65",
+    "required_capabilities": [
+      "loops.timetravel"
+    ]
+  },
+  {
     "tool_id": "compozy__loop_inspect",
     "native_name": "loop_inspect",
     "toolsets": [
@@ -1397,6 +1426,22 @@
     "open_world": false,
     "input_schema_digest": "e70bb28c3d11684ecc370ce0183c03ca16738bccf440372d2d147c352ee8fbf3",
     "output_schema_digest": "59253019211b5e015163bd0fd0d95e251b9c64611fe27ce2d9ac48c62d9cc9d5"
+  },
+  {
+    "tool_id": "compozy__loop_rerun",
+    "native_name": "loop_rerun",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "df96905de7304853c7bf0805338c8ebe7393a92380da3dbe0ef4917266e05e36",
+    "output_schema_digest": "8d5a347f6b83f2c0e717eb87446778e168ab4384c3ea847fac9d7c1340874655",
+    "required_capabilities": [
+      "loops.timetravel"
+    ]
   },
   {
     "tool_id": "compozy__loop_respond",

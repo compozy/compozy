@@ -912,6 +912,8 @@ type LoopRun struct {
 	LoopName                 string          `json:"loop_name"`
 	Status                   string          `json:"status"`
 	CompletionState          string          `json:"completion_state"`
+	ForkedFromRunID          sql.NullString  `json:"forked_from_run_id"`
+	ForkedFromGeneration     sql.NullInt64   `json:"forked_from_generation"`
 	Generation               int64           `json:"generation"`
 	ReattemptStrategy        string          `json:"reattempt_strategy"`
 	LastProgressAt           time.Time       `json:"last_progress_at"`
@@ -987,6 +989,24 @@ type LoopSessionBinding struct {
 	ClosedAt           sql.NullTime   `json:"closed_at"`
 	AdoptedGeneration  int64          `json:"adopted_generation"`
 	AdoptionAttemptID  sql.NullString `json:"adoption_attempt_id"`
+}
+
+type LoopTimetravelOp struct {
+	WorkspaceID      string         `json:"workspace_id"`
+	OpID             string         `json:"op_id"`
+	Kind             string         `json:"kind"`
+	IdempotencyKey   string         `json:"idempotency_key"`
+	RequestDigest    string         `json:"request_digest"`
+	SourceRunID      string         `json:"source_run_id"`
+	SourceGeneration sql.NullInt64  `json:"source_generation"`
+	FromNode         sql.NullString `json:"from_node"`
+	ItemIndex        sql.NullInt64  `json:"item_index"`
+	ActorKind        string         `json:"actor_kind"`
+	ActorID          string         `json:"actor_id"`
+	Reason           sql.NullString `json:"reason"`
+	ResultRunID      string         `json:"result_run_id"`
+	ResultGeneration sql.NullInt64  `json:"result_generation"`
+	CreatedAt        time.Time      `json:"created_at"`
 }
 
 type LoopUiAnnotation struct {

@@ -2032,6 +2032,24 @@ func (s *stubLoopService) GetLoopRun(
 	return s.getLoopRunFn(ctx, workspaceID, runID)
 }
 
+func (s *stubLoopService) DiffLoopRun(
+	context.Context, string, string, looppkg.DiffQuery,
+) (contract.LoopDiffResponse, error) {
+	return contract.LoopDiffResponse{}, errors.New("unexpected DiffLoopRun call")
+}
+
+func (s *stubLoopService) RerunLoopRun(
+	context.Context, string, string, contract.RerunLoopRequest, taskpkg.ActorContext,
+) (contract.RerunLoopResponse, error) {
+	return contract.RerunLoopResponse{}, errors.New("unexpected RerunLoopRun call")
+}
+
+func (s *stubLoopService) ForkLoopRun(
+	context.Context, string, string, contract.ForkLoopRequest, taskpkg.ActorContext,
+) (contract.ForkLoopResponse, error) {
+	return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
+}
+
 func (s *stubLoopService) GetSessionGoal(
 	ctx context.Context,
 	workspaceID string,

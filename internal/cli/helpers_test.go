@@ -2310,6 +2310,24 @@ func (s *stubClient) GetLoopRun(
 	return contract.LoopRunResponse{}, errors.New("unexpected GetLoopRun call")
 }
 
+func (s *stubClient) DiffLoopRun(
+	context.Context, string, string, int64, int64, string,
+) (contract.LoopDiffResponse, error) {
+	return contract.LoopDiffResponse{}, errors.New("unexpected DiffLoopRun call")
+}
+
+func (s *stubClient) RerunLoopRun(
+	context.Context, string, string, contract.RerunLoopRequest, agentidentity.Credentials,
+) (contract.RerunLoopResponse, error) {
+	return contract.RerunLoopResponse{}, errors.New("unexpected RerunLoopRun call")
+}
+
+func (s *stubClient) ForkLoopRun(
+	context.Context, string, string, contract.ForkLoopRequest, agentidentity.Credentials,
+) (contract.ForkLoopResponse, error) {
+	return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
+}
+
 func (s *stubClient) CancelLoopRun(
 	ctx context.Context,
 	workspaceID string,

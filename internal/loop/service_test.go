@@ -2176,6 +2176,230 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 	})
 }
 
+func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should produce complete generation and run diffs UT-083 through UT-089", func(t *testing.T) {
+		t.Parallel()
+
+		store := newTimeTravelFakeStore()
+		base := loop.Run{ID: "run-base", WorkspaceID: "ws-1", LoopName: "delivery", Status: loop.StatusDone,
+			Generation: 2, DefinitionDigest: "definition-a", Inputs: map[string]any{"service": "billing"}}
+		against := loop.Run{ID: "run-against", WorkspaceID: "ws-1", LoopName: "delivery", Status: loop.StatusRunning,
+			Generation: 2, DefinitionDigest: "definition-a", Inputs: map[string]any{"service": "payments"}}
+		store.seed(base)
+		store.seed(against)
+		large := json.RawMessage(`{"payload":"` + strings.Repeat("x", 17*1024) + `"}`)
+		store.payloads["base-change"] = json.RawMessage(`{"risk":"high"}`)
+		store.payloads["against-change"] = json.RawMessage(`{"risk":"medium"}`)
+		store.payloads["large-output"] = large
+		store.generationOutputs[base.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "classify", Status: "succeeded", OutputRef: "base-change"},
+			{Generation: 1, NodeID: "carry", Status: "succeeded", OutputRef: "stable"},
+			{Generation: 1, NodeID: "large", Status: "succeeded", OutputRef: "large-output"},
+			{Generation: 2, NodeID: "in-flight", Status: "running"},
+		}
+		store.generationOutputs[against.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "classify", Status: "succeeded", OutputRef: "against-change"},
+			{Generation: 1, NodeID: "carry", Status: "succeeded", OutputRef: "stable"},
+			{Generation: 1, NodeID: "new-node", Status: "succeeded"},
+			{Generation: 2, NodeID: "in-flight", Status: "running"},
+		}
+		store.verdicts[timeTravelHistoryKey(base.ID, 1)] = []gate.VerdictRecord{{
+			GateID: "quality", Outcome: gate.VerdictOutcomeRejected,
+			BlockingIssues: json.RawMessage(`[{"code":"risk"}]`), Criteria: json.RawMessage(`[]`),
+		}}
+		store.verdicts[timeTravelHistoryKey(against.ID, 1)] = []gate.VerdictRecord{{
+			GateID: "quality", Outcome: gate.VerdictOutcomeApproved,
+			BlockingIssues: json.RawMessage(`[]`), Criteria: json.RawMessage(`[]`),
+		}}
+		store.routes[timeTravelHistoryKey(base.ID, 1)] = []loop.RouteCause{{
+			NodeID: "triage", Route: "deep", Cause: "route_matched", MatchedWhen: `risk == "high"`,
+		}}
+		store.routes[timeTravelHistoryKey(against.ID, 1)] = []loop.RouteCause{{
+			NodeID: "triage", Route: "standard", Cause: "route_matched", MatchedWhen: `risk == "medium"`,
+		}}
+		svc := newTestServiceWithOptions(t, store, validDefinition()).(loop.TimeTravelService)
+
+		result, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+			RunID: base.ID, AgainstRunID: against.ID,
+		})
+		if err != nil {
+			t.Fatalf("DiffRun() error = %v", err)
+		}
+		if result.Base.Generation != 1 || result.Against.Generation != 1 || !result.Against.AsOf {
+			t.Fatalf("diff endpoints = %#v/%#v, want latest settled generation and live as-of", result.Base, result.Against)
+		}
+		if result.Terminal == nil || result.Terminal.Base != loop.StatusDone || result.Terminal.Against != loop.StatusRunning {
+			t.Fatalf("terminal diff = %#v", result.Terminal)
+		}
+		if len(result.Inputs) != 1 || result.Inputs[0].Key != "service" {
+			t.Fatalf("input diff = %#v, want service row", result.Inputs)
+		}
+		changes := make(map[string]loop.DiffNodeRow, len(result.Nodes))
+		for _, row := range result.Nodes {
+			changes[row.NodeID+"/"+row.Change] = row
+		}
+		for _, key := range []string{"classify/changed", "carry/carried", "large/skipped", "new-node/rerun", "quality/verdict", "triage/changed"} {
+			if _, ok := changes[key]; !ok {
+				t.Fatalf("diff nodes = %#v, missing %s", result.Nodes, key)
+			}
+		}
+		if row := changes["large/skipped"]; row.Base.Size != len(large) || !strings.HasPrefix(row.Base.Hash, "sha256:") || row.Base.Inline != nil {
+			t.Fatalf("large diff row = %#v, want bounded size/hash summary", row)
+		}
+
+		same, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+			RunID: base.ID, Generation: 1, AgainstGeneration: 1,
+		})
+		if err != nil || len(same.Nodes) != 0 {
+			t.Fatalf("self diff = %#v error=%v, want empty", same, err)
+		}
+
+		against.DefinitionDigest = "definition-b"
+		store.seed(against)
+		diverged, err := svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{
+			RunID: base.ID, Generation: 1, AgainstRunID: against.ID, AgainstGeneration: 1,
+		})
+		if err != nil || !diverged.DefinitionDivergence {
+			t.Fatalf("definition divergence = %#v error=%v", diverged, err)
+		}
+		for _, row := range diverged.Nodes {
+			if row.NodeID == "large" || row.NodeID == "new-node" {
+				t.Fatalf("divergent diff compared non-shared node: %#v", row)
+			}
+		}
+
+		foreign := against
+		foreign.ID, foreign.LoopName = "run-foreign", "other-loop"
+		store.seed(foreign)
+		_, err = svc.DiffRun(context.Background(), "ws-1", loop.DiffQuery{RunID: base.ID, AgainstRunID: foreign.ID})
+		if !errors.Is(err, loop.ErrDiffCrossLoop) {
+			t.Fatalf("cross-loop DiffRun() error = %v, want ErrDiffCrossLoop", err)
+		}
+	})
+
+	t.Run("Should record rerun intent provenance and guard live runs UT-070 through UT-077", func(t *testing.T) {
+		t.Parallel()
+
+		store := newTimeTravelFakeStore()
+		service := newTestServiceWithOptions(t, store, validDefinition())
+		svc := service.(loop.TimeTravelService)
+		run, err := service.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		store.mu.Lock()
+		terminal := store.runs[run.ID]
+		terminal.Status, terminal.Generation = loop.StatusDone, 1
+		store.runs[run.ID] = terminal
+		store.generationOutputs[run.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "load", Status: "succeeded", OutputRef: "load"},
+			{Generation: 1, NodeID: "fan", Status: "succeeded", OutputRef: "fan"},
+			{Generation: 1, NodeID: "agent", Status: "failed", OutputRef: "agent"},
+		}
+		store.mu.Unlock()
+		actor := humanActor(t)
+		result, err := svc.RerunFromNode(context.Background(), loop.RerunInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Reason: "retry flaky provider",
+			RequestID: "rerun-1", Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("RerunFromNode() error = %v", err)
+		}
+		if result.Generation != 2 || result.ParentGeneration != 1 || len(result.RerunNodes) != 1 {
+			t.Fatalf("rerun result = %#v", result)
+		}
+		if store.rerunRequest == nil || store.rerunRequest.Intent.Origin != loop.OriginOperatorRerun ||
+			store.rerunRequest.Operation.Actor.Actor != actor.Actor || store.rerunRequest.Operation.Reason != "retry flaky provider" {
+			t.Fatalf("rerun request = %#v, want operator_rerun provenance", store.rerunRequest)
+		}
+		storedReplay := result
+		store.rerunReplay = &storedReplay
+		store.replayDigest = store.rerunRequest.RequestDigest
+		terminal.Status = loop.StatusRunning
+		store.seed(terminal)
+		replay, err := svc.RerunFromNode(context.Background(), loop.RerunInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Reason: "retry flaky provider",
+			RequestID: "rerun-1", Actor: actor,
+		})
+		if err != nil || !replay.Replayed || replay.Generation != result.Generation ||
+			!reflect.DeepEqual(replay.RerunNodes, result.RerunNodes) {
+			t.Fatalf("RerunFromNode(replay) = %#v error=%v, want prior result", replay, err)
+		}
+		_, err = svc.RerunFromNode(context.Background(), loop.RerunInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", Actor: actor,
+		})
+		if !errors.Is(err, loop.ErrRerunBusy) {
+			t.Fatalf("live RerunFromNode() error = %v, want ErrRerunBusy", err)
+		}
+	})
+
+	t.Run("Should create an immutable seeded linked fork UT-078 through UT-082b", func(t *testing.T) {
+		t.Parallel()
+
+		store := newTimeTravelFakeStore()
+		svc := newTestServiceWithOptions(t, store, validDefinition(), loop.WithRunIDFactory(func() (loop.RunID, error) {
+			return "fork-child", nil
+		})).(loop.TimeTravelService)
+		starter := newTestServiceWithOptions(t, store, validDefinition(), loop.WithRunIDFactory(func() (loop.RunID, error) {
+			return "fork-source", nil
+		}))
+		source, err := starter.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "source-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		store.mu.Lock()
+		source.Generation = 1
+		source.Status = loop.StatusDone
+		score := 0.91
+		source.BestGeneration, source.BestScore = new(int64), &score
+		*source.BestGeneration = 1
+		store.runs[source.ID] = *source
+		store.generationOutputs[source.ID] = []loop.GenerationOutput{{
+			Generation: 1, NodeID: "agent", Status: "running", OutputRef: "source-output",
+		}}
+		store.mu.Unlock()
+		_, err = svc.ForkRun(context.Background(), loop.ForkInput{
+			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1, Actor: humanActor(t),
+		})
+		if !errors.Is(err, loop.ErrForkGenerationUnknown) {
+			t.Fatalf("ForkRun(unsettled generation) error = %v, want ErrForkGenerationUnknown", err)
+		}
+		store.mu.Lock()
+		store.generationOutputs[source.ID][0].Status = "succeeded"
+		store.mu.Unlock()
+		before := store.mustRun(t, source.ID)
+		result, err := svc.ForkRun(context.Background(), loop.ForkInput{
+			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1,
+			Inputs: map[string]any{"tasks": "override-ref"}, Reason: "try a safer path",
+			RequestID: "fork-1", Actor: humanActor(t),
+		})
+		if err != nil {
+			t.Fatalf("ForkRun() error = %v", err)
+		}
+		if result.Run.ID != "fork-child" || result.Run.Generation != 1 || result.Run.ForkedFrom == nil ||
+			result.Run.ForkedFrom.RunID != source.ID || result.Run.ForkedFrom.Generation != 1 {
+			t.Fatalf("fork result = %#v", result)
+		}
+		if result.Run.DefinitionDigest != source.DefinitionDigest || result.Run.Inputs["tasks"] != "override-ref" {
+			t.Fatalf("fork snapshot/inputs = digest %q inputs %#v", result.Run.DefinitionDigest, result.Run.Inputs)
+		}
+		if store.forkRequest == nil || store.forkRequest.Operation.SourceGeneration == nil ||
+			*store.forkRequest.Operation.SourceGeneration != 1 || len(store.forkRequest.SeedOutputs) != 1 ||
+			store.forkRequest.SeedOutputs[0].Generation != 1 {
+			t.Fatalf("fork request = %#v, want generation-1 seed and ledger operation", store.forkRequest)
+		}
+		if after := store.mustRun(t, source.ID); !reflect.DeepEqual(before, after) {
+			t.Fatalf("source mutated by fork:\nbefore=%#v\nafter=%#v", before, after)
+		}
+	})
+}
+
 func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 	t.Parallel()
 
@@ -3099,6 +3323,113 @@ type fakeLoopStore struct {
 type amendmentFakeStore struct {
 	*fakeLoopStore
 	amendCalled bool
+}
+
+type timeTravelFakeStore struct {
+	*fakeLoopStore
+	payloads     map[string]json.RawMessage
+	verdicts     map[string][]gate.VerdictRecord
+	routes       map[string][]loop.RouteCause
+	rerunRequest *loop.RerunStoreRequest
+	forkRequest  *loop.ForkStoreRequest
+	rerunReplay  *loop.RerunResult
+	replayDigest string
+}
+
+func newTimeTravelFakeStore() *timeTravelFakeStore {
+	return &timeTravelFakeStore{
+		fakeLoopStore: newFakeLoopStore(),
+		payloads:      map[string]json.RawMessage{},
+		verdicts:      map[string][]gate.VerdictRecord{},
+		routes:        map[string][]loop.RouteCause{},
+	}
+}
+
+func (s *timeTravelFakeStore) GetGenerationOutputPayload(
+	_ context.Context,
+	key loop.GenerationOutputPayloadKey,
+) (json.RawMessage, error) {
+	payload, ok := s.payloads[key.OutputRef]
+	if !ok {
+		return nil, loop.ErrOutputRefNotFound
+	}
+	return append(json.RawMessage(nil), payload...), nil
+}
+
+func (s *timeTravelFakeStore) ListGateVerdicts(
+	_ context.Context,
+	_ string,
+	runID string,
+	generation int64,
+) ([]gate.VerdictRecord, error) {
+	return append([]gate.VerdictRecord(nil), s.verdicts[timeTravelHistoryKey(loop.RunID(runID), generation)]...), nil
+}
+
+func (s *timeTravelFakeStore) ListRouteCausingVerdicts(
+	context.Context,
+	string,
+	string,
+	int64,
+) ([]gate.VerdictRecord, error) {
+	return nil, nil
+}
+
+func (s *timeTravelFakeStore) ListRouteCauses(
+	_ context.Context,
+	_ loop.WorkspaceID,
+	runID loop.RunID,
+	generation int64,
+) ([]loop.RouteCause, error) {
+	return append([]loop.RouteCause(nil), s.routes[timeTravelHistoryKey(runID, generation)]...), nil
+}
+
+func (s *timeTravelFakeStore) CreateRerun(
+	_ context.Context,
+	request loop.RerunStoreRequest,
+) (loop.RerunResult, bool, error) {
+	copy := request
+	s.rerunRequest = &copy
+	return loop.RerunResult{
+		RunID: request.Source.ID, Generation: request.Intent.Generation,
+		ParentGeneration: request.Intent.ParentGeneration,
+	}, false, nil
+}
+
+func (s *timeTravelFakeStore) LookupRerunReplay(
+	_ context.Context,
+	_ loop.WorkspaceID,
+	key string,
+	digest string,
+) (loop.RerunResult, bool, error) {
+	if strings.TrimSpace(key) == "" || s.rerunReplay == nil {
+		return loop.RerunResult{}, false, nil
+	}
+	if digest != s.replayDigest {
+		return loop.RerunResult{}, false, loop.ErrTimeTravelKeyReuse
+	}
+	return *s.rerunReplay, true, nil
+}
+
+func (s *timeTravelFakeStore) CreateFork(
+	_ context.Context,
+	request loop.ForkStoreRequest,
+) (loop.Run, bool, error) {
+	copy := request
+	s.forkRequest = &copy
+	s.seed(request.Child)
+	return request.Child, false, nil
+}
+
+func (s *timeTravelFakeStore) ListForks(
+	context.Context,
+	loop.WorkspaceID,
+	loop.RunID,
+) ([]loop.ForkRef, error) {
+	return nil, nil
+}
+
+func timeTravelHistoryKey(runID loop.RunID, generation int64) string {
+	return string(runID) + "/" + strconv.FormatInt(generation, 10)
 }
 
 func (s *amendmentFakeStore) AmendNodeOutput(

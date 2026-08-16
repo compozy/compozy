@@ -14,6 +14,7 @@ func loopsOperations() []OperationSpec {
 	operations := loopCatalogOperations()
 	operations = append(operations, loopInputDefaultsOperations()...)
 	operations = append(operations, loopRuntimeOperations()...)
+	operations = append(operations, loopRequestAndTimeTravelOperations()...)
 	return operations
 }
 

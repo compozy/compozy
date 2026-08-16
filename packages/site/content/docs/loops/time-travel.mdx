@@ -1,0 +1,61 @@
+---
+title: Time travel
+description: Compare Loop history, rerun from a settled node, or fork a linked run from a historical generation.
+---
+
+Time travel gives operators and agents three separate controls over durable Loop history: `diff` reads
+what changed, `rerun` opens a new generation in the same run, and `fork` creates a linked run without
+changing its source.
+
+## Compare history
+
+Compare two generations of one run:
+
+```bash
+compozy loop diff --run-id <run-id> --generation 1 --against-generation 2
+```
+
+Use `--against-run` to compare runs of the same Loop. Run comparisons include changed inputs and mark
+different pinned definitions. A live side is labeled as-of its current settled generation. Large values
+return their byte size and SHA-256 content hash instead of an oversized inline payload.
+
+Diff is a workspace-scoped read and needs no additional agent capability.
+
+## Rerun from a node
+
+```bash
+compozy loop rerun --run-id <run-id> --from-node verify --reason "retry verification"
+```
+
+Rerun opens a generation with origin `operator_rerun`. The selected node and its transitive dependents
+run again; unrelated settled cells carry forward. Add `--item <index>` to address one fan-out lane.
+
+The source run must have a settled generation, and the target cell cannot be pending or parked. Agents
+need `loops.timetravel`. An agent cannot rerun its own executing run, but it may rerun its own terminal
+run.
+
+## Fork a linked run
+
+```bash
+compozy loop fork --run-id <run-id> --generation 2 --input service=payments
+```
+
+Fork creates a new run that pins the source run's executed definition. Generation 1 is a settled
+`fork_seed` baseline; generation 2 executes the full body with the source inputs plus any validated
+overrides. The source stays unchanged. Run status exposes `forked_from` on the child and `forks` on the
+source.
+
+Fork uses the Loop's normal concurrency policy. Agents need `loops.timetravel`, and the same executing-run
+self-operation rule applies.
+
+## Safe retries
+
+Pass `--request-id` to rerun or fork when retrying a request after a transport failure. Reusing the same
+key with identical inputs returns the committed result; changing the request while reusing the key returns
+`timetravel_key_reuse`. Omitting the key means each accepted call is a new operation.
+
+| Action | CLI | HTTP / UDS | Native tool |
+| --- | --- | --- | --- |
+| Diff | `compozy loop diff` | `GET /loop-runs/:id/diff` | `compozy__loop_diff` |
+| Rerun | `compozy loop rerun` | `POST /loop-runs/:id/rerun` | `compozy__loop_rerun` |
+| Fork | `compozy loop fork` | `POST /loop-runs/:id/fork` | `compozy__loop_fork` |

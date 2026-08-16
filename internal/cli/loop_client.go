@@ -74,6 +74,13 @@ type loopCommandClient interface {
 		query GoalTurnListQuery,
 	) (contract.GoalTurnPage, error)
 	GetLoopRun(ctx context.Context, workspaceID string, runID string) (contract.LoopRunResponse, error)
+	DiffLoopRun(context.Context, string, string, int64, int64, string) (contract.LoopDiffResponse, error)
+	RerunLoopRun(
+		context.Context, string, string, contract.RerunLoopRequest, agentidentity.Credentials,
+	) (contract.RerunLoopResponse, error)
+	ForkLoopRun(
+		context.Context, string, string, contract.ForkLoopRequest, agentidentity.Credentials,
+	) (contract.ForkLoopResponse, error)
 	CancelLoopRun(
 		ctx context.Context,
 		workspaceID string,
