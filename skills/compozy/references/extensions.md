@@ -3,6 +3,7 @@
 ## Contents
 
 - Extension kits
+- Portable Agent Plugins
 - Install trust
 - Authoring and dev loop
 - Instance scoping
@@ -17,11 +18,39 @@ An extension kit is the static resource set shipped by one extension: skills, ag
 
 Inspect the shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Preview enable with `compozy extension preview <name> -o json`, its HTTP/UDS route, or `compozy__extensions_preview`; the result names added, changed, and removed resources. Inventory and preview are reads; they never publish resources.
 
-Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets set <name> <key> --vault-ref <ref>`, or enter a value through stdin or a hidden prompt. List and unset bindings through CLI or HTTP/UDS. Reads expose bound key names only, never values or Vault references. Bindings are scoped to the extension instance.
+Extensions declare required environment variable names. Bind an existing Vault reference with `compozy extension secrets bind <name> --env <key> --vault-ref <ref>`, or set a value through stdin or a hidden prompt. Add `--remote-header <server>:<header>` to bind that value to one declared remote MCP header. List and unset bindings through CLI or HTTP/UDS. Reads expose bound key, server, and header names only, never values or Vault references. Bindings are scoped to the extension instance.
 
-If a candidate extension changes its normalized Network Live requirement, enable or update returns `extension_network_confirmation_required` with the exact digest before changing active state. Inspect that digest and retry with `--confirm-network-digest <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
+If a candidate extension changes its normalized Network Live requirement, enable or update returns `extension_network_confirmation_required` with the exact digest before changing active state. Inspect that digest and retry with `--confirm-network-requirement <digest>` or the equivalent `confirm_network_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to the requirement; it does not enroll an execution into Live participation.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
+
+## Portable Agent Plugins
+
+CompozyOS detects a package layout after source acquisition; there is no format flag. A root
+`extension.toml` or `extension.json` selects `compozy`. Root `plugin.json` alone selects
+`agent-plugin` and accepts Agent Plugins schema `1.0.0`. When both exist, the native manifest wins
+and install records the unused portable manifest as a note. Client-specific layouts are rejected.
+
+Portable ingestion synthesizes a resource-only extension from immediate child skills and `mcp.json`
+servers. `stdio` and `streamable-http` map into extension MCP resources; invalid components and `sse`
+servers are skipped independently. Install, status, inventory, list, HTTP/UDS, and native-tool reads
+carry `format` plus diagnostics. The marketplace `format` badge is display metadata only; acquired
+package detection is authoritative.
+
+Recorded ingestion skips use `extension_agent_plugin_component_skipped`. Runtime availability uses
+live codes such as `extension_mcp_server_unhealthy`; reads sort ingest diagnostics before live ones so
+package validity is never confused with server health. Fatal detection codes are
+`extension_agent_plugin_client_layout`, `extension_agent_plugin_schema_unsupported`,
+`extension_agent_plugin_not_manifest`, and `extension_agent_plugin_manifest_invalid`.
+
+`compozy extension validate <path> -o json` takes the portable branch without installing or executing
+code and returns `format`, `would_ingest`, and ordered issues. A warning-only report exits zero; a
+fatal issue exits nonzero.
+
+Every portable instance receives absolute `PLUGIN_ROOT` and `PLUGIN_DATA` values. The dedicated data
+directory is created immediately before its first stdio launch, survives updates, and is deleted on
+remove. A failed deletion is renamed out of the reusable instance key and reported as a quarantine
+warning; if quarantine also fails, removal fails and the instance remains installed.
 
 ## Install Trust
 

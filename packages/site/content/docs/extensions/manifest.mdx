@@ -164,6 +164,37 @@ root and may not escape it.
 | `resources.mcp_servers`    | Named MCP server declarations.                                          |
 | `resources.publish`        | Requested resource families and scope ceiling for `resources/snapshot`. |
 
+### `[resources.mcp_servers.<name>]`
+
+A native extension manifest may package a local stdio server or a remote HTTP server:
+
+```toml
+[resources.mcp_servers.local-search]
+transport = "stdio"
+command = "uvx"
+args = ["mcp-server-git"]
+env = { REPO_ROOT = "{{env:REPO_ROOT}}" }
+
+[resources.mcp_servers.deployment-api]
+transport = "http"
+url = "https://deploy.example.com/mcp"
+headers = { "X-Client" = "acme-tools" }
+```
+
+| Field        | Notes                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| `transport`  | `stdio` for a command or `http` for a remote URL.                                         |
+| `command`    | Required executable for `stdio`; resolved with the extension runtime environment.         |
+| `args`       | Optional argument list for `stdio`.                                                       |
+| `env`        | Non-secret environment values for `stdio`.                                                |
+| `secret_env` | Vault-backed environment names for `stdio`; values never appear in reads or logs.         |
+| `url`        | Required endpoint for `http`; non-loopback hosts must use HTTPS.                          |
+| `headers`    | Non-secret remote headers. Bind credential headers through the extension secrets surface. |
+
+These fields belong to packaged extension resources. They do not add `headers` to the workspace
+`mcp.json` configuration sidecar. Agent Plugins packages use `type: "streamable-http"`; ingestion
+normalizes that portable name to the native `http` transport.
+
 ### `[resources.tools.<handler>]`
 
 Generated from each SDK tool registration. Fields the daemon reads:
@@ -288,3 +319,4 @@ before an operator does.
 - [Extension Permissions](/docs/extensions/permissions)
 - [Extension Commands](/docs/extensions/commands)
 - [Publish an Extension](/docs/extensions/publish)
+- [Agent Plugins Interoperability](/docs/extensions/agent-plugins)

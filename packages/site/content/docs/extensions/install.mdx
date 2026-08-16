@@ -22,12 +22,12 @@ CompozyOS stores installed extensions in the global registry and copies managed 
 `compozy extension install <source>` takes one closed source union. The CLI infers the source from
 the argument:
 
-| Argument form                       | Source       | Notes                                                                      |
-| ----------------------------------- | ------------ | -------------------------------------------------------------------------- |
-| `./dir`, `../dir`, `/abs/dir`       | `local_path` | A directory containing `extension.toml` or `extension.json`.               |
-| `github:owner/repo[@ref]`           | `github`     | GitHub release asset.                                                      |
-| `git:https://host/owner/repo[@ref]` | `git`        | Shallow clone at the ref. Needs the `git` executable on the daemon host.   |
-| `owner/repo[@ref]`                  | `curated`    | Tries the curated catalog first, falling back to `github` only on a `404`. |
+| Argument form                       | Source       | Notes                                                                        |
+| ----------------------------------- | ------------ | ---------------------------------------------------------------------------- |
+| `./dir`, `../dir`, `/abs/dir`       | `local_path` | A directory containing `extension.toml`, `extension.json`, or `plugin.json`. |
+| `github:owner/repo[@ref]`           | `github`     | GitHub release asset.                                                        |
+| `git:https://host/owner/repo[@ref]` | `git`        | Shallow clone at the ref. Needs the `git` executable on the daemon host.     |
+| `owner/repo[@ref]`                  | `curated`    | Tries the curated catalog first, falling back to `github` only on a `404`.   |
 
 ```bash
 compozy extension install ./hello
@@ -41,6 +41,31 @@ URL carrying embedded credentials is rejected before any request. HTTP, UDS, and
 submit the structured union directly; the shorthand is a CLI convenience.
 
 `--version` and `--asset` select a specific registry version or archive for published sources.
+
+## Detected package layouts
+
+CompozyOS detects the package layout after acquiring the source. You do not select a format flag.
+
+| Root files                           | Detected format | Result                                                                                       |
+| ------------------------------------ | --------------- | -------------------------------------------------------------------------------------------- |
+| `extension.toml` or `extension.json` | `compozy`       | The native manifest owns identity, resources, permissions, and runtime behavior.             |
+| `plugin.json` only                   | `agent-plugin`  | CompozyOS reads Agent Plugins schema `1.0.0` and synthesizes a resource-only manifest.       |
+| Native manifest and `plugin.json`    | `compozy`       | The native manifest wins. Install records an informational diagnostic about the unused file. |
+
+An Agent Plugins package may provide immediate child directories under `skills/` and MCP servers in
+`mcp.json`. CompozyOS maps `stdio` and `streamable-http` servers, records unsupported components as
+skipped diagnostics, and keeps the rest of the package usable. Client-specific layouts are rejected
+instead of being guessed.
+
+```bash
+compozy extension install ./acme-tools --allow-unverified --yes
+compozy extension install git:https://github.com/acme/acme-tools@v1.2.0 \
+  --allow-unverified --yes
+```
+
+Both managed and dev instances receive absolute `PLUGIN_ROOT` and `PLUGIN_DATA` paths. The data
+directory is stable across updates at `<COMPOZY_HOME>/extension-data/<name>/`; see
+[Agent Plugins interoperability](/docs/extensions/agent-plugins) for the full mapping.
 
 ## Trust and consent
 
@@ -57,13 +82,17 @@ Human output prompts on `--allow-unverified` unless you pass `--yes`. Structured
 
 Deterministic failures:
 
-| Reason code                           | Meaning                                                   | Fix                                                                                  |
-| ------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `extension_unverified_policy_blocked` | Live policy is off. Evidence path `/settings/extensions`. | Review the source, then `compozy config set extensions.trust.allow_unverified true`. |
-| `extension_checksum_unverified`       | Policy is on but the request carried no consent.          | Add `--allow-unverified` (and `--yes` for structured output).                        |
-| `extension_archive_digest_mismatch`   | A curated archive differs from the catalog-pinned bytes.  | Stop. No `--allow-unverified` bypass exists for this.                                |
-| `extension_git_unavailable`           | No `git` executable on the daemon host.                   | Install `git` or use another source.                                                 |
-| `extension_git_version_unsupported`   | The daemon host has Git older than 2.37.                  | Install Git 2.37 or newer, then retry.                                               |
+| Reason code                                 | Meaning                                                   | Fix                                                                                  |
+| ------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `extension_unverified_policy_blocked`       | Live policy is off. Evidence path `/settings/extensions`. | Review the source, then `compozy config set extensions.trust.allow_unverified true`. |
+| `extension_checksum_unverified`             | Policy is on but the request carried no consent.          | Add `--allow-unverified` (and `--yes` for structured output).                        |
+| `extension_archive_digest_mismatch`         | A curated archive differs from the catalog-pinned bytes.  | Stop. No `--allow-unverified` bypass exists for this.                                |
+| `extension_git_unavailable`                 | No `git` executable on the daemon host.                   | Install `git` or use another source.                                                 |
+| `extension_git_version_unsupported`         | The daemon host has Git older than 2.37.                  | Install Git 2.37 or newer, then retry.                                               |
+| `extension_agent_plugin_client_layout`      | The package uses a client-specific plugin layout.         | Repackage it with root `plugin.json`, `skills/`, and optional `mcp.json`.            |
+| `extension_agent_plugin_schema_unsupported` | `plugin.json` declares a schema other than `1.0.0`.       | Publish an Agent Plugins `1.0.0` package.                                            |
+| `extension_agent_plugin_not_manifest`       | `plugin.json` is not a valid Agent Plugins manifest.      | Replace the file with a valid object containing the required identity.               |
+| `extension_agent_plugin_manifest_invalid`   | The portable manifest failed semantic validation.         | Fix the named field and validate the package again.                                  |
 
 Both consent failures are `422`.
 
@@ -157,7 +186,7 @@ workspace, or through `compozy extension logs <name>`. See
 
 | Field                                                                          | Meaning                                                                                                  |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `name`, `version`, `source`                                                    | Registry identity and install source.                                                                    |
+| `name`, `version`, `source`, `format`                                          | Registry identity, install source, and detected `compozy` or `agent-plugin` format.                      |
 | `type`                                                                         | `resource` when no subprocess is required; `subprocess` otherwise.                                       |
 | `enabled`                                                                      | Registry flag. Disabled extensions are skipped by the manager.                                           |
 | `state`                                                                        | `disabled`, `enabled`, `registered`, `active`, or `error`.                                               |
@@ -169,6 +198,7 @@ workspace, or through `compozy extension logs <name>`. See
 | `requires_env`, `missing_env`, `bound_env_keys`                                | Declared names, currently missing names, and names bound through Vault.                                  |
 | `network_requirement_digest`, `network_confirmation_required`                  | The exact Live requirement digest and whether lifecycle consent is pending.                              |
 | `provenance`, `trust`                                                          | Install source, checksums, registry tier, `allow_unverified`, installer identity, decision, diagnostics. |
+| `diagnostics`                                                                  | Deterministically ordered ingest and runtime issues; portable component skips remain visible here.       |
 
 Apply updates:
 
@@ -197,6 +227,10 @@ currently live in the daemon:
 ```bash
 compozy extension inventory hello -o json
 ```
+
+Portable inventory preserves the detected `format` and ingest diagnostics even when every MCP
+component was skipped. An empty live resource set is therefore distinguishable from a native empty
+extension.
 
 Use preview before enable to calculate the same desired state without writing records, starting
 automation, launching a subprocess, or recording Network consent:
@@ -233,6 +267,48 @@ Inside a workspace, `remove` unlinks a dev overlay and lets the published instal
 registry row with rollback handling. Post-commit cleanup failure leaves `status: "removed"` with an
 `extension_remove_cleanup_failed` warning and a residual path — treat that path as cleanup debt, not
 as a live extension.
+
+For an Agent Plugins installation, removal also deletes `PLUGIN_DATA`. If direct deletion fails,
+CompozyOS first renames the directory into the extension-data quarantine and reports the cleanup
+warning. If the quarantine rename also fails, removal fails and the extension remains installed.
+
+## Validate an Agent Plugins package
+
+Validation detects the same format and component mapping as install without writing registry state or
+starting code:
+
+```bash
+compozy extension validate ./acme-tools -o json
+```
+
+The result includes `format: "agent-plugin"`, `would_ingest`, and positioned `issues`. Use it before a
+local or git install to catch an unsupported schema or client-specific layout. Unsupported portable
+components appear as skipped issues rather than hiding the resources that can still be ingested.
+
+For a valid package with two skills, two usable servers, and three skipped components, the shipped
+CLI reports:
+
+```console
+Extension bundle validation
+===========================
+Status:   valid
+Format:   agent plugin
+Package:  acme.tools 1.2.0
+Issues:   3
+
+Would ingest
+============
+Kind        Name     Transport
+----        ----     ---------
+skill       release
+skill       review
+mcp_server  local    stdio
+mcp_server  remote   streamable-http
+
+WARN mcp:legacy-events:  sse transport is not supported
+WARN mcp:malformed:  invalid mcp server entry
+WARN skill:skipped:  name must match the directory "skipped"
+```
 
 ## Declare required environment
 
@@ -302,6 +378,8 @@ Host API methods in `permissions.requires`, such as `resources/list`, `resources
 | `extension_archive_digest_mismatch`         | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
 | `extension_git_unavailable`                 | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
 | `extension_git_version_unsupported`         | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
+| `extension_agent_plugin_client_layout`      | The package uses a client-specific plugin layout.                                 | Repackage it with the portable root layout.                                 |
+| `extension_agent_plugin_schema_unsupported` | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
 | Extension is `enabled` but not `active`     | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
 | Enable asks for Network confirmation        | The extension declares an unconfirmed or changed Live requirement digest.         | Review the digest, then retry with `--confirm-network-requirement`.         |
 | `bridge.adapter` install rejected           | External bridge authoring is a planned follow-up.                                 | See [Develop Extensions](/docs/extensions/develop#bridge-adapters).         |
@@ -313,6 +391,7 @@ Related references:
 - [Publish an Extension](/docs/extensions/publish)
 - [Extension Permissions](/docs/extensions/permissions)
 - [Extension Secret Bindings](/docs/extensions/secrets)
+- [Agent Plugins Interoperability](/docs/extensions/agent-plugins)
 - [Extension CLI Reference](/docs/cli/extension)
 - [Hook Declaration Format](/docs/hooks/declaration)
 - [Unified Marketplace](/docs/marketplace)
