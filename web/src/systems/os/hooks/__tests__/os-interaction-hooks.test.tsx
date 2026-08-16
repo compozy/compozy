@@ -38,9 +38,34 @@ import {
 } from "../use-window-live-data-enabled";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
+import { adjacentShortcutItem, shortcutAttentionTarget } from "../use-desktop-shell-body";
 import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
 import { windowManagerStore } from "../../stores/window-manager-store";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
+
+const TEST_KEYMAP = {
+  "palette.open": ["meta+KeyK", "meta+shift+KeyP"],
+  "session.new": ["meta+KeyN"],
+  "scope.global.toggle": ["meta+shift+KeyG"],
+  "workspace.picker": ["meta+shift+KeyO"],
+  "window.close": ["meta+KeyW"],
+  "window.nav.back": ["meta+BracketLeft"],
+  "window.tab.new": ["meta+KeyT"],
+  "window.tab.next": ["control+Tab"],
+  "window.tab.previous": ["control+shift+Tab"],
+  "window.tab.last": ["meta+Digit9"],
+  "window.tab.reopen": ["meta+shift+KeyT"],
+  "window.tab.jump.1": ["meta+Digit1"],
+  "window.tab.jump.2": ["meta+Digit2"],
+  "window.tab.jump.3": ["meta+Digit3"],
+  "window.tab.jump.4": ["meta+Digit4"],
+  "window.tab.jump.5": ["meta+Digit5"],
+  "window.tab.jump.6": ["meta+Digit6"],
+  "window.tab.jump.7": ["meta+Digit7"],
+  "window.tab.jump.8": ["meta+Digit8"],
+  "layout.undo": ["meta+KeyZ"],
+  "shortcuts.cheatsheet": ["shift+Slash", "meta+Slash"],
+} as const;
 
 const CONFIG: WindowManagerConfig = {
   newWindowPolicy: "floating",
@@ -65,7 +90,26 @@ const CONFIG: WindowManagerConfig = {
   },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  shortcutDefaults: TEST_KEYMAP,
+  effectiveShortcuts: TEST_KEYMAP,
 };
+
+function shortcutHandlers(): OsShortcutHandlers {
+  return {
+    onPalette: vi.fn(),
+    onPaletteSessions: vi.fn(),
+    onNewSession: vi.fn(),
+    onDesktops: vi.fn(),
+    onWorkspaces: vi.fn(),
+    onCycleWorkspace: vi.fn(),
+    onCycleSession: vi.fn(),
+    onFocusAttention: vi.fn(),
+    onToggleSidebar: vi.fn(),
+    onCheatsheet: vi.fn(),
+    onEscape: vi.fn(),
+    onToggleGlobalScope: vi.fn(),
+  };
+}
 
 const SNAPSHOT: WindowManagerSnapshot = {
   version: 3,
@@ -1089,16 +1133,22 @@ function WinLayerHarness() {
 }
 
 describe("useOsShortcuts", () => {
+  it("Should cycle a frozen visible-session order with wrap and calm 0/1 no-ops [UT-065]", () => {
+    const frozen = Object.freeze([{ id: "session-a" }, { id: "session-b" }, { id: "session-c" }]);
+
+    expect(adjacentShortcutItem(frozen, "session-b", "next")?.id).toBe("session-c");
+    expect(adjacentShortcutItem(frozen, "session-a", "previous")?.id).toBe("session-c");
+    expect(adjacentShortcutItem([], null, "next")).toBeNull();
+    expect(adjacentShortcutItem([{ id: "session-a" }], "session-a", "next")).toBeNull();
+  });
+
+  it("Should keep an empty attention jump as a calm no-op [UT-074]", () => {
+    expect(shortcutAttentionTarget({ needsYou: [], finished: [] })).toBeNull();
+  });
+
   it("Should route shell shortcuts independently of window-manager availability", () => {
     const { wrapper } = createShell({ live: false });
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     renderHook(() => useOsShortcuts(handlers), { wrapper });
 
     fireEvent.keyDown(document, { key: "k", code: "KeyK", metaKey: true });
@@ -1112,14 +1162,7 @@ describe("useOsShortcuts", () => {
 
   it("Should toggle Global scope on ⇧⌘G and skip editable targets", () => {
     const { wrapper } = createShell({ live: false });
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     renderHook(() => useOsShortcuts(handlers), { wrapper });
 
     fireEvent.keyDown(document, { key: "g", code: "KeyG", metaKey: true, shiftKey: true });
@@ -1132,19 +1175,12 @@ describe("useOsShortcuts", () => {
     input.remove();
   });
 
-  it("Should open the workspaces overview on ⇧⌘W through the action registry", () => {
+  it("Should open the workspace picker on ⇧⌘O through the action registry", () => {
     const shell = createShell();
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
 
-    fireEvent.keyDown(document, { key: "w", code: "KeyW", metaKey: true, shiftKey: true });
+    fireEvent.keyDown(document, { key: "o", code: "KeyO", metaKey: true, shiftKey: true });
 
     expect(handlers.onWorkspaces).toHaveBeenCalledOnce();
     expect(shell.controller.closeWindow).not.toHaveBeenCalled();
@@ -1155,14 +1191,7 @@ describe("useOsShortcuts", () => {
 
   it("Should leave a prevented Escape to the nested control", () => {
     const { wrapper } = createShell({ live: false });
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     renderHook(() => useOsShortcuts(handlers), { wrapper });
 
     const event = new KeyboardEvent("keydown", {
@@ -1180,14 +1209,7 @@ describe("useOsShortcuts", () => {
   it("Should protect editor-owned chords while keeping tab lifecycle shortcuts global", () => {
     const liveShell = createShell();
     const unavailableShell = createShell({ live: false });
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     const unavailable = renderHook(() => useOsShortcuts(handlers), {
       wrapper: unavailableShell.wrapper,
     });
@@ -1203,6 +1225,15 @@ describe("useOsShortcuts", () => {
     expect(liveShell.controller.undoLayout).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: "w", code: "KeyW", metaKey: true });
     expect(liveShell.controller.closeWindow).toHaveBeenCalledWith("window:primary");
+    fireEvent.keyDown(input, { key: "k", code: "KeyK", metaKey: true });
+    fireEvent.keyDown(input, { key: "n", code: "KeyN", metaKey: true });
+    expect(handlers.onPalette).toHaveBeenCalledOnce();
+    expect(handlers.onNewSession).toHaveBeenCalledOnce();
+
+    fireEvent.keyDown(input, { key: "?", code: "Slash", shiftKey: true });
+    expect(handlers.onCheatsheet).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "/", code: "Slash", metaKey: true });
+    expect(handlers.onCheatsheet).toHaveBeenCalledOnce();
 
     fireEvent.keyDown(document, { key: "z", code: "KeyZ", metaKey: true });
     expect(liveShell.controller.undoLayout).toHaveBeenCalledOnce();
@@ -1211,20 +1242,14 @@ describe("useOsShortcuts", () => {
 
   it("Should honor live tab overrides and ignore the shipped chord [UT-051]", () => {
     const shell = createShell();
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     act(() => {
       shell.setRuntimeState({
         frames: { "desktop:main": [stackedFrame()] },
         windowManagerConfig: {
           ...CONFIG,
-          shortcuts: { "window.tab.next": "meta+KeyL" },
+          shortcuts: { "window.tab.next": ["meta+KeyL"] },
+          effectiveShortcuts: { ...TEST_KEYMAP, "window.tab.next": ["meta+KeyL"] },
         },
       });
     });
@@ -1239,14 +1264,7 @@ describe("useOsShortcuts", () => {
 
   it("Should dispatch the shipped tab lifecycle chords through the live shell", () => {
     const shell = createShell();
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     act(() => {
       shell.setRuntimeState({ frames: { "desktop:main": [stackedFrame()] } });
     });
@@ -1308,14 +1326,7 @@ describe("useOsShortcuts", () => {
   it("Should dispatch the primary shortcut with Control on non-Apple platforms", () => {
     vi.spyOn(window.navigator, "platform", "get").mockReturnValue("Linux x86_64");
     const shell = createShell();
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     act(() => {
       shell.setRuntimeState({ frames: { "desktop:main": [stackedFrame()] } });
     });
@@ -1335,14 +1346,7 @@ describe("useOsShortcuts", () => {
 
   it("Should leave editable descendants and repeated chords untouched [UT-099]", () => {
     const shell = createShell();
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
     const editable = document.createElement("div");
     editable.setAttribute("contenteditable", "true");
@@ -1361,14 +1365,7 @@ describe("useOsShortcuts", () => {
 
   it("Should dispatch nothing while disabled, so first-run setup blocks the whole set", () => {
     const { wrapper, controller } = createShell();
-    const handlers: OsShortcutHandlers = {
-      onPalette: vi.fn(),
-      onNewSession: vi.fn(),
-      onDesktops: vi.fn(),
-      onWorkspaces: vi.fn(),
-      onEscape: vi.fn(),
-      onToggleGlobalScope: vi.fn(),
-    };
+    const handlers = shortcutHandlers();
     renderHook(() => useOsShortcuts(handlers, { enabled: false }), { wrapper });
 
     fireEvent.keyDown(document, { key: "k", code: "KeyK", metaKey: true });
@@ -1567,7 +1564,11 @@ describe("useOsWindowCommands", () => {
 
     act(() =>
       shell.setRuntimeState({
-        windowManagerConfig: { ...CONFIG, shortcuts: { "window.close": "control+shift+KeyW" } },
+        windowManagerConfig: {
+          ...CONFIG,
+          shortcuts: { "window.close": ["control+shift+KeyW"] },
+          effectiveShortcuts: { ...TEST_KEYMAP, "window.close": ["control+shift+KeyW"] },
+        },
       })
     );
     expect(result.current.shortcutLabels["window.close"]).toBe("⌃⇧W");

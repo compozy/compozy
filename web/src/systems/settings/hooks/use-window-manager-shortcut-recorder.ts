@@ -4,64 +4,52 @@ import {
   chordFromKeyboardEvent,
   findShortcutConflicts,
   type ShortcutConflict,
-  WINDOW_MANAGER_ACTIONS,
+  type ShortcutMap,
   type WindowManagerActionId,
+  type WindowManagerShortcutMap,
 } from "@/systems/os";
+
+type RecorderMode = "replace" | "alternate";
 
 export interface ShortcutRecorderModel {
   recording: WindowManagerActionId | null;
+  recordingMode: RecorderMode | null;
   announcement: string;
   conflicts: readonly ShortcutConflict[];
-  /** Actions whose chord the daemon would reject on save. */
   blocked: ReadonlySet<WindowManagerActionId>;
-  /** Actions that share a chord with another action's shipped default. */
   shadowed: ReadonlySet<WindowManagerActionId>;
-  start: (actionId: WindowManagerActionId) => void;
+  start: (actionId: WindowManagerActionId, mode?: RecorderMode) => void;
   cancel: () => void;
   reset: (actionId: WindowManagerActionId) => void;
   resetAll: () => void;
 }
 
-/**
- * Resolved on first use, not at module load: the settings barrel and the OS
- * barrel import each other (the OS settings window renders these pages), so
- * reading an OS constant while this module initializes finds it undefined.
- */
-let defaultChords: Map<string, string | undefined> | null = null;
-
-function defaultChordFor(actionId: WindowManagerActionId): string | undefined {
-  defaultChords ??= new Map(WINDOW_MANAGER_ACTIONS.map(action => [action.id, action.defaultChord]));
-  return defaultChords.get(actionId);
+function sameBinding(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-/**
- * Records one chord at a time from real keypresses, applying the daemon's own
- * grammar as it reads them: a bare key or a modifier-only press is not a chord,
- * so nothing is stored that `CanonicalShortcuts` would then reject.
- *
- * Recording an action's shipped default removes the override rather than
- * storing a duplicate of it — only the differences are persisted.
- */
+/** Records primary and alternate chords without creating redundant default overrides. */
 export function useWindowManagerShortcutRecorder(
-  overrides: Readonly<Record<string, string>>,
-  onChange: (next: Record<string, string>) => void
+  overrides: WindowManagerShortcutMap,
+  defaults: ShortcutMap,
+  onChange: (next: WindowManagerShortcutMap) => void
 ): ShortcutRecorderModel {
   const [recording, setRecording] = useState<WindowManagerActionId | null>(null);
+  const [recordingMode, setRecordingMode] = useState<RecorderMode | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
-    if (recording === null) return undefined;
+    if (recording === null || recordingMode === null) return undefined;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setRecording(null);
+        setRecordingMode(null);
         setAnnouncement("Recording cancelled.");
         return;
       }
       const chord = chordFromKeyboardEvent(event);
       if (chord === null) {
-        // Modifier-only presses are the user still building the combination;
-        // a bare key is a real refusal worth explaining.
         if (!["Meta", "Control", "Alt", "Shift"].includes(event.key)) {
           event.preventDefault();
           setAnnouncement("A shortcut needs at least one modifier key.");
@@ -70,37 +58,48 @@ export function useWindowManagerShortcutRecorder(
       }
       event.preventDefault();
       event.stopPropagation();
+      const current = overrides[recording] ?? defaults[recording] ?? [];
+      const binding = recordingMode === "alternate" ? [...current, chord] : [chord];
+      const deduplicated = [...new Set(binding)];
       const next = { ...overrides };
-      if (chord === defaultChordFor(recording)) delete next[recording];
-      else next[recording] = chord;
+      if (sameBinding(deduplicated, defaults[recording] ?? [])) delete next[recording];
+      else next[recording] = deduplicated;
       onChange(next);
       setRecording(null);
+      setRecordingMode(null);
       setAnnouncement(`Shortcut set to ${chord.split("+").join(" ")}.`);
     };
 
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [recording, overrides, onChange]);
+  }, [defaults, onChange, overrides, recording, recordingMode]);
 
-  const conflicts = findShortcutConflicts(overrides);
+  const conflicts = findShortcutConflicts(overrides, defaults);
   const blocked = new Set<WindowManagerActionId>();
   const shadowed = new Set<WindowManagerActionId>();
   for (const conflict of conflicts) {
-    const bucket = conflict.kind === "override" ? blocked : shadowed;
+    const bucket = conflict.kind === "blocked" ? blocked : shadowed;
     for (const actionId of conflict.actionIds) bucket.add(actionId);
   }
 
   return {
     recording,
+    recordingMode,
     announcement,
     conflicts,
     blocked,
     shadowed,
-    start: actionId => {
+    start: (actionId, mode = "replace") => {
       setRecording(actionId);
-      setAnnouncement("Press the keys you want.");
+      setRecordingMode(mode);
+      setAnnouncement(
+        mode === "alternate" ? "Press an alternate shortcut." : "Press the keys you want."
+      );
     },
-    cancel: () => setRecording(null),
+    cancel: () => {
+      setRecording(null);
+      setRecordingMode(null);
+    },
     reset: actionId => {
       const next = { ...overrides };
       delete next[actionId];

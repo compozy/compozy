@@ -150,6 +150,12 @@ live-applied only after the complete candidate validates; a failed apply keeps t
 generation. Workspace topology overrides remain part of revisioned layout documents rather than a
 second Settings scope. Field detail lives in `references/window-management.md` (Configuration and hooks).
 
+Shortcut entries accept a string, a string array, an empty binding, or an indexed range for
+`desktop.switch` (`1..9`) and `window.tab.jump` (`1..8`). Read
+`compozy config get window_manager -o json` to inspect daemon defaults and the effective map before
+writing an override. The daemon expands
+ranges and validates the full map atomically; a collision stores nothing.
+
 ## Attention
 
 `[attention]` controls operator notification delivery. `toasts` and `sound` default to `true`,

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Settings › Layouts exposes every supported `[window_manager]` value through direct manipulation — a desktop canvas, a 1:1 gap box, a snap-zone map, a repeat-width track, and a chord recorder — with no number field bound to a geometry value; out-of-range gaps, snap thresholds, history limit, duplicate repeat widths, and duplicate shortcut chords each name the exact value at fault and block the save while preserving the active known-good configuration; one floating save bar covers the global config and the workspace layout reviews inside its own card; a valid save hot-applies to the next command without restarting; workspace layout overrides remain isolated.
 entry_points: Settings › Layouts; global config.toml; compozy config get|set|apply; compozy layout-profile list|get|put|delete
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260801-window-manager-live-config-drift
 fix_status: fixed
 retest_status: pass
@@ -30,3 +30,6 @@ accepted. Status remains untested; no QA replay ran.
 
 QA impact 2026-07-31: `nav_stack_limit`, `closed_entry_limit`, and tab shortcut actions joined the
 live window-manager config contract. Reset for the window-tabs targeted cycle.
+
+2026-08-16 qa-impact: shortcut values now accept arrays, indexed ranges, and explicit disables;
+the daemon serves defaults and the effective map. Reset for the Herdr parity QA tail.

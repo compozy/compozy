@@ -166,6 +166,7 @@ const (
 	configSetFloatSlice
 	configSetTable
 	configSetScalar
+	configSetStringOrStringSlice
 )
 
 var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetValueKind{

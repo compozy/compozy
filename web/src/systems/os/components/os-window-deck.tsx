@@ -36,11 +36,13 @@ function DeckTabMenu({
   win,
   frame,
   deck,
+  closeShortcutLabel,
   children,
 }: {
   win: OsWindow;
   frame: OsWindowFrameModel;
   deck: ReturnType<typeof useOsWindowDeck>;
+  closeShortcutLabel?: string;
   children: React.ReactNode;
 }) {
   const pinnedByMember = useDesktop(state => {
@@ -73,7 +75,9 @@ function DeckTabMenu({
       <ContextMenuContent>
         <ContextMenuItem disabled={win.pinned} onClick={() => deck.closeTab(win.id)}>
           {win.pinned ? "Close tab (unpin first)" : "Close tab"}
-          <ContextMenuShortcut>⌘W</ContextMenuShortcut>
+          {closeShortcutLabel ? (
+            <ContextMenuShortcut>{closeShortcutLabel}</ContextMenuShortcut>
+          ) : null}
         </ContextMenuItem>
         <ContextMenuItem disabled={unpinnedOthers === 0} onClick={() => deck.closeOthers(win.id)}>
           Close other tabs
@@ -102,6 +106,10 @@ export interface OsWindowDeckProps {
   onTrafficLight: (action: OsTrafficLightAction) => void;
   zoomMenu?: (button: React.ReactNode) => React.ReactNode;
   dragHandleClassName: string;
+  shortcutLabels?: {
+    close?: string;
+    newTab?: string;
+  };
 }
 
 /**
@@ -115,6 +123,7 @@ export function OsWindowDeck({
   onTrafficLight,
   zoomMenu,
   dragHandleClassName,
+  shortcutLabels,
 }: OsWindowDeckProps) {
   const deck = useOsWindowDeck(frame);
   const { registerTabs } = deck;
@@ -156,7 +165,12 @@ export function OsWindowDeck({
                   deck.tabDrag?.windowId === member && "opacity-60"
                 )}
               >
-                <DeckTabMenu win={win} frame={frame} deck={deck}>
+                <DeckTabMenu
+                  win={win}
+                  frame={frame}
+                  deck={deck}
+                  closeShortcutLabel={shortcutLabels?.close}
+                >
                   <OsWindowTab
                     win={win}
                     active={member === frame.activeWindowId}
@@ -182,7 +196,7 @@ export function OsWindowDeck({
       </div>
       <button
         type="button"
-        aria-label="New tab (⌘T)"
+        aria-label={`New tab${shortcutLabels?.newTab ? ` (${shortcutLabels.newTab})` : ""}`}
         data-slot="os-window-tab-add"
         className="mb-[calc((var(--height-deck-tab)-var(--size-deck-add))/2)] grid size-deck-add shrink-0 place-items-center rounded-menubar-control text-subtle transition-colors duration-base hover:bg-btn-default-fill hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
         onClick={deck.openNewTab}

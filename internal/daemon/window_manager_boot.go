@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 
 	"github.com/compozy/compozy/internal/clientstate"
@@ -187,7 +186,7 @@ func windowManagerDefaults(cfg compozyconfig.WindowManagerConfig) windowmanager.
 		Bindings: windowmanager.BindingsConfig{
 			TopCenter: cfg.Bindings.TopCenter, BottomCenter: cfg.Bindings.BottomCenter,
 		},
-		Shortcuts: cloneWindowManagerShortcuts(cfg.Shortcuts),
+		Shortcuts: windowmanager.CloneShortcutMap(cfg.Shortcuts),
 	}
 }
 
@@ -248,7 +247,7 @@ func windowManagerConfig(defaults windowmanager.Config) (compozyconfig.WindowMan
 		Bindings: compozyconfig.WindowManagerBindingConfig{
 			TopCenter: defaults.Bindings.TopCenter, BottomCenter: defaults.Bindings.BottomCenter,
 		},
-		Shortcuts: cloneWindowManagerShortcuts(defaults.Shortcuts),
+		Shortcuts: windowmanager.CloneShortcutMap(defaults.Shortcuts),
 	}, nil
 }
 
@@ -264,10 +263,4 @@ func windowManagerInteger(path string, value float64, minimum int, maximum int) 
 		)
 	}
 	return int(value), nil
-}
-
-func cloneWindowManagerShortcuts(source map[string]string) map[string]string {
-	cloned := make(map[string]string, len(source))
-	maps.Copy(cloned, source)
-	return cloned
 }

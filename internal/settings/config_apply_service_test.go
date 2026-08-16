@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -406,13 +407,13 @@ cost_reasoning_per_million = 30
 		}
 
 		desired.Snap.RepeatRatios[0] = 0.9
-		desired.Shortcuts["desktop.switch.next"] = "Meta+ArrowDown"
+		desired.Shortcuts["desktop.switch.next"][0] = "Meta+ArrowDown"
 		first, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(first) error = %v", err)
 		}
 		first.WindowManager.Snap.RepeatRatios[0] = 0.8
-		first.WindowManager.Shortcuts["desktop.switch.next"] = "Meta+ArrowUp"
+		first.WindowManager.Shortcuts["desktop.switch.next"][0] = "Meta+ArrowUp"
 		second, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(second) error = %v", err)
@@ -420,7 +421,7 @@ cost_reasoning_per_million = 30
 		if got, want := second.WindowManager.Snap.RepeatRatios[0], 0.4; got != want {
 			t.Fatalf("active repeat ratio = %v, want %v", got, want)
 		}
-		if got, want := second.WindowManager.Shortcuts["desktop.switch.next"], "Meta+ArrowRight"; got != want {
+		if got, want := second.WindowManager.Shortcuts["desktop.switch.next"], (windowmanager.ShortcutBinding{"Meta+ArrowRight"}); !slices.Equal(got, want) {
 			t.Fatalf("active desktop.switch.next shortcut = %q, want %q", got, want)
 		}
 		if got, want := second.Defaults.Provider, initialActive.Defaults.Provider; got != want {

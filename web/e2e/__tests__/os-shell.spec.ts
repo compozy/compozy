@@ -1040,11 +1040,11 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await expect(workspaces.getByTestId("os-workspaces-caption")).toContainText(secondWorkspace.name);
   await appPage.keyboard.press("Escape");
   await expect(workspaces).toHaveCount(0);
-  // ⇧⌘W is the registered overlay chord (workspaces.overview).
-  await appPage.keyboard.press("ControlOrMeta+Shift+W");
+  // ⇧⌘O is the registered workspace picker chord.
+  await appPage.keyboard.press("ControlOrMeta+Shift+O");
   await expect(appPage.getByTestId("os-workspaces-overview")).toBeVisible();
   await appPage.keyboard.press("Escape");
-  await appPage.keyboard.press("ControlOrMeta+Shift+S");
+  await appPage.keyboard.press("ControlOrMeta+Shift+D");
   await expect(desktops).toBeVisible();
   await appPage.keyboard.press("Escape");
 
@@ -1054,7 +1054,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await expect(shortcuts).toBeVisible();
   // Every registry action is listed, bound or not.
   await expect(shortcuts.getByTestId("os-shortcut-row-window.close")).toContainText("⌘W");
-  await expect(shortcuts.getByTestId("os-shortcut-row-workspaces.overview")).toContainText("⌘⇧W");
+  await expect(shortcuts.getByTestId("os-shortcut-row-workspace.picker")).toContainText("⌘⇧O");
   await expect(shortcuts.getByTestId("os-shortcut-row-window.tile.top")).toBeVisible();
   await appPage.keyboard.press("Escape");
   await expect(shortcuts).toHaveCount(0);

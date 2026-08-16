@@ -14,6 +14,26 @@ import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordin
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { OsShortcutsDialog } from "../os-shortcuts-dialog";
 
+const { desktopState } = vi.hoisted(() => ({
+  desktopState: {
+    hydration: "pending",
+    connectionStatus: "disconnected",
+    snapshot: null,
+    client: null,
+    windowManagerConfig: {
+      shortcuts: { "workspace.picker": ["meta+control+KeyO"] },
+      effectiveShortcuts: {
+        "workspace.picker": ["meta+control+KeyO", "meta+shift+KeyO"],
+        "shortcuts.cheatsheet": ["shift+Slash", "meta+Slash"],
+      },
+    },
+  },
+}));
+
+vi.mock("../../hooks/use-desktop", () => ({
+  useDesktop: (selector: (state: typeof desktopState) => unknown) => selector(desktopState),
+}));
+
 const managers: WindowManagerRuntime[] = [];
 
 function createShell(): OsShellHandle {
@@ -27,6 +47,8 @@ function createShell(): OsShellHandle {
 
 describe("OsShortcutsDialog", () => {
   afterEach(() => {
+    desktopState.hydration = "pending";
+    desktopState.connectionStatus = "disconnected";
     for (const manager of managers.splice(0)) manager.destroy();
   });
 
@@ -46,7 +68,7 @@ describe("OsShortcutsDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("Should list the configurable Workspaces overview shortcut", () => {
+  it("Should list daemon-fed alternates and the surface-local reference [UT-075]", () => {
     const shell = createShell();
     render(
       <OsShellContext.Provider value={shell}>
@@ -55,8 +77,12 @@ describe("OsShortcutsDialog", () => {
     );
 
     expect(screen.getByText("Workspaces")).toBeVisible();
-    expect(screen.getByTestId("os-shortcut-row-workspaces.overview")).toHaveTextContent(
-      "Workspaces overview"
+    expect(screen.getByTestId("os-shortcut-row-workspace.picker")).toHaveTextContent(
+      "Workspace picker"
+    );
+    expect(screen.getByTestId("os-shortcut-row-workspace.picker")).toHaveTextContent("⌘⌃O");
+    expect(screen.getByTestId("os-shortcut-local-composer.focus")).toHaveTextContent(
+      "Focus composer"
     );
   });
 });

@@ -27,6 +27,8 @@ const INITIAL_CONFIG: WindowManagerConfig = {
   newWindowPolicy: "floating",
   raiseOnFocus: true,
   shortcuts: {},
+  shortcutDefaults: {},
+  effectiveShortcuts: {},
   smallViewportPolicy: "stack",
   snap: {
     cornerReach: 150,

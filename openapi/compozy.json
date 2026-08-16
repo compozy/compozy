@@ -3981,7 +3981,10 @@
               },
               "shortcuts": {
                 "additionalProperties": {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 "type": "object"
               },
@@ -4760,7 +4763,10 @@
                   },
                   "shortcuts": {
                     "additionalProperties": {
-                      "type": "string"
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     },
                     "type": "object"
                   },
@@ -5392,7 +5398,10 @@
                   },
                   "shortcuts": {
                     "additionalProperties": {
-                      "type": "string"
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     },
                     "type": "object"
                   },
@@ -6421,7 +6430,10 @@
                   },
                   "shortcuts": {
                     "additionalProperties": {
-                      "type": "string"
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     },
                     "type": "object"
                   },
@@ -7090,7 +7102,10 @@
                   },
                   "shortcuts": {
                     "additionalProperties": {
-                      "type": "string"
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     },
                     "type": "object"
                   },
@@ -7856,7 +7871,10 @@
                   },
                   "shortcuts": {
                     "additionalProperties": {
-                      "type": "string"
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     },
                     "type": "object"
                   },
@@ -8500,7 +8518,10 @@
               },
               "shortcuts": {
                 "additionalProperties": {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 "type": "object"
               },
@@ -9180,7 +9201,10 @@
                   },
                   "shortcuts": {
                     "additionalProperties": {
-                      "type": "string"
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     },
                     "type": "object"
                   },
@@ -150150,7 +150174,10 @@
                         },
                         "shortcuts": {
                           "additionalProperties": {
-                            "type": "string"
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
                           },
                           "type": "object"
                         },
@@ -150221,6 +150248,24 @@
                       ],
                       "type": "object"
                     },
+                    "defaults": {
+                      "additionalProperties": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "type": "object"
+                    },
+                    "effective": {
+                      "additionalProperties": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "type": "object"
+                    },
                     "scope": {
                       "enum": [
                         "global"
@@ -150247,6 +150292,8 @@
                   "required": [
                     "available_scopes",
                     "config",
+                    "defaults",
+                    "effective",
                     "scope",
                     "section"
                   ],
@@ -150463,7 +150510,10 @@
                       },
                       "shortcuts": {
                         "additionalProperties": {
-                          "type": "string"
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
                         },
                         "type": "object"
                       },
@@ -309027,7 +309077,10 @@
                         },
                         "shortcuts": {
                           "additionalProperties": {
-                            "type": "string"
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
                           },
                           "type": "object"
                         },
@@ -311221,7 +311274,10 @@
                             },
                             "shortcuts": {
                               "additionalProperties": {
-                                "type": "string"
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
                               },
                               "type": "object"
                             },
@@ -312238,7 +312294,10 @@
                         },
                         "shortcuts": {
                           "additionalProperties": {
-                            "type": "string"
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
                           },
                           "type": "object"
                         },
@@ -313071,7 +313130,10 @@
                           },
                           "shortcuts": {
                             "additionalProperties": {
-                              "type": "string"
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
                             },
                             "type": "object"
                           },
@@ -313839,7 +313901,10 @@
                             },
                             "shortcuts": {
                               "additionalProperties": {
-                                "type": "string"
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
                               },
                               "type": "object"
                             },
@@ -317287,7 +317352,10 @@
                           },
                           "shortcuts": {
                             "additionalProperties": {
-                              "type": "string"
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
                             },
                             "type": "object"
                           },
@@ -318569,7 +318637,10 @@
                             },
                             "shortcuts": {
                               "additionalProperties": {
-                                "type": "string"
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
                               },
                               "type": "object"
                             },
@@ -319665,7 +319736,10 @@
                                 },
                                 "shortcuts": {
                                   "additionalProperties": {
-                                    "type": "string"
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
                                   },
                                   "type": "object"
                                 },

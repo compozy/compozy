@@ -30,6 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -1331,7 +1332,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Bindings: compozyconfig.WindowManagerBindingConfig{
 						TopCenter: "none", BottomCenter: "zoom",
 					},
-					Shortcuts: map[string]string{"desktop.switch.next": "Meta+ArrowRight"},
+					Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 				},
 			},
 		},
@@ -1470,10 +1471,22 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					TopCenter:    contract.SettingsWindowBindingActionNone,
 					BottomCenter: contract.SettingsWindowBindingActionZoom,
 				},
-				Shortcuts: map[string]string{"desktop.switch.next": "Meta+ArrowRight"},
+				Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 			}
 			if !reflect.DeepEqual(payload.Config, want) {
 				t.Fatalf("window-manager response config = %#v, want complete conversion", payload.Config)
+			}
+			if !reflect.DeepEqual(
+				payload.Defaults["palette.open"],
+				windowmanager.ShortcutBinding{"meta+KeyK", "meta+shift+KeyP"},
+			) {
+				t.Fatalf("window-manager defaults = %#v, want daemon keymap", payload.Defaults)
+			}
+			if !reflect.DeepEqual(
+				payload.Effective["desktop.switch.next"],
+				windowmanager.ShortcutBinding{"meta+ArrowRight"},
+			) {
+				t.Fatalf("window-manager effective keymap = %#v, want canonical override", payload.Effective)
 			}
 		})
 	}
@@ -1842,6 +1855,34 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 			t.Fatalf("payload.Error = %q, want binding validation path", payload.Error)
 		}
 	})
+
+	t.Run("Should reject window-manager effective shortcut conflicts [IT-015 PATCH]", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		config := validSettingsWindowManagerConfigPayload()
+		config.Shortcuts["window.focus.left"] = windowmanager.ShortcutBinding{"meta+KeyW"}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/window-manager",
+			mustJSON(t, contract.UpdateSettingsWindowManagerRequest{Config: config}),
+		)
+		if got, want := resp.Code, http.StatusBadRequest; got != want {
+			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		if service.UpdateSectionCalls != 0 {
+			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+		}
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, "conflicts between") {
+			t.Fatalf("payload.Error = %q, want shortcut conflict", payload.Error)
+		}
+	})
 }
 
 func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
@@ -2062,7 +2103,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					req.WindowManager.NavStackLimit != 66 ||
 					req.WindowManager.ClosedEntryLimit != 18 ||
 					!reflect.DeepEqual(req.WindowManager.Snap.RepeatRatios, []float64{0.4, 0.7, 0.3}) ||
-					req.WindowManager.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
+					!reflect.DeepEqual(req.WindowManager.Shortcuts["desktop.switch.next"], windowmanager.ShortcutBinding{"Meta+ArrowRight"}) {
 					t.Fatalf("req.WindowManager = %#v, want complete window-manager config", req.WindowManager)
 				}
 			},
@@ -2187,9 +2228,9 @@ func validSettingsWindowManagerConfigPayload() contract.SettingsWindowManagerCon
 			TopCenter:    contract.SettingsWindowBindingActionNone,
 			BottomCenter: contract.SettingsWindowBindingActionZoom,
 		},
-		Shortcuts: map[string]string{
-			"desktop.switch.next": "Meta+ArrowRight",
-			"window.focus.left":   "Alt+ArrowLeft",
+		Shortcuts: map[string]windowmanager.ShortcutBinding{
+			"desktop.switch.next": {"Meta+ArrowRight"},
+			"window.focus.left":   {"Alt+ArrowLeft"},
 		},
 	}
 }
@@ -2892,7 +2933,7 @@ func TestSettingsCollectionMutationHandlersRejectInvalidPayloads(t *testing.T) {
 func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should serialize empty window-manager shortcuts as an object", func(t *testing.T) {
+	t.Run("Should serve daemon keymaps with empty window-manager overrides [IT-015 GET]", func(t *testing.T) {
 		t.Parallel()
 
 		config := compozyconfig.DefaultWindowManagerConfig()
@@ -2935,6 +2976,10 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		}
 		if got := len(payload.Config.Shortcuts); got != 0 {
 			t.Fatalf("len(config.shortcuts) = %d, want 0", got)
+		}
+		if payload.Defaults == nil || payload.Effective == nil ||
+			!reflect.DeepEqual(payload.Defaults, payload.Effective) {
+			t.Fatalf("defaults/effective = %#v/%#v, want equal daemon keymaps", payload.Defaults, payload.Effective)
 		}
 	})
 

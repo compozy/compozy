@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/transcript"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -960,7 +961,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					request.WindowManager.HistoryLimit != 77 ||
 					request.WindowManager.NavStackLimit != 66 ||
 					request.WindowManager.ClosedEntryLimit != 18 ||
-					request.WindowManager.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
+					!slices.Equal(request.WindowManager.Shortcuts["desktop.switch.next"], windowmanager.ShortcutBinding{"Meta+ArrowRight"}) {
 					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed window-manager config", request)
 				}
 			},
@@ -1153,7 +1154,7 @@ func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfig
 			TopCenter:    contract.SettingsWindowBindingActionNone,
 			BottomCenter: contract.SettingsWindowBindingActionZoom,
 		},
-		Shortcuts: map[string]string{"desktop.switch.next": "Meta+ArrowRight"},
+		Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 	}
 }
 

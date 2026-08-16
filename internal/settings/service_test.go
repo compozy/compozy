@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/vault"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -5626,9 +5627,9 @@ func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 			TopCenter:    "none",
 			BottomCenter: "zoom",
 		},
-		Shortcuts: map[string]string{
-			"desktop.switch.next": "Meta+ArrowRight",
-			"window.focus.left":   "Alt+ArrowLeft",
+		Shortcuts: map[string]windowmanager.ShortcutBinding{
+			"desktop.switch.next": {"Meta+ArrowRight"},
+			"window.focus.left":   {"Alt+ArrowLeft"},
 		},
 	}
 }

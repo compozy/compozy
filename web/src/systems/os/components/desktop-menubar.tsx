@@ -190,6 +190,7 @@ export function DesktopMenubar({
       notifications={attention.notificationCount}
       onCommandClick={onOpenPalette}
       onSettingsClick={actions.openSettings}
+      commandShortcutLabel={actions.windowCommands.shortcutLabels["palette.open"]}
       logoMenu={trigger => (
         <CompozyMenu
           trigger={trigger}
@@ -240,6 +241,7 @@ export function DesktopMenubar({
               onNewSession={onNewSession}
               onNewAgent={actions.newAgent}
               onOpenSessions={onToggleSessions}
+              newSessionShortcutLabel={actions.windowCommands.shortcutLabels["session.new"]}
             />
             <GoMenu
               {...overlay("go-menu")}
@@ -247,6 +249,7 @@ export function DesktopMenubar({
               onOpenPalette={onOpenPalette}
               onOpenApp={actions.openApp}
               onOpenWorkspaces={onOpenWorkspaces}
+              paletteShortcutLabel={actions.windowCommands.shortcutLabels["palette.open"]}
             />
             <WindowMenu
               {...overlay("window-menu")}

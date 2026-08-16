@@ -8,7 +8,7 @@ import { OsCommandPaletteWindowActions } from "./os-command-palette-window-actio
 export interface OsCommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opens the daemon-backed Desktops overview (⇧⌘S parity). */
+  /** Opens the daemon-backed Desktops overview. */
   onOpenDesktops?: () => void;
   /** Toggles the global Sessions catalog modal. */
   onToggleSessions?: () => void;

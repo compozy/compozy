@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type windowManagerMutationSpec struct {
@@ -164,14 +165,28 @@ var windowManagerMutationSpecs = map[string]windowManagerMutationSpec{
 }
 
 var windowManagerShortcutMutationSpec = windowManagerMutationSpec{
-	kind: configSetString,
+	kind: configSetStringOrStringSlice,
 	apply: func(cfg *compozyconfig.WindowManagerConfig, path []string, value any) error {
-		shortcut, err := requireWindowManagerValue[string](path, value, "string")
-		if err != nil {
-			return err
+		var shortcut windowmanager.ShortcutBinding
+		switch typed := value.(type) {
+		case string:
+			shortcut = windowmanager.ShortcutBinding{typed}
+		case []string:
+			shortcut = append(windowmanager.ShortcutBinding(nil), typed...)
+		case []any:
+			shortcut = make(windowmanager.ShortcutBinding, len(typed))
+			for index, member := range typed {
+				chord, ok := member.(string)
+				if !ok {
+					return unexpectedWindowManagerConfigValue(path, value, "string or string array")
+				}
+				shortcut[index] = chord
+			}
+		default:
+			return unexpectedWindowManagerConfigValue(path, value, "string or string array")
 		}
 		if cfg.Shortcuts == nil {
-			cfg.Shortcuts = make(map[string]string)
+			cfg.Shortcuts = make(map[string]windowmanager.ShortcutBinding)
 		}
 		cfg.Shortcuts[path[2]] = shortcut
 		return nil

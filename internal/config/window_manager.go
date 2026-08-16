@@ -53,23 +53,23 @@ func windowDragModifiers() []string {
 
 // WindowManagerConfig controls window topology behavior and browser projection defaults.
 type WindowManagerConfig struct {
-	NewWindowPolicy     string                     `toml:"new_window_policy"`
-	SmallViewportPolicy string                     `toml:"small_viewport_policy"`
-	FocusPolicy         string                     `toml:"focus_policy"`
-	FocusWrap           bool                       `toml:"focus_wrap"`
-	FocusFollowsPointer bool                       `toml:"focus_follows_pointer"`
-	RaiseOnFocus        bool                       `toml:"raise_on_focus"`
-	DragAwayPolicy      string                     `toml:"drag_away_policy"`
-	GroupMoveModifier   string                     `toml:"group_move_modifier"`
-	SwapModifier        string                     `toml:"swap_modifier"`
-	HistoryLimit        int                        `toml:"history_limit"`
-	NavStackLimit       int                        `toml:"nav_stack_limit"`
-	ClosedEntryLimit    int                        `toml:"closed_entry_limit"`
-	DesktopTransition   string                     `toml:"desktop_transition"`
-	Gaps                WindowManagerGapsConfig    `toml:"gaps"`
-	Snap                WindowManagerSnapConfig    `toml:"snap"`
-	Bindings            WindowManagerBindingConfig `toml:"bindings"`
-	Shortcuts           map[string]string          `toml:"shortcuts,omitempty"`
+	NewWindowPolicy     string                                   `toml:"new_window_policy"`
+	SmallViewportPolicy string                                   `toml:"small_viewport_policy"`
+	FocusPolicy         string                                   `toml:"focus_policy"`
+	FocusWrap           bool                                     `toml:"focus_wrap"`
+	FocusFollowsPointer bool                                     `toml:"focus_follows_pointer"`
+	RaiseOnFocus        bool                                     `toml:"raise_on_focus"`
+	DragAwayPolicy      string                                   `toml:"drag_away_policy"`
+	GroupMoveModifier   string                                   `toml:"group_move_modifier"`
+	SwapModifier        string                                   `toml:"swap_modifier"`
+	HistoryLimit        int                                      `toml:"history_limit"`
+	NavStackLimit       int                                      `toml:"nav_stack_limit"`
+	ClosedEntryLimit    int                                      `toml:"closed_entry_limit"`
+	DesktopTransition   string                                   `toml:"desktop_transition"`
+	Gaps                WindowManagerGapsConfig                  `toml:"gaps"`
+	Snap                WindowManagerSnapConfig                  `toml:"snap"`
+	Bindings            WindowManagerBindingConfig               `toml:"bindings"`
+	Shortcuts           map[string]windowmanager.ShortcutBinding `toml:"shortcuts,omitempty"`
 }
 
 // WindowManagerGapsConfig controls the shared inner gap and work-area insets.
@@ -122,7 +122,7 @@ func DefaultWindowManagerConfig() WindowManagerConfig {
 		Bindings: WindowManagerBindingConfig{
 			TopCenter: WindowBindingZoom, BottomCenter: WindowBindingReserved,
 		},
-		Shortcuts: map[string]string{},
+		Shortcuts: map[string]windowmanager.ShortcutBinding{},
 	}
 }
 
@@ -297,8 +297,8 @@ func validateWindowManagerEnum(path string, value string, allowed ...string) err
 	return ValidationError{Path: path, Message: "must be one of " + strings.Join(allowed, ", ")}
 }
 
-func validateWindowManagerShortcuts(shortcuts map[string]string) error {
-	if _, err := windowmanager.CanonicalShortcuts(shortcuts); err != nil {
+func validateWindowManagerShortcuts(shortcuts map[string]windowmanager.ShortcutBinding) error {
+	if _, err := windowmanager.CanonicalShortcutsV2(shortcuts); err != nil {
 		return ValidationError{Path: "window_manager.shortcuts", Message: err.Error()}
 	}
 	return nil

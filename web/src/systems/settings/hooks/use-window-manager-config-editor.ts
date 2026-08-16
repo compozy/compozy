@@ -6,7 +6,12 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { updateWindowManagerSettings } from "../adapters/window-manager-layouts-api";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
-import { findShortcutConflicts, type WindowManagerConfig, windowManagerKeys } from "@/systems/os";
+import {
+  findShortcutConflicts,
+  type WindowManagerConfig,
+  type WindowManagerShortcutMap,
+  windowManagerKeys,
+} from "@/systems/os";
 
 export type WindowManagerConfigEditorPhase =
   | "baseline"
@@ -211,8 +216,8 @@ function collectProblems(config: WindowManagerConfig): WindowManagerConfigProble
       message: `Layout history runs from ${ranges.historyLimit.min} to ${ranges.historyLimit.max} steps.`,
     });
   }
-  const blocking = findShortcutConflicts(config.shortcuts).filter(
-    conflict => conflict.kind === "override"
+  const blocking = findShortcutConflicts(config.shortcuts, config.shortcutDefaults).filter(
+    conflict => conflict.kind === "blocked"
   );
   if (blocking.length > 0) {
     problems.push({
@@ -248,8 +253,8 @@ export function useWindowManagerConfigEditor(baseline: WindowManagerConfig) {
       await updateWindowManagerSettings(next);
       return next;
     },
-    onSuccess: next => {
-      queryClient.setQueryData(windowManagerKeys.config(), next);
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: windowManagerKeys.config(), exact: true });
     },
   });
   const dirty = configRevision(context.draft) !== context.baselineRevision;
@@ -276,7 +281,7 @@ export function useWindowManagerConfigEditor(baseline: WindowManagerConfig) {
         },
       }),
     setDraft,
-    setShortcuts: (shortcuts: Record<string, string>) =>
+    setShortcuts: (shortcuts: WindowManagerShortcutMap) =>
       setDraft(current => ({ ...current, shortcuts })),
   };
 }

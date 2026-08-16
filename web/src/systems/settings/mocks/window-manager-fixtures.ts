@@ -63,8 +63,10 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
       repeat_ratios: [0.5, 0.666667, 0.333333],
     },
     bindings: { top_center: "zoom", bottom_center: "reserved" },
-    shortcuts: { "window.focus.left": "meta+alt+ArrowLeft" },
+    shortcuts: { "window.focus.left": ["meta+alt+ArrowLeft"] },
   },
+  defaults: { "window.focus.left": ["control+ArrowLeft"] },
+  effective: { "window.focus.left": ["meta+alt+ArrowLeft"] },
 };
 
 export const settingsWindowManagerDesktopIds = {

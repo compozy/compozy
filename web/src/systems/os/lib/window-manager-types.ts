@@ -154,6 +154,9 @@ export interface WindowManagerBindingsConfig {
   bottomCenter: WindowManagerEdgeCenterBinding;
 }
 
+export type WindowManagerShortcutBinding = readonly string[];
+export type WindowManagerShortcutMap = Readonly<Record<string, WindowManagerShortcutBinding>>;
+
 export interface WindowManagerWorkspaceConfig {
   newWindowPolicy?: "floating" | "beside_focus";
   smallViewportPolicy?: WindowManagerSmallViewportPolicy;
@@ -171,7 +174,7 @@ export interface WindowManagerWorkspaceConfig {
   gaps?: WindowManagerGapsConfig;
   snap?: WindowManagerSnapConfig;
   bindings?: WindowManagerBindingsConfig;
-  shortcuts?: Readonly<Record<string, string>>;
+  shortcuts?: WindowManagerShortcutMap;
 }
 
 /** Effective global config before workspace-scoped overrides are applied. */
@@ -192,7 +195,12 @@ export interface WindowManagerConfig {
   gaps: WindowManagerGapsConfig;
   snap: WindowManagerSnapConfig;
   bindings: WindowManagerBindingsConfig;
-  shortcuts: Readonly<Record<string, string>>;
+  /** Stored operator overrides. Empty bindings disable an action. */
+  shortcuts: WindowManagerShortcutMap;
+  /** Daemon-owned defaults, served with the settings contract. */
+  shortcutDefaults: WindowManagerShortcutMap;
+  /** Full, validated defaults + overrides map used by the live shell. */
+  effectiveShortcuts: WindowManagerShortcutMap;
 }
 
 export interface WindowManagerActor {

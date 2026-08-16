@@ -1,25 +1,25 @@
 package config
 
-import "maps"
+import "github.com/compozy/compozy/internal/windowmanager"
 
 type windowManagerOverlay struct {
-	NewWindowPolicy     *string                     `toml:"new_window_policy"`
-	SmallViewportPolicy *string                     `toml:"small_viewport_policy"`
-	FocusPolicy         *string                     `toml:"focus_policy"`
-	FocusWrap           *bool                       `toml:"focus_wrap"`
-	FocusFollowsPointer *bool                       `toml:"focus_follows_pointer"`
-	RaiseOnFocus        *bool                       `toml:"raise_on_focus"`
-	DragAwayPolicy      *string                     `toml:"drag_away_policy"`
-	GroupMoveModifier   *string                     `toml:"group_move_modifier"`
-	SwapModifier        *string                     `toml:"swap_modifier"`
-	HistoryLimit        *int                        `toml:"history_limit"`
-	NavStackLimit       *int                        `toml:"nav_stack_limit"`
-	ClosedEntryLimit    *int                        `toml:"closed_entry_limit"`
-	DesktopTransition   *string                     `toml:"desktop_transition"`
-	Gaps                windowManagerGapsOverlay    `toml:"gaps"`
-	Snap                windowManagerSnapOverlay    `toml:"snap"`
-	Bindings            windowManagerBindingOverlay `toml:"bindings"`
-	Shortcuts           map[string]string           `toml:"shortcuts,omitempty"`
+	NewWindowPolicy     *string                                  `toml:"new_window_policy"`
+	SmallViewportPolicy *string                                  `toml:"small_viewport_policy"`
+	FocusPolicy         *string                                  `toml:"focus_policy"`
+	FocusWrap           *bool                                    `toml:"focus_wrap"`
+	FocusFollowsPointer *bool                                    `toml:"focus_follows_pointer"`
+	RaiseOnFocus        *bool                                    `toml:"raise_on_focus"`
+	DragAwayPolicy      *string                                  `toml:"drag_away_policy"`
+	GroupMoveModifier   *string                                  `toml:"group_move_modifier"`
+	SwapModifier        *string                                  `toml:"swap_modifier"`
+	HistoryLimit        *int                                     `toml:"history_limit"`
+	NavStackLimit       *int                                     `toml:"nav_stack_limit"`
+	ClosedEntryLimit    *int                                     `toml:"closed_entry_limit"`
+	DesktopTransition   *string                                  `toml:"desktop_transition"`
+	Gaps                windowManagerGapsOverlay                 `toml:"gaps"`
+	Snap                windowManagerSnapOverlay                 `toml:"snap"`
+	Bindings            windowManagerBindingOverlay              `toml:"bindings"`
+	Shortcuts           map[string]windowmanager.ShortcutBinding `toml:"shortcuts,omitempty"`
 }
 
 type windowManagerGapsOverlay struct {
@@ -60,7 +60,7 @@ func (o windowManagerOverlay) Apply(dst *WindowManagerConfig) {
 	o.Snap.Apply(&dst.Snap)
 	o.Bindings.Apply(&dst.Bindings)
 	if o.Shortcuts != nil {
-		dst.Shortcuts = maps.Clone(o.Shortcuts)
+		dst.Shortcuts = windowmanager.CloneShortcutMap(o.Shortcuts)
 	}
 }
 

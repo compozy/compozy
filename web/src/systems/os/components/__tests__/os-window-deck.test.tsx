@@ -12,6 +12,7 @@ import { useDesktop } from "../../hooks/use-desktop";
 import { useOsWindowDeck, type OsWindowDeckModel } from "../../hooks/use-os-window-deck";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
+import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 import { OsWindowDeck } from "../os-window-deck";
 import type { SessionPayload } from "@/systems/session";
 
@@ -143,6 +144,10 @@ function renderDeck(
         slotStores={slotStores}
         onTrafficLight={vi.fn()}
         dragHandleClassName="deck-drag-handle"
+        shortcutLabels={{
+          close: shortcutLabel("meta+KeyW"),
+          newTab: shortcutLabel("meta+KeyT"),
+        }}
       />
     </TooltipProvider>
   );

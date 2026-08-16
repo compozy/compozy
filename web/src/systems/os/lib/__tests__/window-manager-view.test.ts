@@ -100,6 +100,8 @@ const CONFIG: WindowManagerConfig = {
   },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  shortcutDefaults: {},
+  effectiveShortcuts: {},
 };
 
 describe("window-manager view", () => {

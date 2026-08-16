@@ -76,6 +76,15 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 				raw,
 			)
 		}
+	case configSetStringOrStringSlice:
+		if strings.HasPrefix(trimmed, "[") {
+			var values []string
+			if err := json.Unmarshal([]byte(trimmed), &values); err != nil {
+				return nil, fmt.Errorf("cli: parse string-or-array value %q: %w", raw, err)
+			}
+			return values, nil
+		}
+		return raw, nil
 	default:
 		return nil, fmt.Errorf("cli: unsupported config value kind %d", kind)
 	}

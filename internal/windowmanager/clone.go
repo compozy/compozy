@@ -202,13 +202,13 @@ func cloneWorkspaceConfig(config WorkspaceConfig) WorkspaceConfig {
 		config.Snap = &cloned
 	}
 	config.Bindings = clonePointer(config.Bindings)
-	config.Shortcuts = cloneStringMap(config.Shortcuts)
+	config.Shortcuts = CloneShortcutMap(config.Shortcuts)
 	return config
 }
 
 func cloneConfig(config Config) Config {
 	config.Snap = cloneSnapConfig(config.Snap)
-	config.Shortcuts = cloneStringMap(config.Shortcuts)
+	config.Shortcuts = CloneShortcutMap(config.Shortcuts)
 	return config
 }
 

@@ -33,7 +33,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                   | toasts and sound on, system notifications off, no muted workspaces                                    |
-| `[shell.sessions]`                   | Live operator preferences for the session list.                                      | last-activity order, recent sessions                                                                   |
+| `[shell.sessions]`                   | Live operator preferences for the session list.                                      | last-activity order, recent sessions                                                                  |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
@@ -927,11 +927,11 @@ Attention settings are global and live-applied as one validated candidate. Opera
 Settings attention controls; agents can use `compozy config get|set attention.<key>` or the typed
 `GET/PATCH /api/settings/attention` surface. The title count is always on and has no config key.
 
-| Field              | Type         | Default | Validation                              | Description                                                                 |
-| ------------------ | ------------ | ------- | --------------------------------------- | --------------------------------------------------------------------------- |
-| `toasts`           | boolean      | `true`  | `true` or `false`                       | Allows in-app notification toasts.                                          |
-| `sound`            | boolean      | `true`  | `true` or `false`                       | Allows the built-in notification sound.                                     |
-| `system`           | boolean      | `false` | `true` or `false`                       | Allows supported clients to use system notifications while not in view.     |
+| Field              | Type         | Default | Validation                              | Description                                                                |
+| ------------------ | ------------ | ------- | --------------------------------------- | -------------------------------------------------------------------------- |
+| `toasts`           | boolean      | `true`  | `true` or `false`                       | Allows in-app notification toasts.                                         |
+| `sound`            | boolean      | `true`  | `true` or `false`                       | Allows the built-in notification sound.                                    |
+| `system`           | boolean      | `false` | `true` or `false`                       | Allows supported clients to use system notifications while not in view.    |
 | `muted_workspaces` | string array | `[]`    | Unique canonical workspace IDs (ULIDs). | Suppresses delivery for listed workspaces without hiding rows or counters. |
 
 All four fields have the `live` lifecycle. Removing a workspace also removes its ID from
@@ -943,10 +943,10 @@ Shell session preferences are global and live-applied as one validated candidate
 updates them through the typed Settings API; operators and agents can also use
 `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
 
-| Field   | Type   | Default         | Valid values                          | Description                                              |
-| ------- | ------ | --------------- | ------------------------------------- | -------------------------------------------------------- |
-| `sort`  | string | `last_activity` | `last_activity`, `attention`          | Orders sessions by recent activity or attention urgency. |
-| `scope` | string | `recent`        | `recent`, `all`, `all-workspaces`     | Chooses the breadth of sessions shown in the shell.       |
+| Field   | Type   | Default         | Valid values                      | Description                                              |
+| ------- | ------ | --------------- | --------------------------------- | -------------------------------------------------------- |
+| `sort`  | string | `last_activity` | `last_activity`, `attention`      | Orders sessions by recent activity or attention urgency. |
+| `scope` | string | `recent`        | `recent`, `all`, `all-workspaces` | Chooses the breadth of sessions shown in the shell.      |
 
 Both fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
 preference survives browser restarts without browser-local storage. Workspace overlays and
@@ -999,10 +999,13 @@ Clients apply them to the measured work area; normalized durable geometry never 
 `top_center` and `bottom_center` accept `zoom`, `reserved`, or `none`. `reserved` blocks that
 edge-center snap; the default `bottom_center = "reserved"` keeps the approach strip above the Dock
 clear (the Dock band itself is already excluded from the measured work area). A target-less `stack`
-action is invalid because stacking requires an occupied target window. `[window_manager.shortcuts]` maps
-window command-registry IDs to unique, non-empty chord strings; conflicting chords reject the whole
-candidate. Named any/landscape/portrait layout profiles are declarative `window_layout` resources,
-not a second config source.
+action is invalid because stacking requires an occupied target window. `[window_manager.shortcuts]`
+maps action IDs to a chord string or an array of chords. An empty string or array disables an action.
+`desktop.switch` accepts ranges through `Digit1..9`; `window.tab.jump` accepts `Digit1..8`. Range
+members expand before full-map validation, and any duplicate rejects the whole candidate. See
+[Keyboard shortcuts](/docs/configuration/shortcuts/) for defaults, examples, and the Terminal preset.
+Named any/landscape/portrait layout profiles are declarative `window_layout` resources, not a second
+config source.
 
 ## `[defaults]`
 

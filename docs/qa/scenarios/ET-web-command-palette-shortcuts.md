@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘/Ctrl+K opens one global palette over any desktop or composer and filters real apps, sessions, workspaces, and actions; Enter performs the selected action; ⌘/Ctrl+J remains scoped to the session runtime picker; ⌘/Ctrl+N, ⇧⌘/Ctrl+S, ⌘/Ctrl+W, ⌘/Ctrl+M, ⇧⌘/Ctrl+G (Global scope), and Escape perform the documented shell actions with one-layer overlay unwinding. The palette lists "Turn on Global scope" / "Turn off Global scope" and "Switch to {name}" notes that switching a project turns Global off. Workspace rows never include `$HOME`.
 entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -25,3 +25,7 @@ qa-impact: OS Shell Task 04 moved ⌘/Ctrl+K ownership to the global palette, re
 2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
 
 2026-08-13 re-walk: the live palette exposed "Turn off Global scope" and "Switch to tmp turns Global scope off"; executing the workspace action closed the overlay, restored `tmp`, and refresh preserved the destination.
+
+2026-08-16 qa-impact: Command palette and New session moved into the daemon-owned registry while
+remaining available inside inputs; new keyboard navigation actions share that registry. Reset for
+the Herdr parity QA tail.

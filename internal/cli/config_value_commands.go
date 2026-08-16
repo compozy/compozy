@@ -171,6 +171,15 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			path := strings.TrimSpace(args[0])
+			if path == configWindowManagerKey {
+				discovery, discoveryErr := windowManagerConfigDiscovery(cfg.WindowManager)
+				if discoveryErr != nil {
+					return discoveryErr
+				}
+				return writeCommandOutput(cmd, configValueBundle(configValueRecord{
+					Path: path, Value: discovery, Redacted: false,
+				}))
+			}
 			for _, entry := range flattenConfigEntries(redactedConfigMap(&cfg)) {
 				if entry.Path == path {
 					return writeCommandOutput(cmd, configValueBundle(configValueRecord(entry)))

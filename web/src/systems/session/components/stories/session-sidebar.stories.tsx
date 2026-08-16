@@ -33,6 +33,7 @@ function sidebarSession(
             root_session_id: parentId,
             spawn_depth: 1,
             auto_stop_on_parent: false,
+            notify_creator: true,
             spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
             permission_policy: {
               tools: [],

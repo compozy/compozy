@@ -1,4 +1,8 @@
 export { DesktopShell } from "./components/desktop-shell";
+export {
+  ShortcutBindingKeys,
+  type ShortcutBindingKeysProps,
+} from "./components/shortcut-binding-keys";
 export { createOsRouteSync } from "./components/os-route-sync";
 export { OsWindowSurface, type OsWindowSurfaceProps } from "./components/os-window-frame";
 export { OsRouteNotFound } from "./components/os-route-not-found";
@@ -34,6 +38,8 @@ export type {
   WindowManagerClientView,
   WindowManagerConfig,
   WindowManagerDragModifier,
+  WindowManagerShortcutBinding,
+  WindowManagerShortcutMap,
   WindowManagerSnapshot,
 } from "./lib/window-manager-types";
 
@@ -72,18 +78,29 @@ export {
   isWindowManagerActionId,
   type WindowManagerActionDefinition,
   type WindowManagerActionId,
+  type WindowManagerActionSection,
   type WindowPlacementId,
 } from "./lib/window-manager-command-registry";
 export {
   chordFromKeyboardEvent,
+  deriveShortcutCheatsheet,
+  effectiveShortcutMap,
+  expandShortcutOverrides,
   findShortcutConflicts,
+  isShortcutOverrideActionId,
   parseShortcutChord,
   resolveWindowManagerActions,
+  shortcutActionLabel,
+  shortcutBindingProblem,
+  shortcutKeyGlyphs,
   shortcutLabel,
   type ParsedShortcutChord,
   type ResolvedWindowManagerAction,
+  type ShortcutBinding,
+  type ShortcutCheatsheetRow,
   type ShortcutConflict,
   type ShortcutConflictKind,
+  type ShortcutMap,
 } from "./lib/window-manager-shortcuts";
 
 // Attention: the system notification channel's truthful platform state, read by

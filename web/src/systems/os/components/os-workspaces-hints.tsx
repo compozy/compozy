@@ -10,14 +10,21 @@ export interface OsWorkspacesHintsProps {
   hasMenuRows: boolean;
   /** Empty state renders only the hints that still apply. */
   empty: boolean;
+  pickerShortcutLabel: string | null;
+  globalScopeShortcutLabel: string | null;
 }
 
 /**
- * Bottom-pinned shortcut hints. Every hint's shortcut is real: ⇧⌘W is the
- * registered overlay toggle and ⇧⌘G is the shell's global-scope chord
- * (use-os-shortcuts). Hidden on compact (<960px) chrome.
+ * Bottom-pinned shortcut hints. Every configurable hint comes from the live
+ * effective keymap. Hidden on compact (<960px) chrome.
  */
-export function OsWorkspacesHints({ layer, hasMenuRows, empty }: OsWorkspacesHintsProps) {
+export function OsWorkspacesHints({
+  layer,
+  hasMenuRows,
+  empty,
+  pickerShortcutLabel,
+  globalScopeShortcutLabel,
+}: OsWorkspacesHintsProps) {
   return (
     <p
       data-slot="os-workspaces-hints"
@@ -61,12 +68,16 @@ export function OsWorkspacesHints({ layer, hasMenuRows, empty }: OsWorkspacesHin
           <Hint>
             <Kbd>esc</Kbd> close
           </Hint>
-          <Hint>
-            <Kbd>⇧⌘W</Kbd> open
-          </Hint>
-          <Hint>
-            <Kbd>⇧⌘G</Kbd> global
-          </Hint>
+          {pickerShortcutLabel ? (
+            <Hint>
+              <Kbd>{pickerShortcutLabel}</Kbd> open
+            </Hint>
+          ) : null}
+          {globalScopeShortcutLabel ? (
+            <Hint>
+              <Kbd>{globalScopeShortcutLabel}</Kbd> global
+            </Hint>
+          ) : null}
         </>
       )}
     </p>

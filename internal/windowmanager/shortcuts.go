@@ -3,6 +3,7 @@ package windowmanager
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +13,16 @@ const (
 	shortcutWindowTabReopenAction = "window.tab.reopen"
 )
 
+type shortcutRangeFamily struct {
+	action string
+	max    int
+}
+
+var shortcutRangeFamilies = []shortcutRangeFamily{
+	{action: "desktop.switch", max: 9},
+	{action: "window.tab.jump", max: 8},
+}
+
 var shortcutModifierOrder = []string{
 	dragModifierMeta,
 	dragModifierControl,
@@ -19,40 +30,222 @@ var shortcutModifierOrder = []string{
 	dragModifierShift,
 }
 
-// CanonicalShortcuts validates action IDs and returns canonical, conflict-free chords.
-func CanonicalShortcuts(shortcuts map[string]string) (map[string]string, error) {
-	if shortcuts == nil {
-		return nil, nil
+// CanonicalShortcutsV2 validates overrides, expands range families, and rejects
+// collisions against both other overrides and daemon-owned defaults.
+func CanonicalShortcutsV2(
+	overrides map[string]ShortcutBinding,
+) (map[string]ShortcutBinding, error) {
+	canonical, touchedFamilies, err := canonicalShortcutOverrides(overrides)
+	if err != nil {
+		return nil, err
 	}
+	if _, err := effectiveKeymap(canonical, touchedFamilies); err != nil {
+		return nil, err
+	}
+	return canonical, nil
+}
+
+// EffectiveKeymap merges override-wins bindings into daemon defaults and validates the whole map.
+func EffectiveKeymap(
+	overrides map[string]ShortcutBinding,
+) (map[string]ShortcutBinding, error) {
+	canonical, touchedFamilies, err := canonicalShortcutOverrides(overrides)
+	if err != nil {
+		return nil, err
+	}
+	return effectiveKeymap(canonical, touchedFamilies)
+}
+
+func canonicalShortcutOverrides(
+	overrides map[string]ShortcutBinding,
+) (map[string]ShortcutBinding, map[string]struct{}, error) {
+	if overrides == nil {
+		return nil, nil, nil
+	}
+	actions := make([]string, 0, len(overrides))
+	for action := range overrides {
+		actions = append(actions, action)
+	}
+	sort.Strings(actions)
+
+	canonical := make(map[string]ShortcutBinding, len(overrides))
+	touchedFamilies := make(map[string]struct{})
+	for _, action := range actions {
+		family, isFamily := shortcutFamily(action)
+		if isFamily && action == family.action {
+			touchedFamilies[family.action] = struct{}{}
+			if err := canonicalShortcutRangeBinding(canonical, family, overrides[action]); err != nil {
+				return nil, nil, fmt.Errorf("shortcut %q: %w", action, err)
+			}
+			continue
+		}
+		if !validShortcutAction(action) {
+			return nil, nil, fmt.Errorf("shortcut action %q is unsupported: %w", action, ErrInvalidCommand)
+		}
+		binding, err := canonicalShortcutBinding(action, overrides[action])
+		if err != nil {
+			return nil, nil, fmt.Errorf("shortcut %q: %w", action, err)
+		}
+		canonical[action] = binding
+	}
+	if err := validateShortcutConflicts(canonical); err != nil {
+		return nil, nil, err
+	}
+	return canonical, touchedFamilies, nil
+}
+
+func canonicalShortcutBinding(action string, binding ShortcutBinding) (ShortcutBinding, error) {
+	if len(binding) == 0 || (len(binding) == 1 && strings.TrimSpace(binding[0]) == "") {
+		return ShortcutBinding{}, nil
+	}
+	canonical := make(ShortcutBinding, 0, len(binding))
+	seen := make(map[string]struct{}, len(binding))
+	for index, raw := range binding {
+		if strings.TrimSpace(raw) == "" {
+			return nil, fmt.Errorf(
+				"binding member %d is empty; use an empty string or array to disable the action: %w",
+				index,
+				ErrInvalidCommand,
+			)
+		}
+		if _, _, _, ok := parseShortcutRange(raw); ok {
+			return nil, fmt.Errorf(
+				"range binding is valid only for desktop.switch and window.tab.jump: %w",
+				ErrInvalidCommand,
+			)
+		}
+		chord, err := canonicalShortcutChord(raw)
+		if err != nil {
+			return nil, err
+		}
+		if _, duplicate := seen[chord]; duplicate {
+			return nil, fmt.Errorf("action %q repeats chord %q: %w", action, chord, ErrInvalidCommand)
+		}
+		seen[chord] = struct{}{}
+		canonical = append(canonical, chord)
+	}
+	return canonical, nil
+}
+
+func canonicalShortcutRangeBinding(
+	output map[string]ShortcutBinding,
+	family shortcutRangeFamily,
+	binding ShortcutBinding,
+) error {
+	if len(binding) == 0 || (len(binding) == 1 && strings.TrimSpace(binding[0]) == "") {
+		return nil
+	}
+	start, end := 0, 0
+	for memberIndex, raw := range binding {
+		prefix, memberStart, memberEnd, ok := parseShortcutRange(raw)
+		if !ok {
+			return fmt.Errorf(
+				"range family %q requires bindings such as control+Digit1..%d: %w",
+				family.action,
+				family.max,
+				ErrInvalidCommand,
+			)
+		}
+		if memberStart < 1 || memberEnd > family.max || memberStart > memberEnd {
+			return fmt.Errorf(
+				"range %d..%d is outside %s.1..%d: %w",
+				memberStart,
+				memberEnd,
+				family.action,
+				family.max,
+				ErrInvalidCommand,
+			)
+		}
+		if memberIndex == 0 {
+			start, end = memberStart, memberEnd
+		} else if memberStart != start || memberEnd != end {
+			return fmt.Errorf(
+				"range alternates must cover the same members; got %d..%d and %d..%d: %w",
+				start,
+				end,
+				memberStart,
+				memberEnd,
+				ErrInvalidCommand,
+			)
+		}
+		for digit := memberStart; digit <= memberEnd; digit++ {
+			action := family.action + "." + strconv.Itoa(digit)
+			chord, err := canonicalShortcutChord(prefix + strconv.Itoa(digit))
+			if err != nil {
+				return err
+			}
+			if slicesContain(output[action], chord) {
+				return fmt.Errorf("action %q repeats chord %q: %w", action, chord, ErrInvalidCommand)
+			}
+			output[action] = append(output[action], chord)
+		}
+	}
+	return nil
+}
+
+func parseShortcutRange(value string) (prefix string, start int, end int, ok bool) {
+	trimmed := strings.TrimSpace(value)
+	separator := strings.LastIndex(trimmed, "..")
+	if separator < 0 {
+		return "", 0, 0, false
+	}
+	left, right := trimmed[:separator], trimmed[separator+2:]
+	if len(left) < len("Digit1") || !strings.Contains(left, "Digit") {
+		return "", 0, 0, false
+	}
+	startIndex := len(left) - 1
+	if left[startIndex] < '1' || left[startIndex] > '9' || len(right) != 1 || right[0] < '1' || right[0] > '9' {
+		return "", 0, 0, false
+	}
+	prefix = left[:startIndex]
+	if !strings.HasSuffix(prefix, "Digit") {
+		return "", 0, 0, false
+	}
+	return prefix, int(left[startIndex] - '0'), int(right[0] - '0'), true
+}
+
+func effectiveKeymap(
+	canonical map[string]ShortcutBinding,
+	touchedFamilies map[string]struct{},
+) (map[string]ShortcutBinding, error) {
+	effective := DefaultKeymap()
+	for familyAction := range touchedFamilies {
+		family, _ := shortcutFamily(familyAction)
+		for index := 1; index <= family.max; index++ {
+			delete(effective, family.action+"."+strconv.Itoa(index))
+		}
+	}
+	for action, binding := range canonical {
+		effective[action] = append(ShortcutBinding(nil), binding...)
+	}
+	if err := validateShortcutConflicts(effective); err != nil {
+		return nil, err
+	}
+	return effective, nil
+}
+
+func validateShortcutConflicts(shortcuts map[string]ShortcutBinding) error {
 	actions := make([]string, 0, len(shortcuts))
 	for action := range shortcuts {
 		actions = append(actions, action)
 	}
 	sort.Strings(actions)
-
-	canonical := make(map[string]string, len(shortcuts))
-	owners := make(map[string]string, len(shortcuts))
+	owners := make(map[string]string)
 	for _, action := range actions {
-		if !validShortcutAction(action) {
-			return nil, fmt.Errorf("shortcut action %q is unsupported: %w", action, ErrInvalidCommand)
+		for _, chord := range shortcuts[action] {
+			if owner, exists := owners[chord]; exists {
+				return fmt.Errorf(
+					"shortcut %q conflicts between %q and %q: %w",
+					chord,
+					owner,
+					action,
+					ErrInvalidCommand,
+				)
+			}
+			owners[chord] = action
 		}
-		chord, err := canonicalShortcutChord(shortcuts[action])
-		if err != nil {
-			return nil, fmt.Errorf("shortcut %q: %w", action, err)
-		}
-		if owner, exists := owners[chord]; exists {
-			return nil, fmt.Errorf(
-				"shortcut %q conflicts between %q and %q: %w",
-				chord,
-				owner,
-				action,
-				ErrInvalidCommand,
-			)
-		}
-		owners[chord] = action
-		canonical[action] = chord
 	}
-	return canonical, nil
+	return nil
 }
 
 func canonicalShortcutChord(chord string) (string, error) {
@@ -106,8 +299,8 @@ func isShortcutModifier(token string) bool {
 }
 
 func validShortcutAction(action string) bool {
-	if strings.HasPrefix(action, "window.tab.jump.") {
-		return len(action) == len("window.tab.jump.1") && action[len(action)-1] >= '1' && action[len(action)-1] <= '8'
+	if family, ok := shortcutFamily(action); ok {
+		return action == family.action || validShortcutRangeMember(action, family)
 	}
 	switch action {
 	case string(CommandWindowClose),
@@ -126,10 +319,24 @@ func validShortcutAction(action string) bool {
 		"window.focus.right",
 		"window.focus.up",
 		"window.focus.down",
+		"window.focus.last",
+		"window.nav.back",
+		"desktop.create",
 		"desktop.switch.previous",
 		"desktop.switch.next",
 		"desktop.overview",
-		"workspaces.overview",
+		"workspace.picker",
+		"workspace.cycle.previous",
+		"workspace.cycle.next",
+		"session.cycle.previous",
+		"session.cycle.next",
+		"session.focus.attention",
+		"sidebar.toggle",
+		"palette.open",
+		"palette.view.sessions",
+		"session.new",
+		"scope.global.toggle",
+		"shortcuts.cheatsheet",
 		"layout.arrange.two-up",
 		"layout.arrange.grid",
 		string(CommandLayoutBalance),
@@ -145,6 +352,24 @@ func validShortcutAction(action string) bool {
 	default:
 		return false
 	}
+}
+
+func shortcutFamily(action string) (shortcutRangeFamily, bool) {
+	for _, family := range shortcutRangeFamilies {
+		if action == family.action || validShortcutRangeMember(action, family) {
+			return family, true
+		}
+	}
+	return shortcutRangeFamily{}, false
+}
+
+func validShortcutRangeMember(action string, family shortcutRangeFamily) bool {
+	prefix := family.action + "."
+	suffix := strings.TrimPrefix(action, prefix)
+	if len(suffix) != 1 || suffix[0] < '1' || suffix[0] > '9' {
+		return false
+	}
+	return int(suffix[0]-'0') <= family.max
 }
 
 func validShortcutCode(code string) bool {
@@ -169,4 +394,13 @@ func validShortcutCode(code string) bool {
 	default:
 		return false
 	}
+}
+
+func slicesContain(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

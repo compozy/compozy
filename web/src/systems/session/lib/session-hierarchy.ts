@@ -1,4 +1,5 @@
 import { sessionBadgeSignal } from "./session-badge";
+import type { SessionListScope } from "./session-list-preferences";
 import type { SessionPayload } from "../types";
 
 export interface SessionListTree {
@@ -6,6 +7,61 @@ export interface SessionListTree {
   roots: SessionPayload[];
   /** Direct children keyed by parent session id, in the incoming list order. */
   childrenByParent: Map<string, SessionPayload[]>;
+}
+
+export interface VisibleSessionOrderOptions {
+  scope: SessionListScope;
+  collapsedAgentIds: ReadonlySet<string>;
+  collapsedThreadIds: ReadonlySet<string>;
+  collapsedWorkspaceIds: ReadonlySet<string>;
+  workspaceGroups: ReadonlyArray<{
+    workspaceId: string;
+    sessions: readonly SessionPayload[];
+  }>;
+}
+
+const RECENT_THREAD_LIMIT = 6;
+
+/**
+ * Projects the same unfiltered row order the shared session catalog renders.
+ * Closed groups and closed threads are excluded because the cycle shortcut
+ * must never focus a row the operator cannot currently see.
+ */
+export function visibleSessionOrder(
+  sessions: readonly SessionPayload[],
+  options: VisibleSessionOrderOptions
+): SessionPayload[] {
+  if (options.scope === "all-workspaces") {
+    return options.workspaceGroups.flatMap(group =>
+      options.collapsedWorkspaceIds.has(group.workspaceId) ? [] : group.sessions
+    );
+  }
+
+  const tree = buildSessionTree(sessions);
+  const roots = options.scope === "recent" ? tree.roots.slice(0, RECENT_THREAD_LIMIT) : tree.roots;
+  const orderedRoots =
+    options.scope === "all"
+      ? [...groupRootsByAgent(roots).entries()].flatMap(([agentName, agentRoots]) =>
+          options.collapsedAgentIds.has(agentName) ? [] : agentRoots
+        )
+      : roots;
+
+  return orderedRoots.flatMap(root => [
+    root,
+    ...(options.collapsedThreadIds.has(root.id)
+      ? []
+      : collectThreadSessions(root.id, tree.childrenByParent)),
+  ]);
+}
+
+function groupRootsByAgent(roots: readonly SessionPayload[]): Map<string, SessionPayload[]> {
+  const groups = new Map<string, SessionPayload[]>();
+  for (const root of roots) {
+    const current = groups.get(root.agent_name);
+    if (current) current.push(root);
+    else groups.set(root.agent_name, [root]);
+  }
+  return groups;
 }
 
 /**

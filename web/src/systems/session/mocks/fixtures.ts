@@ -60,6 +60,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
       spawn_role: "worker",
       ttl_expires_at: "2026-04-17T20:00:00Z",
       auto_stop_on_parent: true,
+      notify_creator: true,
       spawn_budget: {
         max_children: 4,
         max_depth: 1,

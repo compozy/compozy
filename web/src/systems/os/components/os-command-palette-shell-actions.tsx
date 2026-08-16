@@ -35,7 +35,9 @@ export function OsCommandPaletteShellActions({
       >
         <Plus className="size-3.5 text-muted" />
         New session
-        <CommandShortcut>⌘N</CommandShortcut>
+        {model.shortcutLabels["session.new"] ? (
+          <CommandShortcut>{model.shortcutLabels["session.new"]}</CommandShortcut>
+        ) : null}
       </CommandItem>
       <CommandItem
         disabled={model.scopeToggleLocked || (model.globalScopeOn && !model.canDisableGlobal)}
@@ -47,7 +49,9 @@ export function OsCommandPaletteShellActions({
         {model.globalScopeOn
           ? GLOBAL_SCOPE_COPY.paletteToggleOff
           : GLOBAL_SCOPE_COPY.paletteToggleOn}
-        <CommandShortcut>⇧⌘G</CommandShortcut>
+        {model.shortcutLabels["scope.global.toggle"] ? (
+          <CommandShortcut>{model.shortcutLabels["scope.global.toggle"]}</CommandShortcut>
+        ) : null}
       </CommandItem>
       <CommandItem
         value="desktops overview"

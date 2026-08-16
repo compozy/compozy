@@ -16,11 +16,12 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	compozyupdate "github.com/compozy/compozy/internal/update"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Parallel()
-	t.Run("Should mutate validate and inspect a temporary home", func(t *testing.T) {
+	t.Run("Should mutate validate and inspect a temporary home [IT-016]", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newWorkspaceTestDeps(t, &stubClient{})
@@ -142,7 +143,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			"config",
 			"set",
 			"window_manager.shortcuts.window.focus.left",
-			"alt+KeyH",
+			`["alt+KeyH","control+alt+shift+KeyH"]`,
 		); err != nil {
 			t.Fatalf("config set window manager shortcut error = %v", err)
 		}
@@ -153,8 +154,45 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if got := configured.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[1] != 0.75 {
 			t.Fatalf("WindowManager.Snap.RepeatRatios = %#v, want [0.5 0.75 0.25]", got)
 		}
-		if got := configured.WindowManager.Shortcuts["window.focus.left"]; got != "alt+KeyH" {
-			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want alt+KeyH", got)
+		if got, want := configured.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(got, want) {
+			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want %q", got, want)
+		}
+		discoveryOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"get",
+			"window_manager",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("config get window_manager error = %v", err)
+		}
+		var discoveryRecord configValueRecord
+		if err := json.Unmarshal([]byte(discoveryOut), &discoveryRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config get window_manager) error = %v", err)
+		}
+		discovery, ok := discoveryRecord.Value.(map[string]any)
+		if !ok || discovery["defaults"] == nil || discovery["effective"] == nil {
+			t.Fatalf("config get window_manager value = %#v, want defaults and effective", discoveryRecord.Value)
+		}
+		if _, _, invalidErr := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"window_manager.shortcuts.window.focus.left",
+			`["alt+KeyH",42]`,
+		); invalidErr == nil {
+			t.Fatal("config set invalid shortcut array error = nil")
+		}
+		unchanged, err := compozyconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(after rejected shortcut array) error = %v", err)
+		}
+		if got, want := unchanged.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(got, want) {
+			t.Fatalf("shortcut after atomic rejection = %q, want %q", got, want)
 		}
 
 		for _, mutation := range [][2]string{
@@ -1690,7 +1728,7 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			{
 				name:        "Should allow provider command",
 				path:        "providers.claude.command",
-				wantKind:    configSetString,
+				wantKind:    configSetStringOrStringSlice,
 				wantAllowed: true,
 			},
 			{
@@ -1823,7 +1861,7 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			{
 				name:        "Should allow window manager shortcut entries",
 				path:        "window_manager.shortcuts.window.focus.left",
-				wantKind:    configSetString,
+				wantKind:    configSetStringOrStringSlice,
 				wantAllowed: true,
 			},
 			{

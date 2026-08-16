@@ -20,6 +20,7 @@ export interface GoMenuProps {
   onOpenPalette: () => void;
   onOpenApp: (app: OsAppId) => void;
   onOpenWorkspaces: () => void;
+  paletteShortcutLabel?: string;
 }
 
 /**
@@ -33,6 +34,7 @@ export function GoMenu({
   onOpenPalette,
   onOpenApp,
   onOpenWorkspaces,
+  paletteShortcutLabel,
 }: GoMenuProps) {
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
@@ -40,7 +42,7 @@ export function GoMenu({
       <MenubarContent align="start" data-testid="os-menu-go">
         <MenubarItem data-testid="os-menu-palette" onClick={onOpenPalette}>
           Command palette…
-          <MenubarShortcut>⌘K</MenubarShortcut>
+          {paletteShortcutLabel ? <MenubarShortcut>{paletteShortcutLabel}</MenubarShortcut> : null}
         </MenubarItem>
         {dockApps().map(group => (
           <Fragment key={group[0].id}>

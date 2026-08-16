@@ -171,6 +171,7 @@ describe("OsSessionsModal", () => {
         root_session_id: "session-1",
         spawn_depth: 1,
         auto_stop_on_parent: false,
+        notify_creator: true,
         spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
         permission_policy: {
           tools: [],
@@ -229,6 +230,7 @@ describe("OsSessionsModal", () => {
         root_session_id: "session-1",
         spawn_depth: 1,
         auto_stop_on_parent: false,
+        notify_creator: true,
         spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
         permission_policy: {
           tools: [],
@@ -249,6 +251,7 @@ describe("OsSessionsModal", () => {
         root_session_id: "session-1",
         spawn_depth: 2,
         auto_stop_on_parent: false,
+        notify_creator: true,
         spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
         permission_policy: {
           tools: [],

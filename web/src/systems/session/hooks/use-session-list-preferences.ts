@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import {
   settingsKeys,
@@ -46,6 +46,7 @@ export function useSessionListPreferences(): SessionListPreferencesModel {
   const query = useSettingsShell();
   const mutation = useUpdateSettingsShell();
   const writePendingRef = useRef(false);
+  const [writePending, setWritePending] = useState(false);
   const sessions = query.data?.config.sessions;
   const current: SessionListPreferences = {
     sort: toSessionListSort(sessions?.sort),
@@ -54,6 +55,7 @@ export function useSessionListPreferences(): SessionListPreferencesModel {
   const write = (next: SessionListPreferences) => {
     if (writePendingRef.current || mutation.isPending) return;
     writePendingRef.current = true;
+    setWritePending(true);
     queryClient.setQueryData<SettingsShellSection>(settingsKeys.section("shell"), cached =>
       cached === undefined ? cached : { ...cached, config: { ...cached.config, sessions: next } }
     );
@@ -62,6 +64,7 @@ export function useSessionListPreferences(): SessionListPreferencesModel {
       {
         onSettled: () => {
           writePendingRef.current = false;
+          setWritePending(false);
         },
       }
     );
@@ -72,6 +75,6 @@ export function useSessionListPreferences(): SessionListPreferencesModel {
     setSort: sort => write({ ...current, sort }),
     setScope: scope => write({ ...current, scope }),
     loading: query.isLoading,
-    saving: mutation.isPending || writePendingRef.current,
+    saving: mutation.isPending || writePending,
   };
 }

@@ -35,7 +35,15 @@ function settingsResponse() {
       bindings: { top_center: "zoom", bottom_center: "none" },
       shortcuts: {
         "desktop.switch.next": "control+alt+BracketRight",
-      } as Record<string, string>,
+      } as Record<string, string | string[]>,
+    },
+    defaults: {
+      "desktop.switch.next": ["control+shift+ArrowRight"],
+      "window.focus.left": "control+ArrowLeft",
+    },
+    effective: {
+      "desktop.switch.next": ["control+alt+BracketRight", "alt+KeyL"],
+      "window.focus.left": "control+ArrowLeft",
     },
   };
 }
@@ -64,7 +72,15 @@ describe("parseSettingsWindowManagerConfig", () => {
         repeatRatios: [0.5, 0.33, 0.67],
       },
       bindings: { topCenter: "zoom", bottomCenter: "none" },
-      shortcuts: { "desktop.switch.next": "control+alt+BracketRight" },
+      shortcuts: { "desktop.switch.next": ["control+alt+BracketRight"] },
+      shortcutDefaults: {
+        "desktop.switch.next": ["control+shift+ArrowRight"],
+        "window.focus.left": ["control+ArrowLeft"],
+      },
+      effectiveShortcuts: {
+        "desktop.switch.next": ["control+alt+BracketRight", "alt+KeyL"],
+        "window.focus.left": ["control+ArrowLeft"],
+      },
     });
   });
 
@@ -90,7 +106,7 @@ describe("parseSettingsWindowManagerConfig", () => {
     {
       label: "unknown shortcut action",
       mutate: (response: ReturnType<typeof settingsResponse>) => {
-        response.config.shortcuts = { "desktop.teleport": "Meta+KeyT" };
+        response.config.shortcuts = { "desktop.teleport": "meta+KeyT" };
       },
     },
     {

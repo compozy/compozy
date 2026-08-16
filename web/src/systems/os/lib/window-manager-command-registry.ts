@@ -2,8 +2,18 @@ import type { OsArrangePreset } from "./os-types";
 import type { SnapCorner, SnapSide } from "./snap-targets";
 
 export type WindowPlacementId = SnapSide | SnapCorner;
-/** Positional tab jumps use browser-deliverable defaults; slot 9 targets the last tab. */
 export type WindowTabJumpSlot = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type DesktopSwitchSlot = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export type WindowManagerActionSection =
+  | "Shell"
+  | "Window"
+  | "Tiling"
+  | "Tabs"
+  | "Sessions"
+  | "Desktops"
+  | "Workspaces"
+  | "Layout";
+
 export type WindowManagerActionId =
   | `window.tile.${WindowPlacementId}`
   | "window.close"
@@ -14,16 +24,31 @@ export type WindowManagerActionId =
   | "window.focus.right"
   | "window.focus.up"
   | "window.focus.down"
+  | "window.focus.last"
+  | "window.nav.back"
   | "window.tab.new"
   | "window.tab.next"
   | "window.tab.previous"
   | "window.tab.last"
   | "window.tab.reopen"
   | `window.tab.jump.${WindowTabJumpSlot}`
+  | `desktop.switch.${DesktopSwitchSlot}`
   | "desktop.switch.previous"
   | "desktop.switch.next"
+  | "desktop.create"
   | "desktop.overview"
-  | "workspaces.overview"
+  | "workspace.picker"
+  | "workspace.cycle.previous"
+  | "workspace.cycle.next"
+  | "session.cycle.previous"
+  | "session.cycle.next"
+  | "session.focus.attention"
+  | "sidebar.toggle"
+  | "palette.open"
+  | "palette.view.sessions"
+  | "session.new"
+  | "scope.global.toggle"
+  | "shortcuts.cheatsheet"
   | "layout.arrange.two-up"
   | "layout.arrange.grid"
   | "layout.balance"
@@ -45,8 +70,12 @@ export interface WindowArrangeCommand {
 export interface WindowManagerActionDefinition {
   id: WindowManagerActionId;
   label: string;
-  defaultChord?: string;
+  section: WindowManagerActionSection;
   needsFocusedWindow?: boolean;
+  /** Shell-owned actions remain usable while the daemon window manager reconnects. */
+  availabilityExempt?: boolean;
+  /** Focused text controls keep every other global shortcut. */
+  allowInEditable?: boolean;
 }
 
 export const WINDOW_PLACEMENT_COMMANDS: readonly WindowPlacementCommand[] = [
@@ -54,21 +83,9 @@ export const WINDOW_PLACEMENT_COMMANDS: readonly WindowPlacementCommand[] = [
   { id: "window.tile.right", placement: "right", label: "Tile right half" },
   { id: "window.tile.top", placement: "top", label: "Tile top half" },
   { id: "window.tile.bottom", placement: "bottom", label: "Tile bottom half" },
-  {
-    id: "window.tile.top-left",
-    placement: "top-left",
-    label: "Tile top left quarter",
-  },
-  {
-    id: "window.tile.top-right",
-    placement: "top-right",
-    label: "Tile top right quarter",
-  },
-  {
-    id: "window.tile.bottom-left",
-    placement: "bottom-left",
-    label: "Tile bottom left quarter",
-  },
+  { id: "window.tile.top-left", placement: "top-left", label: "Tile top left quarter" },
+  { id: "window.tile.top-right", placement: "top-right", label: "Tile top right quarter" },
+  { id: "window.tile.bottom-left", placement: "bottom-left", label: "Tile bottom left quarter" },
   {
     id: "window.tile.bottom-right",
     placement: "bottom-right",
@@ -77,143 +94,137 @@ export const WINDOW_PLACEMENT_COMMANDS: readonly WindowPlacementCommand[] = [
 ];
 
 export const WINDOW_ARRANGE_COMMANDS: readonly WindowArrangeCommand[] = [
-  {
-    id: "layout.arrange.two-up",
-    preset: "two-up",
-    label: "Arrange left & right",
-  },
+  { id: "layout.arrange.two-up", preset: "two-up", label: "Arrange left & right" },
   { id: "layout.arrange.grid", preset: "grid", label: "Arrange in grid" },
 ];
 
+const TAB_JUMP_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+const DESKTOP_SWITCH_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
+
+/** UI metadata only. Binding truth is served by the daemon. */
 export const WINDOW_MANAGER_ACTIONS: readonly WindowManagerActionDefinition[] = [
+  {
+    id: "palette.open",
+    label: "Command palette",
+    section: "Shell",
+    availabilityExempt: true,
+    allowInEditable: true,
+  },
+  {
+    id: "palette.view.sessions",
+    label: "Sessions palette view",
+    section: "Shell",
+    availabilityExempt: true,
+  },
+  {
+    id: "session.new",
+    label: "New session",
+    section: "Shell",
+    availabilityExempt: true,
+    allowInEditable: true,
+  },
+  {
+    id: "scope.global.toggle",
+    label: "Global scope",
+    section: "Shell",
+    availabilityExempt: true,
+  },
+  {
+    id: "window.nav.back",
+    label: "Back",
+    section: "Shell",
+    needsFocusedWindow: true,
+    availabilityExempt: true,
+  },
+  { id: "sidebar.toggle", label: "Toggle sidebar", section: "Shell" },
+  {
+    id: "shortcuts.cheatsheet",
+    label: "This sheet",
+    section: "Shell",
+    availabilityExempt: true,
+  },
   {
     id: "window.close",
     label: "Close window",
-    defaultChord: "meta+KeyW",
+    section: "Window",
     needsFocusedWindow: true,
+    allowInEditable: true,
   },
-  {
-    id: "window.minimize",
-    label: "Minimize window",
-    defaultChord: "meta+KeyM",
-    needsFocusedWindow: true,
-  },
-  {
-    id: "window.zoom",
-    label: "Zoom window",
-    defaultChord: "control+alt+ArrowUp",
-    needsFocusedWindow: true,
-  },
+  { id: "window.minimize", label: "Minimize window", section: "Window", needsFocusedWindow: true },
+  { id: "window.zoom", label: "Zoom window", section: "Window", needsFocusedWindow: true },
   {
     id: "window.toggle_floating",
     label: "Toggle floating",
-    defaultChord: "control+alt+KeyF",
+    section: "Window",
     needsFocusedWindow: true,
   },
+  { id: "window.focus.left", label: "Focus left", section: "Window" },
+  { id: "window.focus.right", label: "Focus right", section: "Window" },
+  { id: "window.focus.up", label: "Focus up", section: "Window" },
+  { id: "window.focus.down", label: "Focus down", section: "Window" },
+  { id: "window.focus.last", label: "Focus last window", section: "Window" },
   ...WINDOW_PLACEMENT_COMMANDS.map(command => ({
     ...command,
-    defaultChord:
-      command.placement === "left"
-        ? "control+alt+ArrowLeft"
-        : command.placement === "right"
-          ? "control+alt+ArrowRight"
-          : command.placement === "top-left"
-            ? "control+alt+KeyU"
-            : command.placement === "top-right"
-              ? "control+alt+KeyI"
-              : command.placement === "bottom-left"
-                ? "control+alt+KeyJ"
-                : command.placement === "bottom-right"
-                  ? "control+alt+KeyK"
-                  : undefined,
+    section: "Tiling" as const,
     needsFocusedWindow: true,
   })),
-  {
-    id: "window.tab.new",
-    label: "New tab",
-    defaultChord: "meta+KeyT",
-  },
+  { id: "window.tab.new", label: "New tab", section: "Tabs", allowInEditable: true },
   {
     id: "window.tab.next",
     label: "Next tab",
-    defaultChord: "control+Tab",
+    section: "Tabs",
     needsFocusedWindow: true,
+    allowInEditable: true,
   },
   {
     id: "window.tab.previous",
     label: "Previous tab",
-    defaultChord: "control+shift+Tab",
+    section: "Tabs",
     needsFocusedWindow: true,
+    allowInEditable: true,
   },
   {
     id: "window.tab.last",
     label: "Last tab",
-    defaultChord: "meta+Digit9",
+    section: "Tabs",
     needsFocusedWindow: true,
+    allowInEditable: true,
   },
-  {
-    id: "window.tab.reopen",
-    label: "Reopen closed tab",
-    defaultChord: "meta+shift+KeyT",
-  },
-  ...([1, 2, 3, 4, 5, 6, 7, 8] as const).map(slot => ({
+  { id: "window.tab.reopen", label: "Reopen closed tab", section: "Tabs", allowInEditable: true },
+  ...TAB_JUMP_SLOTS.map(slot => ({
     id: `window.tab.jump.${slot}` as const,
     label: `Go to tab ${slot}`,
-    defaultChord: `meta+Digit${slot}`,
+    section: "Tabs" as const,
     needsFocusedWindow: true,
+    allowInEditable: true,
   })),
-  {
-    id: "window.focus.left",
-    label: "Focus left",
-    defaultChord: "control+ArrowLeft",
-  },
-  {
-    id: "window.focus.right",
-    label: "Focus right",
-    defaultChord: "control+ArrowRight",
-  },
-  { id: "window.focus.up", label: "Focus up", defaultChord: "control+ArrowUp" },
-  {
-    id: "window.focus.down",
-    label: "Focus down",
-    defaultChord: "control+ArrowDown",
-  },
+  { id: "session.cycle.previous", label: "Previous session", section: "Sessions" },
+  { id: "session.cycle.next", label: "Next session", section: "Sessions" },
+  { id: "session.focus.attention", label: "Jump to attention", section: "Sessions" },
   {
     id: "desktop.switch.previous",
     label: "Previous desktop",
-    defaultChord: "control+alt+BracketLeft",
+    section: "Desktops",
   },
-  {
-    id: "desktop.switch.next",
-    label: "Next desktop",
-    defaultChord: "control+alt+BracketRight",
-  },
-  {
-    id: "desktop.overview",
-    label: "Desktops overview",
-    defaultChord: "meta+shift+KeyS",
-  },
-  {
-    id: "workspaces.overview",
-    label: "Workspaces overview",
-    defaultChord: "meta+shift+KeyW",
-  },
+  { id: "desktop.switch.next", label: "Next desktop", section: "Desktops" },
+  { id: "desktop.create", label: "Create desktop", section: "Desktops" },
+  { id: "desktop.overview", label: "Desktops overview", section: "Desktops" },
+  ...DESKTOP_SWITCH_SLOTS.map(slot => ({
+    id: `desktop.switch.${slot}` as const,
+    label: `Switch to desktop ${slot}`,
+    section: "Desktops" as const,
+  })),
+  { id: "workspace.picker", label: "Workspace picker", section: "Workspaces" },
+  { id: "workspace.cycle.previous", label: "Previous workspace", section: "Workspaces" },
+  { id: "workspace.cycle.next", label: "Next workspace", section: "Workspaces" },
   ...WINDOW_ARRANGE_COMMANDS.map(command => ({
     ...command,
+    section: "Layout" as const,
     needsFocusedWindow: true,
   })),
-  {
-    id: "layout.balance",
-    label: "Balance layout",
-    defaultChord: "control+alt+KeyB",
-    needsFocusedWindow: true,
-  },
-  { id: "layout.undo", label: "Undo layout", defaultChord: "meta+KeyZ" },
-  {
-    id: "layout.redo",
-    label: "Redo layout",
-    defaultChord: "meta+shift+KeyZ",
-  },
+  { id: "layout.balance", label: "Balance layout", section: "Layout", needsFocusedWindow: true },
+  { id: "layout.undo", label: "Undo layout", section: "Layout" },
+  { id: "layout.redo", label: "Redo layout", section: "Layout" },
 ];
 
 export const WINDOW_MANAGER_ACTION_IDS = new Set(WINDOW_MANAGER_ACTIONS.map(action => action.id));

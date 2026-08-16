@@ -326,6 +326,7 @@ export {
   type UseSessionInspectorStateResult,
 } from "./hooks/use-session-inspector-state";
 export {
+  toggleSessionSidebar,
   useSessionSidebarState,
   type UseSessionSidebarStateResult,
 } from "./hooks/use-session-sidebar-state";
@@ -410,6 +411,8 @@ export {
   buildSessionTree,
   childSessionSignalTone,
   collectThreadSessions,
+  visibleSessionOrder,
+  type VisibleSessionOrderOptions,
 } from "./lib/session-hierarchy";
 export {
   SessionWorkspaceSwitchDialog,

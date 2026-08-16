@@ -169,11 +169,13 @@ function DesktopShellScopedBody({
     overlays,
     pager,
     reducedMotion,
+    shortcutLabels,
     transition,
     winLayer,
   } = useDesktopShellBody(model, {
     firstRun,
     onNewSession: openNewSession,
+    sessionListView,
   });
   return (
     <div
@@ -236,6 +238,7 @@ function DesktopShellScopedBody({
         ))}
         <OsWinLayer
           model={winLayer}
+          paletteShortcutLabel={shortcutLabels.palette}
           reducedMotion={reducedMotion}
           transition={transition}
           onTransitionComplete={onTransitionComplete}
@@ -336,6 +339,10 @@ function DesktopShellScopedBody({
       <OsWorkspacesOverview
         open={overlays.activeOverlay === "workspaces"}
         onOpenChange={open => overlays.setOverlayOpen("workspaces", open)}
+        shortcutLabels={{
+          picker: shortcutLabels.workspacePicker,
+          globalScope: shortcutLabels.globalScope,
+        }}
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
         scope={model.scope}
