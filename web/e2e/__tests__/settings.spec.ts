@@ -18,6 +18,22 @@ import {
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import {
+  settingsUpdateApplyingFixture,
+  settingsUpdateBothAvailableFixture,
+  settingsUpdateManagedFixture,
+  settingsUpdateNoAppFixture,
+  settingsUpdateRolledBackFixture,
+} from "@/systems/settings/mocks/settings-update-fixture";
+
+/** Host-install shapes the update projection can report, shared by the update journeys. */
+const updateFixtures = {
+  bothAvailable: settingsUpdateBothAvailableFixture,
+  managed: settingsUpdateManagedFixture,
+  noApp: settingsUpdateNoAppFixture,
+  applying: settingsUpdateApplyingFixture,
+  rolledBack: settingsUpdateRolledBackFixture,
+} as const;
 
 test.use({
   runtimeOptions: {
@@ -590,6 +606,113 @@ test("operator routes a background role, persists it across reload, and keeps bu
   await expect(sessionUI.agentRow("coordinator")).toHaveCount(0);
   await expect(sessionUI.agentRow("dreaming-curator")).toHaveCount(0);
   await browserArtifacts.captureScreenshot("e2e-006-agents-fleet-no-builtins", appPage);
+});
+
+/**
+ * E2E-019 — the Updates section renders daemon truth for every two-track shape a
+ * host can be in, in a plain browser with zero desktop-awareness (US-029 AC-1/AC-3,
+ * EC-1, EC-3). The update projection describes the host install, and no real feed
+ * exists in the harness, so each shape is served through the API boundary; every
+ * assertion below is on what the SPA does with that truth.
+ */
+test("browser operator reads both update tracks, a managed runtime, and a headless host from daemon truth", async ({
+  appPage,
+  runtime,
+}) => {
+  const sessionUI = sessionLifecycleSelectors(appPage);
+  await ensureGlobalWorkspace(runtime);
+  await completeOnboardingIfPrompted(sessionUI);
+
+  let updatePayload: unknown = updateFixtures.bothAvailable;
+  await appPage.route("**/api/settings/update", async route => {
+    await route.fulfill({ json: updatePayload });
+  });
+
+  await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
+  const settingsWin = appWindow(appPage, "settings");
+  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+  const settingsUI = settingsOperatorSelectors(settingsWin);
+  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
+
+  // Both tracks available: two rows, both versions, both apply affordances.
+  await expect(settingsUI.general.updateTrack("runtime")).toContainText("0.5.0");
+  await expect(settingsUI.general.updateTrack("runtime")).toContainText("0.5.1");
+  await expect(settingsUI.general.updateTrack("app")).toContainText("0.5.1");
+  await expect(settingsUI.general.updateApply("runtime")).toBeVisible();
+  await expect(settingsUI.general.updateApply("app")).toBeVisible();
+  await expect(settingsUI.general.updateRelease("runtime")).toHaveAttribute(
+    "href",
+    "https://github.com/compozy/compozy/releases/tag/v0.5.1"
+  );
+
+  // Managed runtime: the recommendation is verbatim and apply is ABSENT, not disabled.
+  updatePayload = updateFixtures.managed;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
+  await expect(settingsUI.general.updateRecommendation).toContainText("brew upgrade compozy");
+  await expect(settingsUI.general.updateApply("runtime")).toHaveCount(0);
+
+  // Headless host: the app row is absent entirely, not an empty row.
+  updatePayload = updateFixtures.noApp;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
+  await expect(settingsUI.general.updateTrack("runtime")).toBeVisible();
+  await expect(settingsUI.general.updateTrack("app")).toHaveCount(0);
+});
+
+/**
+ * E2E-020 — applying the runtime from a plain browser: the apply call is issued
+ * with its target, progress renders from the polled projection, and the terminal
+ * outcome is read back rather than assumed (US-029 EC-2/EC-5).
+ */
+test("browser operator applies the runtime update and reads staged progress and terminal truth from the daemon", async ({
+  appPage,
+  runtime,
+}) => {
+  const sessionUI = sessionLifecycleSelectors(appPage);
+  await ensureGlobalWorkspace(runtime);
+  await completeOnboardingIfPrompted(sessionUI);
+
+  let updatePayload: unknown = updateFixtures.bothAvailable;
+  const applyTargets: string[] = [];
+  await appPage.route("**/api/settings/update", async route => {
+    await route.fulfill({ json: updatePayload });
+  });
+  await appPage.route("**/api/settings/update/apply", async route => {
+    const body = route.request().postDataJSON() as { target: string };
+    applyTargets.push(body.target);
+    // Apply only acknowledges acquisition; the GET above becomes the progress feed.
+    updatePayload = updateFixtures.applying;
+    await route.fulfill({
+      json: {
+        target: body.target,
+        status: "accepted",
+        operation_id: "op-e2e",
+        message: "Started the runtime update.",
+        holder: null,
+      },
+    });
+  });
+
+  await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
+  const settingsWin = appWindow(appPage, "settings");
+  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+  const settingsUI = settingsOperatorSelectors(settingsWin);
+  await expect(settingsUI.general.updateApply("runtime")).toBeVisible({ timeout: 20_000 });
+
+  await settingsUI.general.updateApply("runtime").click();
+  await expect.poll(() => applyTargets).toEqual(["runtime"]);
+
+  // Progress is the daemon's named phase, not an invented spinner label.
+  await expect(settingsUI.general.updateProgress("runtime")).toContainText("install", {
+    timeout: 20_000,
+  });
+  await expect(settingsUI.general.updateApply("runtime")).toHaveCount(0);
+
+  // Terminal truth arrives through the polled read, including rollback.
+  updatePayload = updateFixtures.rolledBack;
+  await expect(settingsUI.general.updateRollback).toContainText("0.5.0", { timeout: 20_000 });
+  await expect(settingsUI.general.updateLastError).toContainText("health check failed after swap");
 });
 
 function normalizeTexts(values: string[]): string[] {

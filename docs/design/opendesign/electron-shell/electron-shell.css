@@ -1,0 +1,971 @@
+/* ============================================================
+   ELECTRON SHELL — electron-shell.css
+   Web update surface: Settings → General → Updates (S1) and the
+   OS-menubar update indicator (S2).
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css      (production token truth)
+     2. DESIGN.md                       (generated spec + rationale)
+     3. packages/ui/src/index.ts        (primitive inventory)
+     4. .compozy/tasks/electron-shell/_uiux.md (surface inventory)
+     5. This file                       (artboard vocabulary only)
+
+   SELF-CONTAINED BY CONTRACT. These boards import no production CSS
+   and load nothing from the network — the :root block below mirrors
+   the exact literal values of packages/ui/src/tokens.css, and every
+   icon is inline Lucide geometry at the 1.75 stroke contract
+   (DESIGN.md §8). Fonts degrade to the system stack when Geist /
+   JetBrains Mono are not installed locally; that is a rendering
+   fallback, never a type decision.
+
+   Artboard CSS is a visual CONTRACT, never a stylesheet to import.
+   The implementation composes Pill (+ Pill.Dot), Button, Spinner and
+   Icon from @compozy/ui with SettingRow / SettingValue /
+   SettingsGroup from @/systems/settings — zero new primitives.
+   Class names here mirror those component anatomies so the mapping
+   from board to code is mechanical.
+   ============================================================ */
+
+/* ---- tokens: literal mirror of packages/ui/src/tokens.css ---- */
+:root {
+  color-scheme: dark;
+
+  /* surface ramp */
+  --rail: #0c0b0b;
+  --canvas: #131211;
+  --canvas-soft: #1a1918;
+  --canvas-tint: #1c1b1a;
+  --elevated: #232220;
+
+  /* hairlines */
+  --line: rgba(255, 255, 255, 0.055);
+  --line-soft: rgba(255, 255, 255, 0.03);
+  --line-strong: rgba(255, 255, 255, 0.09);
+  --line-focus: rgba(255, 255, 255, 0.14);
+
+  /* text ladder */
+  --fg: #ececef;
+  --fg-strong: #f6f6f8;
+  --muted: #9a9a9f;
+  --subtle: oklch(0.663 0.009 286.106);
+  --faint: oklch(0.638 0.006 286.136);
+
+  /* accent */
+  --accent: #e8572a;
+  --accent-hover: #d14e25;
+  --accent-ink: #17110f;
+  --accent-tint: rgba(232, 87, 42, 0.1);
+  --accent-tint-strong: rgba(232, 87, 42, 0.16);
+
+  /* signal palette — information, never decoration */
+  --success: #5fbf85;
+  --success-tint: rgba(95, 191, 133, 0.08);
+  --warning: #d6a647;
+  --warning-tint: rgba(214, 166, 71, 0.08);
+  --danger: #e0635a;
+  --danger-tint: rgba(224, 99, 90, 0.09);
+  --info: #8e8eb5;
+  --info-tint: rgba(142, 142, 181, 0.12);
+  --neutral: #7a7a80;
+  --neutral-ink: #8a8a90;
+  --neutral-tint: rgba(150, 150, 155, 0.06);
+
+  /* glaze ladder */
+  --row-hover: rgba(255, 255, 255, 0.022);
+  --row-selected: rgba(255, 255, 255, 0.03);
+  --surface-glaze: rgba(255, 255, 255, 0.04);
+  --input-fill: rgba(255, 255, 255, 0.025);
+  --btn-default-fill: rgba(255, 255, 255, 0.04);
+  --btn-default-hover: rgba(255, 255, 255, 0.07);
+  --badge-fill: rgba(255, 255, 255, 0.05);
+
+  /* shell glass — the DESIGN.md §5 chrome carve-out */
+  --shell-glass: rgba(12, 11, 11, 0.72);
+  --shell-glass-pop: rgba(19, 18, 17, 0.94);
+  --blur-shell: 28px;
+  --saturate-shell-glass: 1.25;
+  --wallpaper-teal: #225555;
+
+  /* type */
+  --font-sans: "Geist Variable", "Geist", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --weight-normal: 400;
+  --weight-medium: 510;
+  --weight-semibold: 600;
+
+  --text-item-title: 0.9375rem;
+  --text-small-body: 0.78125rem;
+  --text-badge: 0.65625rem;
+  --text-eyebrow: 0.6875rem;
+  --text-micro: 0.65625rem;
+  --text-form-label: 0.75rem;
+  --text-form-hint: 0.71875rem;
+  --text-mono-id: 0.65625rem;
+  --text-ws-name: 0.8125rem;
+  --tracking-eyebrow: -0.005em;
+  --tracking-tight: -0.014em;
+  --tracking-body: -0.006em;
+  --tracking-mono: 0.06em;
+
+  /* radii */
+  --radius-xxs: 3px;
+  --radius-xs: 4px;
+  --radius-sm: 5px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-pill: 9999px;
+  --radius-window: 12px;
+  --radius-menubar-control: 7px;
+
+  /* component geometry */
+  --height-button-sm: 22px;
+  --height-button-default: 26px;
+  --height-pill-sm: 19px;
+  --height-setting-row: 54px;
+  --container-setting-description: 52ch;
+  --container-settings-page-form: 768px;
+  --height-menubar: 44px;
+  --height-menubar-chip: 26px;
+  --size-menubar-logo: 17px;
+  --size-workspace-avatar: 18px;
+  --spacing-menubar-workspace-gap: 7px;
+
+  /* motion */
+  --dur-fast: 100ms;
+  --dur: 140ms;
+  --dur-slow: 200ms;
+  --dur-shell-base: 240ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0.28, 1);
+
+  /* depth whitelist */
+  --shadow-overlay: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045);
+  --shadow-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  --shadow-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  --shadow-window: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55);
+}
+
+/* ============ BASE ============ */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+[hidden] {
+  display: none !important;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  letter-spacing: var(--tracking-body);
+  color: var(--fg);
+  background: var(--rail);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+button {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+ul {
+  list-style: none;
+}
+svg {
+  display: block;
+}
+code,
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+.eyebrow {
+  font-size: var(--text-eyebrow);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--subtle);
+}
+
+/* inline Lucide geometry — 1.75 stroke (DESIGN.md §8); 2 at the 11px floor */
+.ic {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ic--sm {
+  width: 12px;
+  height: 12px;
+}
+.ic--xs {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+}
+.ic--lg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============ BUTTON (mirrors @compozy/ui Button) ============ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--height-button-default);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-form-label);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  white-space: nowrap;
+  color: var(--fg);
+  transition:
+    color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.btn--sm {
+  height: var(--height-button-sm);
+  gap: 4px;
+  padding: 0 10px;
+  font-size: var(--text-eyebrow);
+}
+.btn--sm .ic {
+  width: 12px;
+  height: 12px;
+}
+/* neutral = the filled secondary action; the per-track apply affordance */
+.btn--neutral {
+  background: var(--btn-default-fill);
+  color: var(--fg-strong);
+}
+.btn--neutral:hover {
+  background: var(--btn-default-hover);
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--fg);
+}
+.btn--ghost:hover {
+  background: var(--btn-default-hover);
+}
+.btn--icon {
+  width: var(--height-button-sm);
+  padding: 0;
+}
+
+/* ============ PILL (mirrors @compozy/ui Pill, size sm) ============ */
+.pill {
+  display: inline-flex;
+  width: fit-content;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--height-pill-sm);
+  padding: 0 8px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-eyebrow);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-eyebrow);
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--neutral-tint);
+  color: var(--neutral-ink);
+}
+.pill[data-tone="info"] {
+  background: var(--info-tint);
+  color: var(--info);
+}
+.pill[data-tone="success"] {
+  background: var(--success-tint);
+  color: var(--success);
+}
+.pill[data-tone="warning"] {
+  background: var(--warning-tint);
+  color: var(--warning);
+}
+.pill[data-tone="danger"] {
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+.pill__dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+/* ============ SPINNER (mirrors @compozy/ui Spinner) ============ */
+.spinner {
+  animation: spin 1s linear infinite;
+  color: var(--info);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============ SETTINGS VOCABULARY ============ */
+/* SettingsGroup */
+.sgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sgroup__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sgroup__title {
+  font-size: var(--text-ws-name);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-strong);
+}
+.sgroup__desc {
+  margin-top: 2px;
+  max-width: 72ch;
+  font-size: var(--text-form-label);
+  color: var(--muted);
+}
+.sgroup__action {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+.panelbox {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--canvas-soft);
+}
+
+/* SettingRow */
+.srow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: var(--height-setting-row);
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.srow:first-child {
+  border-top: 0;
+}
+.srow__main {
+  min-width: 0;
+  flex: 1;
+}
+.srow__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-ws-name);
+  font-weight: var(--weight-medium);
+  color: var(--fg-strong);
+}
+.srow__desc {
+  margin-top: 2px;
+  max-width: var(--container-setting-description);
+  font-size: var(--text-form-label);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.srow__desc--danger {
+  color: var(--danger);
+}
+.srow__ctl {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+/* SettingValue */
+.svalue {
+  font-size: var(--text-small-body);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+}
+.svalue--mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  font-weight: var(--weight-normal);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* ============ UPDATE DOMAIN VOCABULARY ============ */
+/* version transition — SettingValue mono with a target-version emphasis:
+   `0.5.0 → 0.5.1`. The from-version keeps the mono muted voice, the arrow
+   drops to faint, the target rises to fg so the row says where it is going. */
+.ver__arrow {
+  color: var(--faint);
+  padding: 0 1px;
+}
+.ver__to {
+  color: var(--fg);
+}
+
+/* live operation lane — Spinner + the daemon's phase name in mono.
+   Phase words are the runtime enum verbatim: download / verify / install /
+   start / ready-check / ready. Percent renders only when the daemon reports
+   one (percent = -1 means unmeasurable → the phase stands alone). */
+.phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.phase__name {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.phase__pct {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.phase__sep {
+  color: var(--faint);
+}
+
+/* absence annotation — names a row that is NOT rendered (no DOM node at all).
+   It deliberately sits OUTSIDE `.demo`: the demo is the capture region for the
+   visual contract, and an annotation inside it would read as a structural
+   mismatch against an implementation that correctly renders nothing. */
+.absent {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  max-width: var(--container-settings-page-form);
+  padding: 9px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--text-form-hint);
+  line-height: 1.5;
+  color: var(--subtle);
+}
+.absent b {
+  font-weight: var(--weight-semibold);
+  color: var(--muted);
+}
+.absent__tag {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ============ SHELL CHROME (DESIGN.md §5 carve-out) ============ */
+.menubar {
+  display: flex;
+  height: var(--height-menubar);
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--shell-glass);
+  backdrop-filter: blur(var(--blur-shell)) saturate(var(--saturate-shell-glass));
+}
+.mb-side {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+.mb-trail {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+.mb-logo {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-menubar-control);
+}
+.mb-logo svg {
+  width: var(--size-menubar-logo);
+  height: var(--size-menubar-logo);
+  border-radius: 3px;
+}
+.mb-ws {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  gap: var(--spacing-menubar-workspace-gap);
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+}
+.mb-ws__avatar {
+  display: grid;
+  width: var(--size-workspace-avatar);
+  height: var(--size-workspace-avatar);
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--elevated);
+  font-family: var(--font-mono);
+  font-size: var(--text-badge);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-mono);
+  color: var(--fg);
+}
+.mb-ws__name {
+  font-size: var(--text-small-body);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-strong);
+}
+.mb-menus {
+  display: flex;
+  margin-left: 6px;
+  gap: 4px;
+}
+.mb-menu {
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--radius-menubar-control);
+  font-size: var(--text-small-body);
+  color: var(--muted);
+}
+.mb-menu:hover {
+  background: var(--btn-default-fill);
+  color: var(--fg-strong);
+}
+.mb-icon {
+  position: relative;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  transition:
+    color var(--dur) var(--ease),
+    background-color var(--dur) var(--ease);
+}
+.mb-icon:hover {
+  background: var(--btn-default-fill);
+  color: var(--fg-strong);
+}
+.mb-chip {
+  display: flex;
+  height: var(--height-menubar-chip);
+  flex: none;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  color: var(--muted);
+}
+.mb-chip:hover {
+  background: var(--btn-default-fill);
+  color: var(--fg-strong);
+}
+.mb-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  display: grid;
+  min-width: 14px;
+  height: 14px;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+
+/* the S2 indicator — a menubar control, sized and shaped like its bell /
+   settings siblings; the info ink IS the signal, and it exists only while
+   the daemon reports an available update on either track. */
+.mb-update {
+  color: var(--info);
+}
+.mb-update:hover {
+  background: var(--btn-default-fill);
+  color: var(--info);
+}
+.mb-update.is-focused {
+  box-shadow: var(--shadow-focus-ring);
+}
+
+/* window frame — the S2 boards show the menubar over a real desk */
+.win {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-window);
+  background: var(--canvas);
+  box-shadow: var(--shadow-window), var(--shadow-highlight);
+}
+.win-head {
+  display: flex;
+  min-height: 44px;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+}
+.win-controls {
+  display: flex;
+  flex: none;
+  gap: 7px;
+}
+.wc {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--btn-default-fill);
+}
+.win-title {
+  font-size: 13px;
+  font-weight: var(--weight-semibold);
+  color: var(--fg-strong);
+}
+.win-body {
+  flex: 1;
+  overflow: auto;
+  background: var(--canvas);
+}
+
+/* ============ LAB SCAFFOLD (states sheet) ============ */
+.shell {
+  height: 100vh;
+}
+.main {
+  display: flex;
+  height: 100vh;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.w2head {
+  display: flex;
+  min-height: 44px;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+}
+.w2head .w2-back {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+.w2head .w2-back:hover {
+  background: var(--btn-default-fill);
+  color: var(--fg-strong);
+}
+.w2-crumbs {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+.w2-crumb {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  color: var(--subtle);
+}
+.w2-crumb:hover {
+  background: var(--row-hover);
+  color: var(--fg);
+}
+.w2-sep {
+  flex: none;
+  font-size: 12px;
+  color: var(--faint);
+}
+.w2-title {
+  padding-left: 3px;
+  font-size: 13px;
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  color: var(--fg-strong);
+}
+.w2-flex {
+  flex: 1;
+  min-width: 8px;
+}
+.w2-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* wide enough that a demo can hold the settings page's real 768px form column
+   without scaling — these boards are normative at 1440×900. */
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 24px 80px;
+}
+.lab-sec {
+  margin: 0 0 40px;
+}
+.lab-sec__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.lab-sec__num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-mono);
+  color: var(--faint);
+  flex: none;
+}
+.lab-sec__t {
+  font-size: 13px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--fg-strong);
+}
+.lab-sec__gist {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--subtle);
+}
+.spec {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.spec:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.spec__note {
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--subtle);
+}
+.spec__note b {
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
+}
+.spec__note > b:first-child {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11.5px;
+}
+.spec__note code {
+  padding: 0 3px;
+  border-radius: var(--radius-xxs);
+  background: var(--badge-fill);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--muted);
+}
+.spec__demo {
+  min-width: 0;
+}
+
+/* the settings page envelope, at production geometry: the General page is a
+   768px form column with 24px gutters over the window-body canvas, so the
+   section inside these demos measures exactly the 720px it measures live. */
+.demo {
+  width: var(--container-settings-page-form);
+  max-width: 100%;
+  padding: 20px 24px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--canvas);
+}
+.demo__col {
+  max-width: calc(var(--container-settings-page-form) - 48px);
+}
+
+/* wallpapered desk — the only place shell glass has something to be glass over */
+.stage {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255, 255, 255, 0.035) 40%, transparent 41%) 0 0 /
+      26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(
+      480px 260px at 92% -12%,
+      color-mix(in oklab, var(--wallpaper-teal) 38%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--desk {
+  padding-bottom: 26px;
+}
+.plain {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--canvas-soft);
+}
+
+/* contract tables */
+.spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.spec-table th {
+  padding: 0 10px 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-eyebrow);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--subtle);
+  white-space: nowrap;
+}
+.spec-table td {
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+  color: var(--muted);
+}
+.spec-table tr:last-child td {
+  border-bottom: 0;
+}
+.spec-table td:first-child {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.spec-table .ex {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--subtle);
+}
+
+/* zoom strip — one control, several interaction states side by side */
+.zoom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.zoom__cell {
+  display: flex;
+  min-width: 96px;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.zoom__frame {
+  display: grid;
+  width: 64px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--shell-glass);
+}
+.zoom__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+@media (max-width: 760px) {
+  .spec {
+    grid-template-columns: 1fr;
+  }
+  .lab-sec__gist {
+    display: none;
+  }
+  .demo {
+    padding: 14px 16px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

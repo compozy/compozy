@@ -33,6 +33,11 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   notifications?: number;
   /** Non-interactive system status rendered in the trailing cluster, before the bell. */
   status?: React.ReactNode;
+  /**
+   * Interactive update offer, rendered between the ⌘K chip and the settings cog.
+   * Separate from `status` because that slot is non-interactive by contract.
+   */
+  updateIndicator?: React.ReactNode;
   onCommandClick?: () => void;
   onSettingsClick?: () => void;
   /** Live daemon binding for the command-palette chip. */
@@ -127,6 +132,7 @@ export function OsMenuBar({
   menus,
   notifications,
   status,
+  updateIndicator,
   onCommandClick,
   onSettingsClick,
   commandShortcutLabel,
@@ -239,6 +245,7 @@ export function OsMenuBar({
             {commandShortcutLabel}
           </Control>
         ) : null}
+        {updateIndicator}
         <Control
           data-slot="os-menubar-settings"
           aria-label="Settings"

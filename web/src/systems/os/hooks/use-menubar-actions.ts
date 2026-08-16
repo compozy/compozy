@@ -4,6 +4,7 @@ import { OS_COMPACT_BREAKPOINT, type OsAppId } from "../lib/os-types";
 import { useOsShell } from "./use-os-shell";
 import { useOsWindowCommands, type OsWindowCommandsModel } from "./use-os-window-commands";
 import { useAgentCreateHost } from "@/systems/agent";
+import { settingsSectionPath } from "@/systems/settings";
 
 /** Below the compact breakpoint the app menus collapse (US-019.EC-3). */
 const COMPACT_QUERY = `(max-width: ${OS_COMPACT_BREAKPOINT - 0.02}px)`;
@@ -38,6 +39,8 @@ export interface MenubarActionsModel {
   windowCommands: OsWindowCommandsModel;
   openApp(app: OsAppId): void;
   openSettings(): void;
+  /** Settings → General, where the Updates section lives (ADR-006). */
+  openUpdates(): void;
   openAppearance(): void;
   openLayouts(): void;
   openSupport(): void;
@@ -70,6 +73,7 @@ export function useMenubarActions(): MenubarActionsModel {
     windowCommands,
     openApp,
     openSettings: () => openApp("settings"),
+    openUpdates: () => openSettingsRoute(settingsSectionPath("general")),
     openAppearance: () => openSettingsRoute("/settings/appearance"),
     openLayouts: () => openSettingsRoute("/settings/layouts"),
     openSupport: () => openSettingsRoute("/settings/observability"),

@@ -259,6 +259,7 @@ export function GeneralSettingsPage() {
       </SettingsGroup>
 
       <GeneralUpdateSection
+        actions={page.updateActions}
         data={update.data}
         error={update.error}
         isError={update.isError}
@@ -309,13 +310,14 @@ export function GeneralSettingsPage() {
           <SettingRow
             data-testid="settings-page-general-update-detail"
             description={
-              update.data.recommendation ??
+              update.data.runtime.recommendation ??
               "Latest stable and install-method detail for this machine."
             }
             label="Update detail"
             control={
               <SettingValue mono>
-                {update.data.latest_version ?? "—"} · {update.data.install_method ?? "—"}
+                {update.data.runtime.latest_version ?? "—"} ·{" "}
+                {update.data.runtime.install_method || "—"}
               </SettingValue>
             }
           />

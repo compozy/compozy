@@ -2,7 +2,17 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
+import { HttpResponse } from "msw";
+
 import { AgentCreateHostProvider } from "@/systems/agent";
+import { compozyApiMock } from "@/storybook/openapi-msw";
+import { storybookMswParameters } from "@/storybook/msw";
+import type { SettingsUpdateStatus } from "@/systems/settings";
+import {
+  settingsUpdateApplyingFixture,
+  settingsUpdateBothAvailableFixture,
+  settingsUpdateStatusFixture,
+} from "@/systems/settings/mocks";
 import type {
   ActiveWorktreeSelection,
   WorkspacePayload,
@@ -318,3 +328,31 @@ export const DegradedSync: Story = {
     </DesktopShell>
   ),
 };
+
+/** Menubar update indicator (S2): one story per state the daemon can report. */
+function updateIndicatorStory(snapshot: SettingsUpdateStatus): Story {
+  return {
+    args: { workspace: { name: "compozy", monogram: "CO" } },
+    parameters: storybookMswParameters({
+      settings: [compozyApiMock.get("/api/settings/update", () => HttpResponse.json(snapshot))],
+    }),
+    render: () => <MenubarFixture />,
+  };
+}
+
+/**
+ * An update is offered: a single discreet glyph joins the trailing cluster between
+ * the ⌘K chip and the settings cog. No count, no dropdown — detail lives in Settings.
+ */
+export const UpdateIndicatorAvailable: Story = updateIndicatorStory(
+  settingsUpdateBothAvailableFixture
+);
+
+/** The calm default: nothing is offered, so the indicator is absent from the DOM. */
+export const UpdateIndicatorHidden: Story = updateIndicatorStory(settingsUpdateStatusFixture);
+
+/**
+ * An operation is live. The offer is over, so the indicator disappears and stays
+ * gone through applying, staged, and failed — progress belongs to Settings alone.
+ */
+export const UpdateIndicatorSuppressed: Story = updateIndicatorStory(settingsUpdateApplyingFixture);

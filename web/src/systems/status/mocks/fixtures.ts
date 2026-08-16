@@ -69,6 +69,7 @@ export const daemonStatusFixture: DaemonStatusPayload = {
   active_sessions: 3,
   total_sessions: 11,
   version: "0.1.0-storybook",
+  min_app_version: "0.1.0",
   schema_streams: [
     {
       stream: "global",

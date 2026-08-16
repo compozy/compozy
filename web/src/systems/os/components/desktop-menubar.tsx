@@ -10,12 +10,14 @@ import { useDesktop } from "../hooks/use-desktop";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
 import { AttentionBell } from "./attention-bell";
+import { MenubarUpdateIndicator } from "./menubar/menubar-update-indicator";
 import { CompozyMenu } from "./menubar/compozy-menu";
 import { GoMenu } from "./menubar/go-menu";
 import { HelpMenu } from "./menubar/help-menu";
 import { SessionMenu } from "./menubar/session-menu";
 import { WindowMenu } from "./menubar/window-menu";
 import { WorkspaceMenu } from "./menubar/workspace-menu";
+import { settingsUpdateIndicatorAvailable, useSettingsUpdate } from "@/systems/settings";
 import {
   GLOBAL_SCOPE_COPY,
   globalScopeTooltipOn,
@@ -107,6 +109,8 @@ export function DesktopMenubar({
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
   const jumpToSession = useAttentionJump();
+  // Same cached read the Updates section uses — one truth, one query key.
+  const update = useSettingsUpdate();
   const globalOn = scope === "global";
   if (rememberedWorkspaceName === undefined) {
     rememberedWorkspaceName = activeWorkspace ? activeWorkspace.name : null;
@@ -187,6 +191,12 @@ export function DesktopMenubar({
       }
       // No workspace means no layout stream — there is nothing to be out of sync with.
       status={<OsHydrationStatus hydration={hydration} />}
+      updateIndicator={
+        <MenubarUpdateIndicator
+          available={settingsUpdateIndicatorAvailable(update.data)}
+          onActivate={actions.openUpdates}
+        />
+      }
       notifications={attention.notificationCount}
       onCommandClick={onOpenPalette}
       onSettingsClick={actions.openSettings}

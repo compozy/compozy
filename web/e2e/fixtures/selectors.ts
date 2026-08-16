@@ -610,6 +610,14 @@ export const settingsGeneralTestIds = {
   restartNotice: "settings-page-general-restart-notice",
   restartTrigger: "settings-page-general-restart-trigger",
   restartDismiss: "settings-page-general-restart-dismiss",
+  updates: "settings-page-general-updates",
+  updateStatus: "settings-page-general-update-status",
+  updateRetry: "settings-page-general-update-retry",
+  updateRecommendation: "settings-page-general-update-recommendation",
+  updateLastError: "settings-page-general-update-last-error",
+  updateBlocked: "settings-page-general-update-blocked",
+  updateRollback: "settings-page-general-update-rollback",
+  updateCancel: "settings-page-general-update-cancel",
 } as const;
 
 export const settingsSkillsTestIds = {
@@ -702,6 +710,19 @@ interface SettingsGeneralSelectors {
   saveBar: Locator;
   saveButton: Locator;
   sessionTimeoutInput: Locator;
+  updates: Locator;
+  updateStatus: Locator;
+  updateRetry: Locator;
+  updateRecommendation: Locator;
+  updateLastError: Locator;
+  updateBlocked: Locator;
+  updateRollback: Locator;
+  updateCancel: Locator;
+  /** Per-track row, apply affordance, live progress, and release link. */
+  updateTrack: (target: string) => Locator;
+  updateApply: (target: string) => Locator;
+  updateProgress: (target: string) => Locator;
+  updateRelease: (target: string) => Locator;
 }
 
 interface SettingsSkillsSelectors {
@@ -1521,6 +1542,22 @@ export function settingsOperatorSelectors(
       saveButton: page.getByTestId(settingsGeneralTestIds.saveButton),
       resetButton: page.getByTestId(settingsGeneralTestIds.resetButton),
       sessionTimeoutInput: page.getByTestId(settingsGeneralTestIds.sessionTimeoutInput),
+      updates: page.getByTestId(settingsGeneralTestIds.updates),
+      updateStatus: page.getByTestId(settingsGeneralTestIds.updateStatus),
+      updateRetry: page.getByTestId(settingsGeneralTestIds.updateRetry),
+      updateRecommendation: page.getByTestId(settingsGeneralTestIds.updateRecommendation),
+      updateLastError: page.getByTestId(settingsGeneralTestIds.updateLastError),
+      updateBlocked: page.getByTestId(settingsGeneralTestIds.updateBlocked),
+      updateRollback: page.getByTestId(settingsGeneralTestIds.updateRollback),
+      updateCancel: page.getByTestId(settingsGeneralTestIds.updateCancel),
+      updateTrack: (target: string) =>
+        page.getByTestId(`settings-page-general-update-track-${target}`),
+      updateApply: (target: string) =>
+        page.getByTestId(`settings-page-general-update-apply-${target}`),
+      updateProgress: (target: string) =>
+        page.getByTestId(`settings-page-general-update-progress-${target}`),
+      updateRelease: (target: string) =>
+        page.getByTestId(`settings-page-general-update-release-${target}`),
     },
     skills: {
       page: page.getByTestId(settingsSkillsTestIds.page),

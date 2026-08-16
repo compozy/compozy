@@ -8,6 +8,10 @@ export {
 export { DockIcons, type DockIconId } from "./os-dock-icons";
 export { OsMenuBar, type OsMenuBarProps } from "./os-menubar";
 export { OsHydrationStatus, type OsHydrationStatusProps } from "./os-hydration-status";
+export {
+  MenubarUpdateIndicator,
+  type MenubarUpdateIndicatorProps,
+} from "./menubar/menubar-update-indicator";
 export { OsWorkspacesOverview, type OsWorkspacesOverviewProps } from "./os-workspaces-overview";
 export { DesktopPager, type DesktopPagerProps } from "./desktop-pager";
 export { DesktopsOverview, type DesktopsOverviewProps } from "./desktops-overview";

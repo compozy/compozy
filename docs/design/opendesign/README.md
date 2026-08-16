@@ -12,6 +12,7 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Dashboard | [`dashboard/`](dashboard/) | [`dashboard/dashboard.html`](dashboard/dashboard.html) |
 | Tasks | [`tasks/`](tasks/) | [`tasks/task-detail.html`](tasks/task-detail.html) |
 | Settings | [`settings/`](settings/) | [`settings/settings-general.html`](settings/settings-general.html) |
+| Electron shell updates | [`electron-shell/`](electron-shell/) | [`electron-shell/index.html`](electron-shell/index.html) |
 | Network | [`network/`](network/) | [`network/network.html`](network/network.html) |
 | Loops (active) | [`loops/`](loops/) | [`loops/index.html`](loops/index.html) · final pages + labs |
 | Session | [`session/`](session/) | [`session/index.html`](session/index.html) · spec [`SESSION-REDESIGN-SPEC.md`](session/SESSION-REDESIGN-SPEC.md) |

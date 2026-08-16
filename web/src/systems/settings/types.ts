@@ -144,7 +144,21 @@ export type SettingsUpdateWindowManagerRequest =
 
 export type SettingsRestartResponse = OperationResponse<"triggerSettingsRestart", 202>;
 export type SettingsRestartStatus = OperationResponse<"getSettingsRestartStatus", 200>;
+// Update surface (ADR-006/ADR-009). `getSettingsUpdate` is the live MultiState
+// projection: an always-present runtime track, an app track that exists exactly
+// when a desktop app is installed on this host, and an operation view that is
+// non-null exactly while an Update Operation is live on this home.
 export type SettingsUpdateStatus = OperationResponse<"getSettingsUpdate", 200>;
+export type SettingsUpdateRuntimeTrack = SettingsUpdateStatus["runtime"];
+export type SettingsUpdateAppTrack = NonNullable<SettingsUpdateStatus["app"]>;
+export type SettingsUpdateOperation = NonNullable<SettingsUpdateStatus["operation"]>;
+export type SettingsUpdateHolder = NonNullable<SettingsUpdateOperation["holder"]>;
+export type SettingsUpdateStatusKind = SettingsUpdateRuntimeTrack["status"];
+export type SettingsUpdateApplyRequest = OperationRequestBody<"applySettingsUpdate">;
+export type SettingsUpdateApplyResult = OperationResponse<"applySettingsUpdate", 200>;
+export type SettingsUpdateCancelResult = OperationResponse<"cancelSettingsUpdate", 200>;
+/** The two update tracks the daemon models. Mirrors `compozyupdate.Target`. */
+export type SettingsUpdateTarget = "runtime" | "app";
 export type SettingsApplyResponse = OperationResponse<"reloadSettings", 200>;
 export type ConfigApplyRecordsResponse = OperationResponse<"listSettingsApplyRecords", 200>;
 export type ConfigApplyRecord = ConfigApplyRecordsResponse["entries"][number];

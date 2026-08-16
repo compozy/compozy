@@ -18,7 +18,15 @@ import {
   settingsAppliedMutationFixture,
   settingsGeneralSectionFixture,
   settingsRestartStatusFixture,
+  settingsUpdateApplyingFixture,
+  settingsUpdateBlockedFixture,
+  settingsUpdateBothAvailableFixture,
+  settingsUpdateManagedFixture,
+  settingsUpdateNoAppFixture,
+  settingsUpdateRolledBackFixture,
+  settingsUpdateStagedFixture,
 } from "@/systems/settings/mocks";
+import type { SettingsUpdateStatus } from "@/systems/settings";
 import { toolApprovalGrantsResponseFixture } from "@/systems/tool-approvals/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
@@ -277,3 +285,38 @@ export const RememberedDecisions: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
 };
+
+/** One story per update state the daemon can report — the S1 visual contract. */
+function updateStory(snapshot: SettingsUpdateStatus): Story {
+  return {
+    args: {},
+    parameters: {
+      ...appRouteParameters("/settings/general"),
+      ...storybookMswParameters({
+        settings: [compozyApiMock.get("/api/settings/update", () => HttpResponse.json(snapshot))],
+      }),
+    },
+    render: () => <StorybookWorkspaceSetup />,
+  };
+}
+
+/** Both tracks offer a release: two rows, two actions, no combined "update all". */
+export const UpdatesBothAvailable: Story = updateStory(settingsUpdateBothAvailableFixture);
+
+/** Package-managed runtime: the command is the action, so no apply button exists. */
+export const UpdatesManagedRuntime: Story = updateStory(settingsUpdateManagedFixture);
+
+/** Headless host: the payload carries no app object, so no app row is rendered. */
+export const UpdatesNoAppInstalled: Story = updateStory(settingsUpdateNoAppFixture);
+
+/** Runtime mid-apply: the pill lane becomes the daemon's named phase and percent. */
+export const UpdatesApplying: Story = updateStory(settingsUpdateApplyingFixture);
+
+/** App closed: staged until next launch, and the one state where cancel is real. */
+export const UpdatesAppStaged: Story = updateStory(settingsUpdateStagedFixture);
+
+/** Another surface holds the channel: the holder is named and no action is offered. */
+export const UpdatesBlocked: Story = updateStory(settingsUpdateBlockedFixture);
+
+/** Apply failed: the restored build is what runs, and the raw error gets its own row. */
+export const UpdatesRolledBack: Story = updateStory(settingsUpdateRolledBackFixture);
