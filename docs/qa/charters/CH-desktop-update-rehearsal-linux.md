@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-desktop-update-rehearsal-linux
-  mission: "As Bruno on Linux, rehearse the update moment against the staging fixture feed — background app update, consented restart, runtime update under in-flight work, managed recommendation, and a forced apply failure that must leave the app intact — scripted via tauri-driver."
+  mission: "As Bruno on Linux, rehearse the update moment against a mock GitHub release and channel — background app update, consented restart, runtime update under in-flight work, managed recommendation, and a forced apply failure that must leave the app intact — through Playwright _electron."
   mode: scenario-based
   platform: linux
   persona:
@@ -12,12 +12,12 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-desktop-update-moment
-  scenarios: [APP-app-auto-update, APP-runtime-update-app-owned, APP-runtime-update-managed, APP-update-recovery-state, APP-brand-channel-visibility]
+  scenarios: [APP-app-auto-update, APP-runtime-update-app-owned, APP-runtime-update-managed, APP-update-recovery-state, APP-brand-channel-visibility, APP-abandoned-install-update-polling]
   tour: Interrupt Tour
   time_box_minutes: 90
   e2e: [E2E-012, E2E-013, E2E-014, E2E-015, E2E-016, E2E-022, E2E-025]
   lab:
-    bootstrap: "eng-qa-bootstrap — fresh bootstrap-manifest.json for this pass; staging minisign keypair + local fixture feed only, never the production key"
+    bootstrap: "eng-qa-bootstrap — fresh bootstrap-manifest.json for this pass; mock GitHub release/channel fixtures only, never a production token"
     isolation: "unique COMPOZY_HOME + daemon ports from the manifest; default home/ports forbidden"
     web_proxy: "derive COMPOZY_WEB_API_PROXY_TARGET from the manifest if any browser surface is used; never hardcode :2123"
     pids: "register lab daemon and the fixture feed server at <QA_OUTPUT_PATH>/qa/pids/<name>.pid"

@@ -38,5 +38,5 @@ current-boot `desktop.log` and `desktop-bootstrap.jsonl` tails. The isolated mac
 and offline diagnose, consent, allowlist, permissions, stale-socket, and no-clobber legs. The full
 packaged status/open/update matrix and shipping OS coverage remain blocked for artifact verification.
 
-QA impact 2026-08-16: `compozy app update` was deleted, app state moved to schema v2, and the
+QA impact 2026-08-16: the retired app-scoped updater verb was deleted, app state moved to schema v2, and the
 runtime/app operation moved to `compozy update`. Reset for the task_07 headless walk.

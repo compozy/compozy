@@ -4,6 +4,7 @@
     "pages": [
         "daemon",
         "desktop-app",
+        "desktop-release",
         "mcp-serve",
         "database",
         "support-bundles",

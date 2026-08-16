@@ -916,10 +916,14 @@ Changing this field is restart-required.
 
 ## `[app]`
 
-| Field                   | Type     | Default | Valid values    | Description                                           |
-| ----------------------- | -------- | ------- | --------------- | ----------------------------------------------------- |
-| `update_check`          | boolean  | `true`  | `true`, `false` | Checks for desktop app and app-owned runtime updates. |
-| `update_check_interval` | duration | `6h`    | `15m` to `168h` | Time between desktop update checks.                   |
+The daemon is the sole consumer of both keys. It schedules read-only checks for the runtime and,
+when installed, the desktop app. The shell does not read `config.toml`; it observes the durable
+update operation when an app apply is staged.
+
+| Field                   | Type     | Default | Valid values    | Description                                  |
+| ----------------------- | -------- | ------- | --------------- | -------------------------------------------- |
+| `update_check`          | boolean  | `true`  | `true`, `false` | Enables daemon-scheduled host update checks. |
+| `update_check_interval` | duration | `6h`    | `15m` to `168h` | Time between daemon-scheduled checks.        |
 
 ## `[attention]`
 

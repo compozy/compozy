@@ -23,7 +23,7 @@ UT-089–UT-091.
 
 Per-OS evidence (N-004): all three OSes capture process-table before/after app open (no spawn),
 same-origin proof (session + local UI state parity with the tab), and the live two-way sync walk
-(E2E-018). macOS via scripted-manual smoke; Windows/Linux via tauri-driver plus manual sync check.
+(E2E-018). macOS via scripted-manual smoke; Windows/Linux via Playwright _electron plus manual sync check.
 Isolated-home labs only: the lab manifest's `COMPOZY_HOME` must be the one resolved — never the
 operator default home.
 

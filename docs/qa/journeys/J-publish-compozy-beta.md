@@ -11,7 +11,7 @@ flowchart TD
     C1 -->|incomplete| X3[Abandon: desktop lane asserts signing material before building and hard-fails - nothing reaches the update feed]
     C1 -->|complete| C2[Build, sign, and notarize the three desktop platforms]
     C2 -->|one platform fails| X4[Abandon: no feed published and the GitHub release stays draft - operator gets explicit evidence, never a silent platform drop]
-    C2 --> C3[Build and sign canonical feeds, publish exact immutable payloads, then no-cache latest.json and runtime.json, and re-verify from the public origin]
+    C2 --> C3[Build exact platform packages, publish immutable release assets, then CAS one audited channel commit]
     C3 --> D[Sole finalizer publishes the GitHub release]
     D --> D1[Install the prepared CLI package on macOS and Linux; postinstall downloads the public GitHub archives]
     D1 -->|archive download or binary check fails| X5[Abandon: keep npm unpublished and preserve the public GitHub release for repair]
@@ -64,5 +64,5 @@ journey:
     - at_step: 3
       how: "The registry query fails, a beta moves latest, malformed policy data is returned, or the readiness deadline expires."
       resume: "Stop for incident review with the last observation; never overwrite tags or republish an immutable npm version."
-  crosses: [release-workflow, github-releases, sigstore, npm-cli-package, npm-extension-sdk, desktop-release-lane, desktop-update-feeds, minisign-feed-key-custody]
+  crosses: [release-workflow, github-releases, sigstore, npm-cli-package, npm-extension-sdk, desktop-release-lane, desktop-channel-branch]
 ```

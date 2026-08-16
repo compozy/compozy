@@ -13,8 +13,9 @@ For a desktop startup failure, use the separate local diagnostic archive instead
 compozy app diagnose --bundle --yes -o json
 ```
 
-It works without a healthy daemon and contains `manifest.json` with the redacted desktop
-`DiagnosticReport`. It may also contain bounded, redacted tails from the current boot's
+It works without a healthy daemon and reads the current app control socket or the latest persisted
+desktop report. The archive contains `manifest.json` with the redacted `DiagnosticReport`. It may
+also contain bounded, redacted tails from the current boot's
 `desktop.log` and `desktop-bootstrap.jsonl`; it never includes `compozy.log`, raw logs, databases,
 configuration, credentials, sessions, or transcripts. It does not create a support-bundle operation,
 upload anything, or delete data. Use `compozy support bundle` only when the daemon is running and

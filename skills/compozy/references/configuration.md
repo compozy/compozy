@@ -32,6 +32,15 @@ Use `compozy config reload -o json` to reconcile edited desired state with the a
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
 
+## Host update cadence
+
+`[app] update_check` defaults to `true`; `update_check_interval` defaults to `6h` and accepts
+`15m` through `168h`. The daemon is the sole consumer and schedules read-only runtime and app
+checks. The shell reads no update config. Read the host-global operation with
+`GET /api/settings/update`; mutate it through `POST /api/settings/update/apply` or
+`POST /api/settings/update/cancel` over HTTP or UDS. Use `compozy update --check -o json`,
+`compozy update -o json`, and `compozy update --cancel -o json` as the CLI paths.
+
 ## Session Attachments
 
 `session.attachments.max_file_bytes` (10 MiB), `session.attachments.max_files_per_prompt` (10), and

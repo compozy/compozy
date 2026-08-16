@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-desktop-links-instance-linux
-  mission: "As Théo on Linux (WebKitGTK), prove compozyos:// links land in one window on the right view — running, cold, forwarded — and that hostile payloads and external links never escape the boundary."
+  mission: "As Théo on Linux, prove through Playwright _electron that compozyos:// links land in one Chromium window on the right view — running, cold, forwarded — and that hostile payloads and external links never escape the boundary."
   mode: charter-with-tour
   platform: linux
   persona:
@@ -30,7 +30,7 @@ charter:
       - "E2E-007: second launch from launcher/file manager/`compozy app open` → existing window focused, process count unchanged; rapid successive links → last one wins visibly (US-010.EC-3)."
       - "E2E-009: external https + `target=_blank` → OS default browser, app stays on the product; an internal-looking `http://localhost:<other-port>` is treated as external (US-011.EC-1)."
     must_avoid:
-      - "No forced actionability bypasses in the tauri-driver script."
+      - "No forced actionability bypasses in the Playwright _electron test."
       - "Never run against the operator's default home; never leave lab processes alive past teardown."
 ```
 

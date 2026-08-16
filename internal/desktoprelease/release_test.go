@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -88,6 +90,72 @@ func TestDesktopArtifactInventory(t *testing.T) {
 			test.mutate(t, dir)
 			if err := AssertExactDesktopInventory(t.Context(), dir, version); err == nil {
 				t.Fatal("AssertExactDesktopInventory() error = nil")
+			}
+		})
+	}
+}
+
+func TestCutoverReferenceScan(t *testing.T) {
+	t.Parallel()
+
+	root := desktopReleaseRepoRoot(t)
+	checks := []struct {
+		name    string
+		pattern *regexp.Regexp
+	}{
+		{name: "legacy shell", pattern: regexp.MustCompile(`(?i)\btau` + `ri\b|tau` + `ri[-_]`)},
+		{name: "legacy Linux engine", pattern: regexp.MustCompile(`(?i)webkitgtk`)},
+		{name: "retired distribution origin", pattern: regexp.MustCompile(`releases\.compozy\.com`)},
+		{name: "retired signing inputs", pattern: regexp.MustCompile(`TAURI_SIGNING_|(?i:\bminisign\b)`)},
+		{name: "retired runtime feed", pattern: regexp.MustCompile(`(?i)\bruntime\.json\b`)},
+		{name: "retired app intent", pattern: regexp.MustCompile(`app-update-intent\.json`)},
+		{name: "retired repair workflow", pattern: regexp.MustCompile(`desktop-feed-repair`)},
+		{name: "retired Rust CI", pattern: regexp.MustCompile(`dtolnay/rust-toolchain|cargo (?:build|test|lint)`)},
+		{name: "retired app update verb", pattern: regexp.MustCompile(`compozy app ` + `update`)},
+		{name: "retired update control methods", pattern: regexp.MustCompile(`["']update\.(?:check|apply)["']`)},
+	}
+	liveSurfaces := []string{
+		".github/workflows",
+		"cmd",
+		"desktop",
+		"internal",
+		"scripts",
+		"packages/site/content",
+		"skills/compozy",
+		"docs/qa/scenarios",
+		"docs/qa/charters",
+		"docs/qa/journeys",
+		".gitignore",
+		"Makefile",
+		"package.json",
+		"CHANGELOG.md",
+		"RELEASE_BODY.md",
+		"RELEASE_NOTES.md",
+	}
+
+	for _, relative := range liveSurfaces {
+		relative := relative
+		t.Run("Should keep "+relative+" free of deleted desktop surfaces", func(t *testing.T) {
+			t.Parallel()
+			scanDesktopReleaseSurface(t, root, relative, checks)
+		})
+	}
+
+	for _, relative := range []string{
+		".github/workflows/desktop-feed-repair.yml",
+		"scripts/normalize-desktop-artifacts.sh",
+		"scripts/assert-desktop-signing-material.sh",
+		"scripts/verify-desktop-release-build-contract.sh",
+		"scripts/generate-desktop-update-key.sh",
+		"scripts/verify-desktop-signature.sh",
+		"scripts/publish-desktop-release.sh",
+		"scripts/repair-desktop-feed.sh",
+	} {
+		relative := relative
+		t.Run("Should keep deleted target absent "+relative, func(t *testing.T) {
+			t.Parallel()
+			if _, err := os.Stat(filepath.Join(root, relative)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("os.Stat(%s) error = %v, want not exist", relative, err)
 			}
 		})
 	}
@@ -580,6 +648,91 @@ func writeTestFile(t *testing.T, path string, contents []byte) {
 	t.Helper()
 	if err := os.WriteFile(path, contents, 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%s) error = %v", path, err)
+	}
+}
+
+func desktopReleaseRepoRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error = %v", err)
+	}
+	for {
+		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
+			return dir
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(go.mod) error = %v", statErr)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("repository root with go.mod was not found")
+		}
+		dir = parent
+	}
+}
+
+func scanDesktopReleaseSurface(
+	t *testing.T,
+	root string,
+	relative string,
+	checks []struct {
+		name    string
+		pattern *regexp.Regexp
+	},
+) {
+	t.Helper()
+	path := filepath.Join(root, relative)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("os.Stat(%s) error = %v", relative, err)
+	}
+	inspect := func(filePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if entry.Name() == "node_modules" || entry.Name() == ".artifacts" || entry.Name() == "dist" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !desktopReleaseTextFile(filePath) ||
+			filepath.Clean(filePath) == filepath.Join(root, "internal", "desktoprelease", "release_test.go") {
+			return nil
+		}
+		contents, readErr := os.ReadFile(filePath)
+		if readErr != nil {
+			return fmt.Errorf("read %s: %w", filePath, readErr)
+		}
+		for _, check := range checks {
+			location := check.pattern.FindIndex(contents)
+			if location == nil {
+				continue
+			}
+			line := strings.Count(string(contents[:location[0]]), "\n") + 1
+			return fmt.Errorf("%s:%d contains %s", filePath, line, check.name)
+		}
+		return nil
+	}
+	if !info.IsDir() {
+		entry := fs.FileInfoToDirEntry(info)
+		if err := inspect(path, entry, nil); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	if err := filepath.WalkDir(path, inspect); err != nil {
+		t.Fatalf("filepath.WalkDir(%s) error = %v", relative, err)
+	}
+}
+
+func desktopReleaseTextFile(path string) bool {
+	switch filepath.Ext(path) {
+	case "", ".cjs", ".css", ".go", ".html", ".js", ".json", ".jsonl", ".md", ".mdx",
+		".mjs", ".sh", ".toml", ".ts", ".tsx", ".txt", ".yaml", ".yml":
+		return true
+	default:
+		return false
 	}
 }
 

@@ -12,7 +12,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-publish-compozy-beta
-  scenarios: []
+  scenarios: [REL-beta-channel-contract, REL-channel-repair-known-good, REL-electron-cutover-announcement]
   tour: Garbage Tour
   time_box_minutes: 90
   e2e: [E2E-019]
@@ -26,7 +26,7 @@ charter:
   guidance:
     must_try:
       - "Dry-run with signing/feed-key material absent → the desktop lane asserts material before building and hard-fails; nothing reaches the update feed (US-021.AC-1)."
-      - "Draft-release path with full secrets → payloads publish before the no-cache latest.json/runtime.json; the post-publish verifier downloads the feed + one artifact per platform and validates signatures against the public key (US-021.AC-2); the sole finalizer publishes only the GitHub draft, and only after verification."
+      - "Draft-release path with full secrets → immutable GitHub assets verify before one channel commit and ref CAS; the post-publish verifier reads both platform manifests and one artifact per platform; the sole finalizer publishes only after verification."
       - "Simulate one platform build failure → no feed published, the GitHub release stays draft, and the operator gets explicit evidence — never a silently dropped platform (US-021.EC-1); confirm the reserved `desktop/stable/` prefix stays blocked (US-021.EC-2)."
       - "Close the human gate: the feed-key custody runbook (backup + rotation) exists and has been reviewed — record the checklist evidence (US-021.AC-3)."
     must_avoid:

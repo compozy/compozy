@@ -24,5 +24,5 @@ QA verdict 2026-08-12: the exact Mage hook accepted beta.13's 49,342,626-byte ar
 policy limit before publication.
 
 QA impact 2026-08-16: reset after the desktop release inventory, checksum custody, and publication
-ordering moved from the Tauri feed to the Electron channel authority. Re-walk in the electron-shell
+ordering moved from the previous feed to the Electron channel authority. Re-walk in the electron-shell
 QA tail.

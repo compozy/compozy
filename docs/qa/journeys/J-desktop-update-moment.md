@@ -68,5 +68,5 @@ journey:
     - at_step: 2
       how: "Quit with the update downloaded but unapplied."
       resume: "The next launch applies or launches into the new version per platform convention — the update is not lost."
-  crosses: [update-feed-domain, minisign-and-platform-signing, quiesce-contract, update-lock-journal, install-method-detection, release-pipeline]
+  crosses: [github-release-channel, platform-signing, quiesce-contract, update-lock-journal, install-method-detection, release-pipeline]
 ```

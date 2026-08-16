@@ -113,7 +113,7 @@ describe("control server", () => {
         schema_version: 1,
         id: 9,
         token,
-        method: "update.apply",
+        method: "retired.action",
         params: {},
       });
       expect(unknown.error?.code).toBe("app_control_unknown_method");

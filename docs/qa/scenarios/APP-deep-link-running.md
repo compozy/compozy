@@ -22,5 +22,5 @@ links, last wins). BR-15/BR-16. Test IDs: E2E-008; IT-019, IT-020; UT-044–UT-0
 Per-OS evidence (N-004): each OS registers the scheme differently — all three OSes walk one valid
 link (focus + correct view capture), one deleted-entity link (product not-found view), and one
 hostile payload (`compozyos://open/http://evil.com`-class → default view). macOS scripted-manual;
-Windows/Linux scripted via tauri-driver where the harness supports scheme activation, otherwise
+Windows/Linux scripted via Playwright _electron where the harness supports scheme activation, otherwise
 manual activation with recorded transcripts.

@@ -18,4 +18,6 @@ overlaps: ET-window-manager-layout-gestures
 
 Introduced for issue #345. The permission is limited to the remote daemon-served `main` window and standard loopback origins.
 
-2026-08-11 retest: passed in the native Tauri shell. Command-plus enlarged the entire product page, Command-minus reduced it, and Command-zero restored the original scale without invoking the in-product window Zoom action.
+The Electron walk must prove that Command-plus enlarges the entire product page, Command-minus
+reduces it, and Command-zero restores the original scale without invoking the in-product window Zoom
+action.

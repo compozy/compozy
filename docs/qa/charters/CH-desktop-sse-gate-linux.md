@@ -1,9 +1,9 @@
-# CH-desktop-sse-gate-linux: Ten-minute SSE streaming-load release gate on WebKitGTK
+# CH-desktop-sse-gate-linux: Ten-minute SSE streaming-load release gate in Electron
 
 ```yaml
 charter:
   id: CH-desktop-sse-gate-linux
-  mission: "As Théo on Linux, hold the most stream-heavy product screens open in the app for 10 minutes on WebKitGTK, measuring concurrent SSE/WS connections and UI liveness — E2E-021 is a release gate: a failure blocks ship and escalates per TechSpec Known Risks; WebKitGTK is the highest-risk engine of the three."
+  mission: "As Théo on Linux, hold the most stream-heavy product screens open in Electron for 10 minutes, measuring concurrent SSE/WS connections and UI liveness — E2E-021 is a release gate."
   mode: strategy-based
   platform: linux
   persona:
@@ -25,8 +25,8 @@ charter:
     teardown: "eval \"$TEARDOWN_COMMAND\" (or make qa-reap) on every terminal path; cite teardown.json \"clean\": true (L-029)"
   guidance:
     must_try:
-      - "Open the most stream-heavy screens with multiple live producers; hold for a continuous 10-minute window on WebKitGTK."
-      - "Measure the per-origin concurrent SSE/WS connection profile and record it into the release evidence; note any WebKitGTK connection ceiling or starvation behavior verbatim for the support runbook."
+      - "Open the most stream-heavy screens with multiple live producers; hold for a continuous 10-minute window in Chromium."
+      - "Measure the per-origin concurrent SSE/WS connection profile and record it into the release evidence; note any Electron connection ceiling or starvation behavior verbatim for the support runbook."
       - "Assert UI liveness: no starved stream, no dead pane, no permanently stalled screen; interact mid-window and confirm streams survive."
       - "Record verdict as a release-gate result (pass/fail + profile) in the run report and release record; this charter settles no tracker scenario."
     must_avoid:

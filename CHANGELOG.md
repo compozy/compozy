@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parent and child sessions (#327)
 - Add secure remote gateway access (#331)
 - Ship CompozyOS desktop app (#336)
+- Replace the desktop shell with Electron
 
 ### 🐛 Bug Fixes
 
@@ -67,7 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Start absent SSH daemon
 - Make loop goals converge reliably (#335)
 - Desktop issues
-- Ship the full desktop icon set required by Windows tauri-build
+- Ship the complete desktop platform icon set
 - Pause the Windows desktop lane and ship macOS + Linux only
 - Adjust project copy
 - Publish staged GitHub release drafts

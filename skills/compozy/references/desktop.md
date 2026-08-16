@@ -11,6 +11,9 @@ Read current state before acting:
 compozy app status -o json
 ```
 
+The preserved app verbs are `open`, `status`, `retry`, and `diagnose`. Host updates are not
+an app subcommand.
+
 Open or focus the app. The optional argument is an absolute product path such as `/workspaces`, not
 a filesystem path:
 
@@ -31,6 +34,9 @@ The structured result always contains `runtime` and includes `app` only when the
 installed. A managed runtime returns its exact package-manager recommendation without changing the
 binary. Apply and cancel are also available through `POST /api/settings/update/apply` and
 `POST /api/settings/update/cancel` over HTTP or UDS; read live state with `GET /api/settings/update`.
+Treat `available`, `applying`, `staged`, `blocked`, `failed`, `updated`, and
+`up-to-date` as the update statuses. A blocked result names the current holder. App status also
+projects the operation ID, phase, and progress when an operation exists.
 
 Retry the current operation or request structured diagnostics:
 
@@ -66,6 +72,16 @@ running app applies its verified artifact or a closed app stages it for the next
 replace an app-owned runtime after verification when durable provenance still proves ownership. For
 an operator-managed or inconclusively owned runtime, report the install method and its update
 command; never replace the binary through `compozy app`.
+
+## Shell facts
+
+The desktop app is an Electron shell over the daemon-served product UI. A packaged app includes a
+verified runtime, so a clean first run can provision offline. Boot resolves in this order: attach to
+a healthy daemon, start `$COMPOZY_HOME/bin/compozy`, or verify and install the bundled runtime.
+Quitting the shell leaves the daemon running.
+
+The product UI is developed and release-verified against Chromium, the engine embedded by Electron.
+Other browsers can open the daemon-served UI on a best-effort basis.
 
 ## Recovery
 

@@ -12,8 +12,8 @@ and `~/.compozy` home.
 The desktop app supports macOS on Apple silicon and Intel, and Linux on x64. Before
 installing either surface, make sure you have:
 
-- **An install method that fits your machine**. For the desktop app, use the signed installer from
-  GitHub Releases. For the `compozy` command during the v0.3 beta, use the verified installer,
+- **An install method that fits your machine**. For the desktop app, use the package for your
+  architecture from GitHub Releases. For the `compozy` command during the v0.3 beta, use the verified installer,
   npm's `beta` channel, or the explicit Go beta version. Homebrew returns with v0.3.0 stable.
   The verified binary installer requires `curl`, `tar`, and either `sha256sum` or `shasum`. It uses
   a local `cosign` when available; otherwise it downloads a pinned temporary cosign verifier before
@@ -35,10 +35,16 @@ export OPENROUTER_API_KEY="..."
 
 ## Install the desktop app
 
-Download the current signed installer from the CompozyOS GitHub release page:
+Download the package whose name matches your machine from the CompozyOS GitHub release:
 
-- **macOS:** open the universal `.dmg`, then drag CompozyOS to Applications.
-- **Linux:** install the x64 `.deb` package or run the `.AppImage`.
+| System | Architecture  | Package                                                                         |
+| ------ | ------------- | ------------------------------------------------------------------------------- |
+| macOS  | Apple silicon | `CompozyOS-<version>-mac-arm64.dmg`                                             |
+| macOS  | Intel         | `CompozyOS-<version>-mac-x64.dmg`                                               |
+| Linux  | x64           | `CompozyOS-<version>-linux-x64.deb` or `CompozyOS-<version>-linux-x64.AppImage` |
+
+On macOS, open the matching notarized `.dmg`, then drag CompozyOS to Applications. On Linux,
+verify the package against the release `checksums.txt` before installing or running it.
 
 AppImage mounting requires FUSE 2. On Ubuntu and Debian, install `libfuse2`; newer distributions may
 name the package `libfuse2t64`. If FUSE is unavailable, use the built-in extraction fallback:
@@ -48,7 +54,8 @@ name the package `libfuse2t64`. If FUSE is unavailable, use the built-in extract
 ```
 
 Open the app after installation. It first attaches to a healthy runtime already running on the
-machine. Otherwise it starts an installed runtime or downloads and verifies an app-owned runtime.
+machine. Otherwise it starts the installed runtime or verifies and installs the runtime bundled
+inside the app. A clean first run does not need a network connection.
 Continue with [Desktop app](/docs/getting-started/desktop-app).
 
 ## Install the `compozy` command

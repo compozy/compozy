@@ -1,0 +1,110 @@
+---
+title: Desktop release operations
+description: Publish or repair the beta Electron channel through verified GitHub release assets and an audited branch update.
+---
+
+The desktop updater reads manifests from the `channel-beta` branch. Each version's app packages
+remain immutable GitHub release assets. Publishing or repairing the channel creates one audit commit,
+then moves the branch with a compare-and-swap (CAS): the move succeeds only if the branch still has
+the revision the operation inspected.
+
+The release workflow is the normal publisher. Use the commands below when rehearsing the authority
+or repairing a published channel.
+
+## Required inputs
+
+Set `GITHUB_TOKEN` to a token that can read the release, create Git objects, and update the channel
+branch. Set `GITHUB_REPOSITORY` to `owner/name`.
+
+A publish workspace contains:
+
+- an authority directory with the six exact platform packages, `compat.json`, and
+  `checksums.txt`;
+- a channel directory with `latest-mac.yml`, `latest-linux.yml`, and `generation.json`.
+
+The six package names are architecture-specific: macOS arm64 and x64 each have `.dmg` and `.zip`
+artifacts; Linux x64 has `.AppImage` and `.deb`.
+
+## Publish a generation
+
+```bash
+go run ./cmd/compozy-desktop-release publish \
+  --operation-id "desktop-release-<version>-publish" \
+  --channel beta \
+  --version "<version>" \
+  --repository "$GITHUB_REPOSITORY" \
+  --asset-dir .artifacts/authority \
+  --channel-dir .artifacts/channel \
+  -o json
+```
+
+Publish verifies the exact local inventory and checksum catalog, uploads or verifies every immutable
+release asset, creates one commit containing both platform manifests and `generation.json`, then
+moves `channel-beta`. The JSON result contains `operation`, `channel_ref_before`,
+`channel_ref_after`, `verified_inventory`, `audit_commit`, and `outcome`.
+
+Keep the operation ID stable when retrying an interrupted publish. The same ID converges to
+`already_completed` instead of creating another channel flip.
+
+## Select a known-good generation
+
+Only a channel commit with the exact audit line `known_good=true` is eligible. Inspect the ordered
+history and its generation record:
+
+```bash
+git fetch origin channel-beta
+git log --format=fuller origin/channel-beta -- desktop/generation.json
+git show <commit>:desktop/generation.json
+```
+
+Confirm the requested `version`, `operation_id`, `published_at`, and `min_app_version`. Also
+confirm that the versioned GitHub release still contains every package plus `compat.json`. Repair
+refuses a generation with missing or empty assets.
+
+## Repair the channel
+
+```bash
+go run ./cmd/compozy-desktop-release repair \
+  --operation-id "desktop-release-<version>-repair-<incident-id>" \
+  --channel beta \
+  --version "<known-good-version>" \
+  --repository "$GITHUB_REPOSITORY" \
+  -o json
+```
+
+Repair copies the verified known-good manifest set into a new audit commit and CAS-moves the channel
+to that commit. It does not mutate the older commit or the versioned release.
+
+## Recover from `channel_cas_conflict`
+
+`channel_cas_conflict` means another publisher moved the branch after this operation read it.
+Do not force-push or replay with a new operation ID immediately.
+
+1. Fetch `channel-beta` and inspect its latest `desktop/generation.json`.
+2. If it already records your operation ID, retry the same command and accept
+   `already_completed`.
+3. If another valid operation won, decide whether that generation should remain live.
+4. Publish the newer intended generation or run `repair` against a verified known-good version
+   with a new incident-scoped operation ID.
+
+The other deterministic failures are `inventory_incomplete` for a missing or empty required asset
+and `verification_failed` for invalid versions, manifests, checksums, compatibility, or GitHub
+responses.
+
+## Inspect the live channel
+
+```bash
+git fetch origin channel-beta
+git rev-parse origin/channel-beta
+git show origin/channel-beta:desktop/generation.json
+git show origin/channel-beta:desktop/latest-mac.yml
+git show origin/channel-beta:desktop/latest-linux.yml
+```
+
+The branch SHA must equal the command's `channel_ref_after` and `audit_commit`. The two manifests
+must name one version and point only to immutable
+`https://github.com/<owner>/<repo>/releases/download/v<version>/...` assets.
+
+After a cutover release, remove the retired distribution bucket and DNS record. Do not keep old feed
+objects as a fallback; abandoned installs fail their own checks until the operator downloads the
+current GitHub release.

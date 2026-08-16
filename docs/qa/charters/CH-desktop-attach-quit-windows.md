@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-desktop-attach-quit-windows
-  mission: "As Dora on Windows, prove attach-untouched, start-when-stopped, honest crash degradation, and the quit-never-stops-runtime contract, scripted via tauri-driver with manual fault injection."
+  mission: "As Dora on Windows, prove through Playwright _electron that attach stays untouched, a stopped runtime starts, crashes degrade honestly, and quit never stops the runtime."
   mode: scenario-based
   platform: windows
   persona:
@@ -30,7 +30,7 @@ charter:
       - "E2E-006: hard-kill the daemon → disconnected state → restart affordance → recovery; E2E-005: pinned old runtime → guided skew state naming both versions and the action."
       - "E2E-010: geometry persistence + disconnected-display recovery. Platform smoke: Windows sign-out/shutdown with the app open (US-008.EC-1) → post-login status shows no app-initiated stop."
     must_avoid:
-      - "No forced actionability bypasses in the tauri-driver script; the CLI remains the only legitimate stop surface."
+      - "No forced actionability bypasses in the Playwright _electron test; the CLI remains the only legitimate stop surface."
       - "Never run against the operator's default home or ports; never leave lab processes alive past teardown."
 ```
 

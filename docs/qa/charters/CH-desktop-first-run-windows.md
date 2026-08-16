@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-desktop-first-run-windows
-  mission: "As Lea on a clean Windows lab home, prove signed install → guided provisioning → working product with honest failure branches, scripted via tauri-driver plus manual installer semantics."
+  mission: "As Lea on a clean Windows lab home, prove signed install → bundled offline provisioning → working product with honest failure branches through Playwright _electron plus manual installer semantics."
   mode: scenario-based
   platform: windows
   persona:
@@ -30,7 +30,7 @@ charter:
       - "E2E-011: WebView2 launch frame-capture (no white flash); wedge the daemon → bounded loading → honest error state."
       - "E2E-020: reinstall N over N-1 → exactly one uninstall registry record; E2E-016: About shows CompozyOS + beta + version, no stable selector."
     must_avoid:
-      - "No forced actionability bypasses in the tauri-driver script."
+      - "No forced actionability bypasses in the Playwright _electron test."
       - "Never run against the operator's default home or ports; never leave the lab daemon alive past teardown."
 ```
 

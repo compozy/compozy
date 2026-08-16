@@ -33,6 +33,7 @@
 - Parent and child sessions (#327)
 - Add secure remote gateway access (#331)
 - Ship CompozyOS desktop app (#336)
+- Replace the desktop shell with Electron
 
 ### 🐛 Bug Fixes
 
@@ -60,7 +61,7 @@
 - Start absent SSH daemon
 - Make loop goals converge reliably (#335)
 - Desktop issues
-- Ship the full desktop icon set required by Windows tauri-build
+- Ship the complete desktop platform icon set
 - Pause the Windows desktop lane and ship macOS + Linux only
 - Adjust project copy
 - Publish staged GitHub release drafts
@@ -105,6 +106,19 @@
 ### Release Notes
 
 #### Breaking Changes
+
+##### Desktop app moves to Electron
+
+The desktop app now ships as Electron packages for macOS arm64, macOS x64, and Linux x64. Existing
+desktop installs cannot cross from the previous update channel automatically.
+
+Download the package for your architecture from the current GitHub release and install it over the
+existing app. Quit the old app before opening the replacement. The app keeps the same name, package
+identity, `COMPOZY_HOME`, workspaces, sessions, configuration, and runtime state.
+
+If you used the previous portable Linux AppImage, the old file remains beside the new download.
+After `compozy app status -o json` reports the new app version, delete that old AppImage manually.
+An abandoned old app may continue logging failed update checks; no compatibility feed remains for it.
 
 ##### Extension kits replace Bundles
 

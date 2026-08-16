@@ -24,7 +24,7 @@ UT-029–UT-038, UT-096–UT-098.
 Per-OS evidence (N-004 — verdict requires both shipping OSes; Windows is paused until Trusted
 Signing is restored): macOS = scripted-manual smoke (no WebDriver): screen recording of
 install→provision→product, Gatekeeper acceptance, `compozy status` transcript. Linux =
-tauri-driver script + package install/reinstall transcript. All OSes: process-table capture
+Playwright _electron test + package install/reinstall transcript. All OSes: process-table capture
 proving exactly one daemon, and the offline-first-run retry walk (E2E-002) on at least one OS
 with the branch recorded.
 

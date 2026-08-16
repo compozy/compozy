@@ -30,7 +30,7 @@ charter:
       - "E2E-007: second launch from Start menu/taskbar/installer 'open'/`compozy app open` → existing window focused, process count unchanged; second launch with a link argument → forwarded; also crash the app and prove the stale single-instance state recovers (US-009.EC-2)."
       - "E2E-009: external https + `target=_blank` → OS default browser, app stays on the product."
     must_avoid:
-      - "No forced actionability bypasses in the tauri-driver script."
+      - "No forced actionability bypasses in the Playwright _electron test."
       - "Never run against the operator's default home; never leave lab processes alive past teardown."
 ```
 
