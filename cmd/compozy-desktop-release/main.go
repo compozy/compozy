@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,7 +23,7 @@ func execute(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		writeOperatorError(err)
 		return 1
 	}
 	return 0
@@ -28,99 +31,105 @@ func execute(args []string) int {
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf(
-			"usage: compozy-desktop-release " +
-				"<build-feed|canonicalize-json|channel-config|assert-inventory|assert-version|assert-comparator>",
-		)
+		return fmt.Errorf("usage: compozy-desktop-release <publish|repair|assert-inventory|assert-version>")
 	}
 	switch args[0] {
-	case "build-feed":
-		return runBuildFeed(ctx, args[1:])
-	case "canonicalize-json":
-		return runCanonicalizeJSON(args[1:])
-	case "channel-config":
-		return runChannelConfig(args[1:])
+	case "publish":
+		return runPublish(ctx, args[1:])
+	case "repair":
+		return runRepair(ctx, args[1:])
 	case "assert-inventory":
 		return runAssertInventory(ctx, args[1:])
 	case "assert-version":
 		return runAssertVersion(args[1:])
-	case "assert-comparator":
-		return runAssertComparator(args[1:])
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
 }
 
-func runCanonicalizeJSON(args []string) error {
-	flags := flag.NewFlagSet("canonicalize-json", flag.ContinueOnError)
-	input := flags.String("input", "", "input JSON path")
+func runPublish(ctx context.Context, args []string) error {
+	flags := newFlagSet("publish")
+	common := addAuthorityFlags(flags)
+	assetDir := flags.String("asset-dir", "", "directory containing the exact desktop release inventory")
+	channelDir := flags.String("channel-dir", "", "directory containing merged updater manifests")
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
-	contents, err := os.ReadFile(*input)
+	authority, err := newAuthority(common)
 	if err != nil {
-		return fmt.Errorf("read json input: %w", err)
+		return err
 	}
-	canonical, err := desktoprelease.CanonicalizeJSON(contents)
+	result, err := authority.Publish(ctx, desktoprelease.PublishRequest{
+		OperationID: common.operationID, Channel: common.channel, Version: common.version,
+		AssetDir: *assetDir, ChannelDir: *channelDir, PublishedAt: time.Now(),
+	})
 	if err != nil {
-		return fmt.Errorf("canonicalize json input: %w", err)
+		return err
 	}
-	if _, err := os.Stdout.Write(canonical); err != nil {
-		return fmt.Errorf("write canonical json: %w", err)
-	}
-	return nil
+	return writeJSON(result)
 }
 
-func runBuildFeed(ctx context.Context, args []string) error {
-	flags := flag.NewFlagSet("build-feed", flag.ContinueOnError)
-	version := flags.String("version", "", "release version")
-	publishedAt := flags.String("published-at", "", "RFC3339 publication time")
-	desktopDir := flags.String("desktop-dir", "", "normalized desktop artifact directory")
-	runtimeDir := flags.String("runtime-dir", "", "runtime archive directory")
-	repoRoot := flags.String("repo-root", ".", "repository root")
-	outputDir := flags.String("output-dir", "", "feed output directory")
-	baseURL := flags.String("base-url", desktoprelease.DistributionOrigin, "distribution origin")
+func runRepair(ctx context.Context, args []string) error {
+	flags := newFlagSet("repair")
+	common := addAuthorityFlags(flags)
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
-	stamp, err := time.Parse(time.RFC3339, *publishedAt)
+	authority, err := newAuthority(common)
 	if err != nil {
-		return fmt.Errorf("published-at must be RFC3339: %w", err)
+		return err
 	}
-	return desktoprelease.BuildFeeds(ctx, desktoprelease.BuildRequest{
-		Version:     *version,
-		PublishedAt: stamp,
-		DesktopDir:  *desktopDir,
-		RuntimeDir:  *runtimeDir,
-		RepoRoot:    *repoRoot,
-		OutputDir:   *outputDir,
-		BaseURL:     *baseURL,
+	result, err := authority.Repair(ctx, desktoprelease.RepairRequest{
+		OperationID: common.operationID, Channel: common.channel, Version: common.version,
+		PublishedAt: time.Now(),
 	})
+	if err != nil {
+		return err
+	}
+	return writeJSON(result)
 }
 
-func runChannelConfig(args []string) error {
-	flags := flag.NewFlagSet("channel-config", flag.ContinueOnError)
-	version := flags.String("version", "", "release version")
-	channel := flags.String("channel", "", "desktop channel")
-	publicKey := flags.String("public-key", "", "base64 minisign public key")
-	previousPublicKey := flags.String("previous-public-key", "", "previous base64 minisign public key")
-	azureEndpoint := flags.String("azure-endpoint", "", "Azure Artifact Signing endpoint")
-	output := flags.String("output", "desktop/src-tauri/tauri.channel.conf.json", "output path")
-	if err := parseFlags(flags, args); err != nil {
-		return err
+type authorityFlags struct {
+	operationID string
+	channel     string
+	version     string
+	repository  string
+	token       string
+	apiURL      string
+	output      string
+}
+
+func addAuthorityFlags(flags *flag.FlagSet) *authorityFlags {
+	values := &authorityFlags{}
+	flags.StringVar(&values.operationID, "operation-id", "", "idempotent release operation identity")
+	flags.StringVar(&values.channel, "channel", desktoprelease.ChannelBeta, "desktop release channel")
+	flags.StringVar(&values.version, "version", "", "strict unprefixed release SemVer")
+	flags.StringVar(&values.repository, "repository", os.Getenv("GITHUB_REPOSITORY"), "GitHub owner/name")
+	flags.StringVar(&values.token, "token", os.Getenv("GITHUB_TOKEN"), "GitHub API token")
+	flags.StringVar(&values.apiURL, "api-url", "https://api.github.com", "GitHub API base URL")
+	flags.StringVar(&values.output, "output", "json", "structured output format")
+	flags.StringVar(&values.output, "o", "json", "structured output format")
+	return values
+}
+
+func newAuthority(values *authorityFlags) (*desktoprelease.Authority, error) {
+	if values.output != "json" {
+		return nil, fmt.Errorf("desktop release: output format must be json")
 	}
-	return desktoprelease.WriteChannelConfig(desktoprelease.ChannelConfigRequest{
-		Version:           *version,
-		Channel:           *channel,
-		PublicKey:         *publicKey,
-		PreviousPublicKey: *previousPublicKey,
-		AzureEndpoint:     *azureEndpoint,
-		OutputPath:        *output,
-	})
+	backend, err := desktoprelease.NewGitHubBackend(
+		&http.Client{Timeout: 60 * time.Second},
+		values.apiURL,
+		values.repository,
+		values.token,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return desktoprelease.NewAuthority(backend)
 }
 
 func runAssertInventory(ctx context.Context, args []string) error {
-	flags := flag.NewFlagSet("assert-inventory", flag.ContinueOnError)
+	flags := newFlagSet("assert-inventory")
 	version := flags.String("version", "", "release version")
 	dir := flags.String("dir", "", "normalized desktop artifact directory")
 	if err := parseFlags(flags, args); err != nil {
@@ -130,26 +139,13 @@ func runAssertInventory(ctx context.Context, args []string) error {
 }
 
 func runAssertVersion(args []string) error {
-	flags := flag.NewFlagSet("assert-version", flag.ContinueOnError)
+	flags := newFlagSet("assert-version")
 	candidate := flags.String("candidate", "", "candidate release version")
-	live := flags.String("live", "", "live feed version")
+	live := flags.String("live", "", "live channel version")
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
 	return desktoprelease.AssertStrictlyGreater(*candidate, *live)
-}
-
-func runAssertComparator(args []string) error {
-	flags := flag.NewFlagSet("assert-comparator", flag.ContinueOnError)
-	sourcePath := flags.String("source", "desktop/src-tauri/src/update/app_update.rs", "updater source path")
-	if err := parseFlags(flags, args); err != nil {
-		return err
-	}
-	contents, err := os.ReadFile(*sourcePath)
-	if err != nil {
-		return fmt.Errorf("read updater source: %w", err)
-	}
-	return desktoprelease.AssertDefaultComparator(string(contents))
 }
 
 func parseFlags(flags *flag.FlagSet, args []string) error {
@@ -160,4 +156,31 @@ func parseFlags(flags *flag.FlagSet, args []string) error {
 		return fmt.Errorf("%s: unexpected positional arguments: %v", flags.Name(), flags.Args())
 	}
 	return nil
+}
+
+func newFlagSet(name string) *flag.FlagSet {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	return flags
+}
+
+func writeJSON(value any) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return fmt.Errorf("desktop release: write JSON output: %w", err)
+	}
+	return nil
+}
+
+func writeOperatorError(err error) {
+	payload := map[string]any{
+		"error": map[string]string{
+			"code":    string(desktoprelease.CodeOf(err)),
+			"message": err.Error(),
+		},
+	}
+	if encodeErr := json.NewEncoder(os.Stderr).Encode(payload); encodeErr != nil {
+		fmt.Fprintf(os.Stderr, "desktop release: write error output: %v; original: %v\n", encodeErr, err)
+	}
 }

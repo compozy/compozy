@@ -20,7 +20,15 @@ if (
 ) {
   throw new Error("The desktop package version must be a semantic version.");
 }
-const version = Reflect.get(packageMetadata, "version");
+const version =
+  process.env.COMPOZY_RELEASE_VERSION?.trim() || Reflect.get(packageMetadata, "version");
+if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(version)) {
+  throw new Error("COMPOZY_RELEASE_VERSION must be strict unprefixed SemVer.");
+}
+const minAppVersion = process.env.COMPOZY_MIN_APP_VERSION?.trim() || version;
+if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(minAppVersion)) {
+  throw new Error("COMPOZY_MIN_APP_VERSION must be strict unprefixed SemVer.");
+}
 
 function gitMetadata(format: string): string {
   const result = Bun.spawnSync(["git", "show", "-s", `--format=${format}`, "HEAD"], {
@@ -42,7 +50,7 @@ const ldflags = [
   `-X github.com/compozy/compozy/internal/version.Version=${version}`,
   `-X github.com/compozy/compozy/internal/version.Commit=${commit}`,
   `-X github.com/compozy/compozy/internal/version.BuildDate=${buildDate}`,
-  `-X github.com/compozy/compozy/internal/version.MinAppVersion=${version}`,
+  `-X github.com/compozy/compozy/internal/version.MinAppVersion=${minAppVersion}`,
 ].join(" ");
 
 const build = Bun.spawn(

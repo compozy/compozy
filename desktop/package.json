@@ -11,6 +11,11 @@
         "build:main": "bun run scripts/build-main.ts",
         "build:runtime": "bun run scripts/build-runtime.ts",
         "build:e2e-update": "bun run scripts/build-e2e-update.ts",
+        "release:config": "bun run scripts/generate-release-config.ts",
+        "release:collect": "bun run scripts/collect-release-artifacts.ts",
+        "release:prepare-channel": "bun run scripts/prepare-channel-manifests.ts",
+        "release:verify-mac-zip": "bun run scripts/verify-mac-update-zip.ts",
+        "release:finalize-mac": "bun run scripts/finalize-macos-release.ts",
         "dev": "bun run build:runtime && bun run build:main && COMPOZY_DESKTOP_BUNDLE_ROOT=.artifacts/runtime electron .",
         "lint": "bunx oxfmt --check . && bunx oxlint --deny-warnings .",
         "test": "vitest run",
@@ -28,6 +33,7 @@
         "electron-builder": "26.15.3",
         "esbuild": "0.28.2",
         "typescript": "7.0.2",
-        "vitest": "4.1.10"
+        "vitest": "4.1.10",
+        "yaml": "2.9.0"
     }
 }

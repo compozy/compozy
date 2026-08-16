@@ -1,6 +1,9 @@
 appId: com.compozy.os
 productName: CompozyOS
 asar: true
+directories:
+  output: .artifacts/builder
+  buildResources: build
 files:
   - dist/main.cjs
   - dist/main.cjs.map
@@ -19,15 +22,17 @@ protocols:
 mac:
   category: public.app-category.developer-tools
   hardenedRuntime: true
-  icon: src-tauri/icons/icon.icns
+  icon: build/icon.icns
+  notarize: false
   target:
-    - dir
+    - dmg
     - zip
 linux:
   category: Development
-  icon: src-tauri/icons/icon.png
+  icon: build/icon.png
   target:
     - AppImage
+    - deb
 artifactName: CompozyOS-${version}-${os}-${arch}.${ext}
 publish:
   provider: generic

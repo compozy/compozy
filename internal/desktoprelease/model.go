@@ -1,49 +1,46 @@
 package desktoprelease
 
+import "time"
+
 const (
-	ChannelBeta        = "beta"
-	ChannelStable      = "stable"
-	DistributionOrigin = "https://releases.compozy.com"
+	ChannelBeta   = "beta"
+	ChannelStable = "stable"
 
-	platformDarwinAArch64 = "darwin-aarch64"
-	platformDarwinX8664   = "darwin-x86_64"
-	platformLinuxX8664    = "linux-x86_64"
+	ChannelBranchPrefix = "channel-"
+	ChannelDirectory    = "desktop"
 
-	schemaStreamGlobal    = "global"
-	schemaStreamMemory    = "memory"
-	schemaStreamSession   = "session"
-	schemaStreamWorkspace = "workspace"
+	ManifestMac       = "latest-mac.yml"
+	ManifestLinux     = "latest-linux.yml"
+	GenerationFile    = "generation.json"
+	CompatibilityFile = "compat.json"
+	ChecksumsFile     = "checksums.txt"
 )
 
-// Windows is paused until Trusted Signing is restored; reintroduce its
-// platform key together with the release.yml matrix entry.
-var platformKeys = [...]string{
-	platformDarwinAArch64,
-	platformDarwinX8664,
-	platformLinuxX8664,
+type Compatibility struct {
+	RuntimeVersion string `json:"runtime_version"`
+	MinAppVersion  string `json:"min_app_version"`
 }
 
-type UpdaterPlatform struct {
-	Signature string `json:"signature"`
-	URL       string `json:"url"`
-}
-
-type LatestManifest struct {
-	Version   string                     `json:"version"`
-	Notes     string                     `json:"notes"`
-	PubDate   string                     `json:"pub_date"`
-	Platforms map[string]UpdaterPlatform `json:"platforms"`
-}
-
-type RuntimePlatform struct {
-	URL    string `json:"url"`
+type Artifact struct {
+	Name   string `json:"name"`
 	SHA256 string `json:"sha256"`
 	Size   int64  `json:"size"`
 }
 
-type RuntimeManifest struct {
-	SchemaVersion int                        `json:"schema_version"`
-	Version       string                     `json:"version"`
-	Platforms     map[string]RuntimePlatform `json:"platforms"`
-	SchemaHeads   map[string]uint64          `json:"schema_heads"`
+type Generation struct {
+	OperationID   string    `json:"operation_id"`
+	Operation     string    `json:"operation"`
+	Version       string    `json:"version"`
+	MinAppVersion string    `json:"min_app_version"`
+	PublishedAt   time.Time `json:"published_at"`
+	SourceCommit  string    `json:"source_commit,omitempty"`
+}
+
+type OperatorResult struct {
+	Operation         string     `json:"operation"`
+	ChannelRefBefore  string     `json:"channel_ref_before"`
+	ChannelRefAfter   string     `json:"channel_ref_after"`
+	VerifiedInventory []Artifact `json:"verified_inventory"`
+	AuditCommit       string     `json:"audit_commit"`
+	Outcome           string     `json:"outcome"`
 }

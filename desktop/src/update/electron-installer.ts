@@ -1,8 +1,10 @@
 import { basename } from "node:path";
+import { arch as machineArchitecture } from "node:os";
 
 import { type AppUpdater, autoUpdater, type ProgressInfo } from "electron-updater";
 
 import type { AppOperationState } from "./operation-contract";
+import { shouldDisableDifferentialDownload } from "../release/cross-arch";
 
 export interface DownloadedAppUpdate {
   readonly artifactPath: string;
@@ -28,6 +30,10 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
     this.#updater = updater;
     this.#updater.autoDownload = false;
     this.#updater.autoInstallOnAppQuit = false;
+    this.#updater.disableDifferentialDownload = shouldDisableDifferentialDownload(
+      process.arch,
+      machineArchitecture()
+    );
   }
 
   async download(

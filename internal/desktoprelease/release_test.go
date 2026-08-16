@@ -1,13 +1,17 @@
 package desktoprelease
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/json"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -17,428 +21,582 @@ func TestReleasePolicy(t *testing.T) {
 
 	t.Run("Should refuse the reserved stable channel", func(t *testing.T) {
 		t.Parallel()
-
 		assertErrorContains(t, ValidateDesktopChannel(ChannelStable), "stable channel is reserved")
 	})
 
-	t.Run("Should require a candidate strictly greater than the live feed", func(t *testing.T) {
+	t.Run("Should require candidates to cross strict prerelease boundaries", func(t *testing.T) {
 		t.Parallel()
-
 		if err := AssertStrictlyGreater("0.4.0-beta.10", "0.4.0-beta.9"); err != nil {
 			t.Fatalf("AssertStrictlyGreater(valid) error = %v", err)
 		}
-		for _, test := range []struct {
-			name      string
-			candidate string
-		}{
-			{name: "Should reject an equal candidate", candidate: "0.4.0-beta.9"},
-			{name: "Should reject an older candidate", candidate: "0.4.0-beta.8"},
-		} {
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
-
-				assertErrorContains(
-					t,
-					AssertStrictlyGreater(test.candidate, "0.4.0-beta.9"),
-					"must be strictly greater",
-				)
-			})
+		for _, candidate := range []string{"0.4.0-beta.9", "0.4.0-beta.8", "0.3.99"} {
+			assertErrorContains(t, AssertStrictlyGreater(candidate, "0.4.0-beta.9"), "strictly greater")
 		}
 	})
 
-	t.Run("Should reject updater comparator overrides", func(t *testing.T) {
+	t.Run("Should enforce the previous-generation compatibility ceiling", func(t *testing.T) {
 		t.Parallel()
-
-		assertErrorContains(
-			t,
-			AssertDefaultComparator("builder.version_comparator(compare)"),
-			"custom updater comparator \"version_comparator\" is forbidden",
-		)
-		if err := AssertDefaultComparator("updater_builder().timeout(duration)"); err != nil {
-			t.Fatalf("AssertDefaultComparator(default) error = %v", err)
-		}
-	})
-}
-
-func TestManifestValidation(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should reject latest manifest missing any required platform", func(t *testing.T) {
-		t.Parallel()
-
-		manifest := validLatestManifest()
-		delete(manifest.Platforms, platformLinuxX8664)
-		manifest.Platforms["unsupported"] = UpdaterPlatform{}
-		assertErrorContains(t, ValidateLatestManifest(manifest), "required platform linux-x86_64 is missing")
-	})
-
-	t.Run("Should reject signatures expressed as URLs", func(t *testing.T) {
-		t.Parallel()
-
-		manifest := validLatestManifest()
-		entry := manifest.Platforms[platformLinuxX8664]
-		entry.Signature = "https://releases.compozy.com/signature.sig"
-		manifest.Platforms[platformLinuxX8664] = entry
-		assertErrorContains(t, ValidateLatestManifest(manifest), "signature must be non-empty content, not a URL")
-	})
-
-	t.Run("Should reject runtime manifest without digest schema heads or SemVer", func(t *testing.T) {
-		t.Parallel()
-
-		for _, test := range []struct {
-			name     string
-			mutate   func(*RuntimeManifest)
-			expected string
-		}{
-			{name: "Should reject a missing digest", expected: "runtime sha256 is malformed", mutate: func(manifest *RuntimeManifest) {
-				entry := manifest.Platforms[platformDarwinAArch64]
-				entry.SHA256 = ""
-				manifest.Platforms[platformDarwinAArch64] = entry
-			}},
-			{name: "Should reject a missing schema head", expected: "runtime schema_heads.memory is required", mutate: func(manifest *RuntimeManifest) {
-				delete(manifest.SchemaHeads, schemaStreamMemory)
-			}},
-			{name: "Should reject an invalid version", expected: "must be strict unprefixed SemVer", mutate: func(manifest *RuntimeManifest) {
-				manifest.Version = "not-semver"
-			}},
-		} {
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
-
-				manifest := validRuntimeManifest()
-				test.mutate(&manifest)
-				assertErrorContains(t, ValidateRuntimeManifest(manifest), test.expected)
-			})
-		}
-	})
-}
-
-func TestBuildFeeds(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should canonicalize an existing feed without changing its values", func(t *testing.T) {
-		t.Parallel()
-
-		legacy := []byte(
-			`{"schema_version":1,"version":"0.3.0-beta.13","platforms":{"linux":{"size":1,"url":"https://example.com/runtime","sha256":"abc"}},"schema_heads":{"session":6,"global":57}}`,
-		)
-		canonical, err := CanonicalizeJSON(legacy)
-		if err != nil {
-			t.Fatalf("CanonicalizeJSON() error = %v", err)
-		}
-		want := `{"platforms":{"linux":{"sha256":"abc","size":1,"url":"https://example.com/runtime"}},"schema_heads":{"global":57,"session":6},"schema_version":1,"version":"0.3.0-beta.13"}`
-		if got := string(canonical); got != want {
-			t.Fatalf("CanonicalizeJSON() = %s, want %s", got, want)
-		}
-
-		var legacyValue any
-		if err := json.Unmarshal(legacy, &legacyValue); err != nil {
-			t.Fatalf("json.Unmarshal(legacy) error = %v", err)
-		}
-		var canonicalValue any
-		if err := json.Unmarshal(canonical, &canonicalValue); err != nil {
-			t.Fatalf("json.Unmarshal(canonical) error = %v", err)
-		}
-		if !reflect.DeepEqual(canonicalValue, legacyValue) {
-			t.Fatalf("canonical document changed values: got %#v, want %#v", canonicalValue, legacyValue)
-		}
-	})
-
-	t.Run("Should reject a distribution base that is not an origin", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		desktopDir := filepath.Join(root, "desktop-artifacts")
-		runtimeDir := filepath.Join(root, "runtime-artifacts")
-		writeDesktopArtifacts(t, desktopDir, "0.4.0-beta.2")
-		writeRuntimeArtifacts(t, runtimeDir)
-		writeMigrationStreams(t, root)
-
-		for _, test := range []struct {
-			name     string
-			baseURL  string
-			expected string
-		}{
-			{name: "Should reject a path", baseURL: DistributionOrigin + "/desktop", expected: "origin must not include a path"},
-			{name: "Should reject a query", baseURL: DistributionOrigin + "?channel=beta", expected: "distribution URL must use"},
-			{name: "Should reject a fragment", baseURL: DistributionOrigin + "#beta", expected: "distribution URL must use"},
-		} {
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
-
-				err := BuildFeeds(t.Context(), BuildRequest{
-					Version:     "0.4.0-beta.2",
-					PublishedAt: time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC),
-					DesktopDir:  desktopDir,
-					RuntimeDir:  runtimeDir,
-					RepoRoot:    root,
-					OutputDir:   filepath.Join(root, "feed-"+strings.ReplaceAll(test.name, " ", "-")),
-					BaseURL:     test.baseURL,
-				})
-				assertErrorContains(t, err, test.expected)
-			})
-		}
-	})
-
-	t.Run("Should generate canonical feeds with exact artifacts and schema heads", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		desktopDir := filepath.Join(root, "desktop-artifacts")
-		runtimeDir := filepath.Join(root, "runtime-artifacts")
-		outputDir := filepath.Join(root, "feed")
-		writeDesktopArtifacts(t, desktopDir, "0.4.0-beta.2")
-		writeRuntimeArtifacts(t, runtimeDir)
-		writeMigrationStreams(t, root)
-
-		err := BuildFeeds(t.Context(), BuildRequest{
-			Version:     "0.4.0-beta.2",
-			PublishedAt: time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC),
-			DesktopDir:  desktopDir,
-			RuntimeDir:  runtimeDir,
-			RepoRoot:    root,
-			OutputDir:   outputDir,
-			BaseURL:     DistributionOrigin,
-		})
-		if err != nil {
-			t.Fatalf("BuildFeeds() error = %v", err)
-		}
-
-		latestBytes := readTestFile(t, filepath.Join(outputDir, "latest.json"))
-		if strings.HasSuffix(string(latestBytes), "\n") {
-			t.Fatal("latest.json has a trailing newline, want canonical JSON bytes")
-		}
-		assertCanonicalJSON(t, "latest.json", latestBytes)
-		var latest LatestManifest
-		if err := json.Unmarshal(latestBytes, &latest); err != nil {
-			t.Fatalf("json.Unmarshal(latest.json) error = %v", err)
-		}
-		if err := ValidateLatestManifest(latest); err != nil {
-			t.Fatalf("ValidateLatestManifest(generated) error = %v", err)
-		}
-		if got, want := latest.Platforms[platformDarwinAArch64].URL, latest.Platforms[platformDarwinX8664].URL; got != want {
-			t.Fatalf("universal Darwin URLs differ: arm64 = %q, x86_64 = %q", got, want)
-		}
-
-		runtimeBytes := readTestFile(t, filepath.Join(outputDir, "runtime.json"))
-		assertCanonicalJSON(t, "runtime.json", runtimeBytes)
-
-		var runtime RuntimeManifest
-		if err := json.Unmarshal(runtimeBytes, &runtime); err != nil {
-			t.Fatalf("json.Unmarshal(runtime.json) error = %v", err)
-		}
-		if err := ValidateRuntimeManifest(runtime); err != nil {
-			t.Fatalf("ValidateRuntimeManifest(generated) error = %v", err)
-		}
-		wantHeads := map[string]uint64{
-			schemaStreamGlobal:    57,
-			schemaStreamMemory:    1,
-			schemaStreamSession:   6,
-			schemaStreamWorkspace: 1,
-		}
-		for stream, want := range wantHeads {
-			if got := runtime.SchemaHeads[stream]; got != want {
-				t.Fatalf("runtime schema_heads.%s = %d, want %d", stream, got, want)
-			}
-		}
-	})
-
-	t.Run("Should reject a desktop artifact missing its signature", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		writeDesktopArtifacts(t, dir, "0.4.0-beta.2")
-		if err := os.Remove(filepath.Join(dir, "CompozyOS_0.4.0-beta.2_amd64.AppImage.sig")); err != nil {
-			t.Fatalf("os.Remove(signature) error = %v", err)
+		if err := AssertCompatibleWithPrevious("0.4.0-beta.9", "0.4.0-beta.9"); err != nil {
+			t.Fatalf("AssertCompatibleWithPrevious(equal) error = %v", err)
 		}
 		assertErrorContains(
 			t,
-			AssertExactDesktopInventory(t.Context(), dir, "0.4.0-beta.2"),
-			"CompozyOS_0.4.0-beta.2_amd64.AppImage.sig",
+			AssertCompatibleWithPrevious("0.4.0-beta.10", "0.4.0-beta.9"),
+			"exceeds previous channel app version",
 		)
 	})
-
-	t.Run("Should reject an unexpected runtime artifact", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		writeRuntimeArtifacts(t, dir)
-		if err := os.WriteFile(filepath.Join(dir, "checksums.txt"), []byte("unexpected"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(extra runtime artifact) error = %v", err)
-		}
-		assertErrorContains(t, AssertRuntimeInventory(t.Context(), dir), "checksums.txt")
-	})
 }
 
-func TestChannelConfig(t *testing.T) {
+func TestDesktopArtifactInventory(t *testing.T) {
 	t.Parallel()
-	const minisignPublicKey = "untrusted comment: minisign public key E7620F1842B4E81F\n" +
-		"RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3\n"
+	const version = "0.4.0-beta.2"
+	want := []string{
+		"CompozyOS-0.4.0-beta.2-linux-x64.AppImage",
+		"CompozyOS-0.4.0-beta.2-linux-x64.deb",
+		"CompozyOS-0.4.0-beta.2-mac-arm64.dmg",
+		"CompozyOS-0.4.0-beta.2-mac-arm64.zip",
+		"CompozyOS-0.4.0-beta.2-mac-x64.dmg",
+		"CompozyOS-0.4.0-beta.2-mac-x64.zip",
+	}
+	got := DesktopArtifactNames(version)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Fatalf("DesktopArtifactNames() = %v, want %v", got, want)
+	}
 
-	t.Run("Should embed beta endpoint public key and object-form Windows signer", func(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*testing.T, string)
+	}{
+		{name: "Should reject a missing package", mutate: func(t *testing.T, dir string) {
+			t.Helper()
+			removeTestFile(t, filepath.Join(dir, want[0]))
+		}},
+		{name: "Should reject an extra package", mutate: func(t *testing.T, dir string) {
+			t.Helper()
+			writeTestFile(t, filepath.Join(dir, "unexpected.zip"), []byte("extra"))
+		}},
+		{name: "Should reject an empty package", mutate: func(t *testing.T, dir string) {
+			t.Helper()
+			writeTestFile(t, filepath.Join(dir, want[0]), nil)
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeDesktopArtifacts(t, dir, version)
+			test.mutate(t, dir)
+			if err := AssertExactDesktopInventory(t.Context(), dir, version); err == nil {
+				t.Fatal("AssertExactDesktopInventory() error = nil")
+			}
+		})
+	}
+}
+
+func TestChannelAuthority(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should bootstrap an empty channel", func(t *testing.T) {
 		t.Parallel()
-
-		publicKey := base64.StdEncoding.EncodeToString([]byte(minisignPublicKey))
-		output := filepath.Join(t.TempDir(), "tauri.channel.conf.json")
-		err := WriteChannelConfig(ChannelConfigRequest{
-			Version:       "0.4.0-beta.2",
-			Channel:       ChannelBeta,
-			PublicKey:     publicKey,
-			AzureEndpoint: "https://eus.codesigning.azure.net/",
-			OutputPath:    output,
+		backend := newFakeAuthorityBackend(t, "")
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.1", "1.0.0-beta.1")
+		result, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-bootstrap", Channel: ChannelBeta, Version: "1.0.0-beta.1",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
 		})
 		if err != nil {
-			t.Fatalf("WriteChannelConfig() error = %v", err)
+			t.Fatalf("Publish() error = %v", err)
 		}
-		contents := string(readTestFile(t, output))
-		for _, want := range []string{
-			`"cmd":"artifact-signing-cli"`,
-			`"installMode":"passive"`,
-			`https://releases.compozy.com/desktop/beta/latest.json`,
-			publicKey,
-		} {
-			if !strings.Contains(contents, want) {
-				t.Fatalf("channel config missing %q: %s", want, contents)
-			}
+		if result.ChannelRefBefore != "" || result.ChannelRefAfter == "" {
+			t.Fatalf("Publish() refs = %q -> %q, want empty -> commit", result.ChannelRefBefore, result.ChannelRefAfter)
 		}
 	})
 
-	t.Run("Should reject updater public keys without a valid Ed25519 Minisign packet", func(t *testing.T) {
+	t.Run("Should verify every payload before the channel ref CAS", func(t *testing.T) {
 		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+		result, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-002", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if err != nil {
+			t.Fatalf("Publish() error = %v", err)
+		}
+		if result.Outcome != "published" || result.AuditCommit != result.ChannelRefAfter {
+			t.Fatalf("Publish() result = %#v", result)
+		}
+		backend.assertAllVerificationPrecedesCAS(t)
+	})
 
-		for _, decoded := range []string{
-			"untrusted comment: minisign public key\nRWQexample\n",
-			"untrusted comment: not a minisign public key\nRWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3\n",
-			"untrusted comment: minisign public key E7620F1842B4E81F\nWXgf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3\n",
-		} {
-			err := WriteChannelConfig(ChannelConfigRequest{
-				Version:    "0.4.0-beta.2",
-				Channel:    ChannelBeta,
-				PublicKey:  base64.StdEncoding.EncodeToString([]byte(decoded)),
-				OutputPath: filepath.Join(t.TempDir(), "tauri.channel.conf.json"),
-			})
-			assertErrorContains(t, err, "valid Ed25519 Minisign public key")
+	t.Run("Should refuse manifests from a different generation", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+		writeTestFile(t, filepath.Join(channelDir, ManifestLinux), linuxManifestFixture("1.0.0-beta.1"))
+		before := backend.head
+		_, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-wrong-manifest", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if CodeOf(err) != ErrorVerificationFailed || backend.head != before {
+			t.Fatalf("Publish() error = %v, head = %s, want verification failure at %s", err, backend.head, before)
+		}
+	})
+
+	t.Run("Should keep the provider on a complete generation across interruption and repair", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		authority := mustAuthority(t, backend)
+		provider := httptest.NewServer(http.HandlerFunc(backend.serveChannelFile))
+		t.Cleanup(provider.Close)
+
+		backend.failVerification = true
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+		_, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-interrupted", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if CodeOf(err) != ErrorVerificationFailed {
+			t.Fatalf("CodeOf(interrupted Publish error) = %q, want %q; error = %v", CodeOf(err), ErrorVerificationFailed, err)
+		}
+		assertProviderGeneration(t, provider.URL, "1.0.0-beta.1")
+
+		backend.failVerification = false
+		_, err = authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-complete", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if err != nil {
+			t.Fatalf("Publish() error = %v", err)
+		}
+		assertProviderGeneration(t, provider.URL, "1.0.0-beta.2")
+
+		result, err := authority.Repair(t.Context(), RepairRequest{
+			OperationID: "repair-provider", Channel: ChannelBeta, Version: "1.0.0-beta.1", PublishedAt: testTime(),
+		})
+		if err != nil {
+			t.Fatalf("Repair() error = %v", err)
+		}
+		if result.AuditCommit == "" || result.ChannelRefAfter != result.AuditCommit {
+			t.Fatalf("Repair() result = %#v, want an audited channel commit", result)
+		}
+		assertProviderGeneration(t, provider.URL, "1.0.0-beta.1")
+	})
+
+	t.Run("Should return channel_cas_conflict after a lost race", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		backend.casConflict = true
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+		_, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-race", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if CodeOf(err) != ErrorChannelCASConflict {
+			t.Fatalf("CodeOf(Publish error) = %q, want %q; error = %v", CodeOf(err), ErrorChannelCASConflict, err)
+		}
+	})
+
+	t.Run("Should converge when the same operation is rerun", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+		request := PublishRequest{
+			OperationID: "publish-idempotent", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		}
+		if _, err := authority.Publish(t.Context(), request); err != nil {
+			t.Fatalf("first Publish() error = %v", err)
+		}
+		commitsBefore := backend.commitCount()
+		result, err := authority.Publish(t.Context(), request)
+		if err != nil {
+			t.Fatalf("second Publish() error = %v", err)
+		}
+		if result.Outcome != "already_completed" || backend.commitCount() != commitsBefore {
+			t.Fatalf("idempotent result = %#v, commits = %d, want %d", result, backend.commitCount(), commitsBefore)
+		}
+	})
+
+	t.Run("Should repair from a known-good generation and refuse missing assets", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		authority := mustAuthority(t, backend)
+		knownGood := backend.head
+		backend.seedGeneration(t, "1.0.0-beta.2")
+		result, err := authority.Repair(t.Context(), RepairRequest{
+			OperationID: "repair-001", Channel: ChannelBeta, Version: "1.0.0-beta.1", PublishedAt: testTime(),
+		})
+		if err != nil {
+			t.Fatalf("Repair() error = %v", err)
+		}
+		if result.Outcome != "repaired" || backend.commits[result.AuditCommit].Generation.SourceCommit != knownGood {
+			t.Fatalf("Repair() result = %#v", result)
+		}
+
+		backend = newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		delete(backend.releases["1.0.0-beta.1"], DesktopArtifactNames("1.0.0-beta.1")[0])
+		authority = mustAuthority(t, backend)
+		_, err = authority.Repair(t.Context(), RepairRequest{
+			OperationID: "repair-missing", Channel: ChannelBeta, Version: "1.0.0-beta.1", PublishedAt: testTime(),
+		})
+		if CodeOf(err) != ErrorInventoryIncomplete {
+			t.Fatalf("CodeOf(Repair error) = %q, want %q; error = %v", CodeOf(err), ErrorInventoryIncomplete, err)
 		}
 	})
 }
 
-func assertErrorContains(t *testing.T, err error, expected string) {
+func TestCompatibilityBumpProtocol(t *testing.T) {
+	t.Parallel()
+	backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+	authority := mustAuthority(t, backend)
+
+	badAssets, badChannel := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.2")
+	_, err := authority.Publish(t.Context(), PublishRequest{
+		OperationID: "bad-bump", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+		AssetDir: badAssets, ChannelDir: badChannel, PublishedAt: testTime(),
+	})
+	if CodeOf(err) != ErrorVerificationFailed {
+		t.Fatalf("incompatible Publish() code = %q, want %q; error = %v", CodeOf(err), ErrorVerificationFailed, err)
+	}
+
+	for _, release := range []struct {
+		version string
+		minimum string
+	}{
+		{version: "1.0.0-beta.2", minimum: "1.0.0-beta.1"},
+		{version: "1.0.0-beta.3", minimum: "1.0.0-beta.2"},
+	} {
+		assetDir, channelDir := writeReleaseFixture(t, release.version, release.minimum)
+		_, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-" + release.version, Channel: ChannelBeta, Version: release.version,
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if err != nil {
+			t.Fatalf("Publish(%s) error = %v", release.version, err)
+		}
+	}
+}
+
+type fakeAuthorityBackend struct {
+	mu               sync.Mutex
+	head             string
+	commits          map[string]ChannelCommit
+	releases         map[string]map[string]Artifact
+	events           []string
+	nextCommit       int
+	casConflict      bool
+	failVerification bool
+}
+
+func newFakeAuthorityBackend(t *testing.T, version string) *fakeAuthorityBackend {
 	t.Helper()
-	if err == nil {
-		t.Fatalf("error = nil, want message containing %q", expected)
+	backend := &fakeAuthorityBackend{commits: map[string]ChannelCommit{}, releases: map[string]map[string]Artifact{}}
+	if version != "" {
+		backend.seedGeneration(t, version)
 	}
-	if !strings.Contains(err.Error(), expected) {
-		t.Fatalf("error = %q, want message containing %q", err, expected)
+	return backend
+}
+
+func (b *fakeAuthorityBackend) seedGeneration(t *testing.T, version string) {
+	t.Helper()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.nextCommit++
+	sha := fmt.Sprintf("commit-%d", b.nextCommit)
+	generation := Generation{
+		OperationID: "seed-" + version, Operation: "publish", Version: version,
+		MinAppVersion: version, PublishedAt: testTime(),
+	}
+	files := map[string][]byte{
+		filepath.Join(ChannelDirectory, ManifestMac):   macManifestFixture(version),
+		filepath.Join(ChannelDirectory, ManifestLinux): linuxManifestFixture(version),
+	}
+	bytes, err := canonicalJSON(generation)
+	if err != nil {
+		t.Fatalf("canonicalJSON(generation) error = %v", err)
+	}
+	files[filepath.Join(ChannelDirectory, GenerationFile)] = bytes
+	b.commits[sha] = ChannelCommit{SHA: sha, Generation: generation, Files: files}
+	b.head = sha
+	assets := map[string]Artifact{}
+	for _, name := range append(DesktopArtifactNames(version), CompatibilityFile) {
+		assets[name] = Artifact{Name: name, SHA256: strings.Repeat("a", 64), Size: 1}
+	}
+	b.releases[version] = assets
+}
+
+func (b *fakeAuthorityBackend) ChannelRef(context.Context, string) (string, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.head == "" {
+		return "", ErrChannelRefNotFound
+	}
+	return b.head, nil
+}
+
+func (b *fakeAuthorityBackend) FindOperation(_ context.Context, _ string, operationID string) (*ChannelCommit, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for sha := b.head; sha != ""; {
+		commit := b.commits[sha]
+		if commit.Generation.OperationID == operationID {
+			copy := commit
+			return &copy, nil
+		}
+		sha = parentOf(commit)
+	}
+	return nil, nil
+}
+
+func (b *fakeAuthorityBackend) Commit(_ context.Context, request CommitRequest) (string, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.events = append(b.events, "commit")
+	b.nextCommit++
+	sha := fmt.Sprintf("commit-%d", b.nextCommit)
+	files := cloneFiles(request.Files)
+	files[".parent"] = []byte(request.ParentSHA)
+	b.commits[sha] = ChannelCommit{SHA: sha, Generation: request.Generation, Files: files}
+	return sha, nil
+}
+
+func (b *fakeAuthorityBackend) CompareAndSwapRef(_ context.Context, _ string, expectedSHA, nextSHA string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.events = append(b.events, "cas")
+	if b.casConflict || b.head != expectedSHA {
+		return ErrCompareAndSwap
+	}
+	b.head = nextSHA
+	return nil
+}
+
+func (b *fakeAuthorityBackend) ReleaseInventory(_ context.Context, version string) ([]Artifact, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	assets := b.releases[version]
+	result := make([]Artifact, 0, len(assets))
+	for _, artifact := range assets {
+		result = append(result, artifact)
+	}
+	return result, nil
+}
+
+func (b *fakeAuthorityBackend) UploadAsset(_ context.Context, version, _ string, artifact Artifact) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.events = append(b.events, "upload:"+artifact.Name)
+	if b.releases[version] == nil {
+		b.releases[version] = map[string]Artifact{}
+	}
+	b.releases[version][artifact.Name] = artifact
+	return nil
+}
+
+func (b *fakeAuthorityBackend) VerifyAsset(_ context.Context, version string, artifact Artifact) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.events = append(b.events, "verify:"+artifact.Name)
+	if b.failVerification {
+		return errors.New("injected remote verification failure")
+	}
+	remote, ok := b.releases[version][artifact.Name]
+	if !ok || remote.Size != artifact.Size || remote.SHA256 != artifact.SHA256 {
+		return fmt.Errorf("remote artifact %s does not match", artifact.Name)
+	}
+	return nil
+}
+
+func (b *fakeAuthorityBackend) serveChannelFile(writer http.ResponseWriter, request *http.Request) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	name := strings.TrimPrefix(request.URL.Path, "/"+ChannelBranchPrefix+ChannelBeta+"/")
+	commit, ok := b.commits[b.head]
+	if !ok {
+		http.NotFound(writer, request)
+		return
+	}
+	contents, ok := commit.Files[name]
+	if !ok {
+		http.NotFound(writer, request)
+		return
+	}
+	writer.WriteHeader(http.StatusOK)
+	if _, err := writer.Write(contents); err != nil {
+		panic(fmt.Sprintf("write provider response: %v", err))
 	}
 }
 
-func validLatestManifest() LatestManifest {
-	platforms := make(map[string]UpdaterPlatform, len(platformKeys))
-	for _, platform := range platformKeys {
-		platforms[platform] = UpdaterPlatform{
-			Signature: "RWQsignature",
-			URL:       DistributionOrigin + "/desktop/v/0.4.0-beta.2/artifact",
-		}
+func assertProviderGeneration(t *testing.T, providerURL, wantVersion string) {
+	t.Helper()
+	request, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		providerURL+"/"+ChannelBranchPrefix+ChannelBeta+"/"+ChannelDirectory+"/"+GenerationFile,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext() error = %v", err)
 	}
-	return LatestManifest{
-		Version:   "0.4.0-beta.2",
-		Notes:     "CompozyOS 0.4.0-beta.2",
-		PubDate:   "2026-08-10T12:00:00Z",
-		Platforms: platforms,
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("provider request error = %v", err)
+	}
+	contents, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		t.Fatalf("io.ReadAll(provider) error = %v", readErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("provider response close error = %v", closeErr)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("provider status = %d, body = %s", response.StatusCode, contents)
+	}
+	generation, err := DecodeGeneration(contents)
+	if err != nil {
+		t.Fatalf("DecodeGeneration(provider) error = %v", err)
+	}
+	if generation.Version != wantVersion {
+		t.Fatalf("provider generation = %s, want %s", generation.Version, wantVersion)
 	}
 }
 
-func validRuntimeManifest() RuntimeManifest {
-	platforms := make(map[string]RuntimePlatform, len(platformKeys))
-	for _, platform := range platformKeys {
-		platforms[platform] = RuntimePlatform{
-			URL:    DistributionOrigin + "/desktop/v/runtime/0.4.0-beta.2/artifact",
-			SHA256: strings.Repeat("a", 64),
-			Size:   1,
+func (b *fakeAuthorityBackend) ReadCommit(_ context.Context, sha string) (ChannelCommit, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	commit, ok := b.commits[sha]
+	if !ok {
+		return ChannelCommit{}, errors.New("commit not found")
+	}
+	return commit, nil
+}
+
+func (b *fakeAuthorityBackend) KnownGood(_ context.Context, _ string, version string) (ChannelCommit, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, commit := range b.commits {
+		if commit.Generation.Version == version {
+			return commit, nil
 		}
 	}
-	return RuntimeManifest{
-		SchemaVersion: 1,
-		Version:       "0.4.0-beta.2",
-		Platforms:     platforms,
-		SchemaHeads: map[string]uint64{
-			schemaStreamGlobal:    57,
-			schemaStreamMemory:    1,
-			schemaStreamSession:   6,
-			schemaStreamWorkspace: 1,
-		},
+	return ChannelCommit{}, errors.New("known-good generation not found")
+}
+
+func (b *fakeAuthorityBackend) commitCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.commits)
+}
+
+func (b *fakeAuthorityBackend) assertAllVerificationPrecedesCAS(t *testing.T) {
+	t.Helper()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	commit := slices.Index(b.events, "commit")
+	cas := slices.Index(b.events, "cas")
+	if commit == -1 || cas == -1 || commit >= cas {
+		t.Fatalf("authority events = %v, want commit before CAS", b.events)
 	}
+	for index, event := range b.events {
+		if strings.HasPrefix(event, "verify:") && index > commit {
+			t.Fatalf("authority events = %v, verification occurred after commit", b.events)
+		}
+	}
+}
+
+func parentOf(commit ChannelCommit) string {
+	return string(commit.Files[".parent"])
+}
+
+func mustAuthority(t *testing.T, backend AuthorityBackend) *Authority {
+	t.Helper()
+	authority, err := NewAuthority(backend)
+	if err != nil {
+		t.Fatalf("NewAuthority() error = %v", err)
+	}
+	return authority
+}
+
+func writeReleaseFixture(t *testing.T, version, minAppVersion string) (string, string) {
+	t.Helper()
+	assetDir := t.TempDir()
+	writeDesktopArtifacts(t, assetDir, version)
+	if err := WriteCompatibility(filepath.Join(assetDir, CompatibilityFile), Compatibility{
+		RuntimeVersion: version, MinAppVersion: minAppVersion,
+	}); err != nil {
+		t.Fatalf("WriteCompatibility() error = %v", err)
+	}
+	artifacts, err := InspectDesktopInventory(t.Context(), assetDir, version)
+	if err != nil {
+		t.Fatalf("InspectDesktopInventory() error = %v", err)
+	}
+	compatibility, err := inspectArtifact(filepath.Join(assetDir, CompatibilityFile))
+	if err != nil {
+		t.Fatalf("inspectArtifact(compat.json) error = %v", err)
+	}
+	artifacts = append(artifacts, compatibility)
+	var catalog strings.Builder
+	for _, artifact := range artifacts {
+		fmt.Fprintf(&catalog, "%s  %s\n", artifact.SHA256, artifact.Name)
+	}
+	writeTestFile(t, filepath.Join(assetDir, ChecksumsFile), []byte(catalog.String()))
+
+	channelDir := t.TempDir()
+	writeTestFile(t, filepath.Join(channelDir, ManifestMac), macManifestFixture(version))
+	writeTestFile(t, filepath.Join(channelDir, ManifestLinux), linuxManifestFixture(version))
+	return assetDir, channelDir
 }
 
 func writeDesktopArtifacts(t *testing.T, dir, version string) {
 	t.Helper()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(desktop artifacts) error = %v", err)
-	}
 	for _, name := range DesktopArtifactNames(version) {
-		contents := []byte("artifact")
-		if strings.HasSuffix(name, ".sig") {
-			contents = []byte("RWQsignature")
-		}
-		if err := os.WriteFile(filepath.Join(dir, name), contents, 0o600); err != nil {
-			t.Fatalf("os.WriteFile(%s) error = %v", name, err)
-		}
+		writeTestFile(t, filepath.Join(dir, name), []byte("artifact:"+name))
 	}
 }
 
-func writeRuntimeArtifacts(t *testing.T, dir string) {
+func macManifestFixture(version string) []byte {
+	return []byte(fmt.Sprintf(
+		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-mac-arm64.zip\n    sha512: arm64\n    size: 10\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-mac-x64.zip\n    sha512: x64\n    size: 10\nreleaseDate: '2026-08-16T12:00:00Z'\n",
+		version, version, version, version, version,
+	))
+}
+
+func linuxManifestFixture(version string) []byte {
+	return []byte(fmt.Sprintf(
+		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-linux-x64.AppImage\n    sha512: linux\n    size: 10\nreleaseDate: '2026-08-16T12:00:00Z'\n",
+		version, version, version,
+	))
+}
+
+func writeTestFile(t *testing.T, path string, contents []byte) {
 	t.Helper()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(runtime artifacts) error = %v", err)
-	}
-	for _, name := range RuntimeArtifactNames() {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(%s) error = %v", name, err)
-		}
+	if err := os.WriteFile(path, contents, 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%s) error = %v", path, err)
 	}
 }
 
-func writeMigrationStreams(t *testing.T, root string) {
+func removeTestFile(t *testing.T, path string) {
 	t.Helper()
-	versions := map[string]string{
-		schemaStreamGlobal:    "00057_schema.sql",
-		schemaStreamMemory:    "00001_baseline.sql",
-		schemaStreamSession:   "00006_schema.sql",
-		schemaStreamWorkspace: "00001_baseline.sql",
-	}
-	for _, stream := range schemaStreamSpecs {
-		dir := filepath.Join(root, stream.dir)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(%s migrations) error = %v", stream.name, err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, versions[stream.name]), []byte("-- migration"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(%s migration) error = %v", stream.name, err)
-		}
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("os.Remove(%s) error = %v", path, err)
 	}
 }
 
-func readTestFile(t *testing.T, path string) []byte {
-	t.Helper()
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%s) error = %v", path, err)
-	}
-	return contents
+func testTime() time.Time {
+	return time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC)
 }
 
-func assertCanonicalJSON(t *testing.T, name string, contents []byte) {
+func assertErrorContains(t *testing.T, err error, expected string) {
 	t.Helper()
-	decoder := json.NewDecoder(bytes.NewReader(contents))
-	decoder.UseNumber()
-	var document any
-	if err := decoder.Decode(&document); err != nil {
-		t.Fatalf("decode %s for canonical comparison: %v", name, err)
-	}
-	canonical, err := json.Marshal(document)
-	if err != nil {
-		t.Fatalf("json.Marshal(canonical %s) error = %v", name, err)
-	}
-	if !bytes.Equal(contents, canonical) {
-		t.Fatalf("%s is not recursively key-sorted canonical JSON\ngot:  %s\nwant: %s", name, contents, canonical)
+	if err == nil || !strings.Contains(err.Error(), expected) {
+		t.Fatalf("error = %v, want message containing %q", err, expected)
 	}
 }

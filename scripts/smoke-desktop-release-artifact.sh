@@ -150,7 +150,7 @@ case "${platform}" in
     mount_path=$(mktemp -d "${smoke_parent}/compozy-desktop-smoke-mount.XXXXXX")
     hdiutil attach -nobrowse -readonly -mountpoint "${mount_path}" "${artifact}" >/dev/null
     app_path=$(find "${mount_path}" -maxdepth 1 -type d -name '*.app' -print -quit)
-    app_binary="${app_path}/Contents/MacOS/compozyos-desktop"
+    app_binary="${app_path}/Contents/MacOS/CompozyOS"
     ;;
   linux)
     app_binary=${artifact}

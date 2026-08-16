@@ -683,94 +683,55 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
 	gitignore := readTextFile(t, root, ".gitignore")
-	repairWorkflow := readTextFile(t, root, filepath.Join(".github", "workflows", "desktop-feed-repair.yml"))
-	cargoManifest := readTextFile(t, root, filepath.Join("desktop", "src-tauri", "Cargo.toml"))
+	goreleaserText := readTextFile(t, root, ".goreleaser.yml")
 	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
 	release := mapAt(t, goreleaser, "release")
+	checksum := mapAt(t, goreleaser, "checksum")
 
-	t.Run("Should publish package managers only after public installation succeeds", func(t *testing.T) {
+	t.Run("Should keep desktop artifacts in the signed draft before public installation", func(t *testing.T) {
 		t.Parallel()
 
 		if got, ok := release["draft"].(bool); !ok || !got {
 			t.Fatalf("release.draft = %#v, want true", release["draft"])
 		}
-		publishFeed := strings.Index(workflow, "scripts/publish-desktop-release.sh")
-		stageDraft := strings.Index(workflow, "name: Stage GitHub draft without publishing npm")
-		publishDraft := strings.Index(workflow, "- name: Publish GitHub release before downstream package managers")
-		publicInstall := strings.Index(workflow, "  cli-public-install-smoke:")
-		publishNPM := strings.Index(workflow, "- name: Publish verified CLI package")
-		verifyPublished := strings.Index(workflow, "- name: Verify published channel policy")
-		if publishFeed == -1 || stageDraft == -1 || publishDraft == -1 || publicInstall == -1 ||
-			publishNPM == -1 || verifyPublished == -1 || !strings.Contains(workflow, "-F draft=false") {
-			t.Fatal("release workflow is missing staged, public-install, or package publication phases")
-		}
-		if stageDraft > publishFeed || publishFeed > publishDraft || publishDraft > publicInstall ||
-			publicInstall > publishNPM {
-			t.Fatal("release workflow must publish GitHub and prove a public install before npm publication")
-		}
-		assertContainsText(t, "GoReleaser npm custody", workflow, `GORELEASER_PUBLISH_NPM: "false"`)
-		assertContainsText(t, "public CLI installation", workflow, "smoke-public-cli-package.sh")
-		assertContainsText(
-			t,
-			"public CLI recovery scheduling",
-			workflow,
-			"always() &&\n      needs.release-plan.result == 'success' &&\n      needs.release.result == 'success' &&\n      needs.desktop-finalize.result == 'success'",
-		)
-		assertContainsText(
-			t,
-			"npm recovery scheduling",
-			workflow,
-			"always() &&\n      needs.release-plan.result == 'success' &&\n      needs.release.result == 'success' &&\n      needs.cli-public-install-smoke.result == 'success'",
-		)
-		assertContainsText(t, "isolated npm preparation", workflow, "name: Prepare npm CLI package without publication")
-		assertContainsText(t, "isolated npm config", workflow, `render_goreleaser_config ".release-dist/npm"`)
-		assertContainsText(t, "isolated npm preparation", workflow, "--config=${{ runner.temp }}/.goreleaser-npm.yml")
-		assertContainsText(t, "isolated npm artifact", workflow, ".release-dist/npm/npm/@compozy/cli/*")
-		assertContainsText(t, "isolated release staging ignore", gitignore, ".release-dist/")
-		assertContainsText(t, "older release ref staging ignore", workflow, `printf '/.release-dist/\n'`)
-		assertContainsText(t, "isolated release staging check", workflow, "name: Validate isolated release directories")
-		assertContainsText(
-			t,
-			"isolated GitHub preparation",
-			workflow,
-			"name: Prepare GitHub artifacts without npm publisher",
-		)
-		assertContainsText(t, "isolated GitHub config", workflow, `render_goreleaser_config ".release-dist/github"`)
-		assertContainsText(
-			t,
-			"isolated GitHub preparation",
-			workflow,
-			"--config=${{ runner.temp }}/.goreleaser-github.yml",
-		)
-		assertNotContainsText(t, "GoReleaser prepare CLI", workflow, "release --clean --prepare\n            --dist=")
-		assertContainsText(t, "GoReleaser staged publication", workflow, "args: publish --dist=.release-dist/github")
-		assertNotContainsText(t, "GoReleaser staged publication", workflow, "publish --config")
-		assertContainsText(t, "GoReleaser CLI contract", workflow, "name: Validate production GoReleaser commands")
-
-		githubPreparationStart := strings.Index(workflow, "name: Prepare GitHub artifacts without npm publisher")
-		githubPreparationEnd := strings.Index(workflow, "name: Stage GitHub draft without publishing npm")
-		githubPreparation := workflow[githubPreparationStart:githubPreparationEnd]
-		assertContainsText(t, "isolated GitHub preparation", githubPreparation, `GORELEASER_PUBLISH_NPM: "false"`)
-		if got := strings.Count(workflow, `GORELEASER_PUBLISH_NPM: "false"`); got != 1 {
-			t.Fatalf("deferred npm switch count = %d, want exactly one GitHub preparation context", got)
-		}
-
-		finalizer := workflow[publishDraft:verifyPublished]
 		for _, required := range []string{
-			`gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100"`,
-			`select(.tag_name == $tag)`,
-			`if [[ "${matching_count}" != "1" ]]; then`,
-			`release_id="$(jq -r '.[0].id' <<<"$matching_releases")"`,
-			`release_draft="$(jq -r '.[0].draft' <<<"$matching_releases")"`,
-			`if [[ "${release_draft}" == "true" ]]; then`,
-			`elif [[ "${release_draft}" == "false" ]]; then`,
-			`"repos/${GITHUB_REPOSITORY}/releases/${release_id}"`,
+			"needs: [release-plan, desktop-compatibility, desktop-build, desktop-smoke]",
+			"name: Download exact desktop release inventory",
+			"name: Produce and validate desktop compatibility assets",
+			"cp \".artifacts/desktop-build/${artifact}\" \".artifacts/desktop/${artifact}\"",
+			"name: Stage GitHub draft without publishing npm",
+			"needs: [release-plan, release]",
+			"name: Publish GitHub release before downstream package managers",
+			"needs: [release-plan, release, desktop-build, desktop-finalize]",
+			"needs: [release-plan, release, desktop-finalize, desktop-publish]",
+			"name: Publish verified CLI package",
+			"GORELEASER_PUBLISH_NPM: \"false\"",
+			"smoke-public-cli-package.sh",
 		} {
-			assertContainsText(t, "GitHub draft finalizer", finalizer, required)
+			assertContainsText(t, "release custody graph", workflow, required)
 		}
-		assertNotContainsText(t, "GitHub draft finalizer", finalizer, `releases/tags/${RELEASE_TAG}`)
-		if got := strings.Count(finalizer, "-F draft=false"); got != 1 {
-			t.Fatalf("GitHub draft publication count = %d, want exactly one finalizer", got)
+		assertContainsText(t, "GitHub finalizer", workflow, "-F draft=false")
+		assertContainsText(t, "isolated release staging ignore", gitignore, ".release-dist/")
+		assertContainsText(t, "checksum algorithm", fmt.Sprint(checksum["algorithm"]), "sha256")
+
+		checksumFiles, ok := checksum["extra_files"].([]any)
+		if !ok || len(checksumFiles) != 7 {
+			t.Fatalf("checksum.extra_files = %#v, want seven desktop compatibility inputs", checksum["extra_files"])
+		}
+		releaseFiles, ok := release["extra_files"].([]any)
+		if !ok || len(releaseFiles) != 8 {
+			t.Fatalf("release.extra_files = %#v, want installer plus seven desktop inputs", release["extra_files"])
+		}
+		for _, required := range []string{
+			"CompozyOS-*-mac-arm64.dmg",
+			"CompozyOS-*-mac-arm64.zip",
+			"CompozyOS-*-mac-x64.dmg",
+			"CompozyOS-*-mac-x64.zip",
+			"CompozyOS-*-linux-x64.AppImage",
+			"CompozyOS-*-linux-x64.deb",
+			".artifacts/desktop/compat.json",
+		} {
+			assertContainsText(t, "signed desktop inventory", goreleaserText, required)
 		}
 	})
 
@@ -784,28 +745,17 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		if err := os.MkdirAll(binDir, 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(bin) error = %v", err)
 		}
-
 		packageJSON := fmt.Sprintf(
-			`{"name":"@compozy/cli","version":%q,"bin":{"compozy":"bin/compozy"}}`,
+			"{\"name\":\"@compozy/cli\",\"version\":%q,\"bin\":{\"compozy\":\"bin/compozy\"}}",
 			releaseVersion,
 		)
 		if err := os.WriteFile(filepath.Join(packageRoot, "package.json"), []byte(packageJSON), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(package.json) error = %v", err)
 		}
-
-		fixtureCLI := `#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "$*" >"${FAKE_COMPOZY_CALLS:?}"
-if [[ "$#" != "1" || "$1" != "version" ]]; then
-  printf 'error: unknown command: %s\n' "$*" >&2
-  exit 1
-fi
-printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
-`
+		fixtureCLI := "#!/usr/bin/env bash\nset -euo pipefail\nprintf '%s\\n' \"$*\" >\"${FAKE_COMPOZY_CALLS:?}\"\nif [[ \"$#\" != \"1\" || \"$1\" != \"version\" ]]; then\n  exit 1\nfi\nprintf 'CompozyOS %s\\n' \"${FAKE_COMPOZY_VERSION:?}\"\n"
 		if err := os.WriteFile(filepath.Join(binDir, "compozy"), []byte(fixtureCLI), 0o755); err != nil {
 			t.Fatalf("os.WriteFile(compozy fixture) error = %v", err)
 		}
-
 		callsPath := filepath.Join(fixtureRoot, "calls.txt")
 		cmd := exec.CommandContext(
 			t.Context(),
@@ -825,7 +775,6 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			t.Fatalf("smoke-public-cli-package.sh error = %v, output = %s", err, output)
 		}
 		assertContainsText(t, "public CLI package smoke", string(output), "public CLI package smoke: PASS")
-
 		calls, err := os.ReadFile(callsPath)
 		if err != nil {
 			t.Fatalf("os.ReadFile(calls) error = %v", err)
@@ -835,179 +784,117 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 		}
 	})
 
-	t.Run("Should pin the shipping-platform matrix and Tauri v1 contract", func(t *testing.T) {
+	t.Run("Should build the exact Electron shipping matrix", func(t *testing.T) {
 		t.Parallel()
 
-		for _, snippet := range []string{
-			"fail-fast: false",
-			"matrix: &desktop-release-matrix",
-			"matrix: *desktop-release-matrix",
-			"runner: macos-15",
-			"target: universal-apple-darwin",
-			"runner: ubuntu-22.04",
-			"target: x86_64-unknown-linux-gnu",
-			"uses: tauri-apps/tauri-action@v1",
-			"releaseDraft: true",
-			"uploadUpdaterJson: false",
-			"uploadWorkflowArtifacts: true",
-			"libwebkit2gtk-4.1-dev",
-			"xdg-utils",
-		} {
-			assertContainsText(t, "desktop release workflow", workflow, snippet)
-		}
-		// Windows is paused until Trusted Signing is restored.
-		assertNotContainsText(t, "desktop release workflow", workflow, "runner: windows-latest")
-		if got := strings.Count(workflow, "uses: tauri-apps/tauri-action@v1"); got != 2 {
-			t.Fatalf("tauri-action step count = %d, want dry-run and production matrix steps", got)
-		}
-	})
-
-	t.Run("Should bundle the shipping matrix without publishing on release PRs", func(t *testing.T) {
-		t.Parallel()
-
-		start := strings.Index(workflow, "  desktop-dry-run:")
-		end := strings.Index(workflow, "  desktop-dry-run-smoke:")
-		if start == -1 || end == -1 || start >= end {
-			t.Fatal("release workflow is missing the desktop dry-run job before the nightly lane")
-		}
-		dryRun := workflow[start:end]
 		for _, required := range []string{
-			"name: Dry-Run Desktop ${{ matrix.name }}",
+			"name: Resolve Desktop Compatibility",
+			"needs: [release-plan, desktop-compatibility]",
+			"COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}",
 			"matrix: &desktop-release-matrix",
+			"id: macos-arm64",
 			"runner: macos-15",
-			"target: universal-apple-darwin",
-			"bundles: app,dmg",
+			"arch: arm64",
+			"id: macos-x64",
+			"runner: macos-15-intel",
+			"arch: x64",
+			"id: linux",
 			"runner: ubuntu-22.04",
-			"target: x86_64-unknown-linux-gnu",
-			"bundles: appimage,deb",
-			"uses: tauri-apps/tauri-action@v1",
-			"uploadUpdaterJson: false",
-			"uploadWorkflowArtifacts: false",
-			"COMPOZY_RELEASE_CHANNEL: beta",
-			"scripts/normalize-desktop-artifacts.sh",
-			"uses: actions/upload-artifact@v7",
+			"bunx --cwd desktop electron-builder",
+			"--publish never",
+			"release:collect",
 		} {
-			assertContainsText(t, "desktop release dry-run", dryRun, required)
+			assertContainsText(t, "Electron release matrix", workflow, required)
+		}
+		if got := strings.Count(workflow, "bunx --cwd desktop electron-builder"); got != 2 {
+			t.Fatalf("electron-builder invocation count = %d, want dry-run and production", got)
 		}
 		for _, forbidden := range []string{
-			"tagName:",
-			"releaseName:",
-			"releaseDraft:",
-			"GITHUB_TOKEN:",
-			"APPLE_CERTIFICATE:",
-			"APPLE_ID:",
+			"tauri-apps/tauri-action",
+			"desktop/src-tauri",
+			"TAURI_SIGNING_",
+			"dtolnay/rust-toolchain",
+			"runner: windows-latest",
 		} {
-			assertNotContainsText(t, "desktop release dry-run", dryRun, forbidden)
-		}
-
-		smokeEnd := strings.Index(workflow, "  e2e-nightly:")
-		if smokeEnd == -1 || end >= smokeEnd {
-			t.Fatal("release workflow is missing the cross-job desktop dry-run smoke")
-		}
-		smoke := workflow[end:smokeEnd]
-		for _, required := range []string{
-			"needs: desktop-dry-run",
-			"actions/download-artifact@v8",
-			"scripts/read-canonical-runtime-version.sh",
-			"scripts/smoke-desktop-release-artifact.sh",
-			"desktop-dry-run-smoke-${{ matrix.id }}-diagnostics",
-		} {
-			assertContainsText(t, "desktop dry-run smoke", smoke, required)
+			assertNotContainsText(t, "Electron release workflow", workflow, forbidden)
 		}
 	})
 
-	t.Run("Should stage workflow tools before the production desktop smoke", func(t *testing.T) {
+	t.Run("Should fail closed on signing and prove macOS provenance", func(t *testing.T) {
 		t.Parallel()
 
-		start := strings.Index(workflow, "  desktop-smoke:")
-		end := strings.Index(workflow, "  desktop-finalize:")
+		start := strings.Index(workflow, "  desktop-build:")
+		end := strings.Index(workflow, "  desktop-publish:")
 		if start == -1 || end == -1 || start >= end {
-			t.Fatal("release workflow is missing the production desktop smoke job")
+			t.Fatal("release workflow is missing the production desktop build")
 		}
-		smoke := workflow[start:end]
-		loadTools := strings.Index(smoke, "- *load-release-workflow-tools")
-		invokeSmoke := strings.Index(smoke, `bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh"`)
-		if loadTools == -1 || invokeSmoke == -1 {
-			t.Fatal("production desktop smoke must load and invoke workflow-version tools")
-		}
-		if loadTools > invokeSmoke {
-			t.Fatal("production desktop smoke must load workflow-version tools before invoking them")
-		}
-	})
-
-	t.Run("Should repair only the exact signed beta feed from main", func(t *testing.T) {
-		t.Parallel()
-
-		for _, required := range []string{
-			"workflow_dispatch:",
-			"expected_version:",
-			"if: github.ref != 'refs/heads/main'",
-			"R2_ACCESS_KEY_ID",
-			"R2_SECRET_ACCESS_KEY",
-			"TAURI_SIGNING_PRIVATE_KEY",
-			"TAURI_SIGNING_PUBLIC_KEY",
-			"COMPOZY_FEED_REPAIR_ID",
-			"scripts/repair-desktop-feed.sh",
-		} {
-			assertContainsText(t, "desktop feed repair workflow", repairWorkflow, required)
-		}
-		assertNotContainsText(t, "desktop feed repair workflow", repairWorkflow, "stable")
-	})
-
-	t.Run("Should assert signing material before bundling with current platform APIs", func(t *testing.T) {
-		t.Parallel()
-
-		preflight := strings.Index(workflow, "- name: Assert signing material before build")
-		bundle := strings.Index(workflow, "- name: Build signed desktop bundle")
+		build := workflow[start:end]
+		preflight := strings.Index(build, "name: Assert and stage macOS signing material")
+		bundle := strings.Index(build, "name: Build signed desktop bundle")
 		if preflight == -1 || bundle == -1 || preflight > bundle {
-			t.Fatal("desktop signing preflight must run before the Tauri build")
+			t.Fatal("macOS signing preflight must run before electron-builder")
 		}
-		for _, snippet := range []string{
-			"APPLE_ID: ${{ secrets.APPLE_ID }}",
-			"APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}",
-			"APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}",
-			"xcrun notarytool submit",
-			"xcrun stapler staple",
+		for _, required := range []string{
+			"CSC_LINK_VALUE",
+			"CSC_KEY_PASSWORD_VALUE",
+			"APPLE_API_KEY_VALUE",
+			"APPLE_API_KEY_ID",
+			"APPLE_API_ISSUER",
+			"codesign --verify --deep --strict",
+			"spctl --assess --type execute",
+			"release:finalize-mac",
+			"release:verify-mac-zip",
+			"--notarize true",
 		} {
-			assertContainsText(t, "desktop release workflow", workflow, snippet)
+			assertContainsText(t, "macOS provenance lane", build, required)
 		}
-		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_API_ISSUER")
-		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_API_KEY")
 	})
 
-	t.Run("Should verify the signed runtime manifest with the desktop consumer before publication", func(t *testing.T) {
+	t.Run("Should smoke every package before staging the draft", func(t *testing.T) {
 		t.Parallel()
 
-		signManifest := strings.Index(workflow, "scripts/sign-runtime-manifest.sh")
-		verifyManifest := strings.Index(workflow, "--bin compozy-runtime-manifest-check")
-		publishFeed := strings.Index(workflow, "scripts/publish-desktop-release.sh")
-		if signManifest == -1 || verifyManifest == -1 || publishFeed == -1 {
-			t.Fatal(
-				"desktop release workflow is missing candidate manifest signing, " +
-					"consumer verification, or publication",
-			)
-		}
-		if signManifest > verifyManifest || verifyManifest > publishFeed {
-			t.Fatal("desktop release workflow must verify signed candidate manifest bytes before publication")
-		}
-		verification := workflow[signManifest:publishFeed]
 		for _, required := range []string{
-			"--features runtime-manifest-check",
-			"TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}",
-			".artifacts/feed/runtime.json.minisig",
-			`"${RELEASE_VERSION}"`,
-			"darwin-aarch64",
-			"darwin-x86_64",
-			"linux-x86_64",
+			"needs: [release-plan, desktop-build]",
+			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-arm64.dmg",
+			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-x64.dmg",
+			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-linux-x64.AppImage",
+			"bash \"${RUNNER_TEMP}/smoke-desktop-release-artifact.sh\"",
+			"\"${RELEASE_VERSION}\"",
+			"desktop-release-smoke-${{ matrix.id }}-diagnostics",
 		} {
-			assertContainsText(t, "runtime manifest consumer verification", verification, required)
+			assertContainsText(t, "packaged Electron smoke", workflow, required)
 		}
+	})
+
+	t.Run("Should advance the channel only after public asset verification", func(t *testing.T) {
+		t.Parallel()
+
+		start := strings.Index(workflow, "  desktop-publish:")
+		end := strings.Index(workflow, "  desktop-smoke:")
+		if start == -1 || end == -1 || start >= end {
+			t.Fatal("release workflow is missing the desktop channel publisher")
+		}
+		publisher := workflow[start:end]
 		for _, required := range []string{
-			"runtime-manifest-check = []",
-			`required-features = ["runtime-manifest-check"]`,
+			"needs: [release-plan, release, desktop-build, desktop-finalize]",
+			"group: desktop-channel-${{ needs.release-plan.outputs.release_channel }}",
+			"cancel-in-progress: false",
+			"name: Download signed compatibility catalog",
+			"--pattern checksums.txt",
+			"--pattern compat.json",
+			"release:prepare-channel",
+			"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}",
+			"go run ./cmd/compozy-desktop-release publish",
+			"-o json",
+			"--operation-id \"desktop-release-${RELEASE_VERSION}-publish\"",
+			".operation == \"publish\"",
+			".audit_commit == .channel_ref_after",
+			".verified_inventory | length == 7",
+			"already_completed",
 		} {
-			assertContainsText(t, "desktop Cargo manifest", cargoManifest, required)
+			assertContainsText(t, "channel authority lane", publisher, required)
 		}
+		assertNotContainsText(t, "stable operation identity", publisher, "GITHUB_RUN_ATTEMPT")
 	})
 }
 

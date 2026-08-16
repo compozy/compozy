@@ -129,6 +129,14 @@ npms:
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
+  extra_files:
+    - glob: ./.artifacts/desktop/CompozyOS-*-mac-arm64.dmg
+    - glob: ./.artifacts/desktop/CompozyOS-*-mac-arm64.zip
+    - glob: ./.artifacts/desktop/CompozyOS-*-mac-x64.dmg
+    - glob: ./.artifacts/desktop/CompozyOS-*-mac-x64.zip
+    - glob: ./.artifacts/desktop/CompozyOS-*-linux-x64.AppImage
+    - glob: ./.artifacts/desktop/CompozyOS-*-linux-x64.deb
+    - glob: ./.artifacts/desktop/compat.json
 
 signs:
   - cmd: cosign
@@ -224,6 +232,13 @@ release:
   extra_files:
     - glob: ./.artifacts/install.sh
       name_template: install.sh
+    - glob: ./.artifacts/desktop/CompozyOS-*-mac-arm64.dmg
+    - glob: ./.artifacts/desktop/CompozyOS-*-mac-arm64.zip
+    - glob: ./.artifacts/desktop/CompozyOS-*-mac-x64.dmg
+    - glob: ./.artifacts/desktop/CompozyOS-*-mac-x64.zip
+    - glob: ./.artifacts/desktop/CompozyOS-*-linux-x64.AppImage
+    - glob: ./.artifacts/desktop/CompozyOS-*-linux-x64.deb
+    - glob: ./.artifacts/desktop/compat.json
 
 sboms:
   - id: archive

@@ -320,7 +320,7 @@ jobs:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
 
-  # Validate Tauri bundles on every shipping platform without publication.
+  # Validate Electron bundles on every shipping architecture without publication.
   desktop-dry-run:
     name: Dry-Run Desktop ${{ matrix.name }}
     if: |
@@ -331,22 +331,21 @@ jobs:
       fail-fast: false
       matrix: &desktop-release-matrix
         include:
-          - name: macOS universal
-            id: macos
+          - name: macOS arm64
+            id: macos-arm64
             runner: macos-15
-            platform: macos
-            target: universal-apple-darwin
-            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            bundles: app,dmg
-          # Windows is paused until the Azure Trusted Signing account is
-          # restored (SignerSign fails server-side).
+            platform: mac
+            arch: arm64
+          - name: macOS x64
+            id: macos-x64
+            runner: macos-15-intel
+            platform: mac
+            arch: x64
           - name: Linux x86_64
             id: linux
             runner: ubuntu-22.04
             platform: linux
-            target: x86_64-unknown-linux-gnu
-            rust_targets: x86_64-unknown-linux-gnu
-            bundles: appimage,deb
+            arch: x64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     steps:
@@ -359,82 +358,52 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-bun
         with:
-          targets: ${{ matrix.rust_targets }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri -> target
+          install-playwright: "false"
 
       - name: Install Linux desktop dependencies
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
+            libasound2 \
+            libgtk-3-0 \
+            libnss3 \
             patchelf \
             xdg-utils
 
-      - name: Assert updater signing material before dry-run build
-        shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+      - name: Generate the unsigned dry-run builder configuration
         run: |
-          set -euo pipefail
-          for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD TAURI_SIGNING_PUBLIC_KEY; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "desktop dry-run: required signing value ${name} is missing" >&2
-              exit 1
-            fi
-          done
-
-      - name: Generate dry-run release channel configuration
-        shell: bash
-        env:
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
-          TAURI_SIGNING_PUBLIC_KEY_PREVIOUS: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY_PREVIOUS }}
-        run: |
-          go run ./cmd/compozy-desktop-release channel-config \
+          bun run --cwd desktop release:config -- \
             --version 0.0.0-beta.0 \
-            --channel beta \
-            --public-key "${TAURI_SIGNING_PUBLIC_KEY}" \
-            --previous-public-key "${TAURI_SIGNING_PUBLIC_KEY_PREVIOUS:-}" \
-            --output desktop/src-tauri/tauri.channel.conf.json
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}" \
+            --notarize false \
+            --output .artifacts/release-config.json
 
       - name: Build desktop bundle without publishing
-        uses: tauri-apps/tauri-action@v1
-        with:
-          projectPath: desktop
-          uploadUpdaterJson: false
-          uploadWorkflowArtifacts: false
-          args: >-
-            --target ${{ matrix.target }}
-            --bundles ${{ matrix.bundles }}
-            --config src-tauri/tauri.channel.conf.json
         env:
-          COMPOZY_RELEASE_CHANNEL: beta
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      - name: Normalize dry-run desktop artifacts
-        shell: bash
+          COMPOZY_RELEASE_VERSION: 0.0.0-beta.0
         run: |
-          scripts/normalize-desktop-artifacts.sh \
-            "${{ matrix.platform }}" \
-            0.0.0-beta.0 \
-            desktop/src-tauri/target \
-            ".artifacts/desktop/${{ matrix.id }}"
+          bun run --cwd desktop build:runtime
+          bun run --cwd desktop build:main
+          bunx --cwd desktop electron-builder \
+            --config .artifacts/release-config.json \
+            --${{ matrix.platform }} \
+            --${{ matrix.arch }} \
+            --publish never
 
       - name: Upload dry-run desktop artifacts
         uses: actions/upload-artifact@v7
         with:
           name: desktop-dry-run-${{ matrix.id }}
-          path: .artifacts/desktop/${{ matrix.id }}/*
+          path: |
+            desktop/.artifacts/builder/*.dmg
+            desktop/.artifacts/builder/*.zip
+            desktop/.artifacts/builder/*.AppImage
+            desktop/.artifacts/builder/*.deb
+            desktop/.artifacts/builder/latest*.yml
           if-no-files-found: error
           retention-days: 7
 
@@ -445,16 +414,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS DMG
-            id: macos
+          - name: macOS arm64 DMG
+            id: macos-arm64
             runner: macos-15
             platform: macos
-            artifact: CompozyOS_0.0.0-beta.0_universal.dmg
+            artifact: CompozyOS-0.0.0-beta.0-mac-arm64.dmg
+          - name: macOS x64 DMG
+            id: macos-x64
+            runner: macos-15-intel
+            platform: macos
+            artifact: CompozyOS-0.0.0-beta.0-mac-x64.dmg
           - name: Linux AppImage
             id: linux
             runner: ubuntu-22.04
             platform: linux
-            artifact: CompozyOS_0.0.0-beta.0_amd64.AppImage
+            artifact: CompozyOS-0.0.0-beta.0-linux-x64.AppImage
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
@@ -469,9 +443,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
+            libasound2 \
+            libgtk-3-0 \
+            libnss3 \
             patchelf \
             xdg-utils \
             xvfb
@@ -481,13 +455,6 @@ jobs:
           name: desktop-dry-run-${{ matrix.id }}
           path: .artifacts/desktop
 
-      - name: Read current beta runtime identity
-        id: runtime
-        run: |
-          runtime_version="$(scripts/read-canonical-runtime-version.sh \
-            https://releases.compozy.com/desktop/beta/runtime.json)"
-          printf 'version=%s\n' "${runtime_version}" >>"${GITHUB_OUTPUT}"
-
       - name: Provision from the transferred package
         env:
           RELEASE_CHANNEL: beta
@@ -496,7 +463,7 @@ jobs:
             "${{ matrix.platform }}" \
             ".artifacts/desktop/${{ matrix.artifact }}" \
             0.0.0-beta.0 \
-            "${{ steps.runtime.outputs.version }}"
+            0.0.0-beta.0
 
       - name: Upload smoke diagnostics on failure
         if: failure()
@@ -720,8 +687,11 @@ jobs:
   # Publish only from an explicit, validated plan.
   release:
     name: Stage Production Release
-    needs: release-plan
-    if: needs.release-plan.result == 'success'
+    needs: [release-plan, desktop-compatibility, desktop-build, desktop-smoke]
+    if: |
+      needs.release-plan.result == 'success' &&
+      needs.desktop-build.result == 'success' &&
+      needs.desktop-smoke.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
@@ -773,6 +743,38 @@ jobs:
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: bash "${RUNNER_TEMP}/release-publication-state.sh"
+
+      - name: Download exact desktop release inventory
+        uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-release-*
+          path: .artifacts/desktop-build
+          merge-multiple: true
+
+      - name: Produce and validate desktop compatibility assets
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/desktop
+          for artifact in \
+            "CompozyOS-${RELEASE_VERSION}-mac-arm64.dmg" \
+            "CompozyOS-${RELEASE_VERSION}-mac-arm64.zip" \
+            "CompozyOS-${RELEASE_VERSION}-mac-x64.dmg" \
+            "CompozyOS-${RELEASE_VERSION}-mac-x64.zip" \
+            "CompozyOS-${RELEASE_VERSION}-linux-x64.AppImage" \
+            "CompozyOS-${RELEASE_VERSION}-linux-x64.deb"; do
+            cp ".artifacts/desktop-build/${artifact}" ".artifacts/desktop/${artifact}"
+          done
+          go run ./cmd/compozy-desktop-release assert-inventory \
+            --version "${RELEASE_VERSION}" \
+            --dir .artifacts/desktop
+          jq -cn \
+            --arg runtime_version "${RELEASE_VERSION}" \
+            --arg min_app_version "${MIN_APP_VERSION}" \
+            '{runtime_version: $runtime_version, min_app_version: $min_app_version}' \
+            >.artifacts/desktop/compat.json
 
       - name: Setup Release Tools
         if: |
@@ -944,12 +946,45 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  desktop-compatibility:
+    name: Resolve Desktop Compatibility
+    needs: release-plan
+    if: needs.release-plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      min_app_version: ${{ steps.compatibility.outputs.min_app_version }}
+    steps:
+      - name: Resolve the previous complete channel generation
+        id: compatibility
+        env:
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          generation_file="${RUNNER_TEMP}/desktop-generation.json"
+          generation_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/channel-${RELEASE_CHANNEL}/desktop/generation.json"
+          status="$(curl --silent --show-error --output "${generation_file}" --write-out '%{http_code}' "${generation_url}")"
+          case "${status}" in
+            200) min_app_version="$(jq -er '.version' "${generation_file}")" ;;
+            404) min_app_version="${RELEASE_VERSION}" ;;
+            *)
+              echo "::error::Could not read the channel generation (HTTP ${status})"
+              exit 1
+              ;;
+          esac
+          if [[ ! "${min_app_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Channel generation returned invalid SemVer: ${min_app_version}"
+            exit 1
+          fi
+          printf 'min_app_version=%s\n' "${min_app_version}" >>"${GITHUB_OUTPUT}"
+
   desktop-build:
     name: Desktop ${{ matrix.name }}
-    needs: [release-plan, release]
+    needs: [release-plan, desktop-compatibility]
     if: |
-      needs.release.result == 'success' &&
-      needs.release.outputs.desktop_required == 'true'
+      needs.release-plan.result == 'success' &&
+      needs.desktop-compatibility.result == 'success'
     strategy:
       fail-fast: false
       matrix: *desktop-release-matrix
@@ -966,159 +1001,116 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-bun
         with:
-          targets: ${{ matrix.rust_targets }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri -> target
+          install-playwright: "false"
 
       - name: Install Linux desktop dependencies
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
+            libasound2 \
+            libgtk-3-0 \
+            libnss3 \
             patchelf \
             xdg-utils
 
-      - name: Assert signing material before build
-        if: matrix.platform != 'macos'
+      - name: Assert and stage macOS signing material
+        if: matrix.platform == 'mac'
         shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
-        run: scripts/assert-desktop-signing-material.sh "${{ matrix.platform }}"
-
-      # macOS asserts live inline (not in the repo script) so a dispatch that
-      # recovers an older release ref keeps using the current Apple ID contract.
-      - name: Assert signing material before build (macOS)
-        if: matrix.platform == 'macos'
-        shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK_VALUE: ${{ secrets.APPLE_CERTIFICATE }}
+          CSC_KEY_PASSWORD_VALUE: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_VALUE: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           set -euo pipefail
-          for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
-            TAURI_SIGNING_PUBLIC_KEY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD \
-            APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+          for name in CSC_LINK_VALUE CSC_KEY_PASSWORD_VALUE APPLE_API_KEY_VALUE \
+            APPLE_API_KEY_ID APPLE_API_ISSUER; do
             if [[ -z "${!name:-}" ]]; then
               echo "desktop release: required signing value ${name} is missing" >&2
               exit 1
             fi
           done
-          echo "desktop release signing preflight: PASS (macos)"
+          api_key_path="${RUNNER_TEMP}/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s' "${APPLE_API_KEY_VALUE}" >"${api_key_path}"
+          chmod 600 "${api_key_path}"
+          {
+            printf 'CSC_LINK=%s\n' "${CSC_LINK_VALUE}"
+            printf 'CSC_KEY_PASSWORD=%s\n' "${CSC_KEY_PASSWORD_VALUE}"
+            printf 'APPLE_API_KEY=%s\n' "${api_key_path}"
+            printf 'APPLE_API_KEY_ID=%s\n' "${APPLE_API_KEY_ID}"
+            printf 'APPLE_API_ISSUER=%s\n' "${APPLE_API_ISSUER}"
+          } >>"${GITHUB_ENV}"
 
-      - name: Generate release channel configuration
-        shell: bash
-        env:
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
-          TAURI_SIGNING_PUBLIC_KEY_PREVIOUS: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY_PREVIOUS }}
+      - name: Generate release builder configuration
         run: |
-          set -euo pipefail
-          go run ./cmd/compozy-desktop-release channel-config \
+          bun run --cwd desktop release:config -- \
             --version "${{ needs.release-plan.outputs.release_version }}" \
-            --channel "${{ needs.release-plan.outputs.release_channel }}" \
-            --public-key "${TAURI_SIGNING_PUBLIC_KEY}" \
-            --previous-public-key "${TAURI_SIGNING_PUBLIC_KEY_PREVIOUS:-}" \
-            --output desktop/src-tauri/tauri.channel.conf.json
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}" \
+            --notarize true \
+            --output .artifacts/release-config.json
 
       - name: Build signed desktop bundle
-        uses: tauri-apps/tauri-action@v1
-        with:
-          projectPath: desktop
-          tagName: ${{ needs.release-plan.outputs.release_tag }}
-          releaseName: CompozyOS ${{ needs.release-plan.outputs.release_version }} — ${{ needs.release-plan.outputs.release_channel }}
-          releaseDraft: true
-          uploadUpdaterJson: false
-          uploadWorkflowArtifacts: true
-          args: >-
-            --target ${{ matrix.target }}
-            --bundles ${{ matrix.bundles }}
-            --config src-tauri/tauri.channel.conf.json
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          COMPOZY_RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
+        run: |
+          bun run --cwd desktop build:runtime
+          bun run --cwd desktop build:main
+          bunx --cwd desktop electron-builder \
+            --config .artifacts/release-config.json \
+            --${{ matrix.platform }} \
+            --${{ matrix.arch }} \
+            --publish never
 
-      # Inline (not a repo script) so dispatch recovery of an older release
-      # ref notarizes with the current Apple ID contract.
-      - name: Notarize staple and validate macOS artifacts
-        if: matrix.platform == 'macos'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
-          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+      - name: Verify macOS provenance and updater archive
+        if: matrix.platform == 'mac'
         run: |
           set -euo pipefail
-          app_path="$(find desktop/src-tauri/target -type d -path '*/bundle/macos/*.app' -print -quit)"
-          dmg_path="$(find desktop/src-tauri/target -type f -path '*/bundle/dmg/*.dmg' -print -quit)"
-          if [[ ! -d "${app_path}" || ! -s "${dmg_path}" ]]; then
-            echo "desktop release: app bundle and DMG must exist before notarization" >&2
-            exit 1
-          fi
-          bundle_version="$(/usr/libexec/PlistBuddy -c 'Print:CFBundleShortVersionString' "${app_path}/Contents/Info.plist")"
-          if [[ "${bundle_version}" != "${RELEASE_VERSION}" ]]; then
-            echo "desktop release: CFBundleShortVersionString ${bundle_version} does not match ${RELEASE_VERSION}" >&2
-            exit 1
-          fi
-          xcrun notarytool submit "${dmg_path}" \
-            --apple-id "${APPLE_ID}" \
-            --password "${APPLE_PASSWORD}" \
-            --team-id "${APPLE_TEAM_ID}" \
-            --wait
-          xcrun stapler staple "${dmg_path}"
-          xcrun stapler validate "${dmg_path}"
-          gh release upload "${RELEASE_TAG}" "${dmg_path}" --clobber --repo "${GITHUB_REPOSITORY}"
+          version="${{ needs.release-plan.outputs.release_version }}"
+          app_path="$(find desktop/.artifacts/builder -type d -name '*.app' -print -quit)"
+          test -d "${app_path}"
+          codesign --verify --deep --strict --verbose=4 "${app_path}"
+          spctl --assess --type execute --verbose=4 "${app_path}"
+          bun run --cwd desktop release:finalize-mac -- \
+            ".artifacts/builder/CompozyOS-${version}-mac-${{ matrix.arch }}.dmg"
+          bun run --cwd desktop release:verify-mac-zip -- \
+            ".artifacts/builder/CompozyOS-${version}-mac-${{ matrix.arch }}.zip"
 
-      - name: Normalize desktop artifacts
-        shell: bash
+      - name: Collect exact desktop artifacts
         run: |
-          scripts/normalize-desktop-artifacts.sh \
-            "${{ matrix.platform }}" \
-            "${{ needs.release-plan.outputs.release_version }}" \
-            desktop/src-tauri/target \
-            ".artifacts/desktop/${{ matrix.id }}"
+          bun run --cwd desktop release:collect -- \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}" \
+            --version "${{ needs.release-plan.outputs.release_version }}" \
+            --source .artifacts/builder \
+            --output ".artifacts/release/${{ matrix.id }}"
 
-      - name: Upload normalized desktop artifacts
+      - name: Upload exact desktop artifacts
         uses: actions/upload-artifact@v7
         with:
           name: desktop-release-${{ matrix.id }}
-          path: .artifacts/desktop/${{ matrix.id }}/*
+          path: desktop/.artifacts/release/${{ matrix.id }}/*
           if-no-files-found: error
           retention-days: 14
 
   desktop-publish:
-    name: Verify and Publish Desktop Release
-    needs: [release-plan, release, desktop-build, desktop-smoke]
+    name: Publish Desktop Channel
+    needs: [release-plan, release, desktop-build, desktop-finalize]
     if: |
+      always() &&
       needs.release.result == 'success' &&
       needs.release.outputs.desktop_required == 'true' &&
       needs.desktop-build.result == 'success' &&
-      needs.desktop-smoke.result == 'success'
-    runs-on: macos-15
+      needs.desktop-finalize.result == 'success'
+    concurrency:
+      group: desktop-channel-${{ needs.release-plan.outputs.release_channel }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
@@ -1131,133 +1123,99 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - uses: ./.github/actions/setup-node
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
       - uses: ./.github/actions/setup-bun
         with:
           install-playwright: "false"
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri -> target
-
-      - name: Install verification tools
-        run: brew install minisign awscli
-
-      - name: Download normalized desktop artifacts
+      - name: Download exact desktop artifacts and manifests
         uses: actions/download-artifact@v8
         with:
           pattern: desktop-release-*
           path: .artifacts/desktop
           merge-multiple: true
 
-      - name: Download runtime archives from the draft
+      - name: Download signed compatibility catalog
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
         run: |
           set -euo pipefail
-          mkdir -p .artifacts/runtime
+          mkdir -p .artifacts/authority
           gh release download "${RELEASE_TAG}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --dir .artifacts/runtime \
-            --pattern compozy_darwin_arm64.tar.gz \
-            --pattern compozy_darwin_x86_64.tar.gz \
-            --pattern compozy_linux_x86_64.tar.gz
+            --dir .artifacts/authority \
+            --pattern checksums.txt \
+            --pattern compat.json
 
-      - name: Build and sign canonical feeds
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
-          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+      - name: Assemble authority input and merge macOS manifests
         run: |
           set -euo pipefail
-          scripts/build-desktop-feed.sh \
-            .artifacts/desktop \
-            .artifacts/runtime \
-            "${RELEASE_VERSION}" \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            .artifacts/feed
-          scripts/sign-runtime-manifest.sh .artifacts/feed/runtime.json
-          cargo run --locked \
-            --manifest-path desktop/src-tauri/Cargo.toml \
-            --features runtime-manifest-check \
-            --bin compozy-runtime-manifest-check -- \
-            .artifacts/feed/runtime.json \
-            .artifacts/feed/runtime.json.minisig \
-            "${RELEASE_VERSION}" \
-            darwin-aarch64 \
-            darwin-x86_64 \
-            linux-x86_64
+          version="${{ needs.release-plan.outputs.release_version }}"
+          for artifact in \
+            "CompozyOS-${version}-mac-arm64.dmg" \
+            "CompozyOS-${version}-mac-arm64.zip" \
+            "CompozyOS-${version}-mac-x64.dmg" \
+            "CompozyOS-${version}-mac-x64.zip" \
+            "CompozyOS-${version}-linux-x64.AppImage" \
+            "CompozyOS-${version}-linux-x64.deb"; do
+            cp ".artifacts/desktop/${artifact}" ".artifacts/authority/${artifact}"
+          done
+          bun run --cwd desktop release:prepare-channel -- \
+            ../.artifacts/desktop/latest-mac-arm64.yml \
+            ../.artifacts/desktop/latest-mac-x64.yml \
+            ../.artifacts/desktop/latest-linux.yml \
+            ../.artifacts/channel \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}"
 
-      - name: Revalidate stapling and bundle version
+      - name: Verify payloads then advance the channel ref
         env:
-          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
-        run: |
-          set -euo pipefail
-          mkdir -p .artifacts/macos-app
-          tar -xzf ".artifacts/desktop/CompozyOS_${RELEASE_VERSION}_universal.app.tar.gz" \
-            -C .artifacts/macos-app
-          app_path="$(find .artifacts/macos-app -type d -name '*.app' -print -quit)"
-          dmg_path=".artifacts/desktop/CompozyOS_${RELEASE_VERSION}_universal.dmg"
-          xcrun stapler validate "${app_path}"
-          xcrun stapler validate "${dmg_path}"
-          bundle_version="$(/usr/libexec/PlistBuddy -c 'Print:CFBundleShortVersionString' "${app_path}/Contents/Info.plist")"
-          if [[ "${bundle_version}" != "${RELEASE_VERSION}" ]]; then
-            echo "::error::CFBundleShortVersionString ${bundle_version} does not match ${RELEASE_VERSION}"
-            exit 1
-          fi
-
-      - name: Publish immutable payloads then manifests and verify
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
-          R2_BUCKET: ${{ secrets.R2_RELEASES_BUCKET }}
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT_URL }}
         run: |
-          scripts/publish-desktop-release.sh \
-            .artifacts/desktop \
-            .artifacts/runtime \
-            .artifacts/feed \
-            "${RELEASE_CHANNEL}" \
-            "${RELEASE_VERSION}" \
-            "${R2_BUCKET}" \
-            "${R2_ENDPOINT}"
+          set -euo pipefail
+          go run ./cmd/compozy-desktop-release publish \
+            --operation-id "desktop-release-${RELEASE_VERSION}-publish" \
+            --channel "${RELEASE_CHANNEL}" \
+            --version "${RELEASE_VERSION}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --asset-dir .artifacts/authority \
+            --channel-dir .artifacts/channel \
+            -o json \
+            | tee .artifacts/channel-publish-result.json
+          jq -e '
+            .operation == "publish" and
+            (.channel_ref_after | length > 0) and
+            (.audit_commit == .channel_ref_after) and
+            (.verified_inventory | length == 7) and
+            (.outcome == "published" or .outcome == "already_completed")
+          ' .artifacts/channel-publish-result.json >/dev/null
 
   desktop-smoke:
     name: Smoke Packaged Desktop ${{ matrix.name }}
-    # The release package embeds the live channel endpoint. Smoke it before
-    # changing that endpoint's manifest, so a failed package cannot expose a
-    # new release. This proves first-run provisioning with the current signed
-    # channel runtime; desktop-publish separately verifies candidate payloads.
-    needs: [release-plan, release, desktop-build]
+    needs: [release-plan, desktop-build]
     if: |
-      needs.release.result == 'success' &&
-      needs.release.outputs.desktop_required == 'true' &&
+      needs.release-plan.result == 'success' &&
       needs.desktop-build.result == 'success'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: macOS DMG
-            id: macos
+          - name: macOS arm64 DMG
+            id: macos-arm64
             runner: macos-15
             platform: macos
-            artifact: CompozyOS_${{ needs.release-plan.outputs.release_version }}_universal.dmg
+            artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-arm64.dmg
+          - name: macOS x64 DMG
+            id: macos-x64
+            runner: macos-15-intel
+            platform: macos
+            artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-x64.dmg
           - name: Linux AppImage
             id: linux
             runner: ubuntu-22.04
             platform: linux
-            artifact: CompozyOS_${{ needs.release-plan.outputs.release_version }}_amd64.AppImage
+            artifact: CompozyOS-${{ needs.release-plan.outputs.release_version }}-linux-x64.AppImage
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
@@ -1289,16 +1247,6 @@ jobs:
           name: desktop-release-${{ matrix.id }}
           path: .artifacts/desktop
 
-      - name: Read current channel runtime identity
-        id: runtime
-        env:
-          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
-        run: |
-          set -euo pipefail
-          runtime_version="$(scripts/read-canonical-runtime-version.sh \
-            "https://releases.compozy.com/desktop/${RELEASE_CHANNEL}/runtime.json")"
-          printf 'version=%s\n' "${runtime_version}" >> "${GITHUB_OUTPUT}"
-
       - name: Provision from an empty isolated home
         env:
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
@@ -1308,7 +1256,7 @@ jobs:
             "${{ matrix.platform }}" \
             ".artifacts/desktop/${{ matrix.artifact }}" \
             "${RELEASE_VERSION}" \
-            "${{ steps.runtime.outputs.version }}"
+            "${RELEASE_VERSION}"
 
       - name: Upload smoke diagnostics on failure
         if: failure()
@@ -1321,13 +1269,10 @@ jobs:
 
   desktop-finalize:
     name: Publish GitHub Release
-    needs: [release-plan, release, desktop-publish, desktop-smoke]
+    needs: [release-plan, release]
     if: |
       always() &&
-      needs.release.result == 'success' &&
-      (needs.release.outputs.desktop_required != 'true' ||
-       (needs.desktop-publish.result == 'success' &&
-        needs.desktop-smoke.result == 'success'))
+      needs.release.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -1414,12 +1359,14 @@ jobs:
 
   cli-public-install-smoke:
     name: Install Public CLI Assets ${{ matrix.name }}
-    needs: [release-plan, release, desktop-finalize]
+    needs: [release-plan, release, desktop-finalize, desktop-publish]
     if: |
       always() &&
       needs.release-plan.result == 'success' &&
       needs.release.result == 'success' &&
-      needs.desktop-finalize.result == 'success'
+      needs.desktop-finalize.result == 'success' &&
+      (needs.release.outputs.desktop_required != 'true' ||
+       needs.desktop-publish.result == 'success')
     strategy:
       fail-fast: false
       matrix:
