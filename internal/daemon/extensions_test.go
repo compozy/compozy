@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -263,6 +264,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			},
 			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
 			withDaemonExtensionAutomation(&fakeAutomationManager{}),
+			withDaemonExtensionMCPRuntimeHealth(mcppkg.NewRuntimeHealthRegistry()),
 		).(*daemonExtensionService)
 		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "lifecycle serialization")
 		if err != nil {
@@ -274,6 +276,10 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}, actor); err != nil {
 			t.Fatalf("Install() error = %v", err)
 		}
+		healthObservation := service.mcpRuntimeHealth.Begin(mcppkg.RuntimeHealthKey{
+			InstanceName: "tool-ext", BundleGeneration: "generation-before-disable", ServerName: "remote",
+		})
+		service.mcpRuntimeHealth.RecordFailure(healthObservation, errors.New("connection failed"))
 		runtime.resetReloads()
 		source.latestVersion = "2.0.0"
 		entered, release := runtime.blockNextReload()
@@ -333,6 +339,11 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 				finalInfo.Enabled,
 				runtime.reloadCount(),
 			)
+		}
+		if entries := service.mcpRuntimeHealth.Entries(
+			"tool-ext", "", "generation-before-disable",
+		); len(entries) != 0 {
+			t.Fatalf("runtime health after disable = %#v, want evicted", entries)
 		}
 	})
 

@@ -15,6 +15,8 @@ type Binding struct {
 	WorkspaceID   string
 	EnvName       string
 	SecretRef     string
+	MCPServer     string
+	HeaderName    string
 	Kind          string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time

@@ -33,6 +33,59 @@ type extensionSecretTestWriter struct {
 	err       error
 }
 
+func TestParseExtensionRemoteHeader(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		input      string
+		wantServer string
+		wantHeader string
+		wantError  bool
+	}{
+		{name: "Should leave an omitted mapping empty", input: ""},
+		{
+			name: "Should parse and trim one mapping", input: " deployment-api : X-Deployment-Key ",
+			wantServer: "deployment-api", wantHeader: "X-Deployment-Key",
+		},
+		{
+			name: "Should allow operator-owned authorization without OAuth", input: "deployment-api:Authorization",
+			wantServer: "deployment-api", wantHeader: "Authorization",
+		},
+		{name: "Should reject a missing separator", input: "deployment-api", wantError: true},
+		{name: "Should reject an empty server", input: ":X-Key", wantError: true},
+		{name: "Should reject an empty header", input: "deployment-api:", wantError: true},
+		{name: "Should reject an invalid server name", input: "bad/server:X-Key", wantError: true},
+		{name: "Should reject an invalid header name", input: "deployment-api:Bad Header", wantError: true},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server, header, err := parseExtensionRemoteHeader(testCase.input)
+			if testCase.wantError {
+				if err == nil {
+					t.Fatalf("parseExtensionRemoteHeader(%q) error = nil, want failure", testCase.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseExtensionRemoteHeader(%q) error = %v", testCase.input, err)
+			}
+			if server != testCase.wantServer || header != testCase.wantHeader {
+				t.Fatalf(
+					"parseExtensionRemoteHeader(%q) = %q/%q, want %q/%q",
+					testCase.input,
+					server,
+					header,
+					testCase.wantServer,
+					testCase.wantHeader,
+				)
+			}
+		})
+	}
+}
+
 // Invariant: every embedded extension scaffold is discoverable from `extension init --help`.
 // Owning layer: CLI extension authoring command.
 // Canonical suite: no existing extension-init help suite owns this product contract.

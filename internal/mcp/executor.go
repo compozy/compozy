@@ -60,12 +60,27 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	if err != nil {
 		return nil, "", err
 	}
+	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
+	var runtimeHealthErr error
+	defer func() {
+		if runtimeHealthErr != nil {
+			e.runtimeHealth.RecordFailure(healthObservation, runtimeHealthErr)
+			return
+		}
+		if err != nil {
+			e.runtimeHealth.RecordFailure(healthObservation, err)
+			return
+		}
+		e.runtimeHealth.RecordSuccess(healthObservation)
+	}()
 	if err := e.ensureAuthorized(ctx, resolved); err != nil {
+		runtimeHealthErr = err
 		return nil, "", err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, resolved)
 	client, err := e.openClient(ctx, resolved, authorizationHeader)
 	if err != nil {
+		runtimeHealthErr = err
 		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
 	defer func() {
@@ -81,6 +96,7 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	}
 	tools, ttlMs, err := listMCPTools(ctx, client.session)
 	if err != nil {
+		runtimeHealthErr = err
 		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
 	descriptors = make([]toolspkg.MCPToolDescriptor, 0, len(tools))
@@ -139,12 +155,27 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
+	var runtimeHealthErr error
+	defer func() {
+		if runtimeHealthErr != nil {
+			e.runtimeHealth.RecordFailure(healthObservation, runtimeHealthErr)
+			return
+		}
+		if err != nil {
+			e.runtimeHealth.RecordFailure(healthObservation, err)
+			return
+		}
+		e.runtimeHealth.RecordSuccess(healthObservation)
+	}()
 	if err := e.ensureAuthorized(ctx, resolved); err != nil {
+		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, resolved)
 	client, err := e.openClient(ctx, resolved, authorizationHeader)
 	if err != nil {
+		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}
 	defer func() {
@@ -159,6 +190,7 @@ func (e *CallExecutor) CallTool(
 		Arguments: arguments,
 	})
 	if err != nil {
+		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}
 	if mcpResult.NeedsInput() {
@@ -381,6 +413,8 @@ func cloneMCPServer(server compozyconfig.MCPServer) compozyconfig.MCPServer {
 	server.Args = append([]string(nil), server.Args...)
 	server.Env = cloneStringMap(server.Env)
 	server.SecretEnv = cloneStringMap(server.SecretEnv)
+	server.Headers = cloneStringMap(server.Headers)
+	server.SecretHeaders = cloneStringMap(server.SecretHeaders)
 	server.Auth.Scopes = append([]string(nil), server.Auth.Scopes...)
 	return server
 }

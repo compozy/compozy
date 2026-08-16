@@ -30,6 +30,8 @@ type CallExecutor struct {
 	auth           authService
 	lookupSecret   func(string) string
 	secretResolver secretRefResolver
+	dataDirCreator func(string) error
+	runtimeHealth  *RuntimeHealthRegistry
 	httpClient     *http.Client
 	secureClient   *securehttp.Client
 	authGeneration *mcpauth.MutationGeneration
@@ -68,6 +70,20 @@ func WithSecretLookup(lookup func(string) string) CallExecutorOption {
 func WithSecretResolver(resolver secretRefResolver) CallExecutorOption {
 	return func(executor *CallExecutor) {
 		executor.secretResolver = resolver
+	}
+}
+
+// WithDataDirCreator injects the first-launch package data-directory boundary.
+func WithDataDirCreator(create func(string) error) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		executor.dataDirCreator = create
+	}
+}
+
+// WithRuntimeHealthRegistry shares restart-local extension MCP health with daemon read surfaces.
+func WithRuntimeHealthRegistry(registry *RuntimeHealthRegistry) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		executor.runtimeHealth = registry
 	}
 }
 
@@ -121,6 +137,12 @@ func NewMCPCallExecutor(
 	}
 	if executor.lookupSecret == nil {
 		executor.lookupSecret = func(string) string { return "" }
+	}
+	if executor.dataDirCreator == nil {
+		executor.dataDirCreator = createWritableMCPDataDir
+	}
+	if executor.runtimeHealth == nil {
+		executor.runtimeHealth = NewRuntimeHealthRegistry()
 	}
 	if executor.timeout <= 0 {
 		executor.timeout = defaultCallTimeout

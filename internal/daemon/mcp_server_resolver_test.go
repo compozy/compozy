@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -57,7 +58,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 		t.Run("Should resolve "+tc.workspaceID+" scoped server", func(t *testing.T) {
 			t.Parallel()
 
-			resolved, err := resolveDaemonMCPServer(state, toolspkg.SourceRef{
+			resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
 				Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear",
 				ResourceID: tc.resourceID, Scope: "workspace", WorkspaceID: tc.workspaceID,
 			})
@@ -74,7 +75,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 	t.Run("Should fall back to global scope without a resource identity", func(t *testing.T) {
 		t.Parallel()
 
-		global, err := resolveDaemonMCPServer(state, toolspkg.SourceRef{
+		global, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
 			Kind: toolspkg.SourceMCP, Owner: "linear", RawServerName: "linear",
 		})
 		if err != nil {
@@ -100,4 +101,69 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 			t.Fatalf("daemonMCPSources() workspace identities = %#v", seen)
 		}
 	})
+}
+
+func TestDaemonMCPServerResolverProjectsRemoteHeaderBindings(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	for _, binding := range []extensionpkg.EnvBinding{
+		{
+			ExtensionName: "kit", WorkspaceID: "workspace-a", EnvName: "DEPLOYMENT_KEY",
+			SecretRef: "vault:extensions/ws/workspace-a/kit/env/DEPLOYMENT_KEY",
+			MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+			Kind: extensionpkg.ExtensionEnvBindingKind,
+		},
+		{
+			ExtensionName: "kit", WorkspaceID: "workspace-a", EnvName: "OTHER_KEY",
+			SecretRef: "vault:extensions/ws/workspace-a/kit/env/OTHER_KEY",
+			MCPServer: "other-api", HeaderName: "X-Other-Key",
+			Kind: extensionpkg.ExtensionEnvBindingKind,
+		},
+		{
+			ExtensionName: "kit", WorkspaceID: "workspace-b", EnvName: "DEPLOYMENT_KEY",
+			SecretRef: "vault:extensions/ws/workspace-b/kit/env/DEPLOYMENT_KEY",
+			MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+			Kind: extensionpkg.ExtensionEnvBindingKind,
+		},
+	} {
+		if err := db.ExtensionEnvRepo.PutEnvBinding(t.Context(), binding); err != nil {
+			t.Fatalf("PutEnvBinding(%#v) error = %v", binding, err)
+		}
+	}
+
+	catalog := newResourceCatalog(cloneDaemonMCPServer)
+	catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
+		{
+			ID: "mcp-deployment-workspace-a", Version: 1,
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
+			Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"},
+			Spec: compozyconfig.MCPServer{
+				Name: "deployment-api", Transport: compozyconfig.MCPServerTransportHTTP,
+				URL: "https://deployment.example.test/mcp",
+			},
+		},
+	})
+	state := &bootState{mcpServerCatalog: catalog, extensionEnvBindings: db.ExtensionEnvRepo}
+	resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
+		Kind: toolspkg.SourceMCP, Owner: "deployment-api", RawServerName: "deployment-api",
+		ResourceID: "mcp-deployment-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
+	})
+	if err != nil {
+		t.Fatalf("resolveDaemonMCPServer() error = %v", err)
+	}
+	wantRef := "vault:extensions/ws/workspace-a/kit/env/DEPLOYMENT_KEY"
+	if len(resolved.Server.SecretHeaders) != 1 || resolved.Server.SecretHeaders["X-Deployment-Key"] != wantRef {
+		t.Fatalf("SecretHeaders = %#v, want only workspace-a deployment-api ref", resolved.Server.SecretHeaders)
+	}
+	if resolved.Server.SecretHeaders["X-Other-Key"] != "" ||
+		resolved.Server.SecretHeaders["X-Deployment-Key"] ==
+			"vault:extensions/ws/workspace-b/kit/env/DEPLOYMENT_KEY" {
+		t.Fatalf("SecretHeaders leaked sibling server or workspace: %#v", resolved.Server.SecretHeaders)
+	}
+
+	record := catalog.Snapshot()[0]
+	if len(record.Spec.SecretHeaders) != 0 {
+		t.Fatalf("catalog declaration mutated with projected refs: %#v", record.Spec.SecretHeaders)
+	}
 }

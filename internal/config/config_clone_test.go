@@ -35,6 +35,8 @@ func TestCloneConfig(t *testing.T) {
 		cloned.WindowManager.Shortcuts["focus"] = "mutated"
 		cloned.MCPServers[0].Args[0] = "mutated"
 		cloned.MCPServers[0].Env["TOKEN"] = "mutated"
+		cloned.MCPServers[0].Headers["X-Tenant"] = "mutated"
+		cloned.MCPServers[0].SecretHeaders["Authorization"] = "mutated"
 		cloned.MCPServers[0].Auth.Scopes[0] = "mutated"
 		provider := cloned.Providers["codex"]
 		provider.MCPServers[0].Env["TOKEN"] = "mutated"
@@ -93,6 +95,10 @@ func configCloneFixture() Config {
 		},
 		MCPServers: []MCPServer{{
 			Name: "github", Args: []string{"serve"}, Env: map[string]string{"TOKEN": "one"},
+			Headers: map[string]string{"X-Tenant": "public"},
+			SecretHeaders: map[string]string{
+				"Authorization": "vault:extensions/github/env/GITHUB_TOKEN",
+			},
 			Auth: MCPAuthConfig{Scopes: []string{"repo:read"}},
 		}},
 		Providers: map[string]ProviderConfig{

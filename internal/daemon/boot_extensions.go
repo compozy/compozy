@@ -46,6 +46,7 @@ func (d *Daemon) newBootExtensionService(
 		withDaemonExtensionSecrets(envBindings, state.providerVault),
 		withDaemonExtensionAutomation(state.automation),
 		withDaemonExtensionResources(state.resourceKernel, resourceReconcileActor(), state.resourceCodecs),
+		withDaemonExtensionMCPRuntimeHealth(state.mcpRuntimeHealth),
 	)
 }
 

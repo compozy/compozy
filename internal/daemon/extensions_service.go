@@ -10,6 +10,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/resources"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -41,6 +42,7 @@ type daemonExtensionService struct {
 	resourceStore      resources.RawStore
 	resourceActor      resources.MutationActor
 	resourceCodecs     *resources.CodecRegistry
+	mcpRuntimeHealth   *mcppkg.RuntimeHealthRegistry
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -121,6 +123,12 @@ func withDaemonExtensionResources(
 		service.resourceStore = store
 		service.resourceActor = actor
 		service.resourceCodecs = codecs
+	}
+}
+
+func withDaemonExtensionMCPRuntimeHealth(registry *mcppkg.RuntimeHealthRegistry) daemonExtensionServiceOption {
+	return func(service *daemonExtensionService) {
+		service.mcpRuntimeHealth = registry
 	}
 }
 

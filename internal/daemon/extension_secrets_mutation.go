@@ -10,15 +10,18 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/mcppolicy"
 	"github.com/compozy/compozy/internal/vault"
 )
 
 const extensionSecretRollbackTimeout = 5 * time.Second
 
 type preparedExtensionSecret struct {
-	envName string
-	ref     string
-	value   *string
+	envName    string
+	ref        string
+	value      *string
+	mcpServer  string
+	headerName string
 }
 
 type extensionSecretSnapshot struct {
@@ -37,16 +40,17 @@ type extensionSecretMutation struct {
 func (s *daemonExtensionService) prepareExtensionSecrets(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
-	declared []string,
+	ext *extensionpkg.Extension,
 	req contract.SetExtensionSecretsRequest,
 ) ([]preparedExtensionSecret, error) {
+	declared := normalizedDeclaredEnv(ext)
 	declaredSet := make(map[string]struct{}, len(declared))
 	for _, name := range declared {
 		declaredSet[name] = struct{}{}
 	}
-	byName := make(map[string]contract.ExtensionSecretInput, len(req.Secrets))
-	for rawName, input := range req.Secrets {
-		name := strings.TrimSpace(rawName)
+	byName := make(map[string]contract.ExtensionSecretBindingInput, len(req.Bindings))
+	for _, input := range req.Bindings {
+		name := strings.TrimSpace(input.EnvName)
 		if !vault.EnvNamePattern.MatchString(name) {
 			return nil, &extensionpkg.EnvBindingValidationError{
 				EnvName: name,
@@ -59,9 +63,24 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 				Cause:   extensionpkg.ErrExtensionEnvBindingInvalid,
 			}
 		}
-		if _, ok := declaredSet[name]; !ok {
+		mcpServer := strings.TrimSpace(input.MCPServer)
+		headerName := strings.TrimSpace(input.HeaderName)
+		if (mcpServer == "") != (headerName == "") {
 			return nil, &extensionpkg.EnvBindingValidationError{
-				EnvName: name, Declared: slices.Clone(declared), Cause: extensionpkg.ErrExtensionEnvBindingUndeclared,
+				EnvName: name,
+				Cause:   extensionpkg.ErrExtensionEnvBindingInvalid,
+			}
+		}
+		if mcpServer == "" {
+			if _, ok := declaredSet[name]; !ok {
+				return nil, &extensionpkg.EnvBindingValidationError{
+					EnvName: name, Declared: slices.Clone(declared), Cause: extensionpkg.ErrExtensionEnvBindingUndeclared,
+				}
+			}
+		} else if err := validateRemoteHeaderTarget(ext, mcpServer, headerName); err != nil {
+			return nil, &extensionpkg.EnvBindingValidationError{
+				EnvName: name,
+				Cause:   errors.Join(extensionpkg.ErrExtensionEnvBindingInvalid, err),
 			}
 		}
 		if (input.Value == nil) == (input.VaultRef == nil) {
@@ -89,6 +108,7 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 			}
 			prepared = append(prepared, preparedExtensionSecret{
 				envName: name, ref: vault.ExtensionSecretRef(key.Name, key.WorkspaceID, name), value: input.Value,
+				mcpServer: strings.TrimSpace(input.MCPServer), headerName: strings.TrimSpace(input.HeaderName),
 			})
 			continue
 		}
@@ -109,9 +129,34 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 		if err != nil {
 			return nil, fmt.Errorf("daemon: inspect extension secret binding %q: %w", name, err)
 		}
-		prepared = append(prepared, preparedExtensionSecret{envName: name, ref: ref})
+		prepared = append(prepared, preparedExtensionSecret{
+			envName: name, ref: ref,
+			mcpServer: strings.TrimSpace(input.MCPServer), headerName: strings.TrimSpace(input.HeaderName),
+		})
 	}
 	return prepared, nil
+}
+
+func validateRemoteHeaderTarget(ext *extensionpkg.Extension, serverName, headerName string) error {
+	if ext == nil || ext.Manifest == nil {
+		return errors.New("extension manifest is required")
+	}
+	server, ok := ext.Manifest.Resources.MCPServers[serverName]
+	if !ok {
+		return fmt.Errorf("mcp server %q is not declared", serverName)
+	}
+	if strings.TrimSpace(server.Transport) != "http" {
+		return fmt.Errorf("mcp server %q is not remote", serverName)
+	}
+	if err := mcppolicy.ValidateHeaders(
+		server.Headers,
+		map[string]string{headerName: "secret-reference"},
+		mcppolicy.SourceOperatorSecret,
+		false,
+	); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *daemonExtensionService) applyExtensionSecret(
@@ -151,7 +196,8 @@ func (s *daemonExtensionService) applyExtensionSecret(
 	}
 	binding := extensionpkg.EnvBinding{
 		ExtensionName: key.Name, WorkspaceID: key.WorkspaceID, EnvName: write.envName,
-		SecretRef: write.ref, Kind: extensionpkg.ExtensionEnvBindingKind, CreatedAt: createdAt, UpdatedAt: now,
+		SecretRef: write.ref, MCPServer: write.mcpServer, HeaderName: write.headerName,
+		Kind: extensionpkg.ExtensionEnvBindingKind, CreatedAt: createdAt, UpdatedAt: now,
 	}
 	if err := s.envBindings.PutEnvBinding(ctx, binding); err != nil {
 		rollbackErr := s.rollbackExtensionSecretMutations(ctx, key, []extensionSecretMutation{mutation})

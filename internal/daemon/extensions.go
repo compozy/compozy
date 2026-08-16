@@ -219,6 +219,7 @@ func (s *daemonExtensionService) payloadFromExtension(
 		payload.NetworkConfirmationRequired = confirmation.Digest != "" &&
 			(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero())
 	}
+	payload.Diagnostics = append(payload.Diagnostics, extensionMCPHealthDiagnostics(s.mcpRuntimeHealth, ext)...)
 	return payload, nil
 }
 

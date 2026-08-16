@@ -149,7 +149,14 @@ func (s *daemonExtensionService) extensionSecretsForInstance(
 		envName := strings.TrimSpace(binding.EnvName)
 		bound = append(bound, envName)
 		_, current := declaredSet[envName]
-		items = append(items, contract.ExtensionSecretBindingPayload{EnvName: envName, Stale: !current})
+		mcpServer := strings.TrimSpace(binding.MCPServer)
+		headerName := strings.TrimSpace(binding.HeaderName)
+		if mcpServer != "" {
+			_, current = ext.Manifest.Resources.MCPServers[mcpServer]
+		}
+		items = append(items, contract.ExtensionSecretBindingPayload{
+			EnvName: envName, Stale: !current, MCPServer: mcpServer, HeaderName: headerName,
+		})
 	}
 	slices.Sort(bound)
 	slices.SortFunc(items, func(left, right contract.ExtensionSecretBindingPayload) int {
@@ -172,7 +179,7 @@ func (s *daemonExtensionService) setExtensionSecretsForInstance(
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}
-	prepared, err := s.prepareExtensionSecrets(ctx, key, normalizedDeclaredEnv(ext), req)
+	prepared, err := s.prepareExtensionSecrets(ctx, key, ext, req)
 	if err != nil {
 		return contract.ExtensionSecretsPayload{}, err
 	}

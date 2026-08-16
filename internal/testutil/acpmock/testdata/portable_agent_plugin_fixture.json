@@ -1,0 +1,26 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "portable-agent-plugin",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You exercise the portable agent plugin distribution contract.",
+            "turns": [
+                {
+                    "name": "activate-portable-skill",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "activate portable skill"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "portable skill activated"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

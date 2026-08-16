@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/compozy/compozy/internal/mcppolicy"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -38,9 +39,29 @@ func (s MCPServer) Validate(path string) error {
 		return fmt.Errorf("%s.auth is only valid for remote MCP servers", path)
 	case transport != MCPServerTransportStdio && len(s.SecretEnv) > 0:
 		return fmt.Errorf("%s.secret_env is only valid for stdio transport", path)
-	default:
-		return validateStdioMCPEnv(path, transport, s.Env, s.SecretEnv)
+	case transport == MCPServerTransportStdio && len(s.Headers) > 0:
+		return fmt.Errorf("%s.headers is only valid for remote MCP servers", path)
+	case transport == MCPServerTransportStdio && len(s.SecretHeaders) > 0:
+		return fmt.Errorf("%s.secret_headers is only valid for remote MCP servers", path)
 	}
+	if err := validateStdioMCPEnv(path, transport, s.Env, s.SecretEnv); err != nil {
+		return err
+	}
+	if transport == MCPServerTransportStdio {
+		return nil
+	}
+	if err := mcppolicy.ValidateRemoteURL(s.URL); err != nil {
+		return fmt.Errorf("%s.url: %w", path, err)
+	}
+	if err := mcppolicy.ValidateHeaders(
+		s.Headers,
+		s.SecretHeaders,
+		mcppolicy.SourceOperatorSecret,
+		s.Auth.Enabled(),
+	); err != nil {
+		return fmt.Errorf("%s.headers: %w", path, err)
+	}
+	return nil
 }
 
 // Validate ensures remote MCP OAuth configuration has enough metadata to run

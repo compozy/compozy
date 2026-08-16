@@ -839,7 +839,7 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 				engine,
 				http.MethodPut,
 				"/extensions/kit/secrets",
-				[]byte(`{"secrets":{"API_KEY":{"value":"planted-secret-value"}}}`),
+				[]byte(`{"bindings":[{"env_name":"API_KEY","value":"planted-secret-value"}]}`),
 			)
 			if response.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
@@ -1237,7 +1237,7 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 		{
 			method: http.MethodPut,
 			path:   "/extensions/parity/secrets",
-			body:   []byte(`{"secrets":{"API_KEY":{"value":"transport-secret"}}}`),
+			body:   []byte(`{"bindings":[{"env_name":"API_KEY","value":"transport-secret"}]}`),
 		},
 		{method: http.MethodDelete, path: "/extensions/parity/secrets/API_KEY"},
 	} {

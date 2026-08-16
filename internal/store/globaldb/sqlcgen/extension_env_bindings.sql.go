@@ -153,13 +153,15 @@ func (q *Queries) ListExtensionEnvSecretRefsByWorkspace(ctx context.Context, wor
 
 const upsertExtensionEnvBinding = `-- name: UpsertExtensionEnvBinding :exec
 INSERT INTO extension_env_bindings (
-  extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+  extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7
+  ?5, ?6, ?7, ?8, ?9
 )
 ON CONFLICT(extension_name, workspace_id, env_name) DO UPDATE SET
   secret_ref = excluded.secret_ref,
+  mcp_server = excluded.mcp_server,
+  header_name = excluded.header_name,
   kind = excluded.kind,
   updated_at = excluded.updated_at
 `
@@ -169,6 +171,8 @@ type UpsertExtensionEnvBindingParams struct {
 	WorkspaceID   string `json:"workspace_id"`
 	EnvName       string `json:"env_name"`
 	SecretRef     string `json:"secret_ref"`
+	McpServer     string `json:"mcp_server"`
+	HeaderName    string `json:"header_name"`
 	Kind          string `json:"kind"`
 	CreatedAt     string `json:"created_at"`
 	UpdatedAt     string `json:"updated_at"`
@@ -180,6 +184,8 @@ func (q *Queries) UpsertExtensionEnvBinding(ctx context.Context, arg UpsertExten
 		arg.WorkspaceID,
 		arg.EnvName,
 		arg.SecretRef,
+		arg.McpServer,
+		arg.HeaderName,
 		arg.Kind,
 		arg.CreatedAt,
 		arg.UpdatedAt,

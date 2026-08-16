@@ -444,6 +444,7 @@ func ResolveManifestMCPServerResources(
 		server := compozyconfig.MCPServer{
 			Name:      strings.TrimSpace(name),
 			SecretEnv: normalizeStringMap(decl.SecretEnv),
+			Headers:   normalizeStringMap(decl.Headers),
 		}
 		switch strings.TrimSpace(decl.Transport) {
 		case "", string(compozyconfig.MCPServerTransportStdio):

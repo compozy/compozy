@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -29,6 +31,9 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 }
 
 func (d *Daemon) bootRuntimeFoundation(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if state.mcpRuntimeHealth == nil {
+		state.mcpRuntimeHealth = mcppkg.NewRuntimeHealthRegistry()
+	}
 	if err := d.bootLockAndSocket(ctx, state, cleanup); err != nil {
 		return err
 	}
@@ -141,6 +146,9 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 	state.registry = registry
+	if bindings, ok := any(registry).(extensionpkg.EnvBindingStore); ok {
+		state.extensionEnvBindings = bindings
+	}
 	if err := d.bootDeadEntityRegistry(state); err != nil {
 		return err
 	}

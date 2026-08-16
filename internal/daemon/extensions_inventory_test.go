@@ -13,6 +13,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/resources"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -20,6 +21,55 @@ import (
 
 func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should project live MCP health on status and inventory and clear after recovery", func(t *testing.T) {
+		t.Parallel()
+
+		ext := inventoryTestExtension(true)
+		ext.Info.Checksum = "generation-a"
+		ext.Status.GenerationHash = "generation-a"
+		registry := mcppkg.NewRuntimeHealthRegistry()
+		observation := registry.Begin(mcppkg.RuntimeHealthKey{
+			InstanceName: "kit", BundleGeneration: "generation-a", ServerName: "deployment-api",
+		})
+		registry.RecordFailure(observation, errors.New("connection refused"))
+		service := &daemonExtensionService{
+			registry: extensionpkg.NewRegistry(openDaemonTestGlobalDB(t).DB()),
+			runtime:  &inventoryExtensionRuntime{ext: ext}, logger: discardLogger(), now: time.Now,
+			resourceCodecs: inventoryTestResourceCodecs(t), mcpRuntimeHealth: registry,
+		}
+
+		status, err := service.payloadFromExtension(t.Context(), ext)
+		if err != nil {
+			t.Fatalf("payloadFromExtension() error = %v", err)
+		}
+		inventory, err := service.Inventory(t.Context(), "kit")
+		if err != nil {
+			t.Fatalf("Inventory() error = %v", err)
+		}
+		for surface, diagnostics := range map[string][]contract.DiagnosticItem{
+			"status": status.Diagnostics, "inventory": inventory.Diagnostics,
+		} {
+			if len(diagnostics) != 1 || diagnostics[0].Code != contract.CodeExtensionMCPServerUnhealthy ||
+				diagnostics[0].Category != contract.CategoryExtension ||
+				diagnostics[0].DataFreshness != contract.FreshnessLive ||
+				diagnostics[0].Evidence["server_name"] != "deployment-api" {
+				t.Fatalf("%s diagnostics = %#v, want live deployment-api health", surface, diagnostics)
+			}
+		}
+
+		recovery := registry.Begin(mcppkg.RuntimeHealthKey{
+			InstanceName: "kit", BundleGeneration: "generation-a", ServerName: "deployment-api",
+		})
+		registry.RecordSuccess(recovery)
+		status, err = service.payloadFromExtension(t.Context(), ext)
+		if err != nil {
+			t.Fatalf("payloadFromExtension(recovered) error = %v", err)
+		}
+		if len(status.Diagnostics) != 0 {
+			t.Fatalf("recovered status diagnostics = %#v, want empty", status.Diagnostics)
+		}
+	})
 
 	t.Run("Should report shipped resources as not live while disabled", func(t *testing.T) {
 		t.Parallel()

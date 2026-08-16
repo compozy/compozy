@@ -82,6 +82,8 @@ func cloneMCPServer(src MCPServer) MCPServer {
 		Env:            mergeStringMaps(nil, src.Env),
 		SecretEnv:      mergeStringMaps(nil, src.SecretEnv),
 		URL:            src.URL,
+		Headers:        mergeStringMaps(nil, src.Headers),
+		SecretHeaders:  mergeStringMaps(nil, src.SecretHeaders),
 		Auth:           cloneMCPAuthConfig(src.Auth),
 		CatalogEntry:   src.CatalogEntry,
 		CatalogVersion: src.CatalogVersion,

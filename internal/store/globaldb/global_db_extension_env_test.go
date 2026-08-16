@@ -348,7 +348,8 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 		global := extensionenv.Binding{
 			ExtensionName: "kit", EnvName: "API_KEY",
 			SecretRef: vault.ExtensionSecretRef("kit", "", "API_KEY"),
-			Kind:      extensionenv.BindingKind, CreatedAt: createdAt, UpdatedAt: createdAt,
+			MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+			Kind: extensionenv.BindingKind, CreatedAt: createdAt, UpdatedAt: createdAt,
 		}
 		workspace := extensionenv.Binding{
 			ExtensionName: "kit", WorkspaceID: "ws-1", EnvName: "API_KEY",
@@ -371,6 +372,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 			t.Fatalf("ListEnvBindings(global) error = %v", err)
 		}
 		if len(gotGlobal) != 1 || gotGlobal[0].SecretRef != global.SecretRef ||
+			gotGlobal[0].MCPServer != global.MCPServer || gotGlobal[0].HeaderName != global.HeaderName ||
 			!gotGlobal[0].CreatedAt.Equal(createdAt) || !gotGlobal[0].UpdatedAt.Equal(updatedAt) ||
 			gotGlobal[0].Kind != extensionenv.BindingKind {
 			t.Fatalf("global bindings = %#v, want upsert preserving created_at", gotGlobal)

@@ -43,9 +43,10 @@ func (s *daemonExtensionService) Inventory(
 	}
 	items := s.mergeExtensionKitInventory(ctx, desired, live)
 	return contract.ExtensionInventoryPayload{
-		Extension: ext.Info.Name,
-		Enabled:   ext.Info.Enabled,
-		Items:     contractExtensionKitItems(items),
+		Extension:   ext.Info.Name,
+		Enabled:     ext.Info.Enabled,
+		Items:       contractExtensionKitItems(items),
+		Diagnostics: extensionMCPHealthDiagnostics(s.mcpRuntimeHealth, ext),
 	}, nil
 }
 

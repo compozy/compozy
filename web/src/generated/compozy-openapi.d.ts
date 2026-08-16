@@ -32648,6 +32648,20 @@ export interface operations {
         };
         content: {
           "application/json": {
+            diagnostics?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            }[];
             enabled: boolean;
             extension: string;
             items: {
@@ -33470,6 +33484,8 @@ export interface operations {
           "application/json": {
             bindings: {
               env_name: string;
+              header_name?: string;
+              mcp_server?: string;
               stale: boolean;
             }[];
             bound_env_keys: string[];
@@ -33554,12 +33570,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          secrets: {
-            [key: string]: {
-              value?: string | null;
-              vault_ref?: string | null;
-            };
-          };
+          bindings: {
+            env_name: string;
+            header_name?: string;
+            mcp_server?: string;
+            value?: string | null;
+            vault_ref?: string | null;
+          }[];
         };
       };
     };
@@ -33573,6 +33590,8 @@ export interface operations {
           "application/json": {
             bindings: {
               env_name: string;
+              header_name?: string;
+              mcp_server?: string;
               stale: boolean;
             }[];
             bound_env_keys: string[];

@@ -75297,6 +75297,54 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "diagnostics": {
+                      "items": {
+                        "properties": {
+                          "category": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "data_freshness": {
+                            "type": "string"
+                          },
+                          "doc_url": {
+                            "type": "string"
+                          },
+                          "evidence": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string"
+                          },
+                          "suggested_command": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "category",
+                          "code",
+                          "data_freshness",
+                          "id",
+                          "message",
+                          "severity",
+                          "title"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "enabled": {
                       "type": "boolean"
                     },
@@ -77568,6 +77616,12 @@
                           "env_name": {
                             "type": "string"
                           },
+                          "header_name": {
+                            "type": "string"
+                          },
+                          "mcp_server": {
+                            "type": "string"
+                          },
                           "stale": {
                             "type": "boolean"
                           }
@@ -77786,9 +77840,18 @@
             "application/json": {
               "schema": {
                 "properties": {
-                  "secrets": {
-                    "additionalProperties": {
+                  "bindings": {
+                    "items": {
                       "properties": {
+                        "env_name": {
+                          "type": "string"
+                        },
+                        "header_name": {
+                          "type": "string"
+                        },
+                        "mcp_server": {
+                          "type": "string"
+                        },
                         "value": {
                           "nullable": true,
                           "type": "string"
@@ -77798,13 +77861,16 @@
                           "type": "string"
                         }
                       },
+                      "required": [
+                        "env_name"
+                      ],
                       "type": "object"
                     },
-                    "type": "object"
+                    "type": "array"
                   }
                 },
                 "required": [
-                  "secrets"
+                  "bindings"
                 ],
                 "type": "object"
               }
@@ -77823,6 +77889,12 @@
                       "items": {
                         "properties": {
                           "env_name": {
+                            "type": "string"
+                          },
+                          "header_name": {
+                            "type": "string"
+                          },
+                          "mcp_server": {
                             "type": "string"
                           },
                           "stale": {
