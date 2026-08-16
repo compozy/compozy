@@ -135,7 +135,7 @@ func (e *extensionValidationAPIError) extensionValidationErrorPayload() contract
 
 func (e *extensionValidationAPIError) DiagnosticItem() contract.DiagnosticItem {
 	if e == nil || e.payload.Diagnostic == nil {
-		return contract.DiagnosticItem{}
+		return diagnosticspkg.EmptyItem()
 	}
 	return diagnosticspkg.RedactItem(*e.payload.Diagnostic)
 }
