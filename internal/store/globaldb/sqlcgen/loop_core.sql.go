@@ -619,6 +619,50 @@ func (q *Queries) InsertLoopUIAnnotation(ctx context.Context, arg InsertLoopUIAn
 	return err
 }
 
+const listLoopRouteCauses = `-- name: ListLoopRouteCauses :many
+SELECT payload_json, at
+FROM loop_run_events
+WHERE workspace_id = ?1
+  AND loop_run_id = ?2
+  AND kind = 'route_taken'
+  AND CAST(json_extract(payload_json, '$.generation') AS INTEGER) = ?3
+ORDER BY seq ASC
+`
+
+type ListLoopRouteCausesParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	LoopRunID   string `json:"loop_run_id"`
+	Generation  string `json:"generation"`
+}
+
+type ListLoopRouteCausesRow struct {
+	PayloadJson string    `json:"payload_json"`
+	At          time.Time `json:"at"`
+}
+
+func (q *Queries) ListLoopRouteCauses(ctx context.Context, arg ListLoopRouteCausesParams) ([]ListLoopRouteCausesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLoopRouteCauses, arg.WorkspaceID, arg.LoopRunID, arg.Generation)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLoopRouteCausesRow{}
+	for rows.Next() {
+		var i ListLoopRouteCausesRow
+		if err := rows.Scan(&i.PayloadJson, &i.At); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLoopRunEvents = `-- name: ListLoopRunEvents :many
 SELECT watch_seq, id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
 FROM loop_run_events

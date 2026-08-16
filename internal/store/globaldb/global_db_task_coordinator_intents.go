@@ -258,6 +258,29 @@ func appendGenerationLifecycleEventWithExecutor(
 				"cost_limit":                     event.CostLimit,
 				"warning":                        event.Warning,
 			}, at)
+	case looppkg.GenerationLifecycleEventRouteTaken:
+		payload := map[string]any{
+			loopRunEventPayloadKeyGeneration: generation,
+			loopRunEventPayloadKeyNodeID:     event.NodeID,
+			loopRunEventPayloadKeyItemIndex:  event.ItemIndex,
+			loopRunEventPayloadKeyRoute:      event.SelectedRoute,
+			loopRunEventPayloadKeyCause:      event.Reason,
+		}
+		if event.MatchedWhen != "" {
+			payload[loopRunEventPayloadKeyMatchedWhen] = event.MatchedWhen
+		}
+		if event.DefaultRoute {
+			payload[loopRunEventPayloadKeyDefault] = true
+		}
+		return appendLoopRunEventWithExecutor(
+			ctx,
+			exec,
+			run.ID,
+			run.WorkspaceID,
+			loopRunEventRouteTaken,
+			payload,
+			at,
+		)
 	default:
 		return nil
 	}

@@ -28,7 +28,7 @@ func evaluateGateNode(
 	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
-	outputs []GenerationOutput,
+	outputs *[]GenerationOutput,
 	evaluations *gateEvaluationCollector,
 	evaluatedAt time.Time,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
@@ -40,7 +40,7 @@ func evaluateGateNode(
 		generation,
 		resolved.Definition.Graph,
 		topology,
-		outputs,
+		*outputs,
 		history,
 		node.ID,
 		output.ItemIndex,
@@ -98,7 +98,27 @@ func evaluateGateNode(
 	if evaluations != nil {
 		evaluations.recordWithControl(runtimeGate, output.ItemIndex, verdict, control, evaluatedAt)
 	}
-	return gateOutputFromVerdict(output, node.ID, verdict)
+	updated, terminal, err := gateOutputFromVerdict(output, node.ID, verdict)
+	if err != nil || verdict.Route.Target == "" {
+		return updated, terminal, err
+	}
+	selected := dsl.NodeID(verdict.Route.Target)
+	if !containsNodeID(topology.dependents[node.ID], selected) {
+		return GenerationOutput{}, nil, fmt.Errorf(
+			"%w: gate %q selected non-forward route %q",
+			ErrValidation,
+			node.ID,
+			selected,
+		)
+	}
+	skipUnselectedRoutePaths(resolved.Definition.Graph, topology, node.ID, selected, updated, outputs)
+	if evaluations != nil {
+		evaluations.recordRoute(routeDecision{
+			NodeID: node.ID, ItemIndex: output.ItemIndex, Target: selected,
+			Cause: "gate_verdict:" + string(verdict.Outcome),
+		})
+	}
+	return updated, terminal, nil
 }
 
 func requireGateEvaluator(evaluator gate.GateEvaluator, nodeID dsl.NodeID) error {
@@ -227,7 +247,7 @@ func gateOutputFromVerdict(
 	}
 	setGenerationOutputRef(&output, ref)
 	switch verdict.Route.Action {
-	case gate.RouteContinue, gate.RouteDone, gate.RouteBranch:
+	case gate.RouteContinue, gate.RouteDone:
 		output.Status = generationOutputSucceeded
 		return output, nil, nil
 	case gate.RouteRevise, gate.RouteNextGeneration:

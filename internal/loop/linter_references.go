@@ -273,10 +273,17 @@ func paramsStringFieldsWithSkip(
 }
 
 func nodeConditionFields(node dsl.Node) []namedString {
-	return []namedString{
+	fields := []namedString{
 		{name: "condition", value: node.Condition},
 		{name: "filter", value: node.Filter},
 	}
+	for index, route := range node.Routes {
+		fields = append(fields, namedString{
+			name:  fmt.Sprintf("routes.%d.when", index),
+			value: route.When,
+		})
+	}
+	return fields
 }
 
 func (c *lintContext) compileTemplate(

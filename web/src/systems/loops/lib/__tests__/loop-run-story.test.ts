@@ -207,6 +207,7 @@ describe("buildRunStory", () => {
             generation: 3,
             parent_generation: 1,
             origin: "ratchet_restore",
+            route_causes: [],
             verdicts: [
               {
                 gate_id: "quality",
@@ -246,6 +247,7 @@ describe("buildRunStory", () => {
           generation: 1,
           parent_generation: 0,
           origin: "initial",
+          route_causes: [],
           verdicts: [
             {
               gate_id: "quality",
@@ -262,6 +264,7 @@ describe("buildRunStory", () => {
           generation: 2,
           parent_generation: 1,
           origin: "ratchet_restore",
+          route_causes: [],
           verdicts: [
             {
               gate_id: "quality",
@@ -320,6 +323,7 @@ describe("buildRunStory", () => {
             generation: 1,
             parent_generation: 0,
             origin: "initial",
+            route_causes: [],
             verdicts: [
               {
                 gate_id: "quality",
@@ -402,6 +406,7 @@ describe("buildRunStory", () => {
           generation: 2,
           parent_generation: 1,
           origin: "gate_revise",
+          route_causes: [],
           verdicts: [],
           outputs: [
             {
@@ -488,6 +493,7 @@ describe("buildNextNote", () => {
         generation: 2,
         parent_generation: 1,
         origin: "gate_revise",
+        route_causes: [],
         verdicts: [],
         outputs: [
           { node_id: "inspect_events", status: "succeeded" },
@@ -519,6 +525,7 @@ describe("buildNextNote", () => {
         generation: 1,
         parent_generation: 0,
         origin: "initial",
+        route_causes: [],
         verdicts: [],
         outputs: [{ node_id: "implement", status: "succeeded" }],
       },

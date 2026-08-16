@@ -39,6 +39,7 @@ const (
 	loopRunEventGoalStatusChanged       = "goal_status_changed"
 	loopRunEventRuntimeApplied          = "runtime_applied"
 	loopRunEventPredicateDiagnostic     = "predicate_diagnostic"
+	loopRunEventRouteTaken              = "route_taken"
 	loopRunEventNodeRetryScheduled      = "node_retry_scheduled"
 	loopRunEventStaleScheduleDropped    = "stale_schedule_dropped"
 	loopRunEventLateArrival             = "late_arrival"
@@ -81,6 +82,8 @@ const (
 	loopRunEventPayloadKeyWaitKind      = "wait_kind"
 	loopRunEventPayloadKeyExpired       = "expired"
 	loopRunEventPayloadKeyRoute         = "route"
+	loopRunEventPayloadKeyDefault       = "default"
+	loopRunEventPayloadKeyMatchedWhen   = "matched_when"
 	loopRunEventVerdictRevise           = "revise"
 	loopRunApprovalFactLabelKey         = "label"
 	loopRunNodeOutputRunning            = "running"
@@ -271,6 +274,7 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventGoalStatusChanged,
 		loopRunEventRuntimeApplied,
 		loopRunEventPredicateDiagnostic,
+		loopRunEventRouteTaken,
 		loopRunEventNodeRetryScheduled,
 		loopRunEventStaleScheduleDropped,
 		loopRunEventLateArrival,

@@ -205,7 +205,9 @@ export function gateFields(_raw: RawLoopNode): FieldSpec[] {
       label: "On pass → target",
       path: ["on_result", "pass"],
       mono: true,
-      hint: "A node id or terminal state (done/failed/…) the run routes to on a passing verdict.",
+      json: true,
+      placeholder: '"continue" or {"route":"node_id"}',
+      hint: 'Use continue, revise, next_generation, escalate, halt, or {"route":"node_id"}. The object target must be a declared forward edge.',
     },
     {
       type: "text",
@@ -213,6 +215,9 @@ export function gateFields(_raw: RawLoopNode): FieldSpec[] {
       label: "On fail → target",
       path: ["on_result", "fail"],
       mono: true,
+      json: true,
+      placeholder: '"revise" or {"route":"node_id"}',
+      hint: 'Use continue, revise, next_generation, escalate, halt, or {"route":"node_id"}. The removed branch action is rejected.',
     },
     {
       type: "number",

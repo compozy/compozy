@@ -230856,6 +230856,43 @@
                             "format": "int64",
                             "type": "integer"
                           },
+                          "route_causes": {
+                            "items": {
+                              "properties": {
+                                "at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "cause": {
+                                  "type": "string"
+                                },
+                                "default": {
+                                  "type": "boolean"
+                                },
+                                "item_index": {
+                                  "type": "integer"
+                                },
+                                "matched_when": {
+                                  "type": "string"
+                                },
+                                "node_id": {
+                                  "type": "string"
+                                },
+                                "route": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "at",
+                                "cause",
+                                "item_index",
+                                "node_id",
+                                "route"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "verdicts": {
                             "items": {
                               "properties": {
@@ -231013,6 +231050,7 @@
                           "origin",
                           "outputs",
                           "parent_generation",
+                          "route_causes",
                           "verdicts"
                         ],
                         "type": "object"
@@ -233913,6 +233951,7 @@
                             "goal_status_changed",
                             "runtime_applied",
                             "predicate_diagnostic",
+                            "route_taken",
                             "node_retry_scheduled",
                             "node_paused",
                             "node_resumed",

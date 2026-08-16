@@ -2,7 +2,9 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -89,6 +91,55 @@ func (g *LoopRepo) ListLoopRunEvents(
 		events = append(events, loopRunEventFromGenerated(row))
 	}
 	return events, nil
+}
+
+// ListRouteCauses loads durable route decisions for one workspace-owned generation.
+func (g *LoopRepo) ListRouteCauses(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	runID looppkg.RunID,
+	generation int64,
+) ([]looppkg.RouteCause, error) {
+	if err := g.checkReady(ctx, "list loop route causes"); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(string(workspaceID)) == "" || strings.TrimSpace(string(runID)) == "" || generation < 1 {
+		return nil, fmt.Errorf("%w: route cause scope is invalid", looppkg.ErrValidation)
+	}
+	rows, err := g.queries.ListLoopRouteCauses(ctx, sqlcgen.ListLoopRouteCausesParams{
+		WorkspaceID: string(workspaceID), LoopRunID: string(runID), Generation: strconv.FormatInt(generation, 10),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("store: list loop route causes: %w", err)
+	}
+	causes := make([]looppkg.RouteCause, 0, len(rows))
+	for _, row := range rows {
+		var payload struct {
+			Generation  int64  `json:"generation"`
+			NodeID      string `json:"node_id"`
+			ItemIndex   int    `json:"item_index"`
+			Route       string `json:"route"`
+			Cause       string `json:"cause"`
+			MatchedWhen string `json:"matched_when"`
+			Default     bool   `json:"default"`
+		}
+		if err := json.Unmarshal([]byte(row.PayloadJson), &payload); err != nil {
+			return nil, fmt.Errorf("store: decode loop route cause: %w", err)
+		}
+		payload.NodeID = strings.TrimSpace(payload.NodeID)
+		payload.Route = strings.TrimSpace(payload.Route)
+		payload.Cause = strings.TrimSpace(payload.Cause)
+		if payload.Generation != generation || payload.NodeID == "" || payload.ItemIndex < 0 ||
+			payload.Route == "" || payload.Cause == "" {
+			return nil, fmt.Errorf("%w: persisted route cause is invalid", looppkg.ErrValidation)
+		}
+		causes = append(causes, looppkg.RouteCause{
+			Generation: payload.Generation, NodeID: looppkg.NodeID(payload.NodeID),
+			ItemIndex: payload.ItemIndex, Route: looppkg.NodeID(payload.Route), Cause: payload.Cause,
+			MatchedWhen: strings.TrimSpace(payload.MatchedWhen), Default: payload.Default, At: row.At,
+		})
+	}
+	return causes, nil
 }
 
 // ListLoopUIAnnotations loads editor node positions for one workspace loop.

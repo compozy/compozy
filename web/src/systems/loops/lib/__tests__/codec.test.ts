@@ -56,6 +56,17 @@ function richDefinition(): LoopDefinition {
           kind: "gate",
           verdict_policy: "revise_until_clean",
           max_revisions: 3,
+          on_result: { fail: { route: "remediate" }, pass: "continue" },
+        },
+        {
+          id: "router",
+          class: "control",
+          kind: "route",
+          routes: [
+            { when: "nodes.execute.output.score >= 0.8", to: "review" },
+            { when: "nodes.execute.output.needs_repair", to: "remediate" },
+          ],
+          default: "publish",
         },
       ],
       edges: [
@@ -72,6 +83,24 @@ describe("loop codec", () => {
     const { nodes, edges } = definitionToGraph(def);
     const rebuilt = graphToDefinition(def, nodes, edges);
     expect(rebuilt).toEqual(def);
+  });
+
+  it("Should preserve route grammar and gate object routes as structured values", () => {
+    const def = richDefinition();
+    const { nodes, edges } = definitionToGraph(def);
+    const rebuilt = graphToDefinition(def, nodes, edges);
+    const rawNodes = (rebuilt.graph as unknown as { nodes: Record<string, unknown>[] }).nodes;
+    expect(rawNodes.find(node => node.id === "router")).toMatchObject({
+      routes: [
+        { when: "nodes.execute.output.score >= 0.8", to: "review" },
+        { when: "nodes.execute.output.needs_repair", to: "remediate" },
+      ],
+      default: "publish",
+    });
+    expect(rawNodes.find(node => node.id === "review")?.on_result).toEqual({
+      fail: { route: "remediate" },
+      pass: "continue",
+    });
   });
 
   it("Should round-trip the real implement-tasks definition", () => {

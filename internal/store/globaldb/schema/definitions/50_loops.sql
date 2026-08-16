@@ -436,8 +436,17 @@ CREATE TABLE loop_run_events (
 			loop_run_id  TEXT NOT NULL,
 			workspace_id TEXT NOT NULL,
 			seq          INTEGER NOT NULL,
-			kind         TEXT NOT NULL,
-			payload_json TEXT NOT NULL,
+			kind         TEXT NOT NULL CHECK (kind IN (
+				'node_running','node_succeeded','node_failed','node_quarantined','node_requeued',
+				'node_paused','node_resumed','node_wait_started','node_wait_resumed',
+				'duplicate_suppressed','node_canceled','node_killed','node_attention_flagged',
+				'node_attention_cleared','target_breaker_transition','gate_verdict',
+				'generation_started','channel_msg','token_tick','needs_approval','status_changed',
+				'goal_turn_started','goal_turn_completed','goal_status_changed','runtime_applied',
+				'predicate_diagnostic','route_taken','node_retry_scheduled','stale_schedule_dropped',
+				'late_arrival','effect_results','custom_event'
+			)),
+			payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
 			at           TIMESTAMP NOT NULL,
 			delivery_key TEXT
 		);

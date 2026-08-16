@@ -333,6 +333,7 @@ export function generationsFor(
       generation: 2,
       parent_generation: 1,
       origin: "gate_revise",
+      route_causes: [],
       verdicts: [],
       outputs: [
         { node_id: "review", status: "reused", generation: 2 },

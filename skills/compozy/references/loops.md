@@ -273,13 +273,15 @@ synthetic budget gate.
 Definitions reference data over one namespace with two surfaces, chosen by the field:
 
 - **Values** — Go `{{ }}` templates in string fields (`params.*`, rubrics, `transform.map.*`).
-- **Conditions** — CEL returning `bool` (`branch.condition`, `fan-out.filter`, `contract.stop_when`).
+- **Conditions** — CEL returning `bool` (`branch.condition`, `route.routes[].when`,
+  `fan-out.filter`, `contract.stop_when`).
 
 `contract.stop_when` accepts either a CEL string or `{ expr, on_eval_error }`, where the policy is
-`fail` or `exit`. A broken continuation exits by default so it cannot keep a run alive; routing
-predicates on `branch` and filtered `watch-events` nodes fail the node by default. Set the node's
-`on_eval_error` to override that routing behavior. Predicate costs at or above 80% of the configured
-CEL limit produce a warning; exceeding the limit follows the same failure policy.
+`fail` or `exit`. A broken continuation exits by default so it cannot keep a run alive. Route
+conditions fail the node and never fall through to the default. Other routing predicates on
+`branch` and filtered `watch-events` nodes also fail by default; their `on_eval_error` may override
+that behavior. Predicate costs at or above 80% of the configured CEL limit produce a warning;
+exceeding the limit follows the same failure policy.
 
 Contract narrative fields (`goal`, `definition_of_done`, `constraints[]`, `boundaries[]`) accept only
 declared `inputs` references and materialize once before Goal work. Goal params and nested gate inputs
@@ -310,13 +312,20 @@ Guard history-dependent templates with `{{ with .previous }}` or `{{ with .best 
 
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
 `goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
-(`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `gate`, `wait`,
-`sub-loop`. A `wait` declares exactly one of `for`, `until`, or `event`, with optional `expect`,
-`ahead_arrival`, and `expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
+(`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `route`, `gate`,
+`wait`, `sub-loop`. A `route` evaluates ordered `{when, to}` entries, takes the first match, and
+otherwise takes its mandatory `default`; every target is a unique direct forward edge. A `wait`
+declares exactly one of `for`, `until`, or `event`, with optional `expect`, `ahead_arrival`, and
+`expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
 A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout
 substring.
+
+Gate `on_result` keys are `pass`, `approval`, `fail`, `blocked`, `error`, `timeout`, and
+`invalid_output`. Values are `continue`, `revise`, `next_generation`, `escalate`, `halt`, or an
+in-body direct target written as `{route: node_id}`. The old `branch` action is invalid. An
+`approval` outcome may only `escalate` or `halt`; an object route cannot bypass approval.
 
 `run-agent` and `goal` accept one `params.environment` with mode `root`, `worktree`, `per_run`, or
 `directory`. The node value wins over the Loop default; otherwise execution uses the workspace root.

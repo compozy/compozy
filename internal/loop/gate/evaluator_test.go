@@ -823,12 +823,12 @@ func TestEvaluatorRouteOverrides(t *testing.T) {
 		}
 	})
 
-	t.Run("Should route in-body failed override to branch", func(t *testing.T) {
+	t.Run("Should route an in-body failed verdict to a declared target", func(t *testing.T) {
 		t.Parallel()
 
 		gate := commandGate("cmd", "verify", "")
 		gate.OnResult = map[string]any{
-			"fail": map[string]any{"route": "branch", "branch": "repair", "reason_code": "custom_repair"},
+			"fail": map[string]any{"route": "repair"},
 		}
 		verdict, err := NewEvaluator(WithCommandRunner(commandRunnerFunc(
 			func(context.Context, CommandRequest) (CommandResult, error) {
@@ -838,14 +838,14 @@ func TestEvaluatorRouteOverrides(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Evaluate() error = %v", err)
 		}
-		if verdict.Route.Action != RouteBranch {
-			t.Fatalf("Route.Action = %q, want %q", verdict.Route.Action, RouteBranch)
+		if verdict.Route.Action != RouteContinue {
+			t.Fatalf("Route.Action = %q, want %q", verdict.Route.Action, RouteContinue)
 		}
-		if verdict.Route.Branch != "repair" {
-			t.Fatalf("Route.Branch = %q, want repair", verdict.Route.Branch)
+		if verdict.Route.Target != "repair" {
+			t.Fatalf("Route.Target = %q, want repair", verdict.Route.Target)
 		}
-		if verdict.Route.ReasonCode != "custom_repair" {
-			t.Fatalf("Route.ReasonCode = %q, want custom_repair", verdict.Route.ReasonCode)
+		if verdict.Route.ReasonCode != "gate_route_repair" {
+			t.Fatalf("Route.ReasonCode = %q, want gate_route_repair", verdict.Route.ReasonCode)
 		}
 	})
 
@@ -1689,7 +1689,7 @@ func TestEvaluatorAdaptersAndDefaults(t *testing.T) {
 				Metric: metricSpec(dsl.MetricMaximize, new(0.1)),
 			}},
 			OnResult: map[string]any{
-				"pass": map[string]any{"route": "branch", "branch": "ship"},
+				"pass": map[string]any{"route": "ship"},
 			},
 		}
 		gate := GateFromNode(node)
@@ -1700,7 +1700,7 @@ func TestEvaluatorAdaptersAndDefaults(t *testing.T) {
 		node.Criteria[0].Extra["contains"] = "changed"
 		node.Criteria[0].Extra["nested"].(map[string]any)["kind"] = "changed"
 		*node.Criteria[0].Metric.MinDelta = 0.2
-		node.OnResult["pass"].(map[string]any)["branch"] = "changed"
+		node.OnResult["pass"].(map[string]any)["route"] = "changed"
 		if gate.ID != "gate_node" {
 			t.Fatalf("Gate.ID = %q, want gate_node", gate.ID)
 		}
@@ -1731,8 +1731,8 @@ func TestEvaluatorAdaptersAndDefaults(t *testing.T) {
 			t.Fatalf("Gate.Criteria[0].Metric = %#v, want independent metric declaration", gate.Criteria[0].Metric)
 		}
 		route := gate.OnResult["pass"].(map[string]any)
-		if route["branch"] != "ship" {
-			t.Fatalf("Gate.OnResult[pass].branch = %v, want ship", route["branch"])
+		if route["route"] != "ship" {
+			t.Fatalf("Gate.OnResult[pass].route = %v, want ship", route["route"])
 		}
 	})
 

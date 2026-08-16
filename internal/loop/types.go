@@ -102,6 +102,14 @@ const (
 	CodeUnknownParameter = "unknown_parameter"
 	// CodeEvalErrorPolicyInvalid reports an on_eval_error value or placement outside its closed grammar.
 	CodeEvalErrorPolicyInvalid = "eval_error_policy_invalid"
+	// CodeRouteDefaultMissing reports a route node without its required default destination.
+	CodeRouteDefaultMissing = "route_default_missing"
+	// CodeRouteTargetInvalid reports an unknown, backward, duplicate, or undeclared route destination.
+	CodeRouteTargetInvalid = "route_target_invalid"
+	// CodeRouteMappingInvalid reports a gate outcome mapping outside the closed route grammar.
+	CodeRouteMappingInvalid = "route_mapping_invalid"
+	// CodeRouteActionRemoved reports the deleted branch action and points authors to object-form routing.
+	CodeRouteActionRemoved = "route_action_removed"
 	// CodeGoalJudgeRequired reports a Goal without at least one valid supported judge.
 	CodeGoalJudgeRequired = "goal_judge_required"
 	// CodeGoalObjectiveRequired reports a Goal without a non-empty objective.

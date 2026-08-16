@@ -185,6 +185,57 @@ contract:
 	})
 }
 
+func TestCodecShouldRoundTripRouteGrammar(t *testing.T) {
+	t.Parallel()
+
+	definition, err := dsl.Parse([]byte(`apiVersion: compozy.loop/v1
+kind: Loop
+meta: { name: route-loop }
+graph:
+  nodes:
+    - id: router
+      class: control
+      kind: route
+      routes:
+        - { when: "inputs.risk == 'low'", to: quick }
+        - { when: "inputs.risk == 'high'", to: review }
+      default: fallback
+      on_eval_error: fail
+    - id: gate
+      class: control
+      kind: gate
+      on_result:
+        fail: { route: review }
+  edges:
+    - { from: router, to: quick }
+    - { from: router, to: review }
+    - { from: router, to: fallback }
+`))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	serialized, err := dsl.Serialize(definition)
+	if err != nil {
+		t.Fatalf("Serialize() error = %v", err)
+	}
+	reparsed, err := dsl.Parse(serialized)
+	if err != nil {
+		t.Fatalf("Parse(serialized) error = %v", err)
+	}
+	if !reflect.DeepEqual(reparsed.Graph, definition.Graph) {
+		t.Fatalf("round-trip graph = %#v, want %#v", reparsed.Graph, definition.Graph)
+	}
+	router := reparsed.Graph.Nodes[0]
+	if router.Default != "fallback" || len(router.Routes) != 2 || router.Routes[1].To != "review" ||
+		router.OnEvalError != dsl.EvalErrorFail {
+		t.Fatalf("round-trip router = %#v", router)
+	}
+	gateRoute, ok := reparsed.Graph.Nodes[1].OnResult["fail"].(map[string]any)
+	if !ok || gateRoute["route"] != "review" {
+		t.Fatalf("round-trip gate route = %#v", reparsed.Graph.Nodes[1].OnResult["fail"])
+	}
+}
+
 func testNetworkParticipationRequest() *participation.Request {
 	mode := participation.ModeLive
 	strategy := participation.StrategyNamed

@@ -416,6 +416,8 @@ type LoopGraphNode struct {
 	MaxFanOut     int                          `json:"max_fan_out,omitempty"`
 	Condition     string                       `json:"condition,omitempty"`
 	OnEvalError   dsl.EvalErrorPolicy          `json:"on_eval_error,omitempty"`
+	Routes        []LoopRouteSpec              `json:"routes,omitempty"`
+	Default       string                       `json:"default,omitempty"`
 	Criteria      []LoopGateCriterion          `json:"criteria,omitempty"`
 	VerdictPolicy string                       `json:"verdict_policy,omitempty"`
 	OnResult      map[string]any               `json:"on_result,omitempty"`
@@ -428,6 +430,11 @@ type LoopGraphNode struct {
 	WatchSpec     map[string]any               `json:"watch,omitempty"`
 	Events        []LoopWatchEventSubscription `json:"events,omitempty"`
 	*LoopNodeLifecycleState
+}
+
+type LoopRouteSpec struct {
+	When string `json:"when"`
+	To   string `json:"to"`
 }
 
 type LoopGateCriterion struct {

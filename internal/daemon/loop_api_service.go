@@ -31,6 +31,7 @@ type loopAPIPersistence interface {
 	looppkg.AnnotationStore
 	looppkg.DefinitionStateStore
 	looppkg.GenerationLineageReader
+	looppkg.RouteCauseReader
 	gate.VerdictReader
 }
 

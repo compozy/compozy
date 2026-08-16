@@ -42,6 +42,7 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 		loopRunEventGoalStatusChanged:       {},
 		loopRunEventRuntimeApplied:          {},
 		loopRunEventPredicateDiagnostic:     {},
+		loopRunEventRouteTaken:              {},
 		loopRunEventNodeRetryScheduled:      {},
 		loopRunEventNodePaused:              {},
 		loopRunEventNodeResumed:             {},
@@ -2396,6 +2397,56 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 		}
 		if humanDecisionCount != 0 {
 			t.Fatalf("human decisions = %d, want machine verdicts to leave them untouched", humanDecisionCount)
+		}
+	})
+
+	t.Run("Should persist route causes per generation and isolate workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-1", "ws-2")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 16, 14, 0, 0, 0, time.UTC)
+		created, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-route-causes", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		for generation, route := range map[int]string{1: "review", 2: "fallback"} {
+			event := looppkg.GenerationLifecycleEventIntent{
+				Kind: looppkg.GenerationLifecycleEventRouteTaken, NodeID: "router",
+				SelectedRoute: route, Reason: "default", DefaultRoute: true,
+			}
+			if err := appendGenerationLifecycleEventWithExecutor(
+				ctx,
+				globalDB.db,
+				created,
+				generation,
+				looppkg.GenerationIntent{},
+				nil,
+				event,
+				now.Add(time.Duration(generation)*time.Minute),
+			); err != nil {
+				t.Fatalf("appendGenerationLifecycleEventWithExecutor(%d) error = %v", generation, err)
+			}
+		}
+		causes, err := globalDB.ListRouteCauses(ctx, created.WorkspaceID, created.ID, 1)
+		if err != nil {
+			t.Fatalf("ListRouteCauses() error = %v", err)
+		}
+		if len(causes) != 1 || causes[0].Generation != 1 || causes[0].NodeID != "router" ||
+			causes[0].Route != "review" || !causes[0].Default {
+			t.Fatalf("generation 1 route causes = %#v", causes)
+		}
+		second, err := globalDB.ListRouteCauses(ctx, created.WorkspaceID, created.ID, 2)
+		if err != nil || len(second) != 1 || second[0].Route != "fallback" {
+			t.Fatalf("generation 2 route causes = %#v, %v", second, err)
+		}
+		foreign, err := globalDB.ListRouteCauses(ctx, "ws-2", created.ID, 1)
+		if err != nil || len(foreign) != 0 {
+			t.Fatalf("foreign route causes = %#v, %v; want empty", foreign, err)
 		}
 	})
 

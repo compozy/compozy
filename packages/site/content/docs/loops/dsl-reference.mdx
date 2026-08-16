@@ -126,11 +126,11 @@ references validate).
 
 ### Node classes
 
-| Class     | Openness | Kinds                                                        |
-| --------- | -------- | ------------------------------------------------------------ |
-| `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID |
-| `control` | closed   | `fan-out`, `collect`, `branch`, `gate`, `wait`, `sub-loop`   |
-| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`       |
+| Class     | Openness | Kinds                                                               |
+| --------- | -------- | ------------------------------------------------------------------- |
+| `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID        |
+| `control` | closed   | `fan-out`, `collect`, `branch`, `route`, `gate`, `wait`, `sub-loop` |
+| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`              |
 
 ### Action nodes
 
@@ -164,7 +164,8 @@ rejects the node run deterministically before an ungated session can start.
 | ---------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, `max_fan_out` (ceiling 64)   |
 | `collect`  | Join barrier — waits for fanned branches  | —                                                                                               |
-| `branch`   | Route on a CEL condition                  | `condition` (true/false edges), optional `on_eval_error: fail \| exit`                           |
+| `branch`   | Route on a CEL condition                  | `condition` (true/false edges), optional `on_eval_error: fail \| exit`                          |
+| `route`    | Select exactly one forward path           | ordered `routes: [{when, to}]`, mandatory `default`                                             |
 | `gate`     | Verify against criteria and route         | `criteria`, `verdict_policy`, `on_result`, `max_revisions`                                      |
 | `sub-loop` | An inline nested Loop                     | `body` (graph) + `contract`                                                                     |
 | `wait`     | Park on time or one durable event         | `params`: exactly one of `for`, `until`, `event`; optional `expect`, `ahead_arrival`, `expires` |
@@ -176,6 +177,22 @@ Routing predicates fail the node by default when CEL evaluation fails. A `branch
 `watch-events` node may set `on_eval_error: exit` to end the Loop successfully instead. Predicate
 costs at or above 80% of the configured CEL limit emit a durable warning; exceeding the limit is an
 authoring failure handled by the same policy.
+
+A `route` checks its CEL conditions in declaration order and takes the first match. If none match,
+it takes the mandatory `default`. Every destination must be a unique direct forward edge. A broken
+condition fails closed with `predicate_evaluation_failed`; it never falls through to the default.
+
+```yaml
+- id: classify
+  class: control
+  kind: route
+  routes:
+    - when: nodes.score.output.value >= 0.8
+      to: publish
+    - when: nodes.score.output.value >= 0.5
+      to: revise
+  default: reject
+```
 
 ### Node reliability fields
 
@@ -321,8 +338,10 @@ An `agent-judge` verdict emits **blocking issues** — `{ id, note }` objects. T
 load-bearing: the [stall signature](/docs/loops/guardrails#the-two-no-progress-axes)
 compares the repeated set across the no-progress window. A malformed judge response degrades to a
 revision, never a silent pass. `on_result` maps a verdict (`pass`, `fail`, `blocked`, `approval`,
-`error`, `timeout`, `invalid_output`) to a route; `max_revisions` caps the loop before the gate
-fails.
+`error`, `timeout`, `invalid_output`) to `continue`, `revise`, `next_generation`, `escalate`,
+`halt`, or an in-body direct forward target written as `{ route: node_id }`. The removed `branch`
+action is rejected. `approval` accepts only `escalate` or `halt` and cannot use an object route to
+bypass a pending approval. `max_revisions` caps the loop before the gate fails.
 An `agent-judge.runtime` value overrides `runtime_defaults.judge` field by field for that criterion
 only. Task runtime rules never apply to judges.
 

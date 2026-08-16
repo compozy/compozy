@@ -38,6 +38,28 @@ type RunEvent struct {
 	DeliveryKey string
 }
 
+// RouteCause is one workspace-scoped route_taken projection.
+type RouteCause struct {
+	Generation  int64
+	NodeID      NodeID
+	ItemIndex   int
+	Route       NodeID
+	Cause       string
+	MatchedWhen string
+	Default     bool
+	At          time.Time
+}
+
+// RouteCauseReader loads durable route decisions for one generation.
+type RouteCauseReader interface {
+	ListRouteCauses(
+		ctx context.Context,
+		workspaceID WorkspaceID,
+		runID RunID,
+		generation int64,
+	) ([]RouteCause, error)
+}
+
 // UIAnnotation is one editor sidecar position for a loop node.
 type UIAnnotation struct {
 	NodeID NodeID

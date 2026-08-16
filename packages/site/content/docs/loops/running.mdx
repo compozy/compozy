@@ -66,6 +66,11 @@ show `score`, and the accepted baseline carries the Best marker. The run header 
 `best_generation` and `best_score` separate from the current generation, so a later regression or
 an exhausted run does not make the last attempt look like the winner.
 
+Structured status output also carries `generations[].route_causes`. Each entry identifies the route
+node or gate, selected forward node, lane index, decision cause, and time. A route condition includes
+`matched_when`; a default selection sets `default: true`. These facts are workspace-scoped and come
+from the durable `route_taken` event, so HTTP, CLI, native-tool status, and SSE replay agree.
+
 ### Approval gates
 
 A `human` gate parks the run in `needs-approval` — a **live pause**, never a terminal outcome. The

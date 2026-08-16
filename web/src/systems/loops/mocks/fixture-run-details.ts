@@ -11,6 +11,7 @@ function implementTasksGenerations(run: LoopRun): LoopRunGeneration[] {
       generation,
       parent_generation: Math.max(0, generation - 1),
       origin: "initial",
+      route_causes: [],
       verdicts: [],
       outputs: [
         { node_id: "slug_input", status: "succeeded", generation },
@@ -41,6 +42,7 @@ function qualityGateGenerations(run: LoopRun): LoopRunGeneration[] {
     generation: 1,
     parent_generation: 0,
     origin: "initial",
+    route_causes: [],
     verdicts: [],
     outputs: [
       { node_id: "slug", status: "succeeded", generation: 1 },
@@ -55,6 +57,7 @@ function qualityGateGenerations(run: LoopRun): LoopRunGeneration[] {
     generation: 2,
     parent_generation: 1,
     origin: "gate_revise",
+    route_causes: [],
     verdicts: [
       {
         gate_id: "review",
@@ -83,6 +86,7 @@ function qualityGateGenerations(run: LoopRun): LoopRunGeneration[] {
       generation,
       parent_generation: generation - 1,
       origin: run.best_generation === generation ? "ratchet_restore" : "gate_revise",
+      route_causes: [],
       verdicts: [],
       outputs: [],
     });
@@ -100,6 +104,7 @@ function reviewGenerations(run: LoopRun): LoopRunGeneration[] {
       generation,
       parent_generation: Math.max(0, generation - 1),
       origin: generation > 1 ? "gate_revise" : "initial",
+      route_causes: [],
       verdicts: [],
       outputs: [
         { node_id: "review", status: "succeeded", generation },

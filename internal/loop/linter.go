@@ -169,6 +169,10 @@ func (c *lintContext) lintEvalErrorPolicy(node dsl.Node) {
 	if strings.TrimSpace(node.Condition) != "" {
 		return
 	}
+	if node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlRoute &&
+		len(node.Routes) > 0 {
+		return
+	}
 	for _, subscription := range node.Events {
 		if strings.TrimSpace(subscription.Filter) != "" {
 			return
@@ -221,6 +225,8 @@ func (c *lintContext) lintControlNode(node dsl.Node) {
 		if strings.TrimSpace(node.Condition) == "" {
 			c.add(node.ID, refs.CodeConditionNotBool, "branch condition is required")
 		}
+	case dsl.ControlRoute:
+		c.lintRoute(node)
 	case dsl.ControlGate:
 		c.lintGate(node)
 	case dsl.ControlSubLoop:
@@ -258,6 +264,7 @@ func (c *lintContext) lintFanOut(node dsl.Node) {
 
 func (c *lintContext) lintGate(node dsl.Node) {
 	c.lintGateExpiry(node)
+	c.lintGateRoutes(node)
 	if node.MaxRevisions > LoopMaxGateRevisions {
 		c.add(
 			node.ID,

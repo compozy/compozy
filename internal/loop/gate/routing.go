@@ -140,23 +140,19 @@ func parseRouteOverride(value any, placement Placement) (RouteDecision, bool) {
 }
 
 func parseRouteMap(routeMap map[string]any, placement Placement) (RouteDecision, bool) {
-	decision := RouteDecision{Placement: placement}
-	if action, ok := routeString(routeMap["route"]); ok {
-		decision.Action = RouteAction(action)
-	}
-	if branch, ok := routeString(routeMap["branch"]); ok {
-		decision.Branch = branch
-	}
-	if status, ok := routeString(routeMap["terminal_status"]); ok {
-		decision.TerminalStatus = status
-	}
-	if reason, ok := routeString(routeMap["reason_code"]); ok {
-		decision.ReasonCode = reason
-	}
-	if decision.Action == "" {
+	if len(routeMap) != 1 {
 		return RouteDecision{}, false
 	}
-	return normalizeRouteDecision(decision, placement)
+	target, ok := routeString(routeMap["route"])
+	if !ok || placement != PlacementInBody {
+		return RouteDecision{}, false
+	}
+	return normalizeRouteDecision(RouteDecision{
+		Placement:  placement,
+		Action:     RouteContinue,
+		Target:     target,
+		ReasonCode: fmt.Sprintf("gate_route_%s", target),
+	}, placement)
 }
 
 func routeString(value any) (string, bool) {
@@ -174,9 +170,6 @@ func normalizeRouteDecision(decision RouteDecision, placement Placement) (RouteD
 		decision.Action = RouteDone
 	}
 	if !routeAllowed(decision.Action, placement) {
-		return RouteDecision{}, false
-	}
-	if decision.Action == RouteBranch && decision.Branch == "" {
 		return RouteDecision{}, false
 	}
 	if decision.Action == RouteHalt && decision.TerminalStatus == "" {
@@ -202,7 +195,7 @@ func routeAllowed(action RouteAction, placement Placement) bool {
 		}
 	default:
 		switch action {
-		case RouteContinue, RouteRevise, RouteNextGeneration, RouteBranch, RouteHalt, RouteEscalate:
+		case RouteContinue, RouteRevise, RouteNextGeneration, RouteHalt, RouteEscalate:
 			return true
 		default:
 			return false

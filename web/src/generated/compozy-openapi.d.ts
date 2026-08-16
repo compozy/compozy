@@ -94025,6 +94025,16 @@ export interface operations {
               }[];
               /** Format: int64 */
               parent_generation: number;
+              route_causes: {
+                /** Format: date-time */
+                at: string;
+                cause: string;
+                default?: boolean;
+                item_index: number;
+                matched_when?: string;
+                node_id: string;
+                route: string;
+              }[];
               verdicts: {
                 blocking_issues: {
                   id: string;
@@ -95157,6 +95167,7 @@ export interface operations {
                   | "goal_status_changed"
                   | "runtime_applied"
                   | "predicate_diagnostic"
+                  | "route_taken"
                   | "node_retry_scheduled"
                   | "node_paused"
                   | "node_resumed"

@@ -13,7 +13,8 @@ func applyGateEvaluationIntents(
 	evaluations *gateEvaluationCollector,
 ) error {
 	if plan == nil || evaluations == nil ||
-		(len(evaluations.values) == 0 && len(evaluations.predicateDiagnostics) == 0) {
+		(len(evaluations.values) == 0 && len(evaluations.predicateDiagnostics) == 0 &&
+			len(evaluations.routeDecisions) == 0) {
 		return nil
 	}
 	payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
@@ -67,9 +68,20 @@ func applyGateEvaluationIntents(
 	for _, diagnostic := range evaluations.predicateDiagnostics {
 		payload.Events = append(payload.Events, predicateDiagnosticEvent(diagnostic))
 	}
+	for _, decision := range evaluations.routeDecisions {
+		payload.Events = append(payload.Events, routeDecisionEvent(decision))
+	}
 	payload.Controls = append(payload.Controls, evaluations.gateRevisionMutations()...)
 	plan.Snapshot.Payload = payload
 	return nil
+}
+
+func routeDecisionEvent(decision routeDecision) GenerationLifecycleEventIntent {
+	return GenerationLifecycleEventIntent{
+		Kind: GenerationLifecycleEventRouteTaken, NodeID: string(decision.NodeID),
+		ItemIndex: decision.ItemIndex, SelectedRoute: string(decision.Target),
+		Reason: decision.Cause, MatchedWhen: decision.MatchedWhen, DefaultRoute: decision.Default,
+	}
 }
 
 func predicateDiagnosticEvent(diagnostic PredicateDiagnostic) GenerationLifecycleEventIntent {

@@ -68,6 +68,142 @@ func TestLinterShouldValidatePredicateErrorPolicies(t *testing.T) {
 	}
 }
 
+func TestLinterShouldValidateExclusiveRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should compile ordered routes and record every condition", func(t *testing.T) {
+		t.Parallel()
+
+		definition := routeDefinitionForTest()
+		resolved, err := loop.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		for _, key := range []string{"nodes.router.routes.0.when", "nodes.router.routes.1.when"} {
+			if resolved.Conditions[key] == nil {
+				t.Fatalf("resolved condition %q = nil", key)
+			}
+		}
+	})
+
+	t.Run("Should accept one conditional route plus default", func(t *testing.T) {
+		t.Parallel()
+
+		definition := routeDefinitionForTest()
+		router := requireNode(t, &definition, "router")
+		router.Routes = router.Routes[:1]
+		router.Default = "review"
+		definition.Graph.Edges = definition.Graph.Edges[:2]
+		definition.Graph.Nodes = definition.Graph.Nodes[:3]
+		requireLintCodes(t, loop.NewLinter().Lint(definition))
+	})
+
+	for _, tt := range []struct {
+		name     string
+		mutate   func(*dsl.Definition)
+		wantCode string
+		message  string
+	}{
+		{
+			name: "Should require a default destination",
+			mutate: func(definition *dsl.Definition) {
+				router := requireNode(t, definition, "router")
+				router.Default = ""
+				router.Routes = append(router.Routes, dsl.RouteSpec{When: "false", To: "fallback"})
+			},
+			wantCode: loop.CodeRouteDefaultMissing,
+			message:  "router",
+		},
+		{
+			name: "Should reject a backward or unknown destination",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "router").Routes[0].To = "missing"
+			},
+			wantCode: loop.CodeRouteTargetInvalid,
+			message:  "missing",
+		},
+		{
+			name: "Should reject duplicate destinations",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "router").Default = "quick"
+			},
+			wantCode: loop.CodeRouteTargetInvalid,
+			message:  "duplicates",
+		},
+		{
+			name: "Should reject an unknown condition reference",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "router").Routes[0].When = "nodes.missing.output.x == 1"
+			},
+			wantCode: refs.CodeUnknownReference,
+			message:  "available",
+		},
+		{
+			name: "Should reject an exit policy because route conditions fail closed",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "router").OnEvalError = dsl.EvalErrorExit
+			},
+			wantCode: loop.CodeEvalErrorPolicyInvalid,
+			message:  "fail-closed",
+		},
+		{
+			name: "Should reject conflicting gate route objects",
+			mutate: func(definition *dsl.Definition) {
+				router := requireNode(t, definition, "router")
+				router.Kind = string(dsl.ControlGate)
+				router.Routes = nil
+				router.Default = ""
+				router.Criteria = []dsl.GateCriterion{{ID: "verify", Type: dsl.CriterionCommand, Check: "true"}}
+				router.OnResult = map[string]any{
+					"fail": map[string]any{"route": "quick", "action": "revise"},
+				}
+			},
+			wantCode: loop.CodeRouteMappingInvalid,
+			message:  "exactly one",
+		},
+		{
+			name: "Should reject the removed branch action",
+			mutate: func(definition *dsl.Definition) {
+				router := requireNode(t, definition, "router")
+				router.Kind = string(dsl.ControlGate)
+				router.Routes = nil
+				router.Default = ""
+				router.Criteria = []dsl.GateCriterion{{ID: "verify", Type: dsl.CriterionCommand, Check: "true"}}
+				router.OnResult = map[string]any{"fail": "branch"}
+			},
+			wantCode: loop.CodeRouteActionRemoved,
+			message:  "{route: node_id}",
+		},
+		{
+			name: "Should reject an approval object route that bypasses the pending decision",
+			mutate: func(definition *dsl.Definition) {
+				router := requireNode(t, definition, "router")
+				router.Kind = string(dsl.ControlGate)
+				router.Routes = nil
+				router.Default = ""
+				router.Criteria = []dsl.GateCriterion{{
+					ID: "operator", Type: dsl.CriterionHuman, Prompt: "Approve release?",
+				}}
+				router.OnResult = map[string]any{
+					"approval": map[string]any{"route": "quick"},
+				}
+			},
+			wantCode: loop.CodeRouteMappingInvalid,
+			message:  "cannot bypass a pending approval",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := routeDefinitionForTest()
+			tt.mutate(&definition)
+			errors := loop.NewLinter().Lint(definition)
+			requireLintCodes(t, errors, tt.wantCode)
+			requireLintMessageContains(t, errors, tt.wantCode, tt.message)
+		})
+	}
+}
+
 func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
 	t.Parallel()
 
@@ -1948,6 +2084,24 @@ func validDefinition() dsl.Definition {
 			Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
 		},
 	}
+}
+
+func routeDefinitionForTest() dsl.Definition {
+	definition := singleNodeDefinition(dsl.Node{
+		ID:      "router",
+		Class:   dsl.NodeClassControl,
+		Kind:    string(dsl.ControlRoute),
+		Routes:  []dsl.RouteSpec{{When: "true", To: "quick"}, {When: "false", To: "review"}},
+		Default: "fallback",
+	})
+	for _, id := range []dsl.NodeID{"quick", "review", "fallback"} {
+		definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+			ID: id, Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"agent": "codex", "prompt": "Run " + string(id)},
+		})
+		definition.Graph.Edges = append(definition.Graph.Edges, dsl.Edge{From: "router", To: id})
+	}
+	return definition
 }
 
 func validGoalDefinition() dsl.Definition {

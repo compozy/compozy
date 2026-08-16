@@ -116,6 +116,15 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 ORDER BY seq ASC
 LIMIT sqlc.arg(row_limit);
 
+-- name: ListLoopRouteCauses :many
+SELECT payload_json, at
+FROM loop_run_events
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND loop_run_id = sqlc.arg(loop_run_id)
+  AND kind = 'route_taken'
+  AND CAST(json_extract(payload_json, '$.generation') AS INTEGER) = sqlc.arg(generation)
+ORDER BY seq ASC;
+
 -- name: InsertLoopRunEvent :exec
 INSERT INTO loop_run_events (id, loop_run_id, workspace_id, seq, kind, payload_json, at)
 VALUES (sqlc.arg(id), sqlc.arg(loop_run_id), sqlc.arg(workspace_id), sqlc.arg(seq),

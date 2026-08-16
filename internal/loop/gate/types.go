@@ -213,8 +213,6 @@ const (
 	RouteContinue RouteAction = "continue"
 	// RouteRevise re-enters the body revision path.
 	RouteRevise RouteAction = "revise"
-	// RouteBranch selects a named branch.
-	RouteBranch RouteAction = "branch"
 	// RouteHalt stops the loop.
 	RouteHalt RouteAction = "halt"
 	// RouteEscalate parks for human approval.
@@ -229,7 +227,7 @@ const (
 type RouteDecision struct {
 	Placement      Placement   `json:"placement"`
 	Action         RouteAction `json:"action"`
-	Branch         string      `json:"branch,omitempty"`
+	Target         string      `json:"target,omitempty"`
 	TerminalStatus string      `json:"terminal_status,omitempty"`
 	ReasonCode     string      `json:"reason_code,omitempty"`
 }

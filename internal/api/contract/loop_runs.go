@@ -99,8 +99,20 @@ type LoopGenerationPayload struct {
 	Generation       int64                    `json:"generation"`
 	ParentGeneration int64                    `json:"parent_generation"`
 	Origin           LoopGenerationOrigin     `json:"origin"`
+	RouteCauses      []LoopRouteCausePayload  `json:"route_causes"`
 	Verdicts         []LoopGateVerdictPayload `json:"verdicts"`
 	Outputs          []LoopGenerationOutput   `json:"outputs"`
+}
+
+// LoopRouteCausePayload is one durable route decision in a generation.
+type LoopRouteCausePayload struct {
+	NodeID      string    `json:"node_id"`
+	ItemIndex   int       `json:"item_index"`
+	Route       string    `json:"route"`
+	Cause       string    `json:"cause"`
+	MatchedWhen string    `json:"matched_when,omitempty"`
+	Default     bool      `json:"default,omitempty"`
+	At          time.Time `json:"at"`
 }
 
 // LoopGateVerdictPayload is one queryable machine verdict in generation detail.
@@ -187,6 +199,17 @@ type LoopGateVerdictRunEventPayload struct {
 	At          time.Time                   `json:"at"`
 }
 
+// LoopRouteTakenRunEventPayload is the typed route_taken event envelope.
+type LoopRouteTakenRunEventPayload struct {
+	ID          string                     `json:"id"`
+	LoopRunID   string                     `json:"loop_run_id"`
+	WorkspaceID string                     `json:"workspace_id"`
+	Seq         int64                      `json:"seq"`
+	Kind        LoopRunEventKind           `json:"kind"`
+	Payload     LoopRouteTakenEventPayload `json:"payload"`
+	At          time.Time                  `json:"at"`
+}
+
 // LoopGenerationStartedEventPayload is the exact generation_started SSE payload.
 type LoopGenerationStartedEventPayload struct {
 	Generation        int64                 `json:"generation"`
@@ -209,6 +232,17 @@ type LoopGateVerdictEventPayload struct {
 	Criteria       []LoopGateCriterionEventPayload `json:"criteria"`
 	Score          *float64                        `json:"score,omitempty"`
 	BestGeneration *int64                          `json:"best_generation,omitempty"`
+}
+
+// LoopRouteTakenEventPayload is the exact route_taken SSE payload.
+type LoopRouteTakenEventPayload struct {
+	Generation  int64  `json:"generation"`
+	NodeID      string `json:"node_id"`
+	ItemIndex   int    `json:"item_index"`
+	Route       string `json:"route"`
+	Cause       string `json:"cause"`
+	MatchedWhen string `json:"matched_when,omitempty"`
+	Default     bool   `json:"default,omitempty"`
 }
 
 // LoopGateBlockingIssuePayload is one sanitized gate_verdict blocker.

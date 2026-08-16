@@ -222,6 +222,18 @@ func evaluateControlNodeKind(
 			outputs,
 			eval.gateEvaluations,
 		)
+	case dsl.ControlRoute:
+		return evaluateRouteNode(
+			eval.run,
+			eval.generation,
+			eval.resolved,
+			eval.topology,
+			eval.history,
+			output,
+			node,
+			outputs,
+			eval.gateEvaluations,
+		)
 	case dsl.ControlGate:
 		gateOutput, terminal, err := evaluateGateNode(
 			eval.ctx,
@@ -237,7 +249,7 @@ func evaluateControlNodeKind(
 			eval.history,
 			output,
 			node,
-			*outputs,
+			outputs,
 			eval.gateEvaluations,
 			eval.now,
 		)

@@ -95,6 +95,7 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 
 	score := 0.72
 	rank := 0
+	routeAt := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
 	storedOutputRef := looppkg.OutputRefForPayload([]byte(`{"value":"best"}`))
 	persistence := &loopRunHistoryPersistenceStub{
 		lineage: []looppkg.LoopGeneration{
@@ -130,6 +131,12 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 				},
 			},
 		},
+		routeCauses: map[int64][]looppkg.RouteCause{
+			3: {{
+				Generation: 3, NodeID: "router", ItemIndex: 2, Route: "revise",
+				Cause: "matched_when", MatchedWhen: "outputs.score < 0.8", At: routeAt,
+			}},
+		},
 	}
 	service := &daemonLoopAPIService{persistence: persistence}
 	run := looppkg.Run{ID: "run-lineage", WorkspaceID: "ws-lineage", Generation: 3}
@@ -162,6 +169,13 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 	}
 	if generations[1].Verdicts[1].GateID != "quality" || generations[1].Verdicts[1].ItemIndex != 3 {
 		t.Fatalf("generation 3 fan-out verdicts = %#v, want separate item indexes 2 and 3", generations[1].Verdicts)
+	}
+	if len(generations[1].RouteCauses) != 1 || generations[1].RouteCauses[0].NodeID != "router" ||
+		generations[1].RouteCauses[0].ItemIndex != 2 || generations[1].RouteCauses[0].Route != "revise" ||
+		generations[1].RouteCauses[0].Cause != "matched_when" ||
+		generations[1].RouteCauses[0].MatchedWhen != "outputs.score < 0.8" ||
+		!generations[1].RouteCauses[0].At.Equal(routeAt) {
+		t.Fatalf("generation 3 route causes = %#v, want exact durable route decision", generations[1].RouteCauses)
 	}
 	if len(persistence.outputCalls) != 2 || persistence.outputCalls[0] != 1 || persistence.outputCalls[1] != 3 {
 		t.Fatalf("ListGenerationOutputs calls = %#v, want lineage generations only", persistence.outputCalls)
@@ -201,6 +215,13 @@ func TestDaemonLoopAPIServiceShouldWrapGenerationHistoryErrors(t *testing.T) {
 				lineage: []looppkg.LoopGeneration{{Generation: 4}}, verdictErr: errPersistence,
 			},
 			wantContext: "list gate verdicts for loop run run-errors generation 4",
+		},
+		{
+			name: "Should identify the run and generation when route cause loading fails",
+			persistence: &loopRunHistoryPersistenceStub{
+				lineage: []looppkg.LoopGeneration{{Generation: 4}}, routeCauseErr: errPersistence,
+			},
+			wantContext: "list route causes for loop run run-errors generation 4",
 		},
 	}
 	for _, tt := range tests {
@@ -482,11 +503,13 @@ type loopRunHistoryPersistenceStub struct {
 	lineage        []looppkg.LoopGeneration
 	outputs        map[int][]looppkg.GenerationOutput
 	verdicts       map[int64][]gate.VerdictRecord
+	routeCauses    map[int64][]looppkg.RouteCause
 	outputCalls    []int
 	workspaceCalls []string
 	lineageErr     error
 	outputErr      error
 	verdictErr     error
+	routeCauseErr  error
 }
 
 func (s *loopRunHistoryPersistenceStub) ListGenerations(
@@ -526,6 +549,19 @@ func (s *loopRunHistoryPersistenceStub) ListGateVerdicts(
 		return nil, s.verdictErr
 	}
 	return append([]gate.VerdictRecord(nil), s.verdicts[generation]...), nil
+}
+
+func (s *loopRunHistoryPersistenceStub) ListRouteCauses(
+	_ context.Context,
+	workspaceID looppkg.WorkspaceID,
+	_ looppkg.RunID,
+	generation int64,
+) ([]looppkg.RouteCause, error) {
+	s.workspaceCalls = append(s.workspaceCalls, string(workspaceID))
+	if s.routeCauseErr != nil {
+		return nil, s.routeCauseErr
+	}
+	return append([]looppkg.RouteCause(nil), s.routeCauses[generation]...), nil
 }
 
 type loopApprovalAggregateStub struct {

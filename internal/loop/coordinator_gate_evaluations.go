@@ -26,6 +26,7 @@ type gateEvaluationKey struct {
 type gateEvaluationCollector struct {
 	values               map[gateEvaluationKey]gateEvaluation
 	predicateDiagnostics []PredicateDiagnostic
+	routeDecisions       []routeDecision
 }
 
 func (c *gateEvaluationCollector) record(runtime gate.Gate, itemIndex int, verdict gate.Verdict) {
@@ -66,6 +67,13 @@ func (c *gateEvaluationCollector) recordPredicate(diagnostics ...PredicateDiagno
 	c.predicateDiagnostics = append(c.predicateDiagnostics, diagnostics...)
 }
 
+func (c *gateEvaluationCollector) recordRoute(decision routeDecision) {
+	if c == nil {
+		return
+	}
+	c.routeDecisions = append(c.routeDecisions, decision.normalized())
+}
+
 func (c *gateEvaluationCollector) ordered() []gateEvaluation {
 	if c == nil || len(c.values) == 0 {
 		return nil
@@ -91,7 +99,7 @@ func (c *gateEvaluationCollector) routeCauses() []gateEvaluation {
 	ordered := c.ordered()
 	causes := make([]gateEvaluation, 0, len(ordered))
 	for _, evaluation := range ordered {
-		if routeCausesGeneration(evaluation.verdict.Route.Action) {
+		if evaluation.verdict.Route.Target != "" || routeCausesGeneration(evaluation.verdict.Route.Action) {
 			causes = append(causes, evaluation)
 		}
 	}

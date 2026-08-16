@@ -733,6 +733,277 @@ func TestBranchPredicateEvaluationShouldHonorFailurePolicy(t *testing.T) {
 	})
 }
 
+func TestRoutePlannerShouldSelectExactlyOnePath(t *testing.T) {
+	t.Parallel()
+
+	definition := routePlannerDefinitionForTest()
+	resolved := compileCoordinatorControlDefinition(t, definition)
+	topology := newControlTopology(resolved.Definition.Graph)
+	baseOutputs := []GenerationOutput{
+		{Generation: 1, NodeID: "load", Status: generationOutputSucceeded, OutputRef: `{"risk":"high"}`},
+		{Generation: 1, NodeID: "router", Status: generationOutputPending},
+		{Generation: 1, NodeID: "quick", Status: generationOutputPending},
+		{Generation: 1, NodeID: "review", Status: generationOutputPending},
+		{Generation: 1, NodeID: "fallback", Status: generationOutputPending},
+		{Generation: 1, NodeID: "shared", Status: generationOutputPending},
+	}
+
+	t.Run("Should select the first matching route and preserve a live join", func(t *testing.T) {
+		t.Parallel()
+
+		outputs := cloneGenerationOutputs(baseOutputs)
+		collector := &gateEvaluationCollector{}
+		result, terminal, err := evaluateRouteNode(
+			Run{ID: "run-route", WorkspaceID: "ws-1"},
+			1,
+			resolved,
+			topology,
+			GenerationHistory{},
+			outputs[1],
+			resolved.Definition.Graph.Nodes[1],
+			&outputs,
+			collector,
+		)
+		if err != nil {
+			t.Fatalf("evaluateRouteNode() error = %v", err)
+		}
+		mapped := generationOutputMap(outputs)
+		if terminal != nil || result.Status != generationOutputSucceeded || result.OutputRef != "route:review" ||
+			!isRouteNotTakenOutputRef(mapped[generationOutputKey{nodeID: "quick"}].OutputRef) ||
+			!isRouteNotTakenOutputRef(mapped[generationOutputKey{nodeID: "fallback"}].OutputRef) ||
+			mapped[generationOutputKey{nodeID: "review"}].Status != generationOutputPending ||
+			mapped[generationOutputKey{nodeID: "shared"}].Status != generationOutputPending {
+			t.Fatalf("route result = %#v outputs=%#v terminal=%#v", result, outputs, terminal)
+		}
+		if len(collector.routeDecisions) != 1 || collector.routeDecisions[0].Target != "review" ||
+			collector.routeDecisions[0].MatchedWhen != `nodes.load.output.risk == "high"` {
+			t.Fatalf("route decisions = %#v, want matched review condition", collector.routeDecisions)
+		}
+	})
+
+	t.Run("Should use the default only after every condition is false", func(t *testing.T) {
+		t.Parallel()
+
+		definition := routePlannerDefinitionForTest()
+		definition.Graph.Nodes[1].Routes[1].When = `nodes.load.output.risk == "critical"`
+		defaultResolved := compileCoordinatorControlDefinition(t, definition)
+		outputs := cloneGenerationOutputs(baseOutputs)
+		collector := &gateEvaluationCollector{}
+		result, terminal, err := evaluateRouteNode(
+			Run{ID: "run-default", WorkspaceID: "ws-1"},
+			1,
+			defaultResolved,
+			topology,
+			GenerationHistory{},
+			outputs[1],
+			defaultResolved.Definition.Graph.Nodes[1],
+			&outputs,
+			collector,
+		)
+		if err != nil {
+			t.Fatalf("evaluateRouteNode() error = %v", err)
+		}
+		if terminal != nil || result.OutputRef != "route:fallback" || len(collector.routeDecisions) != 1 ||
+			!collector.routeDecisions[0].Default || collector.routeDecisions[0].Cause != "default" {
+			t.Fatalf("default result = %#v decisions=%#v terminal=%#v", result, collector.routeDecisions, terminal)
+		}
+	})
+
+	t.Run("Should prefer declaration order when two routes match", func(t *testing.T) {
+		t.Parallel()
+
+		definition := routePlannerDefinitionForTest()
+		definition.Graph.Nodes[1].Routes[0].When = "true"
+		definition.Graph.Nodes[1].Routes[1].When = "true"
+		orderedResolved := compileCoordinatorControlDefinition(t, definition)
+		outputs := cloneGenerationOutputs(baseOutputs)
+		collector := &gateEvaluationCollector{}
+		result, _, err := evaluateRouteNode(
+			Run{ID: "run-ordered", WorkspaceID: "ws-1"},
+			1,
+			orderedResolved,
+			topology,
+			GenerationHistory{},
+			outputs[1],
+			orderedResolved.Definition.Graph.Nodes[1],
+			&outputs,
+			collector,
+		)
+		if err != nil {
+			t.Fatalf("evaluateRouteNode() error = %v", err)
+		}
+		if result.OutputRef != "route:quick" || collector.routeDecisions[0].Target != "quick" {
+			t.Fatalf("ordered result = %#v decisions=%#v, want quick", result, collector.routeDecisions)
+		}
+	})
+
+	t.Run("Should fail a broken condition without taking the default", func(t *testing.T) {
+		t.Parallel()
+
+		definition := routePlannerDefinitionForTest()
+		definition.Inputs = map[string]dsl.Input{"denominator": {Type: dsl.InputTypeNumber}}
+		definition.Graph.Nodes[1].Routes[0].When = "inputs.denominator / 0 > 1"
+		brokenResolved := compileCoordinatorControlDefinition(t, definition)
+		outputs := cloneGenerationOutputs(baseOutputs)
+		collector := &gateEvaluationCollector{}
+		result, terminal, err := evaluateRouteNode(
+			Run{ID: "run-broken-route", WorkspaceID: "ws-1", Inputs: map[string]any{"denominator": 1}},
+			1,
+			brokenResolved,
+			topology,
+			GenerationHistory{},
+			outputs[1],
+			brokenResolved.Definition.Graph.Nodes[1],
+			&outputs,
+			collector,
+		)
+		if err != nil {
+			t.Fatalf("evaluateRouteNode() error = %v", err)
+		}
+		if terminal != nil || result.Status != generationOutputFailed || len(collector.routeDecisions) != 0 ||
+			outputs[4].Status != generationOutputPending ||
+			!strings.Contains(result.OutputRef, "predicate_evaluation_failed") {
+			t.Fatalf("broken result = %#v outputs=%#v decisions=%#v", result, outputs, collector.routeDecisions)
+		}
+	})
+}
+
+func TestGateRoutePlannerShouldSelectAndRecordTarget(t *testing.T) {
+	t.Parallel()
+
+	definition := dsl.Definition{Graph: dsl.Graph{
+		Nodes: []dsl.Node{
+			{
+				ID: "load", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+				Params: dsl.NodeParams{"map": map[string]any{"ready": map[string]any{"value": true}}},
+			},
+			{
+				ID: "quality", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+				Criteria: []dsl.GateCriterion{{ID: "check", Type: dsl.CriterionCommand, Check: "true"}},
+				OnResult: map[string]any{"fail": map[string]any{"route": "repair"}},
+			},
+			{
+				ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+				Params: dsl.NodeParams{"map": map[string]any{"published": map[string]any{"value": true}}},
+			},
+			{
+				ID: "repair", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+				Params: dsl.NodeParams{"map": map[string]any{"repaired": map[string]any{"value": true}}},
+			},
+		},
+		Edges: []dsl.Edge{
+			{From: "load", To: "quality"}, {From: "quality", To: "publish"}, {From: "quality", To: "repair"},
+		},
+	}}
+	resolved := compileCoordinatorControlDefinition(t, definition)
+	topology := newControlTopology(resolved.Definition.Graph)
+	outputs := []GenerationOutput{
+		{Generation: 1, NodeID: "load", Status: generationOutputSucceeded, OutputRef: `{}`},
+		{Generation: 1, NodeID: "quality", Status: generationOutputPending},
+		{Generation: 1, NodeID: "publish", Status: generationOutputPending},
+		{Generation: 1, NodeID: "repair", Status: generationOutputPending},
+	}
+	collector := &gateEvaluationCollector{}
+	evaluator := gateEvaluatorFunc(func(context.Context, gate.Gate, gate.GateInput) (gate.Verdict, error) {
+		verdict := testRouteVerdict(gate.RouteContinue)
+		verdict.Route.Target = "repair"
+		return verdict, nil
+	})
+	result, terminal, err := evaluateGateNode(
+		context.Background(),
+		Run{ID: "run-gate-route", WorkspaceID: "ws-1"},
+		1,
+		resolved,
+		topology,
+		EffectiveConfig{},
+		evaluator,
+		nil,
+		nil,
+		nil,
+		GenerationHistory{},
+		outputs[1],
+		resolved.Definition.Graph.Nodes[1],
+		&outputs,
+		collector,
+		time.Now(),
+	)
+	if err != nil {
+		t.Fatalf("evaluateGateNode() error = %v", err)
+	}
+	if terminal != nil || result.Status != generationOutputSucceeded ||
+		!isRouteNotTakenOutputRef(outputs[2].OutputRef) || outputs[3].Status != generationOutputPending ||
+		len(collector.routeDecisions) != 1 || collector.routeDecisions[0].Target != "repair" {
+		t.Fatalf("gate result = %#v outputs=%#v decisions=%#v terminal=%#v", result, outputs, collector.routeDecisions, terminal)
+	}
+
+	t.Run("Should scope a gate route to one fan-out lane", func(t *testing.T) {
+		t.Parallel()
+
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "fan", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
+				{ID: "quality", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate)},
+				{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+				{ID: "repair", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+				{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+			},
+			Edges: []dsl.Edge{
+				{From: "fan", To: "quality"}, {From: "quality", To: "publish"},
+				{From: "quality", To: "repair"}, {From: "publish", To: "collect"},
+				{From: "repair", To: "collect"},
+			},
+		}
+		laneTopology := newControlTopology(graph)
+		laneOutputs := []GenerationOutput{
+			{NodeID: "quality", ItemIndex: 0, Status: generationOutputPending},
+			{NodeID: "publish", ItemIndex: 0, Status: generationOutputPending},
+			{NodeID: "repair", ItemIndex: 0, Status: generationOutputPending},
+			{NodeID: "quality", ItemIndex: 1, Status: generationOutputSucceeded},
+			{NodeID: "publish", ItemIndex: 1, Status: generationOutputPending},
+			{NodeID: "repair", ItemIndex: 1, Status: generationOutputPending},
+		}
+		skipUnselectedRoutePaths(
+			graph,
+			laneTopology,
+			"quality",
+			"repair",
+			laneOutputs[3],
+			&laneOutputs,
+		)
+		mapped := generationOutputMap(laneOutputs)
+		if mapped[generationOutputKey{nodeID: "publish", itemIndex: 0}].Status != generationOutputPending ||
+			!isRouteNotTakenOutputRef(mapped[generationOutputKey{nodeID: "publish", itemIndex: 1}].OutputRef) ||
+			mapped[generationOutputKey{nodeID: "repair", itemIndex: 1}].Status != generationOutputPending {
+			t.Fatalf("lane route outputs = %#v", laneOutputs)
+		}
+	})
+
+	t.Run("Should keep route events independent per generation", func(t *testing.T) {
+		t.Parallel()
+
+		for generation, target := range map[int]dsl.NodeID{1: "repair", 2: "publish"} {
+			evaluations := &gateEvaluationCollector{}
+			evaluations.recordRoute(routeDecision{
+				NodeID: "quality", ItemIndex: 0, Target: target, Cause: "gate_verdict:rejected",
+			})
+			plan := task.CoordinatorCompletionPlan{Snapshot: task.GenerationSnapshot{
+				Generation: generation, Payload: GenerationSnapshotPayload{},
+			}}
+			if err := applyGateEvaluationIntents(&plan, Run{}, generation, evaluations); err != nil {
+				t.Fatalf("applyGateEvaluationIntents(generation %d) error = %v", generation, err)
+			}
+			payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
+			if err != nil {
+				t.Fatalf("GenerationSnapshotPayloadFrom() error = %v", err)
+			}
+			if len(payload.Events) != 1 || payload.Events[0].Kind != GenerationLifecycleEventRouteTaken ||
+				payload.Events[0].SelectedRoute != string(target) {
+				t.Fatalf("generation %d events = %#v, want route %q", generation, payload.Events, target)
+			}
+		}
+	})
+}
+
 func TestCoordinatorGateRevisionCountersShouldStayIsolated(t *testing.T) {
 	t.Parallel()
 
@@ -4572,6 +4843,42 @@ func resolvedCoordinatorDefinitionForTest(t *testing.T, definition dsl.Definitio
 		},
 		compiled: true,
 	}
+}
+
+func routePlannerDefinitionForTest() dsl.Definition {
+	transform := func(id dsl.NodeID) dsl.Node {
+		return dsl.Node{
+			ID: id, Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+			Params: dsl.NodeParams{"map": map[string]any{"value": map[string]any{"value": string(id)}}},
+		}
+	}
+	load := transform("load")
+	load.Produces = dsl.Schema{"risk": "string"}
+	return dsl.Definition{Graph: dsl.Graph{
+		Nodes: []dsl.Node{
+			load,
+			{
+				ID: "router", Class: dsl.NodeClassControl, Kind: string(dsl.ControlRoute),
+				Routes: []dsl.RouteSpec{
+					{When: `nodes.load.output.risk == "low"`, To: "quick"},
+					{When: `nodes.load.output.risk == "high"`, To: "review"},
+				},
+				Default: "fallback",
+			},
+			transform("quick"),
+			transform("review"),
+			transform("fallback"),
+			transform("shared"),
+		},
+		Edges: []dsl.Edge{
+			{From: "load", To: "router"},
+			{From: "router", To: "quick"},
+			{From: "router", To: "review"},
+			{From: "router", To: "fallback"},
+			{From: "quick", To: "shared"},
+			{From: "review", To: "shared"},
+		},
+	}}
 }
 
 func newCoordinatorRunnerForStopWhenTest(

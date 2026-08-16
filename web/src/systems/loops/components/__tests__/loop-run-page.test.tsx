@@ -89,6 +89,7 @@ describe("LoopRunProgressPanel", () => {
           generation: 2,
           parent_generation: 1,
           origin: "gate_revise",
+          route_causes: [],
           verdicts: [],
           outputs: [
             { node_id: "fix", status: "succeeded", generation: 2, item_index: 1 },
@@ -1541,6 +1542,7 @@ describe("LoopRunResolvedRuntimes", () => {
             generation: 2,
             parent_generation: 1,
             origin: "gate_revise",
+            route_causes: [],
             verdicts: [],
             outputs: [
               {

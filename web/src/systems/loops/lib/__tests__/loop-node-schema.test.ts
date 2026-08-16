@@ -72,8 +72,18 @@ describe("loop node schema", () => {
     // Routing is editable in-inspector (not a read-only summary) — R-004 remediation.
     const onPass = fields.find(f => "key" in f && f.key === "on_pass");
     const onFail = fields.find(f => "key" in f && f.key === "on_fail");
-    expect(onPass).toMatchObject({ type: "text", path: ["on_result", "pass"] });
-    expect(onFail).toMatchObject({ type: "text", path: ["on_result", "fail"] });
+    expect(onPass).toMatchObject({
+      type: "text",
+      path: ["on_result", "pass"],
+      json: true,
+      hint: expect.stringContaining('{"route":"node_id"}'),
+    });
+    expect(onFail).toMatchObject({
+      type: "text",
+      path: ["on_result", "fail"],
+      json: true,
+      hint: expect.stringContaining("removed branch action"),
+    });
   });
 
   it("Should mark branch.condition as a CEL reference field and give run-loop editable inputs", () => {

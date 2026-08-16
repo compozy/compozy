@@ -270,7 +270,7 @@ func allGenerationOutputsSucceededControlAware(
 				nodeID:    string(fanOutID),
 				itemIndex: 0,
 			}]
-			if fanOutOutputExists && fanOutOutput.OutputRef == branchSkippedOutputRef {
+			if fanOutOutputExists && outputRefMarksSkippedRoute(fanOutOutput.OutputRef) {
 				continue
 			}
 			branchCount, ok := fanOutBranchCount(outputs, fanOutID)

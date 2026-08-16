@@ -42,6 +42,8 @@ const (
 	GenerationLifecycleEventTargetBreakerTransition GenerationLifecycleEventKind = "target_breaker_transition"
 	// GenerationLifecycleEventPredicateDiagnostic records predicate cost or evaluation diagnostics.
 	GenerationLifecycleEventPredicateDiagnostic GenerationLifecycleEventKind = "predicate_diagnostic"
+	// GenerationLifecycleEventRouteTaken records one exclusive routing decision.
+	GenerationLifecycleEventRouteTaken GenerationLifecycleEventKind = "route_taken"
 )
 
 // GenerationLifecycleEventIntent requests one durable generation lifecycle event.
@@ -78,6 +80,9 @@ type GenerationLifecycleEventIntent struct {
 	Cost                    uint64                 `json:"cost,omitempty"`
 	CostLimit               uint64                 `json:"cost_limit,omitempty"`
 	Warning                 bool                   `json:"warning,omitempty"`
+	SelectedRoute           string                 `json:"selected_route,omitempty"`
+	MatchedWhen             string                 `json:"matched_when,omitempty"`
+	DefaultRoute            bool                   `json:"default_route,omitempty"`
 }
 
 func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventIntent {
@@ -98,6 +103,8 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.AheadArrival = strings.TrimSpace(i.AheadArrival)
 	i.Predicate = strings.TrimSpace(i.Predicate)
 	i.DiagnosticCode = strings.TrimSpace(i.DiagnosticCode)
+	i.SelectedRoute = strings.TrimSpace(i.SelectedRoute)
+	i.MatchedWhen = strings.TrimSpace(i.MatchedWhen)
 	i.AheadCursors = cloneInt64Map(i.AheadCursors)
 	if len(i.QuarantineEntry) > 0 {
 		i.QuarantineEntry = append(json.RawMessage(nil), i.QuarantineEntry...)
@@ -149,6 +156,8 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		err = i.validateTargetBreakerTransition()
 	case GenerationLifecycleEventPredicateDiagnostic:
 		err = i.validatePredicateDiagnostic()
+	case GenerationLifecycleEventRouteTaken:
+		err = i.validateRouteTaken()
 	default:
 		return fmt.Errorf("%w: generation lifecycle event kind is invalid: %q", ErrValidation, i.Kind)
 	}
@@ -159,6 +168,16 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		if err := effect.Validate(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (i GenerationLifecycleEventIntent) validateRouteTaken() error {
+	if i.NodeID == "" || i.ItemIndex < 0 || i.SelectedRoute == "" || i.Reason == "" {
+		return fmt.Errorf("%w: route_taken event has incomplete routing identity", ErrValidation)
+	}
+	if i.DefaultRoute && i.MatchedWhen != "" {
+		return fmt.Errorf("%w: route_taken default cannot carry matched_when", ErrValidation)
 	}
 	return nil
 }
@@ -296,7 +315,6 @@ func generationLifecycleRouteValid(route gate.RouteAction) bool {
 	switch route {
 	case gate.RouteContinue,
 		gate.RouteRevise,
-		gate.RouteBranch,
 		gate.RouteHalt,
 		gate.RouteEscalate,
 		gate.RouteDone,

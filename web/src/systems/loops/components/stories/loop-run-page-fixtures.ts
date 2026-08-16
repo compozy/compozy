@@ -126,6 +126,7 @@ export function watchingScenario(): LoopRunStoryScenario {
         generation: 4,
         parent_generation: 3,
         origin: "reattempt",
+        route_causes: [],
         verdicts: [],
         outputs: [
           { node_id: "watch_inbox", status: "succeeded", generation: 4 },
@@ -224,6 +225,7 @@ function metricGeneration(
     generation,
     parent_generation: parentGeneration,
     origin,
+    route_causes: [],
     verdicts:
       score === undefined
         ? []

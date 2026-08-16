@@ -52,6 +52,8 @@ const (
 	ControlCollect ControlKind = "collect"
 	// ControlBranch routes by CEL condition.
 	ControlBranch ControlKind = "branch"
+	// ControlRoute selects exactly one declared forward route.
+	ControlRoute ControlKind = "route"
 	// ControlGate evaluates criteria and routing policy.
 	ControlGate ControlKind = "gate"
 	// ControlSubLoop embeds an inline nested loop body.
@@ -63,7 +65,7 @@ const (
 // IsKnownControlKind validates the closed control enum.
 func IsKnownControlKind(kind string) bool {
 	switch ControlKind(kind) {
-	case ControlFanOut, ControlCollect, ControlBranch, ControlGate, ControlSubLoop, ControlWait:
+	case ControlFanOut, ControlCollect, ControlBranch, ControlRoute, ControlGate, ControlSubLoop, ControlWait:
 		return true
 	default:
 		return false

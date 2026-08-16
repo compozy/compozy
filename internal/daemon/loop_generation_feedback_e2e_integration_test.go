@@ -233,6 +233,45 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should route classifier output and expose gate reroute causes through loop status", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+		defer cancel()
+
+		definition := feedbackRouteDefinition()
+		createLoopViaHTTP(t, ctx, harness, definition)
+		run := runFeedbackLoopViaHTTP(t, ctx, harness, definition)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
+
+		var cli compozycontract.LoopRunResponse
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cli,
+			"loop", "status",
+			"--workspace", harness.WorkspaceID,
+			"--run-id", run.ID,
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("CLI loop status error = %v", err)
+		}
+		if len(cli.Generations) != 1 || len(cli.Generations[0].RouteCauses) != 2 {
+			t.Fatalf("CLI route causes = %#v, want router and gate decisions", cli.Generations)
+		}
+		causes := cli.Generations[0].RouteCauses
+		if causes[0].NodeID != "router" || causes[0].Route != "quality" ||
+			causes[0].Cause != "matched_when" ||
+			causes[0].MatchedWhen != "nodes.classifier.output.bucket == 'revise'" {
+			t.Fatalf("classifier route cause = %#v, want matched quality route", causes[0])
+		}
+		if causes[1].NodeID != "quality" || causes[1].Route != "revise" ||
+			causes[1].Cause != "gate_verdict:rejected" {
+			t.Fatalf("gate route cause = %#v, want rejected verdict reroute", causes[1])
+		}
+		if got := feedbackNodeOutputRef(t, cli.Generations[0], "publish"); got != "route_not_taken:router" {
+			t.Fatalf("publish output_ref = %q, want route_not_taken:router", got)
+		}
+	})
 }
 
 func feedbackMockAgent(fixturePath string, fixtureAgent string, agentName string) e2etest.MockAgentSpec {
@@ -325,6 +364,65 @@ func feedbackReviseDefinition(
 	})
 	definition.Graph.Edges = []compozycontract.LoopGraphEdge{{From: "draft", To: "quality"}}
 	return definition
+}
+
+func feedbackRouteDefinition() compozycontract.LoopDefinitionDocument {
+	return compozycontract.LoopDefinitionDocument{
+		APIVersion: "compozy.loop/v1",
+		Kind:       "Loop",
+		Meta: compozycontract.LoopDefinitionMeta{
+			Name: "feedback-route-causes", Description: "Runtime E2E probe for exclusive route history.",
+			Catalog: compozycontract.LoopCatalogMeta{Category: "Testing"},
+		},
+		Contract: compozycontract.LoopContract{
+			Goal:             "Route one classified candidate through deterministic remediation.",
+			DefinitionOfDone: "The routed remediation succeeds.",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.revise.status == 'succeeded'"},
+			IterationCap:     1, NoProgress: compozycontract.LoopNoProgress{Window: 2},
+			Budget:         compozycontract.LoopBudget{OnExceeded: compozycontract.LoopBudgetExceededHalt},
+			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+		},
+		Graph: compozycontract.LoopGraph{
+			Nodes: []compozycontract.LoopGraphNode{
+				{
+					ID: "classifier", Class: compozycontract.LoopNodeClassAction, Kind: "transform",
+					Params: map[string]any{"map": map[string]any{"bucket": map[string]any{"value": "revise"}}},
+				},
+				{
+					ID: "router", Class: compozycontract.LoopNodeClassControl, Kind: "route",
+					Routes: []compozycontract.LoopRouteSpec{{
+						When: "nodes.classifier.output.bucket == 'revise'", To: "quality",
+					}},
+					Default: "publish",
+				},
+				{
+					ID: "quality", Class: compozycontract.LoopNodeClassControl, Kind: "gate",
+					Criteria: []compozycontract.LoopGateCriterion{{
+						ID: "requires_revision", Type: "command", Check: "exit 1", Expect: "exit_zero",
+					}},
+					VerdictPolicy: "fixed_passes",
+					OnResult: map[string]any{
+						"fail": map[string]any{"route": "revise"},
+					},
+				},
+				{
+					ID: "revise", Class: compozycontract.LoopNodeClassAction, Kind: "transform",
+					Params: map[string]any{"map": map[string]any{"status": map[string]any{"value": "revised"}}},
+				},
+				{
+					ID: "publish", Class: compozycontract.LoopNodeClassAction, Kind: "transform",
+					Params: map[string]any{"map": map[string]any{"status": map[string]any{"value": "published"}}},
+				},
+			},
+			Edges: []compozycontract.LoopGraphEdge{
+				{From: "classifier", To: "router"},
+				{From: "router", To: "quality"},
+				{From: "router", To: "publish"},
+				{From: "quality", To: "revise"},
+			},
+		},
+		Start: []compozycontract.LoopStartBinding{{Kind: "http"}, {Kind: "uds"}},
+	}
 }
 
 func feedbackBaseDefinition(name string, prompt string, iterationCap int) compozycontract.LoopDefinitionDocument {
