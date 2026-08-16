@@ -8,9 +8,9 @@ expected: The same schema-1.0.0 package installs from a local directory and a gi
 entry_points: compozy extension install <local-path>|git:<url>@<ref> --allow-unverified --yes; POST /api/extensions over HTTP and UDS; compozy__extensions_install; https://compozy.com/docs/extensions/install
 qa_status: pass
 bug_ids: BUG-20260816-agent-plugin-path-projection
-fix_status: pending
+fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 35100d40b55c
 evidence: docs/qa/reports/2026-08-16-agent-plugins.md#session-debriefs; docs/qa/evidence/2026-08-16-agent-plugins/conformance-checklist.json
 last_report: docs/qa/reports/2026-08-16-agent-plugins.md
 overlaps: ET-extension-published-source-installs; ET-web-extension-union-install

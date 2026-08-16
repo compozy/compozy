@@ -1,6 +1,6 @@
 # BUG-20260816-hosted-mcp-bootstrap-projection: Managed sessions lose portable MCP tools
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -29,7 +29,7 @@ its MCP `tools/list` validation.
 ## Fix
 
 - **Root cause:** Reconciliation had no idle fence for session bootstrap; required deferred tools did not trigger full discovery; bootstrap did not seed the stable generation cache; the wire mapper used a typed nil that JSON encoded as `null`.
-- **Fix commit:** pending the task 08 remediation checkpoint
+- **Fix commit:** `35100d40b55c`
 - **Regression suites:** `internal/resources/reconcile_test.go`; `internal/tools/registry_test.go`; `internal/mcp/hosted_test.go`; `internal/mcp/hosted_proxy_test.go`
 
 ## Verification

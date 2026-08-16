@@ -8,9 +8,9 @@ expected: "One recorded evidence bundle proves all eight Agent Plugins 1.0.0 min
 entry_points: compozy extension validate <fixture> -o json; compozy extension install <fixture> --allow-unverified --yes; compozy extension enable <name>; compozy session new|prompt|events; compozy extension status|inventory -o json
 qa_status: pass
 bug_ids: BUG-20260816-agent-plugin-path-projection; BUG-20260816-agent-plugin-validation-exit; BUG-20260816-hosted-mcp-bootstrap-projection
-fix_status: pending
+fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 35100d40b55c
 evidence: docs/qa/evidence/2026-08-16-agent-plugins/conformance-checklist.json; docs/qa/evidence/2026-08-16-agent-plugins/provider-matrix.json
 last_report: docs/qa/reports/2026-08-16-agent-plugins.md
 overlaps: ET-agent-plugin-validation; ET-agent-plugin-source-install; ET-agent-plugin-provider-delivery

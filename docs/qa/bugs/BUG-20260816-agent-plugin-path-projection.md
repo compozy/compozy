@@ -1,6 +1,6 @@
 # BUG-20260816-agent-plugin-path-projection: Portable resources project invalid paths
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -30,7 +30,7 @@ failed the native manifest validator.
 ## Fix
 
 - **Root cause:** Acquisition retained a lexical root while containment compared canonical paths; portable synthesis reused resolved filesystem paths instead of the validated relative declaration.
-- **Fix commit:** pending the task 08 remediation checkpoint
+- **Fix commit:** `35100d40b55c`
 - **Regression suites:** `internal/extension/manifest_test.go`; `internal/extension/tool_provider_test.go`
 
 ## Verification

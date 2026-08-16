@@ -4,7 +4,7 @@
 - **Cadence tier:** targeted
 - **Build:** source `f85601523c9ebdf85d6931d151acf19f8033d14f`, QA diff `0a5a6051b299bab3aa05180c1e2ea0fa55eb07d56f2fdf7cbff5e815e0260e1a`, binary `45f7087df5c91caf24745f95425b26ba41efb195402bc48cb95d0f31f96b1fea`
 - **Environment:** fresh isolated `northstar-pay` lab at `http://127.0.0.1:57301`; manifest `/Users/pedronauck/dev/qa-labs/compozy-agent-plugins-20260816-20260816-061032-351590-lab/qa-artifacts/qa/bootstrap-manifest.json`
-- **Started:** 2026-08-16T06:10:59Z · **Status:** terminal scenarios; workstream gate pending
+- **Started:** 2026-08-16T06:10:59Z · **Status:** terminal scenarios; full-gate result owned by the repository gate record
 
 ## Personas
 
@@ -112,6 +112,8 @@ All eight items passed. The separate provider artifact is
 
 ## What Was Fixed
 
+The reviewed remediation batch is commit `35100d40b55c`.
+
 | Bug | Root cause | Verification |
 |---|---|---|
 | BUG-20260816-agent-plugin-path-projection | lexical package root and absolute synthesized skill paths violated canonical manifest containment | two skills and two MCP servers projected to both passing providers |
@@ -148,5 +150,5 @@ must not open an external pull request while this evidence gate is blocked.
 - **Scenario coverage:** 10/10 terminal — 7 Pass, 2 Blocked (needs verify), 1 Blocked (human decision), 0 untested/fail.
 - **Automated E2E:** `make test-e2e-runtime` pass; `make test-e2e-web` pass.
 - **Teardown:** pass — `/Users/pedronauck/dev/qa-labs/compozy-agent-plugins-20260816-20260816-061032-351590-lab/qa-artifacts/qa/teardown.json` records `clean: true`, no survivors, and all registered daemon, provider, fixture, and browser processes stopped.
-- **Exit gate:** pending the one workflow-wide `make gate-full` after deep review and the last mutation.
+- **Exit gate:** this immutable report does not duplicate the content-addressed gate result; `make gate-status` is the authoritative record for the exact closing tree.
 - **Verdict:** **not ready for the external compatible-clients claim** because OpenClaw cannot accept the required hosted MCP projection. The implemented Claude Code/Hermes and eight-item conformance paths are ready for final review/gate.

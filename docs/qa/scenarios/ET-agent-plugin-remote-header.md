@@ -8,9 +8,9 @@ expected: A Vault-backed extension environment binding targets one declared stre
 entry_points: compozy extension secrets bind <name> --env <key> --vault-ref <ref> --remote-header <server>:<header>; compozy extension secrets list; GET and PUT /api/extensions/:name/secrets over HTTP and UDS; https://compozy.com/docs/extensions/secrets; remote MCP invocation through a managed session
 qa_status: pass
 bug_ids: BUG-20260816-hosted-mcp-bootstrap-projection
-fix_status: pending
+fix_status: fixed
 retest_status: pass
-fix_commits:
+fix_commits: 35100d40b55c
 evidence: docs/qa/evidence/2026-08-16-agent-plugins/provider-matrix.json; /Users/pedronauck/dev/qa-labs/compozy-agent-plugins-20260816-20260816-061032-351590-lab/qa-artifacts/qa/remote-mcp-requests.jsonl
 last_report: docs/qa/reports/2026-08-16-agent-plugins.md
 overlaps: ET-ext-secrets-binding; ET-mcp-result-secret-redaction

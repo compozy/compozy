@@ -1,6 +1,6 @@
 # BUG-20260816-agent-plugin-validation-exit: Fatal portable validation exits successfully
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno
@@ -27,7 +27,7 @@ could therefore treat an invalid package as releasable.
 ## Fix
 
 - **Root cause:** The CLI renderer treated every successful validation command dispatch as a zero exit even when the returned portable validation result was fatal.
-- **Fix commit:** pending the task 08 remediation checkpoint
+- **Fix commit:** `35100d40b55c`
 - **Regression suite:** `internal/cli/root_test.go`
 
 ## Verification

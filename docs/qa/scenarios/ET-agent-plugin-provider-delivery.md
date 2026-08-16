@@ -10,7 +10,7 @@ qa_status: blocked-decision
 bug_ids: BUG-20260816-hosted-mcp-bootstrap-projection; BUG-20260816-openclaw-session-mcp-gap
 fix_status: deferred
 retest_status: pending
-fix_commits:
+fix_commits: 35100d40b55c
 evidence: docs/qa/evidence/2026-08-16-agent-plugins/provider-matrix.json
 last_report: docs/qa/reports/2026-08-16-agent-plugins.md
 overlaps: ET-agent-plugin-conformance-walk; ET-agent-plugin-source-install; ET-managed-session-skill-loading
