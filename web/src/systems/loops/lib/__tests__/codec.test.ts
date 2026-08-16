@@ -38,6 +38,15 @@ function richDefinition(): LoopDefinition {
           provenance: "file",
         },
         {
+          id: "fan",
+          class: "control",
+          kind: "fan-out",
+          collection: "{{ .nodes.load.output.items }}",
+          strategy: { kind: "best_effort", threshold: "66%", missing: "acceptable" },
+          bind_as: "file",
+          index_as: "file_index",
+        },
+        {
           id: "execute",
           class: "action",
           kind: "run-agent",
@@ -70,7 +79,8 @@ function richDefinition(): LoopDefinition {
         },
       ],
       edges: [
-        { from: "load", to: "execute" },
+        { from: "load", to: "fan" },
+        { from: "fan", to: "execute" },
         { from: "execute", to: "review" },
       ],
     } as unknown as LoopDefinition["graph"],
@@ -103,6 +113,18 @@ describe("loop codec", () => {
     });
   });
 
+  it("Should preserve strategy thresholds and iteration names", () => {
+    const def = richDefinition();
+    const { nodes, edges } = definitionToGraph(def);
+    const rebuilt = graphToDefinition(def, nodes, edges);
+    const rawNodes = (rebuilt.graph as unknown as { nodes: Record<string, unknown>[] }).nodes;
+    expect(rawNodes.find(node => node.id === "fan")).toMatchObject({
+      strategy: { kind: "best_effort", threshold: "66%", missing: "acceptable" },
+      bind_as: "file",
+      index_as: "file_index",
+    });
+  });
+
   it("Should round-trip the real implement-tasks definition", () => {
     const def = loopDetailByName.get("implement-tasks")!.definition;
     const { nodes, edges } = definitionToGraph(def);
@@ -119,8 +141,8 @@ describe("loop codec", () => {
     expect((execute.data.raw.params as Record<string, unknown>).prompt).toBe(
       "do {{ .item.title }}"
     );
-    expect(edges[0].id).toBe(editorEdgeId("load", "execute", 0));
-    expect(edges[0].source).toBe("load");
+    expect(edges[1].id).toBe(editorEdgeId("fan", "execute", 1));
+    expect(edges[1].source).toBe("fan");
   });
 
   it("Should preserve sibling nodes' unknown fields when one node is edited then published", () => {

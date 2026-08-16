@@ -54,6 +54,14 @@ const (
 	CodeFanOutUnbounded = "fan_out_unbounded"
 	// CodeFanOutCeilingExceeded reports fan-out width beyond LoopMaxFanoutWidth.
 	CodeFanOutCeilingExceeded = "fan_out_ceiling_exceeded"
+	// CodeStrategyCoverageUndeclared reports partial coverage without explicit author consent.
+	CodeStrategyCoverageUndeclared = "strategy_coverage_undeclared"
+	// CodeStrategyThresholdInvalid reports a malformed or misplaced strategy threshold.
+	CodeStrategyThresholdInvalid = "strategy_threshold_invalid"
+	// CodeStrategyWaitAllEquivalent hints that a 100-percent quorum is wait_all.
+	CodeStrategyWaitAllEquivalent = "strategy_wait_all_equivalent"
+	// CodeIterationNameConflict reports colliding or reserved fan-out iteration names.
+	CodeIterationNameConflict = "iteration_name_conflict"
 	// CodeGateMaxRevisionsCeilingExceeded reports gate max_revisions beyond its ceiling.
 	CodeGateMaxRevisionsCeilingExceeded = "gate_max_revisions_ceiling_exceeded"
 	// CodeNodeIDInvalid reports a non-snake_case node id.

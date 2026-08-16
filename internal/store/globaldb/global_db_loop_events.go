@@ -50,6 +50,7 @@ const (
 	loopRunEventRequestExpired          = "request_expired"
 	loopRunEventRequestCanceled         = "request_canceled"
 	loopRunEventNodeAmended             = "node_amended"
+	loopRunEventBranchPruned            = "branch_pruned"
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
@@ -150,6 +151,14 @@ func appendLoopRunStatusEventWithFailureAndEffects(
 		loopRunEventPayloadKeyTo:     string(to),
 		loopRunEventPayloadKeyStatus: string(to),
 		loopRunEventPayloadKeyCause:  string(cause),
+	}
+	if to.Terminal() {
+		var completionState string
+		if err := exec.QueryRowContext(ctx, `SELECT completion_state FROM loop_runs WHERE id = ?`,
+			runID).Scan(&completionState); err != nil {
+			return fmt.Errorf("store: load Loop completion state for status event: %w", err)
+		}
+		payload["completion_state"] = completionState
 	}
 	if failure != nil {
 		payload[loopRunEventPayloadKeyFailure] = failure
@@ -289,7 +298,8 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventRequestAnswered,
 		loopRunEventRequestExpired,
 		loopRunEventRequestCanceled,
-		loopRunEventNodeAmended:
+		loopRunEventNodeAmended,
+		loopRunEventBranchPruned:
 		return true
 	default:
 		return false

@@ -733,6 +733,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"workspace_id",
 		"loop_name",
 		"status",
+		"completion_state",
 		"generation",
 		"reattempt_strategy",
 		"last_progress_at",
@@ -1036,6 +1037,10 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "REFERENCES loop_runs(id) ON DELETE CASCADE")
 	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "'retrying'")
 	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "'quarantined'")
+	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "'partial'")
+	assertTableSQLContains(t, globalDB.db, "loop_runs", "completion_state")
+	assertTableSQLContains(t, globalDB.db, "loop_runs", "'complete','partial'")
+	assertTableSQLContains(t, globalDB.db, "loop_run_events", "'branch_pruned'")
 	assertTableSQLContains(t, globalDB.db, "loop_generation_outputs", "CHECK (attempt >= 1)")
 	assertTableSQLContains(
 		t,

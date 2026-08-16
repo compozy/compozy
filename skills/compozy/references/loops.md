@@ -321,8 +321,9 @@ escapes, comments, and `<<` constructs; compilation rejects unsafe substitutions
 authored pipes, redirects, and chaining while preventing inputs, trigger payloads, or node outputs
 from introducing shell syntax.
 
-Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`, `item`/`index`
-(fan-out scope only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`
+Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`,
+`nodes.<fan-out-id>.progress.<field>`, `item`/`index` and `progress.<field>` (fan-out body only),
+custom `bind_as`/`index_as` names (their fan-out body only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`
 `events[].filter` scope only), `generation`, plus these read-only history roots:
 
 - `previous.generation`, `previous.nodes.<id>.{status,output}`,
@@ -334,6 +335,13 @@ Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status
 `previous` is empty on generation 1; `best` is empty until one metric candidate becomes eligible.
 Guard history-dependent templates with `{{ with .previous }}` or `{{ with .best }}`. Node IDs match
 `^[a-z][a-z0-9_]*$` (lowercase snake_case) so the same ID is valid in templates and CEL.
+
+Fan-out `strategy` is `wait_all` by default. `fail_fast` and `race` accept string shorthand.
+`best_effort` uses object form with `threshold: "66%"` or `threshold: {count: 2}` and requires
+`missing: acceptable`. Collect output is `{total,succeeded,failed,canceled,coverage_rate,partial}`;
+run list/status payloads expose `completion_state` as `complete` or `partial`. Progress fields are
+`total`, `succeeded`, `failed`, `canceled`, `running`, `pending`, `settled`, `success_rate`, and
+`failure_rate`.
 
 Node classes: `action` (open), `control` (closed), `source` (closed). Reserved **action** kinds are
 `goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID

@@ -187,6 +187,7 @@ export function reviewAndFixRun(overrides: Partial<LoopRunRecord> = {}): LoopRun
     workspace_id: "ws_default",
     loop_name: "review-and-fix",
     status: "running",
+    completion_state: "complete",
     generation: 2,
     reattempt_strategy: "failed_only",
     created_at: minutesAgo(22),

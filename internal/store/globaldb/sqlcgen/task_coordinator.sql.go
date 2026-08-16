@@ -78,17 +78,22 @@ SET status = ?1,
       WHEN ?1 != CAST(?3 AS TEXT) THEN ''
       ELSE active_gate_id
     END,
-    active_human_criteria_json = CASE
+		active_human_criteria_json = CASE
       WHEN ?1 != CAST(?3 AS TEXT) THEN '[]'
       ELSE active_human_criteria_json
-    END
-WHERE id = ?4 AND status = ?5
+		END,
+	completion_state = CASE
+		WHEN ?4 = 1 THEN 'partial'
+		ELSE completion_state
+	END
+WHERE id = ?5 AND status = ?6
 `
 
 type TransitionLoopCoordinatorBoundaryParams struct {
 	ToStatus            string `json:"to_status"`
 	Generation          int64  `json:"generation"`
 	NeedsApprovalStatus string `json:"needs_approval_status"`
+	CompletionPartial   any    `json:"completion_partial"`
 	ID                  string `json:"id"`
 	FromStatus          string `json:"from_status"`
 }
@@ -98,6 +103,7 @@ func (q *Queries) TransitionLoopCoordinatorBoundary(ctx context.Context, arg Tra
 		arg.ToStatus,
 		arg.Generation,
 		arg.NeedsApprovalStatus,
+		arg.CompletionPartial,
 		arg.ID,
 		arg.FromStatus,
 	)

@@ -171,7 +171,31 @@ rejects the node run deterministically before an ungated session can start.
 | `wait`     | Park on time or one durable event         | `params`: exactly one of `for`, `until`, `event`; optional `expect`, `ahead_arrival`, `expires` |
 
 `fan-out` exposes `item` and `index` to its branch scope — a single element at `batch_size: 1`, an
-array slice above it.
+array slice above it. Use `bind_as` and `index_as` to give nested fan-outs distinct names.
+
+The default strategy is `wait_all`. `fail_fast` ends on the first definitive failure, and `race`
+accepts the lowest-index successful lane. `best_effort` requires both a threshold and an explicit
+declaration that missing results are acceptable:
+
+```yaml
+- id: inspect_files
+  class: control
+  kind: fan-out
+  collection: "{{ .nodes.changed.output.files }}"
+  bind_as: file
+  index_as: file_index
+  strategy:
+    kind: best_effort
+    threshold: 66%
+    missing: acceptable
+```
+
+Thresholds use a percentage such as `66%` or a count such as `{ count: 2 }`. A collect result is
+`succeeded`, `partial`, or `failed`. Its output contains `total`, `succeeded`, `failed`, `canceled`,
+`coverage_rate`, and `partial`. Read live counts through `nodes.<fan-out-id>.progress.*`; inside that
+fan-out body, `progress.*` is the short form. Available fields are `total`, `succeeded`, `failed`,
+`canceled`, `running`, `pending`, `settled`, `success_rate`, and `failure_rate`. Rates are `0` for an
+empty collection.
 
 Routing predicates fail the node by default when CEL evaluation fails. A `branch` or filtered
 `watch-events` node may set `on_eval_error: exit` to end the Loop successfully instead. Predicate

@@ -75,6 +75,18 @@ generic node retry; it owns its turn and recovery contract.
 `payload_declared`; `message_field` selects its safe operator message. In `on_error`, choose exactly
 one of `route` or `allow_fail`. Effects do not change that routing decision.
 
+## Fan-out failures and partial completion
+
+Fan-out strategies act only on definitive lane outcomes. `fail_fast` cancels unfinished siblings
+after a definitive failure. `race` keeps the lowest-index successful result and cancels unfinished
+losers. `best_effort` admits its collect node when the declared percentage or count is reached; if
+some lanes are missing, the collect cell is `partial` and the terminal run reports
+`completion_state: partial`.
+
+Strategy cancellation is not a lane failure. Canceled cells record `canceled_by_strategy`, and the
+run event stream records one bounded `branch_pruned` cause. A late result cannot change an admitted
+join; it is retained as `late_arrival` history.
+
 ## Effects observe committed truth
 
 Node effects are `on_retry`, `on_success`, `on_pause`, `on_timeout`, `on_cancel`, and

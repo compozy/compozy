@@ -160,6 +160,15 @@ export function fanOutFields(_raw: RawLoopNode): FieldSpec[] {
     { type: "number", key: "batch_size", label: "Batch size", path: ["batch_size"] },
     { type: "number", key: "max_parallel", label: "Max parallel", path: ["max_parallel"] },
     {
+      type: "text",
+      key: "strategy",
+      label: "Strategy",
+      path: ["strategy"],
+      json: true,
+    },
+    { type: "text", key: "bind_as", label: "Item name", path: ["bind_as"] },
+    { type: "text", key: "index_as", label: "Index name", path: ["index_as"] },
+    {
       type: "number",
       key: "max_fan_out",
       label: "Max fan-out",

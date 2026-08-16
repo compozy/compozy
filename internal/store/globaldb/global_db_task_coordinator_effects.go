@@ -2,6 +2,8 @@ package globaldb
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -51,14 +53,18 @@ func appendCanceledRequestEventsForNode(
 	generation int,
 	nodeID string,
 	at time.Time,
-) error {
+) (err error) {
 	rows, err := exec.QueryContext(ctx, `SELECT item_index, actor_kind, actor_id FROM loop_requests
 		WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND state = 'canceled'
 		AND resolved_at = ?`, run.ID, generation, nodeID, at.UTC())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close canceled Loop request rows: %w", closeErr))
+		}
+	}()
 	type canceledRequest struct {
 		itemIndex int
 		actorKind string

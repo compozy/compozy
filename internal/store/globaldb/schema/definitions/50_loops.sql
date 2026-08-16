@@ -80,7 +80,7 @@ CREATE TABLE loop_generation_outputs (
 			item_index        INTEGER NOT NULL DEFAULT 0,
 			status            TEXT NOT NULL CHECK (status IN (
 				'pending','enqueued','running','retrying','waiting','paused','awaiting_child',
-				'control_pending','awaiting_goal','succeeded','failed','canceled','quarantined'
+				'control_pending','awaiting_goal','succeeded','partial','failed','canceled','quarantined'
 			)),
 			output_ref        TEXT,
 			task_run_id       TEXT,
@@ -502,7 +502,7 @@ CREATE TABLE loop_run_events (
 				'goal_turn_started','goal_turn_completed','goal_status_changed','runtime_applied',
 				'predicate_diagnostic','route_taken','node_retry_scheduled','stale_schedule_dropped',
 				'late_arrival','effect_results','custom_event','request_opened','request_answered',
-				'request_expired','request_canceled','node_amended'
+				'request_expired','request_canceled','node_amended','branch_pruned'
 			)),
 			payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
 			at           TIMESTAMP NOT NULL,
@@ -514,6 +514,8 @@ CREATE TABLE loop_runs (
 			workspace_id         TEXT NOT NULL,
 			loop_name            TEXT NOT NULL,
 			status               TEXT NOT NULL,
+			completion_state     TEXT NOT NULL DEFAULT 'complete'
+				CHECK (completion_state IN ('complete','partial')),
 			generation           INTEGER NOT NULL DEFAULT 0,
 			reattempt_strategy   TEXT NOT NULL DEFAULT 'failed_only',
 			last_progress_at     TIMESTAMP NOT NULL,

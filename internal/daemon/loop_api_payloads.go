@@ -97,6 +97,7 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		WorkspaceID:                  string(run.WorkspaceID),
 		LoopName:                     run.LoopName,
 		Status:                       contract.LoopRunStatus(run.Status),
+		CompletionState:              contract.LoopCompletionState(run.CompletionState),
 		Generation:                   int64(run.Generation),
 		ReattemptStrategy:            contract.LoopReattemptStrategy(run.ReattemptStrategy),
 		CreatedAt:                    run.CreatedAt,

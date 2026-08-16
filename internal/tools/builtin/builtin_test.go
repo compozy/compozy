@@ -551,7 +551,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		cancel := descriptors[toolspkg.ToolIDLoopCancel]
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
 		assertNativeOutputSchemaAccepts(t, status, `{
-			"run":{"id":"run-1","best_generation":2,"best_score":0.91},
+			"run":{"id":"run-1","completion_state":"partial","best_generation":2,"best_score":0.91},
 			"materialized_contract":{"goal":"Ship weather-app","definition_of_done":"All tasks complete"},
 			"node_controls":[],
 			"waits":[],
@@ -566,11 +566,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			}]
 		}`)
 		assertNativeOutputSchemaAccepts(t, runs, `{
-			"runs":[{"id":"run-1","best_generation":2,"best_score":0.91}],
+			"runs":[{"id":"run-1","completion_state":"complete","best_generation":2,"best_score":0.91}],
 			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0}
 		}`)
 		assertNativeOutputSchemaRejects(t, runs, `{
-			"runs":[{"id":"run-1","generations":[]}],
+			"runs":[{"id":"run-1","completion_state":"complete","generations":[]}],
 			"aggregates":{"total":1,"live":0,"terminal":1,"succeeded":1,"failed":0}
 		}`)
 		assertNativeOutputSchemaRejects(t, status, `{

@@ -35,7 +35,7 @@ func (r *CoordinatorRunner) buildGenerationFinisherPlan(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	failed := selectFailedOutput(state.outputs)
+	failed := selectFailedOutputControlAware(def.Graph, state.topology, state.outputs)
 	plan := coordinatorFinisherPlan(run, generation, state.outputs, state.loopStops)
 	if err := appendAttemptsToGenerationSnapshot(&plan.Snapshot, state.attempts); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
@@ -207,6 +207,11 @@ func (r *CoordinatorRunner) buildGoalControlFinisherPlan(
 	live bool,
 	controlTerminal *task.CoordinatorTerminal,
 ) (task.CoordinatorCompletionPlan, error) {
+	if !live {
+		plan.Terminal = controlTerminal
+		plan.GenerationInFlight = false
+		return plan, nil
+	}
 	goalPlan, err := r.buildLiveGenerationPlan(
 		ctx,
 		taskRun,

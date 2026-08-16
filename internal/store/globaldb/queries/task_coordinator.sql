@@ -24,10 +24,14 @@ SET status = sqlc.arg(to_status),
       WHEN sqlc.arg(to_status) != CAST(sqlc.arg(needs_approval_status) AS TEXT) THEN ''
       ELSE active_gate_id
     END,
-    active_human_criteria_json = CASE
+		active_human_criteria_json = CASE
       WHEN sqlc.arg(to_status) != CAST(sqlc.arg(needs_approval_status) AS TEXT) THEN '[]'
       ELSE active_human_criteria_json
-    END
+		END,
+	completion_state = CASE
+		WHEN sqlc.arg(completion_partial) = 1 THEN 'partial'
+		ELSE completion_state
+	END
 WHERE id = sqlc.arg(id) AND status = sqlc.arg(from_status);
 
 -- name: UpdateLoopRunGeneration :execrows

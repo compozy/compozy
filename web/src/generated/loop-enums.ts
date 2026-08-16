@@ -73,6 +73,7 @@ export const LOOP_RUN_EVENT_KINDS = [
   "request_expired",
   "request_canceled",
   "node_amended",
+  "branch_pruned",
 ] as const;
 
 export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];
@@ -131,6 +132,7 @@ export const LOOP_RUN_LIFECYCLE_EVENT_KINDS = [
   "custom_event",
   "duplicate_suppressed",
   "target_breaker_transition",
+  "branch_pruned",
 ] as const;
 
 export const LOOP_WATCH_EVENT_KINDS = [

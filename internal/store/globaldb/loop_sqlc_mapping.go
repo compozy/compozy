@@ -79,6 +79,7 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 			IterationCap: int(row.IterationCap), GoalContextNudgeRatio: row.GoalContextNudgeRatio,
 		},
 		runID: row.ID, workspaceID: row.WorkspaceID, status: row.Status, reattempt: row.ReattemptStrategy,
+		completionState:  row.CompletionState,
 		budgetOnExceeded: row.BudgetOnExceeded, createdAtRaw: row.CreatedAt,
 		startedAtRaw: row.StartedAt, lastProgressAtRaw: store.FormatTimestamp(row.LastProgressAt),
 		activeHumanRaw: row.ActiveHumanCriteriaJson, startMetadataRaw: row.StartMetadataJson,

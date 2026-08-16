@@ -721,6 +721,79 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			wantCodes: []string{loop.CodeFanOutUnbounded},
 		},
 		{
+			name: "Should require explicit acceptable missing coverage for best effort",
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "fan")
+				node.Strategy = &dsl.StrategySpec{
+					Kind: dsl.StrategyBestEffort,
+					Threshold: &dsl.StrategyThreshold{
+						Kind: dsl.ThresholdPercent, Percent: 66,
+					},
+				}
+			},
+			wantCodes: []string{loop.CodeStrategyCoverageUndeclared},
+		},
+		{
+			name: "Should reject invalid strategy thresholds",
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "fan")
+				node.Strategy = &dsl.StrategySpec{
+					Kind: dsl.StrategyBestEffort,
+					Threshold: &dsl.StrategyThreshold{
+						Kind: dsl.ThresholdCount, Count: 0,
+					},
+					Missing: dsl.MissingAcceptable,
+				}
+			},
+			wantCodes: []string{loop.CodeStrategyThresholdInvalid},
+		},
+		{
+			name: "Should reject reserved iteration names",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "fan").BindAs = "previous"
+			},
+			wantCodes: []string{loop.CodeIterationNameConflict},
+		},
+		{
+			name: "Should reject duplicate iteration names",
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "fan")
+				node.BindAs = "entry"
+				node.IndexAs = "entry"
+			},
+			wantCodes: []string{loop.CodeIterationNameConflict},
+		},
+		{
+			name: "Should reject iteration names shadowed by nested fan outs",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "fan").BindAs = "entry"
+				def.Graph.Nodes = append(def.Graph.Nodes, dsl.Node{
+					ID: "inner", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut),
+					Collection: "{{ json .item.children }}", MaxFanOut: 4, BindAs: "entry",
+				})
+				def.Graph.Edges = []dsl.Edge{
+					{From: "load", To: "fan"}, {From: "fan", To: "inner"}, {From: "inner", To: "agent"},
+				}
+			},
+			wantCodes: []string{loop.CodeIterationNameConflict},
+		},
+		{
+			name: "Should reject iteration aliases outside their fan out body",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "fan").BindAs = "file"
+				def.Graph.Nodes = append(def.Graph.Nodes,
+					dsl.Node{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+					dsl.Node{ID: "after", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+						Params: dsl.NodeParams{"agent": "codex", "prompt": "Use {{ .file }}"}},
+				)
+				def.Graph.Edges = []dsl.Edge{
+					{From: "load", To: "fan"}, {From: "fan", To: "agent"},
+					{From: "agent", To: "collect"}, {From: "collect", To: "after"},
+				}
+			},
+			wantCodes: []string{refs.CodeUnknownReference},
+		},
+		{
 			name: "Should reject gate max revisions over ceiling",
 			mutate: func(def *dsl.Definition) {
 				appendGate(def, dsl.Node{

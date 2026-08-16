@@ -53,6 +53,11 @@ func applyCoordinatorGenerationSnapshotIntentsWithExecutor(
 	); err != nil {
 		return err
 	}
+	if err := applyStrategyCancellationsWithExecutor(
+		ctx, exec, run, snapshot.Generation, payload.StrategyCancellations,
+	); err != nil {
+		return err
+	}
 	if err := appendGenerationLifecycleEventsWithExecutor(
 		ctx, exec, run, snapshot.Generation, provenance, payload, at,
 	); err != nil {
@@ -315,6 +320,14 @@ func appendGenerationLifecycleEventWithExecutor(
 			payload,
 			at,
 		)
+	case looppkg.GenerationLifecycleEventBranchPruned:
+		return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
+			loopRunEventBranchPruned, map[string]any{
+				loopRunEventPayloadKeyGeneration: generation,
+				loopRunEventPayloadKeyNodeID:     event.NodeID,
+				"item_indexes":                   event.ItemIndexes,
+				loopRunEventPayloadKeyReason:     event.Reason,
+			}, at)
 	default:
 		return nil
 	}

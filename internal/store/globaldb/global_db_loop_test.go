@@ -65,6 +65,8 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 		loopRunEventRequestAnswered:         {},
 		loopRunEventRequestExpired:          {},
 		loopRunEventRequestCanceled:         {},
+		loopRunEventNodeAmended:             {},
+		loopRunEventBranchPruned:            {},
 	}
 	for _, kind := range contract.LoopRunEventKindValues() {
 		t.Run("Should accept public kind "+kind, func(t *testing.T) {

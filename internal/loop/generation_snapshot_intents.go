@@ -44,6 +44,8 @@ const (
 	GenerationLifecycleEventPredicateDiagnostic GenerationLifecycleEventKind = "predicate_diagnostic"
 	// GenerationLifecycleEventRouteTaken records one exclusive routing decision.
 	GenerationLifecycleEventRouteTaken GenerationLifecycleEventKind = "route_taken"
+	// GenerationLifecycleEventBranchPruned records one bounded strategy-cancel aggregate.
+	GenerationLifecycleEventBranchPruned GenerationLifecycleEventKind = "branch_pruned"
 )
 
 // GenerationLifecycleEventIntent requests one durable generation lifecycle event.
@@ -83,6 +85,7 @@ type GenerationLifecycleEventIntent struct {
 	SelectedRoute           string                 `json:"selected_route,omitempty"`
 	MatchedWhen             string                 `json:"matched_when,omitempty"`
 	DefaultRoute            bool                   `json:"default_route,omitempty"`
+	ItemIndexes             []int                  `json:"item_indexes,omitempty"`
 }
 
 func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventIntent {
@@ -105,6 +108,7 @@ func (i GenerationLifecycleEventIntent) normalized() GenerationLifecycleEventInt
 	i.DiagnosticCode = strings.TrimSpace(i.DiagnosticCode)
 	i.SelectedRoute = strings.TrimSpace(i.SelectedRoute)
 	i.MatchedWhen = strings.TrimSpace(i.MatchedWhen)
+	i.ItemIndexes = append([]int(nil), i.ItemIndexes...)
 	i.AheadCursors = cloneInt64Map(i.AheadCursors)
 	if len(i.QuarantineEntry) > 0 {
 		i.QuarantineEntry = append(json.RawMessage(nil), i.QuarantineEntry...)
@@ -158,6 +162,8 @@ func (i GenerationLifecycleEventIntent) validate() error {
 		err = i.validatePredicateDiagnostic()
 	case GenerationLifecycleEventRouteTaken:
 		err = i.validateRouteTaken()
+	case GenerationLifecycleEventBranchPruned:
+		err = i.validateBranchPruned()
 	default:
 		return fmt.Errorf("%w: generation lifecycle event kind is invalid: %q", ErrValidation, i.Kind)
 	}
@@ -167,6 +173,18 @@ func (i GenerationLifecycleEventIntent) validate() error {
 	for _, effect := range i.Effects {
 		if err := effect.Validate(); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func (i GenerationLifecycleEventIntent) validateBranchPruned() error {
+	if i.NodeID == "" || i.Reason == "" || len(i.ItemIndexes) == 0 {
+		return fmt.Errorf("%w: branch_pruned event has incomplete strategy identity", ErrValidation)
+	}
+	for _, itemIndex := range i.ItemIndexes {
+		if itemIndex < 0 {
+			return fmt.Errorf("%w: branch_pruned item index is invalid", ErrValidation)
 		}
 	}
 	return nil
@@ -340,6 +358,10 @@ func normalizeGenerationSnapshotIntents(payload GenerationSnapshotPayload) (Gene
 		requests[index] = normalized
 	}
 	payload.Requests = requests
+	payload.StrategyCancellations, err = normalizeStrategyCancellationIntents(payload.StrategyCancellations)
+	if err != nil {
+		return GenerationSnapshotPayload{}, err
+	}
 	controls, err := normalizeNodeControlMutations(payload.Controls)
 	if err != nil {
 		return GenerationSnapshotPayload{}, err

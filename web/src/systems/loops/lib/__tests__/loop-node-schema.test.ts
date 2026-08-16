@@ -58,6 +58,10 @@ describe("loop node schema", () => {
     const raw: RawLoopNode = { id: "implement", class: "control", kind: "fan-out" };
     const fanOut = buildNodeFields(raw).find(f => "key" in f && f.key === "max_fan_out");
     expect(fanOut).toMatchObject({ type: "number", ceiling: 64 });
+    const fields = buildNodeFields(raw);
+    expect(fieldByKey(fields, "strategy")).toMatchObject({ type: "text", json: true });
+    expect(fieldByKey(fields, "bind_as")).toMatchObject({ path: ["bind_as"] });
+    expect(fieldByKey(fields, "index_as")).toMatchObject({ path: ["index_as"] });
   });
 
   it("Should render a gate with a criteria editor, verdict policy, and editable routing", () => {

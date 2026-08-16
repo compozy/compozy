@@ -45,6 +45,30 @@ func (s CoordinatorParentCloseSpec) Validate(path string) error {
 	}
 }
 
+// Normalize trims a committed lane-cancellation delivery.
+func (s CoordinatorLaneCancelSpec) Normalize() CoordinatorLaneCancelSpec {
+	normalized := s
+	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
+	normalized.NodeID = strings.TrimSpace(normalized.NodeID)
+	normalized.ReasonCode = strings.TrimSpace(normalized.ReasonCode)
+	normalized.SessionIDs = make([]string, 0, len(s.SessionIDs))
+	for _, sessionID := range s.SessionIDs {
+		if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
+			normalized.SessionIDs = append(normalized.SessionIDs, trimmed)
+		}
+	}
+	return normalized
+}
+
+// Validate rejects lane deliveries without exact Loop cell identity.
+func (s CoordinatorLaneCancelSpec) Validate(path string) error {
+	if strings.TrimSpace(s.LoopRunID) == "" || strings.TrimSpace(s.NodeID) == "" ||
+		s.ItemIndex < 0 || strings.TrimSpace(s.ReasonCode) == "" {
+		return fmt.Errorf("%w: %s has incomplete lane cancellation identity", ErrValidation, path)
+	}
+	return nil
+}
+
 // Normalize returns a normalized post-commit wake request.
 func (s CoordinatorWakeSpec) Normalize() CoordinatorWakeSpec {
 	return CoordinatorWakeSpec{

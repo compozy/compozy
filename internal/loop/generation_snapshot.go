@@ -15,17 +15,18 @@ import (
 
 // GenerationSnapshotPayload is the loop-owned payload carried by task.GenerationSnapshot.
 type GenerationSnapshotPayload struct {
-	Outputs              []GenerationOutput                `json:"outputs,omitempty"`
-	Attempts             []NodeAttempt                     `json:"attempts,omitempty"`
-	Controls             []NodeControlMutation             `json:"controls,omitempty"`
-	Waits                []NodeWaitIntent                  `json:"waits,omitempty"`
-	Requests             []RequestIntent                   `json:"requests,omitempty"`
-	OutputBlobs          []GenerationOutputBlob            `json:"output_blobs,omitempty"`
-	Verdicts             []gate.VerdictIntent              `json:"verdicts,omitempty"`
-	BestUpdate           *gate.BestUpdateIntent            `json:"best_update,omitempty"`
-	GenerationProvenance *GenerationIntent                 `json:"generation_provenance,omitempty"`
-	Events               []GenerationLifecycleEventIntent  `json:"events,omitempty"`
-	BoundaryEffects      map[Status][]RenderedEffectIntent `json:"boundary_effects,omitempty"`
+	Outputs               []GenerationOutput                `json:"outputs,omitempty"`
+	Attempts              []NodeAttempt                     `json:"attempts,omitempty"`
+	Controls              []NodeControlMutation             `json:"controls,omitempty"`
+	Waits                 []NodeWaitIntent                  `json:"waits,omitempty"`
+	Requests              []RequestIntent                   `json:"requests,omitempty"`
+	StrategyCancellations []StrategyCancellationIntent      `json:"strategy_cancellations,omitempty"`
+	OutputBlobs           []GenerationOutputBlob            `json:"output_blobs,omitempty"`
+	Verdicts              []gate.VerdictIntent              `json:"verdicts,omitempty"`
+	BestUpdate            *gate.BestUpdateIntent            `json:"best_update,omitempty"`
+	GenerationProvenance  *GenerationIntent                 `json:"generation_provenance,omitempty"`
+	Events                []GenerationLifecycleEventIntent  `json:"events,omitempty"`
+	BoundaryEffects       map[Status][]RenderedEffectIntent `json:"boundary_effects,omitempty"`
 }
 
 // GenerationOutput is one loop_generation_outputs row mutation.
@@ -411,6 +412,7 @@ func (o GenerationOutput) validate() error {
 		generationOutputControlPending,
 		generationOutputAwaitingGoal,
 		generationOutputSucceeded,
+		generationOutputPartial,
 		generationOutputFailed,
 		generationOutputCanceled,
 		generationOutputQuarantined:

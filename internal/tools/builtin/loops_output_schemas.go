@@ -6,9 +6,10 @@ const loopStatusOutputSchema = `{
 	"properties":{
 		"run":{
 			"type":"object",
-			"required":["id"],
+			"required":["id","completion_state"],
 			"properties":{
 				"id":{"type":"string","minLength":1},
+				"completion_state":{"type":"string","enum":["complete","partial"]},
 				"best_generation":{"type":"integer","minimum":1},
 				"best_score":{"type":"number"}
 			},
@@ -74,9 +75,10 @@ const loopRunsOutputSchema = `{
 			"items":{
 				"type":"object",
 				"not":{"required":["generations"]},
-				"required":["id"],
+				"required":["id","completion_state"],
 				"properties":{
 					"id":{"type":"string","minLength":1},
+					"completion_state":{"type":"string","enum":["complete","partial"]},
 					"best_generation":{"type":"integer","minimum":1},
 					"best_score":{"type":"number"}
 				},

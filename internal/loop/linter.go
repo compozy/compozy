@@ -54,9 +54,11 @@ func (l *DefinitionLinter) Lint(def dsl.Definition) []LintError {
 }
 
 type conditionCompilerKey struct {
-	allowFanout  bool
-	allowTrigger bool
-	allowEvent   bool
+	allowFanout    bool
+	allowTrigger   bool
+	allowEvent     bool
+	allowProgress  bool
+	iterationNames string
 }
 
 type lintContext struct {
@@ -241,30 +243,6 @@ func (c *lintContext) lintControlNode(node dsl.Node) {
 	}
 }
 
-func (c *lintContext) lintFanOut(node dsl.Node) {
-	if strings.TrimSpace(node.Collection) == "" || node.MaxFanOut <= 0 {
-		c.add(node.ID, CodeFanOutUnbounded, "fan-out must declare collection and max_fan_out")
-	}
-	if node.MaxFanOut > LoopMaxFanoutWidth {
-		c.add(
-			node.ID,
-			CodeFanOutCeilingExceeded,
-			"fan-out max_fan_out %d exceeds ceiling %d",
-			node.MaxFanOut,
-			LoopMaxFanoutWidth,
-		)
-	}
-	if node.MaxParallel > LoopMaxFanoutWidth {
-		c.add(
-			node.ID,
-			CodeFanOutCeilingExceeded,
-			"fan-out max_parallel %d exceeds ceiling %d",
-			node.MaxParallel,
-			LoopMaxFanoutWidth,
-		)
-	}
-}
-
 func (c *lintContext) lintGate(node dsl.Node) {
 	c.lintGateExpiry(node)
 	c.lintGateRoutes(node)
@@ -445,7 +423,7 @@ func (c *lintContext) lintReferences() {
 	c.lintContractReferences(base)
 	c.lintStartReferences()
 	for _, node := range c.def.Graph.Nodes {
-		namespace := c.namespace(c.inFanoutScope(node.ID), c.hasTriggerStart())
+		namespace := c.namespaceForNode(node.ID, c.hasTriggerStart())
 		c.lintNodeReferences(node, namespace)
 	}
 }

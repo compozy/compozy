@@ -234,6 +234,74 @@ CREATE TRIGGER trg_records_owner_guard
 			t.Fatalf("planned migration lost a trigger owned by the rebuilt table:\n%s", migrationSQL)
 		}
 	})
+
+	t.Run("Should recreate triggers that reference a rebuilt table", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		migrationsDir := filepath.Join(root, "migrations")
+		if err := os.MkdirAll(migrationsDir, 0o700); err != nil {
+			t.Fatalf("create migrations directory: %v", err)
+		}
+		writeSchemaTestFile(t, migrationsDir, "00001_schema.sql", `-- +goose Up
+CREATE TABLE records (id TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE audit_log (record_id TEXT);
+-- +goose StatementBegin
+CREATE TRIGGER trg_audit_records
+AFTER INSERT ON audit_log
+BEGIN
+    SELECT value FROM records WHERE id = NEW.record_id;
+END;
+-- +goose StatementEnd
+`)
+		dir, err := sqltool.NewGooseDir(migrationsDir)
+		if err != nil {
+			t.Fatalf("open migration directory: %v", err)
+		}
+		if err := writeAtlasSum(dir, "test"); err != nil {
+			t.Fatalf("write migration checksum: %v", err)
+		}
+
+		desiredPath := filepath.Join(root, "schema.sql")
+		writeSchemaTestFile(t, root, "schema.sql", `CREATE TABLE records (
+    id TEXT PRIMARY KEY,
+    value TEXT CHECK (length(value) > 0)
+);
+CREATE TABLE audit_log (record_id TEXT);
+CREATE TRIGGER trg_audit_records
+AFTER INSERT ON audit_log
+BEGIN
+    SELECT value FROM records WHERE id = NEW.record_id;
+END;
+`)
+		plan, _, closeDev, err := planAtlasStream(testutil.Context(t), stream{
+			name:          "test",
+			schemaSource:  schemaSource{path: desiredPath},
+			migrationsDir: migrationsDir,
+		}, dir)
+		if err != nil {
+			t.Fatalf("planAtlasStream() error = %v", err)
+		}
+		defer func() {
+			if err := closeDev(); err != nil {
+				t.Errorf("close Atlas database: %v", err)
+			}
+		}()
+
+		var statements strings.Builder
+		for _, change := range plan.migration.Changes {
+			statements.WriteString(change.Cmd)
+			statements.WriteByte('\n')
+		}
+		migrationSQL := statements.String()
+		dropTrigger := strings.Index(migrationSQL, "DROP TRIGGER IF EXISTS `trg_audit_records`")
+		dropTable := strings.Index(migrationSQL, "DROP TABLE `records`")
+		recreateTrigger := strings.LastIndex(migrationSQL, "CREATE TRIGGER trg_audit_records")
+		if dropTrigger < 0 || dropTable < 0 || recreateTrigger < 0 ||
+			!(dropTrigger < dropTable && dropTable < recreateTrigger) {
+			t.Fatalf("planned migration does not bracket the rebuilt table with trigger repair:\n%s", migrationSQL)
+		}
+	})
 }
 
 func writeSchemaTestFile(t *testing.T, directory, name, contents string) {

@@ -44,6 +44,9 @@ type Node struct {
 	BatchSize           int                 `json:"batch_size,omitempty"     yaml:"batch_size,omitempty"`
 	MaxParallel         int                 `json:"max_parallel,omitempty"   yaml:"max_parallel,omitempty"`
 	MaxFanOut           int                 `json:"max_fan_out,omitempty"    yaml:"max_fan_out,omitempty"`
+	Strategy            *StrategySpec       `json:"strategy,omitempty"       yaml:"strategy,omitempty"`
+	BindAs              string              `json:"bind_as,omitempty"        yaml:"bind_as,omitempty"`
+	IndexAs             string              `json:"index_as,omitempty"       yaml:"index_as,omitempty"`
 	Condition           string              `json:"condition,omitempty"      yaml:"condition,omitempty"`
 	OnEvalError         EvalErrorPolicy     `json:"on_eval_error,omitempty"  yaml:"on_eval_error,omitempty"`
 	Routes              []RouteSpec         `json:"routes,omitempty"         yaml:"routes,omitempty"`

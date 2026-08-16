@@ -8,7 +8,67 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
+	"gopkg.in/yaml.v3"
 )
+
+// Invariant: strategy thresholds preserve their two authored forms exactly and reject every third form.
+// The canonical DSL codec suite owns YAML/JSON round-trip behavior.
+func TestCodecShouldRoundTripStrategyThresholds(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		authored string
+		want     dsl.StrategyThreshold
+	}{
+		{name: "Should preserve a percent threshold", authored: "66%", want: dsl.StrategyThreshold{Kind: dsl.ThresholdPercent, Percent: 66}},
+		{name: "Should preserve a count threshold", authored: "{count: 2}", want: dsl.StrategyThreshold{Kind: dsl.ThresholdCount, Count: 2}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var threshold dsl.StrategyThreshold
+			if err := yaml.Unmarshal([]byte(tt.authored), &threshold); err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v", err)
+			}
+			if !reflect.DeepEqual(threshold, tt.want) {
+				t.Fatalf("threshold = %#v, want %#v", threshold, tt.want)
+			}
+			encodedYAML, err := yaml.Marshal(threshold)
+			if err != nil {
+				t.Fatalf("yaml.Marshal() error = %v", err)
+			}
+			var yamlRoundTrip dsl.StrategyThreshold
+			if err := yaml.Unmarshal(encodedYAML, &yamlRoundTrip); err != nil {
+				t.Fatalf("yaml.Unmarshal(round trip) error = %v", err)
+			}
+			if !reflect.DeepEqual(yamlRoundTrip, tt.want) {
+				t.Fatalf("YAML round trip = %#v, want %#v", yamlRoundTrip, tt.want)
+			}
+			encodedJSON, err := json.Marshal(threshold)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			var jsonRoundTrip dsl.StrategyThreshold
+			if err := json.Unmarshal(encodedJSON, &jsonRoundTrip); err != nil {
+				t.Fatalf("json.Unmarshal(round trip) error = %v", err)
+			}
+			if !reflect.DeepEqual(jsonRoundTrip, tt.want) {
+				t.Fatalf("JSON round trip = %#v, want %#v", jsonRoundTrip, tt.want)
+			}
+		})
+	}
+
+	for _, authored := range []string{"0%", "101%", "{count: 0}", "{count: -1}", "{count: 2, percent: 50}", "{other: 2}", "sixty%"} {
+		t.Run("Should reject "+authored, func(t *testing.T) {
+			t.Parallel()
+			var threshold dsl.StrategyThreshold
+			if err := yaml.Unmarshal([]byte(authored), &threshold); err == nil {
+				t.Fatalf("yaml.Unmarshal(%q) error = nil, want rejection", authored)
+			}
+		})
+	}
+}
 
 func TestCodecShouldRoundTripNetworkParticipation(t *testing.T) {
 	t.Parallel()

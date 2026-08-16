@@ -18,6 +18,14 @@ const (
 	LoopSourceWorkspace   LoopSource = "workspace"
 )
 
+// LoopCompletionState distinguishes full success from accepted partial completion.
+type LoopCompletionState string
+
+const (
+	LoopCompletionStateComplete LoopCompletionState = "complete"
+	LoopCompletionStatePartial  LoopCompletionState = "partial"
+)
+
 // LoopRunStatus is the public loop run state vocabulary.
 type LoopRunStatus string
 

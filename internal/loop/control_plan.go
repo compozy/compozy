@@ -216,8 +216,7 @@ func evaluateControlNodeKind(
 	case dsl.ControlFanOut:
 		return evaluateFanOutNode(eval, plan, output, node, outputs, outputBlobs)
 	case dsl.ControlCollect:
-		output.Status = generationOutputSucceeded
-		return output, nil, nil
+		return evaluateCollectNode(eval, plan, output, node, outputs, outputBlobs)
 	case dsl.ControlBranch:
 		return evaluateBranchNode(
 			eval.run,

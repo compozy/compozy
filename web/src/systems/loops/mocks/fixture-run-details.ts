@@ -151,6 +151,8 @@ export function buildLoopRunDetailFixtures(
             : implementTasksGenerations(run),
       node_controls: [],
       waits: [],
+      requests: [],
+      amendments: [],
     };
   });
 }

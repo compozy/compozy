@@ -80,6 +80,7 @@ function buildRun(
   const definitionVersion = overrides.loop_name === "quality-gate-demo" ? 4 : 0;
   return {
     workspace_id: MOCK_WORKSPACE_ID,
+    completion_state: "complete",
     generation: 3,
     iteration_cap: 50,
     tokens_used: 128_400,

@@ -131,6 +131,18 @@ const (
 	ReattemptFullBody ReattemptStrategy = "full_body"
 )
 
+// CompletionState records whether a terminal run satisfied full or partial coverage.
+type CompletionState string
+
+const (
+	CompletionComplete CompletionState = "complete"
+	CompletionPartial  CompletionState = "partial"
+)
+
+func (s CompletionState) Valid() bool {
+	return s == CompletionComplete || s == CompletionPartial
+}
+
 // LoopConfig is the raw per-loop or per-run override layer.
 //
 //nolint:revive // TechSpec "Core Interfaces" names this public type LoopConfig.
@@ -192,6 +204,7 @@ type Run struct {
 	WorkspaceID           WorkspaceID
 	LoopName              string
 	Status                Status
+	CompletionState       CompletionState
 	Generation            int
 	BestGeneration        *int64
 	BestScore             *float64

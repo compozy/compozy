@@ -40,6 +40,7 @@ type LoopRunPayload struct {
 	WorkspaceID                  string                `json:"workspace_id"`
 	LoopName                     string                `json:"loop_name"`
 	Status                       LoopRunStatus         `json:"status"`
+	CompletionState              LoopCompletionState   `json:"completion_state"`
 	Generation                   int64                 `json:"generation"`
 	BestGeneration               *int64                `json:"best_generation,omitempty"`
 	BestScore                    *float64              `json:"best_score,omitempty"`

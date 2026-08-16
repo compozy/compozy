@@ -228601,6 +228601,9 @@
                           "budget_wall_sec": {
                             "type": "integer"
                           },
+                          "completion_state": {
+                            "type": "string"
+                          },
                           "created_at": {
                             "format": "date-time",
                             "type": "string"
@@ -228834,6 +228837,7 @@
                           "budget_on_exceeded",
                           "budget_tokens",
                           "budget_wall_sec",
+                          "completion_state",
                           "created_at",
                           "definition_version",
                           "generation",
@@ -231960,6 +231964,9 @@
                         "budget_wall_sec": {
                           "type": "integer"
                         },
+                        "completion_state": {
+                          "type": "string"
+                        },
                         "created_at": {
                           "format": "date-time",
                           "type": "string"
@@ -232193,6 +232200,7 @@
                         "budget_on_exceeded",
                         "budget_tokens",
                         "budget_wall_sec",
+                        "completion_state",
                         "created_at",
                         "definition_version",
                         "generation",
@@ -234146,7 +234154,8 @@
                             "request_answered",
                             "request_expired",
                             "request_canceled",
-                            "node_amended"
+                            "node_amended",
+                            "branch_pruned"
                           ],
                           "type": "string"
                         },
@@ -258589,6 +258598,9 @@
                         "budget_wall_sec": {
                           "type": "integer"
                         },
+                        "completion_state": {
+                          "type": "string"
+                        },
                         "created_at": {
                           "format": "date-time",
                           "type": "string"
@@ -258822,6 +258834,7 @@
                         "budget_on_exceeded",
                         "budget_tokens",
                         "budget_wall_sec",
+                        "completion_state",
                         "created_at",
                         "definition_version",
                         "generation",
@@ -260460,6 +260473,9 @@
                         "budget_wall_sec": {
                           "type": "integer"
                         },
+                        "completion_state": {
+                          "type": "string"
+                        },
                         "created_at": {
                           "format": "date-time",
                           "type": "string"
@@ -260693,6 +260709,7 @@
                         "budget_on_exceeded",
                         "budget_tokens",
                         "budget_wall_sec",
+                        "completion_state",
                         "created_at",
                         "definition_version",
                         "generation",

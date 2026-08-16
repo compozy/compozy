@@ -24,6 +24,7 @@ const (
 	generationOutputControlPending = GenerationOutputStatusControlPending
 	generationOutputAwaitingGoal   = GenerationOutputStatusAwaitingGoal
 	generationOutputSucceeded      = "succeeded"
+	generationOutputPartial        = "partial"
 	generationOutputFailed         = "failed"
 	generationOutputCanceled       = "canceled"
 	generationOutputQuarantined    = "quarantined"

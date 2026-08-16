@@ -911,6 +911,7 @@ type LoopRun struct {
 	WorkspaceID              string          `json:"workspace_id"`
 	LoopName                 string          `json:"loop_name"`
 	Status                   string          `json:"status"`
+	CompletionState          string          `json:"completion_state"`
 	Generation               int64           `json:"generation"`
 	ReattemptStrategy        string          `json:"reattempt_strategy"`
 	LastProgressAt           time.Time       `json:"last_progress_at"`

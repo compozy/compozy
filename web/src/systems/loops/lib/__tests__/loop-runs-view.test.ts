@@ -20,6 +20,7 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
   return {
     workspace_id: "ws",
     loop_name: "implement-tasks",
+    completion_state: "complete",
     generation: 1,
     iteration_cap: 50,
     tokens_used: 0,

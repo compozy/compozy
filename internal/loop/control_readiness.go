@@ -16,7 +16,7 @@ func dependenciesSucceededForOutput(
 ) bool {
 	nodeID := dsl.NodeID(output.NodeID)
 	if fanOutID, ok := topology.isCollectForFanOut(nodeID); ok {
-		return collectDependenciesSucceeded(graph, topology, outputs, fanOutID, output)
+		return collectDependenciesReady(graph, topology, outputs, fanOutID, output)
 	}
 	outputMap := generationOutputMap(outputs)
 	for _, dependency := range topology.dependencies[nodeID] {
@@ -273,6 +273,9 @@ func allGenerationOutputsSucceededControlAware(
 			if fanOutOutputExists && outputRefMarksSkippedRoute(fanOutOutput.OutputRef) {
 				continue
 			}
+			if fanOutCollectSettled(topology, outputMap, fanOutID) {
+				continue
+			}
 			branchCount, ok := fanOutBranchCount(outputs, fanOutID)
 			if !ok {
 				return false
@@ -286,7 +289,7 @@ func allGenerationOutputsSucceededControlAware(
 			continue
 		}
 		output, ok := outputMap[generationOutputKey{nodeID: string(node.ID), itemIndex: 0}]
-		if !ok || output.Status != generationOutputSucceeded {
+		if !ok || output.Status != generationOutputSucceeded && output.Status != generationOutputPartial {
 			return false
 		}
 	}

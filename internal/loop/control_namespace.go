@@ -51,8 +51,24 @@ func runtimeNamespaceWithHistory(
 		namespacePreviousKey:  history.previousNamespace(topology, nodeID, itemIndex),
 		namespaceBestKey:      history.bestNamespace(topology, nodeID, itemIndex),
 	}
-	if fanOutID, ok := topology.inFanOutBody(nodeID); ok {
-		item, exists, err := fanOutItem(outputs, fanOutID, itemIndex)
+	activeFanOuts := activeFanOutNodes(graph, topology, nodeID)
+	for _, fanOut := range activeFanOuts {
+		item, exists, err := fanOutItem(outputs, fanOut.ID, itemIndex)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			if name := strings.TrimSpace(fanOut.BindAs); name != "" {
+				namespace[name] = item
+			}
+			if name := strings.TrimSpace(fanOut.IndexAs); name != "" {
+				namespace[name] = int64(itemIndex)
+			}
+		}
+	}
+	if len(activeFanOuts) > 0 {
+		inner := activeFanOuts[len(activeFanOuts)-1]
+		item, exists, err := fanOutItem(outputs, inner.ID, itemIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -60,6 +76,7 @@ func runtimeNamespaceWithHistory(
 			namespace["item"] = item
 			namespace["index"] = int64(itemIndex)
 		}
+		namespace["progress"] = fanOutProgressValue(topology, outputs, inner.ID)
 	}
 
 	outputByKey := generationOutputMap(outputs)
@@ -70,12 +87,28 @@ func runtimeNamespaceWithHistory(
 			entry[namespaceStatusKey] = output.Status
 			entry[namespaceOutputKey] = generationOutputRuntimeValue(output)
 		}
+		if isControlKind(node, dsl.ControlFanOut) {
+			entry["progress"] = fanOutProgressValue(topology, outputs, node.ID)
+		}
 		nodes[string(node.ID)] = entry
 		if alias, ok := subLoopLocalNodeAlias(nodeID, node.ID); ok {
 			nodes[alias] = entry
 		}
 	}
 	return namespace, nil
+}
+
+func activeFanOutNodes(graph dsl.Graph, topology controlTopology, nodeID dsl.NodeID) []dsl.Node {
+	active := make([]dsl.Node, 0)
+	for _, node := range graph.Nodes {
+		if !isControlKind(node, dsl.ControlFanOut) {
+			continue
+		}
+		if _, ok := topology.fanOutScopes[node.ID].body[nodeID]; ok {
+			active = append(active, node)
+		}
+	}
+	return active
 }
 
 func (h GenerationHistory) previousNamespace(

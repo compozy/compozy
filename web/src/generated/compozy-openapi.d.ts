@@ -93240,6 +93240,7 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              completion_state: string;
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -94368,6 +94369,7 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              completion_state: string;
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -95240,7 +95242,8 @@ export interface operations {
                   | "request_answered"
                   | "request_expired"
                   | "request_canceled"
-                  | "node_amended";
+                  | "node_amended"
+                  | "branch_pruned";
                 loop_run_id: string;
                 payload: unknown;
                 /** Format: int64 */
@@ -104121,6 +104124,7 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              completion_state: string;
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -104725,6 +104729,7 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              completion_state: string;
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;

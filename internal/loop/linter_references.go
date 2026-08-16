@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -326,10 +327,20 @@ func (c *lintContext) compileCondition(
 }
 
 func (c *lintContext) conditionCompiler(namespace refs.Namespace) (*refs.ConditionCompiler, error) {
+	itemNames := make([]string, 0, len(namespace.FanoutItems)+len(namespace.FanoutIndexes))
+	for name := range namespace.FanoutItems {
+		itemNames = append(itemNames, "item:"+name)
+	}
+	for name := range namespace.FanoutIndexes {
+		itemNames = append(itemNames, "index:"+name)
+	}
+	slices.Sort(itemNames)
 	key := conditionCompilerKey{
-		allowFanout:  namespace.AllowFanout,
-		allowTrigger: namespace.AllowTrigger,
-		allowEvent:   namespace.AllowEvent,
+		allowFanout:    namespace.AllowFanout,
+		allowTrigger:   namespace.AllowTrigger,
+		allowEvent:     namespace.AllowEvent,
+		allowProgress:  namespace.AllowProgress,
+		iterationNames: strings.Join(itemNames, ","),
 	}
 	if compiler, ok := c.conditionCompilers[key]; ok {
 		return compiler, nil
@@ -350,7 +361,10 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 	nodes := map[string]refs.NodeSchema{}
 	for _, node := range c.def.Graph.Nodes {
 		schema, ok := c.outputSchema(node)
-		nodes[string(node.ID)] = refs.NodeSchema{Output: schema, HasOutput: ok}
+		nodes[string(node.ID)] = refs.NodeSchema{
+			Output: schema, HasOutput: ok,
+			HasProgress: isControlKind(node, dsl.ControlFanOut),
+		}
 	}
 	return refs.Namespace{
 		Inputs:       inputs,
@@ -358,6 +372,23 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 		AllowFanout:  allowFanout,
 		AllowTrigger: allowTrigger,
 	}
+}
+
+func (c *lintContext) namespaceForNode(nodeID dsl.NodeID, allowTrigger bool) refs.Namespace {
+	ancestors := c.fanOutAncestors(nodeID)
+	namespace := c.namespace(len(ancestors) > 0, allowTrigger)
+	namespace.AllowProgress = len(ancestors) > 0
+	namespace.FanoutItems = map[string]struct{}{}
+	namespace.FanoutIndexes = map[string]struct{}{}
+	for _, fanOut := range ancestors {
+		if name := strings.TrimSpace(fanOut.BindAs); name != "" {
+			namespace.FanoutItems[name] = struct{}{}
+		}
+		if name := strings.TrimSpace(fanOut.IndexAs); name != "" {
+			namespace.FanoutIndexes[name] = struct{}{}
+		}
+	}
+	return namespace
 }
 
 func namespaceWithEvent(namespace refs.Namespace) refs.Namespace {

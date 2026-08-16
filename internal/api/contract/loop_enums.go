@@ -41,6 +41,7 @@ const (
 	LoopRunEventRequestExpired       LoopRunEventKind = "request_expired"
 	LoopRunEventRequestCanceled      LoopRunEventKind = "request_canceled"
 	LoopRunEventNodeAmended          LoopRunEventKind = "node_amended"
+	LoopRunEventBranchPruned         LoopRunEventKind = "branch_pruned"
 )
 
 // LoopRunStatusValues returns the closed public loop run status vocabulary.
@@ -58,6 +59,14 @@ func LoopRunStatusValues() []string {
 		string(LoopRunStatusExhausted),
 		string(LoopRunStatusStalled),
 		string(LoopRunStatusCanceled),
+	}
+}
+
+// LoopCompletionStateValues returns the closed completion coverage vocabulary.
+func LoopCompletionStateValues() []string {
+	return []string{
+		string(LoopCompletionStateComplete),
+		string(LoopCompletionStatePartial),
 	}
 }
 
@@ -125,6 +134,7 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventRequestExpired),
 		string(LoopRunEventRequestCanceled),
 		string(LoopRunEventNodeAmended),
+		string(LoopRunEventBranchPruned),
 	}
 }
 
@@ -214,5 +224,6 @@ func LoopRunLifecycleEventKindValues() []string {
 		string(LoopRunEventCustomEvent),
 		string(LoopRunEventDuplicateSuppressed),
 		string(LoopRunEventTargetBreaker),
+		string(LoopRunEventBranchPruned),
 	}
 }

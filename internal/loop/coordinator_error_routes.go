@@ -107,5 +107,6 @@ func outputRefRepresentsAbsentValue(outputRef string) bool {
 		isRouteNotTakenOutputRef(trimmed) ||
 		strings.HasPrefix(trimmed, errorRoutedOutputRefPrefix) ||
 		strings.HasPrefix(trimmed, waitExpiryRouteOutputRefPrefix) ||
-		strings.HasPrefix(trimmed, reviewRejectedRouteOutputRefPrefix)
+		strings.HasPrefix(trimmed, reviewRejectedRouteOutputRefPrefix) ||
+		trimmed == strategyCanceledReasonCode
 }

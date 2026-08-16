@@ -39,6 +39,7 @@ export const heroRunFixtures: LoopRun[] = [
     id: "looprun_canceled",
     loop_name: "implement-tasks",
     status: "canceled",
+    completion_state: "complete",
     generation: 1,
     iteration_cap: 50,
     tokens_used: 96_300,

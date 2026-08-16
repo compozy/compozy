@@ -31,6 +31,7 @@ type CoordinatorPostCommitHandler interface {
 	ApplyCoordinatorPostCommit(
 		context.Context,
 		[]CoordinatorParentCloseSpec,
+		[]CoordinatorLaneCancelSpec,
 		ActorContext,
 	) error
 }
@@ -42,6 +43,7 @@ type CoordinatorCompletionPlan struct {
 	NodeRuns            []EnqueueSpec
 	RunStops            []CoordinatorStopSpec
 	ParentCloses        []CoordinatorParentCloseSpec
+	LaneCancels         []CoordinatorLaneCancelSpec
 	Snapshot            GenerationSnapshot
 	PostReserveSnapshot *GenerationSnapshot
 	// GenerationInFlight means at least one current-generation node is still live.
@@ -94,6 +96,15 @@ type CoordinatorParentCloseSpec struct {
 	ChildLoopRunID  string `json:"child_loop_run_id"`
 	Policy          string `json:"policy"`
 	ParentStatus    string `json:"parent_status"`
+}
+
+// CoordinatorLaneCancelSpec delivers committed strategy cancellation to bound sessions.
+type CoordinatorLaneCancelSpec struct {
+	LoopRunID  string   `json:"loop_run_id"`
+	NodeID     string   `json:"node_id"`
+	ItemIndex  int      `json:"item_index"`
+	SessionIDs []string `json:"session_ids,omitempty"`
+	ReasonCode string   `json:"reason_code"`
 }
 
 // CoordinatorWakeSpec describes a coordinator wake to enqueue after the
@@ -202,6 +213,9 @@ func (p CoordinatorCompletionPlan) Validate(path string) error {
 		return err
 	}
 	if err := validateCoordinatorParentCloseSpecs(p.ParentCloses, path); err != nil {
+		return err
+	}
+	if err := validateCoordinatorLaneCancelSpecs(p.LaneCancels, path); err != nil {
 		return err
 	}
 	if err := validateCoordinatorWakeSpecs(p.PostCommitWakes, path); err != nil {
@@ -314,6 +328,9 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 	for idx := range normalized.ParentCloses {
 		normalized.ParentCloses[idx] = normalized.ParentCloses[idx].Normalize()
 	}
+	for idx := range normalized.LaneCancels {
+		normalized.LaneCancels[idx] = normalized.LaneCancels[idx].Normalize()
+	}
 	for idx := range normalized.PostCommitWakes {
 		normalized.PostCommitWakes[idx] = normalized.PostCommitWakes[idx].Normalize()
 	}
@@ -329,6 +346,15 @@ func (p CoordinatorCompletionPlan) Normalize() CoordinatorCompletionPlan {
 		normalized.Terminal = &terminal
 	}
 	return normalized
+}
+
+func validateCoordinatorLaneCancelSpecs(specs []CoordinatorLaneCancelSpec, path string) error {
+	for idx, spec := range specs {
+		if err := spec.Validate(nestedPath(path, fmt.Sprintf("lane_cancels[%d]", idx))); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateCoordinatorWakeSpecs(specs []CoordinatorWakeSpec, path string) error {

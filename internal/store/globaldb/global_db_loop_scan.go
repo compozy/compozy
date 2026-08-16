@@ -53,6 +53,7 @@ type loopRunScanValues struct {
 	networkSource     string
 	bestGeneration    sql.NullInt64
 	bestScore         sql.NullFloat64
+	completionState   string
 }
 
 func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
@@ -112,6 +113,7 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.networkSource,
 		&v.bestGeneration,
 		&v.bestScore,
+		&v.completionState,
 	)
 }
 
@@ -127,6 +129,11 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 			run.ID,
 			v.status,
 		)
+	}
+	run.CompletionState = looppkg.CompletionState(strings.TrimSpace(v.completionState))
+	if !run.CompletionState.Valid() {
+		return looppkg.Run{}, fmt.Errorf("%w: loop run %q completion state is invalid: %q",
+			looppkg.ErrValidation, run.ID, v.completionState)
 	}
 	run.ReattemptStrategy = looppkg.ReattemptStrategy(v.reattempt)
 	run.BudgetOnExceeded = dsl.BudgetExceeded(v.budgetOnExceeded)
