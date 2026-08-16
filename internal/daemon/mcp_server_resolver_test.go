@@ -108,93 +108,97 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 func TestDaemonMCPServerResolverProjectsRemoteHeaderBindings(t *testing.T) {
 	t.Parallel()
 
-	db := openDaemonTestGlobalDB(t)
-	for _, binding := range []extensionpkg.EnvBinding{
-		{
-			ExtensionName: "kit", WorkspaceID: "workspace-a", EnvName: "DEPLOYMENT_KEY",
-			SecretRef: "vault:extensions/ws/workspace-a/kit/env/DEPLOYMENT_KEY",
-			MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
-			Kind: extensionpkg.ExtensionEnvBindingKind,
-		},
-		{
-			ExtensionName: "kit", WorkspaceID: "workspace-a", EnvName: "OTHER_KEY",
-			SecretRef: "vault:extensions/ws/workspace-a/kit/env/OTHER_KEY",
-			MCPServer: "other-api", HeaderName: "X-Other-Key",
-			Kind: extensionpkg.ExtensionEnvBindingKind,
-		},
-		{
-			ExtensionName: "kit", WorkspaceID: "workspace-b", EnvName: "DEPLOYMENT_KEY",
-			SecretRef: "vault:extensions/ws/workspace-b/kit/env/DEPLOYMENT_KEY",
-			MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
-			Kind: extensionpkg.ExtensionEnvBindingKind,
-		},
-	} {
-		if err := db.PutEnvBinding(t.Context(), binding); err != nil {
-			t.Fatalf("PutEnvBinding(%#v) error = %v", binding, err)
-		}
-	}
-
-	catalog := newResourceCatalog(cloneDaemonMCPServer)
-	catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
-		{
-			ID: "mcp-deployment-workspace-a", Version: 1,
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
-			Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"},
-			Spec: compozyconfig.MCPServer{
-				Name: "deployment-api", Transport: compozyconfig.MCPServerTransportHTTP,
-				URL: "https://deployment.example.test/mcp",
-			},
-		},
-	})
-	state := &bootState{mcpServerCatalog: catalog, extensionEnvBindings: db.ExtensionEnvRepo}
-	resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
-		Kind: toolspkg.SourceMCP, Owner: "deployment-api", RawServerName: "deployment-api",
-		ResourceID: "mcp-deployment-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
-	})
-	if err != nil {
-		t.Fatalf("resolveDaemonMCPServer() error = %v", err)
-	}
-	wantRef := "vault:extensions/ws/workspace-a/kit/env/DEPLOYMENT_KEY"
-	if len(resolved.Server.SecretHeaders) != 1 || resolved.Server.SecretHeaders["X-Deployment-Key"] != wantRef {
-		t.Fatalf("SecretHeaders = %#v, want only workspace-a deployment-api ref", resolved.Server.SecretHeaders)
-	}
-	if resolved.Server.SecretHeaders["X-Other-Key"] != "" ||
-		resolved.Server.SecretHeaders["X-Deployment-Key"] ==
-			"vault:extensions/ws/workspace-b/kit/env/DEPLOYMENT_KEY" {
-		t.Fatalf("SecretHeaders leaked sibling server or workspace: %#v", resolved.Server.SecretHeaders)
-	}
-
-	record := catalog.Snapshot()[0]
-	if len(record.Spec.SecretHeaders) != 0 {
-		t.Fatalf("catalog declaration mutated with projected refs: %#v", record.Spec.SecretHeaders)
-	}
-
-	t.Run("Should ignore stale remote bindings after the server becomes stdio", func(t *testing.T) {
+	t.Run("Should project only the owning workspace and server bindings", func(t *testing.T) {
 		t.Parallel()
 
-		stdioCatalog := newResourceCatalog(cloneDaemonMCPServer)
-		stdioCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{
+		db := openDaemonTestGlobalDB(t)
+		for _, binding := range []extensionpkg.EnvBinding{
 			{
-				ID: "mcp-deployment-workspace-a", Version: 2,
+				ExtensionName: "kit", WorkspaceID: "workspace-a", EnvName: "DEPLOYMENT_KEY",
+				SecretRef: "vault:extensions/ws/workspace-a/kit/env/DEPLOYMENT_KEY",
+				MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+				Kind: extensionpkg.ExtensionEnvBindingKind,
+			},
+			{
+				ExtensionName: "kit", WorkspaceID: "workspace-a", EnvName: "OTHER_KEY",
+				SecretRef: "vault:extensions/ws/workspace-a/kit/env/OTHER_KEY",
+				MCPServer: "other-api", HeaderName: "X-Other-Key",
+				Kind: extensionpkg.ExtensionEnvBindingKind,
+			},
+			{
+				ExtensionName: "kit", WorkspaceID: "workspace-b", EnvName: "DEPLOYMENT_KEY",
+				SecretRef: "vault:extensions/ws/workspace-b/kit/env/DEPLOYMENT_KEY",
+				MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+				Kind: extensionpkg.ExtensionEnvBindingKind,
+			},
+		} {
+			if err := db.PutEnvBinding(t.Context(), binding); err != nil {
+				t.Fatalf("PutEnvBinding(%#v) error = %v", binding, err)
+			}
+		}
+
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
+			{
+				ID: "mcp-deployment-workspace-a", Version: 1,
 				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
 				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"},
 				Spec: compozyconfig.MCPServer{
-					Name: "deployment-api", Transport: compozyconfig.MCPServerTransportStdio,
-					Command: "deployment-mcp",
+					Name: "deployment-api", Transport: compozyconfig.MCPServerTransportHTTP,
+					URL: "https://deployment.example.test/mcp",
 				},
 			},
 		})
-		stdioState := &bootState{mcpServerCatalog: stdioCatalog, extensionEnvBindings: db.ExtensionEnvRepo}
-		stdio, err := resolveDaemonMCPServer(t.Context(), stdioState, toolspkg.SourceRef{
+		state := &bootState{mcpServerCatalog: catalog, extensionEnvBindings: db.ExtensionEnvRepo}
+		resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
 			Kind: toolspkg.SourceMCP, Owner: "deployment-api", RawServerName: "deployment-api",
 			ResourceID: "mcp-deployment-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
 		})
 		if err != nil {
-			t.Fatalf("resolveDaemonMCPServer(stdio) error = %v", err)
+			t.Fatalf("resolveDaemonMCPServer() error = %v", err)
 		}
-		if len(stdio.Server.SecretHeaders) != 0 || stdio.Server.Command != "deployment-mcp" {
-			t.Fatalf("resolved stdio server = %#v, want no projected remote headers", stdio.Server)
+		wantRef := "vault:extensions/ws/workspace-a/kit/env/DEPLOYMENT_KEY"
+		if len(resolved.Server.SecretHeaders) != 1 || resolved.Server.SecretHeaders["X-Deployment-Key"] != wantRef {
+			t.Fatalf("SecretHeaders = %#v, want only workspace-a deployment-api ref", resolved.Server.SecretHeaders)
 		}
+		if resolved.Server.SecretHeaders["X-Other-Key"] != "" ||
+			resolved.Server.SecretHeaders["X-Deployment-Key"] ==
+				"vault:extensions/ws/workspace-b/kit/env/DEPLOYMENT_KEY" {
+			t.Fatalf("SecretHeaders leaked sibling server or workspace: %#v", resolved.Server.SecretHeaders)
+		}
+
+		record := catalog.Snapshot()[0]
+		if len(record.Spec.SecretHeaders) != 0 {
+			t.Fatalf("catalog declaration mutated with projected refs: %#v", record.Spec.SecretHeaders)
+		}
+
+		t.Run("Should ignore stale remote bindings after the server becomes stdio", func(t *testing.T) {
+			t.Parallel()
+
+			stdioCatalog := newResourceCatalog(cloneDaemonMCPServer)
+			stdioCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{
+				{
+					ID: "mcp-deployment-workspace-a", Version: 2,
+					Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
+					Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"},
+					Spec: compozyconfig.MCPServer{
+						Name: "deployment-api", Transport: compozyconfig.MCPServerTransportStdio,
+						Command: "deployment-mcp",
+					},
+				},
+			})
+			stdioState := &bootState{mcpServerCatalog: stdioCatalog, extensionEnvBindings: db.ExtensionEnvRepo}
+			stdio, err := resolveDaemonMCPServer(t.Context(), stdioState, toolspkg.SourceRef{
+				Kind: toolspkg.SourceMCP, Owner: "deployment-api", RawServerName: "deployment-api",
+				ResourceID: "mcp-deployment-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
+			})
+			if err != nil {
+				t.Fatalf("resolveDaemonMCPServer(stdio) error = %v", err)
+			}
+			if len(stdio.Server.SecretHeaders) != 0 || stdio.Server.Command != "deployment-mcp" {
+				t.Fatalf("resolved stdio server = %#v, want no projected remote headers", stdio.Server)
+			}
+		})
 	})
 }
 

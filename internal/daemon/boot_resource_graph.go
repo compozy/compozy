@@ -132,7 +132,8 @@ func (d *Daemon) buildResourceService(state *bootState) (core.ResourceService, e
 			if state == nil || state.resourceReconcile == nil {
 				return nil
 			}
-			return state.resourceReconcile.Trigger(ctx, kind, reason)
+			_, err := state.resourceReconcile.Trigger(ctx, kind, reason)
+			return err
 		},
 	})
 	if err != nil {

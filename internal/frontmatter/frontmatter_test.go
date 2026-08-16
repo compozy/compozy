@@ -155,8 +155,9 @@ func TestUnmarshalMetadata(t *testing.T) {
 	t.Run("Should reject a missing target", func(t *testing.T) {
 		t.Parallel()
 
-		if err := UnmarshalMetadata([]byte("name: shared\n"), nil); err == nil {
-			t.Fatal("UnmarshalMetadata(nil) error = nil, want non-nil")
+		if err := UnmarshalMetadata([]byte("name: shared\n"), nil); err == nil ||
+			err.Error() != "frontmatter: metadata target is required" {
+			t.Fatalf("UnmarshalMetadata(nil) error = %v, want metadata-target-required failure", err)
 		}
 	})
 }

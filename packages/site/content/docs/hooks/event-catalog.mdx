@@ -225,7 +225,8 @@ fields on post events stop the hook chain but do not undo an already completed t
 
 `permission.request` patches can set `decision`, `decision_class`, and `reason`, or deny the
 request. CompozyOS rejects escalation patches that try to turn a blocked, denied, or rejected decision
-into an allow decision; those hook runs are recorded as `rejected`.
+into an allow decision; those hook runs are recorded as `rejected`. Request and resolved payloads
+include `tool_input`; denied payloads omit it so rejected input is not exposed to async hooks.
 
 ## Context Events
 

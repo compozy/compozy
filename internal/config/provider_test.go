@@ -1498,65 +1498,73 @@ func TestMCPServerValidateHeaderFields(t *testing.T) {
 func TestMCPServerSecretHeadersSerializeReferencesOnly(t *testing.T) {
 	t.Parallel()
 
-	const (
-		secretRef      = "vault:extensions/acme/env/API_TOKEN"
-		resolvedSecret = "resolved-secret-must-not-serialize"
-	)
-	server := MCPServer{
-		Name: "remote", Transport: MCPServerTransportHTTP, URL: "https://mcp.example/mcp",
-		SecretHeaders: map[string]string{"Authorization": secretRef},
-	}
-	cloned := cloneMCPServer(server)
-	if cloned.SecretHeaders["Authorization"] != secretRef {
-		t.Fatalf("cloneMCPServer().SecretHeaders = %#v, want reference", cloned.SecretHeaders)
-	}
+	t.Run("Should serialize references without resolved secret values", func(t *testing.T) {
+		t.Parallel()
 
-	jsonBytes, err := json.Marshal(cloned)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
-	yamlBytes, err := yaml.Marshal(cloned)
-	if err != nil {
-		t.Fatalf("yaml.Marshal() error = %v", err)
-	}
-	var tomlBytes bytes.Buffer
-	if err := toml.NewEncoder(&tomlBytes).Encode(cloned); err != nil {
-		t.Fatalf("toml.Encode() error = %v", err)
-	}
-	for format, payload := range map[string][]byte{
-		"json": jsonBytes, "yaml": yamlBytes, "toml": tomlBytes.Bytes(),
-	} {
-		if !bytes.Contains(payload, []byte(secretRef)) || bytes.Contains(payload, []byte(resolvedSecret)) {
-			t.Fatalf("%s serialization = %s, want reference and no resolved credential", format, payload)
+		const (
+			secretRef      = "vault:extensions/acme/env/API_TOKEN"
+			resolvedSecret = "resolved-secret-must-not-serialize"
+		)
+		server := MCPServer{
+			Name: "remote", Transport: MCPServerTransportHTTP, URL: "https://mcp.example/mcp",
+			SecretHeaders: map[string]string{"Authorization": secretRef},
 		}
-	}
+		cloned := cloneMCPServer(server)
+		if cloned.SecretHeaders["Authorization"] != secretRef {
+			t.Fatalf("cloneMCPServer().SecretHeaders = %#v, want reference", cloned.SecretHeaders)
+		}
+
+		jsonBytes, err := json.Marshal(cloned)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		yamlBytes, err := yaml.Marshal(cloned)
+		if err != nil {
+			t.Fatalf("yaml.Marshal() error = %v", err)
+		}
+		var tomlBytes bytes.Buffer
+		if err := toml.NewEncoder(&tomlBytes).Encode(cloned); err != nil {
+			t.Fatalf("toml.Encode() error = %v", err)
+		}
+		for format, payload := range map[string][]byte{
+			"json": jsonBytes, "yaml": yamlBytes, "toml": tomlBytes.Bytes(),
+		} {
+			if !bytes.Contains(payload, []byte(secretRef)) || bytes.Contains(payload, []byte(resolvedSecret)) {
+				t.Fatalf("%s serialization = %s, want reference and no resolved credential", format, payload)
+			}
+		}
+	})
 }
 
 func TestRedactedMCPServerDoesNotExposeEnvSecretValues(t *testing.T) {
 	t.Parallel()
 
-	server := MCPServer{
-		Name:    "github",
-		Command: "npx",
-		Headers: map[string]string{"X-Tenant": "tenant-value"},
-		SecretEnv: map[string]string{
-			"GITHUB_TOKEN": "env:GITHUB_TOKEN",
-		},
-		SecretHeaders: map[string]string{"Authorization": "vault:extensions/github/env/GITHUB_TOKEN"},
-	}
-	redacted := RedactedMCPServer(server)
-	if got := redacted.SecretEnv["GITHUB_TOKEN"]; got != RedactedValue() {
-		t.Fatalf("redacted secret env = %q, want placeholder", got)
-	}
-	if got := redacted.Headers["X-Tenant"]; got != RedactedValue() {
-		t.Fatalf("redacted fixed header = %q, want placeholder", got)
-	}
-	if got := redacted.SecretHeaders["Authorization"]; got != RedactedValue() {
-		t.Fatalf("redacted secret header = %q, want placeholder", got)
-	}
-	if server.SecretEnv["GITHUB_TOKEN"] != "env:GITHUB_TOKEN" {
-		t.Fatalf("source secret env mutated = %#v", server.SecretEnv)
-	}
+	t.Run("Should redact fixed and secret values without mutating the source", func(t *testing.T) {
+		t.Parallel()
+
+		server := MCPServer{
+			Name:    "github",
+			Command: "npx",
+			Headers: map[string]string{"X-Tenant": "tenant-value"},
+			SecretEnv: map[string]string{
+				"GITHUB_TOKEN": "env:GITHUB_TOKEN",
+			},
+			SecretHeaders: map[string]string{"Authorization": "vault:extensions/github/env/GITHUB_TOKEN"},
+		}
+		redacted := RedactedMCPServer(server)
+		if got := redacted.SecretEnv["GITHUB_TOKEN"]; got != RedactedValue() {
+			t.Fatalf("redacted secret env = %q, want placeholder", got)
+		}
+		if got := redacted.Headers["X-Tenant"]; got != RedactedValue() {
+			t.Fatalf("redacted fixed header = %q, want placeholder", got)
+		}
+		if got := redacted.SecretHeaders["Authorization"]; got != RedactedValue() {
+			t.Fatalf("redacted secret header = %q, want placeholder", got)
+		}
+		if server.SecretEnv["GITHUB_TOKEN"] != "env:GITHUB_TOKEN" {
+			t.Fatalf("source secret env mutated = %#v", server.SecretEnv)
+		}
+	})
 }
 
 func TestMergeMCPServersTrimmedNamesCollide(t *testing.T) {

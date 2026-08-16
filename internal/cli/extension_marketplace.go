@@ -69,22 +69,18 @@ func extensionPortableUpdatePresentation(
 ) (extensionPortableUpdateOutput, bool, error) {
 	report, err := extensionpkg.ValidateBundleReport(item.Path)
 	if err != nil {
-		return extensionPortableUpdateOutput{}, false, fmt.Errorf(
-			"cli: build extension update report for %q: %w",
-			item.Name,
-			err,
-		)
+		return extensionPortableUpdateOutput{}, false, nil
 	}
 	if report.Format != string(extensionpkg.FormatAgentPlugin) {
 		return extensionPortableUpdateOutput{}, false, nil
 	}
 	homePaths, err := deps.resolveHome()
 	if err != nil {
-		return extensionPortableUpdateOutput{}, false, fmt.Errorf("cli: resolve extension update data path: %w", err)
+		return extensionPortableUpdateOutput{}, false, nil
 	}
 	dataPath, err := homePaths.ExtensionDataPath(item.Name, "")
 	if err != nil {
-		return extensionPortableUpdateOutput{}, false, fmt.Errorf("cli: resolve extension update data path: %w", err)
+		return extensionPortableUpdateOutput{}, false, nil
 	}
 	return extensionPortableUpdateOutput{Update: item, Report: report, DataPath: dataPath}, true, nil
 }

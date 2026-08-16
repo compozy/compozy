@@ -69,6 +69,13 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		if len(status.Diagnostics) != 0 {
 			t.Fatalf("recovered status diagnostics = %#v, want empty", status.Diagnostics)
 		}
+		inventory, err = service.Inventory(t.Context(), "kit")
+		if err != nil {
+			t.Fatalf("Inventory(recovered) error = %v", err)
+		}
+		if len(inventory.Diagnostics) != 0 {
+			t.Fatalf("recovered inventory diagnostics = %#v, want empty", inventory.Diagnostics)
+		}
 	})
 
 	t.Run("Should report shipped resources as not live while disabled", func(t *testing.T) {

@@ -164,7 +164,8 @@ func (s *reentrantTriggerSink) ObserveReconcileEvent(_ context.Context, event Re
 
 	done := make(chan error, 1)
 	go func() {
-		done <- s.driver.Trigger(context.Background(), testResourceKind, ReconcileReasonWrite)
+		_, err := s.driver.Trigger(context.Background(), testResourceKind, ReconcileReasonWrite)
+		done <- err
 	}()
 
 	select {
@@ -270,13 +271,13 @@ func TestReconcileDriverSingleFlightCoalescesSameKind(t *testing.T) {
 			}
 		})
 
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(first) error = %v", err)
 		}
 		<-firstBuildStarted
 
 		for i := range 4 {
-			if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+			if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 				t.Fatalf("Trigger(coalesced %d) error = %v", i, err)
 			}
 		}
@@ -333,14 +334,15 @@ func TestReconcileDriverWaitForIdle(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t)
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		ticket, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite)
+		if err != nil {
 			t.Fatalf("Trigger() error = %v", err)
 		}
 		<-buildStarted
 
 		waitResult := make(chan error, 1)
 		go func() {
-			waitResult <- driver.WaitForIdle(ctx, testResourceKind)
+			waitResult <- driver.WaitForIdle(ctx, ticket)
 		}()
 
 		select {
@@ -389,11 +391,91 @@ func TestReconcileDriverWaitForIdle(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t)
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		ticket, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite)
+		if err != nil {
 			t.Fatalf("Trigger() error = %v", err)
 		}
-		if err := driver.WaitForIdle(ctx, testResourceKind); !errors.Is(err, projectionErr) {
+		if err := driver.WaitForIdle(ctx, ticket); !errors.Is(err, projectionErr) {
 			t.Fatalf("WaitForIdle() error = %v, want %v", err, projectionErr)
+		}
+	})
+
+	t.Run("Should return each waiter's own pass result when a later pass is queued", func(t *testing.T) {
+		t.Parallel()
+
+		kernel, _ := openTestKernel(t)
+		firstStarted := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		secondStarted := make(chan struct{})
+		releaseSecond := make(chan struct{})
+		var releaseFirstOnce sync.Once
+		var releaseSecondOnce sync.Once
+		t.Cleanup(func() {
+			releaseFirstOnce.Do(func() { close(releaseFirst) })
+			releaseSecondOnce.Do(func() { close(releaseSecond) })
+		})
+		firstErr := errors.New("first projection failed")
+		var calls atomic.Int32
+		driver, err := NewReconcileDriver(
+			kernel,
+			testDaemonActor(),
+			[]ProjectorRegistration{
+				newTestProjectorRegistration(testResourceKind, nil,
+					func(context.Context, projectionInput) (ProjectionPlan, error) {
+						switch calls.Add(1) {
+						case 1:
+							close(firstStarted)
+							<-releaseFirst
+							return nil, firstErr
+						default:
+							close(secondStarted)
+							<-releaseSecond
+							return testPlan{kind: testResourceKind, revision: 2, operations: 1}, nil
+						}
+					},
+					func(context.Context, ProjectionPlan) error { return nil },
+				),
+			},
+			WithReconcileFailureThreshold(3),
+		)
+		if err != nil {
+			t.Fatalf("NewReconcileDriver() error = %v", err)
+		}
+		t.Cleanup(func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if closeErr := driver.Close(closeCtx); closeErr != nil {
+				t.Errorf("Close() error = %v", closeErr)
+			}
+		})
+
+		ctx := testutil.Context(t)
+		firstTicket, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite)
+		if err != nil {
+			t.Fatalf("Trigger(first) error = %v", err)
+		}
+		<-firstStarted
+		firstWait := make(chan error, 1)
+		go func() { firstWait <- driver.WaitForIdle(ctx, firstTicket) }()
+		secondTicket, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite)
+		if err != nil {
+			t.Fatalf("Trigger(second) error = %v", err)
+		}
+		releaseFirstOnce.Do(func() { close(releaseFirst) })
+		if err := <-firstWait; !errors.Is(err, firstErr) {
+			t.Fatalf("WaitForIdle(first generation) error = %v, want %v", err, firstErr)
+		}
+		<-secondStarted
+		secondWait := make(chan error, 1)
+		go func() { secondWait <- driver.WaitForIdle(ctx, secondTicket) }()
+		select {
+		case err := <-secondWait:
+			t.Fatalf("WaitForIdle(second generation) returned before settle: %v", err)
+		case <-time.After(25 * time.Millisecond):
+		}
+		releaseSecondOnce.Do(func() { close(releaseSecond) })
+		if err := <-secondWait; err != nil {
+			t.Fatalf("WaitForIdle(second generation) error = %v", err)
 		}
 	})
 }
@@ -545,7 +627,7 @@ func TestReconcileDriverPropagatesTimeoutToProjectorContexts(t *testing.T) {
 			}
 		})
 
-		if err := driver.Trigger(testutil.Context(t), testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(testutil.Context(t), testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger() error = %v", err)
 		}
 		for name, observations := range map[string]<-chan reconcileContextObservation{
@@ -624,11 +706,11 @@ func TestReconcileDriverOpensDegradedCircuitAndWaitsForFreshWrite(t *testing.T) 
 			}
 		})
 
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(first) error = %v", err)
 		}
 		<-firstBuildStarted
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(coalesced) error = %v", err)
 		}
 
@@ -649,7 +731,7 @@ func TestReconcileDriverOpensDegradedCircuitAndWaitsForFreshWrite(t *testing.T) 
 			t.Fatalf("latest health status = %q, want %q", got, ReconcileHealthStatusDegraded)
 		}
 
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(fresh write) error = %v", err)
 		}
 
@@ -695,7 +777,7 @@ func TestReconcileDriverOpensDegradedCircuitAndWaitsForFreshWrite(t *testing.T) 
 			}
 		})
 
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(first) error = %v", err)
 		}
 		healthSink.waitForStatus(t, ReconcileHealthStatusDegraded)
@@ -703,7 +785,7 @@ func TestReconcileDriverOpensDegradedCircuitAndWaitsForFreshWrite(t *testing.T) 
 			t.Fatalf("buildCalls after degraded failure = %d, want %d", got, want)
 		}
 
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(fresh write) error = %v", err)
 		}
 
@@ -768,7 +850,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			}
 		})
 
-		if err := driver.Trigger(ctx, parentFixtureKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, parentFixtureKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(parent fixture) error = %v", err)
 		}
 
@@ -837,7 +919,7 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			}
 		})
 
-		if err := driver.Trigger(ctx, dependentFixtureKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, dependentFixtureKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(fixture.dependent) error = %v", err)
 		}
 
@@ -890,7 +972,8 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			}
 		})
 
-		if err := driver.Trigger(ctx, parentFixtureKind, ReconcileReasonWrite); err != nil {
+		ticket, err := driver.Trigger(ctx, parentFixtureKind, ReconcileReasonWrite)
+		if err != nil {
 			t.Fatalf("Trigger(parent fixture dependency-only write) error = %v", err)
 		}
 
@@ -901,6 +984,9 @@ func TestReconcileDriverSchedulesReverseDependenciesAfterWritesOnly(t *testing.T
 			}
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for dependency-only write fan-out")
+		}
+		if err := driver.WaitForIdle(ctx, ticket); err != nil {
+			t.Fatalf("WaitForIdle(dependency-only write) error = %v", err)
 		}
 	})
 }
@@ -942,7 +1028,7 @@ func TestReconcileDriverValidationAndLifecycleErrors(t *testing.T) {
 			t.Fatalf("Close() error = %v", err)
 		}
 
-		if err := driver.Trigger(testutil.Context(t), testResourceKind, ReconcileReasonWrite); err == nil {
+		if _, err := driver.Trigger(testutil.Context(t), testResourceKind, ReconcileReasonWrite); err == nil {
 			t.Fatal("Trigger(closed) error = nil, want closed-driver failure")
 		}
 	})
@@ -991,7 +1077,7 @@ func TestReconcileDriverEventSinkCanReenterTrigger(t *testing.T) {
 			}
 		})
 
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger() error = %v", err)
 		}
 

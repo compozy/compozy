@@ -150,6 +150,7 @@ func canonicalExistingPrefix(path string) (string, error) {
 }
 
 func resolveContained(path string, root string) (string, error) {
+	// Callers pass a root canonicalized once at package-load entry.
 	candidate := path
 	if !filepath.IsAbs(candidate) {
 		candidate = filepath.Join(root, candidate)
@@ -158,16 +159,12 @@ func resolveContained(path string, root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	canonicalRoot, err := canonicalExistingPrefix(root)
-	if err != nil {
-		return "", err
-	}
-	relative, err := filepath.Rel(canonicalRoot, resolved)
+	relative, err := filepath.Rel(root, resolved)
 	if err != nil {
 		return "", err
 	}
 	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
-		return "", fmt.Errorf("path %q escapes root %q", resolved, canonicalRoot)
+		return "", fmt.Errorf("path %q escapes root %q", resolved, root)
 	}
 	return resolved, nil
 }

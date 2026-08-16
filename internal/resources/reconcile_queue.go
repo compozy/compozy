@@ -4,43 +4,46 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"sort"
-
 	"time"
 )
 
-func (d *reconcileDriver) Trigger(ctx context.Context, kind ResourceKind, reason ReconcileReason) error {
+func (d *reconcileDriver) Trigger(
+	ctx context.Context,
+	kind ResourceKind,
+	reason ReconcileReason,
+) (ReconcileTicket, error) {
 	if ctx == nil {
-		return errors.New("resources: reconcile trigger context is required")
+		return ReconcileTicket{}, errors.New("resources: reconcile trigger context is required")
 	}
 	if d.topoErr != nil {
-		return d.topoErr
+		return ReconcileTicket{}, d.topoErr
 	}
 
 	normalizedKind := kind.Normalize()
 	if err := normalizedKind.Validate("kind"); err != nil {
-		return err
+		return ReconcileTicket{}, err
 	}
 	normalizedReason := reason.Normalize()
 	if err := normalizedReason.Validate("reason"); err != nil {
-		return err
+		return ReconcileTicket{}, err
 	}
 
 	d.mu.Lock()
 	if d.closed {
 		d.mu.Unlock()
-		return errors.New("resources: reconcile driver is closed")
+		return ReconcileTicket{}, errors.New("resources: reconcile driver is closed")
 	}
 	_, hasProjector := d.projectors[normalizedKind]
 	_, hasDependents := d.dependents[normalizedKind]
 	if !hasProjector && !hasDependents {
 		d.mu.Unlock()
-		return fmt.Errorf("%w: reconcile kind %q is not registered", ErrValidation, normalizedKind)
+		return ReconcileTicket{}, fmt.Errorf("%w: reconcile kind %q is not registered", ErrValidation, normalizedKind)
 	}
 
 	scheduledKinds := d.scheduleCascade(normalizedKind)
 	events := make([]ReconcileEvent, 0, len(scheduledKinds)*2)
+	ticket := ReconcileTicket{results: make([]*reconcileTicketResult, 0, len(scheduledKinds))}
 	for idx, scheduledKind := range scheduledKinds {
 		scheduledReason := normalizedReason
 		if idx > 0 {
@@ -54,56 +57,52 @@ func (d *reconcileDriver) Trigger(ctx context.Context, kind ResourceKind, reason
 		if coalesced := d.enqueueLocked(scheduledKind, scheduledReason); coalesced != nil {
 			events = append(events, *coalesced)
 		}
+		state := d.kindStates[scheduledKind]
+		if state == nil {
+			continue
+		}
+		result := &reconcileTicketResult{done: make(chan struct{})}
+		if state.tickets == nil {
+			state.tickets = make(map[uint64]*reconcileTicketResult)
+		}
+		state.tickets[state.scheduledGeneration] = result
+		ticket.results = append(ticket.results, result)
 	}
-	d.signalStateChangedLocked()
 	d.mu.Unlock()
 
 	for _, event := range events {
 		d.emitEvent(ctx, event)
 	}
 	d.notify()
-	return nil
+	return ticket, nil
 }
 
-// WaitForIdle waits until every queued or running pass for kind has settled.
-func (d *reconcileDriver) WaitForIdle(ctx context.Context, kind ResourceKind) error {
+// WaitForIdle waits until the exact passes represented by ticket have settled.
+func (d *reconcileDriver) WaitForIdle(ctx context.Context, ticket ReconcileTicket) error {
 	if ctx == nil {
 		return errors.New("resources: reconcile wait context is required")
 	}
 	if d.topoErr != nil {
 		return d.topoErr
 	}
-
-	normalizedKind := kind.Normalize()
-	if err := normalizedKind.Validate("kind"); err != nil {
-		return err
+	if len(ticket.results) == 0 {
+		return fmt.Errorf("%w: reconcile ticket is required", ErrValidation)
 	}
-
-	for {
-		d.mu.Lock()
-		state := d.kindStates[normalizedKind]
-		if state == nil {
-			d.mu.Unlock()
-			return fmt.Errorf("%w: reconcile kind %q is not registered", ErrValidation, normalizedKind)
+	var passErrors []error
+	for _, result := range ticket.results {
+		if result == nil {
+			return fmt.Errorf("%w: reconcile ticket is invalid", ErrValidation)
 		}
-		if d.closed {
-			d.mu.Unlock()
-			return errors.New("resources: reconcile driver is closed")
-		}
-		if !state.pending && !state.running && !state.dirty {
-			err := state.lastErr
-			d.mu.Unlock()
-			return err
-		}
-		stateChanged := d.stateChanged
-		d.mu.Unlock()
-
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-stateChanged:
+		case <-result.done:
+			if result.err != nil {
+				passErrors = append(passErrors, result.err)
+			}
 		}
 	}
+	return errors.Join(passErrors...)
 }
 
 func (d *reconcileDriver) RunBoot(ctx context.Context) error {
@@ -147,14 +146,19 @@ func (d *reconcileDriver) Close(ctx context.Context) error {
 	if !d.closed {
 		d.closed = true
 		d.queue = nil
+		closedErr := errors.New("resources: reconcile driver is closed")
 		for _, state := range d.kindStates {
 			state.pending = false
 			state.dirty = false
 			state.pendingReason = ""
 			state.dirtyReason = ""
 			state.readyAt = time.Time{}
+			for generation, result := range state.tickets {
+				result.err = closedErr
+				close(result.done)
+				delete(state.tickets, generation)
+			}
 		}
-		d.signalStateChangedLocked()
 		d.workerCancel()
 		d.notifyLocked()
 	}
@@ -167,11 +171,6 @@ func (d *reconcileDriver) Close(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-}
-
-func (d *reconcileDriver) signalStateChangedLocked() {
-	close(d.stateChanged)
-	d.stateChanged = make(chan struct{})
 }
 
 func (d *reconcileDriver) scheduleCascade(root ResourceKind) []ResourceKind {
@@ -217,6 +216,8 @@ func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReaso
 	if state == nil {
 		return nil
 	}
+	state.scheduledGeneration++
+	generation := state.scheduledGeneration
 
 	if reason == ReconcileReasonWrite && state.degradedUntil.After(d.now()) {
 		state.degradedUntil = time.Time{}
@@ -226,6 +227,7 @@ func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReaso
 	if state.running {
 		state.dirty = true
 		state.dirtyReason = reason
+		state.dirtyGeneration = generation
 		return &ReconcileEvent{
 			Type:   ReconcileEventCoalesced,
 			Kind:   kind,
@@ -235,6 +237,7 @@ func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReaso
 
 	if state.pending {
 		state.pendingReason = reason
+		state.pendingGeneration = generation
 		return &ReconcileEvent{
 			Type:   ReconcileEventCoalesced,
 			Kind:   kind,
@@ -244,6 +247,7 @@ func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReaso
 
 	state.pending = true
 	state.pendingReason = reason
+	state.pendingGeneration = generation
 	state.readyAt = time.Time{}
 	d.queue = append(d.queue, kind)
 	return nil
@@ -253,7 +257,7 @@ func (d *reconcileDriver) run() {
 	defer close(d.doneCh)
 
 	for {
-		kind, reason, waitUntil, ok := d.nextPending()
+		kind, reason, generation, waitUntil, ok := d.nextPending()
 		if !ok {
 			if d.shouldExit() {
 				return
@@ -265,6 +269,7 @@ func (d *reconcileDriver) run() {
 		}
 
 		result := d.runPass(d.workerCtx, kind, reason)
+		result.generation = generation
 		d.finishAsyncPass(kind, result)
 	}
 }
@@ -283,7 +288,7 @@ func (d *reconcileDriver) shouldExit() bool {
 	return true
 }
 
-func (d *reconcileDriver) nextPending() (ResourceKind, ReconcileReason, time.Time, bool) {
+func (d *reconcileDriver) nextPending() (ResourceKind, ReconcileReason, uint64, time.Time, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -309,12 +314,13 @@ func (d *reconcileDriver) nextPending() (ResourceKind, ReconcileReason, time.Tim
 		d.queue = append(d.queue[:idx], d.queue[idx+1:]...)
 		state.pending = false
 		state.running = true
+		state.runningGeneration = state.pendingGeneration
 		reason := state.pendingReason
 		state.pendingReason = ""
-		return kind, reason, time.Time{}, true
+		return kind, reason, state.runningGeneration, time.Time{}, true
 	}
 
-	return "", "", earliest, false
+	return "", "", 0, earliest, false
 }
 
 func (d *reconcileDriver) waitForWork(waitUntil time.Time) bool {

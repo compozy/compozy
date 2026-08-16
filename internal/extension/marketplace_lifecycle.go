@@ -358,12 +358,14 @@ func marketplaceInstallProvenance(
 // registry and on-disk state if the caller's reload hook fails.
 func RemoveManagedExtension(
 	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	name string,
 	reload MutationReload,
 ) (_ ManagedRemoveResult, err error) {
 	return removeManagedExtensionWithDataOps(
 		ctx,
+		homePaths,
 		registry,
 		name,
 		reload,
@@ -373,6 +375,7 @@ func RemoveManagedExtension(
 
 func removeManagedExtensionWithDataOps(
 	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
 	registry LifecycleRegistry,
 	name string,
 	reload MutationReload,
@@ -409,7 +412,7 @@ func removeManagedExtensionWithDataOps(
 			)
 		}
 	}
-	dataCleanup, dataCleanupErr := removeAgentPluginDataForInstall(*info, installDir, dataRemovalOps)
+	dataCleanup, dataCleanupErr := removeAgentPluginDataForInstall(*info, homePaths, dataRemovalOps)
 	if dataCleanupErr != nil && !dataCleanup.quarantined {
 		restoreErr := restoreRemovedExtensionRecord(registry, *info, installDir, change)
 		if restoreErr == nil && reload != nil {

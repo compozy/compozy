@@ -101,7 +101,8 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 			toolMCPSyncActor(),
 			discardLogger(),
 			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return driver.Trigger(ctx, kind, reason)
+				_, err := driver.Trigger(ctx, kind, reason)
+				return err
 			},
 			daemonConfigMCPDeclarationProvider(&publishedConfig, nil, nil, discardLogger()),
 			extensionManifestToolMCPDeclarationProvider(
@@ -298,7 +299,8 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 			toolMCPSyncActor(),
 			discardLogger(),
 			func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return driver.Trigger(ctx, kind, reason)
+				_, err := driver.Trigger(ctx, kind, reason)
+				return err
 			},
 			extensionManifestToolMCPDeclarationProvider(
 				registry,

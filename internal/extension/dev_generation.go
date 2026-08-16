@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 )
 
 var generationHashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -165,18 +167,18 @@ func verifyPortableDevGeneration(
 			actualHash,
 		)
 	}
-	manifest, err := LoadManifest(originPath)
+	name, err := agentplugin.ReadManifestName(originPath)
 	if err != nil {
-		return nil, fmt.Errorf("%w: load portable generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
+		return nil, fmt.Errorf("%w: read portable generation %q name: %v", ErrExtensionGenerationInvalid, hash, err)
 	}
 	if resolveDataDir == nil {
 		return nil, errors.New("extension: Agent Plugins development data path resolver is required")
 	}
-	dataDir, err := resolveDataDir(manifest.Name)
+	dataDir, err := resolveDataDir(name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: resolve portable generation %q data directory: %w", ErrExtensionGenerationInvalid, hash, err)
 	}
-	manifest, err = LoadManifestWithAgentPluginDataDir(originPath, dataDir)
+	manifest, err := LoadManifestWithAgentPluginDataDir(originPath, dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("%w: load portable generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
 	}

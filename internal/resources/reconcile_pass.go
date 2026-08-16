@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"time"
 )
 
@@ -120,7 +119,15 @@ func (d *reconcileDriver) updateAsyncPassState(
 		return ReconcileHealth{}, false, false
 	}
 	state.running = false
-	state.lastErr = result.err
+	for generation := state.completedGeneration + 1; generation <= result.generation; generation++ {
+		if ticketResult, ok := state.tickets[generation]; ok {
+			ticketResult.err = result.err
+			close(ticketResult.done)
+			delete(state.tickets, generation)
+		}
+	}
+	state.completedGeneration = result.generation
+	state.runningGeneration = 0
 
 	dirty := state.dirty
 	dirtyReason := state.dirtyReason
@@ -161,11 +168,11 @@ func (d *reconcileDriver) updateAsyncPassState(
 	if dirty && !d.closed {
 		state.pending = true
 		state.pendingReason = dirtyReason
+		state.pendingGeneration = state.dirtyGeneration
 		state.readyAt = d.now().Add(d.coalesceWindow)
 		d.queue = append([]ResourceKind{kind}, d.queue...)
 	}
-	d.signalStateChangedLocked()
-
+	state.dirtyGeneration = 0
 	return health, emitDegraded, true
 }
 

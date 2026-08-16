@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -98,6 +100,41 @@ func TestRuntimeHealthRegistry(t *testing.T) {
 		restarted := NewRuntimeHealthRegistry()
 		if entries := restarted.Entries("kit", "", "generation-a"); len(entries) != 0 {
 			t.Fatalf("Entries() after restart = %#v, want empty", entries)
+		}
+	})
+
+	t.Run("Should fence concurrent observations while entries are read and evicted", func(t *testing.T) {
+		t.Parallel()
+
+		registry := NewRuntimeHealthRegistry()
+		key := RuntimeHealthKey{
+			InstanceName: "kit", WorkspaceID: "workspace-a", BundleGeneration: "generation-a", ServerName: "remote",
+		}
+		stale := registry.Begin(key)
+		var workers sync.WaitGroup
+		for index := range 64 {
+			workers.Add(1)
+			go func() {
+				defer workers.Done()
+				observation := registry.Begin(key)
+				if index%2 == 0 {
+					registry.RecordFailure(observation, fmt.Errorf("failure-%d", index))
+				} else {
+					registry.RecordSuccess(observation)
+				}
+				_ = registry.Entries("kit", "workspace-a", "generation-a")
+				if index%8 == 0 {
+					registry.EvictInstance("kit", "workspace-a")
+				}
+			}()
+		}
+		workers.Wait()
+		registry.EvictInstance("kit", "workspace-a")
+		registry.RecordFailure(stale, errors.New("late stale failure"))
+		fresh := registry.Begin(key)
+		registry.RecordSuccess(fresh)
+		if entries := registry.Entries("kit", "workspace-a", "generation-a"); len(entries) != 0 {
+			t.Fatalf("Entries() after concurrent eviction and recovery = %#v, want empty", entries)
 		}
 	})
 }

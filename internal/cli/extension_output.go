@@ -267,7 +267,7 @@ func extensionRuntimeSummary(item ExtensionRecord) string {
 		if skipped := extensionSkippedComponentCount(item.Diagnostics); skipped > 0 {
 			component := "components"
 			if skipped == 1 {
-				component = cliComponentKey
+				component = "component"
 			}
 			return fmt.Sprintf("running (%d %s skipped)", skipped, component)
 		}

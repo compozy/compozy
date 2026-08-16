@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
@@ -29,9 +30,20 @@ func ReconcileManagedExtensionArtifacts(
 	if registry == nil {
 		return errors.New("extension: registry is required to reconcile managed installs")
 	}
-	root := filepath.Clean(ManagedInstallRoot(homePaths))
-	if strings.TrimSpace(homePaths.HomeDir) == "" || root == managedInstallDirName {
+	home := strings.TrimSpace(homePaths.HomeDir)
+	if home == "" {
 		return errors.New("extension: managed install home path is required")
+	}
+	canonicalHome, err := fileutil.CanonicalPathWithExistingPrefix(home)
+	if err != nil {
+		return fmt.Errorf("extension: resolve managed install home %q: %w", home, err)
+	}
+	root, err := canonicalContainedPath(canonicalHome, ManagedInstallRoot(homePaths), "managed install root")
+	if err != nil {
+		return err
+	}
+	if err := reconcileExtensionDataQuarantines(canonicalHome, homePaths.ExtensionDataRoot); err != nil {
+		return err
 	}
 	entries, err := os.ReadDir(root)
 	if errors.Is(err, os.ErrNotExist) {
@@ -74,6 +86,50 @@ func ReconcileManagedExtensionArtifacts(
 	return nil
 }
 
+func canonicalContainedPath(home string, path string, label string) (string, error) {
+	canonical, err := fileutil.CanonicalPathWithExistingPrefix(path)
+	if err != nil {
+		return "", fmt.Errorf("extension: resolve %s %q: %w", label, path, err)
+	}
+	contained, err := fileutil.PathWithinRoot(home, canonical)
+	if err != nil {
+		return "", fmt.Errorf("extension: relate %s %q to home %q: %w", label, canonical, home, err)
+	}
+	if !contained {
+		return "", fmt.Errorf("extension: %s %q escapes home %q", label, canonical, home)
+	}
+	return canonical, nil
+}
+
+func reconcileExtensionDataQuarantines(home string, dataRoot string) error {
+	root, err := canonicalContainedPath(home, dataRoot, "extension data root")
+	if err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("extension: read extension data root %q: %w", root, err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		marker := strings.LastIndex(name, ".compozy-quarantine-")
+		if marker <= 0 {
+			continue
+		}
+		createdAt, parseErr := strconv.ParseInt(name[marker+len(".compozy-quarantine-"):], 10, 64)
+		if parseErr != nil || createdAt <= 0 {
+			continue
+		}
+		if err := removeReconcilePath(filepath.Join(root, name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func isManagedInstallBackupName(name string) bool {
 	base, suffix, found := strings.Cut(name, managedInstallBackupMarker)
 	if !found || base == "" || suffix == "" {
@@ -90,6 +146,14 @@ func managedInstallOwners(root string, infos []ExtensionInfo) (map[string]*Exten
 	owners := make(map[string]*ExtensionInfo)
 	for idx := range infos {
 		installDir, err := InstalledExtensionDir(infos[idx])
+		if err != nil {
+			return nil, fmt.Errorf(
+				"extension: resolve registered install %q during reconciliation: %w",
+				infos[idx].Name,
+				err,
+			)
+		}
+		installDir, err = fileutil.CanonicalPathWithExistingPrefix(installDir)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"extension: resolve registered install %q during reconciliation: %w",

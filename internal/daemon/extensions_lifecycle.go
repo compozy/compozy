@@ -58,14 +58,27 @@ func (s *daemonExtensionService) Install(
 		return nil
 	}
 	err = s.lifecycle.withInstance(ctx, extensionpkg.GlobalInstanceKey(prepared.name), mutation)
-	err = errors.Join(err, prepared.Close())
-	if err != nil {
+	if err = s.finishPreparedInstall(prepared, err); err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,
 			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
 		)
 	}
 	return item, nil
+}
+
+func (s *daemonExtensionService) finishPreparedInstall(
+	prepared preparedDaemonExtensionInstall,
+	mutationErr error,
+) error {
+	cleanupErr := prepared.Close()
+	if mutationErr != nil {
+		return errors.Join(mutationErr, cleanupErr)
+	}
+	if cleanupErr != nil {
+		s.logger.Warn("daemon: clean committed extension install staging", "extension", prepared.name, "error", cleanupErr)
+	}
+	return nil
 }
 
 func (s *daemonExtensionService) Update(
@@ -180,7 +193,7 @@ func (s *daemonExtensionService) Remove(
 		if retireErr != nil {
 			return retireErr
 		}
-		removed, removeErr := extensionpkg.RemoveManagedExtension(ctx, s.registry, name, s.reload)
+		removed, removeErr := extensionpkg.RemoveManagedExtension(ctx, s.homePaths, s.registry, name, s.reload)
 		if removeErr != nil {
 			return errors.Join(removeErr, retirement.rollback(ctx, s))
 		}

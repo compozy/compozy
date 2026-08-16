@@ -434,10 +434,7 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 					handlerFixture.extensionInstalledSlug = "unrelated/extension"
 				}
 				handlers := marketplaceHandlersForTest(t, handlerFixture)
-				response, err := handlers.MarketplaceSearch(t.Context(), core.MarketplaceSearchRequest{})
-				if err != nil {
-					t.Fatalf("MarketplaceSearch() error = %v", err)
-				}
+				response := marketplaceSearchHTTP(t, handlers)
 				item := response.Kinds[1].Items[0]
 				if item.Installed != tt.installed {
 					t.Fatalf("extension item installed = %t, want %t: %#v", item.Installed, tt.installed, item)
@@ -553,6 +550,23 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 			t.Fatalf("stale browse = %#v, want marked stale row with redacted diagnostic", browsePayload)
 		}
 	})
+}
+
+func marketplaceSearchHTTP(t *testing.T, handlers *core.BaseHandlers) contract.MarketplaceSearchResponse {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/marketplace/search", nil)
+	handlers.SearchMarketplace(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET /api/marketplace/search status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	var response contract.MarketplaceSearchResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode GET /api/marketplace/search response error = %v; body=%s", err, recorder.Body.String())
+	}
+	return response
 }
 
 func TestMarketplaceContinuationRejectsChangedProjection(t *testing.T) {

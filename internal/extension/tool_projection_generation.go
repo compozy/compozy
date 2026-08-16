@@ -180,7 +180,7 @@ func appendExtensionProjectionFingerprint(
 	}
 	encoded, err := json.Marshal(state)
 	if err != nil {
-		dst.WriteString(agentPluginInvalidStatus)
+		dst.WriteString(validationStatusInvalid)
 	} else {
 		dst.Write(encoded)
 	}

@@ -78,7 +78,7 @@ func ValidateBundleReport(dir string) (*ValidationReport, error) {
 		return nil, err
 	}
 	report := &ValidationReport{
-		Status: configValidationStatus(issues), Format: string(FormatCompozy),
+		Status: validationStatus(issues), Format: string(FormatCompozy),
 		Issues: issues, DualManifest: dualManifest,
 	}
 	if manifest == nil {
@@ -120,8 +120,7 @@ func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
 		}
 	}
 	if pluginExists && !pluginInfo.Mode().IsRegular() {
-		_, loadErr := LoadManifest(root)
-		return "", false, loadErr
+		return "", false, agentPluginFormatDetectionError(root)
 	}
 	status, _, err := agentplugin.ClassifyManifest(root)
 	if err != nil {
@@ -131,10 +130,16 @@ func extensionValidationFormat(dir string) (ExtensionFormat, bool, error) {
 		return FormatAgentPlugin, false, nil
 	}
 	if pluginExists || status == agentplugin.SchemaUnsupportedVersion || detectAgentPluginClientLayout(root) != "" {
-		_, loadErr := LoadManifest(root)
-		return "", false, loadErr
+		return "", false, agentPluginFormatDetectionError(root)
 	}
 	return FormatCompozy, false, nil
+}
+
+func agentPluginFormatDetectionError(root string) error {
+	if _, err := LoadManifest(root); err != nil {
+		return err
+	}
+	return fmt.Errorf("extension: Agent Plugins format detection failed for %q", root)
 }
 
 func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
@@ -162,7 +167,7 @@ func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
 			return nil, validationErr
 		}
 		return &ValidationReport{
-			Status: agentPluginInvalidStatus, Format: string(FormatAgentPlugin), Name: pkg.Name, Version: pkg.Version,
+			Status: validationStatusInvalid, Format: string(FormatAgentPlugin), Name: pkg.Name, Version: pkg.Version,
 			Issues: issues,
 		}, nil
 	}
@@ -181,7 +186,8 @@ func invalidAgentPluginValidationReport(err error) *ValidationReport {
 		Path: filepath.Base(agentPluginManifestFileName), Scope: agentPluginManifestFileName,
 		Message: err.Error(), Severity: IssueSeverityError,
 	}}
-	if manifestErr, ok := errors.AsType[*AgentPluginManifestValidationError](err); ok && manifestErr != nil {
+	if manifestErr, ok := errors.AsType[*AgentPluginManifestValidationError](err); ok &&
+		manifestErr != nil && len(manifestErr.Issues) > 0 {
 		issues = make([]ValidationIssue, 0, len(manifestErr.Issues))
 		for _, issue := range manifestErr.Issues {
 			issues = append(issues, ValidationIssue{
@@ -191,7 +197,7 @@ func invalidAgentPluginValidationReport(err error) *ValidationReport {
 			})
 		}
 	}
-	return &ValidationReport{Status: agentPluginInvalidStatus, Format: string(FormatAgentPlugin), Issues: issues}
+	return &ValidationReport{Status: validationStatusInvalid, Format: string(FormatAgentPlugin), Issues: issues}
 }
 
 func agentPluginValidationComponents(root string, pkg *agentplugin.Package) []apicontract.ExtensionValidationComponent {
@@ -232,10 +238,10 @@ func agentPluginValidationWarnings(values []agentplugin.Diagnostic) []Validation
 	return issues
 }
 
-func configValidationStatus(issues []ValidationIssue) string {
+func validationStatus(issues []ValidationIssue) string {
 	for _, issue := range issues {
 		if issue.Severity == IssueSeverityError {
-			return agentPluginInvalidStatus
+			return validationStatusInvalid
 		}
 	}
 	return "valid"

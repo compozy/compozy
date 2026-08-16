@@ -130,20 +130,3 @@ func TestLoadSkills(t *testing.T) {
 		}
 	})
 }
-
-func skillNames(skills []SkillRef) []string {
-	names := make([]string, len(skills))
-	for index, skill := range skills {
-		names[index] = skill.Name
-	}
-	return names
-}
-
-func hasDiagnostic(diagnostics []Diagnostic, scope string, messagePart string) bool {
-	for _, diagnostic := range diagnostics {
-		if diagnostic.Scope == scope && strings.Contains(diagnostic.Message, messagePart) {
-			return true
-		}
-	}
-	return false
-}

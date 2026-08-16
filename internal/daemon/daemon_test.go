@@ -1693,7 +1693,18 @@ func TestBootExtensionsReconcilesManagedArtifactsBeforeRuntimeStart(t *testing.T
 		}
 
 		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
-		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime { return &fakeExtensionRuntime{} }
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			contents, readErr := os.ReadFile(manifestPath)
+			if readErr != nil || string(contents) != committed {
+				t.Fatalf("manifest at runtime construction = %q, %v; want committed bytes", contents, readErr)
+			}
+			for _, removed := range []string{backup, orphan} {
+				if _, statErr := os.Lstat(removed); !errors.Is(statErr, os.ErrNotExist) {
+					t.Fatalf("path %q at runtime construction stat error = %v, want removed", removed, statErr)
+				}
+			}
+			return &fakeExtensionRuntime{}
+		}
 		state := &bootState{
 			logger: discardLogger(), registry: db, sessions: &fakeSessionManager{},
 			observer: &fakeObserver{}, hooks: &fakeHookRuntime{},
@@ -8176,7 +8187,7 @@ type fakeResourceReconcileDriver struct {
 
 func (f *fakeResourceReconcileDriver) WaitForIdle(
 	context.Context,
-	resources.ResourceKind,
+	resources.ReconcileTicket,
 ) error {
 	f.waitCalls++
 	return nil
@@ -8186,11 +8197,11 @@ func (f *fakeResourceReconcileDriver) Trigger(
 	_ context.Context,
 	kind resources.ResourceKind,
 	reason resources.ReconcileReason,
-) error {
+) (resources.ReconcileTicket, error) {
 	f.triggerCalls++
 	f.lastKind = kind
 	f.lastReason = reason
-	return f.triggerErr
+	return resources.ReconcileTicket{}, f.triggerErr
 }
 
 func (f *fakeResourceReconcileDriver) RunBoot(context.Context) error {

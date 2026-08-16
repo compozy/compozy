@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -74,17 +73,14 @@ func extensionInstallValidationReport(
 		path := strings.TrimSpace(request.Ref)
 		info, err := os.Stat(path)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return nil, fmt.Errorf("cli: inspect extension install report source %q: %w", path, err)
+			continue
 		}
 		if !info.IsDir() {
 			continue
 		}
 		report, err := extensionpkg.ValidateBundleReport(path)
 		if err != nil {
-			return nil, fmt.Errorf("cli: build extension install report for %q: %w", path, err)
+			continue
 		}
 		if report.DualManifest || report.Format == item.Format {
 			return report, nil
@@ -95,12 +91,12 @@ func extensionInstallValidationReport(
 	}
 	homePaths, err := deps.resolveHome()
 	if err != nil {
-		return nil, fmt.Errorf("cli: resolve extension install report home: %w", err)
+		return nil, nil
 	}
 	path := extensionpkg.ManagedInstallPath(homePaths, item.Name)
 	report, err := extensionpkg.ValidateBundleReport(path)
 	if err != nil {
-		return nil, fmt.Errorf("cli: build extension install report for %q: %w", item.Name, err)
+		return nil, nil
 	}
 	return report, nil
 }

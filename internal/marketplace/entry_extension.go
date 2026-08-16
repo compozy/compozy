@@ -72,9 +72,11 @@ func decodeExtensionEntry(raw []byte) (Entry, error) {
 			tier,
 		)
 	}
-	if _, err := normalizeExtensionFormat(value.EntryID, value.Format); err != nil {
+	format, err := normalizeExtensionFormat(value.EntryID, value.Format)
+	if err != nil {
 		return Entry{}, err
 	}
+	value.Format = format
 	entry, err := commonEntry(KindExtension, value.entryCommon, value)
 	if err != nil {
 		return Entry{}, err

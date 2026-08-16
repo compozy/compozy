@@ -87,16 +87,17 @@ func restartBackoff(failures int, maximum time.Duration) time.Duration {
 }
 
 func loadManifestAtPath(path string) (*Manifest, error) {
-	if filepath.Base(strings.TrimSpace(path)) == agentPluginManifestFileName {
-		return LoadManifest(filepath.Dir(path))
+	normalizedPath := strings.TrimSpace(path)
+	if filepath.Base(normalizedPath) == agentPluginManifestFileName {
+		return LoadManifest(filepath.Dir(normalizedPath))
 	}
-	switch strings.ToLower(filepath.Ext(strings.TrimSpace(path))) {
+	switch strings.ToLower(filepath.Ext(normalizedPath)) {
 	case manifestFileExtTOML:
-		return loadManifestTOML(path)
+		return loadManifestTOML(normalizedPath)
 	case manifestFileExtJSON:
-		return loadManifestJSON(path)
+		return loadManifestJSON(normalizedPath)
 	default:
-		return nil, fmt.Errorf("extension: unsupported manifest path %q", path)
+		return nil, fmt.Errorf("extension: unsupported manifest path %q", normalizedPath)
 	}
 }
 

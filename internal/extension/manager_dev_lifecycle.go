@@ -61,7 +61,7 @@ func (m *Manager) InspectDevelopmentGeneration(
 		GenerationHash:           verified.GenerationHash,
 		NetworkRequirementDigest: verified.NetworkRequirementDigest,
 		Format:                   verified.Manifest.Format,
-		IngestDiagnostics:        verified.Manifest.IngestDiagnostics,
+		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	}, nil
 }
 
@@ -161,6 +161,9 @@ func (m *Manager) ReloadExtension(
 	if err != nil {
 		return nil, err
 	}
+	if developmentLinkRequiresConfirmation(link, verified.NetworkRequirementDigest) {
+		return nil, &NetworkConfirmationRequiredError{CurrentDigest: verified.NetworkRequirementDigest}
+	}
 	candidate, activationErr := m.startVerifiedDevCandidate(ctx, key, verified)
 	if activationErr != nil {
 		if operationErr := operation.ensureActive(); operationErr != nil {
@@ -179,7 +182,7 @@ func (m *Manager) ReloadExtension(
 		GenerationHash:           verified.GenerationHash,
 		NetworkRequirementDigest: verified.NetworkRequirementDigest,
 		Format:                   verified.Manifest.Format,
-		IngestDiagnostics:        verified.Manifest.IngestDiagnostics,
+		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	})
 	if err != nil {
 		m.discardDevCandidate(ctx, candidate)

@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -154,7 +155,8 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			mcpStore:       mcpStore, mcpCodec: mcpCodec,
 			actor: agentSkillSyncActor(), logger: discardLogger(),
 			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return driver.Trigger(ctx, kind, reason)
+				_, err := driver.Trigger(ctx, kind, reason)
+				return err
 			},
 			providers: []agentSkillDeclarationProvider{
 				daemonAgentSkillDeclarationProvider(
@@ -460,8 +462,12 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("registry.Get(%q) error = %v", portableName, err)
 		}
-		if got, want := len(portableInfo.IngestDiagnostics), 1; got != want {
-			t.Fatalf("portable ingest diagnostics = %d, want %d without truncation", got, want)
+		if !hasExtensionIngestDiagnostic(
+			portableInfo.IngestDiagnostics,
+			"skill:skipped-skill",
+			"name must match the directory",
+		) {
+			t.Fatalf("portable ingest diagnostics = %#v, want skipped-skill name mismatch", portableInfo.IngestDiagnostics)
 		}
 		mcpRecords, err := mcpStore.List(ctx, toolMCPSyncActor(), resources.ResourceFilter{Owner: owner})
 		if err != nil {
@@ -537,14 +543,37 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("manager.Get(%q) error = %v", degradedName, err)
 		}
 		if !degradedSnapshot.Status.Registered || !degradedSnapshot.Status.Enabled ||
-			len(degradedSnapshot.Skills) != 0 || len(degradedSnapshot.Manifest.Resources.MCPServers) != 0 ||
-			len(degradedSnapshot.Info.IngestDiagnostics) != 2 {
+			len(degradedSnapshot.Skills) != 0 || len(degradedSnapshot.Manifest.Resources.MCPServers) != 0 {
 			t.Fatalf(
-				"degraded enabled snapshot = %#v, want registered zero-resource instance with two reasons",
+				"degraded enabled snapshot = %#v, want registered zero-resource instance",
 				degradedSnapshot,
 			)
 		}
+		if !hasExtensionIngestDiagnostic(
+			degradedSnapshot.Info.IngestDiagnostics,
+			"mcp:legacy-events",
+			"sse transport is not supported",
+		) || !hasExtensionIngestDiagnostic(
+			degradedSnapshot.Info.IngestDiagnostics,
+			"skill:skipped",
+			"name must match the directory",
+		) {
+			t.Fatalf("degraded ingest diagnostics = %#v, want fixture-specific MCP and skill skips", degradedSnapshot.Info.IngestDiagnostics)
+		}
 	})
+}
+
+func hasExtensionIngestDiagnostic(
+	diagnostics []diagnosticcontract.DiagnosticItem,
+	scope string,
+	message string,
+) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Evidence["scope"] == scope && strings.Contains(diagnostic.Message, message) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
@@ -642,7 +671,8 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			mcpStore: mcpStore, mcpCodec: mcpCodec,
 			actor: agentSkillSyncActor(), logger: discardLogger(),
 			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return initialDriver.Trigger(ctx, kind, reason)
+				_, err := initialDriver.Trigger(ctx, kind, reason)
+				return err
 			},
 			providers: []agentSkillDeclarationProvider{
 				daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, discardLogger()),
@@ -863,7 +893,8 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 			mcpStore: mcpStore, mcpCodec: mcpCodec,
 			actor: agentSkillSyncActor(), logger: discardLogger(),
 			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return driver.Trigger(ctx, kind, reason)
+				_, err := driver.Trigger(ctx, kind, reason)
+				return err
 			},
 			providers: []agentSkillDeclarationProvider{
 				daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),

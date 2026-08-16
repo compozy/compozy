@@ -100,10 +100,13 @@ func TestLoadMCPWholeFileFailures(t *testing.T) {
 	}
 }
 
+// Invariant: unsupported SSE servers are rejected before their transport-specific fields are inspected.
+// Owner: Agent Plugin MCP ingestion.
+// Canonical suite: Agent Plugin MCP loader tests.
 func TestLoadMCPSSEDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should distinguish supported-shape SSE from malformed SSE", func(t *testing.T) {
+	t.Run("Should reject every SSE server before validating remote fields", func(t *testing.T) {
 		t.Parallel()
 
 		root := newPackageRoot(t, "sse-cases")
@@ -115,8 +118,8 @@ func TestLoadMCPSSEDiagnostics(t *testing.T) {
 		if !hasDiagnostic(pkg.Diagnostics, "mcp:legacy-events", "sse transport is not supported") {
 			t.Fatalf("Load() diagnostics = %#v, want unsupported SSE", pkg.Diagnostics)
 		}
-		if !hasDiagnostic(pkg.Diagnostics, "mcp:broken-events", "invalid mcp server entry") {
-			t.Fatalf("Load() diagnostics = %#v, want malformed SSE", pkg.Diagnostics)
+		if !hasDiagnostic(pkg.Diagnostics, "mcp:broken-events", "sse transport is not supported") {
+			t.Fatalf("Load() diagnostics = %#v, want unsupported SSE before remote-field validation", pkg.Diagnostics)
 		}
 	})
 }
@@ -504,12 +507,4 @@ func TestLoadMCPDuplicateKeysAndVersion(t *testing.T) {
 			t.Fatalf("Load() diagnostics = %#v, want version mismatch", pkg.Diagnostics)
 		}
 	})
-}
-
-func serverNames(servers []ServerSpec) []string {
-	names := make([]string, len(servers))
-	for index, server := range servers {
-		names[index] = server.Name
-	}
-	return names
 }

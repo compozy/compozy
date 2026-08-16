@@ -89,6 +89,10 @@ func (payload PermissionResolutionPayload) cloneForAsync() PermissionResolutionP
 	return clonePermissionResolutionPayload(payload)
 }
 
+func (payload PermissionDeniedPayload) cloneForAsync() PermissionDeniedPayload {
+	return clonePermissionDeniedPayload(payload)
+}
+
 func (payload ContextCompactPayload) cloneForAsync() ContextCompactPayload {
 	return cloneContextCompactPayload(payload)
 }

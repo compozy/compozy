@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -98,54 +99,89 @@ func TestManagedInstallHelpers(t *testing.T) {
 func TestReconcileManagedExtensionArtifacts(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should restore committed artifacts and remove managed residues", func(t *testing.T) {
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		root := ManagedInstallRoot(homePaths)
+		registered := filepath.Join(root, "registered")
+		backup := registered + managedInstallBackupMarker + "1755280000000000000"
+		orphan := filepath.Join(root, "orphan")
+		staging := filepath.Join(root, managedInstallStagingPrefix+"interrupted")
+		for _, path := range []string{registered, backup, orphan, staging, homePaths.ExtensionDataRoot} {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatalf("MkdirAll(%q) error = %v", path, err)
+			}
+		}
+		writeFile(t, filepath.Join(registered, manifestTOMLFileName), "candidate")
+		writeFile(t, filepath.Join(backup, manifestTOMLFileName), "committed")
+		writeFile(t, filepath.Join(orphan, manifestTOMLFileName), "orphan")
+		writeFile(t, filepath.Join(staging, "partial"), "staged")
+		dataSentinel := filepath.Join(homePaths.ExtensionDataRoot, "registered", "state")
+		if err := os.MkdirAll(filepath.Dir(dataSentinel), 0o755); err != nil {
+			t.Fatalf("MkdirAll(data sentinel) error = %v", err)
+		}
+		writeFile(t, dataSentinel, "preserve")
+		quarantine := filepath.Join(homePaths.ExtensionDataRoot, "removed.compozy-quarantine-1755280000000000000")
+		if err := os.MkdirAll(quarantine, 0o755); err != nil {
+			t.Fatalf("MkdirAll(quarantine) error = %v", err)
+		}
+		writeFile(t, filepath.Join(quarantine, "state"), "residue")
+		committedChecksum, err := ComputeDirectoryChecksum(backup)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(backup) error = %v", err)
+		}
+		registry := managedInstallReconcileRegistryStub{infos: []ExtensionInfo{{
+			Name:         "registered",
+			ManifestPath: filepath.Join(registered, manifestTOMLFileName),
+			Checksum:     committedChecksum,
+		}}}
+
+		if err := ReconcileManagedExtensionArtifacts(homePaths, registry); err != nil {
+			t.Fatalf("ReconcileManagedExtensionArtifacts() error = %v", err)
+		}
+		content, err := os.ReadFile(filepath.Join(registered, manifestTOMLFileName))
+		if err != nil || string(content) != "committed" {
+			t.Fatalf("registered artifact = %q, %v; want restored committed bytes", content, err)
+		}
+		for _, removed := range []string{backup, orphan, staging} {
+			if _, statErr := os.Lstat(removed); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("orphan %q stat error = %v, want not exists", removed, statErr)
+			}
+		}
+		if _, statErr := os.Lstat(quarantine); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("quarantine stat error = %v, want startup sweep removal", statErr)
+		}
+		data, err := os.ReadFile(dataSentinel)
+		if err != nil || string(data) != "preserve" {
+			t.Fatalf("extension data = %q, %v; want preserved", data, err)
+		}
+	})
+}
+
+func TestReconcileManagedExtensionArtifactsRejectsEscapedRoot(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("directory symlink setup is platform-specific")
+	}
 	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	root := ManagedInstallRoot(homePaths)
-	registered := filepath.Join(root, "registered")
-	backup := registered + managedInstallBackupMarker + "1755280000000000000"
-	orphan := filepath.Join(root, "orphan")
-	staging := filepath.Join(root, managedInstallStagingPrefix+"interrupted")
-	for _, path := range []string{registered, backup, orphan, staging, homePaths.ExtensionDataRoot} {
-		if err := os.MkdirAll(path, 0o755); err != nil {
-			t.Fatalf("MkdirAll(%q) error = %v", path, err)
-		}
+	outside := t.TempDir()
+	sentinel := filepath.Join(outside, "sentinel")
+	writeFile(t, sentinel, "preserve")
+	if err := os.Symlink(outside, ManagedInstallRoot(homePaths)); err != nil {
+		t.Fatalf("Symlink(managed root) error = %v", err)
 	}
-	writeFile(t, filepath.Join(registered, manifestTOMLFileName), "candidate")
-	writeFile(t, filepath.Join(backup, manifestTOMLFileName), "committed")
-	writeFile(t, filepath.Join(orphan, manifestTOMLFileName), "orphan")
-	writeFile(t, filepath.Join(staging, "partial"), "staged")
-	dataSentinel := filepath.Join(homePaths.ExtensionDataRoot, "registered", "state")
-	if err := os.MkdirAll(filepath.Dir(dataSentinel), 0o755); err != nil {
-		t.Fatalf("MkdirAll(data sentinel) error = %v", err)
+	if err := ReconcileManagedExtensionArtifacts(homePaths, managedInstallReconcileRegistryStub{}); err == nil ||
+		!strings.Contains(err.Error(), "escapes home") {
+		t.Fatalf("ReconcileManagedExtensionArtifacts(symlink root) error = %v, want containment failure", err)
 	}
-	writeFile(t, dataSentinel, "preserve")
-	committedChecksum, err := ComputeDirectoryChecksum(backup)
-	if err != nil {
-		t.Fatalf("ComputeDirectoryChecksum(backup) error = %v", err)
-	}
-	registry := managedInstallReconcileRegistryStub{infos: []ExtensionInfo{{
-		Name:         "registered",
-		ManifestPath: filepath.Join(registered, manifestTOMLFileName),
-		Checksum:     committedChecksum,
-	}}}
-
-	if err := ReconcileManagedExtensionArtifacts(homePaths, registry); err != nil {
-		t.Fatalf("ReconcileManagedExtensionArtifacts() error = %v", err)
-	}
-	content, err := os.ReadFile(filepath.Join(registered, manifestTOMLFileName))
-	if err != nil || string(content) != "committed" {
-		t.Fatalf("registered artifact = %q, %v; want restored committed bytes", content, err)
-	}
-	for _, removed := range []string{backup, orphan, staging} {
-		if _, statErr := os.Lstat(removed); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("orphan %q stat error = %v, want not exists", removed, statErr)
-		}
-	}
-	data, err := os.ReadFile(dataSentinel)
-	if err != nil || string(data) != "preserve" {
-		t.Fatalf("extension data = %q, %v; want preserved", data, err)
+	if data, err := os.ReadFile(sentinel); err != nil || string(data) != "preserve" {
+		t.Fatalf("outside sentinel = %q, %v; want preserved", data, err)
 	}
 }
 

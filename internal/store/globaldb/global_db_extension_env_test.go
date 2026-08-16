@@ -158,8 +158,8 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 			if _, err := upgraded.db.ExecContext(
 				testutil.Context(t), baseInsert, invalid.envName,
 				"vault:extensions/global/portable/env/"+invalid.envName, invalid.server, invalid.header,
-			); err == nil {
-				t.Fatalf("insert partial binding shape %#v error = nil, want CHECK rejection", invalid)
+			); err == nil || !strings.Contains(err.Error(), "CHECK constraint failed") {
+				t.Fatalf("insert partial binding shape %#v error = %v, want SQLite CHECK rejection", invalid, err)
 			}
 		}
 		if _, err := upgraded.db.ExecContext(

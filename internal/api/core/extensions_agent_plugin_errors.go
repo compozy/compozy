@@ -16,7 +16,7 @@ func agentPluginManifestErrorPayload(
 	err error,
 	maskInternal bool,
 ) contract.ExtensionValidationErrorPayload {
-	message := ErrorPayloadForStatus(status, err, maskInternal).Error
+	message := redactAgentPluginIssueText(ErrorPayloadForStatus(status, err, maskInternal).Error)
 	diagnostic := diagnosticspkg.NewItem(diagnosticspkg.ItemSpec{
 		ID:            "extension.agent_plugin.manifest_invalid",
 		Code:          diagnosticcontract.CodeExtensionAgentPluginManifestInvalid,

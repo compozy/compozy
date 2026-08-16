@@ -143,6 +143,9 @@ func decodeRemoteServer(
 	transport string,
 	fields map[string]json.RawMessage,
 ) (ServerSpec, error) {
+	if transport == transportSSE {
+		return ServerSpec{}, errors.New("sse transport is not supported")
+	}
 	if !onlyFields(fields, "type", "url", "headers") {
 		return ServerSpec{}, errors.New("invalid mcp server entry")
 	}
@@ -159,9 +162,6 @@ func decodeRemoteServer(
 	}
 	if err := mcppolicy.ValidateHeaders(headers, nil, mcppolicy.SourcePackageFixed, false); err != nil {
 		return ServerSpec{}, err
-	}
-	if transport == transportSSE {
-		return ServerSpec{}, errors.New("sse transport is not supported")
 	}
 	return ServerSpec{Name: name, Transport: transport, URL: url, Headers: headers}, nil
 }

@@ -374,10 +374,20 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 		manifest := &Manifest{Resources: ResourcesConfig{MCPServers: map[string]MCPServerConfig{
 			"remote": {
 				Transport: string(compozyconfig.MCPServerTransportHTTP),
-				URL:       "https://example.com/mcp",
+				URL:       "https://{{env:MCP_HOST}}/mcp",
+				Headers:   map[string]string{"X-Tenant": "{{env:MCP_TENANT}}"},
 			},
 		}}}
-		servers, err := ResolveManifestMCPServerResources(t.TempDir(), manifest, nil)
+		servers, err := ResolveManifestMCPServerResources(t.TempDir(), manifest, func(key string) string {
+			switch key {
+			case "MCP_HOST":
+				return "example.com"
+			case "MCP_TENANT":
+				return "acme"
+			default:
+				return ""
+			}
+		})
 		if err != nil {
 			t.Fatalf("ResolveManifestMCPServerResources() error = %v", err)
 		}
@@ -389,6 +399,9 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 		}
 		if got, want := servers[0].URL, "https://example.com/mcp"; got != want {
 			t.Fatalf("servers[0].URL = %q, want %q", got, want)
+		}
+		if got, want := servers[0].Headers["X-Tenant"], "acme"; got != want {
+			t.Fatalf("servers[0].Headers[X-Tenant] = %q, want %q", got, want)
 		}
 	})
 }

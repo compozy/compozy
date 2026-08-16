@@ -177,8 +177,14 @@ func parseExtensionRemoteHeader(value string) (string, string, error) {
 	server, header, found := strings.Cut(trimmed, ":")
 	server = strings.TrimSpace(server)
 	header = strings.TrimSpace(header)
-	if !found || server == "" || header == "" {
+	if !found {
 		return "", "", errors.New("cli: --remote-header must be <server>:<header>")
+	}
+	if server == "" {
+		return "", "", errors.New("cli: --remote-header server is required")
+	}
+	if header == "" {
+		return "", "", errors.New("cli: --remote-header header is required")
 	}
 	if err := compozyconfig.ValidateMCPServerName(server); err != nil {
 		return "", "", fmt.Errorf("cli: --remote-header server: %w", err)

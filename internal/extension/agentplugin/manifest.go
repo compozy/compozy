@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 var manifestFields = map[string]struct{}{
@@ -24,20 +26,9 @@ func Load(dir string, opts LoadOptions) (*Package, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve Agent Plugins root %q: %w", dir, err)
 	}
-	manifestPath := filepath.Join(root, manifestFileName)
-	info, err := os.Lstat(manifestPath)
+	content, err := readManifestContent(root)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json is required"}}}
-		}
-		return nil, fmt.Errorf("inspect Agent Plugins manifest %q: %w", manifestPath, err)
-	}
-	if !info.Mode().IsRegular() {
-		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
-	}
-	content, err := os.ReadFile(manifestPath)
-	if err != nil {
-		return nil, fmt.Errorf("read Agent Plugins manifest %q: %w", manifestPath, err)
+		return nil, err
 	}
 
 	pkg, schema, err := decodeManifest(content)
@@ -53,6 +44,50 @@ func Load(dir string, opts LoadOptions) (*Package, error) {
 		return pkg.Diagnostics[left].Scope < pkg.Diagnostics[right].Scope
 	})
 	return pkg, nil
+}
+
+// ReadManifestName reads only the authored package name needed to resolve its data directory.
+// Load still performs the complete schema and component validation exactly once afterward.
+func ReadManifestName(dir string) (string, error) {
+	root, err := canonicalExistingPrefix(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve Agent Plugins root %q: %w", dir, err)
+	}
+	content, err := readManifestContent(root)
+	if err != nil {
+		return "", err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(content, &fields); err != nil || fields == nil {
+		return "", &ManifestError{Issues: []Issue{{Path: "$", Message: "must be a JSON object"}}}
+	}
+	issues := make([]Issue, 0, 1)
+	name, ok := requiredString(fields, fieldName, &issues)
+	if ok {
+		if err := ValidateName(name); err != nil {
+			issues = append(issues, Issue{Path: fieldName, Message: fmt.Sprintf("name %q %s", name, err)})
+		}
+	}
+	if len(issues) > 0 {
+		return "", &ManifestError{Issues: issues}
+	}
+	return name, nil
+}
+
+func readManifestContent(root string) ([]byte, error) {
+	manifestPath := filepath.Join(root, manifestFileName)
+	content, _, err := fileutil.ReadRegularFile(manifestPath)
+	if err == nil {
+		return content, nil
+	}
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json is required"}}}
+	case errors.Is(err, fileutil.ErrSymlink), errors.Is(err, fileutil.ErrDirectory), errors.Is(err, fileutil.ErrNotRegular):
+		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
+	default:
+		return nil, fmt.Errorf("read Agent Plugins manifest %q: %w", manifestPath, err)
+	}
 }
 
 func decodeManifest(content []byte) (*Package, string, error) {

@@ -464,7 +464,14 @@ func ResolveManifestMCPServerResources(
 			}
 		case string(compozyconfig.MCPServerTransportHTTP):
 			server.Transport = compozyconfig.MCPServerTransportHTTP
-			server.URL = strings.TrimSpace(decl.URL)
+			server.URL, err = resolveManifestString(rootDir, decl.URL, getenv, nil)
+			if err != nil {
+				return nil, fmt.Errorf("extension: resolve mcp server %q URL: %w", name, err)
+			}
+			server.Headers, err = resolveManifestStringMap(rootDir, decl.Headers, getenv, nil)
+			if err != nil {
+				return nil, fmt.Errorf("extension: resolve mcp server %q headers: %w", name, err)
+			}
 		default:
 			return nil, fmt.Errorf(
 				"extension: mcp server %q has unsupported transport %q",

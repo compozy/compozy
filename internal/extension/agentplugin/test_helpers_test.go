@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -70,4 +71,29 @@ func writeMCPFile(t *testing.T, root string, servers map[string]any) {
 		"$schema":    MCPSchemaID,
 		"mcpServers": servers,
 	})
+}
+
+func skillNames(skills []SkillRef) []string {
+	names := make([]string, len(skills))
+	for index, skill := range skills {
+		names[index] = skill.Name
+	}
+	return names
+}
+
+func serverNames(servers []ServerSpec) []string {
+	names := make([]string, len(servers))
+	for index, server := range servers {
+		names[index] = server.Name
+	}
+	return names
+}
+
+func hasDiagnostic(diagnostics []Diagnostic, scope string, messagePart string) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Scope == scope && strings.Contains(diagnostic.Message, messagePart) {
+			return true
+		}
+	}
+	return false
 }

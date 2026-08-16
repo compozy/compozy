@@ -29,7 +29,6 @@ type PermissionDeniedPayload struct {
 	Resource       string             `json:"resource,omitempty"`
 	Decision       string             `json:"decision,omitempty"`
 	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
 	ToolCall       PermissionToolCall `json:"tool_call"`
 }
 

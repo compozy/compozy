@@ -1,11 +1,12 @@
-import { Eyebrow, Pill } from "@compozy/ui";
+import { cn, Eyebrow, Pill } from "@compozy/ui";
+import type { ComponentProps } from "react";
 
 import {
   type ExtensionInventoryDiagnostic,
   selectExtensionSkippedDiagnostics,
 } from "../lib/extension-skipped-diagnostics";
 
-interface ExtensionSkippedComponentsProps {
+interface ExtensionSkippedComponentsProps extends ComponentProps<"div"> {
   /** Recorded ingest skips then live runtime entries, in the daemon's own total order. */
   diagnostics: readonly ExtensionInventoryDiagnostic[] | undefined;
   /** Kit resources the daemon actually ingested — zero makes the degradation explicit. */
@@ -19,11 +20,17 @@ interface ExtensionSkippedComponentsProps {
 function ExtensionSkippedComponents({
   diagnostics,
   ingestedCount,
+  className,
+  ...props
 }: ExtensionSkippedComponentsProps) {
   const skippedDiagnostics = selectExtensionSkippedDiagnostics(diagnostics);
   if (skippedDiagnostics.length === 0) return null;
   return (
-    <div className="border-t border-line-soft" data-testid="extension-skipped-components">
+    <div
+      {...props}
+      className={cn("border-t border-line-soft", className)}
+      data-testid="extension-skipped-components"
+    >
       <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">
         <Eyebrow className="text-muted">Skipped</Eyebrow>
         <span className="font-mono text-xs text-faint tabular-nums">

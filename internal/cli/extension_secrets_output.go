@@ -23,7 +23,22 @@ func extensionSecretsBundle(item ExtensionSecretsRecord) outputBundle {
 			}), nil
 		},
 		toon: func() (string, error) {
-			bindings, err := json.Marshal(item.Bindings)
+			type approvedBinding struct {
+				EnvName    string `json:"env_name"`
+				Stale      bool   `json:"stale"`
+				MCPServer  string `json:"mcp_server,omitempty"`
+				HeaderName string `json:"header_name,omitempty"`
+			}
+			approvedBindings := make([]approvedBinding, 0, len(item.Bindings))
+			for _, binding := range item.Bindings {
+				approvedBindings = append(approvedBindings, approvedBinding{
+					EnvName:    binding.EnvName,
+					Stale:      binding.Stale,
+					MCPServer:  binding.MCPServer,
+					HeaderName: binding.HeaderName,
+				})
+			}
+			bindings, err := json.Marshal(approvedBindings)
 			if err != nil {
 				return "", fmt.Errorf("cli: marshal extension secret bindings: %w", err)
 			}
@@ -43,12 +58,9 @@ func extensionSecretBindingLabels(item ExtensionSecretsRecord) []string {
 	labels := make([]string, 0, len(item.Bindings))
 	for _, binding := range item.Bindings {
 		label := strings.TrimSpace(binding.EnvName)
-		if server, header := strings.TrimSpace(
-			binding.MCPServer,
-		), strings.TrimSpace(
-			binding.HeaderName,
-		); server != "" &&
-			header != "" {
+		server := strings.TrimSpace(binding.MCPServer)
+		header := strings.TrimSpace(binding.HeaderName)
+		if server != "" && header != "" {
 			label += " (remote-header " + server + ":" + header + ")"
 		}
 		labels = append(labels, label)

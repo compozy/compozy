@@ -51,7 +51,7 @@ const (
 	manifestToolsKey                    = "tools"
 	manifestVersionKey                  = "version"
 	manifestVisibilityKey               = "visibility"
-	agentPluginInvalidStatus            = "invalid"
+	validationStatusInvalid             = "invalid"
 	agentPluginMCPKind                  = "mcp"
 	agentPluginMCPServerKind            = "mcp_server"
 	agentPluginSkillKind                = "skill"

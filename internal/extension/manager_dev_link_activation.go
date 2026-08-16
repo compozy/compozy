@@ -78,7 +78,7 @@ func (m *Manager) stageDevelopmentLinkLocked(
 		GenerationHash:           verified.GenerationHash,
 		NetworkRequirementDigest: verified.NetworkRequirementDigest,
 		Format:                   verified.Manifest.Format,
-		IngestDiagnostics:        verified.Manifest.IngestDiagnostics,
+		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	})
 }
 

@@ -52,7 +52,8 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 			if state.resourceReconcile == nil {
 				return nil
 			}
-			return state.resourceReconcile.Trigger(ctx, kind, reason)
+			_, err := state.resourceReconcile.Trigger(ctx, kind, reason)
+			return err
 		},
 	})
 	if err != nil {

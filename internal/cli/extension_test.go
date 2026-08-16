@@ -41,7 +41,7 @@ func TestParseExtensionRemoteHeader(t *testing.T) {
 		input      string
 		wantServer string
 		wantHeader string
-		wantError  bool
+		wantError  string
 	}{
 		{name: "Should leave an omitted mapping empty", input: ""},
 		{
@@ -52,20 +52,20 @@ func TestParseExtensionRemoteHeader(t *testing.T) {
 			name: "Should allow operator-owned authorization without OAuth", input: "deployment-api:Authorization",
 			wantServer: "deployment-api", wantHeader: "Authorization",
 		},
-		{name: "Should reject a missing separator", input: "deployment-api", wantError: true},
-		{name: "Should reject an empty server", input: ":X-Key", wantError: true},
-		{name: "Should reject an empty header", input: "deployment-api:", wantError: true},
-		{name: "Should reject an invalid server name", input: "bad/server:X-Key", wantError: true},
-		{name: "Should reject an invalid header name", input: "deployment-api:Bad Header", wantError: true},
+		{name: "Should reject a missing separator", input: "deployment-api", wantError: "<server>:<header>"},
+		{name: "Should reject an empty server", input: ":X-Key", wantError: "server is required"},
+		{name: "Should reject an empty header", input: "deployment-api:", wantError: "header is required"},
+		{name: "Should reject an invalid server name", input: "bad/server:X-Key", wantError: "--remote-header server"},
+		{name: "Should reject an invalid header name", input: "deployment-api:Bad Header", wantError: "--remote-header header"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			server, header, err := parseExtensionRemoteHeader(testCase.input)
-			if testCase.wantError {
-				if err == nil {
-					t.Fatalf("parseExtensionRemoteHeader(%q) error = nil, want failure", testCase.input)
+			if testCase.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), testCase.wantError) {
+					t.Fatalf("parseExtensionRemoteHeader(%q) error = %v, want %q", testCase.input, err, testCase.wantError)
 				}
 				return
 			}

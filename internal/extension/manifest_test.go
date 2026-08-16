@@ -101,7 +101,7 @@ func TestLoadManifestSynthesizesAgentPluginPackages(t *testing.T) {
 		writeFile(t, filepath.Join(root, manifestTOMLFileName), `[extension]
 name = "native"
 version = "1.0.0"
-min_compozy_version = "0.6.0"
+min_compozy_version = "0.0.0"
 `)
 		manifest, err := LoadManifest(root)
 		if err != nil {

@@ -117,6 +117,16 @@ func TestRegistryPersistsAgentPluginInstanceMetadata(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadManifest() error = %v", err)
 		}
+		var sseSkips int
+		for _, diagnostic := range manifest.IngestDiagnostics {
+			if diagnostic.Evidence["scope"] == "mcp:legacy" &&
+				strings.Contains(diagnostic.Message, "sse transport is not supported") {
+				sseSkips++
+			}
+		}
+		if sseSkips != 1 {
+			t.Fatalf("LoadManifest().IngestDiagnostics = %#v, want one SSE skip", manifest.IngestDiagnostics)
+		}
 		checksum, err := ComputeDirectoryChecksum(root)
 		if err != nil {
 			t.Fatalf("ComputeDirectoryChecksum() error = %v", err)

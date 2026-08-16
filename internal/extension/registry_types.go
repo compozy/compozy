@@ -55,19 +55,6 @@ type installConfig struct {
 // InstallOption customizes one extension registry install operation.
 type InstallOption func(*installConfig)
 
-type managedInstallBoundary string
-
-const (
-	managedInstallBoundaryStaged     managedInstallBoundary = "staged"
-	managedInstallBoundaryFinalMoved managedInstallBoundary = "final_moved"
-)
-
-func withManagedInstallBoundaryObserver(observer func(managedInstallBoundary) error) InstallOption {
-	return func(cfg *installConfig) {
-		cfg.boundaryObserver = observer
-	}
-}
-
 // WithInstallSource overrides the persisted source tier for one install.
 func WithInstallSource(source ExtensionSource) InstallOption {
 	return func(cfg *installConfig) {

@@ -24,6 +24,26 @@ import (
 func TestExtensionLifecycleCoordinator(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep a committed install successful when staging cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		cleanupErr := errors.New("staging cleanup failed")
+		service := &daemonExtensionService{logger: discardLogger()}
+		prepared := preparedDaemonExtensionInstall{
+			name: "portable",
+			cleanup: func() error {
+				return cleanupErr
+			},
+		}
+		if err := service.finishPreparedInstall(prepared, nil); err != nil {
+			t.Fatalf("finishPreparedInstall(committed) error = %v, want nil", err)
+		}
+		mutationErr := errors.New("commit failed")
+		if err := service.finishPreparedInstall(prepared, mutationErr); !errors.Is(err, mutationErr) || !errors.Is(err, cleanupErr) {
+			t.Fatalf("finishPreparedInstall(failed) error = %v, want mutation and cleanup failures", err)
+		}
+	})
+
 	t.Run("Should serialize same-name mutations while allowing other names to proceed", func(t *testing.T) {
 		t.Parallel()
 
@@ -348,6 +368,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 	})
 
 	t.Run("Should evict MCP health after a committed update and removal", func(t *testing.T) {
+		t.Parallel()
+
 		// This assertion intentionally owns one mutable extension lifecycle.
 		deps, registry, source, _ := newNativeExtensionToolDeps(t)
 		runtime := newLifecycleStateRuntime(registry)

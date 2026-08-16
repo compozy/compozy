@@ -76,7 +76,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dataPath, "state.db"), []byte("state"), 0o600); err != nil {
 			t.Fatalf("WriteFile(data) error = %v", err)
 		}
-		removed, err := RemoveManagedExtension(t.Context(), env.registry, manifest.Name, nil)
+		removed, err := RemoveManagedExtension(t.Context(), homePaths, env.registry, manifest.Name, nil)
 		if err != nil {
 			t.Fatalf("RemoveManagedExtension() error = %v", err)
 		}
@@ -161,6 +161,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		fixedNow := time.Date(2026, 8, 15, 13, 0, 0, 0, time.UTC)
 		removed, err := removeManagedExtensionWithDataOps(
 			t.Context(),
+			homePaths,
 			env.registry,
 			manifest.Name,
 			nil,
@@ -217,6 +218,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		writeFile(t, filepath.Join(dataPath, "state"), "preserve")
 		_, err = removeManagedExtensionWithDataOps(
 			t.Context(),
+			homePaths,
 			env.registry,
 			manifest.Name,
 			nil,
@@ -437,7 +439,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 				t.Fatalf("portable data after drift = %q, %v; want preserved", data, readErr)
 			}
 
-			if _, err := RemoveManagedExtension(t.Context(), env.registry, installed.Name, nil); err != nil {
+			if _, err := RemoveManagedExtension(t.Context(), homePaths, env.registry, installed.Name, nil); err != nil {
 				t.Fatalf("RemoveManagedExtension(data) error = %v", err)
 			}
 			if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
@@ -545,7 +547,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, "lifecycle-ext"), "VERSION.txt"), "2.0.0")
 
 		removeErr := errors.New("reload failed")
-		_, err = RemoveManagedExtension(t.Context(), env.registry, "lifecycle-ext", func(context.Context) error {
+		_, err = RemoveManagedExtension(t.Context(), homePaths, env.registry, "lifecycle-ext", func(context.Context) error {
 			return removeErr
 		})
 		if !errors.Is(err, removeErr) {
@@ -556,7 +558,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		}
 		requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, "lifecycle-ext"), "VERSION.txt"), "2.0.0")
 
-		removed, err := RemoveManagedExtension(t.Context(), env.registry, "lifecycle-ext", nil)
+		removed, err := RemoveManagedExtension(t.Context(), homePaths, env.registry, "lifecycle-ext", nil)
 		if err != nil {
 			t.Fatalf("RemoveManagedExtension() error = %v", err)
 		}

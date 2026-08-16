@@ -150,7 +150,17 @@ type PermissionResolutionPayload struct {
 type PermissionResolvedPayload = PermissionResolutionPayload
 
 // PermissionDeniedPayload is delivered after a permission denial resolves.
-type PermissionDeniedPayload = PermissionResolutionPayload
+type PermissionDeniedPayload struct {
+	PayloadBase
+	SessionContext
+	TurnContext
+	RequestID     string             `json:"request_id,omitempty"`
+	Action        string             `json:"action,omitempty"`
+	Resource      string             `json:"resource,omitempty"`
+	Decision      string             `json:"decision,omitempty"`
+	DecisionClass string             `json:"decision_class,omitempty"`
+	ToolCall      PermissionToolCall `json:"tool_call"`
+}
 
 // PermissionRequestPatch mutates or denies the permission-request surface.
 type PermissionRequestPatch struct {

@@ -675,7 +675,6 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		Resource:       "/tmp/secret.txt",
 		Decision:       "reject-once",
 		DecisionClass:  "interactive",
-		ToolInput:      sampleRaw,
 		ToolCall:       PermissionToolCall{ID: "tool-2", Kind: "read", Title: "Read secret", Status: "done"},
 	})
 	assertJSONRoundTrip(t, "PermissionRequestPatch", PermissionRequestPatch{

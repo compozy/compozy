@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,16 +28,11 @@ func defaultExtensionDataRemovalOps() extensionDataRemovalOps {
 
 func removeAgentPluginDataForInstall(
 	info ExtensionInfo,
-	installDir string,
+	homePaths compozyconfig.HomePaths,
 	ops extensionDataRemovalOps,
 ) (extensionDataCleanup, error) {
 	if normalizeExtensionFormat(info.Format) != FormatAgentPlugin {
 		return extensionDataCleanup{}, nil
-	}
-	homeDir := filepath.Dir(filepath.Dir(filepath.Clean(installDir)))
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(homeDir)
-	if err != nil {
-		return extensionDataCleanup{}, fmt.Errorf("extension: resolve data home for %q: %w", info.Name, err)
 	}
 	dataPath, err := homePaths.ExtensionDataPath(info.Name, "")
 	if err != nil {

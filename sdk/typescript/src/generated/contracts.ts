@@ -3868,7 +3868,6 @@ export interface PermissionDeniedPayload {
   resource?: string;
   decision?: string;
   decision_class?: string;
-  tool_input?: JSONValue;
   tool_call: PermissionToolCall;
 }
 
