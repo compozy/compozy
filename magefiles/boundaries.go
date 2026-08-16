@@ -227,6 +227,7 @@ func Boundaries() error {
 		{
 			importer: "internal/extension/agentplugin",
 			allowed: map[string]struct{}{
+				"github.com/compozy/compozy/internal/fileutil":    {},
 				"github.com/compozy/compozy/internal/frontmatter": {},
 				"github.com/compozy/compozy/internal/mcppolicy":   {},
 			},
