@@ -14,6 +14,10 @@ import (
 
 const (
 	updateUpdateKey                = "update"
+	updateOutcomeCanceled          = "canceled"
+	updateOutcomeFailed            = "failed"
+	updateReleaseField             = "release"
+	updateMessageLabel             = "Message"
 	defaultSettingsRestartTimeout  = 45 * time.Second
 	restartStatusReady             = "ready"
 	restartStatusFailed            = "failed"
@@ -175,7 +179,7 @@ func failAcquiredUpdate(
 			compozyupdate.Transition{
 				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI,
 				Target: operation.ActiveTarget, Phase: compozyupdate.PhaseFailed,
-				Percent: -1, LastError: cause.Error(), Outcome: "failed",
+				Percent: -1, LastError: cause.Error(), Outcome: updateOutcomeFailed,
 			},
 		)
 		cause = errors.Join(cause, transitionErr)
@@ -201,7 +205,7 @@ func cancelUpdateOperation(cmd *cobra.Command, manager updateManager) error {
 		cmd.Context(), operation.ID, "", operation.Revision,
 		compozyupdate.Transition{
 			Kind: compozyupdate.TransitionCancel, Actor: compozyupdate.ActorCLI,
-			Target: operation.ActiveTarget, Percent: -1, Outcome: "canceled",
+			Target: operation.ActiveTarget, Percent: -1, Outcome: updateOutcomeCanceled,
 		},
 	)
 	if errors.Is(err, compozyupdate.ErrOperationNotCancelable) || errors.Is(err, compozyupdate.ErrExecutorFenced) {
@@ -238,11 +242,28 @@ func updateBundle(record updateRecord) outputBundle {
 		jsonl:     func(cmd *cobra.Command) error { return writeJSONLine(cmd, record) },
 		human: func() (string, error) {
 			rows := []keyValue{
-				{Label: "Status", Value: string(record.Status)},
-				{Label: "Runtime", Value: updateTrackSummary(record.Runtime.CurrentVersion, record.Runtime.LatestVersion, record.Runtime.InstallMethod)},
+				{Label: automationStatusValue, Value: string(record.Status)},
+				{
+					Label: "Runtime",
+					Value: updateTrackSummary(
+						record.Runtime.CurrentVersion,
+						record.Runtime.LatestVersion,
+						record.Runtime.InstallMethod,
+					),
+				},
 			}
 			if record.App != nil {
-				rows = append(rows, keyValue{Label: "App", Value: updateTrackSummary(record.App.CurrentVersion, record.App.LatestVersion, appRunningLabel(record.App.Running))})
+				rows = append(
+					rows,
+					keyValue{
+						Label: "App",
+						Value: updateTrackSummary(
+							record.App.CurrentVersion,
+							record.App.LatestVersion,
+							appRunningLabel(record.App.Running),
+						),
+					},
+				)
 			}
 			if record.Runtime.ReleaseURL != "" {
 				rows = append(rows, keyValue{Label: "Release", Value: record.Runtime.ReleaseURL})
@@ -250,10 +271,14 @@ func updateBundle(record updateRecord) outputBundle {
 			return renderHumanSection("Update", rows), nil
 		},
 		toon: func() (string, error) {
-			fields := []string{"status", "runtime", "release"}
+			fields := []string{automationStatusKey, loopRuntimeKey, updateReleaseField}
 			values := []string{
 				string(record.Status),
-				updateTrackSummary(record.Runtime.CurrentVersion, record.Runtime.LatestVersion, record.Runtime.InstallMethod),
+				updateTrackSummary(
+					record.Runtime.CurrentVersion,
+					record.Runtime.LatestVersion,
+					record.Runtime.InstallMethod,
+				),
 				record.Runtime.ReleaseURL,
 			}
 			if record.App != nil {
@@ -275,13 +300,13 @@ func updateCancelBundle(record updateCancelRecord) outputBundle {
 		jsonl:     func(cmd *cobra.Command) error { return writeJSONLine(cmd, record) },
 		human: func() (string, error) {
 			return renderHumanSection("Update", []keyValue{
-				{Label: "Status", Value: string(record.Status)},
+				{Label: automationStatusValue, Value: string(record.Status)},
 				{Label: "Operation", Value: stringOrDash(record.OperationID)},
-				{Label: "Message", Value: record.Message},
+				{Label: updateMessageLabel, Value: record.Message},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("update", []string{"status", "operation_id", "message"}, []string{
+			return renderToonObject("update", []string{automationStatusKey, "operation_id", "message"}, []string{
 				string(record.Status), record.OperationID, record.Message,
 			}), nil
 		},
@@ -301,7 +326,7 @@ func updateTrackSummary(current string, latest string, suffix string) string {
 
 func appRunningLabel(running bool) string {
 	if running {
-		return "running"
+		return daemonRunningStatus
 	}
 	return "closed"
 }

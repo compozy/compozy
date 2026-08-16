@@ -24,7 +24,8 @@ type appStateSnapshot struct {
 // CheckAll computes both installed tracks and the live operation from one release lookup.
 func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, *Release, error) {
 	runtimeState, release, checkErr := m.Check(ctx, opts)
-	if checkErr != nil && strings.TrimSpace(runtimeState.Message) == "" && strings.TrimSpace(runtimeState.LastError) == "" {
+	if checkErr != nil && strings.TrimSpace(runtimeState.Message) == "" &&
+		strings.TrimSpace(runtimeState.LastError) == "" {
 		return MultiState{}, nil, checkErr
 	}
 	app, err := m.readAppTrack(release, runtimeState.InstallMethod)
@@ -65,7 +66,8 @@ func applyArchivedAppFailure(app *AppTrackState, archived *Operation, forceRefre
 // Snapshot returns the cached live projection, tolerating a recorded upstream refresh error.
 func (m *Manager) Snapshot(ctx context.Context) (MultiState, error) {
 	state, _, err := m.CheckAll(ctx, CheckOptions{AllowCachedOnFailure: true})
-	if err != nil && strings.TrimSpace(state.Runtime.Message) == "" && strings.TrimSpace(state.Runtime.LastError) == "" {
+	if err != nil && strings.TrimSpace(state.Runtime.Message) == "" &&
+		strings.TrimSpace(state.Runtime.LastError) == "" {
 		return MultiState{}, err
 	}
 	return state, nil
@@ -96,7 +98,8 @@ func (m *Manager) readAppTrack(release *Release, installMethod string) (*AppTrac
 	if snapshot.SchemaVersion != 2 {
 		return nil, fmt.Errorf("update: unsupported desktop app state schema version %d", snapshot.SchemaVersion)
 	}
-	running := snapshot.PID > 0 && procutil.Alive(snapshot.PID) && procutil.MatchesStartTime(snapshot.PID, snapshot.StartedAt)
+	running := snapshot.PID > 0 && procutil.Alive(snapshot.PID) &&
+		procutil.MatchesStartTime(snapshot.PID, snapshot.StartedAt)
 	return composeAppTrack(snapshot.AppVersion, running, release), nil
 }
 

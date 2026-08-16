@@ -55,73 +55,110 @@ func (s *OperationStore) Transition(
 
 	var result *Operation
 	err := s.withLock(ctx, func() error {
-		operation, err := s.readUnlocked()
-		if err != nil {
-			return err
-		}
-		if operation == nil || operation.ID != operationID {
-			return ErrOperationNotFound
-		}
-		if operation.Revision != expectedRevision {
-			return fmt.Errorf("%w: have %d, expected %d", ErrOperationConflict, operation.Revision, expectedRevision)
-		}
-		if err := validateExecutorFence(operation, executorGeneration, transition, s.now(), s.holderLive); err != nil {
-			if transition.Kind == TransitionCancel {
-				s.events.EmitUpdateEvent(
-					ctx,
-					eventFromOperation(
-						EventOperationCancelDeclined, operation, operation.ActiveTarget, transition.Actor, "declined", s.now(),
-					),
-				)
-				return err
-			}
-			return err
-		}
-
-		updated := cloneOperation(operation)
-		if err := applyTransition(updated, transition, s.now()); err != nil {
-			return err
-		}
-		updated.Revision++
-		updated.UpdatedAt = s.now()
-		if err := validateOperation(updated); err != nil {
-			return err
-		}
-		if isTerminalOperation(updated) {
-			if err := s.archiveAndRemoveUnlocked(updated); err != nil {
-				return err
-			}
-		} else if err := s.replaceUnlocked(updated); err != nil {
-			return err
-		}
-		if transition.Kind == TransitionRecover && operation.Holder != nil &&
-			!s.holderLive(operation.Holder, updated.UpdatedAt) {
-			s.events.EmitUpdateEvent(
-				ctx,
-				eventFromOperation(
-					EventLeaseExpired,
-					operation,
-					operation.ActiveTarget,
-					transition.Actor,
-					"expired",
-					updated.UpdatedAt,
-				),
-			)
-		}
-		eventName, err := eventNameForTransition(transition, updated)
-		if err != nil {
-			return err
-		}
-		s.events.EmitUpdateEvent(
+		var transitionErr error
+		result, transitionErr = s.transitionLocked(
 			ctx,
-			eventFromOperation(
-				eventName, updated, transition.Target, transition.Actor, transitionOutcome(transition), updated.UpdatedAt,
-			),
+			operationID,
+			executorGeneration,
+			expectedRevision,
+			transition,
 		)
-		result = cloneOperation(updated)
-		return nil
+		return transitionErr
 	})
 	return result, err
+}
+
+func (s *OperationStore) transitionLocked(
+	ctx context.Context,
+	operationID string,
+	executorGeneration string,
+	expectedRevision int64,
+	transition Transition,
+) (*Operation, error) {
+	operation, err := s.readUnlocked()
+	if err != nil {
+		return nil, err
+	}
+	if operation == nil || operation.ID != operationID {
+		return nil, ErrOperationNotFound
+	}
+	if operation.Revision != expectedRevision {
+		return nil, fmt.Errorf("%w: have %d, expected %d", ErrOperationConflict, operation.Revision, expectedRevision)
+	}
+	if err := validateExecutorFence(operation, executorGeneration, transition, s.now(), s.holderLive); err != nil {
+		s.emitCancelDeclined(ctx, operation, transition)
+		return nil, err
+	}
+
+	updated := cloneOperation(operation)
+	if err := applyTransition(updated, transition, s.now()); err != nil {
+		return nil, err
+	}
+	updated.Revision++
+	updated.UpdatedAt = s.now()
+	if err := validateOperation(updated); err != nil {
+		return nil, err
+	}
+	if err := s.persistTransition(updated); err != nil {
+		return nil, err
+	}
+	if err := s.emitTransitionEvents(ctx, operation, updated, transition); err != nil {
+		return nil, err
+	}
+	return cloneOperation(updated), nil
+}
+
+func (s *OperationStore) emitCancelDeclined(ctx context.Context, operation *Operation, transition Transition) {
+	if transition.Kind != TransitionCancel {
+		return
+	}
+	s.events.EmitUpdateEvent(ctx, eventFromOperation(
+		EventOperationCancelDeclined,
+		operation,
+		operation.ActiveTarget,
+		transition.Actor,
+		"declined",
+		s.now(),
+	))
+}
+
+func (s *OperationStore) persistTransition(operation *Operation) error {
+	if isTerminalOperation(operation) {
+		return s.archiveAndRemoveUnlocked(operation)
+	}
+	return s.replaceUnlocked(operation)
+}
+
+func (s *OperationStore) emitTransitionEvents(
+	ctx context.Context,
+	previous *Operation,
+	updated *Operation,
+	transition Transition,
+) error {
+	if transition.Kind == TransitionRecover && previous.Holder != nil &&
+		!s.holderLive(previous.Holder, updated.UpdatedAt) {
+		s.events.EmitUpdateEvent(ctx, eventFromOperation(
+			EventLeaseExpired,
+			previous,
+			previous.ActiveTarget,
+			transition.Actor,
+			"expired",
+			updated.UpdatedAt,
+		))
+	}
+	eventName, err := eventNameForTransition(transition, updated)
+	if err != nil {
+		return err
+	}
+	s.events.EmitUpdateEvent(ctx, eventFromOperation(
+		eventName,
+		updated,
+		transition.Target,
+		transition.Actor,
+		transitionOutcome(transition),
+		updated.UpdatedAt,
+	))
+	return nil
 }
 
 // Fence proves that a caller still owns the exact revision immediately before an irreversible side effect.
@@ -202,47 +239,8 @@ func cancelAllowedForPhase(operation *Operation) bool {
 }
 
 func applyTransition(operation *Operation, transition Transition, now time.Time) error {
-	switch transition.Kind {
-	case TransitionPhase:
-		if err := applyPhaseTransition(operation, transition); err != nil {
-			return err
-		}
-	case TransitionProgress:
-		if transition.Target != operation.ActiveTarget || transition.Percent < 0 || transition.Percent > 100 {
-			return errors.New("update: invalid progress transition")
-		}
-		operation.Percent = transition.Percent
-	case TransitionWaitForApp:
-		if operation.App == nil || operation.App.Phase != PhaseStaged || !runtimeAllowsApp(operation.Runtime) {
-			return errors.New("update: operation cannot wait for the app in its current phase")
-		}
-		operation.ActiveTarget = ""
-		operation.Percent = -1
-		operation.Holder = nil
-		operation.Waiting = WaitingForApp
-	case TransitionAcquireLease, TransitionRecover:
-		if transition.Holder == nil {
-			return errors.New("update: lease transition requires a holder")
-		}
-		operation.Holder = cloneHolder(transition.Holder)
-		operation.Waiting = WaitingNone
-		if transition.Target.valid() {
-			operation.ActiveTarget = transition.Target
-		}
-	case TransitionRenewLease:
-		if transition.Holder == nil || operation.Holder == nil ||
-			transition.Holder.ExecutorGeneration != operation.Holder.ExecutorGeneration ||
-			!transition.Holder.LeaseExpiresAt.After(now) {
-			return errors.New("update: invalid lease renewal")
-		}
-		operation.Holder = cloneHolder(transition.Holder)
-	case TransitionCancel:
-		operation.Holder = nil
-		operation.Waiting = WaitingNone
-		operation.Outcome = "canceled"
-		operation.LastError = ""
-	default:
-		return fmt.Errorf("update: invalid transition kind %q", transition.Kind)
+	if err := applyTransitionKind(operation, transition, now); err != nil {
+		return err
 	}
 	if transition.BackupPath != "" && operation.Runtime != nil {
 		operation.Runtime.BackupPath = strings.TrimSpace(transition.BackupPath)
@@ -253,9 +251,70 @@ func applyTransition(operation *Operation, transition Transition, now time.Time)
 	if transition.Outcome != "" {
 		operation.Outcome = strings.TrimSpace(transition.Outcome)
 	}
-	if err := applyAppTransitionMetadata(operation, transition); err != nil {
-		return err
+	return applyAppTransitionMetadata(operation, transition)
+}
+
+func applyTransitionKind(operation *Operation, transition Transition, now time.Time) error {
+	switch transition.Kind {
+	case TransitionPhase:
+		return applyPhaseTransition(operation, transition)
+	case TransitionProgress:
+		return applyProgressTransition(operation, transition)
+	case TransitionWaitForApp:
+		return applyWaitForAppTransition(operation)
+	case TransitionAcquireLease, TransitionRecover:
+		return applyLeaseTransition(operation, transition)
+	case TransitionRenewLease:
+		return applyRenewLeaseTransition(operation, transition, now)
+	case TransitionCancel:
+		operation.Holder = nil
+		operation.Waiting = WaitingNone
+		operation.Outcome = operationOutcomeCanceled
+		operation.LastError = ""
+		return nil
+	default:
+		return fmt.Errorf("update: invalid transition kind %q", transition.Kind)
 	}
+}
+
+func applyProgressTransition(operation *Operation, transition Transition) error {
+	if transition.Target != operation.ActiveTarget || transition.Percent < 0 || transition.Percent > 100 {
+		return errors.New("update: invalid progress transition")
+	}
+	operation.Percent = transition.Percent
+	return nil
+}
+
+func applyWaitForAppTransition(operation *Operation) error {
+	if operation.App == nil || operation.App.Phase != PhaseStaged || !runtimeAllowsApp(operation.Runtime) {
+		return errors.New("update: operation cannot wait for the app in its current phase")
+	}
+	operation.ActiveTarget = ""
+	operation.Percent = -1
+	operation.Holder = nil
+	operation.Waiting = WaitingForApp
+	return nil
+}
+
+func applyLeaseTransition(operation *Operation, transition Transition) error {
+	if transition.Holder == nil {
+		return errors.New("update: lease transition requires a holder")
+	}
+	operation.Holder = cloneHolder(transition.Holder)
+	operation.Waiting = WaitingNone
+	if transition.Target.valid() {
+		operation.ActiveTarget = transition.Target
+	}
+	return nil
+}
+
+func applyRenewLeaseTransition(operation *Operation, transition Transition, now time.Time) error {
+	if transition.Holder == nil || operation.Holder == nil ||
+		transition.Holder.ExecutorGeneration != operation.Holder.ExecutorGeneration ||
+		!transition.Holder.LeaseExpiresAt.After(now) {
+		return errors.New("update: invalid lease renewal")
+	}
+	operation.Holder = cloneHolder(transition.Holder)
 	return nil
 }
 
@@ -399,10 +458,11 @@ func runtimeAllowsApp(runtime *RuntimeOperationState) bool {
 }
 
 func isTerminalOperation(operation *Operation) bool {
-	if operation.Outcome == "canceled" {
+	if operation.Outcome == operationOutcomeCanceled {
 		return true
 	}
-	if operation.Runtime != nil && (operation.Runtime.Phase == PhaseRolledBack || operation.Runtime.Phase == PhaseFailed) {
+	if operation.Runtime != nil &&
+		(operation.Runtime.Phase == PhaseRolledBack || operation.Runtime.Phase == PhaseFailed) {
 		return true
 	}
 	runtimeTerminal := operation.Runtime == nil || operation.Runtime.Phase == PhaseFinalized

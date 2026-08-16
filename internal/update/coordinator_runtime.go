@@ -22,13 +22,16 @@ func (c *Coordinator) applyRuntime(ctx context.Context, state *coordinatorState)
 			if step.Compatibility == nil {
 				return errors.New("update: verified compatibility is required before runtime swap")
 			}
-			if compatibilityErr := CheckRuntimeCompatibility(*step.Compatibility, installedAppVersion); compatibilityErr != nil {
+			if compatibilityErr := CheckRuntimeCompatibility(
+				*step.Compatibility,
+				installedAppVersion,
+			); compatibilityErr != nil {
 				return c.failRuntime(stepCtx, state, compatibilityErr)
 			}
 		}
 		updated, transitionErr := state.transition(stepCtx, Transition{
 			Kind: TransitionPhase, Actor: current.Holder.Surface, Target: TargetRuntime,
-			Phase: step.Phase, Percent: step.Percent, BackupPath: step.BackupPath, Outcome: "started",
+			Phase: step.Phase, Percent: step.Percent, BackupPath: step.BackupPath, Outcome: operationOutcomeStarted,
 		})
 		if transitionErr != nil {
 			return transitionErr
@@ -70,7 +73,7 @@ func (c *Coordinator) restartAndVerify(
 		var err error
 		updated, err = state.transition(ctx, Transition{
 			Kind: TransitionPhase, Actor: operation.Holder.Surface, Target: TargetRuntime,
-			Phase: PhaseRestarting, Percent: -1, Outcome: "started",
+			Phase: PhaseRestarting, Percent: -1, Outcome: operationOutcomeStarted,
 		})
 		if err != nil {
 			return err
@@ -84,7 +87,7 @@ func (c *Coordinator) restartAndVerify(
 	}
 	if _, err := state.transition(ctx, Transition{
 		Kind: TransitionPhase, Actor: updated.Holder.Surface, Target: TargetRuntime,
-		Phase: PhaseHealthChecking, Percent: -1, Outcome: "started",
+		Phase: PhaseHealthChecking, Percent: -1, Outcome: operationOutcomeStarted,
 	}); err != nil {
 		return err
 	}
@@ -144,7 +147,7 @@ func (c *Coordinator) failRuntime(ctx context.Context, state *coordinatorState, 
 	}
 	_, err := state.transition(ctx, Transition{
 		Kind: TransitionPhase, Actor: operation.Holder.Surface, Target: TargetRuntime,
-		Phase: PhaseFailed, Percent: -1, LastError: cause.Error(), Outcome: "failed",
+		Phase: PhaseFailed, Percent: -1, LastError: cause.Error(), Outcome: operationOutcomeFailed,
 	})
 	if errors.Is(err, ErrOperationNotFound) {
 		return cause

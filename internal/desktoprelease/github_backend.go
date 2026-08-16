@@ -17,6 +17,8 @@ import (
 	"strings"
 )
 
+const githubObjectSHAKey = "sha"
+
 type HTTPDoer interface {
 	Do(request *http.Request) (*http.Response, error)
 }
@@ -130,7 +132,7 @@ func (b *GitHubBackend) Commit(ctx context.Context, request CommitRequest) (stri
 			return "", err
 		}
 		treeEntries = append(treeEntries, map[string]string{
-			"path": filePath, "mode": "100644", "type": "blob", "sha": blob.SHA,
+			"path": filePath, "mode": "100644", "type": "blob", githubObjectSHAKey: blob.SHA,
 		})
 	}
 	var tree struct {
@@ -166,7 +168,7 @@ func (b *GitHubBackend) CompareAndSwapRef(
 ) error {
 	if expectedSHA == "" {
 		err := b.post(ctx, "/repos/"+b.repository+"/git/refs", map[string]string{
-			"ref": "refs/heads/" + branch, "sha": nextSHA,
+			"ref": "refs/heads/" + branch, githubObjectSHAKey: nextSHA,
 		}, nil)
 		if isGitHubStatus(err, http.StatusUnprocessableEntity) {
 			return ErrCompareAndSwap
@@ -181,7 +183,7 @@ func (b *GitHubBackend) CompareAndSwapRef(
 		return ErrCompareAndSwap
 	}
 	err = b.patch(ctx, "/repos/"+b.repository+"/git/refs/heads/"+url.PathEscape(branch), map[string]any{
-		"sha": nextSHA, "force": false,
+		githubObjectSHAKey: nextSHA, "force": false,
 	}, nil)
 	if isGitHubStatus(err, http.StatusConflict) || isGitHubStatus(err, http.StatusUnprocessableEntity) {
 		return ErrCompareAndSwap
@@ -274,7 +276,11 @@ func (b *GitHubBackend) KnownGood(
 			Message string `json:"message"`
 		} `json:"commit"`
 	}
-	if err := b.get(ctx, "/repos/"+b.repository+"/commits?sha="+url.QueryEscape(branch)+"&per_page=100", &commits); err != nil {
+	if err := b.get(
+		ctx,
+		"/repos/"+b.repository+"/commits?sha="+url.QueryEscape(branch)+"&per_page=100",
+		&commits,
+	); err != nil {
 		return ChannelCommit{}, err
 	}
 	for _, candidate := range commits {
@@ -326,7 +332,7 @@ func (b *GitHubBackend) verifyDownloadedAsset(
 		ctx,
 		http.MethodGet,
 		b.apiURL+"/repos/"+b.repository+"/releases/assets/"+fmt.Sprint(assetID),
-		nil,
+		http.NoBody,
 	)
 	if err != nil {
 		return fmt.Errorf("desktop release: create asset request: %w", err)

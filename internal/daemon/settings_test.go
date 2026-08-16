@@ -673,7 +673,7 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 			},
 		)
 		releaseClient := &http.Client{Transport: releaseTransport}
-		manager, err := compozyupdate.NewManager(compozyupdate.Config{
+		manager, err := compozyupdate.NewManager(&compozyupdate.Config{
 			HomePaths:       homePaths,
 			CurrentVersion:  "v1.0.0",
 			ExecutablePath:  func() (string, error) { return binaryPath, nil },
@@ -834,7 +834,6 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 	})
 
 	for _, shellRunning := range []bool{false, true} {
-		shellRunning := shellRunning
 		name := "Should stage an accepted app update while the shell is closed"
 		if shellRunning {
 			name = "Should stage an accepted app update while the shell is running"
@@ -851,7 +850,8 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 					targets []compozyupdate.Target,
 					holder compozyupdate.Holder,
 				) (compozyupdate.OperationRequest, error) {
-					if actor != compozyupdate.ActorWeb || !slices.Equal(targets, []compozyupdate.Target{compozyupdate.TargetApp}) {
+					if actor != compozyupdate.ActorWeb ||
+						!slices.Equal(targets, []compozyupdate.Target{compozyupdate.TargetApp}) {
 						t.Fatalf("PlanOperation() actor/targets = %q/%v", actor, targets)
 					}
 					return daemonSettingsOperationRequest(holder, targets), nil
@@ -863,11 +863,16 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 					return daemonSettingsHolder(t), nil
 				},
 				spawn: func(ctx context.Context, operation *compozyupdate.Operation) error {
-					staged, err := store.Transition(ctx, operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+					staged, err := store.Transition(
+						ctx,
+						operation.ID,
+						operation.Holder.ExecutorGeneration,
+						operation.Revision,
 						compozyupdate.Transition{
 							Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
 							Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100,
-						})
+						},
+					)
 					if err != nil {
 						return err
 					}
@@ -905,7 +910,10 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 		t.Parallel()
 
 		store := newDaemonSettingsOperationStore(t)
-		request := daemonSettingsOperationRequest(daemonSettingsHolder(t), []compozyupdate.Target{compozyupdate.TargetRuntime})
+		request := daemonSettingsOperationRequest(
+			daemonSettingsHolder(t),
+			[]compozyupdate.Target{compozyupdate.TargetRuntime},
+		)
 		active, err := store.Acquire(t.Context(), request)
 		if err != nil {
 			t.Fatalf("Acquire(seed) error = %v", err)
@@ -932,7 +940,8 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ApplyUpdate() error = %v", err)
 		}
-		if result.Status != compozyupdate.ApplyStatusBlocked || result.OperationID != active.ID || result.Holder == nil {
+		if result.Status != compozyupdate.ApplyStatusBlocked || result.OperationID != active.ID ||
+			result.Holder == nil {
 			t.Fatalf("ApplyUpdate() = %#v, want blocked holder", result)
 		}
 	})

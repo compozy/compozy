@@ -2,10 +2,10 @@
 id: APP-web-update-indicator
 area: APP
 title: Notice an available update from the menubar and land on the Updates section
-persona: Ada
-journey: J-desktop-agent-headless
+persona: Bruno
+journey: J-desktop-update-moment
 expected: A discreet menubar indicator exists only while the daemon reports an available update and no operation is running; it carries no count and opens no menu, disappears through applying, staged, and failed, and activating it by pointer or keyboard opens Settings → General with the Updates section in view.
-entry_points: http://127.0.0.1:2123/; GET /api/settings/update
+entry_points: product menubar in Chrome or the app; keyboard focus with Enter or Space; GET /api/settings/update
 qa_status: untested
 bug_ids:
 fix_status:

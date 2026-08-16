@@ -133,7 +133,7 @@ func TestDetectInstallMethods(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				manager := testManager(t, tc.cfg)
+				manager := testManager(t, &tc.cfg)
 				info, err := manager.detectInstall(t.Context())
 				if err != nil {
 					t.Fatalf("detectInstall() error = %v", err)
@@ -203,7 +203,7 @@ func runDesktopProvenanceCases(t *testing.T) {
 			if err := os.WriteFile(markerPath, tc.marker(hex.EncodeToString(digest[:])), 0o600); err != nil {
 				t.Fatalf("WriteFile(marker) error = %v", err)
 			}
-			manager := testManager(t, Config{
+			manager := testManager(t, &Config{
 				HomePaths:      homePaths,
 				RuntimeOS:      runtimeOSLinux,
 				ExecutablePath: func() (string, error) { return binaryPath, nil },

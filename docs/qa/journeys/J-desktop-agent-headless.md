@@ -1,8 +1,9 @@
 # J-desktop-agent-headless: Operate the desktop surface from a terminal with no human at the screen
 
-An agent drives the desktop capability through structured CLI verbs: `compozy app` owns app state,
-launch, recovery, and diagnostics, while `compozy update` owns runtime and app updates. Every result
-is deterministic, machine-readable, schema-valid, and observable without the UI.
+An agent drives the desktop capability through structured CLI and settings transports: `compozy app`
+owns app state, launch, retry, and diagnostics; `compozy update` exclusively owns runtime and
+app updates; HTTP and UDS expose the same update truth. The deleted app-scoped update verb stays
+absent. Every result is deterministic, machine-readable, schema-valid, and observable without the UI.
 
 ```mermaid
 flowchart TD
@@ -12,7 +13,8 @@ flowchart TD
     D --> E[Status during provisioning or updating reports the transitional state verbatim]
     E --> F[Status attached: running:true + runtime attach fields, schema-valid]
     F --> G[compozy app open /settings focuses the window and navigates]
-    G --> H[compozy update --check reports both targets from one release]
+    G --> G1[compozy app retry is accepted only from a recoverable state]
+    G1 --> H[compozy update --check and settings GET report both targets from one release]
     H --> I[compozy update applies runtime first, then updates or stages the app]
     I --> J{App running?}
     J -->|yes| K[Consent semantics walk deterministically, restart, new version in status]
@@ -25,6 +27,8 @@ flowchart TD
     Q --> N
     M --> N
     N --> O[True end: status running:false, every state seen was truthful and deterministic]
+    H --> R[Deleted app-scoped updater returns unknown command and no side effect]
+    R --> I
     H -.->|socket absent or unresponsive| X1[Abandon: app_not_running / app_control_unavailable named deterministically - the agent stops cleanly, no ambiguous retry]
 ```
 
@@ -35,7 +39,7 @@ journey:
   value_statement: "The desktop capability is not UI-only: an agent can install-check, launch, inspect, update, and diagnose it with deterministic structured output end to end."
   personas: [Ada]
   entry_points:
-    - url: "compozy app status | open [path] | diagnose; compozy update [--check|--cancel] (-o json)"
+    - url: "compozy app status | open [path] | retry | diagnose; compozy update [--check|--cancel] (-o json); settings update HTTP and UDS routes"
       origin: direct
   actions:
     - step: 1
@@ -48,9 +52,12 @@ journey:
       verb: "Navigate via `compozy app open /settings`"
       expected_observable: "Existing window focuses and shows the target; invalid targets return `invalid_target_path`"
     - step: 4
-      verb: "Drive app and runtime updates headlessly"
-      expected_observable: "`compozy update --check` reports both targets; apply is runtime-first; a closed app stages; `--cancel` releases only a dormant operation"
+      verb: "Drive app and runtime updates headlessly across CLI, HTTP, and UDS"
+      expected_observable: "Every read agrees; apply is runtime-first; a closed app stages; `--cancel` releases only a dormant operation"
     - step: 5
+      verb: "Probe the retired app-scoped update verb"
+      expected_observable: "The deleted app-scoped updater subcommand is unknown, creates no operation, and offers no compatibility alias"
+    - step: 6
       verb: "Probe failure vocabulary"
       expected_observable: "`app_not_installed`, `app_not_running`, `app_control_unavailable`, and `recovery_required` are named, typed, and stable"
   goal:

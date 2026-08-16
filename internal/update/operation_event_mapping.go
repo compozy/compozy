@@ -24,39 +24,38 @@ func eventNameForTransition(transition Transition, operation *Operation) (Operat
 	case TransitionCancel:
 		return EventOperationCanceled, nil
 	case TransitionPhase:
-		switch transition.Phase {
-		case PhaseDownloading:
-			return EventDownloadProgress, nil
-		case PhaseVerifying:
-			return EventVerifyCompleted, nil
-		case PhaseSwapping:
-			return EventSwapCompleted, nil
-		case PhaseRestarting:
-			return EventRestartCompleted, nil
-		case PhaseHealthChecking:
-			return EventHealthCompleted, nil
-		case PhaseFinalized:
-			return EventFinalized, nil
-		case PhaseRolledBack:
-			return EventRolledBack, nil
-		case PhaseStaged:
-			return EventAppStaged, nil
-		case PhaseApplying:
-			return EventAppApplying, nil
-		case PhaseInstallerHandoff:
-			return EventAppInstallerHandoff, nil
-		case PhaseVerified:
-			return EventAppVerified, nil
-		case PhaseFailed:
-			if transition.Target == TargetApp {
-				return EventAppFailed, nil
-			}
-			return EventFinalized, nil
-		case PhaseRestarted:
-			return EventRestartCompleted, nil
-		}
+		return eventNameForPhase(transition)
 	}
 	return "", fmt.Errorf("update: transition %q has no canonical event", transition.Kind)
+}
+
+func eventNameForPhase(transition Transition) (OperationEventName, error) {
+	if transition.Phase == PhaseFailed {
+		if transition.Target == TargetApp {
+			return EventAppFailed, nil
+		}
+		return EventFinalized, nil
+	}
+	eventName, ok := phaseEventNames[transition.Phase]
+	if !ok {
+		return "", fmt.Errorf("update: phase %q has no canonical event", transition.Phase)
+	}
+	return eventName, nil
+}
+
+var phaseEventNames = map[OperationPhase]OperationEventName{
+	PhaseDownloading:      EventDownloadProgress,
+	PhaseVerifying:        EventVerifyCompleted,
+	PhaseSwapping:         EventSwapCompleted,
+	PhaseRestarting:       EventRestartCompleted,
+	PhaseHealthChecking:   EventHealthCompleted,
+	PhaseFinalized:        EventFinalized,
+	PhaseRolledBack:       EventRolledBack,
+	PhaseStaged:           EventAppStaged,
+	PhaseApplying:         EventAppApplying,
+	PhaseInstallerHandoff: EventAppInstallerHandoff,
+	PhaseVerified:         EventAppVerified,
+	PhaseRestarted:        EventRestartCompleted,
 }
 
 func eventFromOperation(
@@ -96,7 +95,7 @@ func transitionOutcome(transition Transition) string {
 		return value
 	}
 	if transition.Phase == PhaseFailed || transition.Phase == PhaseRolledBack {
-		return "failed"
+		return operationOutcomeFailed
 	}
 	return "ok"
 }

@@ -82,7 +82,10 @@ func (s stubUpdateManager) ApplyReleaseObserved(
 	observer compozyupdate.ApplyObserver,
 ) (compozyupdate.AppliedBinary, error) {
 	if s.applyFn != nil {
-		if err := observer(ctx, compozyupdate.ApplyStep{Phase: compozyupdate.PhaseDownloading, Percent: 0}); err != nil {
+		if err := observer(
+			ctx,
+			compozyupdate.ApplyStep{Phase: compozyupdate.PhaseDownloading, Percent: 0},
+		); err != nil {
 			return compozyupdate.AppliedBinary{}, err
 		}
 		return s.applyFn(ctx, release)

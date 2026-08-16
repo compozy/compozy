@@ -166,17 +166,21 @@ func overlayAppUpdateOperation(
 	report.Update.OperationID = operation.ID
 	percent := operation.Percent
 	report.Update.Percent = &percent
-	if phase, ok := compozyupdate.PhaseForUI(operation.ActiveTarget, activeOperationPhase(operation), operation.Percent); ok {
+	if phase, ok := compozyupdate.PhaseForUI(
+		operation.ActiveTarget,
+		activeOperationPhase(operation),
+		operation.Percent,
+	); ok {
 		report.Update.Phase = string(phase)
 	}
 	if operation.Runtime != nil {
 		report.Update.RuntimeAvailable = operation.Runtime.ToVersion
 		switch {
 		case operation.Runtime.Phase == compozyupdate.PhaseFailed || operation.Runtime.Phase == compozyupdate.PhaseRolledBack:
-			report.Update.RuntimeState = "failed"
+			report.Update.RuntimeState = string(compozyupdate.StatusFailed)
 		case operation.ActiveTarget == compozyupdate.TargetRuntime:
 			if operation.Runtime.Phase == compozyupdate.PhasePending {
-				report.Update.RuntimeState = "accepted"
+				report.Update.RuntimeState = string(compozyupdate.StatusAccepted)
 			} else {
 				report.Update.RuntimeState = "applying"
 			}
@@ -188,10 +192,10 @@ func overlayAppUpdateOperation(
 		case operation.Waiting == compozyupdate.WaitingForApp || operation.App.Phase == compozyupdate.PhaseStaged:
 			report.Update.AppState = "staged"
 		case operation.App.Phase == compozyupdate.PhaseFailed:
-			report.Update.AppState = "failed"
+			report.Update.AppState = string(compozyupdate.StatusFailed)
 		case operation.ActiveTarget == compozyupdate.TargetApp:
 			if operation.App.Phase == compozyupdate.PhasePending {
-				report.Update.AppState = "accepted"
+				report.Update.AppState = string(compozyupdate.StatusAccepted)
 			} else {
 				report.Update.AppState = "applying"
 			}

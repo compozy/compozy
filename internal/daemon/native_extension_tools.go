@@ -361,7 +361,7 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 	if previewer, supportsPreview := n.deps.Automation.(extensionAutomationPreviewer); supportsPreview {
 		automation = previewer
 	}
-	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:     n.deps.ExtensionRegistry,
 		Runtime:      runtime,
 		HookBindings: n.deps.HookBindings,

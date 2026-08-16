@@ -6,7 +6,7 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: `https://compozy.com/install.sh` serves a script pinned to the latest published release tag, downloads the `compozy` archive and checksum bundle from `compozy/compozy`, uses only compatible local Cosign v3 or the pinned Cosign v3.1.3 verifier, verifies the release workflow identity and archive checksum without provenance fallback, and installs the matching binary. Each GitHub release also carries an `install.sh` asset pinned to its own tag.
 entry_points: https://compozy.com/install.sh; latest GitHub release; checksums.txt; checksums.txt.sigstore.json
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

@@ -14,6 +14,9 @@ const (
 	GenerationFile    = "generation.json"
 	CompatibilityFile = "compat.json"
 	ChecksumsFile     = "checksums.txt"
+
+	operationPublish = "publish"
+	operationRepair  = "repair"
 )
 
 type Compatibility struct {

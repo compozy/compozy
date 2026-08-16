@@ -72,7 +72,10 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
 	if request.PublishedAt.IsZero() {
-		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, fmt.Errorf("desktop release: published_at is required"))
+		return OperatorResult{}, errorWithCode(
+			ErrorVerificationFailed,
+			fmt.Errorf("desktop release: published_at is required"),
+		)
 	}
 	branch := ChannelBranchPrefix + request.Channel
 	if existing, err := a.backend.FindOperation(ctx, branch, request.OperationID); err != nil {
@@ -82,7 +85,7 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 		if verifyErr != nil {
 			return OperatorResult{}, verifyErr
 		}
-		return resultFromExisting("publish", existing, verified), nil
+		return resultFromExisting(operationPublish, existing, verified), nil
 	}
 	before, previous, err := a.channelState(ctx, branch)
 	if err != nil {
@@ -100,7 +103,11 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 	if compatibility.RuntimeVersion != request.Version {
 		return OperatorResult{}, errorWithCode(
 			ErrorVerificationFailed,
-			fmt.Errorf("desktop release: compat runtime_version %s does not match release %s", compatibility.RuntimeVersion, request.Version),
+			fmt.Errorf(
+				"desktop release: compat runtime_version %s does not match release %s",
+				compatibility.RuntimeVersion,
+				request.Version,
+			),
 		)
 	}
 	if previous.Version != "" {
@@ -113,7 +120,7 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 		return OperatorResult{}, err
 	}
 	generation := Generation{
-		OperationID: request.OperationID, Operation: "publish", Version: request.Version,
+		OperationID: request.OperationID, Operation: operationPublish, Version: request.Version,
 		MinAppVersion: compatibility.MinAppVersion, PublishedAt: request.PublishedAt.UTC(),
 	}
 	files, err := prepareChannelFiles(request.ChannelDir, generation)
@@ -131,7 +138,7 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
 	return OperatorResult{
-		Operation: "publish", ChannelRefBefore: before, ChannelRefAfter: auditCommit,
+		Operation: operationPublish, ChannelRefBefore: before, ChannelRefAfter: auditCommit,
 		VerifiedInventory: verified, AuditCommit: auditCommit, Outcome: "published",
 	}, nil
 }
@@ -141,7 +148,10 @@ func (a *Authority) Repair(ctx context.Context, request RepairRequest) (Operator
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
 	if request.PublishedAt.IsZero() {
-		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, fmt.Errorf("desktop release: published_at is required"))
+		return OperatorResult{}, errorWithCode(
+			ErrorVerificationFailed,
+			fmt.Errorf("desktop release: published_at is required"),
+		)
 	}
 	branch := ChannelBranchPrefix + request.Channel
 	if existing, err := a.backend.FindOperation(ctx, branch, request.OperationID); err != nil {
@@ -151,7 +161,7 @@ func (a *Authority) Repair(ctx context.Context, request RepairRequest) (Operator
 		if verifyErr != nil {
 			return OperatorResult{}, verifyErr
 		}
-		return resultFromExisting("repair", existing, verified), nil
+		return resultFromExisting(operationRepair, existing, verified), nil
 	}
 	before, _, err := a.channelState(ctx, branch)
 	if err != nil {
@@ -167,7 +177,7 @@ func (a *Authority) Repair(ctx context.Context, request RepairRequest) (Operator
 	}
 	generation := knownGood.Generation
 	generation.OperationID = request.OperationID
-	generation.Operation = "repair"
+	generation.Operation = operationRepair
 	generation.PublishedAt = request.PublishedAt.UTC()
 	generation.SourceCommit = knownGood.SHA
 	files := cloneFiles(knownGood.Files)
@@ -187,7 +197,7 @@ func (a *Authority) Repair(ctx context.Context, request RepairRequest) (Operator
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
 	return OperatorResult{
-		Operation: "repair", ChannelRefBefore: before, ChannelRefAfter: auditCommit,
+		Operation: operationRepair, ChannelRefBefore: before, ChannelRefAfter: auditCommit,
 		VerifiedInventory: verified, AuditCommit: auditCommit, Outcome: "repaired",
 	}, nil
 }
@@ -251,7 +261,10 @@ func (a *Authority) verifyRemoteInventory(ctx context.Context, version string) (
 	for _, name := range required {
 		artifact, ok := byName[name]
 		if !ok {
-			return nil, errorWithCode(ErrorInventoryIncomplete, fmt.Errorf("desktop release: release %s is missing %s", version, name))
+			return nil, errorWithCode(
+				ErrorInventoryIncomplete,
+				fmt.Errorf("desktop release: release %s is missing %s", version, name),
+			)
 		}
 		artifacts = append(artifacts, artifact)
 	}
@@ -305,10 +318,7 @@ func validateOperationRequest(operationID, channel, version string) error {
 		return fmt.Errorf("desktop release: operation id must contain 1 to 128 safe characters")
 	}
 	for _, character := range operationID {
-		if !((character >= 'a' && character <= 'z') ||
-			(character >= 'A' && character <= 'Z') ||
-			(character >= '0' && character <= '9') ||
-			character == '-' || character == '_' || character == '.') {
+		if !isSafeOperationIDCharacter(character) {
 			return fmt.Errorf("desktop release: operation id contains unsupported character %q", character)
 		}
 	}
@@ -316,6 +326,13 @@ func validateOperationRequest(operationID, channel, version string) error {
 		return err
 	}
 	return ValidateVersion(version)
+}
+
+func isSafeOperationIDCharacter(character rune) bool {
+	return character >= 'a' && character <= 'z' ||
+		character >= 'A' && character <= 'Z' ||
+		character >= '0' && character <= '9' ||
+		character == '-' || character == '_' || character == '.'
 }
 
 func resultFromExisting(operation string, commit *ChannelCommit, verified []Artifact) OperatorResult {
@@ -350,7 +367,7 @@ func DecodeGeneration(contents []byte) (Generation, error) {
 	if generation.OperationID == "" || generation.Operation == "" {
 		return Generation{}, fmt.Errorf("desktop release: generation audit identity is incomplete")
 	}
-	if generation.Operation != "publish" && generation.Operation != "repair" {
+	if generation.Operation != operationPublish && generation.Operation != operationRepair {
 		return Generation{}, fmt.Errorf("desktop release: unsupported generation operation %q", generation.Operation)
 	}
 	if err := ValidateVersion(generation.Version); err != nil {
@@ -362,7 +379,7 @@ func DecodeGeneration(contents []byte) (Generation, error) {
 	if generation.PublishedAt.IsZero() {
 		return Generation{}, fmt.Errorf("desktop release: generation published_at is required")
 	}
-	if generation.Operation == "repair" && generation.SourceCommit == "" {
+	if generation.Operation == operationRepair && generation.SourceCommit == "" {
 		return Generation{}, fmt.Errorf("desktop release: repair generation source_commit is required")
 	}
 	return generation, nil

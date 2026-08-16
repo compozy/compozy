@@ -1,11 +1,11 @@
 ---
 id: APP-app-auto-update
 area: APP
-title: The app updates itself in the background and applies on my restart
+title: Apply an app update through the product update surface
 persona: Bruno
 journey: J-desktop-update-moment
-expected: With a newer version on the fixture feed, the app downloads in the background, surfaces "ready" without interrupting work, applies only on consented restart, and the new version indicator confirms it; quitting with the update pending applies it on the next launch per platform convention.
-entry_points: in-app update-ready indication; About/update surface; fixture update feed
+expected: With a newer verified release, the daemon reports the app track in Settings and the menubar points there; an accepted durable operation downloads and verifies the asset, then a running app enters installer handoff only with consent while a closed app stages for next launch. The boot window reports progress but never offers an update.
+entry_points: Settings → General → Updates in Chrome or the app; product menubar update indicator; compozy update; signed release channel
 qa_status: untested
 bug_ids:
 fix_status:
@@ -26,3 +26,6 @@ feed; macOS runs it inside the release rehearsal (scripted-manual) including the
 posture. All three OSes record before/after version indicators and the E2E-022
 quit-with-pending-update walk. Sleep/wake (US-014.EC-5) is a per-OS platform-smoke item with a
 recorded resume-without-duplicate-prompt observation.
+
+QA impact 2026-08-16: the decision surface moved from the shell overlay to the daemon-backed web UI
+and app apply joined the durable multi-target operation. Reset for the Electron N→N+1 walk.

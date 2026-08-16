@@ -76,7 +76,7 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 		}
 	})
 
-	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  extensionRegistry,
 		Runtime:   manager,
 		HomePaths: homePaths,

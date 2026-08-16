@@ -58,7 +58,7 @@ type appDiagnosticBundleResult struct {
 func newAppDiagnoseCommand(deps commandDeps) *cobra.Command {
 	var options appDiagnoseOptions
 	command := &cobra.Command{
-		Use:   "diagnose",
+		Use:   appDiagnoseMethod,
 		Short: "Show safe desktop diagnostics",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

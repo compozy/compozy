@@ -17,7 +17,7 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 5, 3, 21, 0, 0, 0, time.UTC)
 		var requests atomic.Int32
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSLinux,
 			RuntimeArch: runtimeArchAMD64,
 			Now: func() time.Time {
@@ -66,7 +66,7 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 5, 3, 21, 30, 0, 0, time.UTC)
 		var requests atomic.Int32
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSLinux,
 			RuntimeArch: runtimeArchAMD64,
 			Now: func() time.Time {
@@ -121,7 +121,7 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 5, 3, 22, 0, 0, 0, time.UTC)
 		var requests atomic.Int32
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			Now: func() time.Time {
 				return now
 			},
@@ -178,7 +178,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Parallel()
 
 			now := time.Date(2026, 5, 3, 23, 0, 0, 0, time.UTC)
-			manager, _ := newManagerWithExecutable(t, Config{
+			manager, _ := newManagerWithExecutable(t, &Config{
 				Now: func() time.Time {
 					return now
 				},
@@ -221,7 +221,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should refuse self-update for dev builds", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			CurrentVersion: "dev",
 		})
 
@@ -242,7 +242,7 @@ func TestManagerCheck(t *testing.T) {
 		t.Parallel()
 
 		var requests atomic.Int32
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			CurrentVersion: "25bd6116",
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -273,7 +273,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should reject prerelease metadata from the latest-release endpoint", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
 					return jsonHTTPResponse(t, http.StatusOK, githubReleaseResponse{
@@ -298,7 +298,7 @@ func TestManagerCheck(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 7, 27, 9, 0, 0, 0, time.UTC)
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			CurrentVersion: "v0.3.0-beta.1",
 			Now:            func() time.Time { return now },
 			HTTPClient: &http.Client{
@@ -358,7 +358,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should mark Windows direct-binary installs as manual-only", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSWindows,
 			RuntimeArch: runtimeArchAMD64,
 		})
@@ -382,7 +382,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should defer managed npm and go-install updates with package-specific guidance", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{})
+		manager, _ := newManagerWithExecutable(t, &Config{})
 		tests := []struct {
 			name   string
 			method InstallMethod
@@ -422,13 +422,14 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should self-apply a desktop-owned runtime", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{})
+		manager, _ := newManagerWithExecutable(t, &Config{})
 		state := manager.composeState(
 			installInfo{Method: string(InstallMethodDesktopApp)},
 			&Release{Version: "v1.1.0"},
 			nil,
 		)
-		if !state.Supported || state.Managed || state.Status != StatusAvailable || state.Recommendation != "Run `compozy update`." {
+		if !state.Supported || state.Managed || state.Status != StatusAvailable ||
+			state.Recommendation != "Run `compozy update`." {
 			t.Fatalf("desktop state = %#v, want supported self-apply", state)
 		}
 	})
@@ -436,7 +437,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should keep beta recommendations on beta-capable distribution paths", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{CurrentVersion: "v0.3.0-beta.1"})
+		manager, _ := newManagerWithExecutable(t, &Config{CurrentVersion: "v0.3.0-beta.1"})
 		tests := []struct {
 			name      string
 			method    InstallMethod
@@ -538,7 +539,7 @@ func TestManagerCheck(t *testing.T) {
 				{Name: "CompozyOS-1.2.0-linux-arm64.AppImage"},
 			},
 		}
-		mac, _ := newManagerWithExecutable(t, Config{RuntimeOS: runtimeOSDarwin, RuntimeArch: runtimeArchARM64})
+		mac, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSDarwin, RuntimeArch: runtimeArchARM64})
 		macAsset, err := mac.resolveAppReleaseAsset(release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(macOS) error = %v", err)
@@ -547,7 +548,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("resolveAppReleaseAsset(macOS) = %q, want zip", macAsset.Name)
 		}
 
-		linux, _ := newManagerWithExecutable(t, Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchARM64})
+		linux, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchARM64})
 		linuxAsset, err := linux.resolveAppReleaseAsset(release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(Linux) error = %v", err)
@@ -556,7 +557,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("resolveAppReleaseAsset(Linux) = %q, want AppImage", linuxAsset.Name)
 		}
 
-		windows, _ := newManagerWithExecutable(t, Config{RuntimeOS: runtimeOSWindows, RuntimeArch: runtimeArchAMD64})
+		windows, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSWindows, RuntimeArch: runtimeArchAMD64})
 		if _, err := windows.resolveAppReleaseAsset(release); err == nil {
 			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
 		}
@@ -574,7 +575,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 			reader:   strings.NewReader(strings.Repeat("x", int(maxUpdateResponseDrainBytes)+1)),
 			closeErr: closeErr,
 		}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 					return &http.Response{
@@ -614,7 +615,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 			reader:   iotest.ErrReader(drainErr),
 			closeErr: closeErr,
 		}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 					return &http.Response{

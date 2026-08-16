@@ -2402,13 +2402,13 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	if svc := newDaemonExtensionService(daemonExtensionServiceDeps{}); svc != nil {
+	if svc := newDaemonExtensionService(&daemonExtensionServiceDeps{}); svc != nil {
 		t.Fatalf("newDaemonExtensionService(nil) = %#v, want nil", svc)
 	}
 
 	db := openDaemonTestGlobalDB(t)
 	registry := extensionpkg.NewRegistry(db.DB())
-	if svc := newDaemonExtensionService(daemonExtensionServiceDeps{Registry: registry}); svc == nil {
+	if svc := newDaemonExtensionService(&daemonExtensionServiceDeps{Registry: registry}); svc == nil {
 		t.Fatal("newDaemonExtensionService(defaults) = nil, want service")
 	}
 }
@@ -2930,7 +2930,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		syncs := 0
 		fixedNow := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry: registry,
 				Runtime:  manager,
 				HookBindings: fakeHookBindingPublisher(func(context.Context) error {
@@ -3311,7 +3311,7 @@ func newDaemonDistributionInstallService(
 	db := openDaemonTestGlobalDB(t)
 	registry := extensionpkg.NewRegistry(db.DB())
 	service, ok := newDaemonExtensionService(
-		daemonExtensionServiceDeps{
+		&daemonExtensionServiceDeps{
 			Registry:  registry,
 			HomePaths: homePaths,
 			Logger:    discardLogger(),
@@ -3525,7 +3525,7 @@ func TestDaemonExtensionServiceRollsBackFailedEnableReload(t *testing.T) {
 		})
 
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry: registry,
 				Runtime:  manager,
 				HookBindings: fakeHookBindingPublisher(func(context.Context) error {

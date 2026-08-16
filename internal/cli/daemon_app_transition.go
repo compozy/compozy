@@ -14,7 +14,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const shellUpdateLeaseDuration = 2 * time.Minute
+const (
+	shellUpdateLeaseDuration          = 2 * time.Minute
+	appTransitionActionAcquire        = "acquire"
+	appTransitionActionRecover        = "recover"
+	appTransitionActionRenew          = "renew"
+	appTransitionActionPhase          = "phase"
+	appTransitionActionProgress       = "progress"
+	appTransitionActionFence          = "fence"
+	appTransitionActionVerifyArtifact = "verify-artifact"
+)
 
 type daemonAppTransitionOptions struct {
 	action             string
@@ -106,95 +115,136 @@ func executeDaemonAppTransition(
 	if err != nil {
 		return nil, err
 	}
+	execution := daemonAppTransitionExecution{
+		ctx: ctx, store: store, now: now, parentPID: parentPID, options: options,
+		operationID: operationID, generation: generation, watchdogDeadline: watchdogDeadline,
+	}
 	switch strings.TrimSpace(options.action) {
-	case "acquire":
-		if generation == "" {
-			return nil, errors.New("cli: app update executor generation is required")
-		}
-		operation, err := store.Read(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if !appOperationReadyForShell(operation, operationID, options.expectedRevision) {
-			return nil, compozyupdate.ErrExecutorFenced
-		}
-		holder, err := desktopAppUpdateHolder(parentPID, generation, now)
-		if err != nil {
-			return nil, err
-		}
-		return store.Transition(ctx, operationID, "", options.expectedRevision, compozyupdate.Transition{
-			Kind: compozyupdate.TransitionAcquireLease, Actor: compozyupdate.ActorShell,
-			Target: compozyupdate.TargetApp, Percent: -1,
-			Holder: holder,
-		})
-	case "recover":
-		if generation == "" {
-			return nil, errors.New("cli: app update executor generation is required")
-		}
-		operation, err := store.Read(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if !appOperationRecoverableByShell(store, operation, operationID, options.expectedRevision) {
-			return nil, compozyupdate.ErrExecutorFenced
-		}
-		holder, err := desktopAppUpdateHolder(parentPID, generation, now)
-		if err != nil {
-			return nil, err
-		}
-		return store.Transition(ctx, operationID, "", options.expectedRevision, compozyupdate.Transition{
-			Kind: compozyupdate.TransitionRecover, Actor: compozyupdate.ActorShell,
-			Target: compozyupdate.TargetApp, Percent: operation.Percent,
-			Holder: holder,
-		})
-	case "renew":
-		operation, err := store.Read(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if operation == nil || operation.Holder == nil {
-			return nil, compozyupdate.ErrOperationNotFound
-		}
-		holder := *operation.Holder
-		holder.LeaseExpiresAt = now.UTC().Add(shellUpdateLeaseDuration)
-		return store.Transition(ctx, operationID, generation, options.expectedRevision, compozyupdate.Transition{
-			Kind: compozyupdate.TransitionRenewLease, Actor: compozyupdate.ActorShell,
-			Target: compozyupdate.TargetApp, Percent: operation.Percent, Holder: &holder,
-		})
-	case "phase":
-		return store.Transition(ctx, operationID, generation, options.expectedRevision, compozyupdate.Transition{
-			Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorShell,
-			Target: compozyupdate.TargetApp, Phase: compozyupdate.OperationPhase(strings.TrimSpace(options.phase)),
-			Percent: options.percent, LastError: options.lastError, Outcome: options.outcome,
-			AppWatchdogDeadline:  watchdogDeadline,
-			IncrementAppFailures: options.incrementFailures,
-			ResetAppFailures:     options.resetFailures,
-		})
-	case "progress":
-		return store.Transition(ctx, operationID, generation, options.expectedRevision, compozyupdate.Transition{
-			Kind: compozyupdate.TransitionProgress, Actor: compozyupdate.ActorShell,
-			Target: compozyupdate.TargetApp, Percent: options.percent,
-		})
-	case "fence":
-		if err := store.Fence(ctx, operationID, generation, options.expectedRevision); err != nil {
-			return nil, err
-		}
-		return store.Read(ctx)
-	case "verify-artifact":
-		if err := store.VerifyAppArtifact(
-			ctx,
-			operationID,
-			generation,
-			options.expectedRevision,
-			strings.TrimSpace(options.attemptID),
-			strings.TrimSpace(options.artifactPath),
-		); err != nil {
-			return nil, err
-		}
-		return store.Read(ctx)
+	case appTransitionActionAcquire:
+		return execution.acquire()
+	case appTransitionActionRecover:
+		return execution.recover()
+	case appTransitionActionRenew:
+		return execution.renew()
+	case appTransitionActionPhase:
+		return execution.phase()
+	case appTransitionActionProgress:
+		return execution.progress()
+	case appTransitionActionFence:
+		return execution.fence()
+	case appTransitionActionVerifyArtifact:
+		return execution.verifyArtifact()
 	default:
 		return nil, fmt.Errorf("cli: unsupported app update transition action %q", options.action)
 	}
+}
+
+type daemonAppTransitionExecution struct {
+	ctx              context.Context
+	store            *compozyupdate.OperationStore
+	now              time.Time
+	parentPID        int
+	options          daemonAppTransitionOptions
+	operationID      string
+	generation       string
+	watchdogDeadline *time.Time
+}
+
+func (e daemonAppTransitionExecution) acquire() (*compozyupdate.Operation, error) {
+	if e.generation == "" {
+		return nil, errors.New("cli: app update executor generation is required")
+	}
+	operation, err := e.store.Read(e.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !appOperationReadyForShell(operation, e.operationID, e.options.expectedRevision) {
+		return nil, compozyupdate.ErrExecutorFenced
+	}
+	holder, err := desktopAppUpdateHolder(e.parentPID, e.generation, e.now)
+	if err != nil {
+		return nil, err
+	}
+	return e.store.Transition(e.ctx, e.operationID, "", e.options.expectedRevision, compozyupdate.Transition{
+		Kind: compozyupdate.TransitionAcquireLease, Actor: compozyupdate.ActorShell,
+		Target: compozyupdate.TargetApp, Percent: -1, Holder: holder,
+	})
+}
+
+func (e daemonAppTransitionExecution) recover() (*compozyupdate.Operation, error) {
+	if e.generation == "" {
+		return nil, errors.New("cli: app update executor generation is required")
+	}
+	operation, err := e.store.Read(e.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !appOperationRecoverableByShell(e.store, operation, e.operationID, e.options.expectedRevision) {
+		return nil, compozyupdate.ErrExecutorFenced
+	}
+	holder, err := desktopAppUpdateHolder(e.parentPID, e.generation, e.now)
+	if err != nil {
+		return nil, err
+	}
+	return e.store.Transition(e.ctx, e.operationID, "", e.options.expectedRevision, compozyupdate.Transition{
+		Kind: compozyupdate.TransitionRecover, Actor: compozyupdate.ActorShell,
+		Target: compozyupdate.TargetApp, Percent: operation.Percent, Holder: holder,
+	})
+}
+
+func (e daemonAppTransitionExecution) renew() (*compozyupdate.Operation, error) {
+	operation, err := e.store.Read(e.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if operation == nil || operation.Holder == nil {
+		return nil, compozyupdate.ErrOperationNotFound
+	}
+	holder := *operation.Holder
+	holder.LeaseExpiresAt = e.now.UTC().Add(shellUpdateLeaseDuration)
+	return e.store.Transition(e.ctx, e.operationID, e.generation, e.options.expectedRevision, compozyupdate.Transition{
+		Kind: compozyupdate.TransitionRenewLease, Actor: compozyupdate.ActorShell,
+		Target: compozyupdate.TargetApp, Percent: operation.Percent, Holder: &holder,
+	})
+}
+
+func (e daemonAppTransitionExecution) phase() (*compozyupdate.Operation, error) {
+	return e.store.Transition(e.ctx, e.operationID, e.generation, e.options.expectedRevision, compozyupdate.Transition{
+		Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorShell,
+		Target: compozyupdate.TargetApp, Phase: compozyupdate.OperationPhase(strings.TrimSpace(e.options.phase)),
+		Percent: e.options.percent, LastError: e.options.lastError, Outcome: e.options.outcome,
+		AppWatchdogDeadline:  e.watchdogDeadline,
+		IncrementAppFailures: e.options.incrementFailures,
+		ResetAppFailures:     e.options.resetFailures,
+	})
+}
+
+func (e daemonAppTransitionExecution) progress() (*compozyupdate.Operation, error) {
+	return e.store.Transition(e.ctx, e.operationID, e.generation, e.options.expectedRevision, compozyupdate.Transition{
+		Kind: compozyupdate.TransitionProgress, Actor: compozyupdate.ActorShell,
+		Target: compozyupdate.TargetApp, Percent: e.options.percent,
+	})
+}
+
+func (e daemonAppTransitionExecution) fence() (*compozyupdate.Operation, error) {
+	if err := e.store.Fence(e.ctx, e.operationID, e.generation, e.options.expectedRevision); err != nil {
+		return nil, err
+	}
+	return e.store.Read(e.ctx)
+}
+
+func (e daemonAppTransitionExecution) verifyArtifact() (*compozyupdate.Operation, error) {
+	if err := e.store.VerifyAppArtifact(
+		e.ctx,
+		e.operationID,
+		e.generation,
+		e.options.expectedRevision,
+		strings.TrimSpace(e.options.attemptID),
+		strings.TrimSpace(e.options.artifactPath),
+	); err != nil {
+		return nil, err
+	}
+	return e.store.Read(e.ctx)
 }
 
 func parseOptionalAppWatchdog(value string) (*time.Time, error) {

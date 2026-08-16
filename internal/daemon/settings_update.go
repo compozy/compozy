@@ -75,7 +75,7 @@ func (c settingsUpdateController) ApplyUpdate(
 			compozyupdate.Transition{
 				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
 				Target: target, Phase: compozyupdate.PhaseFailed, Percent: -1,
-				LastError: err.Error(), Outcome: "failed",
+				LastError: err.Error(), Outcome: string(compozyupdate.StatusFailed),
 			},
 		)
 		return core.SettingsUpdateApply{
@@ -106,7 +106,7 @@ func (c settingsUpdateController) CancelUpdate(ctx context.Context) (core.Settin
 		ctx, operation.ID, "", operation.Revision,
 		compozyupdate.Transition{
 			Kind: compozyupdate.TransitionCancel, Actor: compozyupdate.ActorWeb,
-			Target: operation.ActiveTarget, Percent: -1, Outcome: "canceled",
+			Target: operation.ActiveTarget, Percent: -1, Outcome: string(compozyupdate.StatusCanceled),
 		},
 	)
 	if errors.Is(err, compozyupdate.ErrOperationNotCancelable) || errors.Is(err, compozyupdate.ErrExecutorFenced) {
@@ -128,7 +128,7 @@ func newSettingsUpdateManager(d *Daemon) (*compozyupdate.Manager, error) {
 	if d == nil {
 		return nil, errors.New("daemon: settings update daemon is required")
 	}
-	return compozyupdate.NewManager(compozyupdate.Config{
+	return compozyupdate.NewManager(&compozyupdate.Config{
 		HomePaths:       d.homePaths,
 		CurrentVersion:  version.Current().Version,
 		ExecutablePath:  d.executable,
@@ -177,7 +177,7 @@ func spawnDetachedUpdateCoordinator(
 	process, err := d.startDetached(ctx, detachedStartRequest{
 		binary: binary,
 		args: []string{
-			"daemon", "update-coordinator",
+			string(compozyupdate.ActorDaemon), "update-coordinator",
 			"--operation-id", operation.ID,
 			"--executor-generation", operation.Holder.ExecutorGeneration,
 		},

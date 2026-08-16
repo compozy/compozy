@@ -37,7 +37,10 @@ func CheckRuntimeCompatibility(compatibility Compatibility, installedAppVersion 
 }
 
 // FetchCompatibility downloads and verifies the signed compatibility asset without mutating the install.
-func (m *Manager) FetchCompatibility(ctx context.Context, release *Release) (compatibility Compatibility, returnErr error) {
+func (m *Manager) FetchCompatibility(
+	ctx context.Context,
+	release *Release,
+) (compatibility Compatibility, returnErr error) {
 	if release == nil {
 		return Compatibility{}, errors.New("update: release metadata is required")
 	}

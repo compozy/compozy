@@ -83,6 +83,10 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTa
 
 func (d *Daemon) shutdownSessionTargets(ctx context.Context, targets *shutdownTargets, errs *[]error) {
 	targets.runtimeWorkers.shutdown(ctx, errs)
+	d.shutdownRuntimeSessions(ctx, targets, errs)
+}
+
+func (d *Daemon) shutdownRuntimeSessions(ctx context.Context, targets *shutdownTargets, errs *[]error) {
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)
 	}

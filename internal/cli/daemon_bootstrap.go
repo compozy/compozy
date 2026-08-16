@@ -21,12 +21,16 @@ import (
 type bootstrapPhase string
 
 const (
-	bootstrapPhaseResolve   bootstrapPhase = "resolve"
-	bootstrapPhaseAttach    bootstrapPhase = "attach"
-	bootstrapPhaseProvision bootstrapPhase = "provision"
-	bootstrapPhaseStart     bootstrapPhase = "start"
-	bootstrapPhaseReady     bootstrapPhase = "ready"
-	bootstrapPhaseFailed    bootstrapPhase = "failed"
+	bootstrapPhaseResolve    bootstrapPhase = "resolve"
+	bootstrapPhaseAttach     bootstrapPhase = "attach"
+	bootstrapPhaseProvision  bootstrapPhase = "provision"
+	bootstrapPhaseStart      bootstrapPhase = "start"
+	bootstrapPhaseReady      bootstrapPhase = "ready"
+	bootstrapPhaseFailed     bootstrapPhase = "failed"
+	bootstrapEventType                      = "bootstrap"
+	bootstrapStatusStarted                  = "started"
+	bootstrapStatusCompleted                = "completed"
+	bootstrapBinaryName                     = "compozy"
 )
 
 type bootstrapDaemon struct {
@@ -57,7 +61,7 @@ var daemonBootstrapAttemptGate bootstrapAttemptGate
 func newDaemonBootstrapCommand(deps commandDeps) *cobra.Command {
 	options := bootstrapOptions{}
 	cmd := &cobra.Command{
-		Use:   "bootstrap",
+		Use:   bootstrapEventType,
 		Short: "Resolve, provision, and start the desktop runtime",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -92,95 +96,135 @@ func runDaemonBootstrap(cmd *cobra.Command, deps commandDeps, options bootstrapO
 	}
 	installedPath := bootstrapRuntimePath(homePaths)
 	if err := writeBootstrapEvent(cmd, bootstrapEvent{
-		Type: "bootstrap", Phase: bootstrapPhaseResolve, Status: "started", Message: "Resolving the CompozyOS runtime.",
+		Type: bootstrapEventType, Phase: bootstrapPhaseResolve, Status: bootstrapStatusStarted,
+		Message: "Resolving the CompozyOS runtime.",
 	}); err != nil {
 		return err
 	}
 
-	status, running, err := probeBootstrapDaemon(cmd.Context(), deps, homePaths)
+	execution := bootstrapExecution{
+		cmd: cmd, deps: deps, options: options, homePaths: homePaths,
+		bundlePath: bundlePath, installedPath: installedPath,
+	}
+	return execution.resolveAndStart()
+}
+
+type bootstrapExecution struct {
+	cmd           *cobra.Command
+	deps          commandDeps
+	options       bootstrapOptions
+	homePaths     compozyconfig.HomePaths
+	bundlePath    string
+	installedPath string
+}
+
+func (e *bootstrapExecution) resolveAndStart() error {
+	status, running, err := probeBootstrapDaemon(e.cmd.Context(), e.deps, e.homePaths)
 	if err == nil && running {
-		if err := validateBootstrapCompatibility(status, options.minimumRuntime, options.appVersion); err != nil {
-			return writeBootstrapFailure(cmd, bootstrapPhaseAttach, bootstrapProbeListeningUnhealthy, err)
-		}
-		daemon, err := bootstrapDaemonFromStatus(status)
-		if err != nil {
-			return writeBootstrapFailure(cmd, bootstrapPhaseAttach, bootstrapProbeListeningUnhealthy, err)
-		}
-		return writeBootstrapEvent(cmd, bootstrapEvent{
-			Type: "bootstrap", Phase: bootstrapPhaseReady, Status: "completed",
-			Resolution: bootstrapResolutionAttach, Message: "Attached to the running CompozyOS runtime.",
-			Daemon: daemon,
-		})
+		return writeAttachedBootstrap(e.cmd, e.options, status)
 	}
-	if err := cleanupStaleBootstrapDaemonRecord(homePaths, deps); err != nil {
-		return writeBootstrapFailure(cmd, bootstrapPhaseResolve, bootstrapProbeStaleRecord, err)
+	if err := cleanupStaleBootstrapDaemonRecord(e.homePaths, e.deps); err != nil {
+		return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeStaleRecord, err)
 	}
 
-	installed := regularFileExists(installedPath)
+	installed := regularFileExists(e.installedPath)
 	resolution := resolveBootstrapAction(bootstrapProbe{Installed: installed})
-	if resolution == bootstrapResolutionProvision {
-		if err := writeBootstrapEvent(cmd, bootstrapEvent{
-			Type: "bootstrap", Phase: bootstrapPhaseProvision, Status: "started",
-			Resolution: resolution, Message: "Provisioning the bundled CompozyOS runtime.",
-		}); err != nil {
-			return err
-		}
-		if err := provisionBundledRuntime(bundlePath, installedPath); err != nil {
-			return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
-		}
-		if err := writeBootstrapEvent(cmd, bootstrapEvent{
-			Type: "bootstrap", Phase: bootstrapPhaseProvision, Status: "completed",
-			Resolution: resolution, Message: "Provisioned the bundled CompozyOS runtime.",
-		}); err != nil {
-			return err
-		}
+	if err := provisionBootstrapRuntime(e.cmd, resolution, e.bundlePath, e.installedPath); err != nil {
+		return err
 	}
+	return e.start(resolution)
+}
 
+func writeAttachedBootstrap(cmd *cobra.Command, options bootstrapOptions, status DaemonStatus) error {
+	if err := validateBootstrapCompatibility(status, options.minimumRuntime, options.appVersion); err != nil {
+		return writeBootstrapFailure(cmd, bootstrapPhaseAttach, bootstrapProbeListeningUnhealthy, err)
+	}
+	daemon, err := bootstrapDaemonFromStatus(status)
+	if err != nil {
+		return writeBootstrapFailure(cmd, bootstrapPhaseAttach, bootstrapProbeListeningUnhealthy, err)
+	}
+	return writeBootstrapEvent(cmd, bootstrapEvent{
+		Type: bootstrapEventType, Phase: bootstrapPhaseReady, Status: bootstrapStatusCompleted,
+		Resolution: bootstrapResolutionAttach, Message: "Attached to the running CompozyOS runtime.",
+		Daemon: daemon,
+	})
+}
+
+func provisionBootstrapRuntime(
+	cmd *cobra.Command,
+	resolution bootstrapResolution,
+	bundlePath string,
+	installedPath string,
+) error {
+	if resolution != bootstrapResolutionProvision {
+		return nil
+	}
+	if err := writeBootstrapEvent(cmd, bootstrapEvent{
+		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusStarted,
+		Resolution: resolution, Message: "Provisioning the bundled CompozyOS runtime.",
+	}); err != nil {
+		return err
+	}
+	if err := provisionBundledRuntime(bundlePath, installedPath); err != nil {
+		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
+	}
+	return writeBootstrapEvent(cmd, bootstrapEvent{
+		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusCompleted,
+		Resolution: resolution, Message: "Provisioned the bundled CompozyOS runtime.",
+	})
+}
+
+func (e *bootstrapExecution) start(resolution bootstrapResolution) error {
 	var lastErr error
 	for attempt := 1; attempt <= bootstrapMaximumAttempts; attempt++ {
-		if err := writeBootstrapEvent(cmd, bootstrapEvent{
-			Type: "bootstrap", Phase: bootstrapPhaseStart, Status: "started",
+		if err := writeBootstrapEvent(e.cmd, bootstrapEvent{
+			Type: bootstrapEventType, Phase: bootstrapPhaseStart, Status: bootstrapStatusStarted,
 			Resolution: resolution, Attempt: attempt, Message: "Starting the CompozyOS runtime.",
 		}); err != nil {
 			return err
 		}
-		status, lastErr = runBootstrapDaemonDetached(cmd.Context(), deps, homePaths, installedPath)
+		status, startErr := runBootstrapDaemonDetached(e.cmd.Context(), e.deps, e.homePaths, e.installedPath)
+		lastErr = startErr
 		if lastErr == nil {
-			if compatibilityErr := validateBootstrapCompatibility(status, options.minimumRuntime, options.appVersion); compatibilityErr != nil {
-				return writeBootstrapFailure(cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, compatibilityErr)
-			}
-			daemon, daemonErr := bootstrapDaemonFromStatus(status)
-			if daemonErr != nil {
-				return writeBootstrapFailure(cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, daemonErr)
-			}
-			return writeBootstrapEvent(cmd, bootstrapEvent{
-				Type: "bootstrap", Phase: bootstrapPhaseReady, Status: "completed",
-				Resolution: resolution, Attempt: attempt, Message: "The CompozyOS runtime is ready.",
-				Daemon: daemon,
-			})
+			return e.writeStarted(status, resolution, attempt)
 		}
 		if bootstrapShouldGiveUp(attempt) {
 			break
 		}
 		delay := bootstrapBackoff(attempt)
-		if err := writeBootstrapEvent(cmd, bootstrapEvent{
-			Type: "bootstrap", Phase: bootstrapPhaseStart, Status: "retrying",
+		if err := writeBootstrapEvent(e.cmd, bootstrapEvent{
+			Type: bootstrapEventType, Phase: bootstrapPhaseStart, Status: "retrying",
 			Resolution: resolution, Attempt: attempt, BackoffMS: delay.Milliseconds(),
 			Classification: bootstrapProbeListeningUnhealthy,
 			Message:        "The runtime did not become ready; retrying with bounded backoff.",
 		}); err != nil {
 			return err
 		}
-		if err := waitBootstrapBackoff(cmd.Context(), delay); err != nil {
+		if err := waitBootstrapBackoff(e.cmd.Context(), delay); err != nil {
 			return err
 		}
 	}
 	return writeBootstrapFailure(
-		cmd,
+		e.cmd,
 		bootstrapPhaseFailed,
 		bootstrapProbeListeningUnhealthy,
 		fmt.Errorf("cli: runtime did not become ready after %d attempts: %w", bootstrapMaximumAttempts, lastErr),
 	)
+}
+
+func (e *bootstrapExecution) writeStarted(status DaemonStatus, resolution bootstrapResolution, attempt int) error {
+	if err := validateBootstrapCompatibility(status, e.options.minimumRuntime, e.options.appVersion); err != nil {
+		return writeBootstrapFailure(e.cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, err)
+	}
+	daemon, err := bootstrapDaemonFromStatus(status)
+	if err != nil {
+		return writeBootstrapFailure(e.cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, err)
+	}
+	return writeBootstrapEvent(e.cmd, bootstrapEvent{
+		Type: bootstrapEventType, Phase: bootstrapPhaseReady, Status: bootstrapStatusCompleted,
+		Resolution: resolution, Attempt: attempt, Message: "The CompozyOS runtime is ready.",
+		Daemon: daemon,
+	})
 }
 
 func bootstrapDaemonFromStatus(status DaemonStatus) (*bootstrapDaemon, error) {
@@ -227,8 +271,8 @@ func resolveBootstrapBundlePath(deps commandDeps, override string) (string, erro
 }
 
 func bootstrapRuntimePath(homePaths compozyconfig.HomePaths) string {
-	name := "compozy"
-	if runtime.GOOS == "windows" {
+	name := bootstrapBinaryName
+	if runtime.GOOS == platformWindows {
 		name += ".exe"
 	}
 	return filepath.Join(homePaths.BinDir, name)
@@ -251,7 +295,7 @@ func probeBootstrapDaemon(
 	if err != nil {
 		return DaemonStatus{}, false, err
 	}
-	if status.PID <= 0 || strings.TrimSpace(status.Status) != "running" {
+	if status.PID <= 0 || strings.TrimSpace(status.Status) != daemonRunningStatus {
 		return status, false, errors.New("cli: running daemon did not report healthy status")
 	}
 	return status, true, nil
@@ -291,7 +335,11 @@ func runBootstrapDaemonDetached(
 func validateBootstrapCompatibility(status DaemonStatus, minimumRuntime string, appVersion string) error {
 	runtimeVersion, err := semver.NewVersion(strings.TrimPrefix(strings.TrimSpace(status.Version), "v"))
 	if err != nil {
-		return fmt.Errorf("cli: runtime version %q is invalid; repair the runtime installation: %w", status.Version, err)
+		return fmt.Errorf(
+			"cli: runtime version %q is invalid; repair the runtime installation: %w",
+			status.Version,
+			err,
+		)
 	}
 	constraint, err := semver.NewConstraint(strings.TrimSpace(minimumRuntime))
 	if err != nil {
@@ -420,7 +468,7 @@ func writeBootstrapFailure(
 	cause error,
 ) error {
 	if err := writeBootstrapEvent(cmd, bootstrapEvent{
-		Type: "bootstrap", Phase: phase, Status: "failed", Classification: classification,
+		Type: bootstrapEventType, Phase: phase, Status: string(bootstrapPhaseFailed), Classification: classification,
 		Message: cause.Error(),
 	}); err != nil {
 		return err

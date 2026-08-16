@@ -6,7 +6,7 @@ persona: Dora
 journey: J-publish-compozy-beta
 expected: After both npm publishes succeed, production waits at most ten minutes for @compozy/cli and @compozy/extension-sdk to expose the requested dist-tag at the exact release version; stale or absent tags are re-read, while query failures, malformed policy data, or a beta that moves latest stop immediately without republishing.
 entry_points: GitHub Actions release.yml Production Release; Verify published channel policy; npm registry dist-tags
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260807-npm-dist-tag-readiness
 fix_status: fixed
 retest_status: pass

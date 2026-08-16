@@ -5,7 +5,7 @@ title: An app-provisioned runtime updates as one product update with timing cons
 persona: Bruno
 journey: J-desktop-update-moment
 expected: On an app-provisioned home with agent work in flight, a ready runtime update asks for timing consent — "later" keeps everything working; "now" quiesces, stops, applies, restarts, reconnects — and both new versions appear in one update surface.
-entry_points: Settings Updates on an app-provisioned home; signed compatibility catalog and immutable release assets
+entry_points: Settings → General → Updates in Chrome or the app; compozy update; settings update HTTP and UDS routes; signed compatibility catalog and immutable release assets
 qa_status: untested
 bug_ids:
 fix_status:

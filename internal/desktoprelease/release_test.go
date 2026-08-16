@@ -134,7 +134,6 @@ func TestCutoverReferenceScan(t *testing.T) {
 	}
 
 	for _, relative := range liveSurfaces {
-		relative := relative
 		t.Run("Should keep "+relative+" free of deleted desktop surfaces", func(t *testing.T) {
 			t.Parallel()
 			scanDesktopReleaseSurface(t, root, relative, checks)
@@ -151,7 +150,6 @@ func TestCutoverReferenceScan(t *testing.T) {
 		"scripts/publish-desktop-release.sh",
 		"scripts/repair-desktop-feed.sh",
 	} {
-		relative := relative
 		t.Run("Should keep deleted target absent "+relative, func(t *testing.T) {
 			t.Parallel()
 			if _, err := os.Stat(filepath.Join(root, relative)); !errors.Is(err, os.ErrNotExist) {
@@ -229,7 +227,12 @@ func TestChannelAuthority(t *testing.T) {
 			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
 		})
 		if CodeOf(err) != ErrorVerificationFailed {
-			t.Fatalf("CodeOf(interrupted Publish error) = %q, want %q; error = %v", CodeOf(err), ErrorVerificationFailed, err)
+			t.Fatalf(
+				"CodeOf(interrupted Publish error) = %q, want %q; error = %v",
+				CodeOf(err),
+				ErrorVerificationFailed,
+				err,
+			)
 		}
 		assertProviderGeneration(t, provider.URL, "1.0.0-beta.1")
 
@@ -379,7 +382,7 @@ func (b *fakeAuthorityBackend) seedGeneration(t *testing.T, version string) {
 	b.nextCommit++
 	sha := fmt.Sprintf("commit-%d", b.nextCommit)
 	generation := Generation{
-		OperationID: "seed-" + version, Operation: "publish", Version: version,
+		OperationID: "seed-" + version, Operation: operationPublish, Version: version,
 		MinAppVersion: version, PublishedAt: testTime(),
 	}
 	files := map[string][]byte{
@@ -415,8 +418,8 @@ func (b *fakeAuthorityBackend) FindOperation(_ context.Context, _ string, operat
 	for sha := b.head; sha != ""; {
 		commit := b.commits[sha]
 		if commit.Generation.OperationID == operationID {
-			copy := commit
-			return &copy, nil
+			commitCopy := commit
+			return &commitCopy, nil
 		}
 		sha = parentOf(commit)
 	}
@@ -508,7 +511,7 @@ func assertProviderGeneration(t *testing.T, providerURL, wantVersion string) {
 		t.Context(),
 		http.MethodGet,
 		providerURL+"/"+ChannelBranchPrefix+ChannelBeta+"/"+ChannelDirectory+"/"+GenerationFile,
-		nil,
+		http.NoBody,
 	)
 	if err != nil {
 		t.Fatalf("http.NewRequestWithContext() error = %v", err)
@@ -631,17 +634,25 @@ func writeDesktopArtifacts(t *testing.T, dir, version string) {
 }
 
 func macManifestFixture(version string) []byte {
-	return []byte(fmt.Sprintf(
+	return fmt.Appendf(
+		nil,
 		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-mac-arm64.zip\n    sha512: arm64\n    size: 10\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-mac-x64.zip\n    sha512: x64\n    size: 10\nreleaseDate: '2026-08-16T12:00:00Z'\n",
-		version, version, version, version, version,
-	))
+		version,
+		version,
+		version,
+		version,
+		version,
+	)
 }
 
 func linuxManifestFixture(version string) []byte {
-	return []byte(fmt.Sprintf(
+	return fmt.Appendf(
+		nil,
 		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-linux-x64.AppImage\n    sha512: linux\n    size: 10\nreleaseDate: '2026-08-16T12:00:00Z'\n",
-		version, version, version,
-	))
+		version,
+		version,
+		version,
+	)
 }
 
 func writeTestFile(t *testing.T, path string, contents []byte) {

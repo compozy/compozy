@@ -45,7 +45,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, executablePath := newManagerWithExecutable(t, Config{
+		manager, executablePath := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -89,7 +89,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, executablePath := newManagerWithExecutable(t, Config{
+		manager, executablePath := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -118,7 +118,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -158,7 +158,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -192,7 +192,7 @@ func TestManagerApplyRelease(t *testing.T) {
 	t.Run("Should reject releases that do not publish the checksum bundle", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSLinux,
 			RuntimeArch: runtimeArchAMD64,
 		})
@@ -223,7 +223,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{err: errors.New("invalid bundle")}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -255,7 +255,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -292,7 +292,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -324,7 +324,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -363,7 +363,7 @@ func TestManagerDownloadFile(t *testing.T) {
 			reader:   strings.NewReader(strings.Repeat("x", int(maxUpdateResponseDrainBytes)+1)),
 			closeErr: closeErr,
 		}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 					return &http.Response{
@@ -405,7 +405,7 @@ func TestManagerDownloadFile(t *testing.T) {
 	t.Run("Should reject chunked downloads that exceed the limit", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSLinux,
 			RuntimeArch: runtimeArchAMD64,
 		})
@@ -573,7 +573,7 @@ func TestManagerRestore(t *testing.T) {
 		t.Parallel()
 
 		applier := &recordingBinaryApplier{}
-		manager, executablePath := newManagerWithExecutable(t, Config{
+		manager, executablePath := newManagerWithExecutable(t, &Config{
 			RuntimeOS:     runtimeOSLinux,
 			RuntimeArch:   runtimeArchAMD64,
 			BinaryApplier: applier,

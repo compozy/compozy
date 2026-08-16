@@ -123,11 +123,16 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 			t.Fatalf("NewOperationStore() error = %v", err)
 		}
 		operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{compozyupdate.TargetApp})
-		staged, err := store.Transition(t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+		staged, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			operation.Holder.ExecutorGeneration,
+			operation.Revision,
 			compozyupdate.Transition{
 				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI,
 				Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100,
-			})
+			},
+		)
 		if err != nil {
 			t.Fatalf("Transition(staged) error = %v", err)
 		}
@@ -1060,7 +1065,8 @@ func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(directory, "app.token"), []byte("token-current\n"), 0o600); err != nil {
 			t.Fatalf("WriteFile(app token) error = %v", err)
 		}
-		listener, err := net.Listen("unix", socketPath)
+		var listenConfig net.ListenConfig
+		listener, err := listenConfig.Listen(t.Context(), "unix", socketPath)
 		if err != nil {
 			t.Fatalf("Listen(app socket) error = %v", err)
 		}
@@ -1083,7 +1089,11 @@ func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 				return
 			}
 			requests <- request
-			response := appControlResponse{SchemaVersion: appControlSchemaVersion, ID: request.ID, Result: json.RawMessage(`{"ok":true}`)}
+			response := appControlResponse{
+				SchemaVersion: appControlSchemaVersion,
+				ID:            request.ID,
+				Result:        json.RawMessage(`{"ok":true}`),
+			}
 			if encodeErr := json.NewEncoder(connection).Encode(response); encodeErr != nil {
 				serverErrors <- errors.Join(encodeErr, connection.Close())
 				return

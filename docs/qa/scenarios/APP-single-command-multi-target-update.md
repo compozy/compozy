@@ -4,8 +4,8 @@ area: APP
 title: Update runtime and app through one command
 persona: Ada
 journey: J-desktop-agent-headless
-expected: One `compozy update -o json` operation applies the runtime first, then updates a running app or stages a closed app, and reports both targets from the same verified release.
-entry_points: compozy update; compozy update --check -o json; compozy app status -o json
+expected: One `compozy update -o json` operation applies the runtime first, then updates a running app or stages a closed app, and reports both targets from the same verified release; the deleted app-scoped updater subcommand is unknown with no alias, write, or operation record.
+entry_points: compozy update; compozy update --check -o json; compozy app status -o json; rejected app-scoped updater invocation
 qa_status: untested
 bug_ids:
 fix_status:

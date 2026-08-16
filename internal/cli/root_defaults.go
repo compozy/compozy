@@ -149,7 +149,7 @@ func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 	}
 	if d.newUpdateManager == nil {
 		d.newUpdateManager = func(homePaths compozyconfig.HomePaths) (updateManager, error) {
-			return compozyupdate.NewManager(compozyupdate.Config{
+			return compozyupdate.NewManager(&compozyupdate.Config{
 				HomePaths:      homePaths,
 				CurrentVersion: version.Current().Version,
 				ExecutablePath: d.executable,

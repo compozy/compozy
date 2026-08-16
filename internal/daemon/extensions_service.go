@@ -133,10 +133,10 @@ func withDaemonExtensionMCPRuntimeHealth(registry *mcppkg.RuntimeHealthRegistry)
 }
 
 func newDaemonExtensionService(
-	deps daemonExtensionServiceDeps,
+	deps *daemonExtensionServiceDeps,
 	opts ...daemonExtensionServiceOption,
 ) udsapi.ExtensionService {
-	if deps.Registry == nil {
+	if deps == nil || deps.Registry == nil {
 		return nil
 	}
 	if deps.Logger == nil {

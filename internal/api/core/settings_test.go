@@ -1202,8 +1202,10 @@ func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
 		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(apply response) error = %v", err)
 		}
-		if payload.Status != contract.SettingsUpdateApplyAccepted || payload.Target != contract.SettingsUpdateTargetRuntime ||
-			payload.OperationID != "operation-1" || fixture.Update.ApplyCalls != 1 {
+		if payload.Status != contract.SettingsUpdateApplyAccepted ||
+			payload.Target != contract.SettingsUpdateTargetRuntime ||
+			payload.OperationID != "operation-1" ||
+			fixture.Update.ApplyCalls != 1 {
 			t.Fatalf("apply response = %#v calls=%d, want accepted runtime", payload, fixture.Update.ApplyCalls)
 		}
 	})
@@ -1220,7 +1222,12 @@ func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
 			[]byte(`{"target":"everything"}`),
 		)
 		if resp.Code != http.StatusBadRequest || fixture.Update.ApplyCalls != 0 {
-			t.Fatalf("POST invalid apply status=%d calls=%d body=%s", resp.Code, fixture.Update.ApplyCalls, resp.Body.String())
+			t.Fatalf(
+				"POST invalid apply status=%d calls=%d body=%s",
+				resp.Code,
+				fixture.Update.ApplyCalls,
+				resp.Body.String(),
+			)
 		}
 	})
 

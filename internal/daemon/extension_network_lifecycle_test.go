@@ -23,7 +23,7 @@ func TestExtensionEnableNetworkConsentLifecycle(t *testing.T) {
 	registry, manifest := installNetworkLifecycleExtension(t, db, "network-kit")
 	runtime := &networkLifecycleRuntime{registry: registry, manifest: manifest}
 	writer := &extensionEventRecorder{}
-	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  registry,
 		Runtime:   runtime,
 		HomePaths: testHomePaths(t),

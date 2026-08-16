@@ -89,7 +89,7 @@ func (r *cliUpdateRuntime) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if status.PID <= 0 || strings.TrimSpace(status.Status) != "running" {
+	if status.PID <= 0 || strings.TrimSpace(status.Status) != daemonRunningStatus {
 		return fmt.Errorf("cli: replacement daemon is not healthy (status=%q pid=%d)", status.Status, status.PID)
 	}
 	return nil

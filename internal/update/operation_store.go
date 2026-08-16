@@ -64,8 +64,14 @@ type OperationStore struct {
 
 // NewOperationStore binds the journal to one CompozyOS home.
 func NewOperationStore(paths compozyconfig.HomePaths, events OperationEventEmitter) (*OperationStore, error) {
-	operationPath := firstPath(paths.UpdateOperationFile, filepath.Join(paths.HomeDir, compozyconfig.UpdateOperationFileName))
-	lockPath := firstPath(paths.UpdateOperationLock, filepath.Join(paths.HomeDir, compozyconfig.UpdateOperationLockName))
+	operationPath := firstPath(
+		paths.UpdateOperationFile,
+		filepath.Join(paths.HomeDir, compozyconfig.UpdateOperationFileName),
+	)
+	lockPath := firstPath(
+		paths.UpdateOperationLock,
+		filepath.Join(paths.HomeDir, compozyconfig.UpdateOperationLockName),
+	)
 	historyPath := firstPath(
 		paths.UpdateHistoryFile,
 		filepath.Join(paths.HomeDir, compozyconfig.LogsDirName, compozyconfig.UpdateHistoryFileName),

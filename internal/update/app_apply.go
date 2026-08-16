@@ -37,8 +37,14 @@ type AppApplyResult struct {
 func (s *OperationStore) RequestAppApply(ctx context.Context, request AppApplyRequest) (AppApplyResult, error) {
 	if strings.TrimSpace(request.App.AttemptID) == "" || strings.TrimSpace(request.App.Asset) == "" ||
 		strings.TrimSpace(request.App.Digest) == "" {
-		return AppApplyResult{Target: TargetApp, Status: ApplyStatusFailed, Message: "Verified app asset identity is required."},
-			errors.New("update: verified app asset identity and attempt id are required")
+		return AppApplyResult{
+				Target:  TargetApp,
+				Status:  ApplyStatusFailed,
+				Message: "Verified app asset identity is required.",
+			},
+			errors.New(
+				"update: verified app asset identity and attempt id are required",
+			)
 	}
 	request.App.Phase = PhasePending
 	operation, err := s.Acquire(ctx, OperationRequest{

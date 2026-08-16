@@ -8,7 +8,7 @@ when the runtime dies, and quitting never stops the runtime or in-flight agent w
 flowchart TD
     A[Entry: dock or launcher click] --> B{Runtime state for the active home?}
     B -->|healthy and running| C[Attach - zero writes, zero spawns]
-    B -->|installed but stopped| D[Start with visible bounded progress]
+    B -->|installed but stopped| D[Start with visible bounded non-interactive progress]
     B -->|version skew| E[Guided incompatibility state naming both versions + action]
     B -->|foreign process on the address| F[Conflict named - foreign content never rendered]
     B -->|running but unhealthy| G[Honest degraded state, retry in place]
@@ -41,7 +41,7 @@ journey:
       expected_observable: "Attach only — same product state as the browser, no second daemon in the process table"
     - step: 2
       verb: "Open the app with the runtime installed but stopped"
-      expected_observable: "Visible starting progress, then the product UI; no dead white screen"
+      expected_observable: "Visible non-interactive starting progress, then the product UI; no dead white screen or update offer in the boot window"
     - step: 3
       verb: "Scale the product with standard page-zoom shortcuts"
       expected_observable: "Command or Control plus, minus, and zero change or reset the whole product scale without triggering Compozy's single-window Zoom action"

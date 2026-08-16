@@ -2,6 +2,8 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+const settingsUpdateUnavailableDescription = "Update surface unavailable"
+
 func registrySettingsOperations() []OperationSpec {
 	return []OperationSpec{
 		listSettingsApplyRecordsOperationSpec(),
@@ -94,7 +96,7 @@ func getSettingsUpdateOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsUpdateResponse{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Update surface unavailable", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -109,10 +111,14 @@ func applySettingsUpdateOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.SettingsUpdateApplyRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Accepted, blocked, or acquisition-time failure", Body: contract.SettingsUpdateApplyResponse{}},
+			{
+				Status:      200,
+				Description: "Accepted, blocked, or acquisition-time failure",
+				Body:        contract.SettingsUpdateApplyResponse{},
+			},
 			{Status: 400, Description: "Invalid update target", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Update surface unavailable", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -126,9 +132,13 @@ func cancelSettingsUpdateOperationSpec() OperationSpec {
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Canceled or declined with current holder", Body: contract.SettingsUpdateCancelResponse{}},
+			{
+				Status:      200,
+				Description: "Canceled or declined with current holder",
+				Body:        contract.SettingsUpdateCancelResponse{},
+			},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Update surface unavailable", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }

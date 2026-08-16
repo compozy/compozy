@@ -148,15 +148,27 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Acquire() error = %v", err)
 		}
-		staged, err := store.Transition(context.Background(), operation.ID, "generation-1", operation.Revision, Transition{
-			Kind: TransitionPhase, Actor: ActorCLI, Target: TargetApp, Phase: PhaseStaged, Percent: 100,
-		})
+		staged, err := store.Transition(
+			context.Background(),
+			operation.ID,
+			"generation-1",
+			operation.Revision,
+			Transition{
+				Kind: TransitionPhase, Actor: ActorCLI, Target: TargetApp, Phase: PhaseStaged, Percent: 100,
+			},
+		)
 		if err != nil {
 			t.Fatalf("Transition(staged) error = %v", err)
 		}
-		waiting, err := store.Transition(context.Background(), operation.ID, "generation-1", staged.Revision, Transition{
-			Kind: TransitionWaitForApp, Actor: ActorCLI, Target: TargetApp, Percent: -1,
-		})
+		waiting, err := store.Transition(
+			context.Background(),
+			operation.ID,
+			"generation-1",
+			staged.Revision,
+			Transition{
+				Kind: TransitionWaitForApp, Actor: ActorCLI, Target: TargetApp, Percent: -1,
+			},
+		)
 		if err != nil {
 			t.Fatalf("Transition(waiting) error = %v", err)
 		}
@@ -604,7 +616,7 @@ func countOperationHistoryRecords(t *testing.T, data []byte, operationID string)
 
 func splitNonEmptyLines(value string) []string {
 	var lines []string
-	for _, line := range strings.Split(value, "\n") {
+	for line := range strings.SplitSeq(value, "\n") {
 		if strings.TrimSpace(line) != "" {
 			lines = append(lines, line)
 		}

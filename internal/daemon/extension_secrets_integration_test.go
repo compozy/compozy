@@ -223,7 +223,7 @@ func newExtensionSecretIntegrationHarness(
 			nil,
 		))
 	}
-	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  registry,
 		Runtime:   manager,
 		HomePaths: homePaths,

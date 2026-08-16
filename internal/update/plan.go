@@ -58,52 +58,90 @@ func (m *Manager) PlanOperation(
 	if err != nil {
 		return OperationRequest{}, err
 	}
+	plan := operationPlan{
+		state:       state,
+		release:     release,
+		downloaded:  downloaded,
+		assets:      assets,
+		archivedApp: archivedApp,
+	}
 	for _, target := range targets {
-		switch target {
-		case TargetRuntime:
-			digest, err := checksumForAsset(downloaded.checksumsPath, assets.archive.Name)
-			if err != nil {
-				return OperationRequest{}, err
-			}
-			request.Runtime = &RuntimeOperationState{
-				ArtifactIdentity: ArtifactIdentity{
-					FromVersion: state.Runtime.CurrentVersion, ToVersion: release.Version,
-					ReleaseTag: release.Version, Asset: assets.archive.Name, Digest: "sha256:" + digest,
-				},
-				InstallMethod: InstallMethod(state.Runtime.InstallMethod),
-				Phase:         PhasePending,
-			}
-		case TargetApp:
-			if state.App == nil {
-				return OperationRequest{}, errors.New("update: desktop app is not installed")
-			}
-			appAsset, err := m.resolveAppReleaseAsset(release)
-			if err != nil {
-				return OperationRequest{}, err
-			}
-			digest, err := checksumForAsset(downloaded.checksumsPath, appAsset.Name)
-			if err != nil {
-				return OperationRequest{}, err
-			}
-			attemptID, err := randomOperationID()
-			if err != nil {
-				return OperationRequest{}, err
-			}
-			request.App = &AppOperationState{
-				ArtifactIdentity: ArtifactIdentity{
-					FromVersion: state.App.CurrentVersion, ToVersion: release.Version,
-					ReleaseTag: release.Version, Asset: appAsset.Name, Digest: "sha256:" + digest,
-				},
-				AttemptID: attemptID,
-				Phase:     PhasePending,
-				ConsecutiveFailures: consecutiveAppFailures(
-					state.App.CurrentVersion,
-					archivedApp,
-				),
-			}
+		if err := m.addPlannedTarget(&request, target, plan); err != nil {
+			return OperationRequest{}, err
 		}
 	}
 	return request, nil
+}
+
+type operationPlan struct {
+	state       MultiState
+	release     *Release
+	downloaded  downloadedReleaseArtifacts
+	assets      releaseAssets
+	archivedApp *Operation
+}
+
+func (m *Manager) addPlannedTarget(request *OperationRequest, target Target, plan operationPlan) error {
+	switch target {
+	case TargetRuntime:
+		runtimeState, err := plannedRuntimeState(plan)
+		request.Runtime = runtimeState
+		return err
+	case TargetApp:
+		appState, err := m.plannedAppState(plan)
+		request.App = appState
+		return err
+	default:
+		return fmt.Errorf("update: invalid target %q", target)
+	}
+}
+
+func plannedRuntimeState(plan operationPlan) (*RuntimeOperationState, error) {
+	digest, err := checksumForAsset(plan.downloaded.checksumsPath, plan.assets.archive.Name)
+	if err != nil {
+		return nil, err
+	}
+	return &RuntimeOperationState{
+		ArtifactIdentity: ArtifactIdentity{
+			FromVersion: plan.state.Runtime.CurrentVersion,
+			ToVersion:   plan.release.Version,
+			ReleaseTag:  plan.release.Version,
+			Asset:       plan.assets.archive.Name,
+			Digest:      "sha256:" + digest,
+		},
+		InstallMethod: InstallMethod(plan.state.Runtime.InstallMethod),
+		Phase:         PhasePending,
+	}, nil
+}
+
+func (m *Manager) plannedAppState(plan operationPlan) (*AppOperationState, error) {
+	if plan.state.App == nil {
+		return nil, errors.New("update: desktop app is not installed")
+	}
+	appAsset, err := m.resolveAppReleaseAsset(plan.release)
+	if err != nil {
+		return nil, err
+	}
+	digest, err := checksumForAsset(plan.downloaded.checksumsPath, appAsset.Name)
+	if err != nil {
+		return nil, err
+	}
+	attemptID, err := randomOperationID()
+	if err != nil {
+		return nil, err
+	}
+	return &AppOperationState{
+		ArtifactIdentity: ArtifactIdentity{
+			FromVersion: plan.state.App.CurrentVersion,
+			ToVersion:   plan.release.Version,
+			ReleaseTag:  plan.release.Version,
+			Asset:       appAsset.Name,
+			Digest:      "sha256:" + digest,
+		},
+		AttemptID:           attemptID,
+		Phase:               PhasePending,
+		ConsecutiveFailures: consecutiveAppFailures(plan.state.App.CurrentVersion, plan.archivedApp),
+	}, nil
 }
 
 func consecutiveAppFailures(currentVersion string, archived *Operation) int {
@@ -148,5 +186,9 @@ func (m *Manager) resolveAppReleaseAsset(release *Release) (ReleaseAsset, error)
 			}
 		}
 	}
-	return ReleaseAsset{}, fmt.Errorf("update: release %q has no desktop app asset for %s", release.Version, m.runtimeArch)
+	return ReleaseAsset{}, fmt.Errorf(
+		"update: release %q has no desktop app asset for %s",
+		release.Version,
+		m.runtimeArch,
+	)
 }

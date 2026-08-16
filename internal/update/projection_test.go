@@ -37,7 +37,7 @@ func TestUpdateProjectionContracts(t *testing.T) {
 				Phase:            PhaseDownloading,
 			},
 			App:       &AppOperationState{AttemptID: "attempt-1", Phase: PhasePending},
-			Holder:    pointerToHolder(operationTestHolder("generation-1", testOperationNow)),
+			Holder:    new(operationTestHolder("generation-1", testOperationNow)),
 			StartedAt: testOperationNow,
 		}
 		state := ProjectMultiState(State{
@@ -73,7 +73,13 @@ func TestOperationPhaseToUIPhase(t *testing.T) {
 		{name: "runtime verify", target: TargetRuntime, phase: PhaseVerifying, percent: -1, want: UIPhaseVerify},
 		{name: "runtime install", target: TargetRuntime, phase: PhaseSwapping, percent: -1, want: UIPhaseInstall},
 		{name: "runtime start", target: TargetRuntime, phase: PhaseRestarting, percent: -1, want: UIPhaseStart},
-		{name: "runtime ready check", target: TargetRuntime, phase: PhaseHealthChecking, percent: -1, want: UIPhaseReadyCheck},
+		{
+			name:    "runtime ready check",
+			target:  TargetRuntime,
+			phase:   PhaseHealthChecking,
+			percent: -1,
+			want:    UIPhaseReadyCheck,
+		},
 		{name: "runtime ready", target: TargetRuntime, phase: PhaseFinalized, percent: 100, want: UIPhaseReady},
 		{name: "app download", target: TargetApp, phase: PhaseApplying, percent: 50, want: UIPhaseDownload},
 		{name: "app verify", target: TargetApp, phase: PhaseApplying, percent: 100, want: UIPhaseVerify},
@@ -86,10 +92,16 @@ func TestOperationPhaseToUIPhase(t *testing.T) {
 			t.Parallel()
 			got, ok := PhaseForUI(test.target, test.phase, test.percent)
 			if !ok || got != test.want {
-				t.Fatalf("PhaseForUI(%q, %q, %d) = %q/%t, want %q/true", test.target, test.phase, test.percent, got, ok, test.want)
+				t.Fatalf(
+					"PhaseForUI(%q, %q, %d) = %q/%t, want %q/true",
+					test.target,
+					test.phase,
+					test.percent,
+					got,
+					ok,
+					test.want,
+				)
 			}
 		})
 	}
 }
-
-func pointerToHolder(holder Holder) *Holder { return &holder }

@@ -6,7 +6,7 @@ persona: Ada
 journey: J-approve-compozy-beta-candidate
 expected: The root and site migration guides normalize to identical canonical content across all eight required sections, describe runtime selection, input defaults, daemon startup, live-only session attachment, and run deep links as shipped, state that no v0.3 beta config migrator exists, and account for every audited legacy CLI, Web, extension, and SDK surface with a successor or an explicit removed/deferred disposition.
 entry_points: MIGRATION_GUIDE.md; packages/site/content/docs/migration/**; make migration-guide-check; scripts/verify-migration-guide-parity.sh; legacy-surface disposition ledger
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass

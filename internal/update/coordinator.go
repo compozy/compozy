@@ -100,7 +100,12 @@ func (c *Coordinator) recoverSwap(ctx context.Context, state *coordinatorState) 
 		}
 		return fmt.Errorf("update: inspect recovery backup: %w", err)
 	}
-	return c.rollback(ctx, state, c.appliedFromOperation(operation), errors.New("update: recovered interrupted runtime swap"))
+	return c.rollback(
+		ctx,
+		state,
+		c.appliedFromOperation(operation),
+		errors.New("update: recovered interrupted runtime swap"),
+	)
 }
 
 func (c *Coordinator) appliedFromOperation(operation *Operation) AppliedBinary {

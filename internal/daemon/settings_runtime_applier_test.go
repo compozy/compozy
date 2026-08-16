@@ -459,7 +459,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		t.Parallel()
 
 		nativeDeps, registry, _, _ := newNativeExtensionToolDeps(t)
-		extensionService, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		extensionService, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry:  registry,
 			HomePaths: nativeDeps.HomePaths,
 		},

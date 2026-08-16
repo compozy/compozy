@@ -65,7 +65,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		if !ok {
 			t.Fatalf("native extension automation = %T, want extensionAutomationPreviewer", deps.Automation)
 		}
-		service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry:  extRegistry,
 			Runtime:   inspectionRuntime,
 			HomePaths: deps.HomePaths,

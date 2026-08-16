@@ -57,7 +57,7 @@ func TestDevelopmentExtensionNetworkConsentLifecycle(t *testing.T) {
 		}
 	})
 	confirmedAt := time.Date(2026, 8, 2, 21, 0, 0, 0, time.UTC)
-	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  registry,
 		Runtime:   manager,
 		HomePaths: testHomePaths(t),
@@ -246,7 +246,7 @@ func TestDevelopmentExtensionNetworkConsentLifecycle(t *testing.T) {
 			"2.0.0",
 			[]string{"builders"},
 		)
-		workspaceTwoService := newDaemonExtensionService(daemonExtensionServiceDeps{
+		workspaceTwoService := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry:  registry,
 			Runtime:   manager,
 			HomePaths: testHomePaths(t),
@@ -428,7 +428,7 @@ func TestInstalledExtensionNetworkConsentTransportLifecycle(t *testing.T) {
 			runtime := &networkLifecycleRuntime{registry: registry, manifest: manifest}
 			writer := &extensionEventRecorder{}
 			confirmedAt := time.Date(2026, 8, 2, 22, 0, 0, 0, time.UTC)
-			service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+			service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 				Registry:  registry,
 				Runtime:   runtime,
 				HomePaths: testHomePaths(t),

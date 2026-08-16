@@ -52,7 +52,7 @@ func (s *OperationStore) failAppDigest(
 ) error {
 	_, transitionErr := s.Transition(ctx, operation.ID, executorGeneration, operation.Revision, Transition{
 		Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp, Phase: PhaseFailed,
-		Percent: -1, LastError: reason, Outcome: "failed",
+		Percent: -1, LastError: reason, Outcome: operationOutcomeFailed,
 	})
 	return errors.Join(errors.New(reason), transitionErr)
 }

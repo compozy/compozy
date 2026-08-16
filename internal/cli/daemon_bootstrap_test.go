@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -140,7 +141,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(target) error = %v", err)
 		}
-		if string(got) != string(payload) {
+		if !bytes.Equal(got, payload) {
 			t.Fatalf("provisioned payload = %q, want complete payload", got)
 		}
 		matches, err := filepath.Glob(filepath.Join(filepath.Dir(target), ".compozy-bootstrap-*"))
@@ -183,7 +184,7 @@ func TestDaemonBootstrapEmitsAttachJSONL(t *testing.T) {
 		writeFile(t, homePaths.DaemonInfo, `{"pid":4242,"port":2123,"started_at":"2026-04-03T12:00:00Z"}`)
 		deps.processAlive = func(int) bool { return true }
 		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
-		deps.executable = func() (string, error) { return os.Executable() }
+		deps.executable = os.Executable
 
 		stdout, _, err := executeRootCommand(
 			t,

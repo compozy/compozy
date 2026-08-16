@@ -185,7 +185,7 @@ func networkUsageToon(payload NetworkUsageRecord) string {
 				"participation_available",
 				"participating",
 				taskWorkspaceIDKey,
-				"channel",
+				networkChannelKey,
 				"root_id",
 				"depth",
 				stateKey,

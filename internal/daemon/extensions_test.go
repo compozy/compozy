@@ -276,7 +276,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		deps, registry, source, _ := newNativeExtensionToolDeps(t)
 		runtime := newLifecycleStateRuntime(registry)
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry:  registry,
 				Runtime:   runtime,
 				HomePaths: deps.HomePaths,
@@ -421,7 +421,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		runtime := newLifecycleStateRuntime(registry)
 		publisher := &lifecycleFailingPublisher{}
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry:   registry,
 				Runtime:    runtime,
 				AgentSkill: publisher,
@@ -681,7 +681,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		writeErr := errors.New("injected install completion event failure")
 		writer := &daemonExtensionEventStoreStub{writeErr: writeErr}
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry: registry, HomePaths: deps.HomePaths, Logger: discardLogger(), Now: time.Now,
 			},
 			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
@@ -974,7 +974,7 @@ func newLifecycleFailureHarness(t *testing.T, name string) *lifecycleFailureHarn
 	registry, manifest := installNetworkLifecycleExtension(t, db, name)
 	runtime := newLifecycleStateRuntime(registry)
 	publisher := &lifecycleFailingPublisher{}
-	service := newDaemonExtensionService(daemonExtensionServiceDeps{
+	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:   registry,
 		Runtime:    runtime,
 		AgentSkill: publisher,

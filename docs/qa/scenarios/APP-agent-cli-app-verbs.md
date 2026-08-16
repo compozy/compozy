@@ -4,8 +4,8 @@ area: APP
 title: Drive the desktop surface end-to-end through compozy app
 persona: Ada
 journey: J-desktop-agent-headless
-expected: The full lifecycle — status before install, open or focus, schema-v2 transitional state, navigation, `compozy update` handoff, redacted diagnostics, consent-gated bundle export, and stopped state — is deterministic structured output with named errors.
-entry_points: compozy app status|open|retry|diagnose -o json; compozy update [--check|--cancel] -o json; app.sock control socket
+expected: The full lifecycle — status before install, open or focus, retry, schema-v2 transitional state, navigation, `compozy update` handoff, redacted diagnostics, consent-gated bundle export, and stopped state — is deterministic structured output with named errors; the deleted app-scoped updater subcommand is absent and creates no operation.
+entry_points: compozy app status|open|retry|diagnose -o json; compozy update [--check|--cancel] -o json; rejected app-scoped updater invocation; app.sock control socket
 qa_status: untested
 bug_ids: BUG-20260810-app-control-timeout; BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed

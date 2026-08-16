@@ -5,7 +5,7 @@ title: Announce the Electron desktop cutover and manual replacement
 persona: Ada
 journey: J-publish-compozy-beta
 expected: Release notes direct each supported architecture to the current GitHub release, preserve the existing home and package identity, and tell portable Linux users when to delete the old AppImage.
-entry_points: RELEASE_BODY.md; RELEASE_NOTES.md; installation docs
+entry_points: RELEASE_BODY.md; RELEASE_NOTES.md; getting-started installation and desktop-app docs; operations desktop-app and desktop-release runbook docs
 qa_status: untested
 bug_ids:
 fix_status:

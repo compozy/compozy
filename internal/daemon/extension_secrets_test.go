@@ -586,7 +586,7 @@ func newExtensionSecretsTestService(
 		Manifest: &extensionpkg.Manifest{Name: "kit", Version: "1.0.0", RequiresEnv: slices.Clone(declared)},
 		Status:   extensionpkg.ExtensionStatus{Name: "kit", Version: "1.0.0", Enabled: true, Registered: true},
 	}}
-	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  registry,
 		Runtime:   runtime,
 		HomePaths: testHomePaths(t),

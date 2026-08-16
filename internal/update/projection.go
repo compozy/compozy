@@ -1,6 +1,9 @@
 package update
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // MultiState is the live host-global projection shared by settings and app status.
 type MultiState struct {
@@ -90,7 +93,15 @@ func ProjectMultiState(runtime State, app *AppTrackState, operation *Operation) 
 // AggregateLiveStatus applies the frozen live status precedence.
 func AggregateLiveStatus(statuses ...Status) Status {
 	return aggregateStatus(
-		[]Status{StatusFailed, StatusBlocked, StatusApplying, StatusAccepted, StatusStaged, StatusUpdated, StatusAvailable},
+		[]Status{
+			StatusFailed,
+			StatusBlocked,
+			StatusApplying,
+			StatusAccepted,
+			StatusStaged,
+			StatusUpdated,
+			StatusAvailable,
+		},
 		statuses,
 	)
 }
@@ -105,10 +116,8 @@ func AggregateTerminalStatus(statuses ...Status) Status {
 
 func aggregateStatus(precedence []Status, statuses []Status) Status {
 	for _, candidate := range precedence {
-		for _, status := range statuses {
-			if status == candidate {
-				return candidate
-			}
+		if slices.Contains(statuses, candidate) {
+			return candidate
 		}
 	}
 	return StatusUpToDate

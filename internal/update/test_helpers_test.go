@@ -27,7 +27,7 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func newManagerWithExecutable(t *testing.T, cfg Config) (*Manager, string) {
+func newManagerWithExecutable(t *testing.T, cfg *Config) (*Manager, string) {
 	t.Helper()
 
 	homePaths := cfg.HomePaths

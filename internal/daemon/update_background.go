@@ -198,7 +198,7 @@ func recoverDaemonUpdateOperation(
 			compozyupdate.Transition{
 				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
 				Target: compozyupdate.TargetRuntime, Phase: compozyupdate.PhaseFailed,
-				Percent: -1, LastError: err.Error(), Outcome: "failed",
+				Percent: -1, LastError: err.Error(), Outcome: string(compozyupdate.StatusFailed),
 			},
 		)
 		return errors.Join(err, transitionErr)

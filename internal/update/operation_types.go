@@ -9,6 +9,12 @@ import (
 
 const OperationSchemaVersion = 1
 
+const (
+	operationOutcomeCanceled = "canceled"
+	operationOutcomeFailed   = "failed"
+	operationOutcomeStarted  = "started"
+)
+
 // Target identifies one install track in a host-global update operation.
 type Target string
 
@@ -87,7 +93,7 @@ type AppOperationState struct {
 	AttemptID           string         `json:"attempt_id"`
 	Phase               OperationPhase `json:"phase"`
 	ConsecutiveFailures int            `json:"consecutive_failures"`
-	WatchdogDeadline    time.Time      `json:"watchdog_deadline,omitempty"`
+	WatchdogDeadline    time.Time      `json:"watchdog_deadline,omitzero"`
 }
 
 // Operation is the sole durable mutation journal for one CompozyOS home.
@@ -158,21 +164,29 @@ func validateOperation(operation *Operation) error {
 	if operation.App != nil && !operation.App.Phase.validFor(TargetApp) {
 		return fmt.Errorf("update: invalid app phase %q", operation.App.Phase)
 	}
-	if operation.Holder != nil {
-		if operation.Holder.PID <= 0 || operation.Holder.PIDStartTime.IsZero() ||
-			!operation.Holder.Surface.valid() || strings.TrimSpace(operation.Holder.ExecutorGeneration) == "" ||
-			operation.Holder.LeaseExpiresAt.IsZero() {
-			return errors.New("update: operation holder is invalid")
-		}
-		if operation.Waiting != WaitingNone {
-			return errors.New("update: a waiting operation cannot have a holder")
-		}
+	if err := validateOperationHolder(operation); err != nil {
+		return err
 	}
 	if operation.Waiting != WaitingNone && operation.Waiting != WaitingForApp {
 		return fmt.Errorf("update: invalid waiting state %q", operation.Waiting)
 	}
 	if operation.Percent < -1 || operation.Percent > 100 {
 		return fmt.Errorf("update: percent %d is outside -1..100", operation.Percent)
+	}
+	return nil
+}
+
+func validateOperationHolder(operation *Operation) error {
+	if operation.Holder == nil {
+		return nil
+	}
+	holder := operation.Holder
+	if holder.PID <= 0 || holder.PIDStartTime.IsZero() || !holder.Surface.valid() ||
+		strings.TrimSpace(holder.ExecutorGeneration) == "" || holder.LeaseExpiresAt.IsZero() {
+		return errors.New("update: operation holder is invalid")
+	}
+	if operation.Waiting != WaitingNone {
+		return errors.New("update: a waiting operation cannot have a holder")
 	}
 	return nil
 }

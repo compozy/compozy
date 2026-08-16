@@ -17,38 +17,16 @@ import (
 )
 
 // NewManager binds the update flow to the current CompozyOS runtime.
-func NewManager(cfg Config) (*Manager, error) {
-	executablePath := cfg.ExecutablePath
-	if executablePath == nil {
-		executablePath = os.Executable
+func NewManager(cfg *Config) (*Manager, error) {
+	if cfg == nil {
+		return nil, errors.New("update: manager config is required")
 	}
-	resolveSymlinks := cfg.ResolveSymlinks
-	if resolveSymlinks == nil {
-		resolveSymlinks = filepath.EvalSymlinks
-	}
-	getenv := cfg.Getenv
-	if getenv == nil {
-		getenv = os.Getenv
-	}
-	now := cfg.Now
-	if now == nil {
-		now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	httpClient := cfg.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-	lookPath := cfg.LookPath
-	if lookPath == nil {
-		lookPath = exec.LookPath
-	}
-	runCommand := cfg.RunCommand
-	if runCommand == nil {
-		runCommand = defaultRunCommand
-	}
-	resolvedExecutable, artifactPolicy, err := resolveManagerInputs(cfg, executablePath, resolveSymlinks)
+	dependencies := managerDependenciesFor(cfg)
+	resolvedExecutable, artifactPolicy, err := resolveManagerInputs(
+		cfg,
+		dependencies.executablePath,
+		dependencies.resolveSymlinks,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -66,13 +44,13 @@ func NewManager(cfg Config) (*Manager, error) {
 		homePaths:      cfg.HomePaths,
 		currentVersion: strings.TrimSpace(cfg.CurrentVersion),
 		executablePath: resolvedExecutable,
-		getenv:         getenv,
-		now:            now,
-		httpClient:     httpClient,
+		getenv:         dependencies.getenv,
+		now:            dependencies.now,
+		httpClient:     dependencies.httpClient,
 		runtimeOS:      strings.TrimSpace(cfg.RuntimeOS),
 		runtimeArch:    strings.TrimSpace(cfg.RuntimeArch),
-		lookPath:       lookPath,
-		runCommand:     runCommand,
+		lookPath:       dependencies.lookPath,
+		runCommand:     dependencies.runCommand,
 		binaryApplier:  cfg.BinaryApplier,
 		artifactPolicy: artifactPolicy,
 		releaseTrack:   releaseTrack,
@@ -106,8 +84,52 @@ func NewManager(cfg Config) (*Manager, error) {
 	return manager, nil
 }
 
+type managerDependencies struct {
+	executablePath  func() (string, error)
+	resolveSymlinks func(string) (string, error)
+	getenv          func(string) string
+	now             func() time.Time
+	httpClient      *http.Client
+	lookPath        func(string) (string, error)
+	runCommand      func(context.Context, string, ...string) (string, error)
+}
+
+func managerDependenciesFor(cfg *Config) managerDependencies {
+	dependencies := managerDependencies{
+		executablePath:  cfg.ExecutablePath,
+		resolveSymlinks: cfg.ResolveSymlinks,
+		getenv:          cfg.Getenv,
+		now:             cfg.Now,
+		httpClient:      cfg.HTTPClient,
+		lookPath:        cfg.LookPath,
+		runCommand:      cfg.RunCommand,
+	}
+	if dependencies.executablePath == nil {
+		dependencies.executablePath = os.Executable
+	}
+	if dependencies.resolveSymlinks == nil {
+		dependencies.resolveSymlinks = filepath.EvalSymlinks
+	}
+	if dependencies.getenv == nil {
+		dependencies.getenv = os.Getenv
+	}
+	if dependencies.now == nil {
+		dependencies.now = func() time.Time { return time.Now().UTC() }
+	}
+	if dependencies.httpClient == nil {
+		dependencies.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+	}
+	if dependencies.lookPath == nil {
+		dependencies.lookPath = exec.LookPath
+	}
+	if dependencies.runCommand == nil {
+		dependencies.runCommand = defaultRunCommand
+	}
+	return dependencies
+}
+
 func resolveManagerInputs(
-	cfg Config,
+	cfg *Config,
 	executablePath func() (string, error),
 	resolveSymlinks func(string) (string, error),
 ) (string, ArtifactPolicy, error) {
@@ -195,128 +217,6 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 	}
 
 	return m.composeState(install, latest, checkedAt), latest, nil
-}
-
-// ApplyStep reports the next journal phase immediately before its work begins.
-type ApplyStep struct {
-	Phase         OperationPhase
-	Percent       int
-	BackupPath    string
-	Compatibility *Compatibility
-}
-
-// ApplyObserver journals and fences one apply step before the manager performs it.
-type ApplyObserver func(context.Context, ApplyStep) error
-
-// ApplyRelease downloads, verifies, extracts, and swaps in the supplied release.
-func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (AppliedBinary, error) {
-	return m.applyRelease(ctx, release, nil)
-}
-
-// ApplyReleaseObserved exposes real apply boundaries to the operation coordinator.
-func (m *Manager) ApplyReleaseObserved(
-	ctx context.Context,
-	release *Release,
-	observer ApplyObserver,
-) (AppliedBinary, error) {
-	if observer == nil {
-		return AppliedBinary{}, errors.New("update: apply observer is required")
-	}
-	return m.applyRelease(ctx, release, observer)
-}
-
-func (m *Manager) applyRelease(
-	ctx context.Context,
-	release *Release,
-	observer ApplyObserver,
-) (applied AppliedBinary, err error) {
-	if release == nil {
-		return AppliedBinary{}, errors.New("update: release metadata is required")
-	}
-	install, err := m.detectInstall(ctx)
-	if err != nil {
-		return AppliedBinary{}, err
-	}
-
-	assets, err := m.resolveReleaseAssets(release)
-	if err != nil {
-		return AppliedBinary{}, err
-	}
-	currentInfo, err := os.Stat(m.executablePath)
-	if err != nil {
-		return AppliedBinary{}, fmt.Errorf("update: stat current executable %q: %w", m.executablePath, err)
-	}
-
-	tmpDir, err := os.MkdirTemp("", "compozy-update-*")
-	if err != nil {
-		return AppliedBinary{}, fmt.Errorf("update: create temp directory: %w", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tmpDir); removeErr != nil {
-			err = errors.Join(err, fmt.Errorf("update: remove temp directory %q: %w", tmpDir, removeErr))
-		}
-	}()
-
-	if err := notifyApplyObserver(ctx, observer, ApplyStep{Phase: PhaseDownloading, Percent: 0}); err != nil {
-		return AppliedBinary{}, err
-	}
-	downloaded, err := m.downloadReleaseArtifacts(ctx, tmpDir, assets)
-	if err != nil {
-		return AppliedBinary{}, err
-	}
-	if err := notifyApplyObserver(ctx, observer, ApplyStep{Phase: PhaseVerifying, Percent: -1}); err != nil {
-		return AppliedBinary{}, err
-	}
-	if err := m.verifyReleaseArtifacts(ctx, downloaded, assets.archive.Name); err != nil {
-		return AppliedBinary{}, err
-	}
-	compatibility, err := readCompatibility(downloaded.compatibilityPath)
-	if err != nil {
-		return AppliedBinary{}, err
-	}
-
-	binaryPath, binaryMode, err := extractBinaryFromTarGz(
-		downloaded.archivePath,
-		tmpDir,
-		m.archiveBinaryName(),
-		m.artifactPolicy,
-	)
-	if err != nil {
-		return AppliedBinary{}, err
-	}
-	binaryMode = executableBinaryMode(binaryMode, currentInfo.Mode().Perm())
-
-	backupPath := siblingBackupPath(m.executablePath, m.now().UTC())
-	if err := notifyApplyObserver(ctx, observer, ApplyStep{
-		Phase: PhaseSwapping, Percent: -1, BackupPath: backupPath, Compatibility: &compatibility,
-	}); err != nil {
-		return AppliedBinary{}, err
-	}
-	if err := m.binaryApplier.ApplyBinary(binaryPath, m.executablePath, backupPath, binaryMode); err != nil {
-		return AppliedBinary{}, err
-	}
-	if install.Method == string(InstallMethodDesktopApp) {
-		if err := rewriteDesktopProvenance(m.homePaths, m.executablePath); err != nil {
-			restoreErr := m.binaryApplier.RestoreBinary(backupPath, m.executablePath, currentInfo.Mode().Perm())
-			if restoreErr == nil {
-				restoreErr = rewriteDesktopProvenance(m.homePaths, m.executablePath)
-			}
-			return AppliedBinary{}, errors.Join(err, restoreErr)
-		}
-	}
-
-	return AppliedBinary{
-		TargetPath: m.executablePath,
-		BackupPath: backupPath,
-		Version:    strings.TrimSpace(release.Version),
-	}, nil
-}
-
-func notifyApplyObserver(ctx context.Context, observer ApplyObserver, step ApplyStep) error {
-	if observer == nil {
-		return nil
-	}
-	return observer(ctx, step)
 }
 
 // RuntimeTargetPath returns the concrete executable path owned by this manager.

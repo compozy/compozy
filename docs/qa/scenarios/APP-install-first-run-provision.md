@@ -4,7 +4,7 @@ area: APP
 title: Install CompozyOS and reach the product with no prior setup
 persona: Lea
 journey: J-desktop-first-run
-expected: A machine with no runtime goes installer → guided provisioning with visible phases → download, verify, install, and self-start → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy. A startup failure keeps the boot window available for redacted diagnostics, local copy, and explicit local export.
+expected: A machine with no runtime goes installer → guided offline provisioning with visible verify, install, and start phases for the bundled lockstep runtime → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy. A startup failure keeps the non-interactive boot window available for redacted diagnostics, local copy, and explicit local export.
 entry_points: CompozyOS installer (macOS dmg, Linux package); app first launch
 qa_status: untested
 bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable
@@ -25,8 +25,8 @@ Per-OS evidence (N-004 — verdict requires both shipping OSes; Windows is pause
 Signing is restored): macOS = scripted-manual smoke (no WebDriver): screen recording of
 install→provision→product, Gatekeeper acceptance, `compozy status` transcript. Linux =
 Playwright _electron test + package install/reinstall transcript. All OSes: process-table capture
-proving exactly one daemon, and the offline-first-run retry walk (E2E-002) on at least one OS
-with the branch recorded.
+proving exactly one daemon, and an airplane-mode first run (E2E-002) on both release-gate OSes;
+the packaged runtime must install without a feed request.
 
 QA impact 2026-08-12: release publication now requires the signed candidate runtime manifest to
 pass the desktop's exact verifier for every shipping target before upload. The scenario is reset
@@ -43,3 +43,7 @@ bytes. Reset to `untested` for the repaired live-feed macOS and Linux package wa
 QA result 2026-08-14: the repaired beta.13 feed passed canonical signature verification, then the
 beta.16 DMG and AppImage each provisioned from an empty isolated home. The publication job rebuilt,
 signed, uploaded, and publicly re-read the beta.16 desktop feed and every referenced payload.
+
+QA impact 2026-08-16: Electron packages the lockstep runtime and verifies its embedded digest before
+the first write. Reset for offline bundled provisioning on macOS and Linux; the prior feed-backed
+first-run evidence no longer settles this behavior.

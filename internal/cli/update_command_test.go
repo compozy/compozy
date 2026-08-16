@@ -154,11 +154,16 @@ func TestUpdateCommandContract(t *testing.T) {
 		deps := newTestDeps(t, &stubClient{})
 		store := newCLIUpdateOperationStore(t)
 		operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{compozyupdate.TargetApp})
-		staged, err := store.Transition(t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+		staged, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			operation.Holder.ExecutorGeneration,
+			operation.Revision,
 			compozyupdate.Transition{
 				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI,
 				Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100,
-			})
+			},
+		)
 		if err != nil {
 			t.Fatalf("Transition(staged) error = %v", err)
 		}
@@ -201,7 +206,9 @@ func TestUpdateTerminalProjection(t *testing.T) {
 			},
 		}
 		got := completedUpdateRecord(record, compozyupdate.OperationRequest{
-			Runtime: &compozyupdate.RuntimeOperationState{ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"}},
+			Runtime: &compozyupdate.RuntimeOperationState{
+				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"},
+			},
 			App: &compozyupdate.AppOperationState{
 				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"}, AttemptID: "attempt-1",
 			},
@@ -225,7 +232,11 @@ func TestUpdateTerminalProjection(t *testing.T) {
 			t.Fatalf("failedUpdateRecord(app) = %#v, want app-only failure", failed)
 		}
 
-		blocked := blockedUpdateRecord(base, &compozyupdate.Operation{Holder: &compozyupdate.Holder{PID: 4242}}, compozyupdate.TargetApp)
+		blocked := blockedUpdateRecord(
+			base,
+			&compozyupdate.Operation{Holder: &compozyupdate.Holder{PID: 4242}},
+			compozyupdate.TargetApp,
+		)
 		if blocked.Status != compozyupdate.StatusBlocked || blocked.Runtime.Status != compozyupdate.StatusUpToDate ||
 			blocked.App == nil || blocked.App.Status != compozyupdate.StatusBlocked ||
 			!strings.Contains(blocked.App.Message, "holder pid 4242") {

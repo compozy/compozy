@@ -6,7 +6,7 @@ persona: Dora
 journey: J-approve-compozy-beta-candidate
 expected: The generated v0.3.0 changelog and release PR include the CompozyOS migration commit plus later beta-line changes, exclude the three pre-migration commits owned by legacy/v0.2, and continue treating prerelease tags as snapshots whose changes belong to the stable release.
 entry_points: cliff.toml; pr-release pr-release; CHANGELOG.md; RELEASE_BODY.md; release/v0.3.0 pull request
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
