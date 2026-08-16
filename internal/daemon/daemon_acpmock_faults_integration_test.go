@@ -163,7 +163,12 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 		if got, want := claimed.Status.Normalize(), taskpkg.TaskRunStatusClaimed; got != want {
 			t.Fatalf("claimed run status = %q, want %q", got, want)
 		}
-		started, err := harness.StartTaskRun(ctx, run.ID, compozycontract.StartTaskRunRequest{})
+		started, err := harness.StartClaimedTaskRunForSession(
+			ctx,
+			run.ID,
+			claimant,
+			compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + run.ID},
+		)
 		if err != nil {
 			t.Fatalf("StartTaskRun(%q) error = %v", run.ID, err)
 		}

@@ -357,7 +357,12 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 				Provider: "codex", Model: "gpt-5.6-sol", ReasoningEffort: "max",
 			},
 		)
-		requirePromptDispatchIndeterminate(t, promptErr, `reasoning effort "max" is unavailable`)
+		requirePromptNegotiationRejected(
+			t,
+			promptErr,
+			compozycontract.CodeReasoningOptionMissing,
+			`reasoning effort "max" is unavailable`,
+		)
 		requireIndeterminateRuntimeFailure(
 			t,
 			ctx,
@@ -401,7 +406,12 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 				Provider: "codex", Model: "gpt-5.6-terra", ReasoningEffort: "max",
 			},
 		)
-		requirePromptDispatchIndeterminate(t, promptErr, `model "gpt-5.6-terra" is unavailable`)
+		requirePromptNegotiationRejected(
+			t,
+			promptErr,
+			compozycontract.CodeModelUnavailable,
+			`model "gpt-5.6-terra" is unavailable`,
+		)
 		requireIndeterminateRuntimeFailure(
 			t,
 			ctx,
@@ -441,7 +451,12 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 				Provider: "codex", Model: "gpt-5.6-sol", ReasoningEffort: "minimal",
 			},
 		)
-		requirePromptDispatchIndeterminate(t, promptErr, `reasoning effort "minimal" is unavailable`)
+		requirePromptNegotiationRejected(
+			t,
+			promptErr,
+			compozycontract.CodeReasoningEffortUnsupported,
+			`reasoning effort "minimal" is unavailable`,
+		)
 		requireIndeterminateRuntimeFailure(
 			t,
 			ctx,
@@ -511,13 +526,13 @@ func requireIndeterminateRuntimeFailure(
 	return current
 }
 
-func requirePromptDispatchIndeterminate(t testing.TB, err error, wantCause string) {
+func requirePromptNegotiationRejected(t testing.TB, err error, wantCode string, wantCause string) {
 	t.Helper()
 	if err == nil {
-		t.Fatal("PromptSessionWithRuntime() error = nil, want indeterminate dispatch")
+		t.Fatal("PromptSessionWithRuntime() error = nil, want rejected provider negotiation")
 	}
 	message := strings.ReplaceAll(err.Error(), `\"`, `"`)
-	for _, want := range []string{"prompt session status 409", "prompt_dispatch_indeterminate", wantCause} {
+	for _, want := range []string{"prompt session status 422", `"code":"` + wantCode + `"`, wantCause} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("PromptSessionWithRuntime() error = %q, want %q", message, want)
 		}
