@@ -24,6 +24,7 @@ type nativeLoopNodeMutationInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 	NodeID      string `json:"node_id"`
+	ItemIndex   *int   `json:"item_index,omitempty"`
 	Reason      string `json:"reason,omitempty"`
 }
 
@@ -31,6 +32,7 @@ type nativeLoopNodePauseInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
 	NodeID      string `json:"node_id"`
+	ItemIndex   *int   `json:"item_index,omitempty"`
 	Mode        string `json:"mode"`
 	Reason      string `json:"reason,omitempty"`
 }
@@ -116,7 +118,7 @@ func (n *daemonNativeTools) loopNodePause(
 		return toolspkg.ToolResult{}, err
 	}
 	response, err := n.loopService().PauseLoopNode(ctx, workspaceID, runID, nodeID, contract.LoopNodePauseRequest{
-		Mode: input.Mode, Reason: input.Reason,
+		Mode: input.Mode, Reason: input.Reason, ItemIndex: input.ItemIndex,
 	}, actor)
 	return nativeLoopMutationResult(req.ToolID, response, err, fmt.Sprintf("loop node %s paused", nodeID))
 }

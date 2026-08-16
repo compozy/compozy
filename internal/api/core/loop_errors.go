@@ -78,6 +78,10 @@ func StatusForLoopError(err error) int {
 		return http.StatusGone
 	case errors.Is(err, looppkg.ErrRequestValidationFailed):
 		return http.StatusUnprocessableEntity
+	case errors.Is(err, looppkg.ErrAmendNotParked),
+		errors.Is(err, looppkg.ErrAmendNoOutput),
+		errors.Is(err, looppkg.ErrAmendSchemaMissing):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, looppkg.ErrValidation),
 		errors.Is(err, looppkg.ErrCatalogQueryInvalid),
 		errors.Is(err, looppkg.ErrCatalogCursorInvalid):

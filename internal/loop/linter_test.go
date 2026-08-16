@@ -119,6 +119,45 @@ func TestLinterShouldValidateAskControls(t *testing.T) {
 	}
 }
 
+// Invariant: action reviews declare a closed decision set, forward reject route, and an output shape for respond.
+// The canonical linter suite owns review grammar and its compiled CEL condition.
+func TestLinterShouldValidateActionReviews(t *testing.T) {
+	t.Parallel()
+
+	definition := validDefinition()
+	agent := requireNode(t, &definition, "agent")
+	agent.Review = &dsl.ReviewSpec{
+		Decisions: []dsl.ReviewDecision{
+			dsl.ReviewDecisionApprove, dsl.ReviewDecisionEdit,
+			dsl.ReviewDecisionReject, dsl.ReviewDecisionRespond,
+		},
+		When:   `inputs.tasks != null`,
+		Prompt: "Review {{ .inputs.tasks }}",
+	}
+	if _, err := loop.NewCompiler().Compile(definition); err != nil {
+		t.Fatalf("Compile(valid review) error = %v", err)
+	}
+
+	t.Run("Should require a declared output shape for respond", func(t *testing.T) {
+		t.Parallel()
+
+		invalid := validDefinition()
+		node := requireNode(t, &invalid, "agent")
+		delete(node.Params, "output_schema")
+		node.Review = &dsl.ReviewSpec{Decisions: []dsl.ReviewDecision{dsl.ReviewDecisionRespond}}
+		requireLintDiagnostic(t, loop.NewLinter().Lint(invalid), loop.CodeReviewRespondSchemaRequired, loop.SeverityError)
+	})
+
+	t.Run("Should reject a non-forward rejection route", func(t *testing.T) {
+		t.Parallel()
+
+		invalid := validDefinition()
+		node := requireNode(t, &invalid, "agent")
+		node.Review = &dsl.ReviewSpec{OnReject: &dsl.RejectPolicy{Route: "missing"}}
+		requireLintDiagnostic(t, loop.NewLinter().Lint(invalid), loop.CodeErrorRouteBackward, loop.SeverityError)
+	})
+}
+
 func TestLinterShouldValidatePredicateErrorPolicies(t *testing.T) {
 	t.Parallel()
 

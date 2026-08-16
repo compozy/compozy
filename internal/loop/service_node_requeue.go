@@ -99,6 +99,7 @@ type NodeLifecycleService interface {
 		WorkspaceID,
 		RunID,
 		NodeID,
+		*int,
 		NodePauseMode,
 		string,
 		task.ActorContext,
@@ -108,6 +109,7 @@ type NodeLifecycleService interface {
 		WorkspaceID,
 		RunID,
 		NodeID,
+		*int,
 		NodeResumeMode,
 		task.ActorContext,
 	) (NodeResumeResult, error)

@@ -173,6 +173,14 @@ type LoopService interface {
 		contract.RespondLoopRequest,
 		taskpkg.ActorContext,
 	) (contract.RespondLoopRequestResponse, error)
+	AmendLoopNode(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.LoopNodeAmendRequest,
+		taskpkg.ActorContext,
+	) (contract.LoopNodeAmendResponse, error)
 	ListLoopRunEvents(
 		ctx context.Context,
 		workspaceID string,

@@ -31,6 +31,9 @@ func (g *LoopRepo) PauseNode(
 		if err != nil {
 			return err
 		}
+		if mutation.ItemIndex != nil {
+			return g.pauseNodeLane(ctx, exec, run, mutation, &result)
+		}
 		control, found, err := loadNodePauseControl(
 			ctx, exec, mutation.WorkspaceID, mutation.RunID, mutation.NodeID,
 		)
@@ -112,6 +115,9 @@ func (g *LoopRepo) ResumeNode(
 		run, err := nodePauseRun(ctx, exec, mutation.WorkspaceID, mutation.RunID)
 		if err != nil {
 			return err
+		}
+		if mutation.ItemIndex != nil {
+			return g.resumeNodeLane(ctx, exec, run, mutation, &result)
 		}
 		control, found, err := loadNodePauseControl(
 			ctx, exec, mutation.WorkspaceID, mutation.RunID, mutation.NodeID,
@@ -345,7 +351,7 @@ func nodePauseDuration(control looppkg.NodeControl, resumedAt time.Time) time.Du
 }
 
 func nodePauseEventPayload(m looppkg.NodePauseMutation, revision int64) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		loopRunEventPayloadKeyNodeID:    m.NodeID,
 		loopRunEventPayloadKeyActorKind: m.Actor.Actor.Kind,
 		loopRunEventPayloadKeyActorID:   m.Actor.Actor.Ref,
@@ -354,13 +360,21 @@ func nodePauseEventPayload(m looppkg.NodePauseMutation, revision int64) map[stri
 		"rule_id":                       strings.TrimSpace(m.RuleID),
 		"revision":                      revision,
 	}
+	if m.ItemIndex != nil {
+		payload[loopRunEventPayloadKeyItemIndex] = *m.ItemIndex
+	}
+	return payload
 }
 
 func nodeResumeEventPayload(m looppkg.NodeResumeMutation, revision int64) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		loopRunEventPayloadKeyNodeID: m.NodeID, loopRunEventPayloadKeyActorKind: m.Actor.Actor.Kind,
 		loopRunEventPayloadKeyActorID: m.Actor.Actor.Ref, loopRunEventPayloadKeyMode: m.Mode, "revision": revision,
 	}
+	if m.ItemIndex != nil {
+		payload[loopRunEventPayloadKeyItemIndex] = *m.ItemIndex
+	}
+	return payload
 }
 
 func pausedNodeControl(m looppkg.NodePauseMutation, revision int64) looppkg.NodeControl {

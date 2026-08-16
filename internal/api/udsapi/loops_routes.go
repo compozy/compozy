@@ -73,6 +73,7 @@ func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {
 		runs.POST("/:run_id/nodes/:node_id/requeue", handlers.RequeueLoopNode)
 		runs.GET("/:run_id/nodes/:node_id/request", handlers.GetLoopRequest)
 		runs.POST("/:run_id/nodes/:node_id/respond", handlers.RespondLoopRequest)
+		runs.POST("/:run_id/nodes/:node_id/amend", handlers.AmendLoopNode)
 		runs.GET("/:run_id/events", handlers.StreamLoopRunEvents)
 	}
 

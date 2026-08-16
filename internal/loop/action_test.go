@@ -234,6 +234,43 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 		}
 	})
 
+	t.Run("Should execute exactly the admitted review params without rendering them again", func(t *testing.T) {
+		t.Parallel()
+
+		toolID := tools.ToolID("compozy__task_read")
+		registry := &fakeActionToolRegistry{
+			views:      map[tools.ToolID]tools.ToolView{toolID: {}},
+			callResult: tools.ToolResult{Structured: json.RawMessage(`{"ok":true}`)},
+		}
+		actions := newActionRegistryForTest(t, registry)
+		executor, err := actions.Resolve(context.Background(), tools.Scope{}, toolID.String())
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		node := dsl.Node{
+			ID: "read", Class: dsl.NodeClassAction, Kind: toolID.String(),
+			Params: dsl.NodeParams{"id": "{{ .inputs.task_id }}"},
+		}
+		_, err = executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1",
+			Namespace:   map[string]any{"inputs": map[string]any{"task_id": "task-1"}},
+			AdmittedParams: dsl.NodeParams{
+				"id": "{{ .inputs.must_not_render }}",
+			},
+			Actor: mustDaemonActor(t),
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		var input map[string]any
+		if err := json.Unmarshal(registry.mustSingleCall(t).Input, &input); err != nil {
+			t.Fatalf("unmarshal call input error = %v", err)
+		}
+		if input["id"] != "{{ .inputs.must_not_render }}" {
+			t.Fatalf("reviewed call input = %#v, want admitted literal", input)
+		}
+	})
+
 	t.Run("Should async harvest through stable event range", func(t *testing.T) {
 		t.Parallel()
 
@@ -344,6 +381,29 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 
 func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should not render an admitted Goal snapshot again", func(t *testing.T) {
+		t.Parallel()
+
+		outputSchema := dsl.Schema{"status": "string"}
+		admitted := dsl.NodeParams{
+			"agent": "codex", "objective": "Ship the release", "max_turns": 2,
+			"output_schema": outputSchema,
+			"judge": []any{map[string]any{
+				"id": "quality", "type": "agent-judge", "agent": "reviewer",
+				"prompt": "{{ .inputs.must_not_render }}", "rubric": "Check quality",
+			}},
+		}
+		params, err := loop.MaterializeGoalParams(dsl.Node{
+			ID: "goal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal),
+		}, map[string]any{}, admitted)
+		if err != nil {
+			t.Fatalf("MaterializeGoalParams(admitted) error = %v", err)
+		}
+		if len(params.Judge) != 1 || params.Judge[0].Prompt != "{{ .inputs.must_not_render }}" {
+			t.Fatalf("admitted Goal judge = %#v, want unchanged snapshot", params.Judge)
+		}
+	})
 
 	t.Run("Should resolve node environment before Loop default and workspace root", func(t *testing.T) {
 		t.Parallel()

@@ -37,10 +37,11 @@ func (s *service) CancelNode(
 	ws WorkspaceID,
 	runID RunID,
 	nodeID NodeID,
+	itemIndex *int,
 	reason string,
 	actor task.ActorContext,
 ) error {
-	return s.cancelNode(ctx, ws, runID, nodeID, RunCancelCancel, reason, actor)
+	return s.cancelNode(ctx, ws, runID, nodeID, itemIndex, RunCancelCancel, reason, actor)
 }
 
 // KillNode fences one node and then immediately stops its bound sessions.
@@ -49,10 +50,11 @@ func (s *service) KillNode(
 	ws WorkspaceID,
 	runID RunID,
 	nodeID NodeID,
+	itemIndex *int,
 	reason string,
 	actor task.ActorContext,
 ) error {
-	return s.cancelNode(ctx, ws, runID, nodeID, RunCancelKill, reason, actor)
+	return s.cancelNode(ctx, ws, runID, nodeID, itemIndex, RunCancelKill, reason, actor)
 }
 
 func (s *service) cancelRun(
@@ -103,6 +105,7 @@ func (s *service) cancelNode(
 	ws WorkspaceID,
 	runID RunID,
 	nodeID NodeID,
+	itemIndex *int,
 	kind RunCancelKind,
 	reason string,
 	actor task.ActorContext,
@@ -111,13 +114,14 @@ func (s *service) cancelNode(
 	if err != nil {
 		return err
 	}
-	parentCloseActions = parentCloseActionsForNode(parentCloseActions, nodeID)
+	parentCloseActions = parentCloseActionsForNode(parentCloseActions, nodeID, itemIndex)
 	store, mutation, err := s.prepareCancellation(ctx, ws, runID, nodeID, kind, reason, actor)
 	if err != nil {
 		return err
 	}
+	mutation.ItemIndex = cloneIntPointer(itemIndex)
 	if kind == RunCancelCancel {
-		mutation.Effects, err = s.renderNodeCanceledEffects(ctx, ws, runID, nodeID)
+		mutation.Effects, err = s.renderNodeCanceledEffects(ctx, ws, runID, nodeID, itemIndex)
 		if err != nil {
 			return err
 		}
@@ -127,6 +131,11 @@ func (s *service) cancelNode(
 		return err
 	}
 	parentCloseErr := s.applyParentCloseActions(ctx, mutation, parentCloseActions)
+	if itemIndex != nil {
+		s.activateCancellationResult(ctx, &result)
+		return errors.Join(parentCloseErr,
+			s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason))
+	}
 	if kind == RunCancelKill {
 		s.activateCancellationResult(ctx, &result)
 		return errors.Join(
@@ -143,6 +152,7 @@ func (s *service) renderNodeCanceledEffects(
 	ws WorkspaceID,
 	runID RunID,
 	nodeID NodeID,
+	itemIndex *int,
 ) ([]RenderedEffectIntent, error) {
 	run, err := s.store.GetLoopRun(ctx, ws, runID)
 	if err != nil || run.Status.Terminal() {
@@ -163,9 +173,13 @@ func (s *service) renderNodeCanceledEffects(
 	if !found {
 		return nil, fmt.Errorf("%w: Loop node %q is not present in the executed definition", ErrValidation, nodeID)
 	}
+	resolvedItemIndex := 0
+	if itemIndex != nil {
+		resolvedItemIndex = *itemIndex
+	}
 	return RenderEffectIntents(node.OnCancel, EffectContextRequest{
 		Run: &run, Trigger: EffectTriggerOnCancel, Generation: max(1, run.Generation),
-		NodeID: nodeID, Attempt: 1, Disposition: AttemptCanceled,
+		NodeID: nodeID, ItemIndex: resolvedItemIndex, Attempt: 1, Disposition: AttemptCanceled,
 	})
 }
 

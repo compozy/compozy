@@ -81,6 +81,21 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
+	if actionCtx.meta.ReviewedParamsRef != "" {
+		payload, loadErr := r.outputs.GetGenerationOutputPayload(ctx, GenerationOutputPayloadKey{
+			WorkspaceID: actionCtx.loopRun.WorkspaceID, RunID: actionCtx.loopRun.ID,
+			Generation: actionCtx.meta.Generation, NodeID: actionCtx.node.ID,
+			ItemIndex: actionCtx.meta.ItemIndex, OutputRef: actionCtx.meta.ReviewedParamsRef,
+		})
+		if loadErr != nil {
+			return task.RunResult{}, fmt.Errorf("loop: load reviewed action params: %w", loadErr)
+		}
+		var params map[string]any
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return task.RunResult{}, fmt.Errorf("loop: decode reviewed action params: %w", err)
+		}
+		input.AdmittedParams = dsl.NodeParams(params)
+	}
 	input.RetryFailure, err = r.actionRetryFailure(ctx, actionCtx.loopRun, actionCtx.meta)
 	if err != nil {
 		return task.RunResult{}, err

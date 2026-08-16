@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -132,20 +133,27 @@ func advanceControlNodes(
 				continue
 			}
 			node, ok := graphNode(eval.resolved.Definition.Graph, dsl.NodeID(output.NodeID))
-			if !ok || !isCoordinatorOwnedNodeWithGates(node, eval.gateEvaluator != nil) {
+			if !ok {
+				continue
+			}
+			isReview := node.Class == dsl.NodeClassAction && node.Review != nil &&
+				strings.TrimSpace(output.OutputRef) == ""
+			if !isReview && !isCoordinatorOwnedNodeWithGates(node, eval.gateEvaluator != nil) {
 				continue
 			}
 			if !dependenciesSucceededForOutput(eval.resolved.Definition.Graph, eval.topology, *outputs, output) {
 				continue
 			}
-			updated, terminal, err := evaluateControlNode(
-				eval,
-				plan,
-				output,
-				node,
-				outputs,
-				outputBlobs,
-			)
+			var updated GenerationOutput
+			var terminal *task.CoordinatorTerminal
+			var err error
+			if isReview {
+				updated, err = evaluateActionReview(eval, plan, output, node, *outputs)
+			} else {
+				updated, terminal, err = evaluateControlNode(
+					eval, plan, output, node, outputs, outputBlobs,
+				)
+			}
 			if err != nil {
 				return nil, err
 			}

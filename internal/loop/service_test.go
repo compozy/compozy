@@ -2156,6 +2156,28 @@ func TestServiceConstructorAndReasonErrorsShouldBeStable(t *testing.T) {
 			t.Fatalf("ReasonError does not unwrap ErrConcurrencyConflict")
 		}
 	})
+
+	t.Run("Should reject amendments without a declared output shape before store mutation", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		delete(definition.Graph.Nodes[2].Params, "output_schema")
+		store := &amendmentFakeStore{fakeLoopStore: newFakeLoopStore()}
+		svc := newTestServiceWithOptions(t, store, definition)
+		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		_, err = svc.AmendNodeOutput(context.Background(), loop.AmendInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "agent",
+			Payload: json.RawMessage(`{"summary":"repair"}`), Actor: humanActor(t),
+		})
+		if !errors.Is(err, loop.ErrAmendSchemaMissing) || store.amendCalled {
+			t.Fatalf("AmendNodeOutput(no schema) error = %v called=%v", err, store.amendCalled)
+		}
+	})
 }
 
 func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
@@ -2195,7 +2217,7 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		if err := svc.CancelNode(
-			context.Background(), run.WorkspaceID, run.ID, "agent", "operator request", humanActor(t),
+			context.Background(), run.WorkspaceID, run.ID, "agent", nil, "operator request", humanActor(t),
 		); err != nil {
 			t.Fatalf("CancelNode() error = %v", err)
 		}
@@ -2214,6 +2236,46 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		}
 		if got := store.mustRun(t, run.ID).Status; got != loop.StatusRunning {
 			t.Fatalf("node cancellation changed Run status to %q", got)
+		}
+	})
+
+	t.Run("Should deliver one addressed cell cancellation immediately after commit", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		store.cancellationSessionIDs = []string{"session-cell-3"}
+		definition := validDefinition()
+		definition.Graph.Nodes[2].Normalize()
+		definition.Graph.Nodes[2].OnCancel = []dsl.EffectSpec{{
+			Emit: &dsl.EmitSpec{Kind: "cell_canceled"},
+		}}
+		var canceled []string
+		svc := newTestServiceWithOptions(t, store, definition,
+			loop.WithCancellationSessionController(loop.CancellationSessionControllerFuncs{
+				Cancel: func(_ context.Context, sessionID, _ string) error {
+					canceled = append(canceled, sessionID)
+					return nil
+				},
+			}),
+		)
+		run, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		itemIndex := 3
+		if err := svc.CancelNode(context.Background(), run.WorkspaceID, run.ID, "agent", &itemIndex,
+			"operator request", humanActor(t)); err != nil {
+			t.Fatalf("CancelNode(cell) error = %v", err)
+		}
+		request := store.lastCancellationRequest(t)
+		if request.ItemIndex == nil || *request.ItemIndex != itemIndex || len(request.Effects) != 1 ||
+			request.Effects[0].ItemIndex != itemIndex {
+			t.Fatalf("cell cancellation request = %#v, want item %d", request, itemIndex)
+		}
+		if !reflect.DeepEqual(canceled, []string{"session-cell-3"}) || len(store.cancellationStates) != 0 {
+			t.Fatalf("cell cancellation delivery = %#v states = %#v", canceled, store.cancellationStates)
 		}
 	})
 
@@ -2253,7 +2315,7 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			t.Fatalf("Start() error = %v", err)
 		}
 		if err := svc.KillNode(
-			context.Background(), run.WorkspaceID, run.ID, "agent", "unsafe tool", humanActor(t),
+			context.Background(), run.WorkspaceID, run.ID, "agent", nil, "unsafe tool", humanActor(t),
 		); err != nil {
 			t.Fatalf("KillNode() error = %v", err)
 		}
@@ -2336,6 +2398,56 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		}
 		if got := store.mustRun(t, "child-abandon"); got.Status != loop.StatusRunning || got.CancelRequested {
 			t.Fatalf("abandoned child = %#v", got)
+		}
+	})
+
+	t.Run("Should propagate parent close only from the addressed fan-out cell", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Graph.Nodes[2] = dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			Params: dsl.NodeParams{"loop": "child-loop", "mode": string(dsl.RunLoopAwait)},
+		}
+		store := newFakeLoopStore()
+		svc := newTestService(t, store, definition)
+		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start(parent) error = %v", err)
+		}
+		children := []loop.Run{
+			{ID: "child-cell-0", WorkspaceID: parent.WorkspaceID, LoopName: "child-loop",
+				Status: loop.StatusRunning, ParentLoopRunID: parent.ID},
+			{ID: "child-cell-1", WorkspaceID: parent.WorkspaceID, LoopName: "child-loop",
+				Status: loop.StatusRunning, ParentLoopRunID: parent.ID},
+		}
+		store.mu.Lock()
+		storedParent := store.runs[parent.ID]
+		storedParent.Generation = 1
+		store.runs[parent.ID] = storedParent
+		for _, child := range children {
+			store.runs[child.ID] = child
+		}
+		store.generationOutputs[parent.ID] = []loop.GenerationOutput{
+			{Generation: 1, NodeID: "agent", ItemIndex: 0, Status: "awaiting_child",
+				ChildLoopRunID: "child-cell-0"},
+			{Generation: 1, NodeID: "agent", ItemIndex: 1, Status: "awaiting_child",
+				ChildLoopRunID: "child-cell-1"},
+		}
+		store.mu.Unlock()
+		itemIndex := 1
+		if err := svc.CancelNode(context.Background(), parent.WorkspaceID, parent.ID, "agent", &itemIndex,
+			"cancel one cell", humanActor(t)); err != nil {
+			t.Fatalf("CancelNode(parent cell) error = %v", err)
+		}
+		if got := store.mustRun(t, "child-cell-0"); got.Status != loop.StatusRunning || got.CancelRequested {
+			t.Fatalf("unaddressed child = %#v, want untouched", got)
+		}
+		if got := store.mustRun(t, "child-cell-1"); got.Status != loop.StatusCanceled ||
+			got.CancelKind != loop.RunCancelKill {
+			t.Fatalf("addressed child = %#v, want terminated", got)
 		}
 	})
 
@@ -2700,12 +2812,12 @@ func TestServiceNodePauseShouldRetryCancellationDelivery(t *testing.T) {
 	nodes := svc.(loop.NodeLifecycleService)
 	actor := humanActor(t)
 	if _, err := nodes.PauseNode(
-		context.Background(), "ws-1", "run-1", "worker", loop.NodePauseCancel, "repair", actor,
+		context.Background(), "ws-1", "run-1", "worker", nil, loop.NodePauseCancel, "repair", actor,
 	); err == nil {
 		t.Fatal("PauseNode(first) error = nil, want delivery failure")
 	}
 	result, err := nodes.PauseNode(
-		context.Background(), "ws-1", "run-1", "worker", loop.NodePauseCancel, "repair", actor,
+		context.Background(), "ws-1", "run-1", "worker", nil, loop.NodePauseCancel, "repair", actor,
 	)
 	if err != nil {
 		t.Fatalf("PauseNode(retry) error = %v", err)
@@ -2986,6 +3098,27 @@ type fakeLoopStore struct {
 	waitResumeMutation               *loop.WaitResumeMutation
 	creates                          int
 	getRunByID                       func(loop.RunID) (loop.Run, error)
+}
+
+type amendmentFakeStore struct {
+	*fakeLoopStore
+	amendCalled bool
+}
+
+func (s *amendmentFakeStore) AmendNodeOutput(
+	context.Context,
+	loop.AmendInput,
+) (loop.NodeAmendment, error) {
+	s.amendCalled = true
+	return loop.NodeAmendment{}, nil
+}
+
+func (s *amendmentFakeStore) ListNodeAmendments(
+	context.Context,
+	loop.WorkspaceID,
+	loop.RunID,
+) ([]loop.NodeAmendment, error) {
+	return nil, nil
 }
 
 func (s *fakeLoopStore) ListPendingCancellations(

@@ -40,6 +40,7 @@ const (
 	LoopRunEventRequestAnswered      LoopRunEventKind = "request_answered"
 	LoopRunEventRequestExpired       LoopRunEventKind = "request_expired"
 	LoopRunEventRequestCanceled      LoopRunEventKind = "request_canceled"
+	LoopRunEventNodeAmended          LoopRunEventKind = "node_amended"
 )
 
 // LoopRunStatusValues returns the closed public loop run status vocabulary.
@@ -123,6 +124,7 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventRequestAnswered),
 		string(LoopRunEventRequestExpired),
 		string(LoopRunEventRequestCanceled),
+		string(LoopRunEventNodeAmended),
 	}
 }
 

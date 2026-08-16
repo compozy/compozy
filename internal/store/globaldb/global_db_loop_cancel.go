@@ -159,6 +159,9 @@ func (g *LoopRepo) RequestNodeCancellation(
 			result.Terminal = run.Status.Terminal()
 			return nil
 		}
+		if mutation.ItemIndex != nil {
+			return g.requestNodeLaneCancellation(ctx, exec, mutation, run, &result)
+		}
 		live, err := nodeHasLiveCancellationOutputs(ctx, exec, mutation.RunID, mutation.NodeID)
 		if err != nil {
 			return err

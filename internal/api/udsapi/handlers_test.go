@@ -406,6 +406,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/cancel",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/kill",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/cancel",
+			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/amend",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/kill",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/pause",
 			"POST /api/workspaces/:workspace_id/loop-runs/:run_id/nodes/:node_id/requeue",

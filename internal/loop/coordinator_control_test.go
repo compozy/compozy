@@ -233,6 +233,88 @@ func TestCoordinatorRunnerShouldParkAskRequests(t *testing.T) {
 	}
 }
 
+// Invariant: review freezes resolved action params before task creation, and bypass starts the action clock normally.
+// The canonical coordinator-control suite owns pre-enqueue review planning.
+func TestCoordinatorRunnerShouldGateReviewedActionsBeforeEnqueue(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 16, 14, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name       string
+		when       string
+		wantParked bool
+	}{
+		{name: "Should freeze the proposal and park before enqueue", when: "true", wantParked: true},
+		{name: "Should bypass review when its condition is false", when: "false"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := dsl.Definition{
+				APIVersion: dsl.APIVersion,
+				Kind:       dsl.KindLoop,
+				Meta:       dsl.Meta{Name: "review-control"},
+				Inputs:     map[string]dsl.Input{"release": {Type: dsl.InputTypeString, Required: true}},
+				Contract: dsl.Contract{
+					Goal: "Publish", DefinitionOfDone: "Published", IterationCap: 2,
+				},
+				Graph: dsl.Graph{Nodes: []dsl.Node{{
+					ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{
+						"tag": map[string]any{"template": "{{ .inputs.release }}"},
+					}},
+					Review: &dsl.ReviewSpec{
+						When: tt.when, Prompt: "Review {{ .inputs.release }}",
+						Decisions: []dsl.ReviewDecision{
+							dsl.ReviewDecisionApprove, dsl.ReviewDecisionEdit,
+							dsl.ReviewDecisionReject, dsl.ReviewDecisionRespond,
+						},
+					},
+				}}},
+			}
+			resolved := compileCoordinatorControlDefinition(t, definition)
+			loopRun := controlLoopRun("looprun-review-"+strings.ReplaceAll(tt.name, " ", "-"), map[string]any{
+				"release": "v2.4.1",
+			})
+			coordinatorRun := controlCoordinatorRun(loopRun, 1)
+			runner := newCoordinatorRunnerForControlTest(
+				t, loopRun, coordinatorRun, nil,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+					Generation: 1, NodeID: "publish", Status: generationOutputPending, Attempt: 1,
+				}}}}, resolved,
+			)
+			runner.now = func() time.Time { return now }
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			if tt.wantParked {
+				payload := coordinatorSnapshotPayloadForTest(t, plan)
+				if len(plan.NodeRuns) != 0 || !plan.Yield || len(payload.Requests) != 1 ||
+					payload.Outputs[0].Status != generationOutputWaiting || payload.Outputs[0].FirstScheduledAt != nil {
+					t.Fatalf("review plan = %#v payload = %#v, want parked pre-enqueue", plan, payload)
+				}
+				request := payload.Requests[0]
+				if request.Kind != RequestKindReview || request.Prompt != "Review v2.4.1" ||
+					!strings.Contains(string(request.Proposed), `"template":"v2.4.1"`) ||
+					len(request.EditSchema) == 0 || len(request.RespondSchema) == 0 {
+					t.Fatalf("review request = %#v, want frozen proposal and decision schemas", request)
+				}
+				return
+			}
+			if len(plan.NodeRuns) != 1 || plan.PostReserveSnapshot == nil {
+				t.Fatalf("bypass plan = %#v, want one action run", plan)
+			}
+			post := coordinatorPostReservePayloadForTest(t, plan)
+			if len(post.Outputs) != 1 || post.Outputs[0].OutputRef != reviewBypassedOutputRef ||
+				post.Outputs[0].FirstScheduledAt == nil || !post.Outputs[0].FirstScheduledAt.Equal(now) {
+				t.Fatalf("bypass output = %#v, want normal scheduling clock", post.Outputs)
+			}
+		})
+	}
+}
+
 func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
 	t.Parallel()
 

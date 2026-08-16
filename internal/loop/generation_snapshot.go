@@ -155,15 +155,24 @@ func writeRequestIntent(
 	if err := store.UpsertLoopOutputBlob(ctx, tx, contextRef, intent.Context, intent.OpenedAt); err != nil {
 		return fmt.Errorf("loop: persist request context: %w", err)
 	}
+	var proposedRef any
+	if len(intent.Proposed) > 0 {
+		ref := OutputRefForPayload(intent.Proposed)
+		if err := store.UpsertLoopOutputBlob(ctx, tx, ref, intent.Proposed, intent.OpenedAt); err != nil {
+			return fmt.Errorf("loop: persist request proposal: %w", err)
+		}
+		proposedRef = ref
+	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO loop_requests (
 		workspace_id, loop_run_id, generation, node_id, item_index, kind, state,
-		prompt, context_preview_json, context_ref, answer_schema_json, decisions_json,
-		respond_schema_json, opened_at, expires_at
-	) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)
+		prompt, context_preview_json, context_ref, answer_schema_json, edit_schema_json,
+		respond_schema_json, decisions_json, proposed_ref, proposed_preview_json, opened_at, expires_at
+	) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(loop_run_id, generation, node_id, item_index) DO NOTHING`,
 		intent.WorkspaceID, loopRunID, generation, intent.NodeID, intent.ItemIndex, intent.Kind,
-		intent.Prompt, string(intent.ContextPreview), contextRef, string(intent.AnswerSchema),
-		string(intent.Decisions), string(intent.AnswerSchema), intent.OpenedAt, intent.ExpiresAt)
+		intent.Prompt, string(intent.ContextPreview), contextRef, sqlNullRawJSON(intent.AnswerSchema),
+		sqlNullRawJSON(intent.EditSchema), sqlNullRawJSON(intent.RespondSchema), string(intent.Decisions),
+		proposedRef, sqlNullRawJSON(intent.ProposedPreview), intent.OpenedAt, intent.ExpiresAt)
 	if err != nil {
 		return fmt.Errorf("loop: write request %s/%d: %w", intent.NodeID, intent.ItemIndex, err)
 	}

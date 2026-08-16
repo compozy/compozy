@@ -64,3 +64,30 @@ func (n *daemonNativeTools) loopRespond(ctx context.Context, scope toolspkg.Scop
 	}
 	return structuredResult(response, fmt.Sprintf("request %s answered", response.NodeID))
 }
+
+func (n *daemonNativeTools) loopNodeAmend(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input nativeLoopNodeAmendInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, runID, err := n.nativeLoopWorkspaceAndRunID(ctx, req.ToolID, input.WorkspaceID, input.RunID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, err := actorContextFromScope(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
+	}
+	response, err := n.loopService().AmendLoopNode(ctx, workspaceID, runID, input.NodeID,
+		contract.LoopNodeAmendRequest{
+			ItemIndex: input.ItemIndex, Payload: input.Payload, Reason: input.Reason,
+		}, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
+	}
+	return structuredResult(response, fmt.Sprintf("loop node %s amended", response.Amendment.NodeID))
+}

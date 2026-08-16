@@ -55,6 +55,46 @@ func TestLoopRequestPayloadShouldExposeOnlyPublicRequestState(t *testing.T) {
 	}
 }
 
+// Invariant: amendment projections redact secrets, inline only bounded values, and never expose blob refs.
+// The daemon Loop API suite owns the shared HTTP, UDS, CLI, and native-tool amendment projection.
+func TestLoopNodeAmendmentPayloadShouldBeBoundedAndRedacted(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, time.August, 16, 15, 30, 0, 0, time.UTC)
+	payload, err := loopNodeAmendmentPayload(looppkg.NodeAmendment{
+		LoopRunID: "run-1", Generation: 2, NodeID: "repair", ItemIndex: 3, Sequence: 1,
+		OriginalRef: "private-original-ref", AmendedRef: "private-amended-ref",
+		Original: json.RawMessage(`{"api_token":"secret-value","value":"before"}`),
+		Amended:  json.RawMessage(`{"value":"after"}`), ActorKind: "human", ActorID: "operator:one",
+		CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("loopNodeAmendmentPayload() error = %v", err)
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(amendment) error = %v", err)
+	}
+	if strings.Contains(string(encoded), "secret-value") || strings.Contains(string(encoded), "private-") ||
+		!strings.Contains(string(encoded), `"api_token":"[REDACTED]"`) {
+		t.Fatalf("amendment projection = %s, want redacted values without refs", encoded)
+	}
+
+	large := json.RawMessage(`{"value":"` + strings.Repeat("x", amendmentInlineLimitBytes) + `"}`)
+	bounded, err := loopNodeAmendmentPayload(looppkg.NodeAmendment{
+		LoopRunID: "run-1", Generation: 2, NodeID: "repair", Sequence: 2,
+		Original: large, Amended: large, CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("loopNodeAmendmentPayload(large) error = %v", err)
+	}
+	if bounded.Original != nil || bounded.Amended != nil || bounded.OriginalSummary == nil ||
+		bounded.AmendedSummary == nil || bounded.OriginalSummary.ByteSize <= amendmentInlineLimitBytes ||
+		bounded.OriginalSummary.ContentHash == "" {
+		t.Fatalf("bounded amendment projection = %#v", bounded)
+	}
+}
+
 // Invariant: agents in a run starter's durable spawn chain cannot act as that run's responder.
 // The daemon Loop API suite owns the shared responder trust boundary used by approve and respond.
 func TestDaemonLoopResponderPolicyShouldEvaluateDurableSpawnChains(t *testing.T) {
@@ -801,13 +841,13 @@ func (s *loopApprovalAggregateStub) KillRun(
 }
 
 func (s *loopApprovalAggregateStub) CancelNode(
-	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, string, task.ActorContext,
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, *int, string, task.ActorContext,
 ) error {
 	return errors.New("unexpected CancelNode call")
 }
 
 func (s *loopApprovalAggregateStub) KillNode(
-	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, string, task.ActorContext,
+	context.Context, looppkg.WorkspaceID, looppkg.RunID, looppkg.NodeID, *int, string, task.ActorContext,
 ) error {
 	return errors.New("unexpected KillNode call")
 }
@@ -865,6 +905,13 @@ func (s *loopApprovalAggregateStub) Respond(
 	looppkg.RespondInput,
 ) (looppkg.RespondResult, error) {
 	return looppkg.RespondResult{}, errors.New("unexpected Respond call")
+}
+
+func (s *loopApprovalAggregateStub) AmendNodeOutput(
+	context.Context,
+	looppkg.AmendInput,
+) (looppkg.NodeAmendment, error) {
+	return looppkg.NodeAmendment{}, errors.New("unexpected AmendNodeOutput call")
 }
 
 func (s *loopApprovalAggregateStub) Configure(

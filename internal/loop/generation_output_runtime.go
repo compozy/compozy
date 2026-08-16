@@ -38,6 +38,15 @@ func generationOutputRuntimeView(
 	outputs []GenerationOutput,
 ) ([]GenerationOutput, error) {
 	view := cloneGenerationOutputs(outputs)
+	if overlays, ok := reader.(GenerationOutputOverlayReader); ok {
+		var err error
+		view, err = overlays.ApplyGenerationOutputOverlays(
+			ctx, scope.workspaceID, scope.runID, scope.generation, view,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if len(view) == 0 {
 		return view, nil
 	}

@@ -1146,6 +1146,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__loop_node_kill", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
+		{id: "compozy__loop_node_amend", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__loop_node_pause", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__loop_node_requeue", risk: toolspkg.RiskMutating,

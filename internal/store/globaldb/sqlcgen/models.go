@@ -780,6 +780,21 @@ type LoopGoalTurn struct {
 	EndedAt         sql.NullTime   `json:"ended_at"`
 }
 
+type LoopNodeAmendment struct {
+	WorkspaceID  string         `json:"workspace_id"`
+	LoopRunID    string         `json:"loop_run_id"`
+	Generation   int64          `json:"generation"`
+	NodeID       string         `json:"node_id"`
+	ItemIndex    int64          `json:"item_index"`
+	AmendmentSeq int64          `json:"amendment_seq"`
+	OriginalRef  string         `json:"original_ref"`
+	AmendedRef   string         `json:"amended_ref"`
+	ActorKind    string         `json:"actor_kind"`
+	ActorID      string         `json:"actor_id"`
+	Reason       sql.NullString `json:"reason"`
+	CreatedAt    time.Time      `json:"created_at"`
+}
+
 type LoopNodeAttempt struct {
 	LoopRunID     string         `json:"loop_run_id"`
 	Generation    int64          `json:"generation"`
@@ -822,6 +837,18 @@ type LoopNodeControl struct {
 	GateRevisionsJson       string         `json:"gate_revisions_json"`
 	Revision                int64          `json:"revision"`
 	UpdatedAt               time.Time      `json:"updated_at"`
+}
+
+type LoopNodeLanePause struct {
+	WorkspaceID string         `json:"workspace_id"`
+	LoopRunID   string         `json:"loop_run_id"`
+	NodeID      string         `json:"node_id"`
+	ItemIndex   int64          `json:"item_index"`
+	ActorKind   string         `json:"actor_kind"`
+	ActorID     string         `json:"actor_id"`
+	Reason      sql.NullString `json:"reason"`
+	Mode        string         `json:"mode"`
+	RequestedAt time.Time      `json:"requested_at"`
 }
 
 type LoopNodeWait struct {

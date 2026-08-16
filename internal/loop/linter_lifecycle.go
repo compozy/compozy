@@ -37,6 +37,9 @@ func (c *lintContext) lintLifecycleNode(node dsl.Node) {
 			c.lintWaitExpiry(node, params.Expires, "ask")
 		}
 	}
+	if node.Review != nil && node.Review.Expires != nil {
+		c.lintWaitExpiry(node, node.Review.Expires, "review")
+	}
 }
 
 func (c *lintContext) lintRetryLifecycle(node dsl.Node) {

@@ -1185,7 +1185,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_configure",
@@ -1250,7 +1250,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_list",
@@ -1266,6 +1266,22 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__loop_node_amend",
+    "native_name": "loop_node_amend",
+    "toolsets": [
+      "compozy__loops"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "633ab516f675b5a07c612a9f3a576f98729b6eb9e1d0036e51c9ae122f210db9",
+    "output_schema_digest": "134b29ed1c9209faf60ca8d666eb058a0d6fe6f6c05ed4e48c249adb1729af57",
+    "required_capabilities": [
+      "loops.respond"
+    ]
+  },
+  {
     "tool_id": "compozy__loop_node_cancel",
     "native_name": "loop_node_cancel",
     "toolsets": [
@@ -1275,8 +1291,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "9838bc3c426070735b4fc564d58d20dddf452ff9e518c7c94a2affe98442d3b9",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "input_schema_digest": "aed1cd17bfc09d816a4ee8c769ea8b1018cffa20aa115e3906e84c4dad0455dd",
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_node_kill",
@@ -1288,8 +1304,8 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "9838bc3c426070735b4fc564d58d20dddf452ff9e518c7c94a2affe98442d3b9",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "input_schema_digest": "aed1cd17bfc09d816a4ee8c769ea8b1018cffa20aa115e3906e84c4dad0455dd",
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_node_pause",
@@ -1301,8 +1317,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "2e3642beac35d9106af7792c8fe411fc56978faf1856102246680360315b394d",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "input_schema_digest": "8346c03344584dc943fb0c8466ae3676acb229664e7c47f32a537aa42761008b",
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_node_requeue",
@@ -1315,7 +1331,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "9838bc3c426070735b4fc564d58d20dddf452ff9e518c7c94a2affe98442d3b9",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_node_resume",
@@ -1328,7 +1344,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "c842627e39ce141d49a9400c5908febcfe333652c230581ef6329d8a9d977a09",
-    "output_schema_digest": "1bee7cc48f8ad1651ba53982e57b91634aaa8fc38214454318ff275f2e648dfe"
+    "output_schema_digest": "b67f5b616a84a30080525439c52cccfe9d3705631eb09cd4f219e5faccb2ac61"
   },
   {
     "tool_id": "compozy__loop_nodes",
@@ -1392,8 +1408,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "1ae6b38423353bc10d38b54bc779fc7b0dca287da24a71606c390b59d798a87c",
-    "output_schema_digest": "e245dedb2b269039eef490492626f4013fcb334ca7e9ee0a3e8d76862898d518",
+    "input_schema_digest": "c19c71c7a1c7638ab0726ed6548e85bed7c9b37efbe04f3832fe2a9c385cf71a",
+    "output_schema_digest": "5171836e1461785e93f9c18a888440e3ff7e419cb38360acff326e460c26c930",
     "required_capabilities": [
       "loops.respond"
     ]

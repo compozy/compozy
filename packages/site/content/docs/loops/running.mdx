@@ -178,10 +178,18 @@ Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, 
 | Resume node     | `compozy loop node resume`                      | `POST /loop-runs/:id/nodes/:node/resume`  | `compozy__loop_node_resume`                    |
 | Cancel node     | `compozy loop node cancel`                      | `POST /loop-runs/:id/nodes/:node/cancel`  | `compozy__loop_node_cancel`                    |
 | Kill node       | `compozy loop node kill`                        | `POST /loop-runs/:id/nodes/:node/kill`    | `compozy__loop_node_kill`                      |
+| Amend node      | `compozy loop node amend`                       | `POST /loop-runs/:id/nodes/:node/amend`   | `compozy__loop_node_amend`                     |
 | Requeue node    | `compozy loop node requeue`                     | `POST /loop-runs/:id/nodes/:node/requeue` | `compozy__loop_node_requeue`                   |
 | List requests   | `compozy loop requests`                         | `GET /loop-requests`                      | `compozy__loop_requests`                       |
 | Request detail  | `compozy loop request`                          | `GET /loop-runs/:id/nodes/:node/request`  | `compozy__loop_request`                        |
 | Answer request  | `compozy loop respond`                          | `POST /loop-runs/:id/nodes/:node/respond` | `compozy__loop_respond`                        |
+
+Pass `--item` or `item_index` to pause, resume, cancel, or kill one fan-out cell without changing
+its siblings. Amendments apply only to a settled output while its run, node, or cell is parked.
+They append provenance and an effective-output overlay; the recorded generation output stays
+unchanged. Resume or downstream execution reads the newest amendment. Run detail returns
+`amendments[]` with bounded, redacted values or a byte-size and content-hash summary for large data.
+There is no API that reads an amendment's private output reference directly.
 
 Live events stream from `GET /loop-runs/:id/events` (SSE). HTTP routes are workspace-scoped under
 `/api/workspaces/{workspace_id}/…`; the [Loops API](/docs/api/loops) reference lists

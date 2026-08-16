@@ -452,6 +452,19 @@ func TestLoopRequestHandlersShouldPreserveTransportParity(t *testing.T) {
 					},
 				}, nil
 			}
+			service.amendLoopNodeFn = func(
+				_ context.Context, workspaceID, runID, nodeID string,
+				req contract.LoopNodeAmendRequest, _ taskpkg.ActorContext,
+			) (contract.LoopNodeAmendResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || nodeID != "select" ||
+					req.Generation != 2 || req.ItemIndex != 2 || string(req.Payload) != `{"environment":"staging"}` {
+					return contract.LoopNodeAmendResponse{}, errors.New("unexpected amendment input")
+				}
+				return contract.LoopNodeAmendResponse{OK: true, Amendment: contract.LoopNodeAmendmentPayload{
+					LoopRunID: runID, Generation: req.Generation, NodeID: nodeID, ItemIndex: req.ItemIndex,
+					Sequence: 1, Amended: req.Payload,
+				}}, nil
+			}
 			_, engine := newLoopHandlerFixture(t, transport, service)
 
 			list := performRequest(t, engine, http.MethodGet,
@@ -476,6 +489,16 @@ func TestLoopRequestHandlersShouldPreserveTransportParity(t *testing.T) {
 				responded.Decision != "respond" || responded.State != "answered" ||
 				responded.Provenance.ActorKind != "operator" || responded.Provenance.ActorID != "operator:one" {
 				t.Fatalf("%s request response = %#v", transport, responded)
+			}
+			amend := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/amend",
+				[]byte(`{"generation":2,"item_index":2,"payload":{"environment":"staging"}}`))
+			assertLoopStatus(t, amend.Code, http.StatusOK, amend.Body.String())
+			var amended contract.LoopNodeAmendResponse
+			testutil.DecodeJSONResponse(t, amend, &amended)
+			if !amended.OK || amended.Amendment.LoopRunID != "run-1" ||
+				amended.Amendment.ItemIndex != 2 || amended.Amendment.Sequence != 1 {
+				t.Fatalf("%s amendment response = %#v", transport, amended)
 			}
 
 			service.respondLoopRequestFn = func(
@@ -1620,6 +1643,7 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.GET("/loop-requests", handlers.ListLoopRequests)
 	workspace.GET("/loop-runs/:run_id/nodes/:node_id/request", handlers.GetLoopRequest)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/respond", handlers.RespondLoopRequest)
+	workspace.POST("/loop-runs/:run_id/nodes/:node_id/amend", handlers.AmendLoopNode)
 	workspace.GET("/loop-nodes", handlers.ListLoopNodes)
 	workspace.GET("/loop-runs/:run_id/events", handlers.StreamLoopRunEvents)
 	workspace.GET("/sessions/:session_id/goal", handlers.GetSessionGoal)
@@ -1659,6 +1683,14 @@ type stubLoopService struct {
 		contract.RespondLoopRequest,
 		taskpkg.ActorContext,
 	) (contract.RespondLoopRequestResponse, error)
+	amendLoopNodeFn func(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.LoopNodeAmendRequest,
+		taskpkg.ActorContext,
+	) (contract.LoopNodeAmendResponse, error)
 	getLoopRunFn        func(context.Context, string, string) (contract.LoopRunResponse, error)
 	getSessionGoalFn    func(context.Context, string, string) (*session.GoalSnapshot, error)
 	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
@@ -2153,6 +2185,20 @@ func (s *stubLoopService) RespondLoopRequest(
 	actor taskpkg.ActorContext,
 ) (contract.RespondLoopRequestResponse, error) {
 	return s.respondLoopRequestFn(ctx, workspaceID, runID, nodeID, req, actor)
+}
+
+func (s *stubLoopService) AmendLoopNode(
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	nodeID string,
+	req contract.LoopNodeAmendRequest,
+	actor taskpkg.ActorContext,
+) (contract.LoopNodeAmendResponse, error) {
+	if s.amendLoopNodeFn == nil {
+		return contract.LoopNodeAmendResponse{}, errors.New("unexpected AmendLoopNode call")
+	}
+	return s.amendLoopNodeFn(ctx, workspaceID, runID, nodeID, req, actor)
 }
 
 func (s *stubLoopService) ListLoopRunEvents(

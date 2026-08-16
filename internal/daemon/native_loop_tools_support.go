@@ -380,3 +380,12 @@ type nativeLoopRespondInput struct {
 	Payload     json.RawMessage `json:"payload"`
 	Note        string          `json:"note,omitempty"`
 }
+
+type nativeLoopNodeAmendInput struct {
+	WorkspaceID string          `json:"workspace,omitempty"`
+	RunID       string          `json:"run_id"`
+	NodeID      string          `json:"node_id"`
+	ItemIndex   int             `json:"item_index,omitempty"`
+	Payload     json.RawMessage `json:"payload"`
+	Reason      string          `json:"reason,omitempty"`
+}

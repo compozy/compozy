@@ -17,6 +17,9 @@ type LoopRequestPayload struct {
 	Prompt           string          `json:"prompt"`
 	Context          json.RawMessage `json:"context"`
 	Expect           json.RawMessage `json:"expect,omitempty"`
+	EditSchema       json.RawMessage `json:"edit_schema,omitempty"`
+	RespondSchema    json.RawMessage `json:"respond_schema,omitempty"`
+	ProposedPreview  json.RawMessage `json:"proposed_preview,omitempty"`
 	Decisions        []string        `json:"decisions"`
 	Agents           string          `json:"agents"`
 	AnsweredDecision string          `json:"answered_decision,omitempty"`

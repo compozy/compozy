@@ -32,11 +32,13 @@ func newLoopNodeCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLoopNodeSimpleCommand(deps, loopCancelKey, "Cancel one Loop node"))
 	cmd.AddCommand(newLoopNodeSimpleCommand(deps, loopKillKey, "Kill one Loop node"))
 	cmd.AddCommand(newLoopNodeSimpleCommand(deps, loopRequeueKey, "Requeue one quarantined Loop node"))
+	cmd.AddCommand(newLoopNodeAmendCommand(deps))
 	return cmd
 }
 
 func newLoopNodePauseCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, runID, nodeID, mode, reason string
+	var itemIndex int
 	cmd := &cobra.Command{
 		Use:   loopPauseKey,
 		Short: "Pause one Loop node",
@@ -46,12 +48,18 @@ func newLoopNodePauseCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			item, err := optionalLoopNodeItem(cmd, itemIndex)
+			if err != nil {
+				return err
+			}
 			response, err := client.PauseLoopNode(
 				cmd.Context(),
 				workspaceID,
 				strings.TrimSpace(runID),
 				strings.TrimSpace(nodeID),
-				contract.LoopNodePauseRequest{Mode: strings.TrimSpace(mode), Reason: strings.TrimSpace(reason)},
+				contract.LoopNodePauseRequest{
+					Mode: strings.TrimSpace(mode), Reason: strings.TrimSpace(reason), ItemIndex: item,
+				},
 				agentCredentialsFromEnv(deps),
 			)
 			if err != nil {
@@ -63,6 +71,7 @@ func newLoopNodePauseCommand(deps commandDeps) *cobra.Command {
 	addLoopNodeIdentityFlags(cmd, &workspaceRef, &runID, &nodeID)
 	cmd.Flags().StringVar(&mode, loopModeKey, "drain", "Pause mode: drain or cancel")
 	cmd.Flags().StringVar(&reason, loopReasonKey, "", "Operator reason")
+	cmd.Flags().IntVar(&itemIndex, loopItemKey, 0, "Fan-out item index")
 	return cmd
 }
 
@@ -105,12 +114,17 @@ func newLoopNodeResumeCommand(deps commandDeps) *cobra.Command {
 
 func newLoopNodeSimpleCommand(deps commandDeps, verb string, short string) *cobra.Command {
 	var workspaceRef, runID, nodeID, reason string
+	var itemIndex int
 	cmd := &cobra.Command{
 		Use:   verb,
 		Short: short,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
+			if err != nil {
+				return err
+			}
+			item, err := optionalLoopNodeItem(cmd, itemIndex)
 			if err != nil {
 				return err
 			}
@@ -121,7 +135,7 @@ func newLoopNodeSimpleCommand(deps commandDeps, verb string, short string) *cobr
 				workspaceID,
 				strings.TrimSpace(runID),
 				strings.TrimSpace(nodeID),
-				contract.LoopNodeMutationRequest{Reason: strings.TrimSpace(reason)},
+				contract.LoopNodeMutationRequest{Reason: strings.TrimSpace(reason), ItemIndex: item},
 				agentCredentialsFromEnv(deps),
 			)
 			if err != nil {
@@ -132,6 +146,9 @@ func newLoopNodeSimpleCommand(deps commandDeps, verb string, short string) *cobr
 	}
 	addLoopNodeIdentityFlags(cmd, &workspaceRef, &runID, &nodeID)
 	cmd.Flags().StringVar(&reason, loopReasonKey, "", "Operator reason")
+	if verb != loopRequeueKey {
+		cmd.Flags().IntVar(&itemIndex, loopItemKey, 0, "Fan-out item index")
+	}
 	return cmd
 }
 
@@ -184,11 +201,20 @@ func loopNodeResumeRequest(
 		}
 		request.Payload = json.RawMessage(trimmedPayload)
 	}
-	if cmd.Flags().Changed(loopItemKey) {
-		if itemIndex < 0 {
-			return contract.LoopNodeResumeRequest{}, errors.New("cli: --item must be nonnegative")
-		}
-		request.ItemIndex = &itemIndex
+	item, err := optionalLoopNodeItem(cmd, itemIndex)
+	if err != nil {
+		return contract.LoopNodeResumeRequest{}, err
 	}
+	request.ItemIndex = item
 	return request, nil
+}
+
+func optionalLoopNodeItem(cmd *cobra.Command, itemIndex int) (*int, error) {
+	if !cmd.Flags().Changed(loopItemKey) {
+		return nil, nil
+	}
+	if itemIndex < 0 {
+		return nil, errors.New("cli: --item must be nonnegative")
+	}
+	return &itemIndex, nil
 }

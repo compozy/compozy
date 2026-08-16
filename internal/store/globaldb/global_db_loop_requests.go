@@ -24,18 +24,22 @@ type requestCursor struct {
 }
 
 type storedRequest struct {
-	request      looppkg.Request
-	rowID        int64
-	contextRef   string
-	answerSchema json.RawMessage
-	answeredRef  string
-	answeredNote string
+	request       looppkg.Request
+	rowID         int64
+	contextRef    string
+	answerSchema  json.RawMessage
+	editSchema    json.RawMessage
+	respondSchema json.RawMessage
+	proposedRef   string
+	answeredRef   string
+	answeredNote  string
 }
 
 const requestSelectColumns = `request.rowid, request.loop_run_id, run.loop_name,
 	request.generation, request.node_id, request.item_index, request.kind, request.state,
 	request.prompt, request.context_preview_json, request.context_ref,
-	request.answer_schema_json, request.decisions_json, request.answered_decision,
+	request.answer_schema_json, request.edit_schema_json, request.respond_schema_json,
+	request.decisions_json, request.proposed_ref, request.proposed_preview_json, request.answered_decision,
 	request.answered_payload_ref, request.answered_note, request.actor_kind, request.actor_id,
 	request.opened_at, request.resolved_at, request.expires_at`
 
@@ -44,7 +48,7 @@ func (g *LoopRepo) ListRequests(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
 	query looppkg.RequestQuery,
-) (looppkg.RequestPage, error) {
+) (page looppkg.RequestPage, err error) {
 	if err := g.checkReady(ctx, "list Loop requests"); err != nil {
 		return looppkg.RequestPage{}, err
 	}
@@ -100,7 +104,11 @@ func (g *LoopRepo) ListRequests(
 	if err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: list Loop requests: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close Loop request rows: %w", closeErr))
+		}
+	}()
 
 	items := make([]looppkg.Request, 0, limit)
 	var lastIncluded storedRequest
@@ -120,7 +128,7 @@ func (g *LoopRepo) ListRequests(
 	if err := rows.Err(); err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: iterate Loop requests: %w", err)
 	}
-	page := looppkg.RequestPage{Items: items}
+	page = looppkg.RequestPage{Items: items}
 	if hasMore {
 		page.NextCursor, err = encodeRequestCursor(cursorForRequest(lastIncluded, state))
 		if err != nil {
@@ -178,10 +186,17 @@ func (g *LoopRepo) RespondRequest(
 		if decision == "" {
 			decision = looppkg.RequestDecisionRespond
 		}
+		if input.RequestKind != "" && stored.request.Kind != input.RequestKind {
+			return fmt.Errorf("%w: request kind changed", looppkg.ErrTransitionConflict)
+		}
 		actorKind := string(input.Actor.Actor.Kind.Normalize())
 		actorID := strings.TrimSpace(input.Actor.Actor.Ref)
+		decisionPayload, schema, err := requestDecisionPayload(ctx, exec, stored, decision, input.Payload)
+		if err != nil {
+			return err
+		}
 		if stored.request.State != looppkg.RequestStatePending {
-			return resolvedRequestOutcome(ctx, exec, stored, decision, input.Payload, actorKind, actorID, &result)
+			return resolvedRequestOutcome(ctx, exec, stored, decision, decisionPayload, actorKind, actorID, &result)
 		}
 		if !requestAllowsDecision(stored.request.Decisions, decision) {
 			return looppkg.NewRequestReasonError(
@@ -190,8 +205,10 @@ func (g *LoopRepo) RespondRequest(
 				map[string]string{"decision": "not allowed"},
 			)
 		}
-		if err := looppkg.ValidateWaitPayload(stored.answerSchema, input.Payload); err != nil {
-			return looppkg.NewRequestValidationError(err)
+		if len(schema) > 0 {
+			if err := looppkg.ValidateWaitPayload(schema, decisionPayload); err != nil {
+				return looppkg.NewRequestValidationError(err)
+			}
 		}
 		run, err := nodePauseRun(ctx, exec, input.WorkspaceID, input.RunID)
 		if err != nil {
@@ -200,7 +217,7 @@ func (g *LoopRepo) RespondRequest(
 		mutation := looppkg.WaitResumeMutation{
 			WorkspaceID: input.WorkspaceID, RunID: input.RunID,
 			Generation: stored.request.Generation, NodeID: input.NodeID, ItemIndex: input.ItemIndex,
-			Payload: input.Payload, ClaimedByKind: actorKind, ClaimedByID: actorID,
+			Payload: decisionPayload, ClaimedByKind: actorKind, ClaimedByID: actorID,
 			AdmissionAttempts: 1, RequestedAt: g.now().UTC(),
 		}
 		wait, err := loadWaitForResume(ctx, exec, mutation)
@@ -213,8 +230,8 @@ func (g *LoopRepo) RespondRequest(
 		if err := validateWaitResumeCell(ctx, exec, mutation, wait); err != nil {
 			return err
 		}
-		answerRef := looppkg.OutputRefForPayload(input.Payload)
-		if err := storepkg.UpsertLoopOutputBlob(ctx, exec, answerRef, input.Payload, mutation.RequestedAt); err != nil {
+		answerRef := looppkg.OutputRefForPayload(decisionPayload)
+		if err := storepkg.UpsertLoopOutputBlob(ctx, exec, answerRef, decisionPayload, mutation.RequestedAt); err != nil {
 			return err
 		}
 		update, err := exec.ExecContext(ctx, `UPDATE loop_requests SET state = 'answered',
@@ -229,7 +246,8 @@ func (g *LoopRepo) RespondRequest(
 		if err := requireSingleWaitMutation(update); err != nil {
 			return err
 		}
-		if err := claimAndResolveWait(ctx, exec, mutation, wait, answerRef); err != nil {
+		if err := claimRequestDecision(ctx, exec, mutation, wait, stored.request.Kind, decision,
+			answerRef, input.RejectRoute); err != nil {
 			return err
 		}
 		parkedFor := max(mutation.RequestedAt.Sub(wait.CreatedAt.UTC()), 0)
@@ -298,13 +316,15 @@ func getStoredRequest(
 func scanStoredRequest(scanner rowScanner) (storedRequest, error) {
 	var stored storedRequest
 	var contextPreview, decisions string
-	var contextRef, answerSchema, answeredDecision, answeredRef, answeredNote sql.NullString
+	var contextRef, answerSchema, editSchema, respondSchema, proposedRef, proposedPreview sql.NullString
+	var answeredDecision, answeredRef, answeredNote sql.NullString
 	var actorKind, actorID sql.NullString
 	var resolvedAt, expiresAt sql.NullTime
 	err := scanner.Scan(&stored.rowID, &stored.request.LoopRunID, &stored.request.LoopName,
 		&stored.request.Generation, &stored.request.NodeID, &stored.request.ItemIndex,
 		&stored.request.Kind, &stored.request.State, &stored.request.Prompt, &contextPreview,
-		&contextRef, &answerSchema, &decisions, &answeredDecision, &answeredRef, &answeredNote,
+		&contextRef, &answerSchema, &editSchema, &respondSchema, &decisions, &proposedRef,
+		&proposedPreview, &answeredDecision, &answeredRef, &answeredNote,
 		&actorKind, &actorID, &stored.request.OpenedAt, &resolvedAt, &expiresAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -317,10 +337,22 @@ func scanStoredRequest(scanner rowScanner) (storedRequest, error) {
 		stored.answerSchema = json.RawMessage(answerSchema.String)
 		stored.request.Expect = append(json.RawMessage(nil), stored.answerSchema...)
 	}
+	if editSchema.Valid {
+		stored.editSchema = json.RawMessage(editSchema.String)
+		stored.request.EditSchema = append(json.RawMessage(nil), stored.editSchema...)
+	}
+	if respondSchema.Valid {
+		stored.respondSchema = json.RawMessage(respondSchema.String)
+		stored.request.RespondSchema = append(json.RawMessage(nil), stored.respondSchema...)
+	}
+	if proposedPreview.Valid {
+		stored.request.ProposedPreview = json.RawMessage(proposedPreview.String)
+	}
 	if err := json.Unmarshal([]byte(decisions), &stored.request.Decisions); err != nil {
 		return storedRequest{}, fmt.Errorf("store: decode Loop request decisions: %w", err)
 	}
 	stored.contextRef = contextRef.String
+	stored.proposedRef = proposedRef.String
 	stored.answeredRef = answeredRef.String
 	stored.answeredNote = answeredNote.String
 	stored.request.AnsweredDecision = answeredDecision.String

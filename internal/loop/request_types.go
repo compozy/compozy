@@ -14,11 +14,15 @@ import (
 
 const (
 	RequestKindAsk         = "ask"
+	RequestKindReview      = "review"
 	RequestStatePending    = "pending"
 	RequestStateAnswered   = "answered"
 	RequestStateExpired    = "expired"
 	RequestStateCanceled   = "canceled"
 	RequestDecisionRespond = "respond"
+	RequestDecisionApprove = "approve"
+	RequestDecisionEdit    = "edit"
+	RequestDecisionReject  = "reject"
 )
 
 const (
@@ -45,19 +49,23 @@ var (
 
 // RequestIntent persists one request-shaped read model beside its authoritative wait.
 type RequestIntent struct {
-	WorkspaceID    WorkspaceID              `json:"workspace_id"`
-	NodeID         NodeID                   `json:"node_id"`
-	ItemIndex      int                      `json:"item_index,omitempty"`
-	Kind           string                   `json:"kind"`
-	Prompt         string                   `json:"prompt"`
-	Context        json.RawMessage          `json:"context"`
-	ContextPreview json.RawMessage          `json:"context_preview"`
-	AnswerSchema   json.RawMessage          `json:"answer_schema"`
-	Decisions      json.RawMessage          `json:"decisions"`
-	Agents         dsl.ResponderAgentPolicy `json:"agents"`
-	ExpiresAt      *time.Time               `json:"expires_at,omitempty"`
-	IssuedEpoch    int64                    `json:"issued_epoch"`
-	OpenedAt       time.Time                `json:"opened_at"`
+	WorkspaceID     WorkspaceID              `json:"workspace_id"`
+	NodeID          NodeID                   `json:"node_id"`
+	ItemIndex       int                      `json:"item_index,omitempty"`
+	Kind            string                   `json:"kind"`
+	Prompt          string                   `json:"prompt"`
+	Context         json.RawMessage          `json:"context"`
+	ContextPreview  json.RawMessage          `json:"context_preview"`
+	AnswerSchema    json.RawMessage          `json:"answer_schema"`
+	EditSchema      json.RawMessage          `json:"edit_schema,omitempty"`
+	RespondSchema   json.RawMessage          `json:"respond_schema,omitempty"`
+	Decisions       json.RawMessage          `json:"decisions"`
+	Proposed        json.RawMessage          `json:"proposed,omitempty"`
+	ProposedPreview json.RawMessage          `json:"proposed_preview,omitempty"`
+	Agents          dsl.ResponderAgentPolicy `json:"agents"`
+	ExpiresAt       *time.Time               `json:"expires_at,omitempty"`
+	IssuedEpoch     int64                    `json:"issued_epoch"`
+	OpenedAt        time.Time                `json:"opened_at"`
 }
 
 func (i RequestIntent) normalized() RequestIntent {
@@ -76,20 +84,39 @@ func (i RequestIntent) normalized() RequestIntent {
 	i.Context = cloneRawMessage(i.Context)
 	i.ContextPreview = cloneRawMessage(i.ContextPreview)
 	i.AnswerSchema = cloneRawMessage(i.AnswerSchema)
+	i.EditSchema = cloneRawMessage(i.EditSchema)
+	i.RespondSchema = cloneRawMessage(i.RespondSchema)
 	i.Decisions = cloneRawMessage(i.Decisions)
+	i.Proposed = cloneRawMessage(i.Proposed)
+	i.ProposedPreview = cloneRawMessage(i.ProposedPreview)
 	return i
 }
 
 func (i RequestIntent) validate() error {
-	if i.WorkspaceID == "" || i.NodeID == "" || i.ItemIndex < 0 || i.Kind != RequestKindAsk ||
+	if i.WorkspaceID == "" || i.NodeID == "" || i.ItemIndex < 0 ||
+		(i.Kind != RequestKindAsk && i.Kind != RequestKindReview) ||
 		i.Prompt == "" || i.IssuedEpoch < 1 || i.OpenedAt.IsZero() {
 		return fmt.Errorf("%w: request intent identity is incomplete", ErrValidation)
 	}
 	for name, raw := range map[string]json.RawMessage{
 		"context": i.Context, "context_preview": i.ContextPreview,
-		"answer_schema": i.AnswerSchema, "decisions": i.Decisions,
+		"decisions": i.Decisions,
 	} {
 		if len(raw) == 0 || !json.Valid(raw) {
+			return fmt.Errorf("%w: request %s must be valid JSON", ErrValidation, name)
+		}
+	}
+	if i.Kind == RequestKindAsk && (len(i.AnswerSchema) == 0 || !json.Valid(i.AnswerSchema)) {
+		return fmt.Errorf("%w: ask answer_schema must be valid JSON", ErrValidation)
+	}
+	if i.Kind == RequestKindReview && (len(i.Proposed) == 0 || !json.Valid(i.Proposed) ||
+		len(i.ProposedPreview) == 0 || !json.Valid(i.ProposedPreview)) {
+		return fmt.Errorf("%w: review proposal must be valid JSON", ErrValidation)
+	}
+	for name, raw := range map[string]json.RawMessage{
+		"edit_schema": i.EditSchema, "respond_schema": i.RespondSchema,
+	} {
+		if len(raw) > 0 && !json.Valid(raw) {
 			return fmt.Errorf("%w: request %s must be valid JSON", ErrValidation, name)
 		}
 	}
@@ -119,6 +146,9 @@ type Request struct {
 	Prompt           string                   `json:"prompt"`
 	Context          json.RawMessage          `json:"context"`
 	Expect           json.RawMessage          `json:"expect"`
+	EditSchema       json.RawMessage          `json:"edit_schema,omitempty"`
+	RespondSchema    json.RawMessage          `json:"respond_schema,omitempty"`
+	ProposedPreview  json.RawMessage          `json:"proposed_preview,omitempty"`
 	Decisions        []string                 `json:"decisions"`
 	Agents           dsl.ResponderAgentPolicy `json:"agents"`
 	AnsweredDecision string                   `json:"answered_decision,omitempty"`
@@ -153,6 +183,8 @@ type RespondInput struct {
 	Payload     json.RawMessage
 	Note        string
 	Actor       task.ActorContext
+	RequestKind string
+	RejectRoute NodeID
 }
 
 type RespondResult struct {

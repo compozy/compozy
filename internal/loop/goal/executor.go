@@ -47,7 +47,7 @@ func (e *Executor) initializeSegment(
 	if err := validateGoalExecutionInput(e, node, in); err != nil {
 		return nil, err
 	}
-	params, err := loop.MaterializeGoalParams(node, in.Namespace)
+	params, err := loop.MaterializeGoalParams(node, in.Namespace, in.AdmittedParams)
 	if err != nil {
 		return nil, err
 	}

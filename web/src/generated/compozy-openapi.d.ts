@@ -93445,6 +93445,28 @@ export interface operations {
         };
         content: {
           "application/json": {
+            amendments: {
+              actor_id: string;
+              actor_kind: string;
+              amended?: unknown;
+              amended_summary?: {
+                byte_size: number;
+                content_hash: string;
+              } | null;
+              amendment_seq: number;
+              /** Format: date-time */
+              created_at: string;
+              generation: number;
+              item_index: number;
+              loop_run_id: string;
+              node_id: string;
+              original?: unknown;
+              original_summary?: {
+                byte_size: number;
+                content_hash: string;
+              } | null;
+              reason?: string;
+            }[];
             executed_definition?: {
               apiVersion: string;
               concurrency?: string;
@@ -94316,6 +94338,7 @@ export interface operations {
               answered_decision?: string;
               context: unknown;
               decisions: string[];
+              edit_schema?: unknown;
               expect?: unknown;
               /** Format: date-time */
               expires_at?: string | null;
@@ -94328,8 +94351,10 @@ export interface operations {
               /** Format: date-time */
               opened_at: string;
               prompt: string;
+              proposed_preview?: unknown;
               /** Format: date-time */
               resolved_at?: string | null;
+              respond_schema?: unknown;
               state: string;
             }[];
             run: {
@@ -94889,6 +94914,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
             } | null;
+            item_index?: number | null;
             node_id?: string;
             ok: boolean;
             provenance?: {
@@ -95213,7 +95239,8 @@ export interface operations {
                   | "request_opened"
                   | "request_answered"
                   | "request_expired"
-                  | "request_canceled";
+                  | "request_canceled"
+                  | "node_amended";
                 loop_run_id: string;
                 payload: unknown;
                 /** Format: int64 */
@@ -95404,6 +95431,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
             } | null;
+            item_index?: number | null;
             node_id?: string;
             ok: boolean;
             provenance?: {
@@ -95613,6 +95641,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          item_index?: number | null;
           reason?: string;
         };
       };
@@ -95661,6 +95690,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
             } | null;
+            item_index?: number | null;
             node_id?: string;
             ok: boolean;
             provenance?: {
@@ -95870,6 +95900,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          item_index?: number | null;
           reason?: string;
         };
       };
@@ -95918,6 +95949,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
             } | null;
+            item_index?: number | null;
             node_id?: string;
             ok: boolean;
             provenance?: {
@@ -96127,6 +96159,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          item_index?: number | null;
           mode: string;
           reason?: string;
         };
@@ -96176,6 +96209,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
             } | null;
+            item_index?: number | null;
             node_id?: string;
             ok: boolean;
             provenance?: {
@@ -96385,6 +96419,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          item_index?: number | null;
           reason?: string;
         };
       };
@@ -96433,6 +96468,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
             } | null;
+            item_index?: number | null;
             node_id?: string;
             ok: boolean;
             provenance?: {
@@ -96692,6 +96728,7 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
             } | null;
+            item_index?: number | null;
             node_id?: string;
             ok: boolean;
             provenance?: {

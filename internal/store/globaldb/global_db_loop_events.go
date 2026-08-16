@@ -49,6 +49,7 @@ const (
 	loopRunEventRequestAnswered         = "request_answered"
 	loopRunEventRequestExpired          = "request_expired"
 	loopRunEventRequestCanceled         = "request_canceled"
+	loopRunEventNodeAmended             = "node_amended"
 
 	maxLoopRunEventPayloadBytes = 16 * 1024
 	loopTokenTickMinDelta       = 2000
@@ -287,7 +288,8 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventRequestOpened,
 		loopRunEventRequestAnswered,
 		loopRunEventRequestExpired,
-		loopRunEventRequestCanceled:
+		loopRunEventRequestCanceled,
+		loopRunEventNodeAmended:
 		return true
 	default:
 		return false

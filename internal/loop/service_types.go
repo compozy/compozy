@@ -369,6 +369,7 @@ type Service interface {
 		ws WorkspaceID,
 		runID RunID,
 		nodeID NodeID,
+		itemIndex *int,
 		reason string,
 		actor task.ActorContext,
 	) error
@@ -377,6 +378,7 @@ type Service interface {
 		ws WorkspaceID,
 		runID RunID,
 		nodeID NodeID,
+		itemIndex *int,
 		reason string,
 		actor task.ActorContext,
 	) error
@@ -394,6 +396,7 @@ type Service interface {
 	ListRequests(ctx context.Context, ws WorkspaceID, query RequestQuery) (RequestPage, error)
 	GetRequest(ctx context.Context, ws WorkspaceID, ref RequestRef) (RequestDetail, error)
 	Respond(ctx context.Context, input RespondInput) (RespondResult, error)
+	AmendNodeOutput(ctx context.Context, input AmendInput) (NodeAmendment, error)
 	Configure(ctx context.Context, ws WorkspaceID, name string, cfg LoopConfig) error
 	GetConfig(ctx context.Context, ws WorkspaceID, name string) (*LoopConfig, error)
 	GetConfigSnapshot(ctx context.Context, ws WorkspaceID, name string) (ConfigSnapshot, error)

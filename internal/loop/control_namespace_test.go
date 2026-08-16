@@ -212,4 +212,12 @@ func TestOutputValueShouldProjectNamespaceValues(t *testing.T) {
 			t.Fatalf("outputValue(branch skipped) = %#v, want nil", value)
 		}
 	})
+
+	t.Run("Should project a review rejection route marker as absent", func(t *testing.T) {
+		t.Parallel()
+
+		if value := outputValue(reviewRejectedRouteOutputRefPrefix + "fallback"); value != nil {
+			t.Fatalf("outputValue(review rejected route) = %#v, want nil", value)
+		}
+	})
 }

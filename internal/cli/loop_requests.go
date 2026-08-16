@@ -66,19 +66,20 @@ func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, runID, nodeID, decision, payload, note string
 	var itemIndex int
 	cmd := &cobra.Command{
-		Use: loopRespondKey, Short: "Answer one human request", Args: cobra.NoArgs,
+		Use: loopRespondKey, Short: "Answer or decide one human request", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
 			}
-			raw := json.RawMessage(strings.TrimSpace(payload))
-			if len(raw) == 0 || !json.Valid(raw) {
-				return errors.New("cli: --payload must be valid JSON")
+			normalizedDecision := strings.TrimSpace(decision)
+			raw, err := loopRespondPayload(normalizedDecision, payload)
+			if err != nil {
+				return err
 			}
 			response, err := client.RespondLoopRequest(cmd.Context(), workspaceID,
 				strings.TrimSpace(runID), strings.TrimSpace(nodeID), contract.RespondLoopRequest{
-					ItemIndex: itemIndex, Decision: strings.TrimSpace(decision), Payload: raw,
+					ItemIndex: itemIndex, Decision: normalizedDecision, Payload: raw,
 					Note: strings.TrimSpace(note),
 				}, agentCredentialsFromEnv(deps))
 			if err != nil {
@@ -92,8 +93,23 @@ func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&decision, loopDecisionKey, "", "Request decision")
 	cmd.Flags().StringVar(&payload, loopPayloadKey, "", "JSON response payload")
 	cmd.Flags().StringVar(&note, "note", "", "Resolution note")
-	mustMarkFlagRequired(cmd, loopPayloadKey)
 	return cmd
+}
+
+func loopRespondPayload(decision string, payload string) (json.RawMessage, error) {
+	decision = strings.TrimSpace(decision)
+	payload = strings.TrimSpace(payload)
+	requiresPayload := decision == "" || decision == "edit" || decision == "respond"
+	if payload == "" {
+		if requiresPayload {
+			return nil, errors.New("cli: --payload must be valid JSON")
+		}
+		return json.RawMessage(`null`), nil
+	}
+	if !json.Valid([]byte(payload)) {
+		return nil, errors.New("cli: --payload must be valid JSON")
+	}
+	return json.RawMessage(payload), nil
 }
 
 func addLoopRequestFlags(

@@ -72,6 +72,7 @@ export const LOOP_RUN_EVENT_KINDS = [
   "request_answered",
   "request_expired",
   "request_canceled",
+  "node_amended",
 ] as const;
 
 export type LoopRunEventKindValue = (typeof LOOP_RUN_EVENT_KINDS)[number];

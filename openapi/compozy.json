@@ -229123,6 +229123,86 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "amendments": {
+                      "items": {
+                        "properties": {
+                          "actor_id": {
+                            "type": "string"
+                          },
+                          "actor_kind": {
+                            "type": "string"
+                          },
+                          "amended": {},
+                          "amended_summary": {
+                            "nullable": true,
+                            "properties": {
+                              "byte_size": {
+                                "type": "integer"
+                              },
+                              "content_hash": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "byte_size",
+                              "content_hash"
+                            ],
+                            "type": "object"
+                          },
+                          "amendment_seq": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "generation": {
+                            "type": "integer"
+                          },
+                          "item_index": {
+                            "type": "integer"
+                          },
+                          "loop_run_id": {
+                            "type": "string"
+                          },
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "original": {},
+                          "original_summary": {
+                            "nullable": true,
+                            "properties": {
+                              "byte_size": {
+                                "type": "integer"
+                              },
+                              "content_hash": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "byte_size",
+                              "content_hash"
+                            ],
+                            "type": "object"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "actor_id",
+                          "actor_kind",
+                          "amendment_seq",
+                          "created_at",
+                          "generation",
+                          "item_index",
+                          "loop_run_id",
+                          "node_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "executed_definition": {
                       "nullable": true,
                       "properties": {
@@ -231789,6 +231869,7 @@
                             },
                             "type": "array"
                           },
+                          "edit_schema": {},
                           "expect": {},
                           "expires_at": {
                             "format": "date-time",
@@ -231820,11 +231901,13 @@
                           "prompt": {
                             "type": "string"
                           },
+                          "proposed_preview": {},
                           "resolved_at": {
                             "format": "date-time",
                             "nullable": true,
                             "type": "string"
                           },
+                          "respond_schema": {},
                           "state": {
                             "type": "string"
                           }
@@ -232270,6 +232353,7 @@
                     }
                   },
                   "required": [
+                    "amendments",
                     "materialized_contract",
                     "node_controls",
                     "requests",
@@ -233255,6 +233339,10 @@
                       ],
                       "type": "object"
                     },
+                    "item_index": {
+                      "nullable": true,
+                      "type": "integer"
+                    },
                     "node_id": {
                       "type": "string"
                     },
@@ -234057,7 +234145,8 @@
                             "request_opened",
                             "request_answered",
                             "request_expired",
-                            "request_canceled"
+                            "request_canceled",
+                            "node_amended"
                           ],
                           "type": "string"
                         },
@@ -234548,6 +234637,10 @@
                         "updated_at"
                       ],
                       "type": "object"
+                    },
+                    "item_index": {
+                      "nullable": true,
+                      "type": "integer"
                     },
                     "node_id": {
                       "type": "string"
@@ -235085,6 +235178,10 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "item_index": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "reason": {
                     "type": "string"
                   }
@@ -235216,6 +235313,10 @@
                         "updated_at"
                       ],
                       "type": "object"
+                    },
+                    "item_index": {
+                      "nullable": true,
+                      "type": "integer"
                     },
                     "node_id": {
                       "type": "string"
@@ -235753,6 +235854,10 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "item_index": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "reason": {
                     "type": "string"
                   }
@@ -235884,6 +235989,10 @@
                         "updated_at"
                       ],
                       "type": "object"
+                    },
+                    "item_index": {
+                      "nullable": true,
+                      "type": "integer"
                     },
                     "node_id": {
                       "type": "string"
@@ -236421,6 +236530,10 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "item_index": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "mode": {
                     "type": "string"
                   },
@@ -236558,6 +236671,10 @@
                         "updated_at"
                       ],
                       "type": "object"
+                    },
+                    "item_index": {
+                      "nullable": true,
+                      "type": "integer"
                     },
                     "node_id": {
                       "type": "string"
@@ -237095,6 +237212,10 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "item_index": {
+                    "nullable": true,
+                    "type": "integer"
+                  },
                   "reason": {
                     "type": "string"
                   }
@@ -237226,6 +237347,10 @@
                         "updated_at"
                       ],
                       "type": "object"
+                    },
+                    "item_index": {
+                      "nullable": true,
+                      "type": "integer"
                     },
                     "node_id": {
                       "type": "string"
@@ -237902,6 +238027,10 @@
                         "updated_at"
                       ],
                       "type": "object"
+                    },
+                    "item_index": {
+                      "nullable": true,
+                      "type": "integer"
                     },
                     "node_id": {
                       "type": "string"

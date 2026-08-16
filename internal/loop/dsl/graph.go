@@ -34,6 +34,7 @@ type Node struct {
 	Session             *SessionSpec `json:"session,omitempty"        yaml:"session,omitempty"`
 	Timeout             string       `json:"timeout,omitempty"        yaml:"timeout,omitempty"`
 	Retry               *RetrySpec   `json:"retry,omitempty"          yaml:"retry,omitempty"`
+	Review              *ReviewSpec  `json:"review,omitempty"         yaml:"review,omitempty"`
 	*NodeLifecycleState `                                                    yaml:",inline"`
 	Harvest             *HarvestSpec        `json:"harvest,omitempty"        yaml:"harvest,omitempty"`
 	Produces            Schema              `json:"produces,omitempty"       yaml:"produces,omitempty"`

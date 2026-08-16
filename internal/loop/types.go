@@ -168,6 +168,10 @@ const (
 	CodeAskExpectRequired = "ask_expect_required"
 	// CodeResponderPolicyInvalid reports an unsupported responders.agents value.
 	CodeResponderPolicyInvalid = "responder_policy_invalid"
+	// CodeReviewShapeInvalid reports an invalid action review grammar.
+	CodeReviewShapeInvalid = "review_shape_invalid"
+	// CodeReviewRespondSchemaRequired reports respond without a declared action output.
+	CodeReviewRespondSchemaRequired = "review_respond_schema_required"
 	// CodeWatchIdentityRequired reports a watch source without stable event identity support.
 	CodeWatchIdentityRequired = "watch_identity_required"
 	// CodeParentCloseInvalid reports parent-close policy outside run-loop or its closed enum.

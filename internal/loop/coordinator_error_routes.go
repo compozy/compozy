@@ -106,5 +106,6 @@ func outputRefRepresentsAbsentValue(outputRef string) bool {
 	return trimmed == branchSkippedOutputRef || trimmed == failureAbsorbedOutputRef ||
 		isRouteNotTakenOutputRef(trimmed) ||
 		strings.HasPrefix(trimmed, errorRoutedOutputRefPrefix) ||
-		strings.HasPrefix(trimmed, waitExpiryRouteOutputRefPrefix)
+		strings.HasPrefix(trimmed, waitExpiryRouteOutputRefPrefix) ||
+		strings.HasPrefix(trimmed, reviewRejectedRouteOutputRefPrefix)
 }

@@ -208,6 +208,10 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
+	amendments, err := s.loopRunAmendments(ctx, ws, run.ID)
+	if err != nil {
+		return contract.LoopRunResponse{}, err
+	}
 	return contract.LoopRunResponse{
 		Run:                  payload,
 		ExecutedDefinition:   &executedDefinition,
@@ -216,8 +220,33 @@ func (s *daemonLoopAPIService) GetLoopRun(
 		NodeControls:         controls,
 		Waits:                waits,
 		Requests:             requests,
+		Amendments:           amendments,
 		WatchEvents:          watchEvents,
 	}, nil
+}
+
+func (s *daemonLoopAPIService) loopRunAmendments(
+	ctx context.Context,
+	workspaceID looppkg.WorkspaceID,
+	runID looppkg.RunID,
+) ([]contract.LoopNodeAmendmentPayload, error) {
+	store, ok := s.persistence.(looppkg.AmendmentStore)
+	if !ok {
+		return []contract.LoopNodeAmendmentPayload{}, nil
+	}
+	amendments, err := store.ListNodeAmendments(ctx, workspaceID, runID)
+	if err != nil {
+		return nil, err
+	}
+	payloads := make([]contract.LoopNodeAmendmentPayload, 0, len(amendments))
+	for _, amendment := range amendments {
+		payload, err := loopNodeAmendmentPayload(amendment)
+		if err != nil {
+			return nil, err
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads, nil
 }
 
 func (s *daemonLoopAPIService) loopRunRequests(

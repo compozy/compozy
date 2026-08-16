@@ -368,6 +368,8 @@ const (
 	ToolIDLoopRequest ToolID = "compozy__loop_request"
 	// ToolIDLoopRespond answers one human request.
 	ToolIDLoopRespond ToolID = "compozy__loop_respond"
+	// ToolIDLoopNodeAmend appends one effective-output amendment.
+	ToolIDLoopNodeAmend ToolID = "compozy__loop_node_amend"
 	// ToolIDLoopDelete deletes one user-authored Loop definition.
 	ToolIDLoopDelete ToolID = "compozy__loop_delete"
 	// ToolIDAutomationJobsList lists automation jobs through the automation manager.

@@ -254,6 +254,7 @@ func (r *CoordinatorRunner) buildLiveGenerationPlan(
 	}
 	advancedOutputs := cloneGenerationOutputs(normalized)
 	applyWaitExpiryRoutes(resolved.Definition.Graph, topology, &advancedOutputs)
+	applyReviewRejectRoutes(resolved.Definition.Graph, topology, &advancedOutputs)
 	outputBlobs := []GenerationOutputBlob{}
 	gateEvaluations := &gateEvaluationCollector{}
 	terminal, err := advanceControlNodes(

@@ -30,6 +30,51 @@ type AskParams struct {
 	Extra      map[string]any `json:"-"                    yaml:",inline"`
 }
 
+// ReviewDecision is one allowed pre-execution review outcome.
+type ReviewDecision string
+
+const (
+	ReviewDecisionApprove ReviewDecision = "approve"
+	ReviewDecisionEdit    ReviewDecision = "edit"
+	ReviewDecisionReject  ReviewDecision = "reject"
+	ReviewDecisionRespond ReviewDecision = "respond"
+)
+
+// Valid reports whether the decision belongs to the closed review enum.
+func (d ReviewDecision) Valid() bool {
+	switch d {
+	case ReviewDecisionApprove, ReviewDecisionEdit, ReviewDecisionReject, ReviewDecisionRespond:
+		return true
+	default:
+		return false
+	}
+}
+
+// RejectPolicy selects the forward route taken by a rejected review.
+type RejectPolicy struct {
+	Route NodeID         `json:"route" yaml:"route"`
+	Extra map[string]any `json:"-"     yaml:",inline"`
+}
+
+// ReviewSpec gates an action before its task run is created.
+type ReviewSpec struct {
+	Decisions  []ReviewDecision `json:"decisions,omitempty"  yaml:"decisions,omitempty"`
+	When       string           `json:"when,omitempty"       yaml:"when,omitempty"`
+	Prompt     string           `json:"prompt,omitempty"     yaml:"prompt,omitempty"`
+	Responders *ResponderSpec   `json:"responders,omitempty" yaml:"responders,omitempty"`
+	OnReject   *RejectPolicy    `json:"on_reject,omitempty"  yaml:"on_reject,omitempty"`
+	Expires    *WaitExpiry      `json:"expires,omitempty"    yaml:"expires,omitempty"`
+	Extra      map[string]any   `json:"-"                    yaml:",inline"`
+}
+
+// EffectiveDecisions returns the authored allowlist or the safe default.
+func (r ReviewSpec) EffectiveDecisions() []ReviewDecision {
+	if len(r.Decisions) == 0 {
+		return []ReviewDecision{ReviewDecisionApprove, ReviewDecisionReject}
+	}
+	return append([]ReviewDecision(nil), r.Decisions...)
+}
+
 // RunAgentParams is the canonical schema for action kind run-agent.
 type RunAgentParams struct {
 	Agent        string          `json:"agent"                   yaml:"agent"`

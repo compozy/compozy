@@ -2,6 +2,8 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -81,6 +83,10 @@ func claimCancellationWaits(
 		requestQuery += ` AND node_id = ?`
 		requestArgs = append(requestArgs, mutation.NodeID)
 	}
+	if mutation.ItemIndex != nil {
+		requestQuery += ` AND item_index = ?`
+		requestArgs = append(requestArgs, *mutation.ItemIndex)
+	}
 	rows, err := exec.QueryContext(ctx, requestQuery, requestArgs...)
 	if err != nil {
 		return fmt.Errorf("store: list requests for cancellation: %w", err)
@@ -94,14 +100,18 @@ func claimCancellationWaits(
 	for rows.Next() {
 		var request requestRef
 		if err := rows.Scan(&request.generation, &request.nodeID, &request.itemIndex); err != nil {
-			_ = rows.Close()
-			return fmt.Errorf("store: scan request for cancellation: %w", err)
+			return errors.Join(
+				fmt.Errorf("store: scan request for cancellation: %w", err),
+				closeRowsWithContext(rows, "requests for cancellation"),
+			)
 		}
 		requests = append(requests, request)
 	}
 	if err := rows.Err(); err != nil {
-		_ = rows.Close()
-		return fmt.Errorf("store: iterate requests for cancellation: %w", err)
+		return errors.Join(
+			fmt.Errorf("store: iterate requests for cancellation: %w", err),
+			closeRowsWithContext(rows, "requests for cancellation"),
+		)
 	}
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("store: close requests for cancellation: %w", err)
@@ -114,6 +124,10 @@ func claimCancellationWaits(
 	if mutation.NodeID != "" {
 		requestUpdate += ` AND node_id = ?`
 		updateArgs = append(updateArgs, mutation.NodeID)
+	}
+	if mutation.ItemIndex != nil {
+		requestUpdate += ` AND item_index = ?`
+		updateArgs = append(updateArgs, *mutation.ItemIndex)
 	}
 	if _, err := exec.ExecContext(ctx, requestUpdate, updateArgs...); err != nil {
 		return fmt.Errorf("store: cancel Loop requests: %w", err)
@@ -143,8 +157,19 @@ func claimCancellationWaits(
 		query += " AND node_id = ?"
 		args = append(args, mutation.NodeID)
 	}
+	if mutation.ItemIndex != nil {
+		query += " AND item_index = ?"
+		args = append(args, *mutation.ItemIndex)
+	}
 	if _, err := exec.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("store: claim canceled Loop node waits: %w", err)
+	}
+	return nil
+}
+
+func closeRowsWithContext(rows *sql.Rows, operation string) error {
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("store: close %s: %w", operation, err)
 	}
 	return nil
 }

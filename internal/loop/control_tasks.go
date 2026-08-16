@@ -203,7 +203,7 @@ func coordinatorNodeMetadataForOutput(
 	if err != nil {
 		return nil, err
 	}
-	return coordinatorNodeMetadataWithFanOutItem(
+	metadata, err := coordinatorNodeMetadataWithFanOutItem(
 		run,
 		generation,
 		node,
@@ -213,6 +213,22 @@ func coordinatorNodeMetadataForOutput(
 		item,
 		hasItem,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if node.Review == nil || !OutputRefLooksContentAddressed(output.OutputRef) {
+		return metadata, nil
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(metadata, &payload); err != nil {
+		return nil, fmt.Errorf("loop: decode reviewed node metadata for %s: %w", node.ID, err)
+	}
+	payload["reviewed_params_ref"] = output.OutputRef
+	metadata, err = json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("loop: marshal reviewed node metadata for %s: %w", node.ID, err)
+	}
+	return metadata, nil
 }
 
 func fanOutItemForOutput(

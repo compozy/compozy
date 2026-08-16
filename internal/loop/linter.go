@@ -144,6 +144,7 @@ func (c *lintContext) lintKindsAndSchemas() {
 	for _, node := range c.def.Graph.Nodes {
 		c.lintEvalErrorPolicy(node)
 		c.lintWatchEventsEnvelopeShape(node)
+		c.lintReview(node)
 		switch node.Class {
 		case dsl.NodeClassAction:
 			c.lintActionNode(node)

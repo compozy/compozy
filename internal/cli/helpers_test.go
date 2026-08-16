@@ -19,6 +19,41 @@ import (
 
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
+// Invariant: ask/edit/respond carry valid JSON while approve/reject may omit a payload.
+// The canonical CLI helper suite owns decision-aware Loop response argument admission.
+func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name      string
+		decision  string
+		payload   string
+		want      string
+		wantError bool
+	}{
+		{name: "Should require an ask payload", wantError: true},
+		{name: "Should require an edit payload", decision: "edit", wantError: true},
+		{name: "Should accept an approve without payload", decision: "approve", want: "null"},
+		{name: "Should accept a reject without payload", decision: "reject", want: "null"},
+		{name: "Should accept a response payload", decision: "respond", payload: `{"ok":true}`, want: `{"ok":true}`},
+		{name: "Should reject malformed optional payload", decision: "approve", payload: `{`, wantError: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := loopRespondPayload(testCase.decision, testCase.payload)
+			if testCase.wantError {
+				if err == nil {
+					t.Fatalf("loopRespondPayload() error = nil, want error")
+				}
+				return
+			}
+			if err != nil || string(got) != testCase.want {
+				t.Fatalf("loopRespondPayload() = %s, %v, want %s", got, err, testCase.want)
+			}
+		})
+	}
+}
+
 type stubClient struct {
 	statusFn                           func(context.Context) (StatusRecord, error)
 	observeOverviewFn                  func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
@@ -2239,6 +2274,17 @@ func (s *stubClient) RespondLoopRequest(
 	agentidentity.Credentials,
 ) (contract.RespondLoopRequestResponse, error) {
 	return contract.RespondLoopRequestResponse{}, errors.New("unexpected RespondLoopRequest call")
+}
+
+func (s *stubClient) AmendLoopNode(
+	context.Context,
+	string,
+	string,
+	string,
+	contract.LoopNodeAmendRequest,
+	agentidentity.Credentials,
+) (contract.LoopNodeAmendResponse, error) {
+	return contract.LoopNodeAmendResponse{}, errors.New("unexpected AmendLoopNode call")
 }
 
 func (s *stubClient) ListGoalTurns(

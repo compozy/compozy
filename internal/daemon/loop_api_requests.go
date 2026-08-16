@@ -107,7 +107,10 @@ func loopRequestPayload(request looppkg.Request) contract.LoopRequestPayload {
 		Generation: request.Generation, NodeID: string(request.NodeID), ItemIndex: request.ItemIndex,
 		Kind: request.Kind, State: request.State, Prompt: request.Prompt,
 		Context: append(json.RawMessage(nil), request.Context...), Expect: append(json.RawMessage(nil), request.Expect...),
-		Decisions: append([]string(nil), request.Decisions...), Agents: string(request.Agents),
+		EditSchema:      append(json.RawMessage(nil), request.EditSchema...),
+		RespondSchema:   append(json.RawMessage(nil), request.RespondSchema...),
+		ProposedPreview: append(json.RawMessage(nil), request.ProposedPreview...),
+		Decisions:       append([]string(nil), request.Decisions...), Agents: string(request.Agents),
 		AnsweredDecision: request.AnsweredDecision, ActorKind: request.ActorKind, ActorID: request.ActorID,
 		OpenedAt: request.OpenedAt, ResolvedAt: cloneOptional(request.ResolvedAt), ExpiresAt: cloneOptional(request.ExpiresAt),
 	}

@@ -1,4 +1,4 @@
 {
     "title": "Node",
-    "pages": ["index", "cancel", "kill", "pause", "requeue", "resume"]
+    "pages": ["index", "amend", "cancel", "kill", "pause", "requeue", "resume"]
 }

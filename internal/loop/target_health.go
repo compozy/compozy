@@ -82,7 +82,7 @@ func actionTargetIdentity(node dsl.Node, input ActionExecutionInput) (string, st
 	kind := dsl.ActionKind(strings.TrimSpace(node.Kind))
 	switch kind {
 	case dsl.ActionRunAgent:
-		params, err := renderNodeParamsExcept(node, input.Namespace, map[string]struct{}{outputSchemaParamKey: {}})
+		params, err := actionParamsExcept(node, input, map[string]struct{}{outputSchemaParamKey: {}})
 		if err != nil {
 			return "", "", false, err
 		}
@@ -92,7 +92,7 @@ func actionTargetIdentity(node dsl.Node, input ActionExecutionInput) (string, st
 		}
 		return normalizedActionTarget("run-agent", spec.Agent)
 	case dsl.ActionRunLoop:
-		params, err := renderNodeParams(node, input.Namespace)
+		params, err := actionParams(node, input)
 		if err != nil {
 			return "", "", false, err
 		}

@@ -22,6 +22,19 @@ const loopNodeMutationInputSchema = `{
 		"workspace":{"type":"string"},
 		"run_id":{"type":"string","minLength":1},
 		"node_id":{"type":"string","minLength":1},
+		"item_index":{"type":"integer","minimum":0},
+		"reason":{"type":"string"}
+	}
+}`
+
+const loopNodeRequeueInputSchema = `{
+	"type":"object",
+	"required":["run_id","node_id"],
+	"additionalProperties":false,
+	"properties":{
+		"workspace":{"type":"string"},
+		"run_id":{"type":"string","minLength":1},
+		"node_id":{"type":"string","minLength":1},
 		"reason":{"type":"string"}
 	}
 }`
@@ -34,6 +47,7 @@ const loopNodePauseInputSchema = `{
 		"workspace":{"type":"string"},
 		"run_id":{"type":"string","minLength":1},
 		"node_id":{"type":"string","minLength":1},
+		"item_index":{"type":"integer","minimum":0},
 		"mode":{"type":"string","enum":["drain","cancel"]},
 		"reason":{"type":"string"}
 	}
@@ -80,6 +94,7 @@ const loopMutationOutputSchema = `{
 		"ok":{"type":"boolean"},
 		"run_id":{"type":"string","minLength":1},
 		"node_id":{"type":"string"},
+		"item_index":{"type":"integer","minimum":0},
 		"status":{"type":"string"},
 		"provenance":{
 			"type":"object",

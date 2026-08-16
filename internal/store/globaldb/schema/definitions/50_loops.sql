@@ -206,6 +206,35 @@ CREATE TABLE loop_requests (
 	PRIMARY KEY (loop_run_id, generation, node_id, item_index)
 );
 
+CREATE TABLE loop_node_amendments (
+	workspace_id  TEXT NOT NULL,
+	loop_run_id   TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	generation    INTEGER NOT NULL CHECK (generation >= 1),
+	node_id       TEXT NOT NULL,
+	item_index    INTEGER NOT NULL DEFAULT 0 CHECK (item_index >= 0),
+	amendment_seq INTEGER NOT NULL CHECK (amendment_seq >= 1),
+	original_ref  TEXT NOT NULL,
+	amended_ref   TEXT NOT NULL,
+	actor_kind    TEXT NOT NULL,
+	actor_id      TEXT NOT NULL,
+	reason        TEXT,
+	created_at    TIMESTAMP NOT NULL,
+	PRIMARY KEY (loop_run_id, generation, node_id, item_index, amendment_seq)
+);
+
+CREATE TABLE loop_node_lane_pauses (
+	workspace_id TEXT NOT NULL,
+	loop_run_id  TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	node_id      TEXT NOT NULL,
+	item_index   INTEGER NOT NULL CHECK (item_index >= 0),
+	actor_kind   TEXT NOT NULL,
+	actor_id     TEXT NOT NULL,
+	reason       TEXT,
+	mode         TEXT NOT NULL CHECK (mode IN ('drain','cancel')),
+	requested_at TIMESTAMP NOT NULL,
+	PRIMARY KEY (loop_run_id, node_id, item_index)
+);
+
 CREATE TABLE loop_admission_claims (
 	workspace_id       TEXT NOT NULL,
 	loop_name          TEXT NOT NULL,
@@ -473,7 +502,7 @@ CREATE TABLE loop_run_events (
 				'goal_turn_started','goal_turn_completed','goal_status_changed','runtime_applied',
 				'predicate_diagnostic','route_taken','node_retry_scheduled','stale_schedule_dropped',
 				'late_arrival','effect_results','custom_event','request_opened','request_answered',
-				'request_expired','request_canceled'
+				'request_expired','request_canceled','node_amended'
 			)),
 			payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
 			at           TIMESTAMP NOT NULL,

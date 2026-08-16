@@ -36,6 +36,7 @@ type NodePauseMutation struct {
 	WorkspaceID      WorkspaceID
 	RunID            RunID
 	NodeID           NodeID
+	ItemIndex        *int
 	Mode             NodePauseMode
 	Reason           string
 	RuleID           string
@@ -49,6 +50,7 @@ type NodeResumeMutation struct {
 	WorkspaceID      WorkspaceID
 	RunID            RunID
 	NodeID           NodeID
+	ItemIndex        *int
 	Mode             NodeResumeMode
 	ExpectedRevision *int64
 	Actor            task.ActorContext
@@ -81,6 +83,9 @@ func (m NodePauseMutation) Validate() error {
 		strings.TrimSpace(string(m.NodeID)) == "" || m.RequestedAt.IsZero() {
 		return fmt.Errorf("%w: node pause identity is incomplete", ErrValidation)
 	}
+	if m.ItemIndex != nil && *m.ItemIndex < 0 {
+		return fmt.Errorf("%w: node pause item_index must be non-negative", ErrValidation)
+	}
 	if m.Mode != NodePauseDrain && m.Mode != NodePauseCancel {
 		return fmt.Errorf("%w: node pause mode is invalid: %q", ErrValidation, m.Mode)
 	}
@@ -98,6 +103,9 @@ func (m NodeResumeMutation) Validate() error {
 	if strings.TrimSpace(string(m.WorkspaceID)) == "" || strings.TrimSpace(string(m.RunID)) == "" ||
 		strings.TrimSpace(string(m.NodeID)) == "" || m.RequestedAt.IsZero() {
 		return fmt.Errorf("%w: node resume identity is incomplete", ErrValidation)
+	}
+	if m.ItemIndex != nil && *m.ItemIndex < 0 {
+		return fmt.Errorf("%w: node resume item_index must be non-negative", ErrValidation)
 	}
 	if m.Mode != NodeResumePlain && m.Mode != NodeResumeResetAttempts && m.Mode != NodeResumeImmediate {
 		return fmt.Errorf("%w: node resume mode is invalid: %q", ErrValidation, m.Mode)

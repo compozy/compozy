@@ -59,11 +59,11 @@ always wins. Leaving the setting empty keeps expiry entirely in the definition.
 
 ## Operate requests
 
-| Action | CLI | HTTP or UDS | Native tool |
-| --- | --- | --- | --- |
-| List | `compozy loop requests --state pending` | `GET /loop-requests?state=pending` | `compozy__loop_requests` |
-| Detail | `compozy loop request --run-id <id> --node <id>` | `GET /loop-runs/:run_id/nodes/:node_id/request` | `compozy__loop_request` |
-| Answer | `compozy loop respond --run-id <id> --node <id> --payload '{"environment":"production"}'` | `POST /loop-runs/:run_id/nodes/:node_id/respond` | `compozy__loop_respond` |
+| Action | CLI                                                                                       | HTTP or UDS                                      | Native tool              |
+| ------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------ |
+| List   | `compozy loop requests --state pending`                                                   | `GET /loop-requests?state=pending`               | `compozy__loop_requests` |
+| Detail | `compozy loop request --run-id <id> --node <id>`                                          | `GET /loop-runs/:run_id/nodes/:node_id/request`  | `compozy__loop_request`  |
+| Answer | `compozy loop respond --run-id <id> --node <id> --payload '{"environment":"production"}'` | `POST /loop-runs/:run_id/nodes/:node_id/respond` | `compozy__loop_respond`  |
 
 The list returns bounded previews and `aggregates.pending`; detail returns the full redacted
 context. Fan-out requests use `--item` or `item_index`. Pending order is expiry first, with requests
@@ -73,3 +73,35 @@ One transaction wins among answer, expiry, and cancellation. An identical retry 
 responder returns the durable answer without resuming twice. Other late writes return
 `request_already_answered`, `request_expired`, or `request_canceled`. A payload outside `expect`
 returns `request_validation_failed` with field details while the request stays pending.
+
+## Review an action before it runs
+
+Add `review` to an action when its resolved parameters need admission before CompozyOS creates the
+task run. The request stores a bounded, redacted preview and keeps the exact proposal private until
+the decision commits.
+
+```yaml
+- id: publish
+  class: action
+  kind: compozy__release_publish
+  params:
+    tag: "{{ .inputs.tag }}"
+  produces:
+    release_url: string
+  review:
+    when: inputs.environment == "production"
+    prompt: "Review the production release"
+    decisions: [approve, edit, reject, respond]
+    responders:
+      agents: deny
+    on_reject:
+      route: repair_release
+```
+
+`approve` admits the frozen proposal. `edit` validates and admits the replacement parameters.
+`reject` takes `on_reject.route`; without a route, the node fails with `quality_rejection`.
+`respond` validates the supplied value against the action's declared output shape and substitutes
+that result without running the action. The action timeout starts only after `approve` or `edit`.
+
+Use `compozy loop respond --decision <decision>`. `edit` and `respond` require `--payload`;
+`approve` and `reject` do not. Fan-out reviews remain isolated by `--item` or `item_index`.

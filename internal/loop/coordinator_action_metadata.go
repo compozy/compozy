@@ -17,6 +17,7 @@ type coordinatorActionRunMetadata struct {
 	ResumeFromTaskRunID string                 `json:"resume_from_task_run_id,omitempty"`
 	ResumeFromSessionID string                 `json:"resume_from_session_id,omitempty"`
 	DeathCheckpoint     *DeathResumeCheckpoint `json:"death_resume_checkpoint,omitempty"`
+	ReviewedParamsRef   string                 `json:"reviewed_params_ref,omitempty"`
 }
 
 func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRunMetadata, error) {
@@ -28,6 +29,10 @@ func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRu
 	meta.ContinuationKind = strings.TrimSpace(meta.ContinuationKind)
 	meta.ResumeFromTaskRunID = strings.TrimSpace(meta.ResumeFromTaskRunID)
 	meta.ResumeFromSessionID = strings.TrimSpace(meta.ResumeFromSessionID)
+	meta.ReviewedParamsRef = strings.TrimSpace(meta.ReviewedParamsRef)
+	if meta.ReviewedParamsRef != "" && !OutputRefLooksContentAddressed(meta.ReviewedParamsRef) {
+		return coordinatorActionRunMetadata{}, fmt.Errorf("%w: reviewed params ref is invalid", ErrValidation)
+	}
 	if meta.Generation <= 0 {
 		return coordinatorActionRunMetadata{}, fmt.Errorf("%w: action generation must be positive", ErrValidation)
 	}

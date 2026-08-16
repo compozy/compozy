@@ -95,6 +95,7 @@ type ActionExecutionInput struct {
 	PersistedTaskTokensUsed   int64
 	GoalSegmentEpoch          int64
 	NetworkParticipation      *participation.Spec
+	AdmittedParams            dsl.NodeParams
 }
 
 // ActionRuntimeSelection carries the runtime inputs shared by runtime-aware action executors.

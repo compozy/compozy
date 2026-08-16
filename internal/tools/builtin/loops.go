@@ -172,7 +172,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDLoopNodePause,
 		"loop_node_pause",
 		"Loop Node Pause",
-		"Pause one authored node across its live cells.",
+		"Pause one authored node or one addressed fan-out cell.",
 		loopNodePauseInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -184,7 +184,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDLoopNodeResume,
 		"loop_node_resume",
 		"Loop Node Resume",
-		"Resume one paused node or admit one manual wait payload.",
+		"Resume one paused node or addressed fan-out cell, or admit one manual wait payload.",
 		loopNodeResumeInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -196,7 +196,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDLoopNodeCancel,
 		"loop_node_cancel",
 		"Loop Node Cancel",
-		"Request cooperative cancellation for one authored node.",
+		"Request cooperative cancellation for one authored node or addressed fan-out cell.",
 		loopNodeMutationInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -208,7 +208,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDLoopNodeKill,
 		"loop_node_kill",
 		"Loop Node Kill",
-		"Immediately fence and stop one authored node.",
+		"Immediately fence and stop one authored node or addressed fan-out cell.",
 		loopNodeMutationInputSchema,
 		toolspkg.RiskDestructive,
 		false,
@@ -221,7 +221,7 @@ var loopTools = []toolspkg.Descriptor{
 		"loop_node_requeue",
 		"Loop Node Requeue",
 		"Clear one node quarantine and reserve its next generation.",
-		loopNodeMutationInputSchema,
+		loopNodeRequeueInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
@@ -323,6 +323,8 @@ func nativeLoopDescriptor(
 		descriptor.OutputSchema = json.RawMessage(loopRequestOutputSchema)
 	case toolspkg.ToolIDLoopRespond:
 		descriptor.OutputSchema = json.RawMessage(loopRespondOutputSchema)
+	case toolspkg.ToolIDLoopNodeAmend:
+		descriptor.OutputSchema = json.RawMessage(loopNodeAmendOutputSchema)
 	case toolspkg.ToolIDLoopCancel,
 		toolspkg.ToolIDLoopKill,
 		toolspkg.ToolIDLoopNodePause,
@@ -335,7 +337,7 @@ func nativeLoopDescriptor(
 	if id == toolspkg.ToolIDLoopApprove {
 		return withRequiredCapabilities(descriptor, "loops.approve")
 	}
-	if id == toolspkg.ToolIDLoopRespond {
+	if id == toolspkg.ToolIDLoopRespond || id == toolspkg.ToolIDLoopNodeAmend {
 		return withRequiredCapabilities(descriptor, "loops.respond")
 	}
 	return descriptor

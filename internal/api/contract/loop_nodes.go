@@ -89,8 +89,9 @@ type LoopNodeInventoryResponse struct {
 
 // LoopNodePauseRequest parks one authored node.
 type LoopNodePauseRequest struct {
-	Mode   string `json:"mode"`
-	Reason string `json:"reason,omitempty"`
+	Mode      string `json:"mode"`
+	Reason    string `json:"reason,omitempty"`
+	ItemIndex *int   `json:"item_index,omitempty"`
 }
 
 // LoopNodeResumeRequest releases one authored node pause or manual wait.
@@ -102,7 +103,41 @@ type LoopNodeResumeRequest struct {
 
 // LoopNodeMutationRequest carries optional operator context for a node mutation.
 type LoopNodeMutationRequest struct {
-	Reason string `json:"reason,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	ItemIndex *int   `json:"item_index,omitempty"`
+}
+
+type LoopNodeAmendRequest struct {
+	Generation int             `json:"generation,omitempty"`
+	ItemIndex  int             `json:"item_index,omitempty"`
+	Payload    json.RawMessage `json:"payload"`
+	Reason     string          `json:"reason,omitempty"`
+}
+
+type LoopNodeAmendmentPayload struct {
+	LoopRunID       string                     `json:"loop_run_id"`
+	Generation      int                        `json:"generation"`
+	NodeID          string                     `json:"node_id"`
+	ItemIndex       int                        `json:"item_index"`
+	Sequence        int                        `json:"amendment_seq"`
+	Original        json.RawMessage            `json:"original,omitempty"`
+	Amended         json.RawMessage            `json:"amended,omitempty"`
+	OriginalSummary *LoopAmendmentValueSummary `json:"original_summary,omitempty"`
+	AmendedSummary  *LoopAmendmentValueSummary `json:"amended_summary,omitempty"`
+	ActorKind       string                     `json:"actor_kind"`
+	ActorID         string                     `json:"actor_id"`
+	Reason          string                     `json:"reason,omitempty"`
+	CreatedAt       time.Time                  `json:"created_at"`
+}
+
+type LoopAmendmentValueSummary struct {
+	ByteSize    int    `json:"byte_size"`
+	ContentHash string `json:"content_hash"`
+}
+
+type LoopNodeAmendResponse struct {
+	OK        bool                     `json:"ok"`
+	Amendment LoopNodeAmendmentPayload `json:"amendment"`
 }
 
 // LoopMutationResponse is the shared structured answer for lifecycle verbs.
@@ -110,6 +145,7 @@ type LoopMutationResponse struct {
 	OK         bool                          `json:"ok"`
 	RunID      string                        `json:"run_id"`
 	NodeID     string                        `json:"node_id,omitempty"`
+	ItemIndex  *int                          `json:"item_index,omitempty"`
 	Status     string                        `json:"status,omitempty"`
 	Provenance *LoopControlProvenancePayload `json:"provenance,omitempty"`
 	Control    *LoopNodeControlPayload       `json:"control,omitempty"`

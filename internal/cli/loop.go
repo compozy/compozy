@@ -42,6 +42,7 @@ const (
 	loopRequestsKey   = "requests"
 	loopRequestKey    = "request"
 	loopRespondKey    = "respond"
+	loopAmendKey      = "amend"
 	loopEditKey       = "edit"
 	loopDeleteKey     = "delete"
 )

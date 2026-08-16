@@ -320,6 +320,14 @@ func (r *CoordinatorRunner) buildReviseGenerationPlan(
 		if err != nil {
 			return task.CoordinatorCompletionPlan{}, fmt.Errorf("load ratchet baseline outputs: %w", err)
 		}
+		seed, err = generationOutputRuntimeView(ctx, r.outputs, generationOutputRuntimeScope{
+			workspaceID: run.WorkspaceID,
+			runID:       run.ID,
+			generation:  int(intent.ParentGeneration),
+		}, seed)
+		if err != nil {
+			return task.CoordinatorCompletionPlan{}, fmt.Errorf("load ratchet baseline output payloads: %w", err)
+		}
 	}
 	nextOutputs := successionGenerationOutputs(graph, seed, currentOutputs, rerun, nextGeneration)
 	plan, err := buildNextGenerationCoordinatorPlan(

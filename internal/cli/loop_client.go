@@ -59,6 +59,14 @@ type loopCommandClient interface {
 		contract.RespondLoopRequest,
 		agentidentity.Credentials,
 	) (contract.RespondLoopRequestResponse, error)
+	AmendLoopNode(
+		context.Context,
+		string,
+		string,
+		string,
+		contract.LoopNodeAmendRequest,
+		agentidentity.Credentials,
+	) (contract.LoopNodeAmendResponse, error)
 	ListGoalTurns(
 		ctx context.Context,
 		workspaceID string,

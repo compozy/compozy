@@ -145,6 +145,9 @@ func nodeStringFields(node dsl.Node) []namedString {
 		{name: "collection", value: node.Collection},
 		{name: "pattern", value: node.Pattern},
 	}
+	if node.Review != nil {
+		fields = append(fields, namedString{name: "review.prompt", value: node.Review.Prompt})
+	}
 	fields = append(fields, nodeParamStringFields(node)...)
 	for idx, criterion := range node.Criteria {
 		fields = append(
@@ -276,6 +279,9 @@ func nodeConditionFields(node dsl.Node) []namedString {
 	fields := []namedString{
 		{name: "condition", value: node.Condition},
 		{name: "filter", value: node.Filter},
+	}
+	if node.Review != nil {
+		fields = append(fields, namedString{name: "review.when", value: node.Review.When})
 	}
 	for index, route := range node.Routes {
 		fields = append(fields, namedString{

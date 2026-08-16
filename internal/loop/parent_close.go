@@ -12,6 +12,7 @@ import (
 type parentCloseAction struct {
 	ChildRunID RunID
 	NodeID     NodeID
+	ItemIndex  int
 	Policy     dsl.ParentClosePolicy
 }
 
@@ -83,16 +84,21 @@ func selectParentCloseActions(
 		actions = append(actions, parentCloseAction{
 			ChildRunID: childRunID,
 			NodeID:     NodeID(output.NodeID),
+			ItemIndex:  output.ItemIndex,
 			Policy:     policy,
 		})
 	}
 	return actions, nil
 }
 
-func parentCloseActionsForNode(actions []parentCloseAction, nodeID NodeID) []parentCloseAction {
+func parentCloseActionsForNode(
+	actions []parentCloseAction,
+	nodeID NodeID,
+	itemIndex *int,
+) []parentCloseAction {
 	filtered := make([]parentCloseAction, 0, len(actions))
 	for _, action := range actions {
-		if action.NodeID == nodeID {
+		if action.NodeID == nodeID && (itemIndex == nil || action.ItemIndex == *itemIndex) {
 			filtered = append(filtered, action)
 		}
 	}
