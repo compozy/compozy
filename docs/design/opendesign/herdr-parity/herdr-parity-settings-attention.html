@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Settings · Attention · Herdr parity · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="herdr.css">
+<!--
+  herdr-parity-settings-attention · S8 Attention section (+S6 channel truth, S7 sound).
+  Spec: _uiux.md S6/S7/S8 · stories US-010/011/012/015 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production        — settings section pattern (per-section page + API adapter,
+                        window-manager-layouts-api.ts full-config PATCH); no
+                        notification settings exist anywhere today
+    authorized delta  — new Attention section; toggles apply live ([attention]
+                        config round-trip with CLI); system channel renders its
+                        REAL platform state (armed / denied / unsupported) — no
+                        pretend-armed toggles; per-workspace mute list
+-->
+<style>
+  .set-nav{width:168px;flex:none;padding:10px 8px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:1px}
+  .set-nav__t{font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:4px 8px 6px}
+  .set-nav a{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border-radius:var(--radius-sm);font-size:12px;color:var(--muted)}
+  .set-nav a:hover{background:var(--row-hover);color:var(--fg)}
+  .set-nav a.is-on{background:var(--row-selected);color:var(--fg-strong);font-weight:500}
+  .set-nav a svg{width:13px;height:13px;color:var(--subtle)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="satt-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Herdr parity</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Settings · Attention</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="herdr-parity-toasts.html">Toasts →</a>
+      <a class="btn btn--sm" href="herdr-parity-settings-shortcuts.html">Shortcuts →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ 01 · FINAL — THE SECTION ============ -->
+    <section class="lab-sec" data-od-id="satt-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Settings window — Attention</h2>
+        <span class="lab-sec__gist">3 toggles + mute list · everything applies live</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Policy, not catalog</b>Three delivery channels and a mute list — that is the whole section. Every control round-trips <code>[attention]</code> config and the CLI; changes apply live, so there is no save bar. The system channel row renders its true platform state; sound is one built-in chime, no picker.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad">
+            <section class="win is-focused" style="width:min(720px,100%)" data-od-id="settings-window">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph" aria-hidden="true"><svg data-lucide="settings"></svg></span>
+                  <span class="w2-title">Settings</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body" style="display:flex;min-height:420px">
+                <nav class="set-nav" aria-label="Settings sections" data-od-id="settings-nav">
+                  <div class="set-nav__t">Workspace</div>
+                  <a href="#"><svg data-lucide="sliders-horizontal"></svg>General</a>
+                  <a href="#"><svg data-lucide="plug"></svg>Providers</a>
+                  <a href="#"><svg data-lucide="sparkles"></svg>Skills</a>
+                  <div class="set-nav__t" style="margin-top:8px">Operator</div>
+                  <a class="is-on" href="#" aria-current="page"><svg data-lucide="bell"></svg>Attention</a>
+                  <a href="herdr-parity-settings-shortcuts.html"><svg data-lucide="keyboard"></svg>Shortcuts</a>
+                  <a href="#"><svg data-lucide="eye"></svg>Observability</a>
+                </nav>
+                <div class="app" style="flex:1;min-width:0;padding:18px 20px 22px">
+
+                  <div class="panelbox" data-od-id="attention-channels">
+                    <div class="srow">
+                      <div class="srow__main">
+                        <div class="srow__label">Toasts</div>
+                        <div class="srow__desc">In-app, for needs-you moments and finished sessions</div>
+                      </div>
+                      <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Toasts"><span class="knob"></span></button></div>
+                    </div>
+                    <div class="srow">
+                      <div class="srow__main">
+                        <div class="srow__label">Sound</div>
+                        <div class="srow__desc">One chime per delivery, follows the same rules</div>
+                      </div>
+                      <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Sound"><span class="knob"></span></button></div>
+                    </div>
+                    <div class="srow">
+                      <div class="srow__main">
+                        <div class="srow__label">System notifications</div>
+                        <div class="srow__desc">Only while the app is in the background</div>
+                      </div>
+                      <div class="srow__ctl">
+                        <span class="sys-state" data-k="armed"><svg data-lucide="check"></svg>Armed</span>
+                        <button class="switch is-on" role="switch" aria-checked="true" aria-label="System notifications"><span class="knob"></span></button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="panelbox" data-od-id="attention-mutes" style="margin-top:14px">
+                    <div class="srow">
+                      <div class="srow__main">
+                        <div class="srow__label">Muted workspaces</div>
+                        <div class="srow__desc">Silenced everywhere; bell rows and counts remain</div>
+                      </div>
+                      <div class="srow__ctl"><button class="btn btn--sm">Mute a workspace</button></div>
+                    </div>
+                    <div class="mute-row">
+                      <span class="ws-avatar mono">PA</span>
+                      <span class="mute-row__name">payments</span>
+                      <span class="mute-row__hint">muted 3d ago</span>
+                      <button class="btn btn--sm btn--ghost">Unmute</button>
+                    </div>
+                    <div class="mute-row">
+                      <span class="ws-avatar mono">SA</span>
+                      <span class="mute-row__name">sandbox</span>
+                      <span class="mute-row__hint">muted 2w ago</span>
+                      <button class="btn btn--sm btn--ghost">Unmute</button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · TRUTHFUL SYSTEM CHANNEL (S6) ============ -->
+    <section class="lab-sec" data-od-id="satt-truth">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">System channel — three true states</h2>
+        <span class="lab-sec__gist">armed · denied with a way back · unsupported, plainly</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No pretend-armed</b>Enabling walks the platform permission flow. Denied keeps the switch off and says why, with the one useful action (US-012.EC-1). Unsupported platforms state it and disable the switch — absent capability is never rendered as a working toggle (US-012.EC-2).</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="sys-states">
+            <div class="srow">
+              <div class="srow__main">
+                <div class="srow__label">System notifications</div>
+                <div class="srow__desc">Only while the app is in the background</div>
+              </div>
+              <div class="srow__ctl">
+                <span class="sys-state" data-k="armed"><svg data-lucide="check"></svg>Armed</span>
+                <button class="switch is-on" role="switch" aria-checked="true"><span class="knob"></span></button>
+              </div>
+            </div>
+            <div class="srow">
+              <div class="srow__main">
+                <div class="srow__label">System notifications</div>
+                <div class="srow__desc">Permission denied in macOS — allow Compozy in Notifications</div>
+              </div>
+              <div class="srow__ctl">
+                <span class="sys-state" data-k="denied"><svg data-lucide="triangle-alert"></svg>Denied</span>
+                <button class="btn btn--sm">Open System Settings</button>
+                <button class="switch" role="switch" aria-checked="false"><span class="knob"></span></button>
+              </div>
+            </div>
+            <div class="srow">
+              <div class="srow__main">
+                <div class="srow__label">System notifications</div>
+                <div class="srow__desc">Not available in this browser</div>
+              </div>
+              <div class="srow__ctl">
+                <span class="sys-state" data-k="unsupported"><svg data-lucide="minus"></svg>Unavailable</span>
+                <button class="switch" role="switch" aria-checked="false" aria-disabled="true" style="opacity:.45;cursor:default"><span class="knob"></span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Native content (spec only)</b>The notification itself is platform chrome — we own only its content. Activation focuses app → workspace → session.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="native-content">
+            <table class="spec-table">
+              <thead><tr><th>kind</th><th>title</th><th>body</th><th>click target</th></tr></thead>
+              <tbody>
+                <tr><td>needs-input</td><td class="ex">Refactor session store</td><td class="ex">claude asked: Should I drop the legacy column?</td><td>session window</td></tr>
+                <tr><td>needs-auth</td><td class="ex">Chargeback flow</td><td class="ex">claude wants to run: stripe trigger…</td><td>session window</td></tr>
+                <tr><td>failed</td><td class="ex">TF upgrade</td><td class="ex">codex exited with code 1</td><td>session window</td></tr>
+                <tr><td>coalesced done</td><td class="ex">3 sessions finished</td><td class="ex">compozy · infra</td><td>bell → Finished</td></tr>
+                <tr><td>agent-sent</td><td class="ex">claude — Fix payment retries</td><td class="ex">the agent’s message, verbatim</td><td>session window</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 · MUTE LIST + DEFAULTS ============ -->
+    <section class="lab-sec" data-od-id="satt-defaults">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Mute list edges &amp; first-run defaults</h2>
+        <span class="lab-sec__gist">empty is quiet · orphans clean themselves · defaults are calm</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Empty list</b>No mutes = one quiet row. Deleted workspaces disappear from the list silently — orphan cleanup is invisible, never a broken row (US-011.EC-3).</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="mutes-empty">
+            <div class="srow">
+              <div class="srow__main">
+                <div class="srow__label">Muted workspaces</div>
+                <div class="srow__desc">Nothing muted</div>
+              </div>
+              <div class="srow__ctl"><button class="btn btn--sm">Mute a workspace</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>First run</b>Defaults mirror <code>[attention]</code>: toasts on, sound on, system off (opt-in — it demands a platform permission). No setup wizard; the section is the setup (US-011.EC-1).</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="defaults-table">
+            <table class="spec-table">
+              <thead><tr><th>key</th><th>default</th><th>applies</th></tr></thead>
+              <tbody>
+                <tr><td>attention.toasts</td><td class="ex">true</td><td>live</td></tr>
+                <tr><td>attention.sound</td><td class="ex">true</td><td>live</td></tr>
+                <tr><td>attention.system</td><td class="ex">false</td><td>live · opt-in via permission flow</td></tr>
+                <tr><td>attention.muted_workspaces</td><td class="ex">[]</td><td>live</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

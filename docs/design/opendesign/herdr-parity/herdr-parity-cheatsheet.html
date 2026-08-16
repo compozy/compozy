@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Shortcuts cheatsheet · Herdr parity · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="herdr.css">
+<!--
+  herdr-parity-cheatsheet · S11 shortcuts cheatsheet.
+  Spec: _uiux.md S11 · story US-028 · keymap: _dx.md → Keyboard Defaults
+  (rendered from the live registry, never a local copy) · contract: DESIGN-NOTES.md.
+  Provenance:
+    production        — os-shortcuts-dialog.tsx:30-41 hardcoded SHELL_ROWS
+                        (⌘[ missing); opened only from menubar Help; glyph
+                        rendering duplicated 3×
+    authorized delta  — `?` and ⌘/ open it anywhere outside editables; every row
+                        derives from the registry (defaults + overrides + preset);
+                        surface-local bindings appear as a read-only reference
+                        section; ONE shared modifier-glyph helper everywhere
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cheat-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Herdr parity</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Shortcuts cheatsheet</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="herdr-parity-settings-shortcuts.html">Shortcuts table →</a>
+      <a class="btn btn--sm" href="herdr-parity-palette-sessions.html">Palette →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ 01 · FINAL — THE SHEET ============ -->
+    <section class="lab-sec" data-od-id="ch-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The sheet — registry-derived, two columns</h2>
+        <span class="lab-sec__gist">? opens it · primary + dashed alternates · locals read-only</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One source</b>Every row derives from the live registry — defaults, operator overrides, and the preset, in effect right now. Arrays surface once: primary chord solid, alternates dashed on the same row. Surface-local bindings (palette list, permission dock, composer) close the sheet as a read-only reference — they are owned by their surface, not rebindable here.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="ch-stage">
+            <div class="overlay cheat-overlay" style="position:absolute">
+              <div class="cheat" role="dialog" aria-label="Keyboard shortcuts" data-od-id="cheatsheet">
+                <div class="cheat__head">
+                  <span class="cheat__title">Keyboard shortcuts</span>
+                  <span class="cheat__src">defaults + your overrides + Terminal preset</span>
+                  <button class="cheat__x" aria-label="Close"><svg data-lucide="x"></svg></button>
+                </div>
+                <div class="cheat__scroll">
+                  <div class="cheat-cols">
+
+                    <div class="cheat-sec" data-od-id="ch-shell">
+                      <div class="cheat-sec__t">Shell</div>
+                      <div class="cheat-row"><span class="cheat-row__l">Command palette</span>
+                        <span class="keys"><span class="key">⌘K</span><span class="key key--alt">⌘⇧P</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Sessions palette view</span>
+                        <span class="keys"><span class="key">⌘E</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">New session</span>
+                        <span class="keys"><span class="key">⌘N</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Global scope</span>
+                        <span class="keys"><span class="key">⇧⌘G</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Back</span>
+                        <span class="keys"><span class="key">⌘[</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Toggle sidebar</span>
+                        <span class="keys"><span class="key">⌘B</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">This sheet</span>
+                        <span class="keys"><span class="key">?</span><span class="key key--alt">⌘/</span></span></div>
+                    </div>
+
+                    <div class="cheat-sec" data-od-id="ch-windows">
+                      <div class="cheat-sec__t">Windows</div>
+                      <div class="cheat-row"><span class="cheat-row__l">Focus left / down / up / right</span>
+                        <span class="keys"><span class="key">⌃←↓↑→</span><span class="key key--alt">⌥HJKL</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Focus last window</span>
+                        <span class="keys"><span class="key">⌃⌥O</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Zoom</span>
+                        <span class="keys"><span class="key">⌃⌥Z</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Tile top / bottom</span>
+                        <span class="keys"><span class="key">⌃⌥↑</span><span class="key">⌃⌥↓</span></span></div>
+                    </div>
+
+                    <div class="cheat-sec" data-od-id="ch-tabs">
+                      <div class="cheat-sec__t">Tabs</div>
+                      <div class="cheat-row"><span class="cheat-row__l">New tab</span>
+                        <span class="keys"><span class="key">⌘T</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Next / previous</span>
+                        <span class="keys"><span class="key">⌃Tab</span><span class="key">⌃⇧Tab</span></span></div>
+                      <div class="cheat-row" data-override><span class="cheat-row__l">Jump to tab <span class="mod">· preset</span></span>
+                        <span class="keys"><span class="key-range"><span class="key">⌃⌥1</span><span class="ellipsis">…</span><span class="key">⌃⌥8</span></span></span></div>
+                    </div>
+
+                    <div class="cheat-sec" data-od-id="ch-sessions">
+                      <div class="cheat-sec__t">Sessions</div>
+                      <div class="cheat-row"><span class="cheat-row__l">Cycle next / previous</span>
+                        <span class="keys"><span class="key">⌃⇧↓</span><span class="key">⌃⇧↑</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Jump to attention</span>
+                        <span class="keys"><span class="key">⌃⌥A</span></span></div>
+                    </div>
+
+                    <div class="cheat-sec" data-od-id="ch-desktops">
+                      <div class="cheat-sec__t">Desktops</div>
+                      <div class="cheat-row"><span class="cheat-row__l">Switch to desktop</span>
+                        <span class="keys"><span class="key-range"><span class="key">⌃1</span><span class="ellipsis">…</span><span class="key">⌃9</span></span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Create desktop</span>
+                        <span class="keys"><span class="key">⌘⇧N</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Overview</span>
+                        <span class="keys"><span class="key">⌘⇧D</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Previous / next</span>
+                        <span class="keys"><span class="key">⌃⇧←</span><span class="key">⌃⇧→</span></span></div>
+                    </div>
+
+                    <div class="cheat-sec" data-od-id="ch-workspaces">
+                      <div class="cheat-sec__t">Workspaces</div>
+                      <div class="cheat-row"><span class="cheat-row__l">Picker</span>
+                        <span class="keys"><span class="key">⌘⇧O</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Cycle next / previous</span>
+                        <span class="keys"><span class="key">⌘⇧]</span><span class="key">⌘⇧[</span></span></div>
+                    </div>
+
+                    <div class="cheat-sec cheat-sec--local" data-od-id="ch-local">
+                      <div class="cheat-sec__t"><svg data-lucide="lock"></svg>In this surface — session window</div>
+                      <div class="cheat-row"><span class="cheat-row__l">Approve / deny permission</span>
+                        <span class="keys"><span class="key">1</span><span class="key">4</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Steer the agent</span>
+                        <span class="keys"><span class="key">⌘⏎</span></span></div>
+                      <div class="cheat-row"><span class="cheat-row__l">Focus composer</span>
+                        <span class="keys"><span class="key">/</span></span></div>
+                    </div>
+
+                  </div>
+                </div>
+                <div class="cheat__foot">
+                  <span>Rebind anything in <a href="herdr-parity-settings-shortcuts.html" style="text-decoration:underline">Settings → Shortcuts</a> · read-only rows belong to their surface</span>
+                  <span class="keys"><span class="key">esc</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · RULES ============ -->
+    <section class="lab-sec" data-od-id="ch-rules">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Opening, freshness, and the one glyph helper</h2>
+        <span class="lab-sec__gist">? outside editables · rebinds show instantly · 3 copies → 1</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Opening</b><code>?</code> opens the sheet anywhere except editable fields (composer, inputs, the palette query); <code>⌘/</code> is the layout-safe chord and works everywhere. Help → Keyboard shortcuts stays. Esc closes; focus returns to what had it.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="ch-open-spec">
+            <table class="spec-table">
+              <thead><tr><th>context</th><th>?</th><th>⌘/</th></tr></thead>
+              <tbody>
+                <tr><td>desktop / window chrome</td><td>opens</td><td>opens</td></tr>
+                <tr><td>composer / input / palette query</td><td>types “?”</td><td>opens</td></tr>
+                <tr><td>sheet already open</td><td>—</td><td>closes</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Post-rebind freshness</b>The sheet re-derives on every open — a chord rebound seconds ago renders its new value, marked with an accent hairline while its source is an override or preset (US-028.EC-3). No stale hardcoded rows; <code>⌘[</code> can never go missing again.</div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:420px" data-od-id="ch-fresh">
+            <div class="cheat-row" data-override>
+              <span class="cheat-row__l">Jump to attention <span class="mod">· override</span></span>
+              <span class="keys"><span class="key">⌥I</span></span>
+            </div>
+            <div class="cheat-row">
+              <span class="cheat-row__l">Create desktop</span>
+              <span class="keys"><span class="key">⌘⇧N</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>One glyph helper</b>Modifier rendering lives in one exported helper — consumed by this sheet, the settings table, and the 7 hardcoded JSX chord labels it replaces (<code>window-manager-shortcuts.ts:61</code> and friends). The <code>.key</code> chip above is its visual contract: mono, 20px, solid = primary, dashed = alternate, struck = displaced.</div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap" data-od-id="ch-glyphs">
+            <span class="keys"><span class="key">⌘K</span></span>
+            <span class="keys"><span class="key key--alt">⌘⇧P</span></span>
+            <span class="keys"><span class="key key--dead">⌘1</span></span>
+            <span class="keys"><span class="key-range"><span class="key">⌃1</span><span class="ellipsis">…</span><span class="key">⌃9</span></span></span>
+            <span class="sort-note">primary · alternate · displaced · range</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Palette · Sessions view · Herdr parity · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="herdr.css">
+<!--
+  herdr-parity-palette-sessions · S12 nested view mechanism + S13 Sessions view.
+  Spec: _uiux.md S12/S13 · stories US-029/030/031 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production        — use-os-command-palette.ts (343-line view-model; the
+                        destinationWindowId seam) + os-command-palette.tsx (cmdk);
+                        sessions as flat alphabetical results
+    authorized delta  — generic view stack (push / breadcrumb / backspace-pop);
+                        Sessions is the first registered view: state chips,
+                        attention-first order, Show all scope, ⌘E deep-open;
+                        enter focuses the session window and closes; done → seen
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="pal-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Herdr parity</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Palette · Sessions view</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="herdr-parity-sidebar.html">Badges →</a>
+      <a class="btn btn--sm" href="herdr-parity-cheatsheet.html">Cheatsheet →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ 01 · FINAL — LIVE STACK ============ -->
+    <section class="lab-sec" data-od-id="pal-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The stack is live — push, filter, pop</h2>
+        <span class="lab-sec__gist">click Sessions to push · chips filter · ⌫ on empty pops</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One mechanism</b>Root results can push a registered view; the breadcrumb lives in the input area; backspace on an empty query pops one level; Esc closes the whole palette. Search and ↑↓/⏎ behave identically at every level. <b>Sessions</b> is the first view: state chips, attention-first order, ⏎ lands on the session window. ⌘E opens the palette already inside it.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="pal-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="palette">
+                <div class="palette-head">
+                  <svg data-lucide="search" id="palGlyph"></svg>
+                  <nav class="pal-crumbs" id="palCrumbs" hidden aria-label="Palette path">
+                    <span class="pal-crumb" id="palCrumbView">Sessions</span>
+                  </nav>
+                  <input id="palInput" type="text" placeholder="Search windows, sessions, actions…" aria-label="Palette query">
+                </div>
+                <div class="pal-chips" id="palChips" hidden data-od-id="pal-chips">
+                  <button class="pal-chip is-on" data-filter="all">All <span class="count">9</span></button>
+                  <button class="pal-chip" data-filter="needs">Needs you <span class="count">3</span></button>
+                  <button class="pal-chip" data-filter="run">Working <span class="count">2</span></button>
+                  <button class="pal-chip" data-filter="done">Finished <span class="count">2</span></button>
+                  <button class="pal-chip" data-filter="idle">Idle <span class="count">2</span></button>
+                  <button class="pal-chip pal-scope" data-scope aria-pressed="false"><svg data-lucide="globe" style="width:11px;height:11px"></svg>All workspaces</button>
+                </div>
+
+                <!-- root -->
+                <div class="palette-results" id="palRoot" data-od-id="pal-root">
+                  <div class="pal-group">Views</div>
+                  <button class="pal-item is-active" id="palPushSessions">
+                    <svg data-lucide="message-square"></svg>Sessions
+                    <span class="pal-push">view<svg data-lucide="corner-down-left"></svg></span>
+                  </button>
+                  <div class="pal-group">Windows</div>
+                  <button class="pal-item"><svg data-lucide="layout-dashboard"></svg>Dashboard<span class="pal-meta">open</span></button>
+                  <button class="pal-item"><svg data-lucide="list-todo"></svg>Tasks<span class="pal-meta">open</span></button>
+                  <div class="pal-group">Actions</div>
+                  <button class="pal-item"><svg data-lucide="plus"></svg>New session<span class="pal-meta">⌘N</span></button>
+                  <button class="pal-item"><svg data-lucide="keyboard"></svg>Keyboard shortcuts<span class="pal-meta">?</span></button>
+                </div>
+
+                <!-- sessions view -->
+                <div class="palette-results" id="palSessions" hidden data-od-id="pal-sessions">
+                  <button class="pal-srow is-active" data-class="needs" data-ws="compozy">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Refactor session store</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                    </span>
+                    <span class="pal-srow__meta">2m</span>
+                  </button>
+                  <button class="pal-srow" data-class="needs" data-ws="payments" data-otherws>
+                    <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Chargeback flow</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-auth</span><span>· claude · payments</span></span>
+                    </span>
+                    <span class="pal-srow__meta">6m</span>
+                  </button>
+                  <button class="pal-srow" data-class="needs" data-ws="infra" data-otherws>
+                    <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">TF upgrade</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="needs">failed</span><span>· codex · infra</span></span>
+                    </span>
+                    <span class="pal-srow__meta">41m</span>
+                  </button>
+                  <button class="pal-srow" data-class="run" data-ws="compozy">
+                    <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Fix payment retries</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                    </span>
+                    <span class="pal-srow__meta">now</span>
+                  </button>
+                  <button class="pal-srow" data-class="run" data-ws="payments" data-otherws>
+                    <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Webhook retries</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude · payments</span></span>
+                    </span>
+                    <span class="pal-srow__meta">now</span>
+                  </button>
+                  <button class="pal-srow" data-class="done" data-ws="compozy">
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Release notes draft</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· hermes</span></span>
+                    </span>
+                    <span class="pal-srow__meta">26m</span>
+                  </button>
+                  <button class="pal-srow" data-class="done" data-ws="infra" data-otherws>
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Rotate tokens</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· codex · infra</span></span>
+                    </span>
+                    <span class="pal-srow__meta">1h</span>
+                  </button>
+                  <button class="pal-srow" data-class="idle" data-ws="compozy">
+                    <span class="sig" data-k="idle"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Regen OpenAPI types</span>
+                      <span class="pal-srow__sub"><span class="state">idle</span><span>· codex</span></span>
+                    </span>
+                    <span class="pal-srow__meta">1h</span>
+                  </button>
+                  <button class="pal-srow" data-class="idle" data-ws="notes" data-otherws>
+                    <span class="sig" data-k="idle"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Digest triage</span>
+                      <span class="pal-srow__sub"><span class="state">idle</span><span>· claude · notes</span></span>
+                    </span>
+                    <span class="pal-srow__meta">2d</span>
+                  </button>
+                  <div class="pal-none" id="palNone" hidden>No sessions match — press the chip again to clear it.</div>
+                </div>
+
+                <div class="pal-foot" id="palFoot">
+                  <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                  <span><span class="keys"><span class="key">⏎</span></span> <span id="palEnterHint">open</span></span>
+                  <span id="palPopHint" hidden><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · STACK STATES (S12) ============ -->
+    <section class="lab-sec" data-od-id="pal-stack">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Stack states — depth without disorientation</h2>
+        <span class="lab-sec__gist">breadcrumb truncates · empty views speak · refresh never steals</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Three levels deep</b>The breadcrumb keeps the leaf and collapses ancestors to “…” past two (US-029.EC-1). Backspace pops one level at a time; dismiss closes the whole stack — reopening starts at root.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <div class="palette" style="width:min(560px,100%)" data-od-id="pal-deep">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs" aria-label="Palette path">
+                  <span class="pal-crumb pal-crumb--more">…</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb pal-crumb--root">Sessions</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb">claude</span>
+                </nav>
+                <input type="text" placeholder="Search claude’s sessions…" aria-label="Palette query">
+              </div>
+              <div class="palette-results" style="max-height:120px">
+                <button class="pal-srow" data-class="run">
+                  <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                  <span class="pal-srow__main"><span class="pal-srow__title">Fix payment retries</span></span>
+                  <span class="pal-srow__meta">now</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Empty view</b>A pushed view with nothing to list says so in place — the stack, breadcrumb and keyboard contract stay; no silent fall-back to root (US-029.EC-2). Live refresh re-sorts rows underneath without stealing the active selection (US-029.EC-4).</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <div class="palette" style="width:min(560px,100%)" data-od-id="pal-empty">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs"><span class="pal-crumb">Sessions</span></nav>
+                <input type="text" aria-label="Palette query">
+              </div>
+              <div class="pal-none" style="padding:22px 12px">No sessions in this workspace yet — <b>⌘N</b> starts one.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 · SESSIONS VIEW STATES (S13) ============ -->
+    <section class="lab-sec" data-od-id="pal-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Sessions view — chips, scope, scale</h2>
+        <span class="lab-sec__gist">zero-match clears in one keystroke · closed windows restore</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Chip with zero matches</b>Filters are single-select toggles; a chip that matches nothing shows the honest empty row and clears with one keystroke — press the chip (or ⌫) and the full list returns (US-030.EC-1).</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <div class="palette" style="width:min(560px,100%)" data-od-id="pal-zeromatch">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs"><span class="pal-crumb">Sessions</span></nav>
+                <input type="text" aria-label="Palette query">
+              </div>
+              <div class="pal-chips">
+                <button class="pal-chip">All <span class="count">4</span></button>
+                <button class="pal-chip is-on">Finished <span class="count">0</span></button>
+                <button class="pal-chip">Working <span class="count">2</span></button>
+              </div>
+              <div class="pal-none" style="padding:18px 12px">Nothing finished right now.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Behavior locked elsewhere</b>⏎ on a session whose window is closed restores the window, then focuses it (US-030.EC-4). Landing on a <code>done</code> session marks it seen — the bell’s Finished row retracts. Hundreds of sessions: attention-first order, list virtualizes, chips keep counts truthful (US-030.EC-3). Show all widens with workspace-labeled rows — same data contract as the sidebar’s third scope (US-031.AC-2).</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="pal-behavior">
+            <table class="spec-table">
+              <thead><tr><th>gesture</th><th>result</th></tr></thead>
+              <tbody>
+                <tr><td>⏎ on row</td><td>focus session window (restore if closed, switch workspace if needed) · palette closes</td></tr>
+                <tr><td>⏎ on done row</td><td>same + marks seen</td></tr>
+                <tr><td>⌫ on empty query</td><td>pop one level</td></tr>
+                <tr><td>esc</td><td>close the whole stack</td></tr>
+                <tr><td>⌘E anywhere</td><td>open palette pushed into Sessions</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  /* gating: generalizes the destinationWindowId seam in use-os-command-palette.ts
+     into a view stack; Sessions view = first registry entry (built-ins only, v1) */
+  const input = document.getElementById("palInput");
+  const crumbs = document.getElementById("palCrumbs");
+  const chips = document.getElementById("palChips");
+  const root = document.getElementById("palRoot");
+  const sessions = document.getElementById("palSessions");
+  const none = document.getElementById("palNone");
+  const glyph = document.getElementById("palGlyph");
+  const popHint = document.getElementById("palPopHint");
+  const enterHint = document.getElementById("palEnterHint");
+  let depth = 0;
+
+  function setDepth(d) {
+    depth = d;
+    const inView = d > 0;
+    crumbs.hidden = !inView;
+    chips.hidden = !inView;
+    root.hidden = inView;
+    sessions.hidden = !inView;
+    popHint.hidden = !inView;
+    enterHint.textContent = inView ? "open session" : "open";
+    input.placeholder = inView ? "Search sessions…" : "Search windows, sessions, actions…";
+    input.value = "";
+    applyFilter("all");
+    input.focus();
+  }
+  function applyFilter(k) {
+    chips.querySelectorAll(".pal-chip[data-filter]").forEach((c) => c.classList.toggle("is-on", c.dataset.filter === k));
+    let visible = 0;
+    sessions.querySelectorAll(".pal-srow").forEach((r) => {
+      const show = k === "all" || r.dataset.class === k;
+      r.hidden = !show;
+      if (show) visible += 1;
+    });
+    none.hidden = visible > 0;
+  }
+  document.getElementById("palPushSessions").addEventListener("click", () => setDepth(1));
+  chips.querySelectorAll(".pal-chip[data-filter]").forEach((c) =>
+    c.addEventListener("click", () => applyFilter(c.classList.contains("is-on") ? "all" : c.dataset.filter)));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Backspace" && input.value === "" && depth > 0) { e.preventDefault(); setDepth(depth - 1); }
+  });
+  lucide.createIcons();
+})();
+</script>
+</body>
+</html>

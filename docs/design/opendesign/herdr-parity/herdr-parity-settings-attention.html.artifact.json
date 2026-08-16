@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "herdr-parity/herdr-parity-settings-attention.html",
+  "entry": "herdr-parity/herdr-parity-settings-attention.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-16T01:09:52.754Z",
+  "updatedAt": "2026-08-16T01:09:52.754Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Settings · Shortcuts · Herdr parity · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="herdr.css">
+<!--
+  herdr-parity-settings-shortcuts · S9 shortcuts table + S10 terminal preset.
+  Spec: _uiux.md S9/S10 · stories US-024/025/026/028 · keymap: _dx.md → Keyboard
+  Defaults (rendered, never copied locally) · contract: DESIGN-NOTES.md.
+  Provenance:
+    production        — window-manager-shortcut-table.tsx:14-50 (5 groups, no Tabs);
+                        single-chord rows; recorder use-window-manager-shortcut-
+                        recorder.ts (Escape cancels, conflicts blocked/shadowed)
+    authorized delta  — Tabs group; chord ARRAYS (primary + dashed alternates);
+                        range families rendered compactly (⌃⌥1…8); conflict
+                        diagnostics name the exact member / expanded digit;
+                        one-click terminal preset with preview diff + revert
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ssc-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Herdr parity</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Settings · Shortcuts</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="herdr-parity-settings-attention.html">Attention →</a>
+      <a class="btn btn--sm" href="herdr-parity-cheatsheet.html">Cheatsheet →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ 01 · FINAL — THE TABLE ============ -->
+    <section class="lab-sec" data-od-id="ssc-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The table — arrays, ranges, and the Tabs group</h2>
+        <span class="lab-sec__gist">primary solid · alternates dashed · ranges stay one row</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Registry-true</b>Every row derives from the live registry (defaults + overrides). Chord arrays render primary first, alternates dashed. Indexed families (<code>⌃⌥1…8</code>) stay one compact row until a member diverges. The <b>Tabs</b> group joins the table — its 13 actions were unrebindable. Hover reveals Record.</div>
+        <div class="spec__demo">
+          <div data-od-id="shortcut-table">
+
+            <div class="sc-group" data-od-id="group-tabs">
+              <div class="sc-group__t">Tabs <span class="pill" data-tone="accent">new group</span></div>
+              <div class="panelbox">
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">New tab</div><div class="sc-row__id">window.tab.new</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key">⌘T</span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Next tab</div><div class="sc-row__id">window.tab.next</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key">⌃Tab</span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Jump to tab</div><div class="sc-row__id">window.tab.jump</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key-range"><span class="key">⌘1</span><span class="ellipsis">…</span><span class="key">⌘8</span></span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Last tab</div><div class="sc-row__id">window.tab.last</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key">⌘9</span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sc-group" data-od-id="group-sessions">
+              <div class="sc-group__t">Sessions</div>
+              <div class="panelbox">
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Cycle next / previous</div><div class="sc-row__id">session.cycle.next · .previous</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key">⌃⇧↓</span><span class="or">/</span><span class="key">⌃⇧↑</span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Jump to attention</div><div class="sc-row__id">session.focus.attention</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key">⌃⌥A</span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Sessions palette view</div><div class="sc-row__id">palette.view.sessions</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key">⌘E</span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sc-group" data-od-id="group-window">
+              <div class="sc-group__t">Window</div>
+              <div class="panelbox">
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Focus left</div><div class="sc-row__id">window.focus.left</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key">⌃←</span><span class="key key--alt">⌥H</span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Focus last window</div><div class="sc-row__id">window.focus.last</div></div>
+                  <div class="sc-row__trail">
+                    <span class="keys"><span class="key">⌃⌥O</span></span>
+                    <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+                  </div>
+                </div>
+                <div class="sc-row">
+                  <div class="sc-row__main"><div class="sc-row__label">Tile bottom-right</div><div class="sc-row__id">window.tile.bottom-right — default removed</div></div>
+                  <div class="sc-row__trail">
+                    <span class="sc-row__unbound">Not bound</span>
+                    <button class="btn btn--sm">Record</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · CONFLICTS ============ -->
+    <section class="lab-sec" data-od-id="ssc-conflicts">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Conflict diagnostics — name the member</h2>
+        <span class="lab-sec__gist">blocked names the digit · shadowed names the winner</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Arrays make conflicts specific</b>“Conflicts with window.tab.jump” is not enough once actions hold arrays and ranges. Blocked diagnostics expand the exact member (<code>⌃⌥3</code>, digit 3); shadowed diagnostics name which surface wins and why (focused UI beats global chords) — US-024.EC-2, US-025.EC-3.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="conflict-rows">
+            <div class="sc-row" data-conflict="blocked">
+              <div class="sc-row__main"><div class="sc-row__label">Zoom window</div><div class="sc-row__id">window.zoom</div></div>
+              <div class="sc-row__trail"><span class="keys"><span class="key key--dead">⌃⌥3</span></span>
+                <button class="btn btn--sm btn--ghost">Change</button></div>
+              <div class="sc-diag" data-tone="danger"><svg data-lucide="octagon-x"></svg>
+                <span>Blocked — <code>⌃⌥3</code> is member 3 of <code>window.tab.jump</code> (<code>⌃⌥1…8</code>). Free the digit or pick another chord.</span></div>
+            </div>
+            <div class="sc-row" data-conflict="shadowed">
+              <div class="sc-row__main"><div class="sc-row__label">Toggle sidebar</div><div class="sc-row__id">sidebar.toggle</div></div>
+              <div class="sc-row__trail"><span class="keys"><span class="key">⌘B</span></span>
+                <button class="btn btn--sm btn--ghost">Keep anyway</button></div>
+              <div class="sc-diag" data-tone="warning"><svg data-lucide="eye-off"></svg>
+                <span>Shadowed while a composer is focused — editor bold wins there. Works everywhere else.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Partial range override</b>When one digit of a family is rebound, the row expands its members once — the overridden digit is marked, the rest stay default. The family collapses again if the override is removed.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="range-partial">
+            <div class="sc-row">
+              <div class="sc-row__main"><div class="sc-row__label">Switch desktop</div><div class="sc-row__id">desktop.switch.1..9 — digit 4 overridden</div></div>
+              <div class="sc-row__trail">
+                <span class="range-members">
+                  <span class="key">⌃1</span><span class="key">⌃2</span><span class="key">⌃3</span>
+                  <span class="key" data-override>⌥4</span>
+                  <span class="key">⌃5</span><span class="key">⌃6</span><span class="key">⌃7</span><span class="key">⌃8</span><span class="key">⌃9</span>
+                </span>
+                <button class="sc-row__edit" aria-label="Record shortcut"><svg data-lucide="pencil"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 · TERMINAL PRESET (S10) ============ -->
+    <section class="lab-sec" data-od-id="ssc-preset">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Terminal preset — preview, apply, revert</h2>
+        <span class="lab-sec__gist">every displaced default shown · atomic · one-step revert</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Preview is the contract</b>The preset applies as plain overrides, atomically (US-026.AC-1). The preview lists <b>every</b> change including displaced defaults — tab jumps move to <code>⌃⌥</code> digits so <code>⌘1…9</code> can drive desktops; the two bottom tiles step aside for session cycling. Collisions and layout hazards are flagged inline before anything is written (US-026.EC-1).</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <div class="preset" style="width:min(560px,100%)" data-od-id="preset-preview">
+              <div class="preset__head">
+                <span class="preset__icon"><svg data-lucide="terminal"></svg></span>
+                <div class="preset__id">
+                  <div class="preset__name">Terminal preset</div>
+                  <div class="preset__sub">tmux-style layers — 14 overrides</div>
+                </div>
+                <button class="btn btn--sm btn--ghost">Copy as TOML</button>
+              </div>
+              <div class="preset__diff">
+                <div class="diff-row">
+                  <div class="diff-row__label"><b>Jump to tab</b><span class="sc-row__id">window.tab.jump</span></div>
+                  <span class="keys"><span class="key-range"><span class="key key--dead">⌘1</span><span class="ellipsis">…</span><span class="key key--dead">⌘8</span></span></span>
+                  <span class="diff-row__arrow"><svg data-lucide="arrow-right"></svg></span>
+                  <span class="keys"><span class="key-range"><span class="key">⌃⌥1</span><span class="ellipsis">…</span><span class="key">⌃⌥8</span></span></span>
+                </div>
+                <div class="diff-row">
+                  <div class="diff-row__label"><b>Switch desktop</b><span class="sc-row__id">desktop.switch — gains a second layer</span></div>
+                  <span class="keys"><span class="key">⌃1…9</span></span>
+                  <span class="diff-row__arrow"><svg data-lucide="arrow-right"></svg></span>
+                  <span class="keys"><span class="key">⌃1…9</span><span class="key key--alt">⌘1…9</span></span>
+                </div>
+                <div class="diff-row">
+                  <div class="diff-row__label"><b>Cycle session</b><span class="sc-row__id">session.cycle.next · .previous</span></div>
+                  <span class="keys"><span class="key">⌃⇧↓</span><span class="key">⌃⇧↑</span></span>
+                  <span class="diff-row__arrow"><svg data-lucide="arrow-right"></svg></span>
+                  <span class="keys"><span class="key">⌃⇧↓↑</span><span class="key key--alt">⌃⌥J</span><span class="key key--alt">⌃⌥K</span></span>
+                </div>
+                <div class="diff-row diff-row--flag">
+                  <div class="diff-row__label"><b>Tile bottom-left / right</b><span class="sc-row__id">window.tile.bottom-* — displaced</span></div>
+                  <span class="keys"><span class="key key--dead">⌃⌥J</span><span class="key key--dead">⌃⌥K</span></span>
+                  <span class="diff-row__arrow"><svg data-lucide="arrow-right"></svg></span>
+                  <span class="keys"><span class="key">⌃⌥⇧J</span><span class="key">⌃⌥⇧K</span></span>
+                  <div class="diff-flag"><svg data-lucide="triangle-alert"></svg>
+                    <span>Moved to make room for session cycling. <code>⌃⌥</code> chords can alias AltGr on some layouts — check yours before relying on the J/K layer.</span></div>
+                </div>
+                <div class="diff-row">
+                  <div class="diff-row__label"><b>Focus window</b><span class="sc-row__id">window.focus.left/down/up/right — vim layer added</span></div>
+                  <span class="keys"><span class="key">⌃arrows</span></span>
+                  <span class="diff-row__arrow"><svg data-lucide="arrow-right"></svg></span>
+                  <span class="keys"><span class="key">⌃arrows</span><span class="key key--alt">⌥HJKL</span></span>
+                </div>
+              </div>
+              <div class="preset__foot">
+                <span class="preset__foot-note">Applies as plain overrides. Nothing changes until you confirm.</span>
+                <button class="btn">Cancel</button>
+                <button class="btn btn--primary">Apply preset</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Applied</b>The card flips to its applied state: revert restores the exact prior overrides in one step (US-026.AC-2); re-applying is a no-op (US-026.EC-3). Manual edits after apply belong to the operator — revert still targets only what the preset wrote.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <div class="preset" style="width:min(560px,100%)" data-od-id="preset-applied">
+              <div class="preset__head">
+                <span class="preset__icon"><svg data-lucide="terminal"></svg></span>
+                <div class="preset__id">
+                  <div class="preset__name">Terminal preset</div>
+                  <div class="preset__sub">applied 2d ago · 14 overrides active</div>
+                </div>
+                <span class="preset__applied"><svg data-lucide="check"></svg>Applied</span>
+                <button class="btn btn--sm">Revert</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

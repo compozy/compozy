@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Attention toasts · Herdr parity · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="herdr.css">
+<!--
+  herdr-parity-toasts · S5 attention toasts.
+  Spec: _uiux.md S5 · stories US-008/009/013 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production        — sonner Toaster mounted once (main.tsx:52), action feedback
+                        only via user-feedback.ts; no incoming-state toasts
+    authorized delta  — needs-you toasts (immediate, dedup 5s), coalesced completion
+                        toasts opening the bell Finished section, agent-sent toasts
+                        with the sender identified; whole toast = jump; suppression
+                        for the focused session; sound rides delivery (S7, silent-fail)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="toasts-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Herdr parity</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Attention toasts</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="herdr-parity-bell.html">Bell →</a>
+      <a class="btn btn--sm" href="herdr-parity-settings-attention.html">Settings →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ 01 · FINAL — ON THE SHELL ============ -->
+    <section class="lab-sec" data-od-id="to-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Arriving over the desktop</h2>
+        <span class="lab-sec__gist">whole toast = jump · glass, top-right, under the menubar</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Three kinds</b>A needs-you toast fires immediately per session (dedup 5s). Completions coalesce — one toast says how many, and clicking opens the bell’s Finished section. Agent-sent notifications identify the sender. The toast body is the click target: it focuses the session, switching workspace if needed. Sound (S7) rides the same delivery, once per batch, and fails silently.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="to-stage">
+            <header class="menubar" style="position:relative">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg>
+                </button>
+                <button class="ws-trigger"><span class="ws-avatar mono">CO</span><span class="ws-name">compozy</span>
+                  <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Attention, 2 need you"><svg data-lucide="bell"></svg><span class="badge">2</span></button>
+                <button class="mb-chip mb-cmdk"><span class="mono">⌘K</span></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+
+            <div class="toasts" style="top:54px" data-od-id="to-stack-final">
+              <button class="toast toast--attn" data-od-id="toast-needs-input">
+                <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                <span class="toast__main">
+                  <span class="toast__title">Refactor session store</span>
+                  <span class="toast__body">Should I drop the legacy column?</span>
+                  <span class="toast__meta">compozy · claude</span>
+                </span>
+                <span class="toast__x" role="button" aria-label="Dismiss"><svg data-lucide="x"></svg></span>
+              </button>
+              <button class="toast toast--attn" data-od-id="toast-coalesced">
+                <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                <span class="toast__main">
+                  <span class="toast__title">3 sessions finished</span>
+                  <span class="toast__meta">compozy · infra</span>
+                  <span class="toast__actions"><span class="btn btn--sm">Review finished</span></span>
+                </span>
+                <span class="toast__x" role="button" aria-label="Dismiss"><svg data-lucide="x"></svg></span>
+              </button>
+              <button class="toast toast--attn" data-od-id="toast-agent-sent">
+                <span class="sig" data-k="notify"><svg data-lucide="megaphone"></svg></span>
+                <span class="toast__main">
+                  <span class="toast__title">claude — Fix payment retries</span>
+                  <span class="toast__body">Staging deploy is live; ledger row confirmed.</span>
+                  <span class="toast__meta">compozy · agent notification</span>
+                </span>
+                <span class="toast__x" role="button" aria-label="Dismiss"><svg data-lucide="x"></svg></span>
+              </button>
+            </div>
+
+            <div class="desk-hint" style="left:24px;right:auto;top:auto;bottom:22px;translate:none"><span class="dh-desktop">Focused session’s own toasts are suppressed — you’re already there</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · NEEDS-YOU VARIANTS ============ -->
+    <section class="lab-sec" data-od-id="to-variants">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Needs-you variants</h2>
+        <span class="lab-sec__gist">same map as everywhere · glyph carries the member</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One anatomy</b>Roundel from the shared dictionary, session title, the reason in plain words, workspace · agent meta. No buttons on needs-you toasts — the toast itself is the jump; dismiss is hover-revealed. State names use CLI vocabulary in the meta, human words in the body.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0;display:flex;flex-direction:column;gap:10px;align-items:center">
+            <button class="toast toast--attn" style="width:324px" data-od-id="toast-v-input">
+              <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+              <span class="toast__main">
+                <span class="toast__title">Refactor session store</span>
+                <span class="toast__body">Should I drop the legacy column?</span>
+                <span class="toast__meta">compozy · claude</span>
+              </span>
+              <span class="toast__x" role="button" aria-label="Dismiss"><svg data-lucide="x"></svg></span>
+            </button>
+            <button class="toast toast--attn" style="width:324px" data-od-id="toast-v-auth">
+              <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+              <span class="toast__main">
+                <span class="toast__title">Chargeback flow</span>
+                <span class="toast__body">Wants to run <code>stripe trigger payment_intent.succeeded</code></span>
+                <span class="toast__meta">payments · claude</span>
+              </span>
+              <span class="toast__x" role="button" aria-label="Dismiss"><svg data-lucide="x"></svg></span>
+            </button>
+            <button class="toast toast--attn" style="width:324px" data-od-id="toast-v-failed">
+              <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+              <span class="toast__main">
+                <span class="toast__title">TF upgrade</span>
+                <span class="toast__body">Exited with code 1 during <code>terraform plan</code></span>
+                <span class="toast__meta">infra · codex</span>
+              </span>
+              <span class="toast__x" role="button" aria-label="Dismiss"><svg data-lucide="x"></svg></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Completion — single vs coalesced</b>One session finishing names it. Several inside the coalescing window collapse to a count — the only toast with an action, because its landing is a list (bell → Finished), not a session.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0;display:flex;flex-direction:column;gap:10px;align-items:center">
+            <button class="toast toast--attn" style="width:324px" data-od-id="toast-v-done">
+              <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+              <span class="toast__main">
+                <span class="toast__title">Release notes draft</span>
+                <span class="toast__body">Finished — ready to review</span>
+                <span class="toast__meta">compozy · hermes</span>
+              </span>
+              <span class="toast__x" role="button" aria-label="Dismiss"><svg data-lucide="x"></svg></span>
+            </button>
+            <button class="toast toast--attn" style="width:324px" data-od-id="toast-v-coalesced">
+              <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+              <span class="toast__main">
+                <span class="toast__title">3 sessions finished</span>
+                <span class="toast__meta">compozy · infra</span>
+                <span class="toast__actions"><span class="btn btn--sm">Review finished</span></span>
+              </span>
+              <span class="toast__x" role="button" aria-label="Dismiss"><svg data-lucide="x"></svg></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 · STACKING + RACE ============ -->
+    <section class="lab-sec" data-od-id="to-edges">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Stacking &amp; the resolved race</h2>
+        <span class="lab-sec__gist">4 visible max · rest fold into a count · click never dead-ends</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Five at once</b>Simultaneous needs-you toasts stack newest-first; past four, older ones fold into a quiet count ledge that opens the bell (US-008.EC-1). The screen never fills with glass.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <div style="display:flex;flex-direction:column;gap:10px;width:324px" data-od-id="toast-stackdemo">
+              <button class="toast toast--attn">
+                <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                <span class="toast__main">
+                  <span class="toast__title">Refactor session store</span>
+                  <span class="toast__body">Should I drop the legacy column?</span>
+                  <span class="toast__meta">compozy · claude</span>
+                </span>
+              </button>
+              <button class="toast toast--attn">
+                <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                <span class="toast__main">
+                  <span class="toast__title">Chargeback flow</span>
+                  <span class="toast__body">Wants to run <code>stripe trigger</code></span>
+                  <span class="toast__meta">payments · claude</span>
+                </span>
+              </button>
+              <button class="toast toast--attn">
+                <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+                <span class="toast__main">
+                  <span class="toast__title">Sandbox rebuild</span>
+                  <span class="toast__body">Exited with code 137</span>
+                  <span class="toast__meta">sandbox · codex</span>
+                </span>
+              </button>
+              <button class="toast toast--attn">
+                <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                <span class="toast__main">
+                  <span class="toast__title">Docs sweep</span>
+                  <span class="toast__body">Keep the deprecated aliases page?</span>
+                  <span class="toast__meta">agh-docs · hermes</span>
+                </span>
+              </button>
+              <button class="toast-more" data-od-id="toast-more">+2 more need you</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Resolved before the click</b>If the question was answered elsewhere before you clicked, the jump still lands on the session — with a quiet inline note instead of a dead toast (US-008.EC-4). Never an error.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <section class="win is-focused" data-doc="true" style="width:min(460px,100%);min-height:0" data-od-id="toast-race-landing">
+              <header class="win-head" style="cursor:default">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id" data-status="running">
+                  <span class="status-dot" style="margin-left:2px"></span>
+                  <span class="w2-title">Refactor session store</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><span class="w2-status" data-tone="run">running</span></div>
+              </header>
+              <div class="win-body"><div class="app" style="gap:8px">
+                <div class="notice" style="background:var(--info-tint)">
+                  <svg data-lucide="info" style="color:var(--info)"></svg>
+                  <span>That question was already answered — the agent moved on.</span>
+                </div>
+                <p class="app-note">Transcript continues below the marker.</p>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Delivery rules</b>The dispatch contract shared by toasts, sound and the system channel — one edge consumer (<code>useAttentionNotifier</code>), no per-surface drift.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="delivery-spec">
+            <table class="spec-table">
+              <thead><tr><th>rule</th><th>behavior</th></tr></thead>
+              <tbody>
+                <tr><td>dedup</td><td>same session + same reason within 5s → one toast</td></tr>
+                <tr><td>coalesce</td><td>completions batch into “N sessions finished” per delivery window</td></tr>
+                <tr><td>suppression</td><td>focused session’s own transitions never toast (you’re already there)</td></tr>
+                <tr><td>mute</td><td>muted workspaces deliver nothing; bell rows and counts remain</td></tr>
+                <tr><td>staleness</td><td>no notification ever fires from a stale stream</td></tr>
+                <tr><td>sound</td><td>one built-in sound per delivery batch; autoplay/no-device failure is silent, never an error (US-010.EC-2)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

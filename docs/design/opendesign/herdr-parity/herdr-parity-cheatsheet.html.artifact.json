@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "herdr-parity/herdr-parity-cheatsheet.html",
+  "entry": "herdr-parity/herdr-parity-cheatsheet.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-16T01:12:10.857Z",
+  "updatedAt": "2026-08-16T01:12:10.857Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "herdr-parity/herdr-parity-settings-shortcuts.html",
+  "entry": "herdr-parity/herdr-parity-settings-shortcuts.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-16T01:11:14.687Z",
+  "updatedAt": "2026-08-16T01:11:14.687Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

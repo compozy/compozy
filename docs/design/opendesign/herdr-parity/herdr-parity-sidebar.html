@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Session badges &amp; sidebar · Herdr parity · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="herdr.css">
+<!--
+  herdr-parity-sidebar · S1 session rows + S2 list controls + S14 status line.
+  Spec: _uiux.md S1/S2/S14 · stories US-001/002/003/007/031 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production        — session-list-row.tsx sessionStatusTone()/SessionStatusMark;
+                        session-list.tsx view toggle; use-session-sidebar-state.ts;
+                        session-status-line.tsx (the conflicting duplicate map — killed)
+    authorized delta  — ONE exported badge→tone/glyph map; needs-you class = danger
+                        (glyph distinguishes ? / shield / ×); done = info check;
+                        unknown = dashed hollow; tri-state scope Recent|All|All
+                        workspaces; attention-first sort persisted per operator
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="sidebar-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Herdr parity</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Session badges &amp; sidebar</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="herdr-parity-bell.html">Bell →</a>
+      <a class="btn btn--sm" href="herdr-parity-palette-sessions.html">Palette →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ 01 · THE DICTIONARY ============ -->
+    <section class="lab-sec" data-od-id="sb-dictionary">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The one badge → tone / glyph map</h2>
+        <span class="lab-sec__gist">exported once · S1 + S3 + S13 + S14 consume it</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Final call</b>The needs-you class owns <b>danger</b> — the only tone that reads “you are the blocker”. Members differ by glyph: question, shield, cross. <code>done</code> (finished-unseen) takes <b>info</b> + check and clears on focus. Warning stays runtime health. Color is never alone: shape at row scale, glyph at 18px scale, state word always. Kills the <code>session-status-line.tsx</code> duplicate.</div>
+        <div class="spec__demo">
+          <div class="plain tonemap" data-od-id="tonemap">
+            <div class="tonemap__row" data-status="waiting-for-input">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+              <span class="tonemap__badge">waiting-for-input</span>
+              <span class="tonemap__note">agent asked a question — filled dot · question glyph</span>
+              <span class="tonemap__class" data-tone="danger">needs you</span>
+            </div>
+            <div class="tonemap__row" data-status="waiting-for-auth">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+              <span class="tonemap__badge">waiting-for-auth</span>
+              <span class="tonemap__note">permission gate — diamond · shield glyph</span>
+              <span class="tonemap__class" data-tone="danger">needs you</span>
+            </div>
+            <div class="tonemap__row" data-status="failed">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+              <span class="tonemap__badge">failed</span>
+              <span class="tonemap__note">terminal error — square · cross glyph</span>
+              <span class="tonemap__class" data-tone="danger">needs you</span>
+            </div>
+            <div class="tonemap__row" data-status="done">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+              <span class="tonemap__badge">done</span>
+              <span class="tonemap__note">finished while unseen — check · clears on focus</span>
+              <span class="tonemap__class" data-tone="info">finished</span>
+            </div>
+            <div class="tonemap__row" data-status="running">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+              <span class="tonemap__badge">running</span>
+              <span class="tonemap__note">agent working — pulse halo · unchanged</span>
+              <span class="tonemap__class">working</span>
+            </div>
+            <div class="tonemap__row" data-status="idle">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="idle"><span class="sig-dot"></span></span>
+              <span class="tonemap__badge">idle</span>
+              <span class="tonemap__note">alive, nothing pending — unchanged</span>
+              <span class="tonemap__class">quiet</span>
+            </div>
+            <div class="tonemap__row" data-status="hung">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="unknown"><svg data-lucide="activity"></svg></span>
+              <span class="tonemap__badge">hung / unhealthy</span>
+              <span class="tonemap__note">runtime health — warning pair, unchanged</span>
+              <span class="tonemap__class" data-tone="warning">health</span>
+            </div>
+            <div class="tonemap__row" data-status="stopped">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="stopped"><svg data-lucide="circle"></svg></span>
+              <span class="tonemap__badge">stopped</span>
+              <span class="tonemap__note">ring — unchanged</span>
+              <span class="tonemap__class">ended</span>
+            </div>
+            <div class="tonemap__row" data-status="unknown">
+              <span class="tonemap__dot"><span class="status-dot"></span></span>
+              <span class="sig" data-k="unknown"><svg data-lucide="minus"></svg></span>
+              <span class="tonemap__badge">unknown</span>
+              <span class="tonemap__note">honesty state — dashed hollow, never fake liveness</span>
+              <span class="tonemap__class">unknown</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · FINAL — SESSIONS WINDOW ============ -->
+    <section class="lab-sec" data-od-id="sb-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Sessions window — scope is live</h2>
+        <span class="lab-sec__gist">click Recent · All · All workspaces</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Tri-state scope</b>The old Recent/All toggle grows a third state: <b>All workspaces</b> widens the list to every workspace, grouped and labeled. Sort control sits beside it — <code>Attention first</code> persisted per operator. Needs-you rows keep a strong title; state words carry the exact CLI vocabulary (<code>waiting-for-input</code>, never “asking”).</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad">
+            <section class="win is-focused" style="width:330px;max-width:100%" data-od-id="sessions-window">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph" aria-hidden="true"><svg data-lucide="message-square"></svg></span>
+                  <span class="w2-title">Sessions</span>
+                  <span class="w2-count mono" id="scopeCount">7</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-toolbar">
+                <div class="app-toolbar">
+                  <div class="pill-group pill-group--sm" role="tablist" aria-label="Scope" data-od-id="scope-pills">
+                    <button class="pill-group__item is-on" data-scope="recent" role="tab" aria-selected="true">Recent</button>
+                    <button class="pill-group__item" data-scope="all" role="tab" aria-selected="false">All</button>
+                    <button class="pill-group__item" data-scope="allws" role="tab" aria-selected="false">All workspaces</button>
+                  </div>
+                  <span class="w2-flex"></span>
+                  <button class="btn btn--sm btn--ghost" id="sortBtn" aria-haspopup="menu" aria-expanded="false" data-od-id="sort-trigger">
+                    <svg data-lucide="arrow-down-up"></svg>Attention
+                  </button>
+                </div>
+              </div>
+              <div class="win-body" style="max-height:430px">
+                <div class="app" style="padding:8px 10px 12px;gap:0">
+
+                  <!-- scope: recent (workspace compozy, attention-first) -->
+                  <div class="session-list" id="viewRecent" data-od-id="view-recent">
+                    <button class="session-row" data-status="waiting-for-input">
+                      <span class="status-dot"></span>
+                      <span class="session-row__body">
+                        <span class="session-row__title">Refactor session store</span>
+                        <span class="session-row__sub"><b>claude</b><span class="session-row__state">waiting-for-input</span></span>
+                      </span>
+                      <span class="session-row__time">2m</span>
+                    </button>
+                    <button class="session-row" data-status="failed">
+                      <span class="status-dot"></span>
+                      <span class="session-row__body">
+                        <span class="session-row__title">Nightly deps audit</span>
+                        <span class="session-row__sub"><b>codex</b><span class="session-row__state">failed</span></span>
+                      </span>
+                      <span class="session-row__time">18m</span>
+                    </button>
+                    <button class="session-row" data-status="running" aria-current="page">
+                      <span class="status-dot"></span>
+                      <span class="session-row__body">
+                        <span class="session-row__title">Fix payment retries</span>
+                        <span class="session-row__sub"><b>claude</b><span class="session-row__state">running</span></span>
+                      </span>
+                      <span class="session-row__time">now</span>
+                    </button>
+                    <button class="session-row" data-status="done">
+                      <span class="status-dot"></span>
+                      <span class="session-row__body">
+                        <span class="session-row__title">Release notes draft</span>
+                        <span class="session-row__sub"><b>hermes</b><span class="session-row__state">done</span></span>
+                      </span>
+                      <span class="session-row__time">26m</span>
+                    </button>
+                    <button class="session-row" data-status="idle">
+                      <span class="status-dot"></span>
+                      <span class="session-row__body">
+                        <span class="session-row__title">Regen OpenAPI types</span>
+                        <span class="session-row__sub"><b>codex</b><span class="session-row__state">idle</span></span>
+                      </span>
+                      <span class="session-row__time">1h</span>
+                    </button>
+                    <button class="session-row" data-status="stopped">
+                      <span class="status-dot"></span>
+                      <span class="session-row__body">
+                        <span class="session-row__title">Sandbox spike</span>
+                        <span class="session-row__sub"><b>claude</b><span class="session-row__state">stopped</span></span>
+                      </span>
+                      <span class="session-row__time">3h</span>
+                    </button>
+                    <button class="session-row" data-status="unknown">
+                      <span class="status-dot"></span>
+                      <span class="session-row__body">
+                        <span class="session-row__title">Legacy importer</span>
+                        <span class="session-row__sub"><b>claude</b><span class="session-row__state">unknown</span></span>
+                      </span>
+                      <span class="session-row__time">2d</span>
+                    </button>
+                  </div>
+
+                  <!-- scope: all (agent groups, workspace compozy) -->
+                  <div class="session-list" id="viewAll" hidden data-od-id="view-all">
+                    <div class="agent-group">
+                      <button class="agent-group__head" aria-expanded="true">
+                        <svg class="disclosure-icon" data-lucide="chevron-right"></svg>
+                        <span class="agent-avatar">CL</span>
+                        <span class="agent-group__name">claude</span>
+                        <span class="agent-group__count">4</span>
+                      </button>
+                      <div class="agent-group__body"><div class="session-list">
+                        <button class="session-row" data-status="waiting-for-input">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Refactor session store</span></span>
+                          <span class="session-row__time">2m</span>
+                        </button>
+                        <button class="session-row" data-status="running">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Fix payment retries</span></span>
+                          <span class="session-row__time">now</span>
+                        </button>
+                        <button class="session-row" data-status="stopped">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Sandbox spike</span></span>
+                          <span class="session-row__time">3h</span>
+                        </button>
+                        <button class="session-row" data-status="unknown">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Legacy importer</span></span>
+                          <span class="session-row__time">2d</span>
+                        </button>
+                      </div></div>
+                    </div>
+                    <div class="agent-group">
+                      <button class="agent-group__head" aria-expanded="true">
+                        <svg class="disclosure-icon" data-lucide="chevron-right"></svg>
+                        <span class="agent-avatar">CX</span>
+                        <span class="agent-group__name">codex</span>
+                        <span class="agent-group__count">2</span>
+                      </button>
+                      <div class="agent-group__body"><div class="session-list">
+                        <button class="session-row" data-status="failed">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Nightly deps audit</span></span>
+                          <span class="session-row__time">18m</span>
+                        </button>
+                        <button class="session-row" data-status="idle">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Regen OpenAPI types</span></span>
+                          <span class="session-row__time">1h</span>
+                        </button>
+                      </div></div>
+                    </div>
+                    <div class="agent-group">
+                      <button class="agent-group__head" aria-expanded="true">
+                        <svg class="disclosure-icon" data-lucide="chevron-right"></svg>
+                        <span class="agent-avatar">HE</span>
+                        <span class="agent-group__name">hermes</span>
+                        <span class="agent-group__count">1</span>
+                      </button>
+                      <div class="agent-group__body"><div class="session-list">
+                        <button class="session-row" data-status="done">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Release notes draft</span></span>
+                          <span class="session-row__time">26m</span>
+                        </button>
+                      </div></div>
+                    </div>
+                  </div>
+
+                  <!-- scope: all workspaces (US-031) -->
+                  <div class="session-list" id="viewAllws" hidden data-od-id="view-allws">
+                    <div class="ws-group">
+                      <button class="ws-group__head">
+                        <span class="ws-avatar mono">CO</span>
+                        <span class="ws-group__name">compozy</span>
+                        <span class="ws-group__count">7</span>
+                      </button>
+                      <div class="ws-group__body"><div class="session-list">
+                        <button class="session-row" data-status="waiting-for-input">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Refactor session store</span></span>
+                          <span class="session-row__time">2m</span>
+                        </button>
+                        <button class="session-row" data-status="running">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Fix payment retries</span></span>
+                          <span class="session-row__time">now</span>
+                        </button>
+                        <button class="session-row" data-status="done">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Release notes draft</span></span>
+                          <span class="session-row__time">26m</span>
+                        </button>
+                      </div></div>
+                    </div>
+                    <div class="ws-group">
+                      <button class="ws-group__head">
+                        <span class="ws-avatar mono">PA</span>
+                        <span class="ws-group__name">payments</span>
+                        <span class="ws-group__count">2</span>
+                      </button>
+                      <div class="ws-group__body"><div class="session-list">
+                        <button class="session-row" data-status="waiting-for-auth">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Chargeback flow</span></span>
+                          <span class="session-row__time">6m</span>
+                        </button>
+                        <button class="session-row" data-status="running">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">Webhook retries</span></span>
+                          <span class="session-row__time">now</span>
+                        </button>
+                      </div></div>
+                    </div>
+                    <div class="ws-group">
+                      <button class="ws-group__head">
+                        <span class="ws-avatar mono">IN</span>
+                        <span class="ws-group__name">infra</span>
+                        <span class="ws-group__count">1</span>
+                      </button>
+                      <div class="ws-group__body"><div class="session-list">
+                        <button class="session-row" data-status="failed">
+                          <span class="status-dot"></span>
+                          <span class="session-row__body"><span class="session-row__title">TF upgrade</span></span>
+                          <span class="session-row__time">41m</span>
+                        </button>
+                      </div></div>
+                    </div>
+                    <div class="ws-group">
+                      <button class="ws-group__head">
+                        <span class="ws-avatar mono">N</span>
+                        <span class="ws-group__name">notes</span>
+                        <span class="ws-group__count">0</span>
+                      </button>
+                      <div class="ws-group__note" data-kind="empty">No sessions</div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 · S2 EDGES ============ -->
+    <section class="lab-sec" data-od-id="sb-controls">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">List controls — sort &amp; scope edges</h2>
+        <span class="lab-sec__gist">stable ties · selection survives · per-group failure</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Sort menu</b>Attention first is an option, not a takeover — Last activity stays default. Persisted per operator. Ties inside the needs-you band break by recency, stable across refreshes (US-007.AC-1/EC-1). Keyboard selection follows the session, not the index — a row moving up never steals or drops focus (US-007.EC-2).</div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad">
+            <div class="popover" style="position:relative;left:auto;top:auto;min-width:210px" role="menu" data-od-id="sort-menu">
+              <div class="pop-eyebrow">Sort sessions</div>
+              <button class="pop-item" role="menuitemradio" aria-checked="false">Last activity</button>
+              <button class="pop-item" role="menuitemradio" aria-checked="true">Attention first
+                <span class="pi-check"><svg data-lucide="check"></svg></span>
+              </button>
+              <div class="pop-sep"></div>
+              <div class="pop-empty" style="padding-top:2px">Needs-you first, then running, then last activity. Saved for you.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Per-group failure</b>One workspace failing to load never blanks the widened list. The group keeps its header; the failure is inline, truthful, retryable (US-031.EC-1). New workspaces appear live in place (US-031.EC-4).</div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:330px" data-od-id="group-error">
+            <div class="ws-group">
+              <button class="ws-group__head">
+                <span class="ws-avatar mono">IN</span>
+                <span class="ws-group__name">infra</span>
+              </button>
+              <div class="ws-group__note">
+                <svg data-lucide="triangle-alert"></svg>
+                Couldn’t load sessions
+                <button class="btn btn--sm btn--ghost">Retry</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Hundreds of sessions</b>The widened scope assumes scale: groups collapse per workspace (same <code>data-collapsed</code> contract as agent groups), headers stay sticky, and the list virtualizes past ~60 rows. Density never changes — 28px rows, hairline dividers, color only as state.</div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:330px" data-od-id="group-collapsed">
+            <div class="ws-group">
+              <button class="ws-group__head" aria-expanded="false">
+                <svg class="disclosure-icon" data-lucide="chevron-right"></svg>
+                <span class="ws-avatar mono">CO</span>
+                <span class="ws-group__name">compozy</span>
+                <span class="ws-group__count">184</span>
+              </button>
+            </div>
+            <div class="ws-group">
+              <button class="ws-group__head" aria-expanded="false">
+                <svg class="disclosure-icon" data-lucide="chevron-right"></svg>
+                <span class="ws-avatar mono">PA</span>
+                <span class="ws-group__name">payments</span>
+                <span class="ws-group__count">92</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 04 · S1 EDGES ============ -->
+    <section class="lab-sec" data-od-id="sb-edges">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Row edges — precedence, honesty, hand-off</h2>
+        <span class="lab-sec__gist">one badge per row · auth outranks input · done yields to running</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Precedence</b>Question and permission can coexist (US-001.EC-1). The row renders <b>one</b> badge: <code>waiting-for-auth</code> outranks <code>waiting-for-input</code> — the permission gate is the harder block. The bell still lists both reasons on the session’s row.</div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:330px" data-od-id="row-precedence">
+            <button class="session-row" data-status="waiting-for-auth" style="width:100%">
+              <span class="status-dot"></span>
+              <span class="session-row__body">
+                <span class="session-row__title">Chargeback flow</span>
+                <span class="session-row__sub"><b>claude</b><span class="session-row__state">waiting-for-auth</span><span>+1 question</span></span>
+              </span>
+              <span class="session-row__time">6m</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>done yields to running</b>A new turn on a finished-unseen session drops the check immediately — <code>running</code> wins, the Finished bell row retracts (US-002.EC-4). No “done” ghost lingers anywhere.</div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:330px;display:flex;flex-direction:column;gap:2px" data-od-id="row-handoff">
+            <button class="session-row" data-status="done" style="width:100%">
+              <span class="status-dot"></span>
+              <span class="session-row__body">
+                <span class="session-row__title">Release notes draft</span>
+                <span class="session-row__sub"><b>hermes</b><span class="session-row__state">done</span></span>
+              </span>
+              <span class="session-row__time">26m</span>
+            </button>
+            <div style="display:flex;align-items:center;gap:6px;padding:2px 8px" class="sort-note"><svg data-lucide="corner-down-right"></svg>new turn arrives →</div>
+            <button class="session-row" data-status="running" style="width:100%">
+              <span class="status-dot"></span>
+              <span class="session-row__body">
+                <span class="session-row__title">Release notes draft</span>
+                <span class="session-row__sub"><b>hermes</b><span class="session-row__state">running</span></span>
+              </span>
+              <span class="session-row__time">now</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 05 · S14 STATUS LINE ============ -->
+    <section class="lab-sec" data-od-id="sb-statusline">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Session window status line — same map, larger scale</h2>
+        <span class="lab-sec__gist">glyph roundel + state word · no second dictionary</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The duplicate dies</b>Production’s <code>session-status-line.tsx</code> shipped its own tone map (<code>running: success</code> vs sidebar <code>running: accent</code>). The window head trail now consumes the exported map at 18px scale: roundel glyph + exact state word. Document windows self-title — no glyph tile, ever.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0;display:flex;flex-direction:column;gap:14px;align-items:stretch">
+            <section class="win is-focused" data-doc="true" style="width:100%;min-height:0" data-od-id="statusline-input">
+              <header class="win-head" style="cursor:default">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id" data-status="waiting-for-input">
+                  <span class="status-dot" style="margin-left:2px"></span>
+                  <span class="w2-title">Refactor session store</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                  <span class="w2-status" style="color:var(--danger)">waiting-for-input</span>
+                </div>
+              </header>
+            </section>
+            <section class="win" data-doc="true" style="width:100%;min-height:0" data-od-id="statusline-done">
+              <header class="win-head" style="cursor:default">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id" data-status="done">
+                  <span class="status-dot" style="margin-left:2px"></span>
+                  <span class="w2-title">Release notes draft</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                  <span class="w2-status" style="color:var(--info)">done</span>
+                </div>
+              </header>
+            </section>
+            <section class="win" data-doc="true" style="width:100%;min-height:0" data-od-id="statusline-run">
+              <header class="win-head" style="cursor:default">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id" data-status="running">
+                  <span class="status-dot" style="margin-left:2px"></span>
+                  <span class="w2-title">Fix payment retries</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="run">running</span>
+                </div>
+              </header>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  /* gating: view state mirrors session-list.tsx `view` — widened to a
+     tri-state; persisted with use-session-sidebar-state (daemon desktop store) */
+  const pills = document.querySelectorAll("[data-scope]");
+  const views = { recent: document.getElementById("viewRecent"), all: document.getElementById("viewAll"), allws: document.getElementById("viewAllws") };
+  const counts = { recent: "7", all: "7", allws: "10" };
+  const countEl = document.getElementById("scopeCount");
+  pills.forEach((p) => p.addEventListener("click", () => {
+    pills.forEach((q) => { q.classList.toggle("is-on", q === p); q.setAttribute("aria-selected", String(q === p)); });
+    Object.entries(views).forEach(([k, el]) => { el.hidden = k !== p.dataset.scope; });
+    countEl.textContent = counts[p.dataset.scope];
+  }));
+  lucide.createIcons();
+})();
+</script>
+</body>
+</html>

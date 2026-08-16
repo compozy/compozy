@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "herdr-parity/herdr-parity-bell.html",
+  "entry": "herdr-parity/herdr-parity-bell.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-16T01:07:48.612Z",
+  "updatedAt": "2026-08-16T01:07:48.612Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

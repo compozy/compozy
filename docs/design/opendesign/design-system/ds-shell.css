@@ -372,8 +372,10 @@ body[data-wallpaper="carbon"] .desktop{
 }
 .pal-item svg{width:15px;height:15px;color:var(--muted);flex:none}
 .pal-item .pal-meta{margin-left:auto;font-size:10.5px;color:var(--subtle);font-family:var(--font-mono)}
-.pal-item.is-active,.pal-item:hover{background:var(--row-hover)}
-.pal-item.is-active{box-shadow:inset 2px 0 0 var(--accent)}
+/* selection = neutral plate (row-selected + top light edge) — accent is
+   state, never a selection marker; the old inset accent bar is retired */
+.pal-item:hover{background:var(--row-hover)}
+.pal-item.is-active{background:var(--row-selected);box-shadow:var(--highlight)}
 .pal-none{padding:16px 12px 18px;font-size:12.5px;color:var(--muted);text-align:center}
 
 /* spaces overview */

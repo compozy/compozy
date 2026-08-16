@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Herdr parity · session attention &amp; shortcuts v2 · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  herdr-parity-index · set map — session attention · orchestration DX · shortcuts v2.
+  Spec: .compozy/tasks/herdr-parity/_uiux.md (S1–S14) · contract: DESIGN-NOTES.md.
+  Provenance:
+    redesign proposal — map page only; tokens from ds-core
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:70ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="herdr-index">
+  <h1>Herdr parity · session attention &amp; shortcuts v2</h1>
+  <p class="lede">Fourteen surfaces from <code>.compozy/tasks/herdr-parity/_uiux.md</code>, designed as seven boards on the OS shell. One exported badge→tone/glyph dictionary (needs-you = danger with member glyphs, <b>done</b> = info check) feeds the sidebar rows, the bell, the palette and the session-window status line — the conflicting duplicate map dies. Each board opens with the final surface, then walks its states. Contract in <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="grp" data-od-id="herdr-index-attention">
+    <div class="grp__t">Attention</div>
+    <div class="cards">
+      <a class="card" href="herdr-parity-sidebar.html" data-od-id="card-sidebar">
+        <span class="card__top"><span class="card__name">Session badges &amp; sidebar</span><span class="tag tag--final">final + lab</span><span class="card__file">herdr-parity-sidebar.html</span></span>
+        <span class="card__sub">S1 · S2 · S14 — the dictionary itself, the Sessions window with live tri-state scope (Recent | All | All workspaces), attention-first sort, precedence and honesty edges, and the status line consuming the same map.</span>
+      </a>
+      <a class="card" href="herdr-parity-bell.html" data-od-id="card-bell">
+        <span class="card__top"><span class="card__name">Attention bell</span><span class="tag tag--final">final + lab</span><span class="card__file">herdr-parity-bell.html</span></span>
+        <span class="card__sub">S3 · S4 — Needs you / Finished sections, cross-workspace rows with labels, quiet · disconnected · muted · 100+ states, and the badge / tab-title counting contract.</span>
+      </a>
+      <a class="card" href="herdr-parity-toasts.html" data-od-id="card-toasts">
+        <span class="card__top"><span class="card__name">Attention toasts</span><span class="tag tag--final">final + lab</span><span class="card__file">herdr-parity-toasts.html</span></span>
+        <span class="card__sub">S5 · S7 — needs-you variants, single vs coalesced completion, agent-sent, the 4-visible stack fold, the resolved-before-click landing, and the shared delivery rules.</span>
+      </a>
+      <a class="card" href="herdr-parity-settings-attention.html" data-od-id="card-settings-attention">
+        <span class="card__top"><span class="card__name">Settings · Attention</span><span class="tag tag--final">final + lab</span><span class="card__file">herdr-parity-settings-attention.html</span></span>
+        <span class="card__sub">S8 · S6 — three live toggles + mute list in the Settings window; the system channel’s three true states (armed / denied / unsupported) and the native-notification content table.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="herdr-index-shortcuts">
+    <div class="grp__t">Shortcuts &amp; palette</div>
+    <div class="cards">
+      <a class="card" href="herdr-parity-settings-shortcuts.html" data-od-id="card-settings-shortcuts">
+        <span class="card__top"><span class="card__name">Settings · Shortcuts</span><span class="tag tag--final">final + lab</span><span class="card__file">herdr-parity-settings-shortcuts.html</span></span>
+        <span class="card__sub">S9 · S10 — the Tabs group, chord arrays (solid primary + dashed alternates), compact range families, member-naming conflict diagnostics, and the Terminal preset’s preview-diff / apply / revert.</span>
+      </a>
+      <a class="card" href="herdr-parity-cheatsheet.html" data-od-id="card-cheatsheet">
+        <span class="card__top"><span class="card__name">Shortcuts cheatsheet</span><span class="tag tag--final">final + lab</span><span class="card__file">herdr-parity-cheatsheet.html</span></span>
+        <span class="card__sub">S11 — the `?` sheet: registry-derived two-column glass overlay, read-only surface-local section, post-rebind freshness, and the one shared glyph helper.</span>
+      </a>
+      <a class="card" href="herdr-parity-palette-sessions.html" data-od-id="card-palette">
+        <span class="card__top"><span class="card__name">Palette · Sessions view</span><span class="tag tag--final">final + lab</span><span class="card__file">herdr-parity-palette-sessions.html</span></span>
+        <span class="card__sub">S12 · S13 — the live view stack (push, breadcrumb, ⌫-pop), state-filter chips, attention-first order, Show-all scope, deep-breadcrumb truncation and empty-view honesty.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span>; domain vocabulary in <span class="mono">herdr.css</span>. Shell + glass grammar from <span class="mono">_done/workspaces/</span> lineage. Keymap truth: <span class="mono">_dx.md → Keyboard Defaults</span> (rendered, never copied). S4 title and native-notification wording are copy proposals — the COPY.md pass owns final words. Content illustrative; runtime truth owns values.</p>
+</div>
+</body>
+</html>

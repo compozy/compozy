@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Attention bell · Herdr parity · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="herdr.css">
+<!--
+  herdr-parity-bell · S3 attention bell + S4 title-count copy spec.
+  Spec: _uiux.md S3/S4 · stories US-003/005/006/014/015 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production        — attention-bell.tsx flat list; attention-model.ts:26 count
+                        (waiting-for-auth only); use-os-attention.ts staleness gate;
+                        os-menubar.tsx:109-115 badge pill (9+ cap)
+    authorized delta  — two sections Needs you / Finished; cross-workspace rows with
+                        workspace labels; badge counts needs-you only; row activation
+                        switches workspace + focuses the session window; arriving at
+                        a done row marks it seen; muted workspaces keep rows + counts
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="bell-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Herdr parity</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Attention bell</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="herdr-parity-sidebar.html">Badges →</a>
+      <a class="btn btn--sm" href="herdr-parity-toasts.html">Toasts →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ 01 · FINAL — BELL OPEN ON THE SHELL ============ -->
+    <section class="lab-sec" data-od-id="bell-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Bell open — both sections, cross-workspace</h2>
+        <span class="lab-sec__gist">click the bell · badge counts needs-you only</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Two sections</b><b>Needs you</b> gathers waiting-for-input, waiting-for-auth, failed sessions and task approvals; <b>Finished</b> holds <code>done</code> sessions. Rows carry workspace labels; activating one switches workspace and focuses the session window. Landing on a Finished row marks it seen. The badge counts needs-you only — Finished never inflates it (US-006 / calm defaults).</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="bell-stage">
+            <header class="menubar" style="position:relative">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg>
+                </button>
+                <button class="ws-trigger"><span class="ws-avatar mono">CO</span><span class="ws-name">compozy</span>
+                  <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <nav class="mb-menus" aria-label="Menus">
+                  <button class="mb-menu">Session</button>
+                  <button class="mb-menu">View</button>
+                  <button class="mb-menu">Help</button>
+                </nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" id="bellBtn" aria-label="Attention, 4 need you" aria-expanded="true" data-od-id="bell-trigger">
+                  <svg data-lucide="bell"></svg>
+                  <span class="badge" id="bellBadge">4</span>
+                </button>
+                <button class="mb-chip mb-cmdk"><span class="mono">⌘K</span></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+
+            <div class="popover bell-pop" id="bellPop" style="right:52px;top:50px" role="dialog" aria-label="Attention" data-od-id="bell-popover">
+              <div class="bell-scroll">
+                <div class="bell-sec" data-od-id="bell-needs-you">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">4</span></div>
+                  <button class="bell-row">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Refactor session store</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — Should I drop the legacy column?</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">2m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Chargeback flow</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — approval to run <code style="font-family:var(--font-mono);font-size:10px">stripe trigger</code></span><span class="bell-row__ws">payments</span></span>
+                    </span>
+                    <span class="bell-row__time">6m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="approval"><svg data-lucide="shield"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Push to origin/main</span>
+                      <span class="bell-row__sub"><span class="why">task approval — release loop</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">12m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">TF upgrade</span>
+                      <span class="bell-row__sub"><span class="why"><b>codex</b> — exit 1 · terraform plan</span><span class="bell-row__ws">infra</span></span>
+                    </span>
+                    <span class="bell-row__time">41m</span>
+                  </button>
+                </div>
+                <div class="bell-sec" data-od-id="bell-finished">
+                  <div class="bell-sec__head">Finished <span class="bell-sec__count">2</span>
+                    <button class="bell-clear">Mark all seen</button>
+                  </div>
+                  <button class="bell-row">
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Release notes draft</span>
+                      <span class="bell-row__sub"><span class="why"><b>hermes</b> — finished while you were away</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">26m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Rotate tokens</span>
+                      <span class="bell-row__sub"><span class="why"><b>codex</b> — finished while you were away</span><span class="bell-row__ws">infra</span></span>
+                    </span>
+                    <span class="bell-row__time">1h</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · SECTION STATES ============ -->
+    <section class="lab-sec" data-od-id="bell-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Section states</h2>
+        <span class="lab-sec__gist">needs-you-only · finished-only · quiet · disconnected</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Only one section</b>Sections render only when populated — no empty headers. Needs-you-only keeps the popover short; finished-only means the badge is hidden (nothing needs you) but the dot-less bell still opens to the finished list.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0;gap:16px;flex-wrap:wrap;display:flex;align-items:flex-start">
+            <div class="popover bell-pop" style="position:relative" data-od-id="bell-needs-only">
+              <div class="bell-scroll">
+                <div class="bell-sec">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">1</span></div>
+                  <button class="bell-row">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Refactor session store</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — Should I drop the legacy column?</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">2m</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="popover bell-pop" style="position:relative" data-od-id="bell-finished-only">
+              <div class="bell-scroll">
+                <div class="bell-sec">
+                  <div class="bell-sec__head">Finished <span class="bell-sec__count">1</span>
+                    <button class="bell-clear">Mark all seen</button>
+                  </div>
+                  <button class="bell-row">
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Rotate tokens</span>
+                      <span class="bell-row__sub"><span class="why"><b>codex</b> — finished while you were away</span><span class="bell-row__ws">infra</span></span>
+                    </span>
+                    <span class="bell-row__time">1h</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Quiet &amp; disconnected</b>Quiet is a real state, not a blank (US-005.EC-1). Disconnected preserves the existing <code>os-bell-disconnected</code> contract: a stale source contributes no count and fires no notification; rows already listed stay clickable as a fallback jump (US-005.EC-2), dimmed.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0;gap:16px;flex-wrap:wrap;display:flex;align-items:flex-start">
+            <div class="popover bell-pop" style="position:relative" data-od-id="bell-quiet">
+              <div class="bell-quiet">
+                <svg data-lucide="bell"></svg>
+                <b>All quiet</b>
+                <p>Nothing needs you.</p>
+              </div>
+            </div>
+            <div class="popover bell-pop" style="position:relative" data-od-id="bell-disconnected">
+              <div class="bell-off">
+                <svg data-lucide="unplug"></svg>
+                <span><b>payments is unreachable.</b> Its rows are frozen and don’t count toward the badge.</span>
+              </div>
+              <div class="bell-scroll" style="padding-top:0">
+                <div class="bell-sec">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">1</span></div>
+                  <button class="bell-row" data-stale>
+                    <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Chargeback flow</span>
+                      <span class="bell-row__sub"><span class="why">last seen 4m ago</span><span class="bell-row__ws">payments</span></span>
+                    </span>
+                    <span class="bell-row__time">6m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Refactor session store</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — Should I drop the legacy column?</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">2m</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Muted workspace</b>Muting a workspace (Settings → Attention) silences toasts, sound and system delivery — the rows and the badge count stay (US-015.AC-1). The row wears a small mute mark so silence is visible, never mysterious.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <div class="popover bell-pop" style="position:relative" data-od-id="bell-muted">
+              <div class="bell-scroll">
+                <div class="bell-sec">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">2</span></div>
+                  <button class="bell-row" data-muted>
+                    <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Chargeback flow</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — approval to run</span><span class="bell-row__ws">payments</span></span>
+                    </span>
+                    <span class="bell-row__time"><svg class="bell-row__mute" data-lucide="bell-off"></svg>6m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Refactor session store</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — Should I drop the legacy column?</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">2m</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Scale</b>At 100+ rows the popover never grows past its cap — the rows region scrolls (US-005.EC-3). Order inside Needs you: most recent transition first; ties stable. Many workspaces stay flat rows with labels — grouping starts only past ~5 workspaces with rows (US-014.EC-3).</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0">
+            <div class="popover bell-pop" style="position:relative" data-od-id="bell-scale">
+              <div class="bell-scroll" style="max-height:240px">
+                <div class="bell-sec">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">137</span></div>
+                  <button class="bell-row">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Refactor session store</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — question</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">2m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Chargeback flow</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — approval</span><span class="bell-row__ws">payments</span></span>
+                    </span>
+                    <span class="bell-row__time">6m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">TF upgrade</span>
+                      <span class="bell-row__sub"><span class="why"><b>codex</b> — exit 1</span><span class="bell-row__ws">infra</span></span>
+                    </span>
+                    <span class="bell-row__time">41m</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Docs sweep</span>
+                      <span class="bell-row__sub"><span class="why"><b>hermes</b> — question</span><span class="bell-row__ws">agh-docs</span></span>
+                    </span>
+                    <span class="bell-row__time">1h</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Sandbox rebuild</span>
+                      <span class="bell-row__sub"><span class="why"><b>codex</b> — exit 137</span><span class="bell-row__ws">sandbox</span></span>
+                    </span>
+                    <span class="bell-row__time">2h</span>
+                  </button>
+                  <button class="bell-row">
+                    <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Deploy site</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — approval</span><span class="bell-row__ws">branas-site</span></span>
+                    </span>
+                    <span class="bell-row__time">3h</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 · BADGE + TITLE COUNT (S4) ============ -->
+    <section class="lab-sec" data-od-id="bell-count">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">What counts — badge &amp; tab title</h2>
+        <span class="lab-sec__gist">needs-you only · cross-workspace · 9+ cap kept</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One number, one meaning</b>Badge = needs-you sessions + pending approvals across all workspaces; stale sources contribute zero. Finished never counts. The tab/app title mirrors the same number while &gt; 0 and survives route changes (US-006) — copy proposal below, final wording owned by the COPY.md pass.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="title-spec">
+            <table class="spec-table">
+              <thead><tr><th>state</th><th>document.title</th><th>note</th></tr></thead>
+              <tbody>
+                <tr><td>count &gt; 0</td><td class="ex">(4) compozy — Compozy</td><td>parenthesized count prefix — the platform-native unread idiom; screen readers announce the change once</td></tr>
+                <tr><td>count = 0</td><td class="ex">compozy — Compozy</td><td>clean title, no residue</td></tr>
+                <tr><td>badge cap</td><td class="ex">9+ (menubar) · (12) title</td><td>menubar pill keeps the 9+ cap; the title carries the exact number</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  /* gating: composition in use-os-attention.ts (workspace-wide authority,
+     staleness-gated); count = needs-you class only, cross-workspace */
+  const btn = document.getElementById("bellBtn");
+  const pop = document.getElementById("bellPop");
+  btn.addEventListener("click", () => {
+    const open = pop.hidden;
+    pop.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+  });
+  lucide.createIcons();
+})();
+</script>
+</body>
+</html>

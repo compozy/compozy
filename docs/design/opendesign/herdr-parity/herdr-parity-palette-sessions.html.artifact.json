@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "herdr-parity/herdr-parity-palette-sessions.html",
+  "entry": "herdr-parity/herdr-parity-palette-sessions.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-16T01:13:29.559Z",
+  "updatedAt": "2026-08-16T01:13:29.559Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

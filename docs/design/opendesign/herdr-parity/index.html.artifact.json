@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "herdr-parity/index.html",
+  "entry": "herdr-parity/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-16T01:14:08.079Z",
+  "updatedAt": "2026-08-16T01:14:08.079Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}
