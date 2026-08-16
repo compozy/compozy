@@ -6,6 +6,8 @@ import type {
   LayoutGestureSession,
 } from "../lib/layout-gesture-session";
 import type { OsWindowRoute } from "../lib/os-types";
+import type { PaletteViewId } from "../lib/palette-view-registry";
+import type { PaletteViewFrame } from "../lib/palette-view-stack";
 import type { SeamPreview } from "../lib/seam-preview";
 import type { SnapCorner, SnapSide, SnapTarget } from "../lib/snap-targets";
 import type {
@@ -117,6 +119,14 @@ export interface WindowManagerStoreState {
   readonly transitionIntent: DesktopTransitionIntent | null;
   readonly routeIntents: Readonly<Record<string, WindowRouteIntent>>;
   readonly paletteIntent: WindowPaletteIntent | null;
+  /**
+   * The palette's nested-view path (ADR-003). Empty is the root palette, so
+   * "reopening starts at root" is a reset rather than a rule to remember.
+   * It lives beside `paletteIntent` because ⌘E raises the Sessions view from
+   * outside the palette tree, exactly like the new-tab picker raises a
+   * destination.
+   */
+  readonly paletteViewStack: readonly PaletteViewFrame[];
   readonly deckDropTarget: DeckDropTarget | null;
   readonly placementCycles: Readonly<Record<string, WindowPlacementCycle>>;
   readonly gesture: LayoutGestureSession | null;
@@ -142,6 +152,9 @@ export type WindowManagerStoreEvents = {
   routeIntentCleared: { windowId: string; intentId: string };
   paletteIntentRequested: { intent: WindowPaletteIntent };
   paletteIntentCleared: {};
+  paletteViewPushed: { viewId: PaletteViewId };
+  paletteViewPopped: {};
+  paletteViewStackSet: { stack: readonly PaletteViewFrame[] };
   deckDropTargeted: { target: DeckDropTarget };
   deckDropCleared: { frameId?: string };
   placementCycleAdvanced: { windowId: string; edge: SnapSide | SnapCorner };

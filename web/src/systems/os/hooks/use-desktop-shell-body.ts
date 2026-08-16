@@ -28,6 +28,7 @@ import { useAttentionJump } from "./use-attention-jump";
 import { useDocumentTitleBadge } from "./use-document-title-badge";
 import { useFocusedSessionId } from "./use-focused-session-id";
 import { useOsAttention } from "./use-os-attention";
+import { openPaletteView } from "./use-os-palette-view-stack";
 import { useOsReducedMotion } from "./use-os-reduced-motion";
 import { useOsShell } from "./use-os-shell";
 import { useOsShortcuts } from "./use-os-shortcuts";
@@ -151,7 +152,11 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   useOsShortcuts(
     {
       onPalette: () => overlays.toggleOverlay("palette"),
-      onPaletteSessions: () => overlays.setOverlayOpen("palette", true),
+      onPaletteSessions: () => {
+        // Opening resets the stack to the root, so the push has to follow it.
+        overlays.setOverlayOpen("palette", true);
+        openPaletteView("sessions");
+      },
       onNewSession: options.onNewSession,
       onDesktops: () => overlays.toggleOverlay("desktops"),
       onWorkspaces: () => overlays.toggleOverlay("workspaces"),

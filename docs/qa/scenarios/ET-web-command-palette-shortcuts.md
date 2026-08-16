@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png
 last_report: docs/qa/reports/2026-08-13-pr-368-coderabbit.md
-overlaps: ET-web-desktop-shell-lifecycle; ET-web-window-routing-lifecycle
+overlaps: ET-web-desktop-shell-lifecycle; ET-web-window-routing-lifecycle; ET-palette-nested-views; ET-palette-sessions-view-switch
 ---
 
 story: As a keyboard operator, I can discover and execute every global desktop action without losing the session runtime shortcut or trapping focus in stale overlays.
@@ -29,3 +29,8 @@ qa-impact: OS Shell Task 04 moved ⌘/Ctrl+K ownership to the global palette, re
 2026-08-16 qa-impact: Command palette and New session moved into the daemon-owned registry while
 remaining available inside inputs; new keyboard navigation actions share that registry. Reset for
 the Herdr parity QA tail.
+
+2026-08-16 qa-impact: The palette root gained a Views group and a keyboard-hint footer; nested view
+behaviour and the Sessions view are walked by `ET-palette-nested-views` and
+`ET-palette-sessions-view-switch`. Already `untested`, so no further reset — this walk still owns
+the flat root behaviour above.
