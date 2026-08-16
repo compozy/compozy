@@ -82,7 +82,7 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				automationNameKey,
 				versionKey,
 				extensionTypeKey,
-				"format",
+				cliFormatKey,
 				automationSourceKey,
 				extensionEnabledKey,
 				stateKey,
@@ -132,16 +132,20 @@ func extensionHumanDetail(item ExtensionRecord, includeFormat bool) string {
 		{Label: sessionTypeValue, Value: stringOrDash(item.Type)},
 	}
 	if includeFormat {
-		rows = append(rows, keyValue{Label: "Format", Value: extensionFormatLabel(item.Format)})
+		rows = append(rows, keyValue{Label: cliFormatValue, Value: extensionFormatLabel(item.Format)})
 	}
-	rows = append(rows,
+	rows = append(
+		rows,
 		keyValue{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
 		keyValue{Label: extensionEnabledValue, Value: fmt.Sprintf("%t", item.Enabled)},
 		keyValue{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
 		keyValue{Label: "Daemon", Value: boolLabel(item.DaemonRunning, "running", "offline")},
 		keyValue{Label: cliPIDValue, Value: intOrDash(item.PID)},
 		keyValue{Label: cliUptimeValue, Value: stringOrDash(formatExtensionUptime(item.UptimeSeconds))},
-		keyValue{Label: extensionHealthValue, Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage))},
+		keyValue{
+			Label: extensionHealthValue,
+			Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage)),
+		},
 		keyValue{Label: extensionCapabilitiesValue, Value: stringOrDash(strings.Join(item.Capabilities, ", "))},
 		keyValue{Label: installPermissionsValue, Value: stringOrDash(strings.Join(item.Permissions, ", "))},
 		keyValue{Label: "Requires Env", Value: stringOrDash(strings.Join(item.RequiresEnv, ", "))},
@@ -263,7 +267,7 @@ func extensionRuntimeSummary(item ExtensionRecord) string {
 		if skipped := extensionSkippedComponentCount(item.Diagnostics); skipped > 0 {
 			component := "components"
 			if skipped == 1 {
-				component = "component"
+				component = cliComponentKey
 			}
 			return fmt.Sprintf("running (%d %s skipped)", skipped, component)
 		}

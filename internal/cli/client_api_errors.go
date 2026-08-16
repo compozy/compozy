@@ -30,6 +30,12 @@ type extensionOperationAPIError struct {
 	payload    contract.ExtensionOperationErrorPayload
 }
 
+type extensionValidationAPIError struct {
+	statusCode int
+	status     string
+	payload    contract.ExtensionValidationErrorPayload
+}
+
 type windowManagerAPIError struct {
 	statusCode int
 	status     string
@@ -81,7 +87,7 @@ func (e *extensionOperationAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
 	}
-	if strings.HasPrefix(strings.TrimSpace(e.payload.Code), "extension_agent_plugin_") {
+	if strings.HasPrefix(strings.TrimSpace(e.payload.Code), extensionAgentPluginDiagnosticPrefix) {
 		return 1
 	}
 	return apiStatusExitCode(e.statusCode)
@@ -98,6 +104,38 @@ func (e *extensionOperationAPIError) DiagnosticItem() contract.DiagnosticItem {
 	if e == nil || e.payload.Diagnostic == nil {
 		var item contract.DiagnosticItem
 		return item
+	}
+	return diagnosticspkg.RedactItem(*e.payload.Diagnostic)
+}
+
+func (e *extensionValidationAPIError) Error() string {
+	if e == nil {
+		return nilToolErrorString
+	}
+	return apiErrorMessage(e.payload.Error, e.status)
+}
+
+func (e *extensionValidationAPIError) cliExitCode() int {
+	if e == nil {
+		return 1
+	}
+	if e.payload.Diagnostic != nil &&
+		e.payload.Diagnostic.Code == "extension_agent_plugin_manifest_invalid" {
+		return 1
+	}
+	return apiStatusExitCode(e.statusCode)
+}
+
+func (e *extensionValidationAPIError) extensionValidationErrorPayload() contract.ExtensionValidationErrorPayload {
+	if e == nil {
+		return contract.ExtensionValidationErrorPayload{}
+	}
+	return e.payload
+}
+
+func (e *extensionValidationAPIError) DiagnosticItem() contract.DiagnosticItem {
+	if e == nil || e.payload.Diagnostic == nil {
+		return contract.DiagnosticItem{}
 	}
 	return diagnosticspkg.RedactItem(*e.payload.Diagnostic)
 }
@@ -176,6 +214,7 @@ func readAPIError(response *http.Response) error {
 func readAPIErrorBody(statusCode int, status string, body []byte) error {
 	if len(body) > 0 {
 		for _, parse := range []func(int, string, []byte) (bool, error){
+			parseExtensionValidationAPIError,
 			parseExtensionOperationAPIError,
 			parseWindowManagerAPIError,
 			parseWorktreeRemovalAPIError,
@@ -201,6 +240,27 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		statusCode: statusCode,
 		status:     status,
 		payload:    contract.ErrorPayload{Error: message},
+	}
+}
+
+func parseExtensionValidationAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var payload contract.ExtensionValidationErrorPayload
+	if json.Unmarshal(body, &payload) != nil || payload.Diagnostic == nil || len(payload.Issues) == 0 {
+		return false, nil
+	}
+	payload.Error = redactToolDiagnostic(payload.Error)
+	redactedDiagnostic := diagnosticspkg.RedactItem(*payload.Diagnostic)
+	payload.Diagnostic = &redactedDiagnostic
+	for index := range payload.Issues {
+		payload.Issues[index].Path = redactToolDiagnostic(payload.Issues[index].Path)
+		payload.Issues[index].Scope = redactToolDiagnostic(payload.Issues[index].Scope)
+		payload.Issues[index].Field = redactToolDiagnostic(payload.Issues[index].Field)
+		payload.Issues[index].Message = redactToolDiagnostic(payload.Issues[index].Message)
+	}
+	return true, &extensionValidationAPIError{
+		statusCode: statusCode,
+		status:     status,
+		payload:    payload,
 	}
 }
 

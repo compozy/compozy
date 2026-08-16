@@ -118,8 +118,8 @@ func TestDecodeReturnsDecoderError(t *testing.T) {
 		}, "\n")), func(data []byte) error {
 			return yaml.UnmarshalWithOptions(data, &meta, yaml.Strict())
 		})
-		if err == nil {
-			t.Fatal("Decode() error = nil, want non-nil")
+		if err == nil || !strings.Contains(err.Error(), "sequence end token") {
+			t.Fatalf("Decode() error = %v, want YAML syntax failure", err)
 		}
 	})
 }
@@ -130,8 +130,9 @@ func TestDecodeRejectsNilCallback(t *testing.T) {
 	t.Run("Should reject a nil decoder callback", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := Decode([]byte("---\nname: shared\n---\nbody"), nil); err == nil {
-			t.Fatal("Decode(nil callback) error = nil, want non-nil")
+		if _, err := Decode([]byte("---\nname: shared\n---\nbody"), nil); err == nil ||
+			err.Error() != "frontmatter: decode callback is required" {
+			t.Fatalf("Decode(nil callback) error = %v, want callback-required failure", err)
 		}
 	})
 }

@@ -55,15 +55,15 @@ journey:
       origin: direct
     - url: https://compozy.com/runtime/core/extensions/install and https://compozy.com/runtime/core/extensions/publish
       origin: external-share
-    - url: https://compozy.com/docs/extensions/agent-plugins
-      origin: external-share
+    - url: packages/site/content/docs/extensions/agent-plugins.mdx
+      origin: direct
   actions:
     - step: 1
       verb: Publish a deterministic release
       expected_observable: Archive and sidecar match the built generation; the credential is server-resolved and absent from output, events, and logs
     - step: 2
       verb: Install once from each source-union variant
-      expected_observable: The request has source, ref, optional version/asset, and explicit consent only; native and plugin.json roots are auto-detected with fixed precedence, and portable output reports format plus every ingested or skipped component
+      expected_observable: One install command per source carries source, ref, optional version/asset, and explicit consent only; native and plugin.json roots are auto-detected with fixed precedence, and portable output reports format plus every ingested or skipped component
     - step: 3
       verb: Inspect provenance and tamper with integrity evidence
       expected_observable: Curated digest verification alone sets checksum_verified; sidecar match never elevates trust and mismatch leaves zero state

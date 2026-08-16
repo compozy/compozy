@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,11 +126,6 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	authorizationHeader string,
 ) (*http.Client, error) {
 	client := e.httpClientForServer(resolved)
-	if resolved.Server.Auth.Enabled() {
-		client.CheckRedirect = func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-	}
 	transport := client.Transport
 	if transport == nil {
 		transport = http.DefaultTransport
@@ -138,10 +134,37 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	if err != nil {
 		return nil, err
 	}
+	configureMCPRedirectPolicy(client, resolved.Server.Auth.Enabled(), authorizationHeader != "" || len(headers) > 0)
 	client.Transport = authorizationRoundTripper{
 		next: transport, header: authorizationHeader, headers: headers,
 	}
 	return client, nil
+}
+
+func configureMCPRedirectPolicy(client *http.Client, authEnabled bool, carriesCredentials bool) {
+	previous := client.CheckRedirect
+	client.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+		if authEnabled {
+			return http.ErrUseLastResponse
+		}
+		if carriesCredentials && len(via) > 0 && !sameHTTPOrigin(via[0].URL, request.URL) {
+			return http.ErrUseLastResponse
+		}
+		if previous != nil {
+			return previous(request, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("mcp: stopped after 10 redirects")
+		}
+		return nil
+	}
+}
+
+func sameHTTPOrigin(left *url.URL, right *url.URL) bool {
+	if left == nil || right == nil {
+		return false
+	}
+	return strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Host, right.Host)
 }
 
 func (e *CallExecutor) resolveMCPRequestHeaders(
@@ -319,6 +342,7 @@ func (e *CallExecutor) newMCPStdioLaunch(
 		"UV_CACHE_DIR="+filepath.Join(home, "uv-cache"),
 	)
 	command := mcpStdioCommandWithExactEnv(ctx, strings.TrimSpace(server.Command), env, trimStrings(server.Args))
+	command.Dir = strings.TrimSpace(server.CWD)
 	return mcpStdioLaunch{command: command, cleanup: cleanup}, nil
 }
 

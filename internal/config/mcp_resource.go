@@ -42,6 +42,7 @@ func normalizeMCPServerResourceSpec(spec MCPServer) MCPServer {
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.Transport = MCPServerTransport(strings.TrimSpace(string(normalized.Transport)))
 	normalized.Command = strings.TrimSpace(normalized.Command)
+	normalized.CWD = strings.TrimSpace(normalized.CWD)
 	normalized.URL = strings.TrimSpace(normalized.URL)
 	for idx, arg := range normalized.Args {
 		normalized.Args[idx] = strings.TrimSpace(arg)

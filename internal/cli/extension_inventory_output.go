@@ -19,7 +19,7 @@ func extensionInventoryBundle(payload ExtensionInventoryRecord) outputBundle {
 			blocks := []string{
 				renderHumanSection("Extension inventory", []keyValue{
 					{Label: "Extension", Value: payload.Extension},
-					{Label: "Format", Value: extensionFormatLabel(payload.Format)},
+					{Label: cliFormatValue, Value: extensionFormatLabel(payload.Format)},
 					{Label: automationEnabledValue, Value: fmt.Sprintf("%t", payload.Enabled)},
 				}),
 				extensionKitResourceHumanTable("Resources", cliLiveValue, extensionKitItemRows(payload.Items)),
@@ -40,7 +40,7 @@ func extensionInventoryBundle(payload ExtensionInventoryRecord) outputBundle {
 			return renderHumanBlocks(
 				renderToonObject(
 					"extension_inventory",
-					[]string{extensionExtensionKey, "format", extensionEnabledKey, "diagnostics"},
+					[]string{extensionExtensionKey, cliFormatKey, extensionEnabledKey, "diagnostics"},
 					[]string{
 						payload.Extension, payload.Format, fmt.Sprintf("%t", payload.Enabled), string(diagnosticsJSON),
 					},

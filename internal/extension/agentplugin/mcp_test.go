@@ -157,6 +157,52 @@ func TestLoadMCPPerServerIsolation(t *testing.T) {
 	})
 }
 
+func TestLoadMCPRejectsNullCollectionEntries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		server any
+	}{
+		{
+			name:   "Should reject a null server entry",
+			server: nil,
+		},
+		{
+			name:   "Should reject a null stdio argument",
+			server: map[string]any{"type": "stdio", "command": "tool", "args": []any{"ok", nil}},
+		},
+		{
+			name:   "Should reject a null stdio environment value",
+			server: map[string]any{"type": "stdio", "command": "tool", "env": map[string]any{"TOKEN": nil}},
+		},
+		{
+			name: "Should reject a null remote header value",
+			server: map[string]any{
+				"type": "streamable-http", "url": "https://example.com/mcp",
+				"headers": map[string]any{"X-Tenant": nil},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := newPackageRoot(t, "null-collection")
+			writeMCPFile(t, root, map[string]any{"subject": test.server})
+			pkg := loadForTest(t, root)
+			if len(pkg.Servers) != 0 ||
+				!hasDiagnostic(pkg.Diagnostics, "mcp:subject", "invalid mcp server entry") {
+				t.Fatalf(
+					"Load() = servers %#v diagnostics %#v, want isolated null-entry rejection",
+					pkg.Servers,
+					pkg.Diagnostics,
+				)
+			}
+		})
+	}
+}
+
 func TestLoadMCPCommandPolicy(t *testing.T) {
 	t.Parallel()
 

@@ -1,0 +1,59 @@
+{
+  "run_date": "2026-08-16",
+  "status": "pass",
+  "source_commit": "f85601523c9ebdf85d6931d151acf19f8033d14f",
+  "working_tree_diff_sha256": "0a5a6051b299bab3aa05180c1e2ea0fa55eb07d56f2fdf7cbff5e815e0260e1a",
+  "binary_sha256": "45f7087df5c91caf24745f95425b26ba41efb195402bc48cb95d0f31f96b1fea",
+  "plugin_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "mcp_schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "items": [
+    {
+      "item": 1,
+      "status": "pass",
+      "observable": "Validation and installation detected plugin.json from an unpacked directory without a format flag; status reported format=agent-plugin.",
+      "evidence": "docs/qa/reports/2026-08-16-agent-plugins.md#conformance-walk"
+    },
+    {
+      "item": 2,
+      "status": "pass",
+      "observable": "The closed 1.0.0 plugin schema was selected by its exact URI; future and client-owned schemas were rejected or classified outside the portable format.",
+      "evidence": "internal/extension/agentplugin/classify_test.go; internal/extension/agentplugin/manifest_test.go"
+    },
+    {
+      "item": 3,
+      "status": "pass",
+      "observable": "Unknown top-level extension namespaces were ignored while owned fields retained closed validation and deterministic diagnostics.",
+      "evidence": "internal/extension/agentplugin/manifest_test.go; docs/qa/reports/2026-08-16-agent-plugins.md#conformance-walk"
+    },
+    {
+      "item": 4,
+      "status": "pass",
+      "observable": "Skills and MCP configuration were discovered only at the standard fixed locations under the package root.",
+      "evidence": "internal/extension/agentplugin/skills_test.go; internal/extension/agentplugin/mcp_test.go"
+    },
+    {
+      "item": 5,
+      "status": "pass",
+      "observable": "The exact 1.0.0 MCP schema produced one stdio server and one streamable-http server; both were invoked through the daemon-hosted MCP projection.",
+      "evidence": "Compozy sessions sess-881a3c777fe36d33 and sess-718859a9a9963f8a; internal/extension/agentplugin/mcp_test.go"
+    },
+    {
+      "item": 6,
+      "status": "pass",
+      "observable": "PLUGIN_ROOT and PLUGIN_DATA expanded to absolute contained paths in args, environment values, and cwd; the provider wrote only beneath PLUGIN_DATA.",
+      "evidence": "Compozy sessions sess-881a3c777fe36d33 and sess-718859a9a9963f8a; internal/extension/agentplugin/mcp_test.go#TestLoadMCPEnvironmentAndExpansion"
+    },
+    {
+      "item": 7,
+      "status": "pass",
+      "observable": "The stdio command stayed one executable token and defaulted cwd to the package root when cwd was omitted.",
+      "evidence": "internal/extension/agentplugin/mcp_test.go#TestLoadMCPCommandPolicy; internal/extension/agentplugin/mcp_test.go#TestLoadMCPCWDPolicy"
+    },
+    {
+      "item": 8,
+      "status": "pass",
+      "observable": "One installed generation exposed two skills and two MCP servers through extension inventory and real Claude Code and Hermes sessions.",
+      "evidence": "docs/qa/evidence/2026-08-16-agent-plugins/provider-matrix.json; docs/qa/reports/2026-08-16-agent-plugins.md#conformance-walk"
+    }
+  ]
+}

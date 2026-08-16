@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,25 +44,31 @@ func TestLoadManifestSynthesizesAgentPluginPackages(t *testing.T) {
 		if first.Format != FormatAgentPlugin || first.Name != "acme.tools" || first.Version != "1.2.0" {
 			t.Fatalf("LoadManifest() identity = %#v, want agent-plugin acme.tools@1.2.0", first)
 		}
-		canonicalRoot, canonicalErr := filepath.EvalSymlinks(root)
-		if canonicalErr != nil {
-			t.Fatalf("EvalSymlinks(root) error = %v", canonicalErr)
-		}
 		if got, want := first.Resources.Skills, []string{
-			filepath.Join(canonicalRoot, "skills", "release", "SKILL.md"),
-			filepath.Join(canonicalRoot, "skills", "review", "SKILL.md"),
+			filepath.Join("skills", "release", "SKILL.md"),
+			filepath.Join("skills", "review", "SKILL.md"),
 		}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("Skills = %#v, want %#v", got, want)
 		}
+		if err := validateStaticKitResources(context.Background(), root, first); err != nil {
+			t.Fatalf("validateStaticKitResources() error = %v", err)
+		}
 		stdio := first.Resources.MCPServers["local"]
-		if stdio.Transport != "stdio" || stdio.Command != "node" || len(stdio.Env) == 0 {
+		canonicalRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			t.Fatalf("filepath.EvalSymlinks(root) error = %v", err)
+		}
+		if stdio.Transport != "stdio" || stdio.Command != "node" ||
+			stdio.CWD != canonicalRoot || len(stdio.Env) == 0 {
 			t.Fatalf("stdio server = %#v, want mapped command and env", stdio)
 		}
 		remote := first.Resources.MCPServers["remote"]
-		if remote.Transport != "http" || remote.URL != "https://example.com/mcp" || remote.Headers["X-Tenant"] != "acme" {
+		if remote.Transport != "http" || remote.URL != "https://example.com/mcp" ||
+			remote.Headers["X-Tenant"] != "acme" {
 			t.Fatalf("remote server = %#v, want mapped http server", remote)
 		}
-		if len(first.Capabilities.Provides) != 0 || len(first.Permissions.Requires) != 0 || first.Subprocess.Command != "" {
+		if len(first.Capabilities.Provides) != 0 || len(first.Permissions.Requires) != 0 ||
+			first.Subprocess.Command != "" {
 			t.Fatalf("portable manifest gained runtime authority: %#v", first)
 		}
 	})
@@ -111,31 +118,35 @@ min_compozy_version = "0.6.0"
 // Canonical suite: extension manifest tests.
 func TestAgentPluginDiagnosticsPreserveScopeAndOrder(t *testing.T) {
 	t.Parallel()
-	values := []agentplugin.Diagnostic{
-		{Scope: "skill:zeta", Message: "missing description"},
-		{Scope: "mcp:alpha", Message: "sse transport is not supported"},
-		{Scope: "mcp:alpha", Message: "invalid mcp server entry"},
-	}
-	first := AgentPluginDiagnostics("acme.tools", values)
-	second := AgentPluginDiagnostics("acme.tools", values)
-	if !reflect.DeepEqual(first, second) {
-		t.Fatalf("AgentPluginDiagnostics() is not deterministic:\nfirst=%#v\nsecond=%#v", first, second)
-	}
-	if len(first) != 3 {
-		t.Fatalf("diagnostics len = %d, want 3", len(first))
-	}
-	for _, item := range first {
-		if item.Code != "extension_agent_plugin_component_skipped" || item.Severity != "warn" || item.Category != "extension" {
-			t.Fatalf("diagnostic = %#v, want canonical portable skip", item)
+	t.Run("Should retain diagnostic scope and stable ordering", func(t *testing.T) {
+		t.Parallel()
+		values := []agentplugin.Diagnostic{
+			{Scope: "skill:zeta", Message: "missing description"},
+			{Scope: "mcp:alpha", Message: "sse transport is not supported"},
+			{Scope: "mcp:alpha", Message: "invalid mcp server entry"},
 		}
-		if scope, ok := item.Evidence["scope"].(string); !ok || scope == "" {
-			t.Fatalf("diagnostic evidence = %#v, want scope", item.Evidence)
+		first := AgentPluginDiagnostics("acme.tools", values)
+		second := AgentPluginDiagnostics("acme.tools", values)
+		if !reflect.DeepEqual(first, second) {
+			t.Fatalf("AgentPluginDiagnostics() is not deterministic:\nfirst=%#v\nsecond=%#v", first, second)
 		}
-	}
-	if first[0].Message != `mcp server "alpha": invalid mcp server entry` ||
-		first[1].Message != `mcp server "alpha": sse transport is not supported` {
-		t.Fatalf("diagnostic order = %#v, want scope then message", first)
-	}
+		if len(first) != 3 {
+			t.Fatalf("diagnostics len = %d, want 3", len(first))
+		}
+		for _, item := range first {
+			if item.Code != "extension_agent_plugin_component_skipped" || item.Severity != "warn" ||
+				item.Category != "extension" {
+				t.Fatalf("diagnostic = %#v, want canonical portable skip", item)
+			}
+			if scope, ok := item.Evidence["scope"].(string); !ok || scope == "" {
+				t.Fatalf("diagnostic evidence = %#v, want scope", item.Evidence)
+			}
+		}
+		if first[0].Message != `mcp server "alpha": invalid mcp server entry` ||
+			first[1].Message != `mcp server "alpha": sse transport is not supported` {
+			t.Fatalf("diagnostic order = %#v, want scope then message", first)
+		}
+	})
 }
 
 func writeAgentPluginManifestFixture(t *testing.T) string {

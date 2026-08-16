@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -56,7 +57,7 @@ func ReconcileManagedExtensionArtifacts(
 			if err := removeReconcilePath(path); err != nil {
 				return err
 			}
-		case strings.Contains(name, managedInstallBackupMarker):
+		case isManagedInstallBackupName(name):
 			base, _, _ := strings.Cut(name, managedInstallBackupMarker)
 			backups[base] = append(backups[base], path)
 		case owners[name] == nil:
@@ -73,12 +74,28 @@ func ReconcileManagedExtensionArtifacts(
 	return nil
 }
 
+func isManagedInstallBackupName(name string) bool {
+	base, suffix, found := strings.Cut(name, managedInstallBackupMarker)
+	if !found || base == "" || suffix == "" {
+		return false
+	}
+	if strings.Contains(suffix, managedInstallBackupMarker) {
+		return false
+	}
+	nanoseconds, err := strconv.ParseInt(suffix, 10, 64)
+	return err == nil && nanoseconds > 0
+}
+
 func managedInstallOwners(root string, infos []ExtensionInfo) (map[string]*ExtensionInfo, error) {
 	owners := make(map[string]*ExtensionInfo)
 	for idx := range infos {
 		installDir, err := InstalledExtensionDir(infos[idx])
 		if err != nil {
-			return nil, fmt.Errorf("extension: resolve registered install %q during reconciliation: %w", infos[idx].Name, err)
+			return nil, fmt.Errorf(
+				"extension: resolve registered install %q during reconciliation: %w",
+				infos[idx].Name,
+				err,
+			)
 		}
 		relative, err := filepath.Rel(root, installDir)
 		if err != nil {

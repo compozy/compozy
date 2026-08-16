@@ -83,12 +83,14 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 	}
 
+	expectedCWD := filepath.Join(t.TempDir(), "work")
 	record, err := store.Put(testutil.Context(t), actor, resources.Draft[compozyconfig.MCPServer]{
 		ID:    "git",
 		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 		Spec: compozyconfig.MCPServer{
 			Name:    " git ",
 			Command: " npx ",
+			CWD:     " " + expectedCWD + " ",
 			Args:    []string{" --stdio "},
 			SecretEnv: map[string]string{
 				" TOKEN ": " env:GIT_TOKEN ",
@@ -104,6 +106,9 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 	}
 	if got, want := record.Spec.Command, "npx"; got != want {
 		t.Fatalf("record.Spec.Command = %q, want %q", got, want)
+	}
+	if got, want := record.Spec.CWD, expectedCWD; got != want {
+		t.Fatalf("record.Spec.CWD = %q, want %q", got, want)
 	}
 	if got, want := len(record.Spec.Args), 1; got != want {
 		t.Fatalf("len(record.Spec.Args) = %d, want %d", got, want)
@@ -124,6 +129,9 @@ func TestMCPServerResourceStoreRoundTripReturnsTypedRecords(t *testing.T) {
 	}
 	if listed[0].Spec.Name != "git" {
 		t.Fatalf("listed[0].Spec = %#v, want typed normalized git server", listed[0].Spec)
+	}
+	if listed[0].Spec.CWD != record.Spec.CWD {
+		t.Fatalf("listed[0].Spec.CWD = %q, want %q", listed[0].Spec.CWD, record.Spec.CWD)
 	}
 }
 

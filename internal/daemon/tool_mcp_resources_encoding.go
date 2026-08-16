@@ -108,6 +108,7 @@ func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
 		Name:          src.Name,
 		Transport:     src.Transport,
 		Command:       src.Command,
+		CWD:           src.CWD,
 		Args:          slices.Clone(src.Args),
 		Env:           cloneStringMap(src.Env),
 		SecretEnv:     cloneStringMap(src.SecretEnv),

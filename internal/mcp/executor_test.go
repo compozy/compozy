@@ -180,6 +180,41 @@ func TestMCPCallExecutor(t *testing.T) {
 		}
 	})
 
+	t.Run("Should block credential-bearing redirects to a different origin", func(t *testing.T) {
+		t.Parallel()
+
+		var targetCalls atomic.Int32
+		target := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			targetCalls.Add(1)
+			if request.Header.Get("X-Deployment-Key") != "" {
+				t.Errorf("cross-origin target received X-Deployment-Key")
+			}
+			writer.WriteHeader(http.StatusNoContent)
+		}))
+		t.Cleanup(target.Close)
+		redirect := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			http.Redirect(writer, request, target.URL, http.StatusTemporaryRedirect)
+		}))
+		t.Cleanup(redirect.Close)
+
+		server := compozyconfig.MCPServer{
+			Name: "deployment-api", Transport: compozyconfig.MCPServerTransportHTTP, URL: redirect.URL,
+			SecretHeaders: map[string]string{
+				"X-Deployment-Key": "vault:extensions/global/kit/env/DEPLOYMENT_KEY",
+			},
+		}
+		executor := newTestMCPExecutor(t, server, WithSecretResolver(secretRefResolverFunc(
+			func(context.Context, string) (string, error) { return "resolved-secret", nil },
+		)))
+		_, err := executor.ListTools(t.Context(), toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: server.Name, RawServerName: server.Name,
+		})
+		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
+		if targetCalls.Load() != 0 {
+			t.Fatalf("cross-origin redirect target calls = %d, want 0", targetCalls.Load())
+		}
+	})
+
 	t.Run("Should block catalog HTTP servers from reaching loopback", func(t *testing.T) {
 		t.Parallel()
 
@@ -2012,8 +2047,10 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		if err == nil {
 			t.Fatal("ListTools() error = nil, want PATH-miss launch failure")
 		}
+		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
 		entries := registry.Entries("kit", "", "generation-path-miss")
-		if len(entries) != 1 || entries[0].Key.ServerName != server.Name {
+		if len(entries) != 1 || entries[0].Key.ServerName != server.Name ||
+			!strings.Contains(entries[0].Message, server.Command) {
 			t.Fatalf("runtime health entries = %#v, want only %q", entries, server.Name)
 		}
 	})
@@ -2047,6 +2084,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		if err == nil {
 			t.Fatal("ListTools() error = nil, want data-directory failure")
 		}
+		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
 		entries := registry.Entries("kit", "", "generation-a")
 		if len(entries) != 1 || entries[0].Key.ServerName != "broken-stdio" ||
 			!strings.Contains(entries[0].Message, "injected data directory failure") {
@@ -2108,6 +2146,42 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		}
 		if entries := registry.Entries("kit", "", "generation-http"); len(entries) != 0 {
 			t.Fatalf("runtime health after successful exchange = %#v, want empty", entries)
+		}
+	})
+
+	t.Run("Should not record invalid caller input as a server outage", func(t *testing.T) {
+		t.Parallel()
+
+		server := newTestMCPHTTPServer(newFakeSDKServer(nil))
+		t.Cleanup(server.Close)
+		health := NewRuntimeHealthRegistry()
+		healthKey := RuntimeHealthKey{
+			InstanceName: "kit", BundleGeneration: "generation-input", ServerName: "fixture",
+		}
+		executor, err := NewMCPCallExecutor(
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
+				resolved := compozyconfig.MCPServer{
+					Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
+				}
+				return ResolvedServer{
+					Server: resolved, Target: globalMCPExecutorTarget(resolved.Name), HealthKey: healthKey,
+				}, nil
+			}),
+			WithRuntimeHealthRegistry(health),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPCallExecutor() error = %v", err)
+		}
+		_, err = executor.CallTool(t.Context(), toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "fixture", RawServerName: "fixture",
+		}, toolspkg.MCPToolCallRequest{
+			ToolID: "mcp__fixture__echo", RawToolName: "echo", Input: json.RawMessage(`[`),
+		})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) || !strings.Contains(err.Error(), "invalid JSON") {
+			t.Fatalf("CallTool(invalid input) error = %v, want invalid JSON input", err)
+		}
+		if entries := health.Entries("kit", "", "generation-input"); len(entries) != 0 {
+			t.Fatalf("runtime health entries = %#v, want caller error excluded", entries)
 		}
 	})
 
@@ -2356,6 +2430,33 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		releaseRedactions()
 		if got := diagnostics.Redact("diagnostic " + secret); !strings.Contains(got, secret) {
 			t.Fatalf("post-client-cleanup diagnostic = %q, retained stdio secret", got)
+		}
+	})
+
+	t.Run("Should launch stdio servers in the projected working directory", func(t *testing.T) {
+		t.Parallel()
+
+		workingDir := t.TempDir()
+		executor := &CallExecutor{}
+		server := compozyconfig.MCPServer{
+			Name: "local", Transport: compozyconfig.MCPServerTransportStdio,
+			Command: os.Args[0], CWD: workingDir,
+		}
+		launch, err := executor.newMCPStdioLaunch(
+			t.Context(),
+			server,
+			globalMCPExecutorTarget(server.Name),
+		)
+		if err != nil {
+			t.Fatalf("newMCPStdioLaunch() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if cleanupErr := launch.cleanup(); cleanupErr != nil {
+				t.Errorf("stdio home cleanup error = %v", cleanupErr)
+			}
+		})
+		if launch.command.Dir != workingDir {
+			t.Fatalf("command.Dir = %q, want %q", launch.command.Dir, workingDir)
 		}
 	})
 }

@@ -147,7 +147,13 @@ func TestDescribeExtensionProjectsFormatAndOrderedDiagnostics(t *testing.T) {
 		if payload.Format != string(FormatAgentPlugin) {
 			t.Fatalf("DescribeExtension().Format = %q, want %q", payload.Format, FormatAgentPlugin)
 		}
-		if want := []diagnosticcontract.DiagnosticItem{recorded, provenance}; !reflect.DeepEqual(payload.Diagnostics, want) {
+		if want := []diagnosticcontract.DiagnosticItem{
+			recorded,
+			provenance,
+		}; !reflect.DeepEqual(
+			payload.Diagnostics,
+			want,
+		) {
 			t.Fatalf("DescribeExtension().Diagnostics = %#v, want %#v", payload.Diagnostics, want)
 		}
 	})

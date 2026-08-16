@@ -14,6 +14,8 @@ flowchart TD
   P --> P1[extensions_validate auto-detects schema 1.0.0 without writing daemon state]
   P1 -->|fatal manifest error| P2[Reject the whole package with a deterministic code and no side effects]
   P1 -->|component issue| P3[Keep valid siblings and report ordered scoped warnings]
+  P1 -->|clean package| P3A[Report every ingested resource with no skipped diagnostics]
+  P3A --> P4
   P3 --> P4[Eight-item minimum-conformance evidence is complete]
   P4 --> ZP[True end portable: evidence complete with no registry, data, process, or resource mutation]
   E -->|invalid provide, permission, or command metadata| E1[Closed validation rejects with no activation]
@@ -49,8 +51,8 @@ journey:
       origin: direct
     - url: compozy extension validate <agent-plugin-directory> -o human|json|jsonl|toon
       origin: direct
-    - url: https://compozy.com/docs/extensions/agent-plugins
-      origin: external-share
+    - url: packages/site/content/docs/extensions/agent-plugins.mdx
+      origin: direct
   actions:
     - step: 1
       verb: Discover and follow the official extension-authoring guidance

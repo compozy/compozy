@@ -36,9 +36,9 @@ func marketplaceRemoveCleanupWarning(
 		DataFreshness: diagnosticcontract.FreshnessLive,
 	},
 		diagnostics.WithEvidence(map[string]any{
-			managerExtensionKey: extensionName,
-			"cleanup_target":    marketplaceUpdateCleanupBackup,
-			manifestPathKey:     path,
+			managerExtensionKey:         extensionName,
+			marketplaceCleanupTargetKey: marketplaceUpdateCleanupBackup,
+			manifestPathKey:             path,
 		}),
 	)
 }
@@ -57,8 +57,8 @@ func extensionDataCleanupWarning(
 		Severity:      diagnosticcontract.SeverityWarn,
 		DataFreshness: diagnosticcontract.FreshnessLive,
 	}, diagnostics.WithEvidence(map[string]any{
-		managerExtensionKey: extensionName,
-		"cleanup_target":    "extension_data",
-		manifestPathKey:     path,
+		managerExtensionKey:         extensionName,
+		marketplaceCleanupTargetKey: "extension_data",
+		manifestPathKey:             path,
 	}))
 }

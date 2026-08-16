@@ -78,6 +78,7 @@ func cloneMCPServer(src MCPServer) MCPServer {
 		Name:           src.Name,
 		Transport:      src.Transport,
 		Command:        src.Command,
+		CWD:            src.CWD,
 		Args:           append([]string(nil), src.Args...),
 		Env:            mergeStringMaps(nil, src.Env),
 		SecretEnv:      mergeStringMaps(nil, src.SecretEnv),

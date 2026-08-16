@@ -8,6 +8,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func agentPluginManifestErrorPayload(
@@ -34,8 +35,8 @@ func agentPluginManifestErrorPayload(
 		for _, item := range validationErr.Issues {
 			issues = append(issues, contract.ValidationIssue{
 				Path:     "plugin.json",
-				Field:    strings.TrimSpace(item.Path),
-				Message:  strings.TrimSpace(item.Message),
+				Field:    redactAgentPluginIssueText(item.Path),
+				Message:  redactAgentPluginIssueText(item.Message),
 				Severity: contract.IssueSeverityError,
 			})
 		}
@@ -43,4 +44,8 @@ func agentPluginManifestErrorPayload(
 	return contract.ExtensionValidationErrorPayload{
 		Error: message, Diagnostic: &diagnostic, Issues: issues,
 	}
+}
+
+func redactAgentPluginIssueText(value string) string {
+	return diagnosticspkg.Redact(taskpkg.RedactClaimTokens(strings.TrimSpace(value)))
 }

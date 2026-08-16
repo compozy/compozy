@@ -154,7 +154,6 @@ func InstallMarketplaceManaged(
 func prepareMarketplaceManagedInstall(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
-	registry LifecycleRegistry,
 	loader MarketplaceSourceLoader,
 	req MarketplaceInstallRequest,
 ) (_ marketplaceManagedInstall, err error) {

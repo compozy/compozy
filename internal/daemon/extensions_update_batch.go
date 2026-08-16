@@ -25,7 +25,7 @@ func (s *daemonExtensionService) finalizeMarketplaceUpdateBatch(
 		eventType := ""
 		switch item.Status {
 		case extensionpkg.MarketplaceUpdateStatusUpdated:
-			s.mcpRuntimeHealth.EvictInstance(item.Name, "")
+			s.evictExtensionMCPHealth(item.Name, "")
 			eventType = eventspkg.ExtensionUpdateCompleted
 		case extensionpkg.MarketplaceUpdateStatusFailed:
 			eventType = eventspkg.ExtensionUpdateFailed

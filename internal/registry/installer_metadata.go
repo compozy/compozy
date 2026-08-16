@@ -86,19 +86,7 @@ func locateInstallManifestRoot(
 	closeCurrentOnError := false
 	descended := false
 	defer func() {
-		if err == nil {
-			return
-		}
-		if closeCurrentOnError {
-			if closeErr := current.Close(); closeErr != nil {
-				err = errors.Join(err, fmt.Errorf("registry: close manifest search directory: %w", closeErr))
-			}
-		}
-		if currentParent != rootParent {
-			if closeErr := currentParent.Close(); closeErr != nil {
-				err = errors.Join(err, fmt.Errorf("registry: close manifest search parent: %w", closeErr))
-			}
-		}
+		err = closeInstallManifestSearchOnError(err, rootParent, currentParent, current, closeCurrentOnError)
 	}()
 
 	for {
@@ -158,6 +146,29 @@ func locateInstallManifestRoot(
 		closeCurrentOnError = true
 		descended = true
 	}
+}
+
+func closeInstallManifestSearchOnError(
+	cause error,
+	rootParent *fileutil.Directory,
+	currentParent *fileutil.Directory,
+	current *fileutil.Directory,
+	closeCurrent bool,
+) error {
+	if cause == nil {
+		return nil
+	}
+	if closeCurrent {
+		if err := current.Close(); err != nil {
+			cause = errors.Join(cause, fmt.Errorf("registry: close manifest search directory: %w", err))
+		}
+	}
+	if currentParent != rootParent {
+		if err := currentParent.Close(); err != nil {
+			cause = errors.Join(cause, fmt.Errorf("registry: close manifest search parent: %w", err))
+		}
+	}
+	return cause
 }
 
 func isClientSpecificInstallDirectory(name string) bool {
@@ -296,7 +307,11 @@ func parseInstalledPackageMetadata(root *fileutil.Directory, manifestName string
 			)
 		}
 		return installedPackageMetadata{
-			name: strings.TrimSpace(meta.Name), version: strings.TrimSpace(meta.Version), verifyContent: string(content),
+			name: strings.TrimSpace(
+				meta.Name,
+			),
+			version:       strings.TrimSpace(meta.Version),
+			verifyContent: string(content),
 		}, nil
 	default:
 		return installedPackageMetadata{}, fmt.Errorf("registry: unsupported manifest %q", manifestName)

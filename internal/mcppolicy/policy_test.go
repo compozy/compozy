@@ -160,12 +160,21 @@ func TestValidateRemoteURL(t *testing.T) {
 		"ftp://example.com/mcp",
 		"/relative",
 	}
-	for _, endpoint := range invalid {
+	wantMessages := []string{
+		"non-loopback MCP endpoints must use https",
+		"MCP endpoint URL must not contain user information",
+		"MCP endpoint URL must not contain a fragment",
+		"MCP endpoint URL must not contain a fragment",
+		"MCP endpoint URL must use http or https",
+		"MCP endpoint URL must use http or https",
+	}
+	for index, endpoint := range invalid {
 		t.Run("Should reject "+endpoint, func(t *testing.T) {
 			t.Parallel()
 
-			if err := ValidateRemoteURL(endpoint); err == nil {
-				t.Fatalf("ValidateRemoteURL(%q) error = nil, want non-nil", endpoint)
+			err := ValidateRemoteURL(endpoint)
+			if err == nil || err.Error() != wantMessages[index] {
+				t.Fatalf("ValidateRemoteURL(%q) error = %v, want %q", endpoint, err, wantMessages[index])
 			}
 		})
 	}

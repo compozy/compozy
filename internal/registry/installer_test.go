@@ -32,13 +32,23 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 
 	t.Run("Should install a supported plugin root through a single wrapper", func(t *testing.T) {
 		t.Parallel()
-		archive := mustTarGz(t, []tarEntry{{
-			name:    "wrapper/plugin.json",
-			content: fmt.Sprintf(`{"$schema":%q,"name":"portable.tools","version":"1.2.0"}`, agentplugin.PluginSchemaID),
-		}})
-		downloader := &stubDownloader{downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
-			return &DownloadResult{ContentType: "application/gzip", Reader: io.NopCloser(bytes.NewReader(archive))}, nil
-		}}
+		archive := mustTarGz(t, []tarEntry{
+			{
+				name: "wrapper/plugin.json",
+				content: fmt.Sprintf(
+					`{"$schema":%q,"name":"portable.tools","version":"1.2.0"}`,
+					agentplugin.PluginSchemaID,
+				),
+			},
+		})
+		downloader := &stubDownloader{
+			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+				return &DownloadResult{
+					ContentType: "application/gzip",
+					Reader:      io.NopCloser(bytes.NewReader(archive)),
+				}, nil
+			},
+		}
 		target := filepath.Join(t.TempDir(), "portable.tools")
 		result, err := NewInstaller(downloader).Install(t.Context(), "portable.tools", DownloadOpts{}, target)
 		if err != nil {
@@ -53,12 +63,19 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writeTestFile(t, filepath.Join(root, installerExtensionManifestName), "name = \"native\"")
-		writeTestFile(t, filepath.Join(root, installerSkillManifestName), "---\nname: native\ndescription: Native\n---\n")
+		writeTestFile(
+			t,
+			filepath.Join(root, installerSkillManifestName),
+			"---\nname: native\ndescription: Native\n---\n",
+		)
 		writeTestFile(t, filepath.Join(root, installerAgentPluginManifestName), fmt.Sprintf(
 			`{"$schema":%q,"name":"portable"}`,
 			agentplugin.PluginSchemaID,
 		))
 		_, err := manifestNameAtRoot(openArchiveTestRoot(t, root))
+		if err == nil {
+			t.Fatal("manifestNameAtRoot() error = nil, want native manifest conflict")
+		}
 		if got, want := err.Error(), "registry: archive root contains both extension.toml and SKILL.md"; got != want {
 			t.Fatalf("manifestNameAtRoot() error = %q, want %q", got, want)
 		}
@@ -81,7 +98,11 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 	t.Run("Should reject an unrelated root plugin and name every accepted root", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
-		writeTestFile(t, filepath.Join(root, installerAgentPluginManifestName), `{"$schema":"https://example.com/plugin.json","name":"other"}`)
+		writeTestFile(
+			t,
+			filepath.Join(root, installerAgentPluginManifestName),
+			`{"$schema":"https://example.com/plugin.json","name":"other"}`,
+		)
 		_, err := manifestNameAtRoot(openArchiveTestRoot(t, root))
 		if !errors.Is(err, errInstallMissingManifest) {
 			t.Fatalf("manifestNameAtRoot() error = %v, want errInstallMissingManifest", err)

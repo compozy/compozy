@@ -120,6 +120,7 @@ func (d *reconcileDriver) updateAsyncPassState(
 		return ReconcileHealth{}, false, false
 	}
 	state.running = false
+	state.lastErr = result.err
 
 	dirty := state.dirty
 	dirtyReason := state.dirtyReason
@@ -163,6 +164,7 @@ func (d *reconcileDriver) updateAsyncPassState(
 		state.readyAt = d.now().Add(d.coalesceWindow)
 		d.queue = append([]ResourceKind{kind}, d.queue...)
 	}
+	d.signalStateChangedLocked()
 
 	return health, emitDegraded, true
 }

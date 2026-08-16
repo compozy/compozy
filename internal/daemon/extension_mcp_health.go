@@ -51,6 +51,13 @@ func extensionMCPHealthGeneration(ext *extensionpkg.Extension) string {
 	return strings.TrimSpace(ext.Info.Checksum)
 }
 
+func (s *daemonExtensionService) evictExtensionMCPHealth(name string, workspaceID string) {
+	if s == nil || s.mcpRuntimeHealth == nil {
+		return
+	}
+	s.mcpRuntimeHealth.EvictInstance(name, workspaceID)
+}
+
 func extensionMCPHealthDiagnostics(
 	registry *mcppkg.RuntimeHealthRegistry,
 	ext *extensionpkg.Extension,
@@ -71,10 +78,10 @@ func extensionMCPHealthDiagnostics(
 			Severity:      contract.SeverityError,
 			DataFreshness: contract.FreshnessLive,
 		}, diagnostics.WithEvidence(map[string]any{
-			"extension_name":    key.Name,
-			"workspace_id":      key.WorkspaceID,
-			"bundle_generation": entry.Key.BundleGeneration,
-			"server_name":       entry.Key.ServerName,
+			daemonExtensionNameKey: key.Name,
+			daemonWorkspaceIDKey:   key.WorkspaceID,
+			"bundle_generation":    entry.Key.BundleGeneration,
+			"server_name":          entry.Key.ServerName,
 		})))
 	}
 	return items

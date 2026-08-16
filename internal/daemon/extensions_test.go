@@ -347,6 +347,51 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}
 	})
 
+	t.Run("Should evict MCP health after a committed update and removal", func(t *testing.T) {
+		// This assertion intentionally owns one mutable extension lifecycle.
+		deps, registry, source, _ := newNativeExtensionToolDeps(t)
+		runtime := newLifecycleStateRuntime(registry)
+		health := mcppkg.NewRuntimeHealthRegistry()
+		service := newDaemonExtensionService(
+			daemonExtensionServiceDeps{
+				Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths,
+				Logger: discardLogger(), Now: time.Now,
+			},
+			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+			withDaemonExtensionAutomation(&fakeAutomationManager{}),
+			withDaemonExtensionMCPRuntimeHealth(health),
+		).(*daemonExtensionService)
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"operator", taskpkg.OriginKindCLI, "lifecycle MCP health eviction",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		source.latestVersion = "1.0.0"
+		if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceGitHub, Ref: "acme/tool-ext", AllowUnverified: true,
+		}, actor); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		recordRuntimeHealthFailure(health, "tool-ext", "before-update")
+		source.latestVersion = "2.0.0"
+		if _, err := service.Update(
+			t.Context(), "tool-ext", contract.UpdateExtensionRequest{AllowUnverified: true}, actor,
+		); err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if entries := health.Entries("tool-ext", "", "before-update"); len(entries) != 0 {
+			t.Fatalf("runtime health after update = %#v, want evicted", entries)
+		}
+		recordRuntimeHealthFailure(health, "tool-ext", "before-remove")
+		if _, err := service.Remove(t.Context(), "tool-ext", actor); err != nil {
+			t.Fatalf("Remove() error = %v", err)
+		}
+		if entries := health.Entries("tool-ext", "", "before-remove"); len(entries) != 0 {
+			t.Fatalf("runtime health after remove = %#v, want evicted", entries)
+		}
+	})
+
 	t.Run("Should restore files version confirmation and runtime after a confirmed update fails", func(t *testing.T) {
 		// This assertion intentionally owns one mutable marketplace extension lifecycle.
 		deps, registry, source, _ := newNativeExtensionToolDeps(t)
@@ -958,6 +1003,13 @@ func (h *lifecycleFailureHarness) assertRestored(t *testing.T) {
 	if !ok || !reflect.DeepEqual(running, h.before) {
 		t.Fatalf("running state after failure = %#v/%t, want %#v", running, ok, h.before)
 	}
+}
+
+func recordRuntimeHealthFailure(registry *mcppkg.RuntimeHealthRegistry, name string, generation string) {
+	observation := registry.Begin(mcppkg.RuntimeHealthKey{
+		InstanceName: name, BundleGeneration: generation, ServerName: "remote",
+	})
+	registry.RecordFailure(observation, errors.New("connection failed"))
 }
 
 func waitForLifecycleRefs(

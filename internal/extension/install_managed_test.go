@@ -104,7 +104,7 @@ func TestReconcileManagedExtensionArtifacts(t *testing.T) {
 	}
 	root := ManagedInstallRoot(homePaths)
 	registered := filepath.Join(root, "registered")
-	backup := registered + managedInstallBackupMarker + "interrupted"
+	backup := registered + managedInstallBackupMarker + "1755280000000000000"
 	orphan := filepath.Join(root, "orphan")
 	staging := filepath.Join(root, managedInstallStagingPrefix+"interrupted")
 	for _, path := range []string{registered, backup, orphan, staging, homePaths.ExtensionDataRoot} {
@@ -147,6 +147,43 @@ func TestReconcileManagedExtensionArtifacts(t *testing.T) {
 	if err != nil || string(data) != "preserve" {
 		t.Fatalf("extension data = %q, %v; want preserved", data, err)
 	}
+}
+
+func TestReconcileManagedExtensionArtifactsRejectsBackupLookalikes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not restore a non-generated backup suffix", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		root := ManagedInstallRoot(homePaths)
+		registered := filepath.Join(root, "registered")
+		lookalike := registered + managedInstallBackupMarker + "interrupted"
+		for _, path := range []string{registered, lookalike} {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatalf("MkdirAll(%q) error = %v", path, err)
+			}
+		}
+		writeFile(t, filepath.Join(registered, manifestTOMLFileName), "candidate")
+		writeFile(t, filepath.Join(lookalike, manifestTOMLFileName), "lookalike")
+		if err := ReconcileManagedExtensionArtifacts(homePaths, managedInstallReconcileRegistryStub{
+			infos: []ExtensionInfo{{
+				Name: "registered", ManifestPath: filepath.Join(registered, manifestTOMLFileName), Checksum: "expected",
+			}},
+		}); err != nil {
+			t.Fatalf("ReconcileManagedExtensionArtifacts() error = %v", err)
+		}
+		content, err := os.ReadFile(filepath.Join(registered, manifestTOMLFileName))
+		if err != nil || string(content) != "candidate" {
+			t.Fatalf("registered artifact = %q, %v; want candidate untouched", content, err)
+		}
+		if _, err := os.Lstat(lookalike); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("lookalike stat error = %v, want removed as an orphan", err)
+		}
+	})
 }
 
 func TestRemoveManagedInstallContainment(t *testing.T) {

@@ -648,7 +648,11 @@ func TestHTTPInstallPortableErrorsLeaveRegistryUntouched(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(clientLayout, ".claude-plugin"), 0o700); err != nil {
 		t.Fatalf("MkdirAll(.claude-plugin) error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(clientLayout, ".claude-plugin", "plugin.json"), []byte(`{}`), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(clientLayout, ".claude-plugin", "plugin.json"),
+		[]byte(`{}`),
+		0o600,
+	); err != nil {
 		t.Fatalf("WriteFile(.claude-plugin/plugin.json) error = %v", err)
 	}
 	notManifest := t.TempDir()

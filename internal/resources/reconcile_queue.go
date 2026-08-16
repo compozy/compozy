@@ -55,6 +55,7 @@ func (d *reconcileDriver) Trigger(ctx context.Context, kind ResourceKind, reason
 			events = append(events, *coalesced)
 		}
 	}
+	d.signalStateChangedLocked()
 	d.mu.Unlock()
 
 	for _, event := range events {
@@ -62,6 +63,47 @@ func (d *reconcileDriver) Trigger(ctx context.Context, kind ResourceKind, reason
 	}
 	d.notify()
 	return nil
+}
+
+// WaitForIdle waits until every queued or running pass for kind has settled.
+func (d *reconcileDriver) WaitForIdle(ctx context.Context, kind ResourceKind) error {
+	if ctx == nil {
+		return errors.New("resources: reconcile wait context is required")
+	}
+	if d.topoErr != nil {
+		return d.topoErr
+	}
+
+	normalizedKind := kind.Normalize()
+	if err := normalizedKind.Validate("kind"); err != nil {
+		return err
+	}
+
+	for {
+		d.mu.Lock()
+		state := d.kindStates[normalizedKind]
+		if state == nil {
+			d.mu.Unlock()
+			return fmt.Errorf("%w: reconcile kind %q is not registered", ErrValidation, normalizedKind)
+		}
+		if d.closed {
+			d.mu.Unlock()
+			return errors.New("resources: reconcile driver is closed")
+		}
+		if !state.pending && !state.running && !state.dirty {
+			err := state.lastErr
+			d.mu.Unlock()
+			return err
+		}
+		stateChanged := d.stateChanged
+		d.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-stateChanged:
+		}
+	}
 }
 
 func (d *reconcileDriver) RunBoot(ctx context.Context) error {
@@ -112,6 +154,7 @@ func (d *reconcileDriver) Close(ctx context.Context) error {
 			state.dirtyReason = ""
 			state.readyAt = time.Time{}
 		}
+		d.signalStateChangedLocked()
 		d.workerCancel()
 		d.notifyLocked()
 	}
@@ -124,6 +167,11 @@ func (d *reconcileDriver) Close(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (d *reconcileDriver) signalStateChangedLocked() {
+	close(d.stateChanged)
+	d.stateChanged = make(chan struct{})
 }
 
 func (d *reconcileDriver) scheduleCascade(root ResourceKind) []ResourceKind {

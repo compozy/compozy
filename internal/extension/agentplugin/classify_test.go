@@ -1,6 +1,7 @@
 package agentplugin
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,12 +109,14 @@ func TestValidateName(t *testing.T) {
 	}
 
 	invalid := []string{"", "My-Plugin", "-start", "end.", "has--double", "too..dots", strings.Repeat("a", 65), "café"}
-	for index, name := range invalid {
-		t.Run("Should reject invalid name case "+string(rune('A'+index)), func(t *testing.T) {
+	for _, name := range invalid {
+		t.Run(fmt.Sprintf("Should reject invalid name %q", name), func(t *testing.T) {
 			t.Parallel()
 
-			if err := ValidateName(name); err == nil {
-				t.Fatalf("ValidateName(%q) error = nil, want non-nil", name)
+			err := ValidateName(name)
+			const want = "must be 1-64 lowercase letters, digits, dots, or hyphens"
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("ValidateName(%q) error = %v, want %q", name, err, want)
 			}
 		})
 	}

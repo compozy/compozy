@@ -353,17 +353,31 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 	t.Run("Should render install and validate in all four output modes", func(t *testing.T) {
 		t.Parallel()
 
-		bundles := []outputBundle{extensionInstallSuccessBundle(item, report), extensionValidationBundle(report)}
-		for _, bundle := range bundles {
-			for _, format := range []OutputFormat{OutputHuman, OutputJSON, OutputJSONL, OutputToon} {
-				output, err := renderExtensionOutput(t, bundle, format)
-				if err != nil {
-					t.Fatalf("writeCommandOutput(%s) error = %v", format, err)
+		bundles := []struct {
+			name   string
+			bundle outputBundle
+		}{
+			{name: "install", bundle: extensionInstallSuccessBundle(item, report)},
+			{name: "validate", bundle: extensionValidationBundle(report)},
+		}
+		for _, test := range bundles {
+			t.Run("Should render "+test.name+" semantically", func(t *testing.T) {
+				t.Parallel()
+
+				for _, format := range []OutputFormat{OutputHuman, OutputJSON, OutputJSONL, OutputToon} {
+					t.Run("Should render "+string(format)+" output", func(t *testing.T) {
+						t.Parallel()
+
+						output, err := renderExtensionOutput(t, test.bundle, format)
+						if err != nil {
+							t.Fatalf("writeCommandOutput(%s) error = %v", format, err)
+						}
+						if strings.TrimSpace(output) == "" {
+							t.Fatalf("writeCommandOutput(%s) = empty", format)
+						}
+					})
 				}
-				if strings.TrimSpace(output) == "" {
-					t.Fatalf("writeCommandOutput(%s) = empty", format)
-				}
-			}
+			})
 		}
 	})
 
@@ -410,6 +424,36 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 			t.Fatalf("extensionRuntimeSummary() = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should render ingestion reports for every portable batch update", func(t *testing.T) {
+		t.Parallel()
+
+		secondReport := *report
+		secondReport.Name = "beta.tools"
+		items := []extensionUpdateItem{
+			{Name: "acme.tools", Status: "updated", Path: "/extensions/acme.tools"},
+			{Name: "beta.tools", Status: "updated", Path: "/extensions/beta.tools"},
+		}
+		portable := []extensionPortableUpdateOutput{
+			{Update: items[0], Report: report, DataPath: "/data/acme.tools"},
+			{Update: items[1], Report: &secondReport, DataPath: "/data/beta.tools"},
+		}
+		human, err := extensionUpdatesSuccessBundle(items, portable).human()
+		if err != nil {
+			t.Fatalf("extensionUpdatesSuccessBundle().human() error = %v", err)
+		}
+		for _, want := range []string{
+			"✓ update acme.tools", "✓ update beta.tools", "/data/acme.tools", "/data/beta.tools",
+			"next: compozy extension status acme.tools", "next: compozy extension status beta.tools",
+		} {
+			if !strings.Contains(human, want) {
+				t.Fatalf("portable batch update output = %q, want %q", human, want)
+			}
+		}
+		if strings.Count(human, "Format: agent plugin") != 2 {
+			t.Fatalf("portable batch update output = %q, want two ingestion reports", human)
+		}
+	})
 }
 
 func TestExtensionRemoveOutputReportsDataCleanup(t *testing.T) {
@@ -427,6 +471,17 @@ func TestExtensionRemoveOutputReportsDataCleanup(t *testing.T) {
 		}
 		if strings.Count(human, "removed:") != 2 {
 			t.Fatalf("remove output = %q, want two removed lines", human)
+		}
+		toon, err := extensionRemoveBundle(extensionRemoveItem{
+			Name: "acme.tools", Path: "/home/alex/.compozy/extensions/acme.tools",
+			DataPath: "/home/alex/.compozy/extension-data/acme.tools", Status: "removed",
+		}).toon()
+		if err != nil {
+			t.Fatalf("extensionRemoveBundle().toon() error = %v", err)
+		}
+		if !strings.Contains(toon, "data_path") ||
+			!strings.Contains(toon, "/home/alex/.compozy/extension-data/acme.tools") {
+			t.Fatalf("remove TOON = %q, want data cleanup path", toon)
 		}
 	})
 
@@ -572,7 +627,7 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 		DeclaredEnv:  []string{"API_KEY"},
 		BoundEnvKeys: []string{"API_KEY", "OLD_KEY"},
 		Bindings: []contract.ExtensionSecretBindingPayload{
-			{EnvName: "API_KEY"},
+			{EnvName: "API_KEY", MCPServer: "deployment-api", HeaderName: "X-Deployment-Key"},
 			{EnvName: "OLD_KEY", Stale: true},
 		},
 	}
@@ -602,10 +657,15 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 			want:       preview,
 		},
 		{
-			name:       "Should render presence-only secrets",
-			bundle:     extensionSecretsBundle(secrets),
-			wantHuman:  []string{"Extension Secrets", "API_KEY", "OLD_KEY", "Stale Bindings"},
-			wantTOON:   []string{"extension_secrets", "stale_env_keys", "OLD_KEY"},
+			name:   "Should render presence-only secrets",
+			bundle: extensionSecretsBundle(secrets),
+			wantHuman: []string{
+				"Extension Secrets", "API_KEY", "remote-header deployment-api:X-Deployment-Key",
+				"OLD_KEY", "Stale Bindings",
+			},
+			wantTOON: []string{
+				"extension_secrets", "stale_env_keys", "OLD_KEY", "bindings", "deployment-api", "X-Deployment-Key",
+			},
 			newDecoded: func() any { return &ExtensionSecretsRecord{} },
 			want:       secrets,
 		},

@@ -30,9 +30,11 @@ var (
 	ErrArchiveTooLargeCompressed = errors.New("registry: archive exceeds max compressed size")
 
 	errArchiveTooLargeCompressed = ErrArchiveTooLargeCompressed
-	errInstallMissingManifest    = errors.New("registry: archive missing extension.toml, SKILL.md, or Agent Plugins plugin.json at root")
-	errUnexpectedContentType     = errors.New("registry: unexpected download content type")
-	errVerificationBlocked       = errors.New("registry: install blocked by content verification")
+	errInstallMissingManifest    = errors.New(
+		"registry: archive missing extension.toml, SKILL.md, or Agent Plugins plugin.json at root",
+	)
+	errUnexpectedContentType = errors.New("registry: unexpected download content type")
+	errVerificationBlocked   = errors.New("registry: install blocked by content verification")
 )
 
 type installerVerificationRule struct {

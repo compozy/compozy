@@ -1809,6 +1809,11 @@ describe("Marketplace cards and actions", () => {
     expect(within(card).getByTestId("extension-format-badge")).toHaveTextContent("agent plugin");
     expect(within(card).getByTestId("extension-digest-matched-badge")).toBeInTheDocument();
 
+    view.rerender(<MarketplaceDetailLede data={{ entry }} />);
+    expect(
+      within(screen.getByTestId("marketplace-detail-lede")).getByTestId("extension-format-badge")
+    ).toHaveTextContent("agent plugin");
+
     view.rerender(
       <MarketplaceInstalledCard
         item={{ ...item, entry: { ...entry, format: "compozy" } }}

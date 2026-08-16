@@ -1,0 +1,70 @@
+{
+  "run_date": "2026-08-16",
+  "status": "blocked-decision",
+  "source_commit": "f85601523c9ebdf85d6931d151acf19f8033d14f",
+  "working_tree_diff_sha256": "0a5a6051b299bab3aa05180c1e2ea0fa55eb07d56f2fdf7cbff5e815e0260e1a",
+  "binary_sha256": "45f7087df5c91caf24745f95425b26ba41efb195402bc48cb95d0f31f96b1fea",
+  "shared_instance": {
+    "name": "acme.tools",
+    "version": "1.2.0",
+    "format": "agent-plugin",
+    "checksum": "fac77a9d8bc71706a64d83eaeb95b4f340fbed2e2362a6106d42559bf0c0195a",
+    "skills": 2,
+    "mcp_servers": 2
+  },
+  "providers": [
+    {
+      "provider": "claude-code",
+      "status": "pass",
+      "session_id": "sess-881a3c777fe36d33",
+      "provider_session_id": "24b862e0-bb62-47e1-972c-7e321d9e8ed3",
+      "workspace_id": "ws_4b31b346ac67ffe3",
+      "turn_id": "turn-84cc780d60fb0ade",
+      "first_attempt": "pass",
+      "skill_activation": "The provider loaded /acme.tools:release from the daemon-projected skill catalog.",
+      "stdio_observable": "mcp__compozy-hosted-tools__mcp__local__echo_environment returned an absolute package root and plugin data path, then wrote beneath the plugin data path.",
+      "remote_observable": "mcp__compozy-hosted-tools__mcp__remote__remote_probe returned authorized=true and tenant=acme.",
+      "redaction_scan": "pass: the final response, session events, extension status/list/inventory, secret listing, daemon log, and remote request log exposed neither the credential value nor its Vault reference.",
+      "evidence": [
+        "Compozy session sess-881a3c777fe36d33, turn turn-84cc780d60fb0ade",
+        "/Users/pedronauck/dev/qa-labs/compozy-agent-plugins-20260816-20260816-061032-351590-lab/qa-artifacts/qa/remote-mcp-requests.jsonl"
+      ]
+    },
+    {
+      "provider": "hermes",
+      "status": "pass",
+      "session_id": "sess-718859a9a9963f8a",
+      "provider_session_id": "825d14b3-b62c-42c6-91b7-35fbe814e657",
+      "workspace_id": "ws_744458631d492a47",
+      "turn_id": "turn-989cb59f524d6401",
+      "first_attempt": "pass",
+      "skill_activation": "The provider loaded /acme.tools:release from the daemon-projected skill catalog.",
+      "stdio_observable": "mcp__compozy_hosted_tools__mcp__local__echo_environment returned an absolute package root and plugin data path, then wrote beneath the plugin data path.",
+      "remote_observable": "mcp__compozy_hosted_tools__mcp__remote__remote_probe returned authorized=true and tenant=acme.",
+      "redaction_scan": "pass: the final response, session events, extension status/list/inventory, secret listing, daemon log, and remote request log exposed neither the credential value nor its Vault reference.",
+      "evidence": [
+        "Compozy session sess-718859a9a9963f8a, turn turn-989cb59f524d6401",
+        "/Users/pedronauck/dev/qa-labs/compozy-agent-plugins-20260816-20260816-061032-351590-lab/qa-artifacts/qa/remote-mcp-requests.jsonl"
+      ]
+    },
+    {
+      "provider": "openclaw",
+      "status": "blocked-decision",
+      "session_id": "sess-36b29c3eab89472f",
+      "provider_session_id": null,
+      "workspace_id": null,
+      "turn_id": null,
+      "first_attempt": "blocked before provider launch",
+      "skill_activation": "not reached",
+      "stdio_observable": "not reached",
+      "remote_observable": "not reached",
+      "redaction_scan": "not applicable: the provider process was not launched.",
+      "blocker": "The OpenClaw ACP bridge rejects per-session MCP servers. Compozy therefore advertises session_mcp=false for this provider and correctly failed the required hosted-MCP bootstrap. The openclaw executable was also absent from this QA host.",
+      "evidence": [
+        "Compozy session sess-36b29c3eab89472f: session: required hosted MCP is unavailable: provider openclaw disables session MCP",
+        "internal/config/provider_builtin.go",
+        "https://docs.openclaw.ai/tools/acp-agent"
+      ]
+    }
+  ]
+}

@@ -97,10 +97,8 @@ func decodeServer(name string, raw json.RawMessage, root string, dataDir string)
 	switch transport {
 	case transportStdio:
 		return decodeStdioServer(name, fields, root, dataDir)
-	case transportStreamableHTTP:
-		return decodeRemoteServer(name, transport, fields, false)
-	case transportSSE:
-		return decodeRemoteServer(name, transport, fields, true)
+	case transportStreamableHTTP, transportSSE:
+		return decodeRemoteServer(name, transport, fields)
 	default:
 		return ServerSpec{}, errors.New("invalid mcp server entry")
 	}
@@ -144,7 +142,6 @@ func decodeRemoteServer(
 	name string,
 	transport string,
 	fields map[string]json.RawMessage,
-	sse bool,
 ) (ServerSpec, error) {
 	if !onlyFields(fields, "type", "url", "headers") {
 		return ServerSpec{}, errors.New("invalid mcp server entry")
@@ -163,7 +160,7 @@ func decodeRemoteServer(
 	if err := mcppolicy.ValidateHeaders(headers, nil, mcppolicy.SourcePackageFixed, false); err != nil {
 		return ServerSpec{}, err
 	}
-	if sse {
+	if transport == transportSSE {
 		return ServerSpec{}, errors.New("sse transport is not supported")
 	}
 	return ServerSpec{Name: name, Transport: transport, URL: url, Headers: headers}, nil
@@ -211,11 +208,7 @@ func stringSliceField(fields map[string]json.RawMessage, name string) ([]string,
 	if !exists {
 		return nil, true
 	}
-	var value []string
-	if isJSONNull(raw) || json.Unmarshal(raw, &value) != nil {
-		return nil, false
-	}
-	return value, true
+	return decodeStringSlice(raw)
 }
 
 func stringMapField(fields map[string]json.RawMessage, name string) (map[string]string, bool) {
@@ -223,11 +216,25 @@ func stringMapField(fields map[string]json.RawMessage, name string) (map[string]
 	if !exists {
 		return nil, true
 	}
-	var value map[string]string
-	if isJSONNull(raw) || json.Unmarshal(raw, &value) != nil || value == nil {
+	if isJSONNull(raw) {
 		return nil, false
 	}
-	return value, true
+	var entries map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil || entries == nil {
+		return nil, false
+	}
+	values := make(map[string]string, len(entries))
+	for key, entry := range entries {
+		if isJSONNull(entry) {
+			return nil, false
+		}
+		var value string
+		if err := json.Unmarshal(entry, &value); err != nil {
+			return nil, false
+		}
+		values[key] = value
+	}
+	return values, true
 }
 
 func schemaVersion(schema string) string {

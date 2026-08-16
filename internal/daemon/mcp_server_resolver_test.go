@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -127,7 +129,7 @@ func TestDaemonMCPServerResolverProjectsRemoteHeaderBindings(t *testing.T) {
 			Kind: extensionpkg.ExtensionEnvBindingKind,
 		},
 	} {
-		if err := db.ExtensionEnvRepo.PutEnvBinding(t.Context(), binding); err != nil {
+		if err := db.PutEnvBinding(t.Context(), binding); err != nil {
 			t.Fatalf("PutEnvBinding(%#v) error = %v", binding, err)
 		}
 	}
@@ -166,4 +168,72 @@ func TestDaemonMCPServerResolverProjectsRemoteHeaderBindings(t *testing.T) {
 	if len(record.Spec.SecretHeaders) != 0 {
 		t.Fatalf("catalog declaration mutated with projected refs: %#v", record.Spec.SecretHeaders)
 	}
+
+	t.Run("Should ignore stale remote bindings after the server becomes stdio", func(t *testing.T) {
+		t.Parallel()
+
+		stdioCatalog := newResourceCatalog(cloneDaemonMCPServer)
+		stdioCatalog.Replace(2, []resources.Record[compozyconfig.MCPServer]{
+			{
+				ID: "mcp-deployment-workspace-a", Version: 2,
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
+				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"},
+				Spec: compozyconfig.MCPServer{
+					Name: "deployment-api", Transport: compozyconfig.MCPServerTransportStdio,
+					Command: "deployment-mcp",
+				},
+			},
+		})
+		stdioState := &bootState{mcpServerCatalog: stdioCatalog, extensionEnvBindings: db.ExtensionEnvRepo}
+		stdio, err := resolveDaemonMCPServer(t.Context(), stdioState, toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "deployment-api", RawServerName: "deployment-api",
+			ResourceID: "mcp-deployment-workspace-a", Scope: "workspace", WorkspaceID: "workspace-a",
+		})
+		if err != nil {
+			t.Fatalf("resolveDaemonMCPServer(stdio) error = %v", err)
+		}
+		if len(stdio.Server.SecretHeaders) != 0 || stdio.Server.Command != "deployment-mcp" {
+			t.Fatalf("resolved stdio server = %#v, want no projected remote headers", stdio.Server)
+		}
+	})
+}
+
+func TestDaemonMCPProviderRecordsExtensionLaunchFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should publish a failing provider exchange to the shared health registry", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
+			{
+				ID: "mcp-kit-broken", Version: 1,
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"},
+				Spec: compozyconfig.MCPServer{
+					Name: "broken", Transport: compozyconfig.MCPServerTransportStdio,
+					Command: "compozy-mcp-command-that-does-not-exist",
+				},
+			},
+		})
+		state := &bootState{
+			mcpServerCatalog: catalog,
+			extensions: &fakeExtensionRuntime{getExt: &extensionpkg.Extension{
+				Info: extensionpkg.ExtensionInfo{Name: "kit", Checksum: "generation-a"},
+			}},
+		}
+		provider, _, err := (&Daemon{}).newDaemonMCPToolProvider(state)
+		if err != nil {
+			t.Fatalf("newDaemonMCPToolProvider() error = %v", err)
+		}
+		_, err = provider.List(context.Background(), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("provider.List() error = %v; discovery failures should degrade the source", err)
+		}
+		entries := state.mcpRuntimeHealth.Entries("kit", "", "generation-a")
+		if len(entries) != 1 || entries[0].Key.ServerName != "broken" ||
+			!strings.Contains(entries[0].Message, "does-not-exist") {
+			t.Fatalf("runtime health entries = %#v, want broken server failure", entries)
+		}
+	})
 }

@@ -89,7 +89,8 @@ func projectExtensionSecretHeaders(
 ) (compozyconfig.MCPServer, error) {
 	server := cloneDaemonMCPServer(record.Spec)
 	owner := record.Owner.Normalize()
-	if owner.Kind != extensionResourceOwnerKind || state.extensionEnvBindings == nil {
+	if owner.Kind != extensionResourceOwnerKind || state.extensionEnvBindings == nil ||
+		server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
 		return server, nil
 	}
 	bindings, err := state.extensionEnvBindings.ListEnvBindings(ctx, owner.ID, record.Scope.ID)

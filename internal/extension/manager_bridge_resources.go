@@ -144,11 +144,11 @@ func resolvePathWithinRoot(rootDir string, value string) (string, error) {
 		return "", fmt.Errorf("extension: resolve path %q: %w", resolved, err)
 	}
 
-	rel, err := filepath.Rel(resolvedRoot, resolvedCandidate)
+	contained, err := fileutil.PathWithinRoot(resolvedRoot, resolvedCandidate)
 	if err != nil {
-		return "", fmt.Errorf("extension: resolve path %q: %w", resolved, err)
+		return "", fmt.Errorf("extension: compare path %q to root: %w", resolved, err)
 	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if !contained {
 		return "", fmt.Errorf(
 			"%w: path %q escapes extension root %q",
 			ErrPathEscapesExtensionRoot,

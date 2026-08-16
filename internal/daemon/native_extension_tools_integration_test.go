@@ -495,7 +495,11 @@ func TestNativeExtensionToolsPortableContract(t *testing.T) {
 	requireNativeStructuredContains(t, installResult, []byte(`"extension_agent_plugin_component_skipped"`))
 
 	unrelated := t.TempDir()
-	if err := os.WriteFile(filepath.Join(unrelated, "plugin.json"), []byte(`{"name":"npm-package"}`), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(unrelated, "plugin.json"),
+		[]byte(`{"name":"npm-package"}`),
+		0o600,
+	); err != nil {
 		t.Fatalf("os.WriteFile(unrelated plugin.json) error = %v", err)
 	}
 	_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{

@@ -13,8 +13,6 @@ import (
 	"github.com/BurntSushi/toml"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/extension/agentplugin"
-	"github.com/compozy/compozy/internal/extension/surfaces"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
@@ -55,87 +53,18 @@ func loadManifest(dir string, dataDir string) (*Manifest, error) {
 	}
 
 	pluginPath := filepath.Join(manifestDir, agentPluginManifestFileName)
-	status, declared, err := agentplugin.ClassifyManifest(manifestDir)
+	manifest, recognized, err := loadAgentPluginManifest(manifestDir, dataDir, pluginPath)
 	if err != nil {
-		return nil, fmt.Errorf("extension: classify Agent Plugins manifest: %w", err)
+		return nil, err
 	}
-	switch status {
-	case agentplugin.SchemaSupported:
-		dataDirWasDefault := dataDir == ""
-		if dataDir == "" {
-			dataDir, err = defaultAgentPluginDataDir(manifestDir, filepath.Base(manifestDir))
-			if err != nil {
-				return nil, err
-			}
-		}
-		pkg, loadErr := agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: dataDir})
-		if loadErr != nil {
-			if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](loadErr); ok {
-				return nil, newAgentPluginManifestValidationError(pluginPath, manifestErr)
-			}
-			return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
-		}
-		if dataDirWasDefault {
-			resolvedDataDir, resolveErr := defaultAgentPluginDataDir(manifestDir, pkg.Name)
-			if resolveErr != nil {
-				return nil, resolveErr
-			}
-			if resolvedDataDir != dataDir {
-				pkg, loadErr = agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: resolvedDataDir})
-				if loadErr != nil {
-					if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](loadErr); ok {
-						return nil, newAgentPluginManifestValidationError(pluginPath, manifestErr)
-					}
-					return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
-				}
-			}
-		}
-		return SynthesizeAgentPluginManifest(pkg, manifestDir)
-	case agentplugin.SchemaUnsupportedVersion:
-		return nil, &AgentPluginSchemaUnsupportedError{Root: manifestDir, Declared: declared}
-	case agentplugin.SchemaUnrelated:
-		if info, statErr := os.Lstat(pluginPath); statErr == nil {
-			if !info.Mode().IsRegular() {
-				_, loadErr := agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: dataDir})
-				if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](loadErr); ok {
-					return nil, newAgentPluginManifestValidationError(pluginPath, manifestErr)
-				}
-				return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
-			}
-			content, readErr := os.ReadFile(pluginPath)
-			if readErr != nil {
-				return nil, fmt.Errorf("extension: read Agent Plugins manifest %q: %w", pluginPath, readErr)
-			}
-			if !json.Valid(content) {
-				_, loadErr := agentplugin.Load(manifestDir, agentplugin.LoadOptions{DataDir: dataDir})
-				if manifestErr, ok := errors.AsType[*agentplugin.ManifestError](loadErr); ok {
-					return nil, newAgentPluginManifestValidationError(pluginPath, manifestErr)
-				}
-				return nil, fmt.Errorf("extension: load Agent Plugins manifest %q: %w", pluginPath, loadErr)
-			}
-			return nil, &AgentPluginNotManifestError{Root: manifestDir}
-		} else if !errors.Is(statErr, os.ErrNotExist) {
-			return nil, fmt.Errorf("extension: stat %q: %w", pluginPath, statErr)
-		}
-		if layout := detectAgentPluginClientLayout(manifestDir); layout != "" {
-			return nil, &AgentPluginClientLayoutError{Root: manifestDir, Layout: layout}
-		}
+	if recognized {
+		return manifest, nil
 	}
 
 	return nil, &ManifestNotFoundError{
 		Dir:   manifestDir,
 		Paths: []string{tomlPath, jsonPath, pluginPath},
 	}
-}
-
-func detectAgentPluginClientLayout(root string) string {
-	for _, layout := range []string{".claude-plugin", ".codex-plugin", ".cursor-plugin"} {
-		path := filepath.Join(root, layout, agentPluginManifestFileName)
-		if info, err := os.Lstat(path); err == nil && info.Mode().IsRegular() {
-			return layout
-		}
-	}
-	return ""
 }
 
 func defaultAgentPluginDataDir(manifestDir string, name string) (string, error) {
@@ -153,79 +82,22 @@ func defaultAgentPluginDataDir(manifestDir string, name string) (string, error) 
 
 // Validate checks the manifest schema and daemon compatibility.
 func (m *Manifest) Validate() error {
-	if err := requireField(manifestNameKey, m.Name); err != nil {
+	if err := validateManifestIdentity(m); err != nil {
 		return err
 	}
-	if m.Format != FormatAgentPlugin || strings.TrimSpace(m.Version) != "" {
-		if err := requireField("version", m.Version); err != nil {
-			return err
-		}
-		if err := validateSemanticVersionField("version", m.Version); err != nil {
-			return err
-		}
-	}
-	if m.Format != FormatAgentPlugin {
-		if err := requireField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
-			return err
-		}
-		if err := validateSemanticVersionField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
-			return err
-		}
-		if err := validateDaemonCompatibility(m.MinCompozyVersion); err != nil {
-			return err
-		}
-	}
-	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
+	if err := validateManifestRuntime(m); err != nil {
 		return err
 	}
-	if err := m.NetworkParticipation.Validate(manifestFieldNetworkParticipation); err != nil {
+	if err := validateManifestResources(m); err != nil {
 		return err
 	}
-	if err := validateManifestEnvMaps(
-		"subprocess",
-		"extensions",
-		m.Subprocess.Env,
-		m.Subprocess.SecretEnv,
-	); err != nil {
+	if err := validateManifestCapabilities(m); err != nil {
 		return err
 	}
-	if err := validateManifestHookEnv(m.Resources.Hooks); err != nil {
+	if err := validateManifestPermissions(m); err != nil {
 		return err
 	}
-	if err := validateManifestMCPServerEnv(m.Resources.MCPServers); err != nil {
-		return err
-	}
-	if err := validateManifestCommandResources(m); err != nil {
-		return err
-	}
-	if err := validateDottedIdentifiers(manifestFieldCapabilitiesProvides, m.Capabilities.Provides, false); err != nil {
-		return err
-	}
-	if err := validateProvideCapabilities(m.Capabilities.Provides); err != nil {
-		return err
-	}
-	if err := m.validateModelSourceCapability(); err != nil {
-		return err
-	}
-	if err := validateSlashIdentifiers("permissions.requires", m.Permissions.Requires); err != nil {
-		return err
-	}
-	if err := validatePermissionMethods(m.Permissions.Requires); err != nil {
-		return err
-	}
-	if err := m.validateBridgeAdapterCapability(); err != nil {
-		return err
-	}
-	if _, err := surfaces.ResolveManifestRequest(
-		m.Resources.Publish.Families,
-		m.Resources.Publish.MaxScope,
-	); err != nil {
-		return &ManifestValidationError{
-			Field:   manifestResourcesPublishPath,
-			Message: err.Error(),
-		}
-	}
-	return nil
+	return validateManifestPublication(m)
 }
 
 func (m *Manifest) validateModelSourceCapability() error {

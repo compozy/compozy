@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -22,12 +23,17 @@ func extensionSecretsBundle(item ExtensionSecretsRecord) outputBundle {
 			}), nil
 		},
 		toon: func() (string, error) {
+			bindings, err := json.Marshal(item.Bindings)
+			if err != nil {
+				return "", fmt.Errorf("cli: marshal extension secret bindings: %w", err)
+			}
 			return renderToonObject("extension_secrets", []string{
-				"declared_env", "bound_env_keys", "stale_env_keys",
+				"declared_env", "bound_env_keys", "stale_env_keys", cliBindingsKey,
 			}, []string{
 				strings.Join(item.DeclaredEnv, "|"),
 				strings.Join(item.BoundEnvKeys, "|"),
 				strings.Join(staleExtensionSecretNames(item), "|"),
+				string(bindings),
 			}), nil
 		},
 	}
@@ -37,7 +43,12 @@ func extensionSecretBindingLabels(item ExtensionSecretsRecord) []string {
 	labels := make([]string, 0, len(item.Bindings))
 	for _, binding := range item.Bindings {
 		label := strings.TrimSpace(binding.EnvName)
-		if server, header := strings.TrimSpace(binding.MCPServer), strings.TrimSpace(binding.HeaderName); server != "" && header != "" {
+		if server, header := strings.TrimSpace(
+			binding.MCPServer,
+		), strings.TrimSpace(
+			binding.HeaderName,
+		); server != "" &&
+			header != "" {
 			label += " (remote-header " + server + ":" + header + ")"
 		}
 		labels = append(labels, label)

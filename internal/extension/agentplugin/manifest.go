@@ -15,6 +15,8 @@ var manifestFields = map[string]struct{}{
 	fieldHomepage: {}, fieldRepository: {}, fieldLicense: {}, fieldKeywords: {}, fieldExtensions: {},
 }
 
+const manifestFileName = "plugin.json"
+
 // Load validates the root manifest and independently discovers portable
 // components. Only root-manifest failures are returned as errors.
 func Load(dir string, opts LoadOptions) (*Package, error) {
@@ -22,7 +24,7 @@ func Load(dir string, opts LoadOptions) (*Package, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve Agent Plugins root %q: %w", dir, err)
 	}
-	manifestPath := filepath.Join(root, "plugin.json")
+	manifestPath := filepath.Join(root, manifestFileName)
 	info, err := os.Lstat(manifestPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -137,12 +139,29 @@ func optionalStrings(fields map[string]json.RawMessage, name string, issues *[]I
 	if !exists {
 		return nil
 	}
-	var values []string
-	if isJSONNull(raw) || json.Unmarshal(raw, &values) != nil {
+	values, ok := decodeStringSlice(raw)
+	if !ok {
 		*issues = append(*issues, Issue{Path: name, Message: "must be an array of strings when present"})
 		return nil
 	}
 	return values
+}
+
+func decodeStringSlice(raw json.RawMessage) ([]string, bool) {
+	if isJSONNull(raw) {
+		return nil, false
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil || entries == nil {
+		return nil, false
+	}
+	values := make([]string, len(entries))
+	for idx, entry := range entries {
+		if isJSONNull(entry) || json.Unmarshal(entry, &values[idx]) != nil {
+			return nil, false
+		}
+	}
+	return values, true
 }
 
 func optionalAuthor(fields map[string]json.RawMessage, issues *[]Issue) *AuthorInfo {

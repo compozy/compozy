@@ -77,6 +77,7 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 		return contract.MarketplaceEntryResponse{Entry: contract.MarketplaceListingPayload{
 			Kind: contract.MarketplaceKindExtension, EntryID: entryID, Name: name,
 			Version: strings.TrimSpace(item.Version), Source: source, Installed: true,
+			Format:        strings.TrimSpace(item.Format),
 			InstalledName: name, InstalledVersion: strings.TrimSpace(item.Version),
 			ManagePath: marketplaceExtensionsInstalledPath, Trust: item.Trust,
 		}}, nil

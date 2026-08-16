@@ -3,12 +3,36 @@ package mcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const maxMCPToolListPages = 1_000
+
+func (e *CallExecutor) descriptorsFromTools(
+	source toolspkg.SourceRef,
+	server compozyconfig.MCPServer,
+	tools []*mcpsdk.Tool,
+) ([]toolspkg.MCPToolDescriptor, error) {
+	descriptors := make([]toolspkg.MCPToolDescriptor, 0, len(tools))
+	for _, tool := range tools {
+		if tool == nil {
+			return nil, toolspkg.NewValidationError(
+				"tools", toolspkg.ReasonSchemaInvalid, "mcp server returned an empty tool descriptor",
+			)
+		}
+		descriptor, err := e.descriptorFromTool(source, server, *tool)
+		if err != nil {
+			return nil, fmt.Errorf("mcp: normalize tool %q: %w", tool.Name, err)
+		}
+		descriptors = append(descriptors, descriptor)
+	}
+	return descriptors, nil
+}
 
 func listMCPTools(ctx context.Context, client *mcpsdk.ClientSession) ([]*mcpsdk.Tool, int, error) {
 	tools := make([]*mcpsdk.Tool, 0)

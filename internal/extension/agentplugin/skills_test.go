@@ -106,6 +106,28 @@ func TestLoadSkills(t *testing.T) {
 		if len(pkg.Skills) != 0 {
 			t.Fatalf("Load() skills = %#v, want none", pkg.Skills)
 		}
+		if !hasDiagnostic(pkg.Diagnostics, "skill:linked", "regular in-root file") {
+			t.Fatalf("Load() diagnostics = %#v, want linked skill rejection", pkg.Diagnostics)
+		}
+	})
+
+	t.Run("Should diagnose malformed immediate entries and ignore grouping directories", func(t *testing.T) {
+		t.Parallel()
+
+		root := newPackageRoot(t, "skill-immediate-entries")
+		writeFile(t, filepath.Join(root, "skills", "README.md"), []byte("not a skill"))
+		writeFile(
+			t,
+			filepath.Join(root, "skills", "group", "nested", "SKILL.md"),
+			validSkill("nested", "Nested skill."),
+		)
+		pkg := loadForTest(t, root)
+		if !hasDiagnostic(pkg.Diagnostics, "skill:README.md", "in-root directory") {
+			t.Fatalf("Load() diagnostics = %#v, want immediate file rejection", pkg.Diagnostics)
+		}
+		if hasDiagnostic(pkg.Diagnostics, "skill:group", "SKILL.md") {
+			t.Fatalf("Load() diagnostics = %#v, want grouping directory ignored", pkg.Diagnostics)
+		}
 	})
 }
 

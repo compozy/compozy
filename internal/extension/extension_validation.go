@@ -162,7 +162,7 @@ func validateAgentPluginBundleReport(dir string) (*ValidationReport, error) {
 			return nil, validationErr
 		}
 		return &ValidationReport{
-			Status: "invalid", Format: string(FormatAgentPlugin), Name: pkg.Name, Version: pkg.Version,
+			Status: agentPluginInvalidStatus, Format: string(FormatAgentPlugin), Name: pkg.Name, Version: pkg.Version,
 			Issues: issues,
 		}, nil
 	}
@@ -191,7 +191,7 @@ func invalidAgentPluginValidationReport(err error) *ValidationReport {
 			})
 		}
 	}
-	return &ValidationReport{Status: "invalid", Format: string(FormatAgentPlugin), Issues: issues}
+	return &ValidationReport{Status: agentPluginInvalidStatus, Format: string(FormatAgentPlugin), Issues: issues}
 }
 
 func agentPluginValidationComponents(root string, pkg *agentplugin.Package) []apicontract.ExtensionValidationComponent {
@@ -202,17 +202,17 @@ func agentPluginValidationComponents(root string, pkg *agentplugin.Package) []ap
 			detail = filepath.Join("skills", skill.Name)
 		}
 		components = append(components, apicontract.ExtensionValidationComponent{
-			Kind: "skill", Name: skill.Name, Detail: filepath.ToSlash(detail),
+			Kind: agentPluginSkillKind, Name: skill.Name, Detail: filepath.ToSlash(detail),
 		})
 	}
 	for _, server := range pkg.Servers {
 		components = append(components, apicontract.ExtensionValidationComponent{
-			Kind: "mcp_server", Name: server.Name, Transport: server.Transport, Detail: server.Transport,
+			Kind: agentPluginMCPServerKind, Name: server.Name, Transport: server.Transport, Detail: server.Transport,
 		})
 	}
 	slices.SortStableFunc(components, func(left, right apicontract.ExtensionValidationComponent) int {
 		if left.Kind != right.Kind {
-			if left.Kind == "skill" {
+			if left.Kind == agentPluginSkillKind {
 				return -1
 			}
 			return 1
@@ -235,7 +235,7 @@ func agentPluginValidationWarnings(values []agentplugin.Diagnostic) []Validation
 func configValidationStatus(issues []ValidationIssue) string {
 	for _, issue := range issues {
 		if issue.Severity == IssueSeverityError {
-			return "invalid"
+			return agentPluginInvalidStatus
 		}
 	}
 	return "valid"

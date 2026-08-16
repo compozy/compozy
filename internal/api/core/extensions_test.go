@@ -354,7 +354,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			return contract.ExtensionPayload{}, &extensionpkg.AgentPluginManifestValidationError{
 				Path: "/tmp/plugin/plugin.json",
 				Issues: []agentplugin.Issue{
-					{Path: "name", Message: "name is invalid"},
+					{Path: "name", Message: "name contains compozy_claim_secret-123"},
 					{Path: "author.email", Message: "must be a string"},
 				},
 			}
@@ -375,6 +375,10 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionAgentPluginManifestInvalid ||
 			len(payload.Issues) != 2 || payload.Issues[0].Field != "name" || payload.Issues[1].Field != "author.email" {
 			t.Fatalf("portable validation payload = %#v", payload)
+		}
+		if strings.Contains(response.Body.String(), "compozy_claim_secret-123") ||
+			!strings.Contains(payload.Issues[0].Message, "[REDACTED]") {
+			t.Fatalf("portable validation payload leaked claim token: %s", response.Body.String())
 		}
 	})
 }

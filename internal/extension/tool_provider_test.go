@@ -500,6 +500,53 @@ func TestExtensionToolProviderProjectionGeneration(t *testing.T) {
 func TestExtensionToolProviderCatalog(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should exclude portable manifests from native tool discovery", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		manifestPath := filepath.Join(t.TempDir(), agentPluginManifestFileName)
+		writeFile(t, manifestPath, `{"name":"portable"}`)
+		runtime := &fakeScopedExtensionToolRuntime{
+			fakeExtensionToolRuntime: &fakeExtensionToolRuntime{},
+			infosByWorkspace: map[string][]ExtensionInfo{
+				"": {{
+					Name:         "portable",
+					Enabled:      true,
+					ManifestPath: manifestPath,
+					Format:       FormatAgentPlugin,
+				}},
+			},
+		}
+		var logs bytes.Buffer
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return runtime },
+			WithToolProviderLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+		manifestReads := 0
+		provider.manifestReadFile = func(string) ([]byte, error) {
+			manifestReads++
+			return nil, errors.New("portable manifest must not be read as a native manifest")
+		}
+
+		catalog, err := provider.List(testutil.Context(t), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Provider.List() error = %v", err)
+		}
+		if len(catalog) != 0 {
+			t.Fatalf("Provider.List() = %#v, want no native tools", catalog)
+		}
+		if manifestReads != 0 {
+			t.Fatalf("portable manifest reads = %d, want 0", manifestReads)
+		}
+		if logs.Len() != 0 {
+			t.Fatalf("provider logs = %q, want no native manifest warning", logs.String())
+		}
+	})
+
 	t.Run("Should remove disabled extension tools from registry projections", func(t *testing.T) {
 		t.Parallel()
 

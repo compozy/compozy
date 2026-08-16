@@ -184,7 +184,7 @@ func (s *daemonExtensionService) Remove(
 		if removeErr != nil {
 			return errors.Join(removeErr, retirement.rollback(ctx, s))
 		}
-		s.mcpRuntimeHealth.EvictInstance(name, "")
+		s.evictExtensionMCPHealth(name, "")
 		item = contract.ManagedExtensionRemovePayload{
 			Name:           removed.Name,
 			Path:           removed.Path,
@@ -317,7 +317,7 @@ func (s *daemonExtensionService) Disable(
 		if reloadErr := s.reload(ctx); reloadErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
 		}
-		s.mcpRuntimeHealth.EvictInstance(name, "")
+		s.evictExtensionMCPHealth(name, "")
 		var statusErr error
 		item, statusErr = s.Status(ctx, name)
 		if statusErr != nil {

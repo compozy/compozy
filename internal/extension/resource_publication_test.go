@@ -316,6 +316,7 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 				MCPServers: map[string]MCPServerConfig{
 					"git": {
 						Command: "./bin/mcp-git",
+						CWD:     rootDir,
 						Args:    []string{"--config", "{{config_dir}}/git.toml"},
 						Env: map[string]string{
 							"GIT_MODE": "{{env:GIT_MODE}}",
@@ -346,6 +347,9 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 		}
 		if got, want := servers[0].Command, filepath.Join(canonicalRoot, "bin", "mcp-git"); got != want {
 			t.Fatalf("servers[0].Command = %q, want %q", got, want)
+		}
+		if got, want := servers[0].CWD, rootDir; got != want {
+			t.Fatalf("servers[0].CWD = %q, want %q", got, want)
 		}
 		if got, want := servers[0].Args, []string{
 			"--config",

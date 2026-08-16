@@ -29,9 +29,32 @@ func (s *HostedService) bootstrapProjection(
 	if !ok {
 		return s.projection(ctx, record)
 	}
+	generation, known := s.bootstrapProjectionGeneration(ctx, record)
 	views, err := bootstrap.BootstrapSessionProjection(ctx, record.scope())
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
-	return hostedProjectionResponse(views), nil
+	response := hostedProjectionResponse(views)
+	if !known {
+		return response, nil
+	}
+	after, stillKnown := s.bootstrapProjectionGeneration(ctx, record)
+	if !stillKnown || after != generation {
+		return response, nil
+	}
+	key := hostedProjectionFlightKey{bindID: record.bindID, generation: generation}
+	if !s.finishProjectionGeneration(key, record, response, true) {
+		return HostedProjectionResponse{}, ErrHostedBindNotFound
+	}
+	return cloneHostedProjectionResponse(response), nil
+}
+
+func (s *HostedService) bootstrapProjectionGeneration(
+	ctx context.Context,
+	record *hostedBindRecord,
+) (string, bool) {
+	if s == nil || s.projectionGeneration == nil || record == nil {
+		return "", false
+	}
+	return s.projectionGeneration(ctx, record.scope())
 }

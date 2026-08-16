@@ -59,27 +59,14 @@ type extensionUpdateOptions struct {
 
 type extensionPortableUpdateOutput struct {
 	Update   extensionUpdateItem
-	Status   ExtensionRecord
 	Report   *extensionpkg.ValidationReport
 	DataPath string
 }
 
 func extensionPortableUpdatePresentation(
-	ctx context.Context,
 	deps commandDeps,
 	item extensionUpdateItem,
 ) (extensionPortableUpdateOutput, bool, error) {
-	client, err := requireExtensionDaemonClient(ctx, deps)
-	if err != nil {
-		return extensionPortableUpdateOutput{}, false, err
-	}
-	status, err := client.ExtensionStatus(ctx, item.Name)
-	if err != nil {
-		return extensionPortableUpdateOutput{}, false, err
-	}
-	if status.Format != string(extensionpkg.FormatAgentPlugin) {
-		return extensionPortableUpdateOutput{}, false, nil
-	}
 	report, err := extensionpkg.ValidateBundleReport(item.Path)
 	if err != nil {
 		return extensionPortableUpdateOutput{}, false, fmt.Errorf(
@@ -87,6 +74,9 @@ func extensionPortableUpdatePresentation(
 			item.Name,
 			err,
 		)
+	}
+	if report.Format != string(extensionpkg.FormatAgentPlugin) {
+		return extensionPortableUpdateOutput{}, false, nil
 	}
 	homePaths, err := deps.resolveHome()
 	if err != nil {
@@ -96,9 +86,7 @@ func extensionPortableUpdatePresentation(
 	if err != nil {
 		return extensionPortableUpdateOutput{}, false, fmt.Errorf("cli: resolve extension update data path: %w", err)
 	}
-	return extensionPortableUpdateOutput{
-		Update: item, Status: status, Report: report, DataPath: dataPath,
-	}, true, nil
+	return extensionPortableUpdateOutput{Update: item, Report: report, DataPath: dataPath}, true, nil
 }
 
 func searchExtensionsPage(
@@ -299,10 +287,18 @@ func extensionRemoveBundle(item extensionRemoveItem) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"extension_remove",
-				[]string{automationNameKey, extensionMarketplacePathKey, automationStatusKey},
+				[]string{
+					automationNameKey,
+					extensionMarketplacePathKey,
+					"data_path",
+					"quarantine_path",
+					automationStatusKey,
+				},
 				[]string{
 					item.Name,
 					item.Path,
+					item.DataPath,
+					item.QuarantinePath,
 					item.Status,
 				},
 			), nil

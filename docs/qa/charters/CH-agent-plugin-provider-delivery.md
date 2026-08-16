@@ -26,8 +26,10 @@ charter:
 
 ## Evidence gate
 
-`docs/qa/evidence/<run-date>-agent-plugins/provider-matrix.json` must contain three completed rows
-named `claude-code`, `openclaw`, and `hermes`. The dated report cites each row and the shared installed
-generation. This file and the conformance checklist are the two evidence sources task 09 may cite.
+`docs/qa/evidence/<run-date>-agent-plugins/provider-matrix.json` must contain three terminal rows named
+`claude-code`, `openclaw`, and `hermes`. A row may pass or record a verified provider-contract block;
+blocked evidence cannot support the compatible-client claim. The dated report cites each row and the
+shared installed generation. This file and the conformance checklist are the two evidence sources
+task 09 may cite.
 
 <!-- The charter is durable and immutable: each run's debrief belongs in its dated report. -->

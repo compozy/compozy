@@ -20,36 +20,60 @@ import (
 func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 	t.Parallel()
 
-	inputSchema := json.RawMessage(
-		`{"type":"object","required":["message"],"properties":{"message":{"type":"string"}}}`,
-	)
-	outputSchema := json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`)
-	view := hostedToolView("compozy__hosted_echo")
-	view.Descriptor.InputSchema = inputSchema
-	view.Descriptor.OutputSchema = outputSchema
+	t.Run("Should preserve provided input and output schemas", func(t *testing.T) {
+		t.Parallel()
 
-	mcpServer := newHostedProxyTestServer()
-	applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{view})
+		inputSchema := json.RawMessage(
+			`{"type":"object","required":["message"],"properties":{"message":{"type":"string"}}}`,
+		)
+		outputSchema := json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`)
+		view := hostedToolView("compozy__hosted_echo")
+		view.Descriptor.InputSchema = inputSchema
+		view.Descriptor.OutputSchema = outputSchema
 
-	registered := listHostedProxyTools(t, mcpServer)
-	tool, ok := registered["compozy__hosted_echo"]
-	if !ok {
-		t.Fatalf("registered tools = %#v, want compozy__hosted_echo", registered)
-	}
-	gotInput, err := json.Marshal(tool.InputSchema)
-	if err != nil {
-		t.Fatalf("json.Marshal(InputSchema) error = %v", err)
-	}
-	if !equalJSON(t, gotInput, inputSchema) {
-		t.Fatalf("InputSchema = %s, want schema-equivalent %s", gotInput, inputSchema)
-	}
-	gotOutput, err := json.Marshal(tool.OutputSchema)
-	if err != nil {
-		t.Fatalf("json.Marshal(OutputSchema) error = %v", err)
-	}
-	if !equalJSON(t, gotOutput, outputSchema) {
-		t.Fatalf("OutputSchema = %s, want schema-equivalent %s", gotOutput, outputSchema)
-	}
+		mcpServer := newHostedProxyTestServer()
+		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{view})
+
+		registered := listHostedProxyTools(t, mcpServer)
+		tool, ok := registered["compozy__hosted_echo"]
+		if !ok {
+			t.Fatalf("registered tools = %#v, want compozy__hosted_echo", registered)
+		}
+		gotInput, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatalf("json.Marshal(InputSchema) error = %v", err)
+		}
+		if !equalJSON(t, gotInput, inputSchema) {
+			t.Fatalf("InputSchema = %s, want schema-equivalent %s", gotInput, inputSchema)
+		}
+		gotOutput, err := json.Marshal(tool.OutputSchema)
+		if err != nil {
+			t.Fatalf("json.Marshal(OutputSchema) error = %v", err)
+		}
+		if !equalJSON(t, gotOutput, outputSchema) {
+			t.Fatalf("OutputSchema = %s, want schema-equivalent %s", gotOutput, outputSchema)
+		}
+	})
+
+	t.Run("Should omit an absent output schema from the MCP declaration", func(t *testing.T) {
+		t.Parallel()
+
+		view := hostedToolView("compozy__hosted_echo")
+		view.Descriptor.OutputSchema = nil
+		tool := hostedMCPTool(view.Descriptor)
+
+		payload, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("json.Marshal(Tool) error = %v", err)
+		}
+		var declaration map[string]any
+		if err := json.Unmarshal(payload, &declaration); err != nil {
+			t.Fatalf("json.Unmarshal(Tool) error = %v", err)
+		}
+		if _, present := declaration["outputSchema"]; present {
+			t.Fatalf("tool declaration = %s, want outputSchema omitted", payload)
+		}
+	})
 }
 
 func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {

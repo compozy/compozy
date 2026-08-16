@@ -5,6 +5,7 @@ type MCPServer struct {
 	Name           string             `json:"name"                      yaml:"name"                      toml:"name"`
 	Transport      MCPServerTransport `json:"transport,omitempty"       yaml:"transport,omitempty"       toml:"transport,omitempty"`
 	Command        string             `json:"command,omitempty"         yaml:"command,omitempty"         toml:"command,omitempty"`
+	CWD            string             `json:"cwd,omitempty"             yaml:"-"                         toml:"-"`
 	Args           []string           `json:"args,omitempty"            yaml:"args,omitempty"            toml:"args,omitempty"`
 	Env            map[string]string  `json:"env,omitempty"             yaml:"env,omitempty"             toml:"env,omitempty"`
 	SecretEnv      map[string]string  `json:"secret_env,omitempty"      yaml:"secret_env,omitempty"      toml:"secret_env,omitempty"`

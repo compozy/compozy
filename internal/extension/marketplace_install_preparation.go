@@ -32,7 +32,7 @@ func PrepareMarketplaceManagedInstall(
 	if registry == nil {
 		return nil, errors.New("extension: registry is required")
 	}
-	install, err := prepareMarketplaceManagedInstall(ctx, homePaths, registry, loader, req)
+	install, err := prepareMarketplaceManagedInstall(ctx, homePaths, loader, req)
 	if err != nil {
 		return nil, err
 	}

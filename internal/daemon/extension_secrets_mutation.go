@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/mcppolicy"
 	"github.com/compozy/compozy/internal/vault"
@@ -44,12 +45,37 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 	req contract.SetExtensionSecretsRequest,
 ) ([]preparedExtensionSecret, error) {
 	declared := normalizedDeclaredEnv(ext)
+	byName, err := normalizeExtensionSecretInputs(ext, declared, req.Bindings)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(byName))
+	for name := range byName {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	prepared := make([]preparedExtensionSecret, 0, len(names))
+	for _, name := range names {
+		secret, err := s.prepareExtensionSecret(ctx, key, byName[name])
+		if err != nil {
+			return nil, err
+		}
+		prepared = append(prepared, secret)
+	}
+	return prepared, nil
+}
+
+func normalizeExtensionSecretInputs(
+	ext *extensionpkg.Extension,
+	declared []string,
+	inputs []contract.ExtensionSecretBindingInput,
+) (map[string]contract.ExtensionSecretBindingInput, error) {
 	declaredSet := make(map[string]struct{}, len(declared))
 	for _, name := range declared {
 		declaredSet[name] = struct{}{}
 	}
-	byName := make(map[string]contract.ExtensionSecretBindingInput, len(req.Bindings))
-	for _, input := range req.Bindings {
+	byName := make(map[string]contract.ExtensionSecretBindingInput, len(inputs))
+	for _, input := range inputs {
 		name := strings.TrimSpace(input.EnvName)
 		if !vault.EnvNamePattern.MatchString(name) {
 			return nil, &extensionpkg.EnvBindingValidationError{
@@ -74,7 +100,9 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 		if mcpServer == "" {
 			if _, ok := declaredSet[name]; !ok {
 				return nil, &extensionpkg.EnvBindingValidationError{
-					EnvName: name, Declared: slices.Clone(declared), Cause: extensionpkg.ErrExtensionEnvBindingUndeclared,
+					EnvName:  name,
+					Declared: slices.Clone(declared),
+					Cause:    extensionpkg.ErrExtensionEnvBindingUndeclared,
 				}
 			}
 		} else if err := validateRemoteHeaderTarget(ext, mcpServer, headerName); err != nil {
@@ -89,52 +117,49 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 				Cause:   extensionpkg.ErrExtensionEnvBindingInvalid,
 			}
 		}
+		input.EnvName = name
+		input.MCPServer = mcpServer
+		input.HeaderName = headerName
 		byName[name] = input
 	}
-	names := make([]string, 0, len(byName))
-	for name := range byName {
-		names = append(names, name)
+	return byName, nil
+}
+
+func (s *daemonExtensionService) prepareExtensionSecret(
+	ctx context.Context,
+	key extensionpkg.InstanceKey,
+	input contract.ExtensionSecretBindingInput,
+) (preparedExtensionSecret, error) {
+	name := input.EnvName
+	if input.Value != nil {
+		if strings.TrimSpace(*input.Value) == "" {
+			return preparedExtensionSecret{}, &extensionpkg.EnvBindingValidationError{
+				EnvName: name, Cause: extensionpkg.ErrExtensionEnvBindingInvalid,
+			}
+		}
+		return preparedExtensionSecret{
+			envName: name, ref: vault.ExtensionSecretRef(key.Name, key.WorkspaceID, name), value: input.Value,
+			mcpServer: input.MCPServer, headerName: input.HeaderName,
+		}, nil
 	}
-	slices.Sort(names)
-	prepared := make([]preparedExtensionSecret, 0, len(names))
-	for _, name := range names {
-		input := byName[name]
-		if input.Value != nil {
-			if strings.TrimSpace(*input.Value) == "" {
-				return nil, &extensionpkg.EnvBindingValidationError{
-					EnvName: name,
-					Cause:   extensionpkg.ErrExtensionEnvBindingInvalid,
-				}
-			}
-			prepared = append(prepared, preparedExtensionSecret{
-				envName: name, ref: vault.ExtensionSecretRef(key.Name, key.WorkspaceID, name), value: input.Value,
-				mcpServer: strings.TrimSpace(input.MCPServer), headerName: strings.TrimSpace(input.HeaderName),
-			})
-			continue
+	ref := vault.NormalizeRef(*input.VaultRef)
+	if err := vault.ValidateSecretRefNamespace(ref, "extensions"); err != nil {
+		return preparedExtensionSecret{}, &extensionpkg.EnvBindingValidationError{
+			EnvName: name, Cause: extensionpkg.ErrExtensionEnvBindingInvalid,
 		}
-		ref := vault.NormalizeRef(*input.VaultRef)
-		if err := vault.ValidateSecretRefNamespace(ref, "extensions"); err != nil {
-			return nil, &extensionpkg.EnvBindingValidationError{
-				EnvName: name,
-				Cause:   extensionpkg.ErrExtensionEnvBindingInvalid,
-			}
-		}
-		metadata, err := s.secretVault.GetMetadata(ctx, ref)
-		if errors.Is(err, vault.ErrSecretNotFound) || (err == nil && !metadata.Present) {
-			return nil, &extensionpkg.EnvBindingValidationError{
-				EnvName: name,
-				Cause:   extensionpkg.ErrExtensionEnvBindingDangling,
-			}
-		}
-		if err != nil {
-			return nil, fmt.Errorf("daemon: inspect extension secret binding %q: %w", name, err)
-		}
-		prepared = append(prepared, preparedExtensionSecret{
-			envName: name, ref: ref,
-			mcpServer: strings.TrimSpace(input.MCPServer), headerName: strings.TrimSpace(input.HeaderName),
-		})
 	}
-	return prepared, nil
+	metadata, err := s.secretVault.GetMetadata(ctx, ref)
+	if errors.Is(err, vault.ErrSecretNotFound) || (err == nil && !metadata.Present) {
+		return preparedExtensionSecret{}, &extensionpkg.EnvBindingValidationError{
+			EnvName: name, Cause: extensionpkg.ErrExtensionEnvBindingDangling,
+		}
+	}
+	if err != nil {
+		return preparedExtensionSecret{}, fmt.Errorf("daemon: inspect extension secret binding %q: %w", name, err)
+	}
+	return preparedExtensionSecret{
+		envName: name, ref: ref, mcpServer: input.MCPServer, headerName: input.HeaderName,
+	}, nil
 }
 
 func validateRemoteHeaderTarget(ext *extensionpkg.Extension, serverName, headerName string) error {
@@ -145,7 +170,7 @@ func validateRemoteHeaderTarget(ext *extensionpkg.Extension, serverName, headerN
 	if !ok {
 		return fmt.Errorf("mcp server %q is not declared", serverName)
 	}
-	if strings.TrimSpace(server.Transport) != "http" {
+	if strings.TrimSpace(server.Transport) != string(compozyconfig.MCPServerTransportHTTP) {
 		return fmt.Errorf("mcp server %q is not remote", serverName)
 	}
 	if err := mcppolicy.ValidateHeaders(

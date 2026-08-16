@@ -77,7 +77,12 @@ func testExtensionRemoteHeaderBindingParity(t *testing.T) {
 		if setResponse.Code != http.StatusOK {
 			t.Fatalf("%s set status = %d, want 200; body=%s", transport.name, setResponse.Code, setResponse.Body)
 		}
-		assertSecretsAbsent(t, transport.name+" set response", setResponse.Body.String(), []string{secretValue, secretRef})
+		assertSecretsAbsent(
+			t,
+			transport.name+" set response",
+			setResponse.Body.String(),
+			[]string{secretValue, secretRef},
+		)
 		rows, err := harness.db.ExtensionEnvRepo.ListEnvBindings(t.Context(), extensionName, "")
 		if err != nil {
 			t.Fatalf("%s ListEnvBindings() error = %v", transport.name, err)
@@ -101,7 +106,12 @@ func testExtensionRemoteHeaderBindingParity(t *testing.T) {
 			payload.Bindings[0].HeaderName != "X-Deployment-Key" || payload.Bindings[0].Stale {
 			t.Fatalf("%s presence-only payload = %#v", transport.name, payload)
 		}
-		assertSecretsAbsent(t, transport.name+" list response", listResponse.Body.String(), []string{secretValue, secretRef})
+		assertSecretsAbsent(
+			t,
+			transport.name+" list response",
+			listResponse.Body.String(),
+			[]string{secretValue, secretRef},
+		)
 	}
 
 	missingRef := vault.ExtensionSecretRef(extensionName, "", "MISSING_KEY")

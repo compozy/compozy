@@ -129,7 +129,7 @@ func newLayoutExportCommand(deps commandDeps) *cobra.Command {
 func newLayoutValidateCommand(deps commandDeps) *cobra.Command {
 	var workspace, file string
 	cmd := &cobra.Command{
-		Use: "validate", Short: "Validate a declarative layout without writing it", Args: cobra.NoArgs,
+		Use: cliValidateVerb, Short: "Validate a declarative layout without writing it", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspace, err := windowManagerClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {

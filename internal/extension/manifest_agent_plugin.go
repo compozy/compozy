@@ -7,9 +7,11 @@ import (
 	"sort"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/extension/agentplugin"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // ExtensionFormat identifies the manifest format that owns an extension instance.
@@ -30,7 +32,7 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 	if root == "" {
 		return nil, errors.New("extension: Agent Plugins root directory is required")
 	}
-	absRoot, err := filepath.Abs(root)
+	absRoot, err := fileutil.CanonicalExistingDirectory(root)
 	if err != nil {
 		return nil, fmt.Errorf("extension: resolve Agent Plugins root %q: %w", root, err)
 	}
@@ -45,10 +47,11 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		if err != nil {
 			return nil, fmt.Errorf("extension: resolve Agent Plugins skill %q: %w", skill.Name, err)
 		}
-		if filepath.IsAbs(relativePath) || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		if filepath.IsAbs(relativePath) || relativePath == ".." ||
+			strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
 			return nil, fmt.Errorf("extension: Agent Plugins skill %q escapes the package root", skill.Name)
 		}
-		skills = append(skills, filepath.ToSlash(relativePath))
+		skills = append(skills, filepath.Clean(relativePath))
 	}
 	sort.Strings(skills)
 
@@ -60,15 +63,16 @@ func SynthesizeAgentPluginManifest(pkg *agentplugin.Package, rootDir string) (*M
 		}
 		config := MCPServerConfig{
 			Command: strings.TrimSpace(server.Command),
+			CWD:     strings.TrimSpace(server.CWD),
 			Args:    append([]string(nil), server.Args...),
 			Env:     cloneStringMap(server.Env),
 			Headers: cloneStringMap(server.Headers),
 		}
 		switch strings.TrimSpace(server.Transport) {
-		case "stdio":
-			config.Transport = "stdio"
-		case "streamable-http":
-			config.Transport = "http"
+		case agentPluginStdioTransport:
+			config.Transport = string(compozyconfig.MCPServerTransportStdio)
+		case agentPluginStreamableHTTPTransport:
+			config.Transport = string(compozyconfig.MCPServerTransportHTTP)
 			config.URL = strings.TrimSpace(server.URL)
 		default:
 			return nil, fmt.Errorf("extension: unsupported synthesized MCP transport %q", server.Transport)
@@ -108,11 +112,13 @@ func AgentPluginDiagnostics(name string, values []agentplugin.Diagnostic) []diag
 			Message:       agentPluginDiagnosticMessage(component, scope, message),
 			Severity:      diagnosticcontract.SeverityWarn,
 			DataFreshness: diagnosticcontract.FreshnessLive,
-		}, diagnosticspkg.WithEvidence(map[string]any{"scope": scope, "component": component})))
+		}, diagnosticspkg.WithEvidence(map[string]any{
+			diagnosticEvidenceScopeKey: scope, diagnosticEvidenceComponentKey: component,
+		})))
 	}
 	sort.Slice(items, func(left, right int) bool {
-		leftScope, _ := items[left].Evidence["scope"].(string)
-		rightScope, _ := items[right].Evidence["scope"].(string)
+		leftScope := diagnosticEvidenceString(items[left], diagnosticEvidenceScopeKey)
+		rightScope := diagnosticEvidenceString(items[right], diagnosticEvidenceScopeKey)
 		if leftScope != rightScope {
 			return leftScope < rightScope
 		}
@@ -124,22 +130,30 @@ func AgentPluginDiagnostics(name string, values []agentplugin.Diagnostic) []diag
 	return items
 }
 
+func diagnosticEvidenceString(item diagnosticcontract.DiagnosticItem, key string) string {
+	value, ok := item.Evidence[key].(string)
+	if !ok {
+		return ""
+	}
+	return value
+}
+
 func agentPluginDiagnosticComponent(scope string) string {
 	switch {
-	case scope == "mcp" || strings.HasPrefix(scope, "mcp:"):
-		return "mcp_server"
-	case scope == "skills" || strings.HasPrefix(scope, "skill:"):
-		return "skill"
+	case scope == agentPluginMCPKind || strings.HasPrefix(scope, agentPluginMCPKind+":"):
+		return agentPluginMCPServerKind
+	case scope == manifestSkillsKey || strings.HasPrefix(scope, agentPluginSkillKind+":"):
+		return agentPluginSkillKind
 	default:
 		return "manifest"
 	}
 }
 
 func agentPluginDiagnosticMessage(component, scope, message string) string {
-	if component == "mcp_server" && strings.HasPrefix(scope, "mcp:") {
+	if component == agentPluginMCPServerKind && strings.HasPrefix(scope, agentPluginMCPKind+":") {
 		return fmt.Sprintf("mcp server %q: %s", strings.TrimPrefix(scope, "mcp:"), message)
 	}
-	if component == "skill" && strings.HasPrefix(scope, "skill:") {
+	if component == agentPluginSkillKind && strings.HasPrefix(scope, agentPluginSkillKind+":") {
 		return fmt.Sprintf("skill %q: %s", strings.TrimPrefix(scope, "skill:"), message)
 	}
 	return message

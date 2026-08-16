@@ -76,7 +76,12 @@ func TestRuntimeHealthRegistry(t *testing.T) {
 
 		fresh := registry.Begin(key)
 		registry.RecordFailure(fresh, errors.New("fresh failure"))
-		if entries := registry.Entries("kit", "workspace-a", "generation-a"); len(entries) != 1 || entries[0].Message != "fresh failure" {
+		if entries := registry.Entries(
+			"kit",
+			"workspace-a",
+			"generation-a",
+		); len(entries) != 1 ||
+			entries[0].Message != "fresh failure" {
 			t.Fatalf("Entries() after fresh observation = %#v, want fresh failure", entries)
 		}
 	})

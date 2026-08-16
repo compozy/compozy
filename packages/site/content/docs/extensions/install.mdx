@@ -63,8 +63,9 @@ compozy extension install git:https://github.com/acme/acme-tools@v1.2.0 \
   --allow-unverified --yes
 ```
 
-Both managed and dev instances receive absolute `PLUGIN_ROOT` and `PLUGIN_DATA` paths. The data
-directory is stable across updates at `<COMPOZY_HOME>/extension-data/<name>/`; see
+Both managed and dev instances receive absolute `PLUGIN_ROOT` and `PLUGIN_DATA` paths. Managed data
+is stable across updates at `<COMPOZY_HOME>/extension-data/<name>/`; a dev instance is isolated at
+`<COMPOZY_HOME>/extension-data/<name>@ws-<workspace-id>/`. See
 [Agent Plugins interoperability](/docs/extensions/agent-plugins) for the full mapping.
 
 ## Trust and consent

@@ -27,6 +27,11 @@ func TestLoadManifestFatality(t *testing.T) {
 			wantField: "keywords",
 		},
 		{
+			name:      "Should reject a null keyword",
+			manifest:  map[string]any{"$schema": PluginSchemaID, "name": "null-keyword", "keywords": []any{"ok", nil}},
+			wantField: "keywords",
+		},
+		{
 			name:      "Should reject an explicit null version",
 			manifest:  map[string]any{"$schema": PluginSchemaID, "name": "null-version", "version": nil},
 			wantField: "version",
@@ -98,8 +103,9 @@ func TestLoadManifestTolerance(t *testing.T) {
 			"extensions": 42,
 		})
 		pkg := loadForTest(t, root)
-		if len(pkg.Diagnostics) != 1 || pkg.Diagnostics[0].Scope != "manifest" {
-			t.Fatalf("Load() diagnostics = %#v, want one manifest diagnostic", pkg.Diagnostics)
+		want := Diagnostic{Scope: "manifest", Message: "ignored non-object extensions field"}
+		if len(pkg.Diagnostics) != 1 || pkg.Diagnostics[0] != want {
+			t.Fatalf("Load() diagnostics = %#v, want %#v", pkg.Diagnostics, []Diagnostic{want})
 		}
 	})
 

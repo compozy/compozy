@@ -298,6 +298,106 @@ func TestReconcileDriverSingleFlightCoalescesSameKind(t *testing.T) {
 	})
 }
 
+func TestReconcileDriverWaitForIdle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wait for the queued projection to settle", func(t *testing.T) {
+		t.Parallel()
+
+		kernel, _ := openTestKernel(t)
+		buildStarted := make(chan struct{})
+		releaseBuild := make(chan struct{})
+		driver, err := NewReconcileDriver(
+			kernel,
+			testDaemonActor(),
+			[]ProjectorRegistration{
+				newTestProjectorRegistration(testResourceKind, nil,
+					func(context.Context, projectionInput) (ProjectionPlan, error) {
+						close(buildStarted)
+						<-releaseBuild
+						return testPlan{kind: testResourceKind, revision: 1, operations: 1}, nil
+					},
+					func(context.Context, ProjectionPlan) error { return nil },
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewReconcileDriver() error = %v", err)
+		}
+		t.Cleanup(func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if closeErr := driver.Close(closeCtx); closeErr != nil {
+				t.Fatalf("Close() error = %v", closeErr)
+			}
+		})
+
+		ctx := testutil.Context(t)
+		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+		<-buildStarted
+
+		waitResult := make(chan error, 1)
+		go func() {
+			waitResult <- driver.WaitForIdle(ctx, testResourceKind)
+		}()
+
+		select {
+		case err := <-waitResult:
+			t.Fatalf("WaitForIdle() returned before projection settled: %v", err)
+		case <-time.After(25 * time.Millisecond):
+		}
+
+		close(releaseBuild)
+		select {
+		case err := <-waitResult:
+			if err != nil {
+				t.Fatalf("WaitForIdle() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("WaitForIdle() did not return after projection settled")
+		}
+	})
+
+	t.Run("Should return the projection failure after settling", func(t *testing.T) {
+		t.Parallel()
+
+		kernel, _ := openTestKernel(t)
+		projectionErr := errors.New("projection failed")
+		driver, err := NewReconcileDriver(
+			kernel,
+			testDaemonActor(),
+			[]ProjectorRegistration{
+				newTestProjectorRegistration(testResourceKind, nil,
+					func(context.Context, projectionInput) (ProjectionPlan, error) {
+						return nil, projectionErr
+					},
+					func(context.Context, ProjectionPlan) error { return nil },
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewReconcileDriver() error = %v", err)
+		}
+		t.Cleanup(func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if closeErr := driver.Close(closeCtx); closeErr != nil {
+				t.Fatalf("Close() error = %v", closeErr)
+			}
+		})
+
+		ctx := testutil.Context(t)
+		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+			t.Fatalf("Trigger() error = %v", err)
+		}
+		if err := driver.WaitForIdle(ctx, testResourceKind); !errors.Is(err, projectionErr) {
+			t.Fatalf("WaitForIdle() error = %v, want %v", err, projectionErr)
+		}
+	})
+}
+
 func TestReconcileDriverPropagatesTimeoutToProjectorContexts(t *testing.T) {
 	t.Parallel()
 

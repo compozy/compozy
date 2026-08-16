@@ -233,7 +233,7 @@ func extensionValidationBundle(report *extensionpkg.ValidationReport) outputBund
 	}
 	rows := []keyValue{
 		{Label: automationStatusValue, Value: status},
-		{Label: "Issues", Value: strconv.Itoa(len(report.Issues))},
+		{Label: cliIssuesValue, Value: strconv.Itoa(len(report.Issues))},
 		{Label: "Consent", Value: strings.Join(consent, ", ")},
 	}
 	for _, issue := range report.Issues {
@@ -254,28 +254,31 @@ func extensionValidationBundle(report *extensionpkg.ValidationReport) outputBund
 		"Extension bundle validation",
 		rows,
 		"extension_validate",
-		[]string{automationStatusKey, "issues", "consent_areas"},
+		[]string{automationStatusKey, cliIssuesKey, "consent_areas"},
 		[]string{status, strconv.Itoa(len(report.Issues)), strings.Join(consent, ",")},
 	)
 }
 
 func extensionPortableValidationHuman(report *extensionpkg.ValidationReport) string {
-	packageName := strings.TrimSpace(strings.Join([]string{report.Name, report.Version}, " "))
+	packageName := strings.TrimSpace(report.Name + " " + report.Version)
 	rows := []keyValue{
 		{Label: automationStatusValue, Value: stringOrDash(report.Status)},
-		{Label: "Format", Value: extensionFormatLabel(report.Format)},
+		{Label: cliFormatValue, Value: extensionFormatLabel(report.Format)},
 	}
 	if packageName != "" {
 		rows = append(rows, keyValue{Label: "Package", Value: packageName})
 	}
-	rows = append(rows, keyValue{Label: "Issues", Value: strconv.Itoa(len(report.Issues))})
+	rows = append(rows, keyValue{Label: cliIssuesValue, Value: strconv.Itoa(len(report.Issues))})
 	blocks := []string{renderHumanSection("Extension bundle validation", rows)}
 	if len(report.WouldIngest) > 0 {
 		rows := make([][]string, 0, len(report.WouldIngest))
 		for _, item := range report.WouldIngest {
-			rows = append(rows, []string{item.Kind, item.Name, item.Transport})
+			rows = append(rows, []string{item.Kind, item.Name, item.Transport, item.Detail})
 		}
-		blocks = append(blocks, renderHumanTable("Would ingest", []string{"Kind", "Name", "Transport"}, rows))
+		blocks = append(
+			blocks,
+			renderHumanTable("Would ingest", []string{cliKindValue, cliNameValue, "Transport", cliDetailValue}, rows),
+		)
 	}
 	for _, issue := range report.Issues {
 		scope := strings.TrimSpace(issue.Scope)

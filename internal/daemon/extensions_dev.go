@@ -205,7 +205,7 @@ func (s *daemonExtensionService) applyDevReload(
 	if err := s.syncExtensionConsumers(ctx); err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
 	}
-	s.mcpRuntimeHealth.EvictInstance(key.Name, key.WorkspaceID)
+	s.evictExtensionMCPHealth(key.Name, key.WorkspaceID)
 	item, err := s.payloadFromExtension(ctx, ext)
 	if err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
@@ -408,7 +408,7 @@ func (s *daemonExtensionService) RemoveScoped(
 		if syncErr := s.syncExtensionConsumers(ctx); syncErr != nil {
 			return s.rollbackDevRemoval(ctx, runtime, key, snapshot, retirement, syncErr)
 		}
-		s.mcpRuntimeHealth.EvictInstance(key.Name, key.WorkspaceID)
+		s.evictExtensionMCPHealth(key.Name, key.WorkspaceID)
 		item = contract.ManagedExtensionRemovePayload{
 			Name: name, Path: snapshot.OriginPath, Status: "removed",
 		}

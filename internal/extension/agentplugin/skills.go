@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -48,33 +47,48 @@ func discoverSkills(root string, pkg *Package) {
 		)
 		return
 	}
-	sort.Slice(entries, func(left, right int) bool { return entries[left].Name() < entries[right].Name() })
 	for _, entry := range entries {
+		scope := "skill:" + entry.Name()
 		if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
+				Scope: scope, Message: "skill entry must be an in-root directory",
+			})
 			continue
 		}
 		dir := filepath.Join(skillsDir, entry.Name())
 		skillFile := filepath.Join(dir, "SKILL.md")
 		fileInfo, err := os.Lstat(skillFile)
-		if err != nil || !fileInfo.Mode().IsRegular() {
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
+				Scope: scope, Message: "cannot inspect SKILL.md",
+			})
+			continue
+		}
+		if !fileInfo.Mode().IsRegular() {
+			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
+				Scope: scope, Message: "SKILL.md must be a regular in-root file",
+			})
 			continue
 		}
 		if _, err := resolveContained(skillFile, root); err != nil {
 			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: "skill:" + entry.Name(), Message: "SKILL.md must remain inside the package root",
+				Scope: scope, Message: "SKILL.md must remain inside the package root",
 			})
 			continue
 		}
 		metadata, err := readSkillMetadata(skillFile)
 		if err != nil {
 			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: "skill:" + entry.Name(), Message: err.Error(),
+				Scope: scope, Message: err.Error(),
 			})
 			continue
 		}
 		if err := validateSkillMetadata(entry.Name(), metadata); err != nil {
 			pkg.Diagnostics = append(pkg.Diagnostics, Diagnostic{
-				Scope: "skill:" + entry.Name(), Message: err.Error(),
+				Scope: scope, Message: err.Error(),
 			})
 			continue
 		}

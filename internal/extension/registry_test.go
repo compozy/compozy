@@ -68,7 +68,11 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 		t.Fatalf("ManifestPath = %q, want %q", got.ManifestPath, filepath.Join(dir, manifestTOMLFileName))
 	}
 	if got.Format != FormatCompozy || len(got.IngestDiagnostics) != 0 {
-		t.Fatalf("native format state = %q/%#v, want compozy with no ingest diagnostics", got.Format, got.IngestDiagnostics)
+		t.Fatalf(
+			"native format state = %q/%#v, want compozy with no ingest diagnostics",
+			got.Format,
+			got.IngestDiagnostics,
+		)
 	}
 	if !got.InstalledAt.Equal(env.installedAt) {
 		t.Fatalf("InstalledAt = %v, want %v", got.InstalledAt, env.installedAt)
@@ -125,7 +129,12 @@ func TestRegistryPersistsAgentPluginInstanceMetadata(t *testing.T) {
 			t.Fatalf("Get() error = %v", err)
 		}
 		if got.Format != FormatAgentPlugin || !reflect.DeepEqual(got.IngestDiagnostics, manifest.IngestDiagnostics) {
-			t.Fatalf("persisted metadata = %q/%#v, want %#v", got.Format, got.IngestDiagnostics, manifest.IngestDiagnostics)
+			t.Fatalf(
+				"persisted metadata = %q/%#v, want %#v",
+				got.Format,
+				got.IngestDiagnostics,
+				manifest.IngestDiagnostics,
+			)
 		}
 	})
 

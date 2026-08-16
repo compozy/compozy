@@ -53,6 +53,7 @@ func (r ReconcileReason) Validate(path string) error {
 // ReconcileDriver drives boot-time and post-commit resource projection.
 type ReconcileDriver interface {
 	Trigger(ctx context.Context, kind ResourceKind, reason ReconcileReason) error
+	WaitForIdle(ctx context.Context, kind ResourceKind) error
 	RunBoot(ctx context.Context) error
 	Close(ctx context.Context) error
 }
@@ -230,6 +231,7 @@ type reconcileDriver struct {
 	workerCtx    context.Context
 	workerCancel context.CancelFunc
 	notifyCh     chan struct{}
+	stateChanged chan struct{}
 	doneCh       chan struct{}
 }
 
@@ -242,6 +244,7 @@ type reconcileKindState struct {
 	readyAt             time.Time
 	degradedUntil       time.Time
 	consecutiveFailures int
+	lastErr             error
 }
 
 type reconcilePassResult struct {
@@ -292,6 +295,7 @@ func NewReconcileDriver(
 		dependents:       make(map[ResourceKind][]ResourceKind),
 		topoRank:         make(map[ResourceKind]int, len(projectors)),
 		notifyCh:         make(chan struct{}, 1),
+		stateChanged:     make(chan struct{}),
 		doneCh:           make(chan struct{}),
 	}
 	for _, opt := range opts {

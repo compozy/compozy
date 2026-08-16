@@ -235,7 +235,10 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		if _, statErr := os.Stat(ManagedInstallPath(homePaths, manifest.Name)); statErr != nil {
 			t.Fatalf("Stat(restored install) error = %v", statErr)
 		}
-		if data, readErr := os.ReadFile(filepath.Join(dataPath, "state")); readErr != nil || string(data) != "preserve" {
+		if data, readErr := os.ReadFile(
+			filepath.Join(dataPath, "state"),
+		); readErr != nil ||
+			string(data) != "preserve" {
 			t.Fatalf("restored data = %q, %v; want preserve", data, readErr)
 		}
 	})
@@ -325,123 +328,129 @@ func (s *lifecycleSource) packageSlug() string {
 }
 
 func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testing.T) {
-	t.Run("Should refresh a data-named package while preserving its isolated data and reject layout drift", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should refresh a data-named package while preserving its isolated data and reject layout drift",
+		func(t *testing.T) {
+			t.Parallel()
 
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		env := newRegistryTestEnv(t)
-		source := newLifecycleSourceNamed(t, "data", "github", "1.0.0", "2.0.0", "3.0.0")
-		source.archives["1.0.0"] = lifecycleAgentPluginTarGz(t, "data", "1.0.0", false, map[string]string{
-			"skills/review/SKILL.md": "---\nname: wrong\ndescription: First diagnostic\n---\nBody.\n",
-		})
-		source.archives["2.0.0"] = lifecycleAgentPluginTarGz(t, "data", "2.0.0", false, map[string]string{
-			"skills/review/SKILL.md": "---\nname: review\n---\nMissing description.\n",
-		})
-		source.archives["3.0.0"] = lifecycleAgentPluginTarGz(t, "data", "3.0.0", true, nil)
-		loader := func(context.Context) ([]registrypkg.Source, error) {
-			return []registrypkg.Source{source}, nil
-		}
-		source.latestVersion = "1.0.0"
-		installed, err := InstallMarketplaceManaged(
-			t.Context(),
-			homePaths,
-			env.registry,
-			loader,
-			MarketplaceInstallRequest{
-				Slug: "acme/data", SourceFilter: "github",
-				PolicyAllowsUnverified: true, AllowUnverified: true,
-			},
-		)
-		if err != nil {
-			t.Fatalf("InstallMarketplaceManaged(portable) error = %v", err)
-		}
-		if installed.Format != FormatAgentPlugin || len(installed.IngestDiagnostics) != 1 {
-			t.Fatalf("installed portable metadata = %#v, want format and first diagnostic", installed)
-		}
-		firstDiagnostics := cloneDiagnosticItems(installed.IngestDiagnostics)
-		dataPath, err := homePaths.ExtensionDataPath(installed.Name, "")
-		if err != nil {
-			t.Fatalf("ExtensionDataPath() error = %v", err)
-		}
-		if err := os.MkdirAll(dataPath, 0o700); err != nil {
-			t.Fatalf("MkdirAll(data) error = %v", err)
-		}
-		dataFile := filepath.Join(dataPath, "state.db")
-		writeFile(t, dataFile, "portable-state")
-		siblingDataPath, err := homePaths.ExtensionDataPath("sibling", "")
-		if err != nil {
-			t.Fatalf("ExtensionDataPath(sibling) error = %v", err)
-		}
-		if err := os.MkdirAll(siblingDataPath, 0o700); err != nil {
-			t.Fatalf("MkdirAll(sibling data) error = %v", err)
-		}
-		siblingDataFile := filepath.Join(siblingDataPath, "state.db")
-		writeFile(t, siblingDataFile, "sibling-state")
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			env := newRegistryTestEnv(t)
+			source := newLifecycleSourceNamed(t, "data", "github", "1.0.0", "2.0.0", "3.0.0")
+			source.archives["1.0.0"] = lifecycleAgentPluginTarGz(t, "data", "1.0.0", false, map[string]string{
+				"skills/review/SKILL.md": "---\nname: wrong\ndescription: First diagnostic\n---\nBody.\n",
+			})
+			source.archives["2.0.0"] = lifecycleAgentPluginTarGz(t, "data", "2.0.0", false, map[string]string{
+				"skills/review/SKILL.md": "---\nname: review\n---\nMissing description.\n",
+			})
+			source.archives["3.0.0"] = lifecycleAgentPluginTarGz(t, "data", "3.0.0", true, nil)
+			loader := func(context.Context) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{source}, nil
+			}
+			source.latestVersion = "1.0.0"
+			installed, err := InstallMarketplaceManaged(
+				t.Context(),
+				homePaths,
+				env.registry,
+				loader,
+				MarketplaceInstallRequest{
+					Slug: "acme/data", SourceFilter: "github",
+					PolicyAllowsUnverified: true, AllowUnverified: true,
+				},
+			)
+			if err != nil {
+				t.Fatalf("InstallMarketplaceManaged(portable) error = %v", err)
+			}
+			if installed.Format != FormatAgentPlugin || len(installed.IngestDiagnostics) != 1 {
+				t.Fatalf("installed portable metadata = %#v, want format and first diagnostic", installed)
+			}
+			firstDiagnostics := cloneDiagnosticItems(installed.IngestDiagnostics)
+			dataPath, err := homePaths.ExtensionDataPath(installed.Name, "")
+			if err != nil {
+				t.Fatalf("ExtensionDataPath() error = %v", err)
+			}
+			if err := os.MkdirAll(dataPath, 0o700); err != nil {
+				t.Fatalf("MkdirAll(data) error = %v", err)
+			}
+			dataFile := filepath.Join(dataPath, "state.db")
+			writeFile(t, dataFile, "portable-state")
+			siblingDataPath, err := homePaths.ExtensionDataPath("sibling", "")
+			if err != nil {
+				t.Fatalf("ExtensionDataPath(sibling) error = %v", err)
+			}
+			if err := os.MkdirAll(siblingDataPath, 0o700); err != nil {
+				t.Fatalf("MkdirAll(sibling data) error = %v", err)
+			}
+			siblingDataFile := filepath.Join(siblingDataPath, "state.db")
+			writeFile(t, siblingDataFile, "sibling-state")
 
-		source.latestVersion = "2.0.0"
-		updates, err := UpdateMarketplaceManaged(
-			t.Context(),
-			homePaths,
-			env.registry,
-			loader,
-			MarketplaceUpdateRequest{
-				Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
-			},
-			nil,
-		)
-		if err != nil || len(updates) != 1 || updates[0].Status != MarketplaceUpdateStatusUpdated {
-			t.Fatalf("UpdateMarketplaceManaged(portable) = %#v, %v; want updated", updates, err)
-		}
-		updated, err := env.registry.Get(installed.Name)
-		if err != nil {
-			t.Fatalf("registry.Get(updated) error = %v", err)
-		}
-		if updated.Enabled || updated.Format != FormatAgentPlugin || len(updated.IngestDiagnostics) != 1 ||
-			reflect.DeepEqual(updated.IngestDiagnostics, firstDiagnostics) {
-			t.Fatalf("updated portable metadata = %#v, want disabled with replaced diagnostic", updated)
-		}
-		if data, readErr := os.ReadFile(dataFile); readErr != nil || string(data) != "portable-state" {
-			t.Fatalf("portable data after update = %q, %v; want preserved", data, readErr)
-		}
+			source.latestVersion = "2.0.0"
+			updates, err := UpdateMarketplaceManaged(
+				t.Context(),
+				homePaths,
+				env.registry,
+				loader,
+				MarketplaceUpdateRequest{
+					Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
+				},
+				nil,
+			)
+			if err != nil || len(updates) != 1 || updates[0].Status != MarketplaceUpdateStatusUpdated {
+				t.Fatalf("UpdateMarketplaceManaged(portable) = %#v, %v; want updated", updates, err)
+			}
+			updated, err := env.registry.Get(installed.Name)
+			if err != nil {
+				t.Fatalf("registry.Get(updated) error = %v", err)
+			}
+			if updated.Enabled || updated.Format != FormatAgentPlugin || len(updated.IngestDiagnostics) != 1 ||
+				reflect.DeepEqual(updated.IngestDiagnostics, firstDiagnostics) {
+				t.Fatalf("updated portable metadata = %#v, want disabled with replaced diagnostic", updated)
+			}
+			if data, readErr := os.ReadFile(dataFile); readErr != nil || string(data) != "portable-state" {
+				t.Fatalf("portable data after update = %q, %v; want preserved", data, readErr)
+			}
 
-		source.latestVersion = "3.0.0"
-		if _, err := UpdateMarketplaceManaged(
-			t.Context(),
-			homePaths,
-			env.registry,
-			loader,
-			MarketplaceUpdateRequest{
-				Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
-			},
-			nil,
-		); err == nil {
-			t.Fatal("UpdateMarketplaceManaged(client-layout drift) error = nil, want failure")
-		}
-		retained, err := env.registry.Get(installed.Name)
-		if err != nil {
-			t.Fatalf("registry.Get(after drift) error = %v", err)
-		}
-		if retained.RemoteVersion == nil || *retained.RemoteVersion != "2.0.0" ||
-			!reflect.DeepEqual(retained.IngestDiagnostics, updated.IngestDiagnostics) {
-			t.Fatalf("retained portable metadata = %#v, want version 2 diagnostics", retained)
-		}
-		if data, readErr := os.ReadFile(dataFile); readErr != nil || string(data) != "portable-state" {
-			t.Fatalf("portable data after drift = %q, %v; want preserved", data, readErr)
-		}
+			source.latestVersion = "3.0.0"
+			if _, err := UpdateMarketplaceManaged(
+				t.Context(),
+				homePaths,
+				env.registry,
+				loader,
+				MarketplaceUpdateRequest{
+					Names: []string{installed.Name}, PolicyAllowsUnverified: true, AllowUnverified: true,
+				},
+				nil,
+			); err == nil {
+				t.Fatal("UpdateMarketplaceManaged(client-layout drift) error = nil, want failure")
+			}
+			retained, err := env.registry.Get(installed.Name)
+			if err != nil {
+				t.Fatalf("registry.Get(after drift) error = %v", err)
+			}
+			if retained.RemoteVersion == nil || *retained.RemoteVersion != "2.0.0" ||
+				!reflect.DeepEqual(retained.IngestDiagnostics, updated.IngestDiagnostics) {
+				t.Fatalf("retained portable metadata = %#v, want version 2 diagnostics", retained)
+			}
+			if data, readErr := os.ReadFile(dataFile); readErr != nil || string(data) != "portable-state" {
+				t.Fatalf("portable data after drift = %q, %v; want preserved", data, readErr)
+			}
 
-		if _, err := RemoveManagedExtension(t.Context(), env.registry, installed.Name, nil); err != nil {
-			t.Fatalf("RemoveManagedExtension(data) error = %v", err)
-		}
-		if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("Stat(data package data after remove) error = %v, want not-exist", statErr)
-		}
-		if siblingData, readErr := os.ReadFile(siblingDataFile); readErr != nil || string(siblingData) != "sibling-state" {
-			t.Fatalf("sibling data after data package lifecycle = %q, %v; want untouched", siblingData, readErr)
-		}
-	})
+			if _, err := RemoveManagedExtension(t.Context(), env.registry, installed.Name, nil); err != nil {
+				t.Fatalf("RemoveManagedExtension(data) error = %v", err)
+			}
+			if _, statErr := os.Stat(dataPath); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("Stat(data package data after remove) error = %v, want not-exist", statErr)
+			}
+			if siblingData, readErr := os.ReadFile(
+				siblingDataFile,
+			); readErr != nil ||
+				string(siblingData) != "sibling-state" {
+				t.Fatalf("sibling data after data package lifecycle = %q, %v; want untouched", siblingData, readErr)
+			}
+		},
+	)
 
 	t.Run("Should install update and remove managed marketplace extensions", func(t *testing.T) {
 		t.Parallel()

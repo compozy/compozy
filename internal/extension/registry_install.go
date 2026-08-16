@@ -216,21 +216,9 @@ func registryInstallInfo(
 }
 
 func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, replaceExisting bool) error {
-	capabilitiesJSON, err := json.Marshal(info.Capabilities.Provides)
+	encoded, err := marshalInstalledInfoFields(info)
 	if err != nil {
-		return fmt.Errorf("extension: marshal capabilities for %q: %w", info.Name, err)
-	}
-	permissionsJSON, err := json.Marshal(info.Permissions.Requires)
-	if err != nil {
-		return fmt.Errorf("extension: marshal permissions for %q: %w", info.Name, err)
-	}
-	diagnosticsJSON, err := json.Marshal(info.IngestDiagnostics)
-	if err != nil {
-		return fmt.Errorf("extension: marshal ingest diagnostics for %q: %w", info.Name, err)
-	}
-	provenanceJSON, err := json.Marshal(info.Provenance)
-	if err != nil {
-		return fmt.Errorf("extension: marshal provenance for %q: %w", info.Name, err)
+		return err
 	}
 
 	query := `
@@ -278,15 +266,15 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		info.Enabled,
 		info.ManifestPath,
 		string(normalizeExtensionFormat(info.Format)),
-		string(diagnosticsJSON),
+		string(encoded.diagnostics),
 		store.FormatTimestamp(info.InstalledAt),
-		string(capabilitiesJSON),
-		string(permissionsJSON),
+		string(encoded.capabilities),
+		string(encoded.permissions),
 		info.Checksum,
 		nullableStringValue(info.RegistrySlug),
 		nullableStringValue(info.RegistryName),
 		nullableStringValue(info.RemoteVersion),
-		string(provenanceJSON),
+		string(encoded.provenance),
 		strings.TrimSpace(info.NetworkRequirementDigest),
 		nullableRegistryString(info.NetworkConfirmedBy),
 		nullableRegistryTime(info.NetworkConfirmedAt),
@@ -299,6 +287,37 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 	}
 	r.invalidateEnabledBundledNames()
 	return nil
+}
+
+type installedInfoJSONFields struct {
+	capabilities []byte
+	permissions  []byte
+	diagnostics  []byte
+	provenance   []byte
+}
+
+func marshalInstalledInfoFields(info ExtensionInfo) (installedInfoJSONFields, error) {
+	values := installedInfoJSONFields{}
+	fields := []struct {
+		name  string
+		value any
+		dest  *[]byte
+	}{
+		{name: manifestCapabilitiesKey, value: info.Capabilities.Provides, dest: &values.capabilities},
+		{name: "permissions", value: info.Permissions.Requires, dest: &values.permissions},
+		{name: "ingest diagnostics", value: info.IngestDiagnostics, dest: &values.diagnostics},
+		{name: installedInfoProvenanceField, value: info.Provenance, dest: &values.provenance},
+	}
+	for _, field := range fields {
+		encoded, err := json.Marshal(field.value)
+		if err != nil {
+			return installedInfoJSONFields{}, fmt.Errorf(
+				"extension: marshal %s for %q: %w", field.name, info.Name, err,
+			)
+		}
+		*field.dest = encoded
+	}
+	return values, nil
 }
 
 func normalizeExtensionFormat(format ExtensionFormat) ExtensionFormat {

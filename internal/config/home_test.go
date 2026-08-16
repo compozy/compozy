@@ -112,7 +112,12 @@ func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
 		wantSegment string
 	}{
 		{name: "Should encode a global dotted name", extension: "acme.tools", wantSegment: "acme.tools"},
-		{name: "Should encode a workspace instance", extension: "acme.tools", workspaceID: "abc-123", wantSegment: "acme.tools@ws-abc-123"},
+		{
+			name:        "Should encode a workspace instance",
+			extension:   "acme.tools",
+			workspaceID: "abc-123",
+			wantSegment: "acme.tools@ws-abc-123",
+		},
 		{name: "Should keep the data package under the dedicated root", extension: "data", wantSegment: "data"},
 	}
 	for _, test := range tests {

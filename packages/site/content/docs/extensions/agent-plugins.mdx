@@ -13,7 +13,7 @@ update, dev reload, secret binding, and removal continue to use the extension su
 | Agent Plugins package                            | CompozyOS extension                                                                    |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
 | Root `plugin.json` identity                      | A synthesized resource-only manifest with `format: "agent-plugin"`.                    |
-| Immediate child directories under `skills/`      | Extension-kit skills. Nested or malformed entries are recorded as skipped diagnostics. |
+| Immediate child directories under `skills/`      | Extension-kit skills. Malformed immediate entries are recorded as skipped diagnostics; deeper nesting is ignored. |
 | `mcp.json` server with `type: "stdio"`           | A packaged stdio MCP server.                                                           |
 | `mcp.json` server with `type: "streamable-http"` | A packaged remote MCP server, normalized to the native `http` transport.               |
 | `PLUGIN_ROOT`                                    | Absolute package root for managed and dev instances.                                   |
@@ -26,9 +26,10 @@ extension Vault flow instead.
 
 ## Native manifest precedence
 
-When the package contains both a native manifest and `plugin.json`, the native manifest wins and the
-unused portable manifest is recorded as an informational diagnostic. This gives one deterministic
-owner for identity, permissions, capabilities, and resources.
+When the package contains both a native manifest and `plugin.json`, the native manifest wins. Validate
+and install output includes a note about the unused portable manifest; status does not persist it as a
+runtime diagnostic. This gives one deterministic owner for identity, permissions, capabilities, and
+resources.
 
 ```bash
 compozy extension validate ./acme-tools -o json
@@ -49,7 +50,7 @@ Map a declared environment name to a remote request header without placing the c
 ```bash
 compozy extension secrets bind acme-tools \
   --env DEPLOY_API_TOKEN \
-  --vault-ref vault:extensions/global/acme-tools/DEPLOY_API_TOKEN \
+  --vault-ref vault:extensions/global/acme-tools/env/DEPLOY_API_TOKEN \
   --remote-header deployment-api:Authorization
 ```
 

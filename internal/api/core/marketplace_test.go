@@ -411,7 +411,7 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 				t.Parallel()
 
 				entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
-				entry.Payload = marketplaceExtensionPayloadForTest(tt.feedFormat)
+				entry.Payload = marketplaceExtensionPayloadForTest(t, tt.feedFormat)
 				handlerFixture := marketplaceHandlerFixture{
 					extensionInstalledFormat: tt.installedFormat,
 					catalogBrowse: func(
@@ -1002,6 +1002,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
 				return []contract.ExtensionPayload{{
 					Name: "local-extension", Version: "1.4.0", Source: "local", Enabled: true,
+					Format: "agent-plugin",
 				}}, nil
 			}},
 			Settings: &stubSettingsService{ListCollectionFn: func(
@@ -1031,6 +1032,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			kind       contract.MarketplaceKind
 			entryName  string
 			managePath string
+			format     string
 		}{
 			{
 				name: "skill", path: "/marketplace/skill/local-skill",
@@ -1040,7 +1042,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			{
 				name: "extension", path: "/marketplace/extension/local-extension",
 				kind: contract.MarketplaceKindExtension, entryName: "local-extension",
-				managePath: "/marketplace/extensions",
+				managePath: "/marketplace/extensions", format: "agent-plugin",
 			},
 			{
 				name: "mcp", path: "/marketplace/mcp/local-mcp",
@@ -1066,8 +1068,9 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 					t.Fatalf("json.Unmarshal() error = %v", err)
 				}
 				if payload.Entry.Kind != test.kind || payload.Entry.Name != test.entryName ||
-					!payload.Entry.Installed || payload.Entry.ManagePath != test.managePath {
-					t.Fatalf("installed detail = %#v, want kind/name/installed/manage path", payload.Entry)
+					!payload.Entry.Installed || payload.Entry.ManagePath != test.managePath ||
+					payload.Entry.Format != test.format {
+					t.Fatalf("installed detail = %#v, want kind/name/installed/manage path/format", payload.Entry)
 				}
 			})
 		}
@@ -1536,17 +1539,25 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 
 // marketplaceExtensionPayloadForTest rebuilds the curated extension payload with an optional format
 // marker, matching what the feed reader stores after a strict decode.
-func marketplaceExtensionPayloadForTest(format string) json.RawMessage {
-	formatField := ""
-	if format != "" {
-		formatField = `,"format":"` + format + `"`
+func marketplaceExtensionPayloadForTest(t *testing.T, format string) json.RawMessage {
+	t.Helper()
+	payload := map[string]string{
+		"entry_id":      "extension-entry",
+		"name":          "Extension",
+		"description":   "Extension",
+		"version":       "1.2.0",
+		"install_slug":  "acme/extension",
+		"artifact_url":  "https://downloads.example.test/extension-v1.2.0.tar.gz",
+		"digest_sha256": strings.Repeat("a", 64),
 	}
-	return json.RawMessage(
-		`{"entry_id":"extension-entry","name":"Extension","description":"Extension","version":"1.2.0",` +
-			`"install_slug":"acme/extension",` +
-			`"artifact_url":"https://downloads.example.test/extension-v1.2.0.tar.gz",` +
-			`"digest_sha256":"` + strings.Repeat("a", 64) + `"` + formatField + `}`,
-	)
+	if format != "" {
+		payload["format"] = format
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(extension marketplace payload) error = %v", err)
+	}
+	return encoded
 }
 
 func marketplaceEntriesForTest() map[marketplacepkg.Kind]marketplacepkg.Entry {

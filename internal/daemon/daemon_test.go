@@ -1646,6 +1646,73 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 	})
 }
 
+func TestBootExtensionsReconcilesManagedArtifactsBeforeRuntimeStart(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should restore the committed backup and remove orphaned installs", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		homePaths := testHomePaths(t)
+		managedRoot := extensionpkg.ManagedInstallRoot(homePaths)
+		registered := filepath.Join(managedRoot, "reconciled")
+		if err := os.MkdirAll(registered, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", registered, err)
+		}
+		committed := daemonTestExtensionManifest("reconciled", daemonTestExtensionOptions{version: "1.0.0"})
+		manifestPath := filepath.Join(registered, "extension.toml")
+		if err := os.WriteFile(manifestPath, []byte(committed), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", manifestPath, err)
+		}
+		manifest, err := extensionpkg.LoadManifest(registered)
+		if err != nil {
+			t.Fatalf("LoadManifest(committed) error = %v", err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(registered)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(committed) error = %v", err)
+		}
+		registry := extensionpkg.NewRegistry(db.DB())
+		if err := registry.Install(manifest, registered, checksum); err != nil {
+			t.Fatalf("Registry.Install() error = %v", err)
+		}
+		backup := registered + ".compozy-backup-1755280000000000000"
+		if err := os.Rename(registered, backup); err != nil {
+			t.Fatalf("os.Rename(backup) error = %v", err)
+		}
+		if err := os.MkdirAll(registered, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(candidate) error = %v", err)
+		}
+		candidate := daemonTestExtensionManifest("reconciled", daemonTestExtensionOptions{version: "9.9.9"})
+		if err := os.WriteFile(manifestPath, []byte(candidate), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(candidate) error = %v", err)
+		}
+		orphan := filepath.Join(managedRoot, "orphan")
+		if err := os.MkdirAll(orphan, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(orphan) error = %v", err)
+		}
+
+		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime { return &fakeExtensionRuntime{} }
+		state := &bootState{
+			logger: discardLogger(), registry: db, sessions: &fakeSessionManager{},
+			observer: &fakeObserver{}, hooks: &fakeHookRuntime{},
+		}
+		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootExtensions() error = %v", err)
+		}
+		contents, err := os.ReadFile(manifestPath)
+		if err != nil || string(contents) != committed {
+			t.Fatalf("reconciled manifest = %q, %v; want committed bytes", contents, err)
+		}
+		for _, removed := range []string{backup, orphan} {
+			if _, err := os.Lstat(removed); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("reconciled path %q stat error = %v, want removed", removed, err)
+			}
+		}
+	})
+}
+
 func TestBootExtensionsPreservesSpecCycleDisableEnableState(t *testing.T) {
 	t.Parallel()
 
@@ -8099,11 +8166,20 @@ type fakeResourceReconcileDriver struct {
 	runBootCalls int
 	closeCalls   int
 	triggerCalls int
+	waitCalls    int
 	lastKind     resources.ResourceKind
 	lastReason   resources.ReconcileReason
 	triggerErr   error
 	onRunBoot    func()
 	onClose      func()
+}
+
+func (f *fakeResourceReconcileDriver) WaitForIdle(
+	context.Context,
+	resources.ResourceKind,
+) error {
+	f.waitCalls++
+	return nil
 }
 
 func (f *fakeResourceReconcileDriver) Trigger(

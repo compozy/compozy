@@ -54,7 +54,7 @@ charter:
   time_box_minutes: 90
   guidance:
     must_try:
-      - "Record eight numbered results in docs/qa/evidence/<run-date>-agent-plugins/conformance-checklist.json, each with the schema-1.0.0 rule, public observable, and cited evidence path."
+      - "Record the plugin and MCP schema IDs once at the top of docs/qa/evidence/<run-date>-agent-plugins/conformance-checklist.json, then record eight numbered item/status/observable/evidence rows."
       - "Validate conformant, warning-only, fatal, dual-manifest, client-specific, unknown-extension, symlink-escape, reserved-env, sensitive-header, and case-duplicate fixtures without mutating daemon state."
       - "Prove both stdio and streamable-http plus skills; verify fixed-location discovery, single-token command handling, plugin-root default cwd, single-pass expansion, literal unknown placeholders, and daemon-owned root/data env."
       - "Compare human, json, jsonl, toon, and native-tool validation results; fatal codes and ordered component warnings must preserve one semantic contract."

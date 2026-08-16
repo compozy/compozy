@@ -12,7 +12,7 @@ import (
 // ClassifyManifest reads a regular, non-symlinked root plugin.json and triages
 // its declared schema identifier.
 func ClassifyManifest(dir string) (SchemaStatus, string, error) {
-	path := filepath.Join(dir, "plugin.json")
+	path := filepath.Join(dir, manifestFileName)
 	info, err := os.Lstat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -54,7 +54,8 @@ func ClassifyManifestContent(content []byte) (SchemaStatus, string) {
 
 // ValidateName enforces the portable manifest name grammar byte-for-byte.
 func ValidateName(name string) error {
-	const message = "must be 1-64 lowercase letters, digits, dots, or hyphens, start and end alphanumeric, without \"--\" or \"..\""
+	const message = "must be 1-64 lowercase letters, digits, dots, or hyphens, " +
+		"start and end alphanumeric, without \"--\" or \"..\""
 	if name == "" || len(name) > 64 {
 		return errors.New(message)
 	}

@@ -11,9 +11,11 @@ func (d *Daemon) extensionManagerDeps(
 	state *bootState,
 	extRegistry *extensionpkg.Registry,
 ) extensionManagerDeps {
-	var envBindings extensionpkg.EnvBindingStore
-	if store, ok := any(state.registry).(extensionpkg.EnvBindingStore); ok {
-		envBindings = store
+	envBindings := state.extensionEnvBindings
+	if envBindings == nil {
+		if store, ok := any(state.registry).(extensionpkg.EnvBindingStore); ok {
+			envBindings = store
+		}
 	}
 	return extensionManagerDeps{
 		Registry:   extRegistry,

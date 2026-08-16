@@ -153,6 +153,9 @@ func (p *ExtensionToolProvider) manifestToolSources(
 	sources := make([]extensionManifestToolSource, 0, len(infos))
 	for i := range infos {
 		info := infos[i]
+		if normalizeExtensionFormat(info.Format) == FormatAgentPlugin {
+			continue
+		}
 		source := extensionManifestToolSource{info: info}
 		if !info.Enabled {
 			source.snapshot.fingerprint = extensionManifestDisabledFingerprint

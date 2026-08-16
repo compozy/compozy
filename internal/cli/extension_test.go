@@ -1041,9 +1041,9 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	}
 	if !strings.Contains(
 		toon,
-		"extension{name,version,type,source,enabled,state,daemon_running,"+
+		"extension{name,version,type,format,source,enabled,state,daemon_running,"+
 			"pid,uptime_seconds,health,last_error,capabilities,permissions,requires_env,missing_env,"+
-			"consecutive_failures,restart_backoff_ms,summary}:",
+			"consecutive_failures,restart_backoff_ms,summary,diagnostics}:",
 	) {
 		t.Fatalf("toon output = %q, want extension TOON object", toon)
 	}

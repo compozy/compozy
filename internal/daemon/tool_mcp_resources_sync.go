@@ -172,7 +172,10 @@ func (d *Daemon) newToolMCPPublisher(
 			if state.resourceReconcile == nil {
 				return nil
 			}
-			return state.resourceReconcile.Trigger(ctx, kind, reason)
+			if err := state.resourceReconcile.Trigger(ctx, kind, reason); err != nil {
+				return err
+			}
+			return state.resourceReconcile.WaitForIdle(ctx, kind)
 		},
 		daemonConfigMCPDeclarationProvider(&state.cfg, state.registry, state.workspaceResolver, state.logger),
 		extensionManifestToolMCPDeclarationProvider(registry, state.currentExtensionRuntime, d.getenv, state.logger),

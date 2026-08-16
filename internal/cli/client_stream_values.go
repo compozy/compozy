@@ -65,7 +65,7 @@ func logsListValues(query LogsListQuery) url.Values {
 		values.Set(cliOutcomeKey, trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.Component); trimmed != "" {
-		values.Set("component", trimmed)
+		values.Set(cliComponentKey, trimmed)
 	}
 	if query.ErrorOnly {
 		values.Set("error_only", "true")

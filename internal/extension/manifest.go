@@ -20,6 +20,7 @@ const (
 	manifestBackendKey                  = "backend"
 	manifestCommandKey                  = "command"
 	manifestCommandGroupsKey            = "command_groups"
+	manifestCapabilitiesKey             = "capabilities"
 	manifestDescriptionKey              = "description"
 	manifestEnvKey                      = "env"
 	manifestEventKey                    = "event"
@@ -38,6 +39,7 @@ const (
 	manifestNullKey                     = "null"
 	manifestOutputSchemaKey             = "output_schema"
 	manifestPathKey                     = "path"
+	manifestPermissionsKey              = "permissions"
 	manifestPublishKey                  = "publish"
 	manifestReadOnlyKey                 = "read_only"
 	manifestResourcesKey                = "resources"
@@ -49,6 +51,16 @@ const (
 	manifestToolsKey                    = "tools"
 	manifestVersionKey                  = "version"
 	manifestVisibilityKey               = "visibility"
+	agentPluginInvalidStatus            = "invalid"
+	agentPluginMCPKind                  = "mcp"
+	agentPluginMCPServerKind            = "mcp_server"
+	agentPluginSkillKind                = "skill"
+	agentPluginStdioTransport           = "stdio"
+	agentPluginStreamableHTTPTransport  = "streamable-http"
+	diagnosticEvidenceScopeKey          = "scope"
+	diagnosticEvidenceComponentKey      = "component"
+	marketplaceCleanupTargetKey         = "cleanup_target"
+	installedInfoProvenanceField        = "provenance"
 )
 
 type manifestCommandSpec = toolspkg.ExtensionCommandSpec
@@ -192,6 +204,7 @@ type HookMatcherConfig struct {
 // MCPServerConfig declares one MCP server packaged with the extension.
 type MCPServerConfig struct {
 	Command   string            `toml:"command,omitempty"    json:"command,omitempty"`
+	CWD       string            `toml:"-"                    json:"-"`
 	Args      []string          `toml:"args,omitempty"       json:"args,omitempty"`
 	Env       map[string]string `toml:"env,omitempty"        json:"env,omitempty"`
 	SecretEnv map[string]string `toml:"secret_env,omitempty" json:"secret_env,omitempty"`

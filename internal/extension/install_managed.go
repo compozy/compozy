@@ -129,15 +129,8 @@ func InstallLocalManaged(
 		return err
 	}
 
-	actualSourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
-	if err != nil {
-		return fmt.Errorf("extension: compute source checksum %q: %w", sourceDir, err)
-	}
-	if actualSourceChecksum != normalizedChecksum {
-		return &ExtensionChecksumMismatchError{
-			ExpectedChecksum: normalizedChecksum,
-			ActualChecksum:   actualSourceChecksum,
-		}
+	if err := verifyManagedInstallSource(sourceDir, normalizedChecksum); err != nil {
+		return err
 	}
 
 	stagingDir, err := NewManagedInstallStagingDir(homePaths)
@@ -199,6 +192,20 @@ func InstallLocalManaged(
 		)
 	}
 
+	return nil
+}
+
+func verifyManagedInstallSource(sourceDir string, expectedChecksum string) error {
+	actualChecksum, err := ComputeDirectoryChecksum(sourceDir)
+	if err != nil {
+		return fmt.Errorf("extension: compute source checksum %q: %w", sourceDir, err)
+	}
+	if actualChecksum != expectedChecksum {
+		return &ExtensionChecksumMismatchError{
+			ExpectedChecksum: expectedChecksum,
+			ActualChecksum:   actualChecksum,
+		}
+	}
 	return nil
 }
 

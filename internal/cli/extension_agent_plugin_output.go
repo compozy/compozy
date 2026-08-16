@@ -10,9 +10,11 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
+const extensionAgentPluginDiagnosticPrefix = "extension_agent_plugin_"
+
 func extensionFormatLabel(format string) string {
 	if strings.TrimSpace(format) == string(extensionpkg.FormatAgentPlugin) {
-		return "agent plugin"
+		return extensionAgentPluginValue
 	}
 	return string(extensionpkg.FormatCompozy)
 }
@@ -20,7 +22,7 @@ func extensionFormatLabel(format string) string {
 func extensionSkippedComponentCount(items []contract.DiagnosticItem) int {
 	count := 0
 	for _, item := range items {
-		if item.Code == diagnosticcontract.CodeExtensionAgentPluginComponentSkipped {
+		if isExtensionSkippedDiagnostic(item) {
 			count++
 		}
 	}
@@ -32,7 +34,7 @@ func extensionDiagnosticsHuman(title string, items []contract.DiagnosticItem) st
 	for _, item := range items {
 		scope := extensionDiagnosticScope(item)
 		rows = append(rows, keyValue{
-			Label: strings.ToUpper(strings.TrimSpace(string(item.Severity))) + " " + scope,
+			Label: strings.ToUpper(strings.TrimSpace(item.Severity)) + " " + scope,
 			Value: extensionDiagnosticReason(item, scope),
 		})
 	}
@@ -45,12 +47,12 @@ func extensionDiagnosticsHuman(title string, items []contract.DiagnosticItem) st
 func extensionSkippedDiagnosticsHuman(items []contract.DiagnosticItem) string {
 	rows := make([][]string, 0, len(items))
 	for _, item := range items {
-		if item.Code != diagnosticcontract.CodeExtensionAgentPluginComponentSkipped {
+		if !isExtensionSkippedDiagnostic(item) {
 			continue
 		}
 		scope := extensionDiagnosticScope(item)
 		component := extensionDiagnosticComponentFromScope(scope)
-		if value, ok := item.Evidence["component"].(string); ok && strings.TrimSpace(value) != "" {
+		if value, ok := item.Evidence[cliComponentKey].(string); ok && strings.TrimSpace(value) != "" {
 			component = strings.TrimSpace(value)
 		}
 		rows = append(rows, []string{
@@ -62,17 +64,21 @@ func extensionSkippedDiagnosticsHuman(items []contract.DiagnosticItem) string {
 	if len(rows) == 0 {
 		return ""
 	}
-	return renderHumanTable("Skipped", []string{"Kind", "Name", "Reason"}, rows)
+	return renderHumanTable("Skipped", []string{cliKindValue, cliNameValue, cliReasonValue}, rows)
 }
 
 func extensionLiveDiagnosticsHuman(items []contract.DiagnosticItem) string {
 	live := make([]contract.DiagnosticItem, 0, len(items))
 	for _, item := range items {
-		if item.Code != diagnosticcontract.CodeExtensionAgentPluginComponentSkipped {
+		if !isExtensionSkippedDiagnostic(item) {
 			live = append(live, item)
 		}
 	}
 	return extensionDiagnosticsHuman("Diagnostics", live)
+}
+
+func isExtensionSkippedDiagnostic(item contract.DiagnosticItem) bool {
+	return item.Code == diagnosticcontract.CodeExtensionAgentPluginComponentSkipped
 }
 
 func extensionDiagnosticScope(item contract.DiagnosticItem) string {
@@ -84,13 +90,11 @@ func extensionDiagnosticScope(item contract.DiagnosticItem) string {
 
 func extensionDiagnosticReason(item contract.DiagnosticItem, scope string) string {
 	message := strings.TrimSpace(item.Message)
-	if strings.HasPrefix(scope, "mcp:") {
-		name := strings.TrimPrefix(scope, "mcp:")
+	if name, ok := strings.CutPrefix(scope, extensionMCPKind+":"); ok {
 		prefix := fmt.Sprintf("mcp server %q: ", name)
 		message = strings.TrimPrefix(message, prefix)
 	}
-	if strings.HasPrefix(scope, "skill:") {
-		name := strings.TrimPrefix(scope, "skill:")
+	if name, ok := strings.CutPrefix(scope, extensionSkillKind+":"); ok {
 		prefix := fmt.Sprintf("skill %q: ", name)
 		message = strings.TrimPrefix(message, prefix)
 	}
@@ -110,8 +114,7 @@ func extensionInstallSuccessBundle(item ExtensionRecord, report *extensionpkg.Va
 		} else if report != nil && report.DualManifest {
 			blocks = append(blocks,
 				"note: directory carries both extension.toml and plugin.json; installed as a Compozy extension "+
-					"(native manifest wins)",
-			)
+					"(native manifest wins)")
 		}
 		next := "next: compozy extension status " + strings.TrimSpace(item.Name)
 		if portable {
@@ -123,18 +126,30 @@ func extensionInstallSuccessBundle(item ExtensionRecord, report *extensionpkg.Va
 	return bundle
 }
 
-func extensionUpdateSuccessBundle(output extensionPortableUpdateOutput) outputBundle {
-	bundle := extensionUpdateBundle([]extensionUpdateItem{output.Update})
+func extensionUpdatesSuccessBundle(
+	items []extensionUpdateItem,
+	portable []extensionPortableUpdateOutput,
+) outputBundle {
+	bundle := extensionUpdateBundle(items)
+	baseHuman := bundle.human
 	bundle.human = func() (string, error) {
-		if output.Report == nil {
-			return "", fmt.Errorf("cli: portable update report is unavailable for %q", output.Update.Name)
+		table, err := baseHuman()
+		if err != nil {
+			return "", err
 		}
-		return renderHumanBlocks(
-			fmt.Sprintf("✓ update %s", strings.TrimSpace(output.Update.Name)),
-			extensionPortableInstallReportHuman(output.Report),
-			"note: data directory preserved ("+strings.TrimSpace(output.DataPath)+")",
-			extensionHumanDetail(output.Status, true),
-		), nil
+		blocks := []string{table}
+		for _, output := range portable {
+			if output.Report == nil {
+				return "", fmt.Errorf("cli: portable update report is unavailable for %q", output.Update.Name)
+			}
+			blocks = append(blocks,
+				fmt.Sprintf("✓ update %s", strings.TrimSpace(output.Update.Name)),
+				extensionPortableInstallReportHuman(output.Report),
+				"note: data directory preserved ("+strings.TrimSpace(output.DataPath)+")",
+				"next: compozy extension status "+strings.TrimSpace(output.Update.Name),
+			)
+		}
+		return renderHumanBlocks(blocks...), nil
 	}
 	return bundle
 }
@@ -156,21 +171,24 @@ func extensionPortableInstallReportHuman(report *extensionpkg.ValidationReport) 
 		})
 	}
 	blocks := []string{
-		"Format: agent plugin",
-		renderHumanTable("Ingested", []string{"Kind", "Name", "Detail"}, ingested),
+		cliFormatValue + ": " + extensionAgentPluginValue,
+		renderHumanTable("Ingested", []string{cliKindValue, cliNameValue, cliDetailValue}, ingested),
 	}
 	if len(skipped) > 0 {
-		blocks = append(blocks, renderHumanTable("Skipped", []string{"Kind", "Name", "Reason"}, skipped))
+		blocks = append(
+			blocks,
+			renderHumanTable("Skipped", []string{cliKindValue, cliNameValue, cliReasonValue}, skipped),
+		)
 	}
 	return renderHumanBlocks(blocks...)
 }
 
 func extensionDiagnosticComponentFromScope(scope string) string {
 	switch {
-	case strings.HasPrefix(scope, "mcp:") || scope == "mcp":
-		return "mcp_server"
-	case strings.HasPrefix(scope, "skill:") || scope == "skills":
-		return "skill"
+	case strings.HasPrefix(scope, extensionMCPKind+":") || scope == extensionMCPKind:
+		return extensionMCPServerKind
+	case strings.HasPrefix(scope, extensionSkillKind+":") || scope == "skills":
+		return extensionSkillKind
 	default:
 		return "manifest"
 	}
@@ -193,7 +211,7 @@ func extensionPortableValidationToon(report *extensionpkg.ValidationReport) (str
 		return "", fmt.Errorf("cli: marshal portable validation issues: %w", err)
 	}
 	return renderToonObject("extension_validate", []string{
-		"status", "format", "name", "version", "would_ingest", "issues",
+		automationStatusKey, cliFormatKey, automationNameKey, versionKey, "would_ingest", cliIssuesKey,
 	}, []string{
 		report.Status, report.Format, report.Name, report.Version, string(wouldIngest), string(issues),
 	}), nil

@@ -483,7 +483,10 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		server := mcpRecords[0].Spec
 		if server.Env["PLUGIN_ROOT"] != wantPluginRoot ||
 			server.Env["PLUGIN_DATA"] != wantPluginData || server.Env["LITERAL"] != "${UNKNOWN}" {
-			t.Fatalf("portable MCP env = %#v, want absolute package/data roots and literal unknown placeholder", server.Env)
+			t.Fatalf(
+				"portable MCP env = %#v, want absolute package/data roots and literal unknown placeholder",
+				server.Env,
+			)
 		}
 		if _, err := os.Stat(dataPath); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Stat(portable data path) error = %v, want not-exist before first launch", err)
@@ -536,7 +539,10 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if !degradedSnapshot.Status.Registered || !degradedSnapshot.Status.Enabled ||
 			len(degradedSnapshot.Skills) != 0 || len(degradedSnapshot.Manifest.Resources.MCPServers) != 0 ||
 			len(degradedSnapshot.Info.IngestDiagnostics) != 2 {
-			t.Fatalf("degraded enabled snapshot = %#v, want registered zero-resource instance with two reasons", degradedSnapshot)
+			t.Fatalf(
+				"degraded enabled snapshot = %#v, want registered zero-resource instance with two reasons",
+				degradedSnapshot,
+			)
 		}
 	})
 }

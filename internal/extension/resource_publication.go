@@ -443,6 +443,7 @@ func ResolveManifestMCPServerResources(
 		var err error
 		server := compozyconfig.MCPServer{
 			Name:      strings.TrimSpace(name),
+			CWD:       strings.TrimSpace(decl.CWD),
 			SecretEnv: normalizeStringMap(decl.SecretEnv),
 			Headers:   normalizeStringMap(decl.Headers),
 		}

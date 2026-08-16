@@ -34,6 +34,10 @@ const (
 	extensionDevVerb                = "dev"
 	extensionReloadVerb             = "reload"
 	extensionConfirmNetworkFlagName = "confirm-network-requirement"
+	extensionAgentPluginValue       = "agent plugin"
+	extensionMCPKind                = "mcp"
+	extensionMCPServerKind          = "mcp_server"
+	extensionSkillKind              = "skill"
 	cliRemoveNameUse                = "remove <name>"
 	cliUseEnableName                = "enable <name>"
 	cliUseDisableName               = "disable <name>"
@@ -241,13 +245,19 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !checkOnly && len(items) == 1 {
-				presentation, ok, err := extensionPortableUpdatePresentation(cmd.Context(), deps, items[0])
-				if err != nil {
-					return err
+			if !checkOnly {
+				portable := make([]extensionPortableUpdateOutput, 0, len(items))
+				for _, item := range items {
+					presentation, ok, presentationErr := extensionPortableUpdatePresentation(deps, item)
+					if presentationErr != nil {
+						return presentationErr
+					}
+					if ok {
+						portable = append(portable, presentation)
+					}
 				}
-				if ok {
-					return writeCommandOutput(cmd, extensionUpdateSuccessBundle(presentation))
+				if len(portable) > 0 {
+					return writeCommandOutput(cmd, extensionUpdatesSuccessBundle(items, portable))
 				}
 			}
 			if err := writeCommandOutput(cmd, extensionUpdateBundle(items)); err != nil {

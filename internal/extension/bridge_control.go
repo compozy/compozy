@@ -149,7 +149,7 @@ func (m *Manager) runBridgeControl(
 		return err
 	}
 
-	return m.executeBridgeControl(controlCtx, extension, runtime, method, call)
+	return m.executeBridgeControl(controlCtx, &extension, runtime, method, call)
 }
 
 func validateBridgeControlRuntime(

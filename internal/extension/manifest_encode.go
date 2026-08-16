@@ -35,10 +35,10 @@ func manifestTOMLDocument(manifest *Manifest) (map[string]any, error) {
 	putNonEmptyStrings(extension, "requires_env", manifest.RequiresEnv)
 	document := map[string]any{
 		manifestExtensionKey: extension,
-		"capabilities": map[string]any{
+		manifestCapabilitiesKey: map[string]any{
 			"provides": manifest.Capabilities.Provides,
 		},
-		"permissions": map[string]any{
+		manifestPermissionsKey: map[string]any{
 			"requires": manifest.Permissions.Requires,
 		},
 		manifestSubprocessKey: subprocessTOMLTable(manifest.Subprocess),

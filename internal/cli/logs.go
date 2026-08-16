@@ -108,7 +108,7 @@ func registerLogsFlags(cmd *cobra.Command, opts *logsCommandOptions) {
 	cmd.Flags().StringVar(&opts.outcome, cliOutcomeKey, "", "Filter by registry outcome")
 	cmd.Flags().BoolVar(&opts.errorOnly, "error-only", false, "Show failure and warning outcomes only")
 	cmd.Flags().Int64Var(&opts.afterSequence, "after-seq", 0, "Replay logs after the supplied event summary sequence")
-	cmd.Flags().StringVar(&opts.component, "component", "", "Filter by registry component")
+	cmd.Flags().StringVar(&opts.component, cliComponentKey, "", "Filter by registry component")
 }
 
 func parseLogsActor(raw string) (string, string, error) {
@@ -163,7 +163,7 @@ func streamLogs(cmd *cobra.Command, client logsStreamClient, query LogsListQuery
 				logsTypeKey,
 				logsAgentNameKey,
 				cliProviderKey,
-				"component",
+				cliComponentKey,
 				cliOutcomeKey,
 				memorySummaryKey,
 				networkTimestampKey,
@@ -222,7 +222,7 @@ func logsBundle(events []LogEventRecord) outputBundle {
 			logsTypeKey,
 			logsAgentNameKey,
 			cliProviderKey,
-			"component",
+			cliComponentKey,
 			cliOutcomeKey,
 			memorySummaryKey,
 			networkTimestampKey,
