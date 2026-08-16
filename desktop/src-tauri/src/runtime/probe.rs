@@ -14,7 +14,7 @@ use super::PROCESS_START_TOLERANCE_SECONDS;
 use super::discovery::DaemonRecord;
 
 pub const MAX_KNOWN_STATUS_SCHEMA: &str = "2026-07-16";
-pub const MINIMUM_RUNTIME: &str = ">=0.3.0-beta.8";
+pub const MINIMUM_RUNTIME: &str = ">=0.3.0-beta.18";
 const MAX_IDENTITY_BODY_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -427,8 +427,8 @@ mod tests {
     fn should_apply_minimum_version_and_date_schema_handshake() {
         let minimum = VersionReq::parse(MINIMUM_RUNTIME).expect("requirement parses");
         let cases = [
-            ("0.3.0-beta.8", MAX_KNOWN_STATUS_SCHEMA, "compatible"),
-            ("0.3.0-beta.7", MAX_KNOWN_STATUS_SCHEMA, "older"),
+            ("0.3.0-beta.18", MAX_KNOWN_STATUS_SCHEMA, "compatible"),
+            ("0.3.0-beta.17", MAX_KNOWN_STATUS_SCHEMA, "older"),
             ("0.3.0", "2099-01-01", "newer"),
         ];
         for (version, schema, expected) in cases {
