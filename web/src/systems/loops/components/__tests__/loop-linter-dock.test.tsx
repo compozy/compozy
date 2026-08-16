@@ -69,7 +69,7 @@ describe("LoopLinterDock", () => {
       errors: [
         {
           node_id: "implement",
-          code: "fan_out_ceiling_exceeded",
+          code: "fan_out_unbounded",
           message: "too wide",
           severity: "error",
         },
@@ -89,7 +89,7 @@ describe("LoopLinterDock", () => {
     const lint = buildLintState({
       valid: false,
       errors: [
-        { node_id: "implement", code: "fan_out_ceiling_exceeded", message: "", severity: "error" },
+        { node_id: "implement", code: "fan_out_unbounded", message: "", severity: "error" },
         {
           node_id: "await_deploy_ack",
           code: "wait_expiry_without_path",
@@ -118,7 +118,7 @@ describe("LoopLinterDock", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const issue = {
       node_id: "implement",
-      code: "fan_out_ceiling_exceeded",
+      code: "fan_out_unbounded",
       message: "too wide",
       severity: "error" as const,
     };

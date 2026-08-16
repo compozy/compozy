@@ -273,7 +273,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		if len(plan.NodeRuns) != 0 {
 			t.Fatalf("NodeRuns = %#v, want none while watching", plan.NodeRuns)
 		}
-		if got, want := ledger.cursorQueries[0].Limit, LoopMaxFanoutWidth; got != want {
+		if got, want := ledger.cursorQueries[0].Limit, LoopWatchEventPageLimit; got != want {
 			t.Fatalf("cursor query Limit = %d, want %d", got, want)
 		}
 	})
@@ -324,7 +324,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		coordinatorRun := watchCoordinatorRun(loopRun)
 		filter := `event.task_id == "task-target"`
 		pendingRef := watchEventsPendingRefForTest(t, int64(1), filter)
-		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopMaxFanoutWidth)}
+		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopWatchEventPageLimit)}
 		runner := newWatchEventsCoordinatorRunnerForTest(
 			t,
 			loopRun,
@@ -347,7 +347,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		}
 		outputs := outputsByNodeForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
 		pending := decodeWatchEventsOutputRefForTest(t, outputs["watch_tasks"].OutputRef)
-		wantCursor := int64(1 + LoopMaxFanoutWidth)
+		wantCursor := int64(1 + LoopWatchEventPageLimit)
 		if got := pending.Cursors[WatchEventsTaskStream]; got != wantCursor {
 			t.Fatalf("pending cursor = %d, want %d", got, wantCursor)
 		}
@@ -464,7 +464,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		loopRun := watchLoopRun(StatusWatching, 1, now.Add(-time.Minute))
 		coordinatorRun := watchCoordinatorRun(loopRun)
 		pendingRef := watchEventsPendingRefForTest(t, int64(1), "")
-		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopMaxFanoutWidth)}
+		ledger := &watchEventsLedgerForTest{rows: watchLargeTaskStatusEventsForTest(2, LoopWatchEventPageLimit)}
 		runner := newWatchEventsCoordinatorRunnerForTest(
 			t,
 			loopRun,
@@ -498,7 +498,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 		if err := json.Unmarshal(confirmed.Events, &events); err != nil {
 			t.Fatalf("Unmarshal blob events error = %v", err)
 		}
-		if got, want := len(events), LoopMaxFanoutWidth; got != want {
+		if got, want := len(events), LoopWatchEventPageLimit; got != want {
 			t.Fatalf("blob events len = %d, want %d", got, want)
 		}
 		if got, want := len(plan.PostCommitWakes), 1; got != want {
@@ -1042,7 +1042,7 @@ func BenchmarkFilterWatchEventsRows(b *testing.B) {
 			}},
 			Cursors: map[string]int64{WatchEventsTaskStream: 1},
 		}
-		rows := watchLargeTaskStatusEventsForTest(2, LoopMaxFanoutWidth)
+		rows := watchLargeTaskStatusEventsForTest(2, LoopWatchEventPageLimit)
 		topology := newControlTopology(definition.Graph)
 
 		b.ReportAllocs()

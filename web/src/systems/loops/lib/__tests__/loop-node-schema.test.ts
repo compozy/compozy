@@ -54,10 +54,11 @@ describe("loop node schema", () => {
     expect(keys(fields)).toContain("overrides");
   });
 
-  it("Should render fan-out max_fan_out with the daemon ceiling", () => {
+  it("Should render fan-out max_fan_out as an uncapped positive author bound", () => {
     const raw: RawLoopNode = { id: "implement", class: "control", kind: "fan-out" };
     const fanOut = buildNodeFields(raw).find(f => "key" in f && f.key === "max_fan_out");
-    expect(fanOut).toMatchObject({ type: "number", ceiling: 64 });
+    expect(fanOut).toMatchObject({ type: "number" });
+    expect(fanOut).not.toHaveProperty("ceiling");
     const fields = buildNodeFields(raw);
     expect(fieldByKey(fields, "strategy")).toMatchObject({ type: "text", json: true });
     expect(fieldByKey(fields, "bind_as")).toMatchObject({ path: ["bind_as"] });

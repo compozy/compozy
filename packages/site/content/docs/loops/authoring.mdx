@@ -18,7 +18,7 @@ is wrong before it ever costs anything.
     Lint and compile a candidate definition **without saving it**. `compozy loop validate --file
     loop.yaml`, `POST /loops/:name/validate`, or `compozy__loop_validate`. You get per-node errors with
     deterministic codes — `unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
-    `fan_out_ceiling_exceeded`, and the rest. Nothing is persisted.
+    `fan_out_unbounded`, and the rest. Nothing is persisted.
   </WorkflowStep>
   <WorkflowStep title="Dry-run">
     Resolve inputs and render the first generation's plan **without starting a run**. `compozy loop run

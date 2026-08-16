@@ -144,8 +144,8 @@ func normalizeWatchEventsQuery(query looppkg.WatchEventsQuery) (normalizedWatchE
 	}
 	kinds := uniqueTrimmedStrings(query.Kinds)
 	limit := query.Limit
-	if limit <= 0 || limit > looppkg.LoopMaxFanoutWidth {
-		limit = looppkg.LoopMaxFanoutWidth
+	if limit <= 0 || limit > looppkg.LoopWatchEventPageLimit {
+		limit = looppkg.LoopWatchEventPageLimit
 	}
 	return normalizedWatchEventsQuery{
 		workspaceID: workspaceID,

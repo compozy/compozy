@@ -13,7 +13,6 @@ const (
 	// LoopInputsConfigKey is the dynamic per-Loop input-default section.
 	LoopInputsConfigKey = "inputs"
 
-	loopDefaultsMaxFanoutWidth      = 64
 	loopDefaultsMaxNoProgressWindow = 30
 	loopDefaultRetryBackoffBase     = "1s"
 	loopDefaultRetryBackoffMax      = "30s"
@@ -206,7 +205,7 @@ func (c LoopDefaultConfig) Validate(path string) error {
 	if err := c.Budget.Validate(path + ".budget"); err != nil {
 		return err
 	}
-	if err := validateLoopDefaultMax(path+".fan_out_width", c.FanOutWidth, loopDefaultsMaxFanoutWidth); err != nil {
+	if err := validateLoopDefaultNonNegative(path+".fan_out_width", c.FanOutWidth); err != nil {
 		return err
 	}
 	if err := c.Retry.validate(path + ".retry"); err != nil {

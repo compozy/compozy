@@ -126,7 +126,12 @@ func advanceControlNodes(
 	outputBlobs *[]GenerationOutputBlob,
 ) (*task.CoordinatorTerminal, error) {
 	for {
-		changed := false
+		changed, err := advanceFanOutWindows(
+			eval.resolved.Definition.Graph, eval.topology, eval.generation, outputs,
+		)
+		if err != nil {
+			return nil, err
+		}
 		indexes := generationOutputIndexMap(*outputs)
 		for _, output := range sortedGenerationOutputs(*outputs) {
 			if output.Status != generationOutputPending {
@@ -322,71 +327,21 @@ func evaluateFanOutNode(
 	output.Status = generationOutputSucceeded
 	setGenerationOutputRef(&output, storedRef)
 	output.runtimePayload = runtimePayload
-	if err := materializeFanOutBody(
-		plan,
-		eval.run,
-		eval.generation,
+	materializeFanOutWindow(
 		eval.resolved.Definition.Graph,
 		eval.topology,
-		eval.gateEvaluator != nil,
+		eval.generation,
 		node.ID,
 		materialization,
 		outputs,
-	); err != nil {
-		return GenerationOutput{}, nil, err
-	}
+	)
 	return output, nil, nil
 }
 
-func materializeFanOutBody(
-	plan *task.CoordinatorCompletionPlan,
-	run Run,
-	generation int,
-	graph dsl.Graph,
-	topology controlTopology,
-	gatesEnabled bool,
-	fanOutID dsl.NodeID,
-	materialization fanOutMaterialization,
-	outputs *[]GenerationOutput,
-) error {
-	scope := topology.fanOutScopes[fanOutID]
-	indexes := generationOutputIndexMap(*outputs)
-	for itemIndex := range materialization.Branches {
-		for _, node := range graph.Nodes {
-			if _, ok := scope.body[node.ID]; !ok {
-				continue
-			}
-			key := generationOutputKey{nodeID: string(node.ID), itemIndex: itemIndex}
-			if _, exists := indexes[key]; exists {
-				continue
-			}
-			*outputs = append(*outputs, GenerationOutput{
-				Generation: generation,
-				NodeID:     string(node.ID),
-				ItemIndex:  itemIndex,
-				Status:     generationOutputPending,
-				Attempt:    1,
-			})
-		}
-	}
-	if err := appendCoordinatorTasksForOutputs(
-		plan,
-		run,
-		generation,
-		graph,
-		topology,
-		gatesEnabled,
-		*outputs,
-	); err != nil {
-		return err
-	}
-	return appendCoordinatorDependenciesForOutputs(plan, run, generation, graph, topology, gatesEnabled, *outputs)
-}
-
-func fanOutCeilingTerminal() *task.CoordinatorTerminal {
+func fanOutBoundTerminal() *task.CoordinatorTerminal {
 	return &task.CoordinatorTerminal{
 		Status:     string(StatusExhausted),
 		Cause:      string(TransitionCauseContract),
-		ReasonCode: "fan_out_width_exceeded",
+		ReasonCode: "fan_out_bound_exceeded",
 	}
 }

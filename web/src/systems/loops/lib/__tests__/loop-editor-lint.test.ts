@@ -42,8 +42,8 @@ describe("loop editor lint", () => {
       errors: [
         {
           node_id: "implement",
-          code: "fan_out_ceiling_exceeded",
-          message: "max_fan_out (80) exceeds the daemon ceiling of 64.",
+          code: "fan_out_unbounded",
+          message: "fan-out must declare collection and a positive max_fan_out.",
           severity: "error",
         },
         {
@@ -66,7 +66,7 @@ describe("loop editor lint", () => {
     const state = buildLintState({
       valid: false,
       errors: [
-        { node_id: "implement", code: "fan_out_ceiling_exceeded", message: "", severity: "error" },
+        { node_id: "implement", code: "fan_out_unbounded", message: "", severity: "error" },
         { node_id: "a", code: "cycle_detected", message: "", severity: "error" },
       ],
     });
@@ -102,9 +102,7 @@ describe("loop editor lint", () => {
     const { nodes } = definitionToGraph(def);
     const state = buildLintState({
       valid: false,
-      errors: [
-        { node_id: "implement", code: "fan_out_ceiling_exceeded", message: "", severity: "error" },
-      ],
+      errors: [{ node_id: "implement", code: "fan_out_unbounded", message: "", severity: "error" }],
     });
     const marked = applyLintToNodes(nodes, state.byNode);
     expect(marked.find(node => node.id === "implement")?.data.hasError).toBe(true);
@@ -157,7 +155,7 @@ describe("loop editor lint", () => {
     // An error-only verdict reports only the error, and blocks.
     const errorOnly = buildLintState({
       valid: false,
-      errors: [{ node_id: "n", code: "fan_out_ceiling_exceeded", message: "", severity: "error" }],
+      errors: [{ node_id: "n", code: "fan_out_unbounded", message: "", severity: "error" }],
     });
     expect(lintDockCounters(errorOnly, false)).toEqual({ state: "issues", errors: 1 });
     expect(errorOnly.hasBlockingErrors).toBe(true);
@@ -169,7 +167,7 @@ describe("loop editor lint", () => {
   });
 
   it("Should classify codes to invariants by family and return null when unattributable", () => {
-    expect(classifyInvariant("fan_out_ceiling_exceeded")).toBe("fan_out");
+    expect(classifyInvariant("fan_out_unbounded")).toBe("fan_out");
     expect(classifyInvariant("graph_has_cycle")).toBe("acyclicity");
     expect(classifyInvariant("node_unreachable")).toBe("reachability");
     expect(classifyInvariant("unknown_reference")).toBe("references");

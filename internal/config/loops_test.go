@@ -246,9 +246,9 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 		wantError string
 	}{
 		{
-			name:      "Should reject delivery fan out above compile-time ceiling",
+			name:      "Should reject a negative delivery fan out window",
 			path:      []string{"loops", "defaults", "delivery", "fan_out_width"},
-			value:     loopDefaultsMaxFanoutWidth + 1,
+			value:     -1,
 			wantError: "loops.defaults.delivery.fan_out_width",
 		},
 		{
@@ -334,6 +334,32 @@ func TestLoopsConfigShouldRejectWriteTimeInvalidDefaults(t *testing.T) {
 				t.Fatalf("EditConfigOverlay() error = %#v, want ValidationError path %q", err, tt.wantError)
 			}
 		})
+	}
+}
+
+func TestLoopsConfigShouldAcceptLargeFanOutWidth(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeGlobal)
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+	}
+	_, err = EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+		return editor.SetValue([]string{"loops", "defaults", "delivery", "fan_out_width"}, 500)
+	})
+	if err != nil {
+		t.Fatalf("EditConfigOverlay() error = %v", err)
+	}
+	loaded, err := LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if got, want := loaded.Loops.Defaults.Delivery.FanOutWidth, 500; got != want {
+		t.Fatalf("FanOutWidth = %d, want %d", got, want)
 	}
 }
 

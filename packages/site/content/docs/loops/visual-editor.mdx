@@ -37,14 +37,14 @@ them.
 A dock along the bottom of the canvas shows four structural invariants as pass/fail chips —
 **acyclicity**, **reachability**, **termination**, and **fan-out bounds** — plus the current issue
 list. The editor **surfaces the runtime's validation; it does not invent its own**. An issue such
-as `max_fan_out (80) exceeds the daemon ceiling of 64` (code `fan_out_ceiling_exceeded`) links to
-the offending node, and Publish stays disabled until it clears.
+as a missing positive `max_fan_out` (code `fan_out_unbounded`) links to the offending node, and
+Publish stays disabled until it clears.
 
 ## Validate and publish
 
 - **Validate** lints and compiles the draft **without saving** it (`POST /loops/:name/validate`),
   returning deterministic per-node codes — `unknown_reference`, `node_id_invalid`,
-  `verdict_policy_requires_judge`, `fan_out_ceiling_exceeded`.
+  `verdict_policy_requires_judge`, `fan_out_unbounded`.
 - **Publish** persists the draft with `expected_version` (`PATCH /loops/:name`). It is
   compare-and-swap: if the stored version moved since you opened the editor, the publish is rejected
   `409` with the current version, and the editor surfaces the conflict. Publish compiles and stores

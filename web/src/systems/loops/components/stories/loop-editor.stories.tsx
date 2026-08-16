@@ -40,12 +40,12 @@ const delivery = loopDetailByName.get("implement-tasks")!;
 
 type RawGraph = { nodes: Record<string, unknown>[]; edges: unknown[] };
 
-/** A implement-tasks detail whose fan-out node breaches the ceiling, so the editor's
- *  auto-validate surfaces the fan_out_ceiling_exceeded issue + node badge + gate. */
-function overCeilingDetail(): LoopDetail {
+/** An implement-tasks detail whose fan-out node lacks a positive author bound, so the editor's
+ *  auto-validate surfaces the fan_out_unbounded issue + node badge + gate. */
+function unboundedFanOutDetail(): LoopDetail {
   const graph = delivery.definition.graph as unknown as RawGraph;
   const nodes = graph.nodes.map(node =>
-    node.id === "implement" ? { ...node, max_fan_out: 80 } : node
+    node.id === "implement" ? { ...node, max_fan_out: 0 } : node
   );
   return {
     ...delivery,
@@ -107,7 +107,7 @@ function longKindDetail(): LoopDetail {
 
 function editorHandlers(detail: LoopDetail) {
   // The override getLoop must win, but keep the loop handlers (validate lints the posted
-  // definition) so the auto-validate still surfaces the fan_out_ceiling_exceeded issue.
+  // definition) so the auto-validate still surfaces the fan_out_unbounded issue.
   return [
     compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", () =>
       HttpResponse.json({ loop: detail })
@@ -162,11 +162,11 @@ export const GoalBlock: Story = {
   render: args => <EditorHarness {...args} heightClass="h-[1100px]" />,
 };
 
-/** A fan-out node over the daemon ceiling: the shared linter returns a per-node 422 —
+/** A fan-out node without a positive author bound: the shared linter returns a per-node 422 —
  *  the fan-out chip fails, the node gets a danger ring + badge, and Publish is disabled. */
 export const FanOutError: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
-  parameters: { msw: { handlers: editorHandlers(overCeilingDetail()) } },
+  parameters: { msw: { handlers: editorHandlers(unboundedFanOutDetail()) } },
 };
 
 /** Editing the packaged review Loop before a workspace fork exists. */

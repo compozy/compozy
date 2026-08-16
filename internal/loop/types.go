@@ -8,8 +8,6 @@ import (
 )
 
 const (
-	// LoopMaxFanoutWidth is the absolute structural fan-out width ceiling.
-	LoopMaxFanoutWidth = 64
 	// LoopMaxGateRevisions is the absolute structural gate revision ceiling.
 	LoopMaxGateRevisions = dsl.GateMaxRevisionsCeiling
 	// LoopMaxNoProgressWindow is the compile-time generation no-progress ceiling.
@@ -52,8 +50,6 @@ const (
 	CodeNonTerminatingStructure = "non_terminating_structure"
 	// CodeFanOutUnbounded reports a fan-out without finite materialization bounds.
 	CodeFanOutUnbounded = "fan_out_unbounded"
-	// CodeFanOutCeilingExceeded reports fan-out width beyond LoopMaxFanoutWidth.
-	CodeFanOutCeilingExceeded = "fan_out_ceiling_exceeded"
 	// CodeStrategyCoverageUndeclared reports partial coverage without explicit author consent.
 	CodeStrategyCoverageUndeclared = "strategy_coverage_undeclared"
 	// CodeStrategyThresholdInvalid reports a malformed or misplaced strategy threshold.

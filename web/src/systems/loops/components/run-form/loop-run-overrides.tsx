@@ -40,7 +40,7 @@ function setOverrideValue(
  * Per-run limits (§4.3): folded by default but never silent — the summary states the
  * generations, whether a budget is enforced, and whether the loop's saved defaults are
  * still in play, so folding hides detail rather than truth. Open, it is the limrow list
- * of 6 clamped fields (each showing its per-loop default + daemon ceiling) plus the
+ * of six numeric fields (each showing its per-loop default + runtime bound) plus the
  * budget-exceeded policy as the last row. There is NO cost-cap field — cost is
  * display-only (ADR-017 §9.5.2).
  */
@@ -117,9 +117,10 @@ export function LoopRunOverrides({
       </div>
       <p className="border-t border-line-soft px-3.5 py-3 text-form-hint leading-relaxed text-faint">
         Overrides apply to this run only and never change the loop's saved defaults. Structural
-        ceilings are hard backstops that cannot be raised; a set token or wall-clock budget is
-        enforced (0 = unlimited). On exceeded, halt ends the run as exhausted and escalate pauses it
-        as needs-approval. Cost is a display-only estimate, never a cap.
+        ceilings are hard backstops that cannot be raised; the fan-out window has no fixed cap. A
+        set token or wall-clock budget is enforced (0 = unlimited). On exceeded, halt ends the run
+        as exhausted and escalate pauses it as needs-approval. Cost is a display-only estimate,
+        never a cap.
       </p>
     </LoopRailSection>
   );

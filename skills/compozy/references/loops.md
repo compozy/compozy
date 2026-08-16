@@ -110,7 +110,7 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
    version before you change anything.
 2. **validate** — `compozy__loop_validate` lints and compiles a candidate without saving; it returns
    per-node codes (`unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
-   `fan_out_ceiling_exceeded`).
+   `fan_out_unbounded`).
 3. **dry-run** — `compozy__loop_run` with `dry: true` resolves inputs and returns the first generation's
    plan without creating a run or spending budget. It returns the authored `contract` beside the
    input-resolved `materialized_contract` that Goal agents and judges receive. It also builds and
@@ -207,7 +207,7 @@ exhausted budget up to success.
   human-gate `reject`, or a `loop.gate.pre` denial).
 - `failed` — an unrecoverable node/gate error or a `loop.generation.pre` denial.
 - `canceled` — an operator cancel or kill, with cause `operator_cancel` or `operator_kill`.
-- `exhausted` — the iteration cap or fan-out ceiling tripped before the goal.
+- `exhausted` — the iteration cap or an authored `max_fan_out` bound tripped before the goal.
 - `stalled` — no progress: the no-progress window elapsed, the failure circuit breaker tripped, the
   blocker-ID signature repeated, or a watched source went silent.
 
@@ -350,6 +350,8 @@ Node classes: `action` (open), `control` (closed), `source` (closed). Reserved *
 otherwise takes its mandatory `default`; every target is a unique direct forward edge. A `wait`
 declares exactly one of `for`, `until`, or `event`, with optional `expect`, `ahead_arrival`, and
 `expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
+A fan-out requires positive `max_fan_out`; logical lanes may exceed 64, while only its
+`max_parallel` window materializes at once.
 A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout

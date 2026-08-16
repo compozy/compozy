@@ -705,14 +705,6 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			wantCodes: []string{loop.CodeFanOutUnbounded},
 		},
 		{
-			name: "Should reject fan out over ceiling",
-			mutate: func(def *dsl.Definition) {
-				node := requireNode(t, def, "fan")
-				node.MaxFanOut = loop.LoopMaxFanoutWidth + 1
-			},
-			wantCodes: []string{loop.CodeFanOutCeilingExceeded},
-		},
-		{
 			name: "Should reject fan out collection literals without references",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "fan")
@@ -1170,15 +1162,15 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 	}
 }
 
-func TestLinterShouldAcceptCompileTimeCeilingsAtBoundary(t *testing.T) {
+func TestLinterShouldAcceptLargeAuthorFanOutBounds(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should accept configured ceilings exactly at the boundary", func(t *testing.T) {
+	t.Run("Should accept a large positive max fan-out and parallel window", func(t *testing.T) {
 		t.Parallel()
 
 		def := validDefinition()
-		requireNode(t, &def, "fan").MaxFanOut = loop.LoopMaxFanoutWidth
-		requireNode(t, &def, "fan").MaxParallel = loop.LoopMaxFanoutWidth
+		requireNode(t, &def, "fan").MaxFanOut = 500
+		requireNode(t, &def, "fan").MaxParallel = 128
 		appendGate(&def, dsl.Node{
 			ID:            "review_gate",
 			Class:         dsl.NodeClassControl,
@@ -1363,18 +1355,6 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 				},
 			}),
 			wantCodes: []string{loop.CodeEnvironmentUnsupported},
-		},
-		{
-			name: "Should reject fan out max parallel over ceiling",
-			def: singleNodeDefinition(dsl.Node{
-				ID:          "fan",
-				Class:       dsl.NodeClassControl,
-				Kind:        string(dsl.ControlFanOut),
-				Collection:  "{{ .inputs.items }}",
-				MaxFanOut:   1,
-				MaxParallel: loop.LoopMaxFanoutWidth + 1,
-			}),
-			wantCodes: []string{loop.CodeFanOutCeilingExceeded},
 		},
 		{
 			name: "Should reject empty sub loops",

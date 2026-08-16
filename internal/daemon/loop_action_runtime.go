@@ -58,6 +58,8 @@ type loopActionRuntime struct {
 
 var _ taskRunEnqueuedObserver = (*loopActionRuntime)(nil)
 
+const loopActionConcurrencyLimit = 64
+
 func newLoopActionRuntime(
 	manager loopActionTaskManager,
 	store taskStore,
@@ -91,7 +93,7 @@ func newLoopActionRuntime(
 		now:                  now,
 		root:                 root,
 		cancel:               cancel,
-		sem:                  make(chan struct{}, looppkg.LoopMaxFanoutWidth),
+		sem:                  make(chan struct{}, loopActionConcurrencyLimit),
 		heartbeatInterval:    loopActionHeartbeatInterval,
 		livenessPollInterval: loopActionLivenessPollInterval,
 		claimRetryInterval:   loopActionClaimRetryInterval,

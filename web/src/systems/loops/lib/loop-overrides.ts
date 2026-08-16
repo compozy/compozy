@@ -2,7 +2,7 @@ import type { LoopEffectiveConfig, LoopEnvironmentSpec, RunLoopRequest } from ".
 import { resolveLoopEffectiveConfig } from "./loop-effective-config";
 import { LOOP_CEILINGS } from "./loop-limits";
 
-/** The 6 per-run limit overrides that clamp to a daemon ceiling (§4.3 / §5.4). */
+/** The six per-run numeric overrides. Most clamp to a daemon ceiling. */
 export type LoopOverrideKey =
   | "iteration_cap"
   | "budget_tokens"
@@ -17,8 +17,8 @@ export type LoopBudgetPolicy = "halt" | "escalate";
 export interface LoopOverrideField {
   key: LoopOverrideKey;
   label: string;
-  /** Hard numeric ceiling (minutes for wall clock); the field clamps at this value. */
-  ceiling: number;
+  /** Hard numeric ceiling (minutes for wall clock); absent when the field has no fixed cap. */
+  ceiling?: number;
   /** Right-hand ceiling label (`/ 100`, `/ 20M`, `/ 7d`). */
   ceilingLabel: string;
   /** Placeholder shown when the override is unset (`off`, `≤ tasks`). */
@@ -32,8 +32,8 @@ export interface LoopOverrideField {
 }
 
 /**
- * The 6 clamped override fields, each pairing its per-loop default (from the
- * saved configuration) with its hard daemon ceiling. Cost is deliberately absent — it is a
+ * The six override fields, each pairing its per-loop default (from the saved
+ * configuration) with its runtime bound. Cost is deliberately absent — it is a
  * display-only metric with no enforced cap (ADR-017 §9.5.2), so the run form
  * renders NO cost-cap input.
  */
@@ -78,9 +78,8 @@ export function buildOverrideFields(effectiveConfig: LoopEffectiveConfig): LoopO
     },
     {
       key: "fan_out_width",
-      label: "Fan-out ceiling",
-      ceiling: LOOP_CEILINGS.fanOutBreadth,
-      ceilingLabel: `/ ${LOOP_CEILINGS.fanOutBreadth}`,
+      label: "Fan-out window",
+      ceilingLabel: "no fixed cap",
       placeholder: "≤ tasks",
       defaultValue: effective.fan_out_width > 0 ? effective.fan_out_width : null,
     },
@@ -139,11 +138,11 @@ export function isLoopEnvironmentOverrideValid(
   return true;
 }
 
-/** Clamps a typed override to `[0, ceiling]`; non-finite input clears the override. */
+/** Normalizes a typed override and applies its ceiling when one exists. */
 export function clampOverrideValue(field: LoopOverrideField, raw: number): number {
   if (!Number.isFinite(raw)) return 0;
   const floored = Math.max(0, Math.trunc(raw));
-  return Math.min(floored, field.ceiling);
+  return field.ceiling === undefined ? floored : Math.min(floored, field.ceiling);
 }
 
 /**

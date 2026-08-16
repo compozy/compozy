@@ -94,7 +94,7 @@ function storedLimitValue(key: LoopOverrideKey, stored: LoopConfig): number | nu
   }
 }
 
-/** Seeds the limit-override draft from the stored config, clamping every value to its ceiling. */
+/** Seeds the limit-override draft from stored config and normalizes each numeric value. */
 function limitsFromStored(
   effectiveConfig: LoopEffectiveConfig,
   stored: LoopConfig | null

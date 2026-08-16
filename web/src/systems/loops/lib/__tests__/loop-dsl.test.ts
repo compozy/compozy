@@ -27,7 +27,7 @@ describe("loop dsl view", () => {
         [
           {
             node_id: "implement",
-            code: "fan_out_ceiling_exceeded",
+            code: "fan_out_unbounded",
             message: "",
             severity: "error",
           },

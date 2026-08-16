@@ -245,7 +245,7 @@ describe("loopEditorLogic", () => {
         errors: [
           {
             node_id: "implement",
-            code: "fan_out_ceiling_exceeded",
+            code: "fan_out_unbounded",
             message: "too wide",
             severity: "error",
           },

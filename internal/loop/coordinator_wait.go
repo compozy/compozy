@@ -177,7 +177,7 @@ func consumeAheadWaitEvent(
 		return false, output, err
 	}
 	rows, err := runtime.ledger.ReadMatches(eval.ctx, WatchEventsQuery{
-		WorkspaceID: string(eval.run.WorkspaceID), Streams: streams, Kinds: kinds, Limit: LoopMaxFanoutWidth,
+		WorkspaceID: string(eval.run.WorkspaceID), Streams: streams, Kinds: kinds, Limit: LoopWatchEventPageLimit,
 	})
 	if err != nil {
 		return false, output, fmt.Errorf("loop: read ahead wait events for node %q: %w", node.ID, err)

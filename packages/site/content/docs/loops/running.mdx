@@ -25,10 +25,10 @@ Two actions submit the form:
 
 **Close** lives in the top bar and leaves the form without submitting it. A folded **Limits · this
 run only** section exposes six per-run limit overrides — iteration cap, token budget, wall-clock
-budget, no-progress window, fan-out ceiling, and gate max revisions — plus the budget-exceeded
-policy. Each numeric field shows the per-Loop default and the hard daemon ceiling, and clamps at the
-ceiling. The summary changes from "loop defaults" to "overrides set" only when a value actually
-differs.
+budget, no-progress window, fan-out window, and gate max revisions — plus the budget-exceeded
+policy. Each numeric field shows the per-Loop default and its runtime bound. The fan-out window has
+no fixed daemon cap; logical width remains bounded by each node's positive `max_fan_out`. The
+summary changes from "loop defaults" to "overrides set" only when a value actually differs.
 
 <OperatorNote label="What the run form does not offer">
   There is no cost cap — cost is [display-only](/docs/loops/guardrails#cost-is-a-meter-not-a-cap).

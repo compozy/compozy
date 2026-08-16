@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-const strategyCanceledReasonCode = "canceled_by_strategy"
+const (
+	strategyCanceledReasonCode     = "canceled_by_strategy"
+	strategyNeverStartedReasonCode = "canceled_never_started"
+)
 
 // StrategyCancellationIntent atomically closes pending waits and requests for one canceled lane cell.
 type StrategyCancellationIntent struct {

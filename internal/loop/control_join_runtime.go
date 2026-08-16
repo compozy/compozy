@@ -157,12 +157,17 @@ func applyStrategyLaneCancellations(
 		return err
 	}
 	scope := eval.topology.fanOutScopes[fanOutID]
+	materializedItems := make(map[int]bool, len(items))
 	for index := range *outputs {
 		cell := &(*outputs)[index]
 		if _, cancel := itemSet[cell.ItemIndex]; !cancel {
 			continue
 		}
-		if _, inScope := scope.body[dsl.NodeID(cell.NodeID)]; !inScope || generationOutputTerminal(cell.Status) {
+		if _, inScope := scope.body[dsl.NodeID(cell.NodeID)]; !inScope {
+			continue
+		}
+		materializedItems[cell.ItemIndex] = true
+		if generationOutputTerminal(cell.Status) {
 			continue
 		}
 		expectedEpoch := cell.Epoch
@@ -183,10 +188,28 @@ func applyStrategyLaneCancellations(
 			})
 		}
 	}
-	payload.Events = append(payload.Events, GenerationLifecycleEventIntent{
-		Kind: GenerationLifecycleEventBranchPruned, NodeID: string(fanOutID),
-		ItemIndexes: append([]int(nil), items...), Reason: strategyCanceledReasonCode,
-	})
+	materialized := make([]int, 0, len(items))
+	neverStarted := make([]int, 0, len(items))
+	for _, itemIndex := range items {
+		if materializedItems[itemIndex] {
+			materialized = append(materialized, itemIndex)
+			continue
+		}
+		neverStarted = append(neverStarted, itemIndex)
+		for _, node := range eval.resolved.Definition.Graph.Nodes {
+			if _, inScope := scope.body[node.ID]; !inScope {
+				continue
+			}
+			*outputs = append(*outputs, GenerationOutput{
+				Generation: eval.generation, NodeID: string(node.ID), ItemIndex: itemIndex,
+				Status: generationOutputCanceled, OutputRef: strategyNeverStartedReasonCode, Attempt: 1,
+			})
+		}
+	}
+	payload.Events = append(payload.Events,
+		branchPrunedEventIntents(fanOutID, materialized, strategyCanceledReasonCode)...)
+	payload.Events = append(payload.Events,
+		branchPrunedEventIntents(fanOutID, neverStarted, strategyNeverStartedReasonCode)...)
 	plan.Snapshot.Payload = payload
 	return nil
 }

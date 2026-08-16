@@ -173,8 +173,7 @@ export function fanOutFields(_raw: RawLoopNode): FieldSpec[] {
       key: "max_fan_out",
       label: "Max fan-out",
       path: ["max_fan_out"],
-      ceiling: LOOP_CEILINGS.fanOutBreadth,
-      hint: "Structural cap on materialized branches. Capped by the daemon ceiling.",
+      hint: "Required positive author bound on the total logical branches.",
     },
     {
       type: "hint",

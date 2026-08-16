@@ -35,7 +35,10 @@ describe("loop-limits", () => {
     expect(byLabel.get("Wall clock")).toMatchObject({ value: "off", ceiling: "/ 7d" });
     expect(byLabel.get("On exceeded")).toMatchObject({ value: "halt", ceiling: "→ exhausted" });
     expect(byLabel.has("Cost (USD)")).toBe(false);
-    expect(byLabel.get("Fan-out breadth")).toMatchObject({ value: "4", ceiling: "/ 64" });
+    expect(byLabel.get("Fan-out window")).toMatchObject({
+      value: "4",
+      ceiling: "no fixed cap",
+    });
   });
 
   it("Should render the unbounded glyph for watch loops and escalate targets", () => {
@@ -65,7 +68,7 @@ describe("loop-limits", () => {
 
     expect(byLabel.get("Iteration cap")?.value).toBe("3");
     expect(byLabel.get("No-progress window")?.value).toBe("2");
-    expect(byLabel.get("Fan-out breadth")?.value).toBe("4");
+    expect(byLabel.get("Fan-out window")?.value).toBe("4");
     expect(byLabel.get("Gate max revisions")?.value).toBe("2");
     expect(byLabel.get("On exceeded")?.value).toBe("escalate");
   });

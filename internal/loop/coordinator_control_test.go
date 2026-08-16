@@ -482,8 +482,8 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if got, want := post["work/0"].Status, generationOutputEnqueued; got != want {
 			t.Fatalf("work[0] status = %q, want %q", got, want)
 		}
-		if got, want := post["work/1"].Status, generationOutputPending; got != want {
-			t.Fatalf("work[1] status = %q, want %q", got, want)
+		if _, materialized := post["work/1"]; materialized {
+			t.Fatal("work[1] materialized before the max_parallel slot opened")
 		}
 		if got, want := post["collect/0"].Status, generationOutputPending; got != want {
 			t.Fatalf("collect status = %q, want %q", got, want)
@@ -516,6 +516,57 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		}
 		if got, want := secondPlan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 1); got != want {
 			t.Fatalf("second queued task = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should materialize eight lanes for a five-hundred-lane collection", func(t *testing.T) {
+		t.Parallel()
+
+		items := make([]map[string]any, 500)
+		for index := range items {
+			items[index] = map[string]any{"id": index}
+		}
+		producerPayload, err := json.Marshal(map[string]any{"items": items})
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 8, 500))
+		loopRun := controlLoopRun("looprun-wide-window", map[string]any{})
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		loadRun := controlWorkerRun(loopRun, "load", 0, task.TaskRunStatusCompleted)
+		runner := newCoordinatorRunnerForControlTest(
+			t, loopRun, coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun, loadRun.ID: loadRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "load", Status: generationOutputEnqueued,
+					OutputRef: string(producerPayload), TaskRunID: loadRun.ID},
+				{Generation: 1, NodeID: "fan", Status: generationOutputPending},
+				{Generation: 1, NodeID: "collect", Status: generationOutputPending},
+			}}},
+			resolved,
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if got, want := len(plan.NodeRuns), 8; got != want {
+			t.Fatalf("node runs = %d, want max_parallel %d", got, want)
+		}
+		payload := coordinatorPostReservePayloadForTest(t, plan)
+		materialized := 0
+		for _, output := range payload.Outputs {
+			if output.NodeID == "work" {
+				materialized++
+			}
+		}
+		if materialized != 8 {
+			t.Fatalf("materialized lanes = %d, want 8", materialized)
+		}
+		progress := fanOutProgressValue(newControlTopology(resolved.Definition.Graph), payload.Outputs, "fan")
+		if progress["total"] != int64(500) || progress["running"] != int64(8) ||
+			progress["pending"] != int64(492) {
+			t.Fatalf("wide progress = %#v", progress)
 		}
 	})
 
@@ -717,7 +768,7 @@ func TestCoordinatorRunnerShouldExhaustFanOutOverflow(t *testing.T) {
 		if got, want := plan.Terminal.Status, string(StatusExhausted); got != want {
 			t.Fatalf("terminal status = %q, want %q", got, want)
 		}
-		if got, want := plan.Terminal.ReasonCode, "fan_out_width_exceeded"; got != want {
+		if got, want := plan.Terminal.ReasonCode, "fan_out_bound_exceeded"; got != want {
 			t.Fatalf("reason = %q, want %q", got, want)
 		}
 		if got, want := len(plan.NodeRuns), 0; got != want {
@@ -1136,8 +1187,8 @@ func TestCoordinatorRunnerShouldExecuteSubLoopBody(t *testing.T) {
 		if got, want := post["nested__work/0"].Status, generationOutputEnqueued; got != want {
 			t.Fatalf("nested work status = %q, want %q", got, want)
 		}
-		if got, want := post["nested__work/1"].Status, generationOutputPending; got != want {
-			t.Fatalf("nested work[1] status = %q, want %q", got, want)
+		if _, materialized := post["nested__work/1"]; materialized {
+			t.Fatal("nested work[1] materialized before the max_parallel slot opened")
 		}
 	})
 }

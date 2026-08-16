@@ -33,17 +33,17 @@ function num(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-/** The fan-out knob chips (batch / parallelism / ceiling) — the author-time truthful
+/** The fan-out knob chips (batch / parallelism / author bound) — the author-time truthful
  *  "branch" summary; runtime fanned items only exist on the run page, never here. */
 function fanOutChips(raw: EditorNode["data"]["raw"]): string[] {
   if (raw.kind !== "fan-out") return [];
   const chips: string[] = [];
   const batch = num(raw.batch_size);
   const parallel = num(raw.max_parallel);
-  const ceiling = num(raw.max_fan_out);
+  const authorBound = num(raw.max_fan_out);
   if (batch !== undefined) chips.push(`batch ${batch}`);
   if (parallel !== undefined) chips.push(parallel <= 1 ? "seq" : `×${parallel}`);
-  if (ceiling !== undefined) chips.push(`≤${ceiling}`);
+  if (authorBound !== undefined) chips.push(`≤${authorBound}`);
   return chips;
 }
 

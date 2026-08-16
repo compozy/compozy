@@ -20,7 +20,7 @@ export interface DslLine {
 // Maps a deterministic lint code to the node field its message concerns, so the DSL
 // view can underline the exact line (not just the node block). Extend as codes land.
 const CODE_FIELD: Record<string, string> = {
-  fan_out_ceiling_exceeded: "max_fan_out",
+  fan_out_unbounded: "max_fan_out",
   verdict_policy_requires_judge: "verdict_policy",
   condition_not_bool: "condition",
   node_id_invalid: "id",

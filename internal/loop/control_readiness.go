@@ -166,7 +166,7 @@ func branchComplete(
 			continue
 		}
 		output, ok := outputMap[generationOutputKey{nodeID: string(nodeID), itemIndex: itemIndex}]
-		if !ok || output.Status != generationOutputSucceeded && output.Status != generationOutputFailed {
+		if !ok || !generationOutputTerminal(output.Status) {
 			return false
 		}
 	}

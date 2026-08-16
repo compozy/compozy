@@ -4,7 +4,7 @@
  *
  * | rule                        | Go source                              |
  * | --------------------------- | -------------------------------------- |
- * | `fan_out_ceiling_exceeded`  | `linter.go` fan-out bounds             |
+ * | `fan_out_unbounded`          | `linter.go` fan-out author bound       |
  * | `cycle_detected`            | acyclicity invariant                   |
  * | `error_route_conflict`      | `linter_lifecycle.go` lintErrorPolicy  |
  * | `timeout_exceeds_deadline`  | `linter_lifecycle.go` lintLifecycleNode|
@@ -21,8 +21,6 @@ export interface MockLintIssue {
   message: string;
   severity: "error" | "warning";
 }
-
-export const FAN_OUT_CEILING = 64;
 
 const PARENT_CLOSE_POLICIES = new Set(["terminate", "cancel", "abandon"]);
 const WAIT_DISCRIMINATORS = ["for", "until", "event"] as const;
@@ -256,11 +254,11 @@ export function lintDefinition(definition?: {
   const nodes = Array.isArray(graph?.nodes) ? (graph.nodes as RawRecord[]) : [];
   for (const node of nodes) {
     const fanOut = node.max_fan_out;
-    if (typeof fanOut === "number" && fanOut > FAN_OUT_CEILING) {
+    if (node.kind === "fan-out" && (typeof fanOut !== "number" || fanOut <= 0)) {
       issues.push({
         node_id: String(node.id),
-        code: "fan_out_ceiling_exceeded",
-        message: `max_fan_out (${fanOut}) exceeds the daemon ceiling of ${FAN_OUT_CEILING}.`,
+        code: "fan_out_unbounded",
+        message: "fan-out must declare collection and a positive max_fan_out.",
         severity: "error",
       });
     }

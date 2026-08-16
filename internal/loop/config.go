@@ -47,7 +47,7 @@ func ClampLoopConfig(cfg LoopConfig) LoopConfig {
 	clampNonNegative(clamped.BudgetTokens)
 	clampNonNegative(clamped.BudgetWallSec)
 	clampNonNegativeMax(clamped.NoProgressWindow, LoopMaxNoProgressWindow)
-	clampNonNegativeMax(clamped.FanOutWidth, LoopMaxFanoutWidth)
+	clampNonNegative(clamped.FanOutWidth)
 	clampNonNegativeMax(clamped.GateMaxRevisions, LoopMaxGateRevisions)
 	if clamped.BudgetOnExceeded != nil && *clamped.BudgetOnExceeded == "" {
 		value := dsl.BudgetExceededHalt

@@ -11,24 +11,6 @@ func (c *lintContext) lintFanOut(node dsl.Node) {
 	if strings.TrimSpace(node.Collection) == "" || node.MaxFanOut <= 0 {
 		c.add(node.ID, CodeFanOutUnbounded, "fan-out must declare collection and max_fan_out")
 	}
-	if node.MaxFanOut > LoopMaxFanoutWidth {
-		c.add(
-			node.ID,
-			CodeFanOutCeilingExceeded,
-			"fan-out max_fan_out %d exceeds ceiling %d",
-			node.MaxFanOut,
-			LoopMaxFanoutWidth,
-		)
-	}
-	if node.MaxParallel > LoopMaxFanoutWidth {
-		c.add(
-			node.ID,
-			CodeFanOutCeilingExceeded,
-			"fan-out max_parallel %d exceeds ceiling %d",
-			node.MaxParallel,
-			LoopMaxFanoutWidth,
-		)
-	}
 	c.lintFanOutStrategy(node)
 	c.lintFanOutIterationNames(node)
 }

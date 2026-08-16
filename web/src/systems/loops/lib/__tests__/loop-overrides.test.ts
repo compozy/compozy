@@ -31,7 +31,7 @@ const savedEffectiveConfig = {
 };
 
 describe("loop-overrides model", () => {
-  it("Should build exactly the 6 clamped fields with no cost cap", () => {
+  it("Should build exactly six numeric fields with no cost cap", () => {
     const fields = buildOverrideFields(effectiveConfig);
     expect(fields.map(field => field.key)).toEqual([
       "iteration_cap",
@@ -59,6 +59,15 @@ describe("loop-overrides model", () => {
     expect(clampOverrideValue(iteration, 150)).toBe(100);
     expect(clampOverrideValue(iteration, -5)).toBe(0);
     expect(clampOverrideValue(iteration, 42)).toBe(42);
+  });
+
+  it("Should preserve a fan-out window above the removed daemon ceiling", () => {
+    const fanOut = buildOverrideFields(effectiveConfig).find(
+      field => field.key === "fan_out_width"
+    );
+    expect(fanOut).toBeDefined();
+    expect(fanOut?.ceiling).toBeUndefined();
+    expect(clampOverrideValue(fanOut!, 500)).toBe(500);
   });
 
   it("Should flip the overrides-set badge only when a value diverges from its default", () => {

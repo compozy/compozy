@@ -145,7 +145,7 @@ func TestCompilerShouldReturnLintFailedErrorWhenDefinitionIsInvalid(t *testing.T
 		t.Parallel()
 
 		def := validDefinition()
-		requireNode(t, &def, "fan").MaxFanOut = loop.LoopMaxFanoutWidth + 1
+		requireNode(t, &def, "fan").MaxFanOut = 0
 
 		_, err := loop.NewCompiler(loop.WithCompilerToolSchemaSource(fakeToolSchemas{})).Compile(def)
 		if err == nil {
@@ -159,10 +159,10 @@ func TestCompilerShouldReturnLintFailedErrorWhenDefinitionIsInvalid(t *testing.T
 		if err.Error() == "" {
 			t.Fatal("Compile() returned empty lint failure message")
 		}
-		if !strings.Contains(err.Error(), loop.CodeFanOutCeilingExceeded) {
-			t.Fatalf("Compile() error = %q, want code %q", err.Error(), loop.CodeFanOutCeilingExceeded)
+		if !strings.Contains(err.Error(), loop.CodeFanOutUnbounded) {
+			t.Fatalf("Compile() error = %q, want code %q", err.Error(), loop.CodeFanOutUnbounded)
 		}
-		requireLintCodes(t, lintErr.Errors, loop.CodeFanOutCeilingExceeded)
+		requireLintCodes(t, lintErr.Errors, loop.CodeFanOutUnbounded)
 	})
 }
 

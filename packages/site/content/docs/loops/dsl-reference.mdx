@@ -162,7 +162,7 @@ rejects the node run deterministically before an ungated session can start.
 
 | Kind       | Purpose                                   | Key fields                                                                                      |
 | ---------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, `max_fan_out` (ceiling 64)   |
+| `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, positive `max_fan_out`       |
 | `collect`  | Join barrier — waits for fanned branches  | —                                                                                               |
 | `branch`   | Route on a CEL condition                  | `condition` (true/false edges), optional `on_eval_error: fail \| exit`                          |
 | `route`    | Select exactly one forward path           | ordered `routes: [{when, to}]`, mandatory `default`                                             |
@@ -465,7 +465,8 @@ These defaults are a `RestartRequired` config plane, separate from the per-Loop
 | `budget.on_exceeded`    | `halt`     | `halt`  |
 | `fan_out_width`         | 4          | 2       |
 
-Write-time validation rejects negatives and clamps each value to its daemon ceiling. The effective
-config a run uses is a four-layer merge — definition defaults ⊕ `[loops.defaults.*]` ⊕ the per-Loop
-config store ⊕ per-run overrides — with every layer clamped to ceilings. See
+Write-time validation rejects negative `fan_out_width` values; positive values have no daemon-wide
+ceiling. The effective config a run uses is a four-layer merge — definition defaults ⊕
+`[loops.defaults.*]` ⊕ the per-Loop config store ⊕ per-run overrides. Other bounded fields remain
+clamped to their documented ceilings. See
 [configure](/docs/loops/configure).

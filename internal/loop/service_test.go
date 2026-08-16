@@ -534,12 +534,8 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		if effective.NoProgressWindow != 8 {
 			t.Fatalf("NoProgressWindow = %d, want stored override 8", effective.NoProgressWindow)
 		}
-		if effective.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf(
-				"FanOutWidth = %d, want clamped ceiling %d",
-				effective.FanOutWidth,
-				loop.LoopMaxFanoutWidth,
-			)
+		if effective.FanOutWidth != 99 {
+			t.Fatalf("FanOutWidth = %d, want per-run override 99", effective.FanOutWidth)
 		}
 		if effective.GateMaxRevisions != loop.LoopMaxGateRevisions {
 			t.Fatalf(
@@ -613,13 +609,13 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should clamp an override above a ceiling instead of honoring it", func(t *testing.T) {
+	t.Run("Should clamp bounded fields while preserving a large fan-out window", func(t *testing.T) {
 		t.Parallel()
 
 		resolved := compileDefinition(t, validDefinition())
 		perRun := loop.LoopConfig{
 			NoProgressWindow: new(loop.LoopMaxNoProgressWindow + 10),
-			FanOutWidth:      new(loop.LoopMaxFanoutWidth + 10),
+			FanOutWidth:      new(500),
 			GateMaxRevisions: new(loop.LoopMaxGateRevisions + 10),
 		}
 
@@ -639,8 +635,8 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 				loop.LoopMaxNoProgressWindow,
 			)
 		}
-		if effective.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf("FanOutWidth = %d, want %d", effective.FanOutWidth, loop.LoopMaxFanoutWidth)
+		if effective.FanOutWidth != 500 {
+			t.Fatalf("FanOutWidth = %d, want 500", effective.FanOutWidth)
 		}
 		if effective.GateMaxRevisions != loop.LoopMaxGateRevisions {
 			t.Fatalf("GateMaxRevisions = %d, want %d", effective.GateMaxRevisions, loop.LoopMaxGateRevisions)
@@ -1615,7 +1611,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 
 		if err := svc.Configure(context.Background(), "ws-1", "valid-loop", loop.LoopConfig{
 			EnabledChecks: []byte(`{"human":true}`),
-			FanOutWidth:   new(loop.LoopMaxFanoutWidth + 1),
+			FanOutWidth:   new(500),
 		}); err != nil {
 			t.Fatalf("Configure() error = %v", err)
 		}
@@ -1623,8 +1619,8 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetConfig() error = %v", err)
 		}
-		if cfg.FanOutWidth == nil || *cfg.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf("FanOutWidth = %#v, want clamped %d", cfg.FanOutWidth, loop.LoopMaxFanoutWidth)
+		if cfg.FanOutWidth == nil || *cfg.FanOutWidth != 500 {
+			t.Fatalf("FanOutWidth = %#v, want 500", cfg.FanOutWidth)
 		}
 		if string(cfg.EnabledChecks) != `{"human":true}` {
 			t.Fatalf("EnabledChecks = %s, want persisted JSON", cfg.EnabledChecks)
@@ -1634,10 +1630,10 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 			t.Fatalf("GetConfigSnapshot() error = %v", err)
 		}
 		if snapshot.Stored == nil || snapshot.Stored.FanOutWidth == nil ||
-			*snapshot.Stored.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf("stored config = %#v, want clamped override", snapshot.Stored)
+			*snapshot.Stored.FanOutWidth != 500 {
+			t.Fatalf("stored config = %#v, want preserved override", snapshot.Stored)
 		}
-		if snapshot.Effective.FanOutWidth != loop.LoopMaxFanoutWidth ||
+		if snapshot.Effective.FanOutWidth != 500 ||
 			snapshot.Effective.GateMaxRevisions != 10 {
 			t.Fatalf("effective config = %#v, want stored fan-out and delivery gate default", snapshot.Effective)
 		}

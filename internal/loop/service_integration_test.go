@@ -308,7 +308,7 @@ func TestServiceIntegrationParticipationShouldPersistOneSnapshotPerLoopRun(t *te
 	})
 }
 
-func TestServiceIntegrationConfigureShouldClampAtWriteTime(t *testing.T) {
+func TestServiceIntegrationConfigureShouldPreserveUnboundedFanOutWidth(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should clamp loop config overrides before persisting", func(t *testing.T) {
@@ -319,7 +319,7 @@ func TestServiceIntegrationConfigureShouldClampAtWriteTime(t *testing.T) {
 		ctx := testutil.Context(t)
 
 		err := svc.Configure(ctx, "ws-1", "valid-loop", loop.LoopConfig{
-			FanOutWidth:      new(loop.LoopMaxFanoutWidth + 100),
+			FanOutWidth:      new(500),
 			NoProgressWindow: new(loop.LoopMaxNoProgressWindow + 100),
 			GateMaxRevisions: new(loop.LoopMaxGateRevisions + 100),
 		})
@@ -331,8 +331,8 @@ func TestServiceIntegrationConfigureShouldClampAtWriteTime(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetLoopConfig() error = %v", err)
 		}
-		if cfg.FanOutWidth == nil || *cfg.FanOutWidth != loop.LoopMaxFanoutWidth {
-			t.Fatalf("stored FanOutWidth = %#v, want %d", cfg.FanOutWidth, loop.LoopMaxFanoutWidth)
+		if cfg.FanOutWidth == nil || *cfg.FanOutWidth != 500 {
+			t.Fatalf("stored FanOutWidth = %#v, want 500", cfg.FanOutWidth)
 		}
 		if cfg.NoProgressWindow == nil || *cfg.NoProgressWindow != loop.LoopMaxNoProgressWindow {
 			t.Fatalf(

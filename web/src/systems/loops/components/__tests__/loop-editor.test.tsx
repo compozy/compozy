@@ -242,7 +242,7 @@ describe("LoopEditor", () => {
     expect(screen.getByTestId("loop-editor-criteria")).toBeInTheDocument();
   });
 
-  it("E2E-web-13: raising fan-out past the ceiling surfaces a 422 per-node error and disables Publish", async () => {
+  it("E2E-web-13: clearing the positive fan-out bound surfaces a 422 per-node error and disables Publish", async () => {
     renderEditor();
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
@@ -250,16 +250,16 @@ describe("LoopEditor", () => {
     await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
     fireEvent.click(nodeCard("implement"));
     const fanOut = await screen.findByTestId("loop-field-max_fan_out");
-    fireEvent.change(fanOut, { target: { value: "80" } });
-    // The daemon linter (mock) returns fan_out_ceiling_exceeded → issue + node badge + gate.
+    fireEvent.change(fanOut, { target: { value: "0" } });
+    // The daemon linter (mock) returns fan_out_unbounded → issue + node badge + gate.
     await waitFor(() =>
       expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error")
     );
     expandLinterDock();
-    expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/ceiling of 64/i);
+    expect(screen.getByTestId("loop-linter-issue")).toHaveTextContent(/positive max_fan_out/i);
     expect(nodeCard("implement")).toHaveAttribute("data-node-error", "true");
     expect(screen.getByTestId("loop-editor-publish")).toBeDisabled();
-    // Lowering it back under the ceiling clears the issue and re-enables Publish. A clean
+    // Restoring a positive author bound clears the issue and re-enables Publish. A clean
     // verdict renders NO counter at all (US-028 AC-4) — not "0 issues".
     fireEvent.change(fanOut, { target: { value: "32" } });
     await waitFor(() =>
@@ -377,10 +377,10 @@ describe("LoopEditor", () => {
     renderEditor();
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
-    // Raise the fan-out to produce an offending field, then flip to the DSL view.
+    // Clear the positive author bound to produce an offending field, then flip to the DSL view.
     fireEvent.click(nodeCard("implement"));
     fireEvent.change(await screen.findByTestId("loop-field-max_fan_out"), {
-      target: { value: "80" },
+      target: { value: "0" },
     });
     await waitFor(() =>
       expect(screen.getByTestId("loop-linter-error-count")).toHaveTextContent("1 error")
@@ -664,7 +664,7 @@ describe("LoopEditor", () => {
     expandLinterDock();
     const dockIssues = screen.getAllByTestId("loop-linter-issue");
     expect(dockIssues).toHaveLength(2);
-    expect(dockIssues[0]).toHaveTextContent("fan_out_ceiling_exceeded");
+    expect(dockIssues[0]).toHaveTextContent("fan_out_unbounded");
     expect(dockIssues[1]).toHaveTextContent("error_route_conflict");
     // Nothing was saved: the compare-and-swap version pill is unchanged.
     expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v4");

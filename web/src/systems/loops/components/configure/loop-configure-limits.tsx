@@ -16,7 +16,7 @@ interface LoopConfigureLimitsProps {
   onChange: (draft: LoopOverrideDraft) => void;
 }
 
-/** Sets one numeric override, clearing it on empty and clamping to the field ceiling. */
+/** Sets one numeric override, clearing it on empty and applying any field ceiling. */
 function setOverrideValue(
   draft: LoopOverrideDraft,
   field: LoopOverrideField,
@@ -34,9 +34,9 @@ function setOverrideValue(
 }
 
 /**
- * The per-loop "Stop limits" grid (§4.7.4): the same 6 clamped fields as the run-form
+ * The per-loop "Stop limits" grid (§4.7.4): the same six numeric fields as the run-form
  * Advanced panel plus the budget-exceeded policy, each showing its per-loop default and
- * hard daemon ceiling. Values clamp at the ceiling. There is NO cost-cap field — cost is
+ * runtime bound. There is NO cost-cap field — cost is
  * display-only (ADR-017 §9.5.2).
  */
 export function LoopConfigureLimits({
@@ -108,10 +108,11 @@ export function LoopConfigureLimits({
         </div>
       </div>
       <p className="mt-3.5 border-t border-line-soft pt-3 text-form-hint leading-relaxed text-faint">
-        These are this loop's saved defaults, applied to every future run and bounded by the hard
-        daemon ceilings, which can't be raised here. Token and wall-clock budgets are opt-in (0 =
-        unlimited); a set budget is enforced. On exceeded, halt ends the run as exhausted and
-        escalate pauses it as needs-approval. Cost is a display-only estimate, never a cap.
+        These are this loop's saved defaults, applied to every future run. Structural ceilings
+        cannot be raised here; the fan-out window has no fixed cap. Token and wall-clock budgets are
+        opt-in (0 = unlimited); a set budget is enforced. On exceeded, halt ends the run as
+        exhausted and escalate pauses it as needs-approval. Cost is a display-only estimate, never a
+        cap.
       </p>
     </div>
   );
