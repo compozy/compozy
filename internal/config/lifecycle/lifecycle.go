@@ -78,6 +78,7 @@ type Rule struct {
 // segments and "*" wildcards for one segment.
 var Matrix = []Rule{
 	{Pattern: "attention.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "shell.*.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.disabled_skills", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutProviders, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutMCP, Lifecycle: Live, DiffClass: DiffClassLive},
@@ -177,7 +178,7 @@ func ClassifyPaths(paths []string) (Lifecycle, DiffClass, error) {
 // DiffClassForRoot maps a settings section or collection name onto a diff class.
 func DiffClassForRoot(root string) DiffClass {
 	switch strings.TrimSpace(root) {
-	case "skills", pathRoles, "window-manager", "gateway", "attention":
+	case "skills", pathRoles, "window-manager", "gateway", "attention", "shell":
 		return DiffClassLive
 	case "sandboxes":
 		return DiffClassSessionRebind

@@ -127,15 +127,27 @@ describe("collectThreadSessions", () => {
 });
 
 describe("childSessionSignalTone", () => {
-  it("Should surface the most urgent child state with failed above waiting above running", () => {
+  it("Should rank the needs-you class above runtime health above running", () => {
     const running = treeSession("sess-running", { parent: "p", badge: "running" });
+    const hung = treeSession("sess-hung", { parent: "p", badge: "hung" });
     const waiting = treeSession("sess-waiting", { parent: "p", badge: "waiting-for-auth" });
+    const asking = treeSession("sess-asking", { parent: "p", badge: "waiting-for-input" });
     const failed = treeSession("sess-failed", { parent: "p", badge: "failed" });
     const stopped = treeSession("sess-stopped", { parent: "p", badge: "stopped" });
 
     expect(childSessionSignalTone([stopped])).toBeNull();
     expect(childSessionSignalTone([stopped, running])).toBe("accent");
-    expect(childSessionSignalTone([running, waiting])).toBe("warning");
-    expect(childSessionSignalTone([running, waiting, failed])).toBe("danger");
+    expect(childSessionSignalTone([running, hung])).toBe("warning");
+    expect(childSessionSignalTone([running, hung, waiting])).toBe("danger");
+    expect(childSessionSignalTone([running, asking])).toBe("danger");
+    expect(childSessionSignalTone([running, failed])).toBe("danger");
+  });
+
+  it("Should leave finished-unseen work unsignalled — done is an inbox item, not an escalation", () => {
+    const done = treeSession("sess-done", { parent: "p", badge: "done" });
+    const running = treeSession("sess-running", { parent: "p", badge: "running" });
+
+    expect(childSessionSignalTone([done])).toBeNull();
+    expect(childSessionSignalTone([done, running])).toBe("accent");
   });
 });

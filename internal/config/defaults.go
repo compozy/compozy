@@ -68,6 +68,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		},
 		Redact:      RedactConfig{Enabled: true},
 		Memory:      DefaultMemoryConfig(homePaths),
+		Shell:       DefaultShellConfig(),
 		Attention:   DefaultAttentionConfig(),
 		Roles:       DefaultRolesConfig(),
 		RoleSources: defaultRoleFieldSources(),

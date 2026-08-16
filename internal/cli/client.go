@@ -45,6 +45,10 @@ type DaemonClient interface {
 		ctx context.Context,
 		request UpdateSettingsAttentionRequest,
 	) (SettingsMutationRecord, error)
+	UpdateSettingsShell(
+		ctx context.Context,
+		request UpdateSettingsShellRequest,
+	) (SettingsMutationRecord, error)
 	ReloadSettings(ctx context.Context) (SettingsMutationRecord, error)
 	ListSettingsApplyRecords(ctx context.Context, query SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
 	GetOnboardingStatus(ctx context.Context) (contract.OnboardingStatusResponse, error)

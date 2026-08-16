@@ -84,7 +84,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 }
 
 // SessionPayloadFromStoreInfo converts the persisted session index row into the shared payload.
-func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload {
+func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayload {
 	state := session.State(strings.TrimSpace(info.State))
 	converted := &session.Info{
 		ID:                       strings.TrimSpace(info.ID),

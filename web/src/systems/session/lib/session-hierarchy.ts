@@ -1,3 +1,4 @@
+import { sessionBadgeSignal } from "./session-badge";
 import type { SessionPayload } from "../types";
 
 export interface SessionListTree {
@@ -115,17 +116,23 @@ export function filterThreadSessions(
 
 export type ChildSessionSignalTone = "danger" | "warning" | "accent";
 
-/** Most urgent child state, so a collapsed thread never hides an escalation. */
+/**
+ * Most urgent child state, so a collapsed thread never hides an escalation.
+ * Urgency is read from the one badge dictionary rather than a local badge list,
+ * so every member of the needs-you class escalates and runtime-health warnings
+ * stay a rank below it. `done` deliberately raises nothing: finished-unseen work
+ * is an inbox item, not an escalation.
+ */
 export function childSessionSignalTone(
   children: readonly SessionPayload[]
 ): ChildSessionSignalTone | null {
   let tone: ChildSessionSignalTone | null = null;
   for (const child of children) {
-    const badge = child.badge;
-    if (badge === "failed" || badge === "unhealthy") return "danger";
-    if (badge === "waiting-for-auth" || badge === "hung") {
+    const signal = sessionBadgeSignal(child.badge);
+    if (signal.attention === "needs-you") return "danger";
+    if (signal.tone === "warning") {
       tone = "warning";
-    } else if (badge === "running" && tone !== "warning") {
+    } else if (signal.label === "running" && tone !== "warning") {
       tone = "accent";
     }
   }

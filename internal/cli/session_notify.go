@@ -53,7 +53,7 @@ func agentNotifyBundle(result AgentNotifyRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"notify",
-				[]string{"outcome", "retry_after_ms"},
+				[]string{cliOutcomeKey, "retry_after_ms"},
 				[]string{result.Outcome, strconv.FormatInt(result.RetryAfterMS, 10)},
 			), nil
 		},

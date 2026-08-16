@@ -1,4 +1,5 @@
 import type {
+  OperatorNotificationEventPayload,
   PermissionRequest,
   SessionApprovalResponse,
   SessionAttentionEventPayload,
@@ -315,6 +316,15 @@ export const sessionAttentionChangedFixture: SessionAttentionEventPayload = {
   to: "waiting-for-input",
   class: "needs-you",
   at: "2026-04-17T18:11:30Z",
+};
+
+export const operatorNotificationFixture: OperatorNotificationEventPayload = {
+  notification_id: "ntf_story_launch_ready",
+  session_id: storySessionIds.cto,
+  workspace_id: storyWorkspaceIds.hq,
+  title: "Launch checklist cleared",
+  body: "All blocking items resolved; ready for the go/no-go call.",
+  at: "2026-04-17T18:16:00Z",
 };
 
 export const sessionEventsFixture: SessionEventPayload[] = [

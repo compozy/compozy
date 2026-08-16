@@ -15,6 +15,7 @@ import {
   putSettingsProvider,
   reloadSettings,
   updateSettingsNotificationPreset,
+  updateSettingsAttention,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
@@ -22,6 +23,7 @@ import {
   updateSettingsNetwork,
   updateSettingsObservability,
   updateSettingsRoles,
+  updateSettingsShell,
   updateSettingsSkills,
 } from "../adapters/settings-api";
 import {
@@ -50,9 +52,13 @@ import type {
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateMemoryRequest,
   SettingsUpdateNetworkRequest,
+  SettingsUpdateAttentionRequest,
+  SettingsUpdateShellRequest,
   SettingsUpdateObservabilityRequest,
   SettingsRolesSection,
   SettingsUpdateRolesRequest,
+  SettingsAttentionSection,
+  SettingsShellSection,
   SettingsSectionName,
   SettingsUpdateSkillsFilter,
   SettingsUpdateSkillsRequest,
@@ -217,6 +223,37 @@ export function useUpdateSettingsNetwork() {
     mutationFn: (body: SettingsUpdateNetworkRequest) => updateSettingsNetwork(body),
     onSuccess: recordMutation,
     onSettled: () => invalidateSection(queryClient, "network"),
+  });
+}
+
+export function useUpdateSettingsAttention() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: SettingsUpdateAttentionRequest) => updateSettingsAttention(body),
+    onSuccess: (result, variables) => {
+      recordMutation(result);
+      queryClient.setQueryData<SettingsAttentionSection>(
+        settingsKeys.section("attention"),
+        previous => (previous ? { ...previous, config: variables.config } : previous)
+      );
+    },
+    onSettled: () => invalidateSection(queryClient, "attention"),
+  });
+}
+
+export function useUpdateSettingsShell() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: SettingsUpdateShellRequest) => updateSettingsShell(body),
+    onSuccess: (result, variables) => {
+      recordMutation(result);
+      queryClient.setQueryData<SettingsShellSection>(settingsKeys.section("shell"), previous =>
+        previous ? { ...previous, config: variables.config } : previous
+      );
+    },
+    onSettled: () => invalidateSection(queryClient, "shell"),
   });
 }
 

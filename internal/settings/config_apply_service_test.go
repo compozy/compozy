@@ -509,6 +509,64 @@ cost_reasoning_per_million = 30
 		}
 	})
 
+	t.Run("Should live-apply shell preferences without leaking pending restart fields", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := WithMutationSource(context.Background(), "uds")
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+
+		applier := &fakeConfigRuntimeApplier{}
+		service := testService(t, homePaths, Dependencies{
+			RuntimeApplier: applier,
+			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		initialActive, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(initial) error = %v", err)
+		}
+		pendingRestartConfig := strings.Replace(
+			baseSettingsConfig(),
+			`provider = "codex"`,
+			`provider = "claude"`,
+			1,
+		)
+		writeFile(t, homePaths.ConfigFile, pendingRestartConfig)
+		desired := compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
+			Sort:  compozyconfig.ShellSessionSortAttention,
+			Scope: compozyconfig.ShellSessionScopeAllWorkspaces,
+		}}
+
+		result, err := service.ApplySection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionShell},
+			Shell:          &desired,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(shell) error = %v", err)
+		}
+		if !result.Applied || result.RestartRequired {
+			t.Fatalf("ApplySection(shell) = %#v, want live applied result", result)
+		}
+		if got, want := applier.calls, 1; got != want {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+		}
+		if got := applier.snapshots[0].Shell; !reflect.DeepEqual(got, desired) {
+			t.Fatalf("runtime Shell = %#v, want %#v", got, desired)
+		}
+		if got, want := applier.snapshots[0].Defaults.Provider, initialActive.Defaults.Provider; got != want {
+			t.Fatalf("runtime defaults.provider = %q, want pending restart value %q excluded", got, want)
+		}
+	})
+
 	t.Run("Should prune and restore one attention mute through the live apply pipeline", func(t *testing.T) {
 		t.Parallel()
 
@@ -562,7 +620,9 @@ muted_workspaces = ["%s", "%s"]
 		if err != nil {
 			t.Fatalf("LoadForHome(restored) error = %v", err)
 		}
-		if got, want := loaded.Attention.MutedWorkspaces, []string{retainedID, removedID}; !reflect.DeepEqual(got, want) {
+		got := loaded.Attention.MutedWorkspaces
+		want := []string{retainedID, removedID}
+		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("restored muted workspaces = %#v, want %#v", got, want)
 		}
 		if got, want := applier.calls, 2; got != want {
@@ -598,15 +658,13 @@ muted_workspaces = ["%s", "%s"]
 		var writers sync.WaitGroup
 		for index := range candidates {
 			candidate := cloneAttentionConfig(candidates[index])
-			writers.Add(1)
-			go func() {
-				defer writers.Done()
+			writers.Go(func() {
 				_, applyErr := service.ApplySection(ctx, SectionUpdateRequest{
 					SectionRequest: SectionRequest{Section: SectionAttention},
 					Attention:      &candidate,
 				})
 				errorsByWriter <- applyErr
-			}()
+			})
 		}
 		writers.Wait()
 		close(errorsByWriter)

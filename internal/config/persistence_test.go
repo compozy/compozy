@@ -466,6 +466,16 @@ func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject shell preference writes at workspace scope", func(t *testing.T) {
+		t.Parallel()
+		if err := ValidateConfigWriteScope(
+			WriteScopeWorkspace,
+			[]string{"shell", "sessions", "sort"},
+		); err == nil || !strings.Contains(err.Error(), "global-only") {
+			t.Fatalf("ValidateConfigWriteScope() error = %v, want global-only rejection", err)
+		}
+	})
+
 	for _, scope := range []WriteScope{WriteScopeGlobal, WriteScopeWorkspace} {
 		if err := scope.Validate(); err != nil {
 			t.Fatalf("WriteScope(%q).Validate() error = %v", scope, err)

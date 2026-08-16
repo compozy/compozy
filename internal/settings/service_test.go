@@ -283,6 +283,22 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 			},
 		},
 		{
+			name:  SectionShell,
+			label: "Should build the shell section",
+			assert: func(t *testing.T, envelope SectionEnvelope) {
+				t.Helper()
+				if envelope.Shell == nil {
+					t.Fatal("Shell section = nil")
+				}
+				if got, want := envelope.Shell.Config.Sessions.Sort, compozyconfig.ShellSessionSortLastActivity; got != want {
+					t.Fatalf("Shell session sort = %q, want %q", got, want)
+				}
+				if got, want := envelope.Shell.Config.Sessions.Scope, compozyconfig.ShellSessionScopeRecent; got != want {
+					t.Fatalf("Shell session scope = %q, want %q", got, want)
+				}
+			},
+		},
+		{
 			name: SectionObservability,
 			assert: func(t *testing.T, envelope SectionEnvelope) {
 				t.Helper()
@@ -708,6 +724,70 @@ func TestUpdateSectionAttention(t *testing.T) {
 		}
 		if got, want := validationError.Path, "attention.muted_workspaces"; got != want {
 			t.Fatalf("UpdateSection(invalid attention) validation path = %q, want %q", got, want)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+}
+
+func TestUpdateSectionShell(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should round-trip the complete validated global shell config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		desired := compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
+			Sort:  compozyconfig.ShellSessionSortAttention,
+			Scope: compozyconfig.ShellSessionScopeAllWorkspaces,
+		}}
+
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionShell},
+			Shell:          &desired,
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(shell) error = %v", err)
+		}
+		if result.Behavior != MutationBehaviorAppliedNow || !result.Applied || result.RestartRequired {
+			t.Fatalf("shell result = %#v, want live applied mutation", result)
+		}
+
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(updated shell) error = %v", err)
+		}
+		if !reflect.DeepEqual(loaded.Shell, desired) {
+			t.Fatalf("loaded Shell = %#v, want %#v", loaded.Shell, desired)
+		}
+	})
+
+	t.Run("Should leave config unchanged when a shell preference is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		before := readFile(t, homePaths.ConfigFile)
+		service := testService(t, homePaths, Dependencies{})
+		invalid := compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
+			Sort: "priority", Scope: compozyconfig.ShellSessionScopeRecent,
+		}}
+
+		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionShell},
+			Shell:          &invalid,
+		})
+		validationErr, matched := errors.AsType[compozyconfig.ValidationError](err)
+		if !matched {
+			t.Fatalf("UpdateSection(invalid shell) error = %T %v, want config.ValidationError", err, err)
+		}
+		if got, want := validationErr.Path, "shell.sessions.sort"; got != want {
+			t.Fatalf("shell validation path = %q, want %q", got, want)
 		}
 		if after := readFile(t, homePaths.ConfigFile); after != before {
 			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)

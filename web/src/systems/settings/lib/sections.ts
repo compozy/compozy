@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bell,
   Brain,
   Cpu,
   Network,
@@ -99,10 +100,17 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     keywords: "remote reachability exposure overlay public pairing devices revoke audit ingress",
   },
   {
+    slug: "attention",
+    label: "Attention",
+    icon: Bell,
+    group: "operator",
+    keywords: "notifications toasts sound system alerts mute workspace bell",
+  },
+  {
     slug: "observability",
     label: "Observability",
     icon: Activity,
-    group: "system",
+    group: "operator",
     keywords: "capture transcripts storage support bundle logs retention",
   },
   {
@@ -127,6 +135,7 @@ export const SETTINGS_SECTION_GROUPS: ReadonlyArray<{
 }> = [
   { id: "workspace", label: "Workspace" },
   { id: "runtime", label: "Runtime" },
+  { id: "operator", label: "Operator" },
   { id: "system", label: "System" },
 ];
 

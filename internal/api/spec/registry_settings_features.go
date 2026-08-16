@@ -14,6 +14,8 @@ func registrySettingsFeatureOperations() []OperationSpec {
 		updateSettingsWindowManagerOperationSpec(),
 		getSettingsAttentionOperationSpec(),
 		updateSettingsAttentionOperationSpec(),
+		getSettingsShellOperationSpec(),
+		updateSettingsShellOperationSpec(),
 		getSettingsObservabilityOperationSpec(),
 		updateSettingsObservabilityOperationSpec(),
 		streamSettingsObservabilityLogTailOperationSpec(),

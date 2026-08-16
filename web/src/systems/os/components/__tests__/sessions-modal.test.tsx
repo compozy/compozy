@@ -8,12 +8,21 @@ import { QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
+import type {
+  SessionLifecycleActionHandlers,
+  SessionListViewModel,
+  SessionPayload,
+} from "@/systems/session";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { OsSessionsModal } from "../sessions-modal";
+
+const jumpToSession = vi.hoisted(() => vi.fn());
+vi.mock("../../hooks/use-attention-jump", () => ({
+  useAttentionJump: () => jumpToSession,
+}));
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
@@ -56,6 +65,20 @@ const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
   onUnarchive: () => {},
 };
 
+function listView(overrides: Partial<SessionListViewModel> = {}): SessionListViewModel {
+  return {
+    scope: "recent",
+    sort: "last_activity",
+    saving: false,
+    setScope: vi.fn(),
+    setSort: vi.fn(),
+    workspaceGroups: [],
+    collapsedWorkspaceIds: new Set<string>(),
+    toggleWorkspace: vi.fn(),
+    ...overrides,
+  };
+}
+
 const managers: WindowManagerRuntime[] = [];
 
 function createShell(): OsShellHandle {
@@ -71,7 +94,8 @@ function renderModal(
   shell: OsShellHandle,
   open = true,
   archivedSessions: SessionPayload[] = [],
-  archivedTotal?: number
+  archivedTotal?: number,
+  view: SessionListViewModel = listView()
 ) {
   return render(
     <OsShellContext.Provider value={shell}>
@@ -82,6 +106,7 @@ function renderModal(
         archivedSessions={archivedSessions}
         archivedTotal={archivedTotal}
         disconnected={false}
+        view={view}
         sessionActions={SESSION_ACTIONS}
       />
     </OsShellContext.Provider>
@@ -90,7 +115,47 @@ function renderModal(
 
 describe("OsSessionsModal", () => {
   afterEach(() => {
+    jumpToSession.mockClear();
     for (const manager of managers.splice(0)) manager.destroy();
+  });
+
+  it("Should coordinate a foreign workspace row without exposing mis-scoped actions", async () => {
+    const user = userEvent.setup();
+    const foreign = session({
+      id: "session-foreign",
+      agent_name: "claude",
+      workspace_id: "workspace-2",
+      workspace_path: "/workspace/other",
+    });
+    renderModal(
+      createShell(),
+      true,
+      [],
+      undefined,
+      listView({
+        scope: "all-workspaces",
+        workspaceGroups: [
+          {
+            workspaceId: "workspace-2",
+            workspaceName: "Other",
+            sessions: [foreign],
+            total: 1,
+            loading: false,
+            failed: false,
+            retry: vi.fn(),
+          },
+        ],
+      })
+    );
+
+    await user.click(screen.getByTestId("os-sessions-modal-session-session-foreign"));
+
+    expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
+      sessionId: "session-foreign",
+      agentName: "claude",
+      workspaceId: "workspace-2",
+    });
+    expect(screen.queryByTestId("session-row-actions-session-foreign")).toBeNull();
   });
 
   it("Should nest provenance children under their parent thread and fold them behind the toggle", async () => {
@@ -125,6 +190,7 @@ describe("OsSessionsModal", () => {
           sessions={[...SESSIONS, child]}
           archivedSessions={[]}
           disconnected={false}
+          view={listView()}
           sessionActions={SESSION_ACTIONS}
         />
       </OsShellContext.Provider>
@@ -202,6 +268,7 @@ describe("OsSessionsModal", () => {
           sessions={[...SESSIONS, parent, grandchild]}
           archivedSessions={[]}
           disconnected={false}
+          view={listView()}
           sessionActions={SESSION_ACTIONS}
         />
       </OsShellContext.Provider>
@@ -235,9 +302,11 @@ describe("OsSessionsModal", () => {
   it("Should retain an agent collapse after the modal remounts (UT-068)", async () => {
     const user = userEvent.setup();
     const shell = createShell();
-    const first = renderModal(shell);
+    // The agent-grouped pane is the `all` scope; scope itself is an operator
+    // preference the shell owns, so it arrives as a prop.
+    const allScope = listView({ scope: "all" });
+    const first = renderModal(shell, true, [], undefined, allScope);
 
-    await user.click(screen.getByRole("button", { name: "Show all sessions" }));
     const group = screen.getByRole("button", { name: /codex/i, expanded: true });
     const groupSection = group.closest("section");
     expect(groupSection).not.toBeNull();
@@ -249,8 +318,7 @@ describe("OsSessionsModal", () => {
     expect(shell.manager.getState().railCollapsedAgentIds).toEqual(["codex"]);
 
     first.unmount();
-    renderModal(shell);
-    await user.click(screen.getByRole("button", { name: "Show all sessions" }));
+    renderModal(shell, true, [], undefined, allScope);
     const persistedGroup = screen.getByRole("button", { name: /codex/i, expanded: false });
     expect(persistedGroup).toHaveAttribute("aria-expanded", "false");
     const persistedSection = persistedGroup.closest("section");
@@ -280,6 +348,7 @@ describe("OsSessionsModal", () => {
             archivedSessions={[]}
             archivedTotal={0}
             disconnected={false}
+            view={listView()}
             sessionActions={SESSION_ACTIONS}
           />
         </OsShellContext.Provider>
@@ -318,7 +387,10 @@ describe("OsSessionsModal", () => {
     const archivedDisclosure = screen.getByRole("button", { name: "Archived sessions (4)" });
     expect(archivedDisclosure).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByTestId("os-sessions-modal-session-session-archived")).toBeNull();
-    expect(screen.getByRole("button", { name: "Show all sessions" })).toBeInTheDocument();
+    // Scope is a tri-state now: Recent, All, and every workspace.
+    expect(screen.getByTestId("os-sessions-modal-scope-recent")).toBeInTheDocument();
+    expect(screen.getByTestId("os-sessions-modal-scope-all")).toBeInTheDocument();
+    expect(screen.getByTestId("os-sessions-modal-scope-all-workspaces")).toBeInTheDocument();
 
     await user.click(archivedDisclosure);
     expect(screen.getByTestId("os-sessions-modal-session-session-archived")).toHaveTextContent(
@@ -343,6 +415,7 @@ describe("OsSessionsModal", () => {
           archivedSessions={[]}
           archivedTotal={0}
           disconnected={false}
+          view={listView()}
           sessionActions={{ ...SESSION_ACTIONS, onDelete }}
         />
       </OsShellContext.Provider>
@@ -370,6 +443,7 @@ describe("OsSessionsModal", () => {
           archivedSessions={[]}
           archivedTotal={0}
           disconnected={false}
+          view={listView()}
           sessionActions={SESSION_ACTIONS}
         />
       </OsShellContext.Provider>

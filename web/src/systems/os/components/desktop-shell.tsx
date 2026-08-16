@@ -32,6 +32,7 @@ import {
   SessionRenameDialog,
   useSessionCreateActions,
   useSessionLifecycleActions,
+  useSessionListView,
 } from "@/systems/session";
 import { useSettingsSandboxes } from "@/systems/settings";
 import {
@@ -145,6 +146,9 @@ function DesktopShellScopedBody({
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
   const sessionCreate = useSessionCreateActions();
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
+  // Scope and order are the operator's, persisted by the daemon; the modal
+  // renders them rather than fetching its own.
+  const sessionListView = useSessionListView();
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -299,6 +303,8 @@ function DesktopShellScopedBody({
         archivedSessions={attention.archivedSessions}
         archivedTotal={attention.archivedSessionsTotal}
         disconnected={attention.sessionsDisconnected}
+        view={sessionListView}
+        currentWorkspaceId={model.runtimeWorkspaceId}
         sessionActions={sessionLifecycle.actions}
       />
       {sessionLifecycle.deleteDialog.session ? (

@@ -70,6 +70,11 @@ const SECTION_PAGES = {
       default: m.GatewaySettingsPage,
     }))
   ),
+  attention: lazy(() =>
+    import("@/routes/_app/settings/-attention-settings-page").then(m => ({
+      default: m.AttentionSettingsPage,
+    }))
+  ),
   observability: lazy(() =>
     import("@/routes/_app/settings/-observability-settings-page").then(m => ({
       default: m.ObservabilitySettingsPage,

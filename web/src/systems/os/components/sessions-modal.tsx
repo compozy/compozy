@@ -11,11 +11,13 @@ import {
 } from "@compozy/ui";
 
 import { useOsSessionsModal } from "../hooks/use-os-sessions-modal";
+import { useAttentionJump } from "../hooks/use-attention-jump";
 import {
   type SessionLifecycleActionHandlers,
   SessionList,
   type SessionPayload,
   useSessionSidebarState,
+  type SessionListViewModel,
 } from "@/systems/session";
 
 export interface OsSessionsModalProps {
@@ -26,6 +28,9 @@ export interface OsSessionsModalProps {
   archivedSessions: readonly SessionPayload[];
   archivedTotal?: number;
   disconnected: boolean;
+  /** Scope, order, and widened workspace groups — owned by the shell, not fetched here. */
+  view: SessionListViewModel;
+  currentWorkspaceId?: string | null;
   sessionActions: SessionLifecycleActionHandlers;
 }
 
@@ -42,9 +47,12 @@ export function OsSessionsModal({
   archivedSessions,
   archivedTotal,
   disconnected,
+  view,
+  currentWorkspaceId,
   sessionActions,
 }: OsSessionsModalProps) {
-  const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
+  const { manager, collapsedAgentIds } = useOsSessionsModal();
+  const jumpToSession = useAttentionJump();
   const { collapsedThreadIds, toggleThread } = useSessionSidebarState();
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -54,13 +62,10 @@ export function OsSessionsModal({
 
   const selectSession = (session: SessionPayload) => {
     onOpenChange(false);
-    void coordinator.userOpen({
-      app: "session",
-      instanceKey: session.id,
-      route: {
-        pathname: `/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.id)}`,
-        search: {},
-      },
+    jumpToSession({
+      sessionId: session.id,
+      agentName: session.agent_name,
+      workspaceId: session.workspace_id ?? currentWorkspaceId ?? "",
     });
   };
   return (
@@ -76,6 +81,7 @@ export function OsSessionsModal({
           Filter sessions and open one in the current workspace.
         </DialogDescription>
         <SessionList
+          view={view}
           sessions={sessions}
           archivedSessions={archivedSessions}
           archivedTotal={archivedTotal}

@@ -2,13 +2,17 @@ import { useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 import { useOsSessionsModal } from "../../hooks/use-os-sessions-modal";
+import { useAttentionJump } from "../../hooks/use-attention-jump";
 import {
   type SessionLifecycleActionHandlers,
   type SessionPayload,
+  sessionListSortParam,
   useSessionCreateActions,
   useSessionLifecycleActions,
+  useSessionListView,
   useSessions,
   useSessionSidebarState,
+  type SessionListViewModel,
 } from "@/systems/session";
 
 export interface SessionWindowSidebarModel {
@@ -18,6 +22,7 @@ export interface SessionWindowSidebarModel {
   disconnected: boolean;
   collapsedAgentIds: readonly string[];
   collapsedThreadIds: string[];
+  view: SessionListViewModel;
   onToggleGroup: (agentName: string) => void;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
@@ -44,8 +49,10 @@ export function useSessionWindowSidebar({
 }): SessionWindowSidebarModel {
   const sidebar = useSessionSidebarState();
   const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
+  const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionLifecycleActions({ workspaceId });
+  const view = useSessionListView();
   // Scoped to this window: two session windows can hold different worktrees and
   // must list different sessions.
   const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
@@ -56,13 +63,23 @@ export function useSessionWindowSidebar({
     filters: {
       include_health: true,
       limit: 100,
-      sort: "last_activity",
+      // Ordering is served, not re-sorted client-side: the daemon owns the
+      // attention band and its tie-breaks.
+      sort: sessionListSortParam(view.sort),
       worktree: worktree.worktreeId,
     },
   });
 
   const onSelectSession = (target: SessionPayload) => {
     if (target.id === sessionId) return;
+    if (target.workspace_id !== workspaceId) {
+      jumpToSession({
+        sessionId: target.id,
+        agentName: target.agent_name,
+        workspaceId: target.workspace_id ?? workspaceId,
+      });
+      return;
+    }
     void coordinator.userRetarget(windowId, {
       app: "session",
       instanceKey: target.id,
@@ -80,6 +97,7 @@ export function useSessionWindowSidebar({
     disconnected: sidebar.open && worktree.resolved && sessionsQuery.isError,
     collapsedAgentIds,
     collapsedThreadIds: sidebar.collapsedThreadIds,
+    view,
     onToggleGroup: agentName => manager.toggleRailGroup(agentName),
     onToggleThread: sidebar.toggleThread,
     onSelectSession,

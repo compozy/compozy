@@ -11,6 +11,9 @@ import { useDesktopOverlays } from "./use-desktop-overlays";
 import { useDesktopShellState } from "./use-desktop-shell-state";
 import type { DesktopShellModel } from "./use-desktop-shell-model";
 import { useDesktopTransitionIntent } from "./use-window-manager-store";
+import { useAttentionNotifier } from "./use-attention-notifier";
+import { useDocumentTitleBadge } from "./use-document-title-badge";
+import { useFocusedSessionId } from "./use-focused-session-id";
 import { useOsAttention } from "./use-os-attention";
 import { useOsReducedMotion } from "./use-os-reduced-motion";
 import { useOsShell } from "./use-os-shell";
@@ -67,6 +70,13 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const desktop = useDesktopShellState();
   const overlays = useDesktopOverlays();
   const attention = useOsAttention(model.runtimeWorkspace, model.sessionCatalogStreamStatus);
+  useDocumentTitleBadge(attention.notificationCount);
+  useAttentionNotifier({
+    sections: attention.sections,
+    streamLive: model.sessionCatalogStreamStatus === "live",
+    focusedSessionId: useFocusedSessionId(),
+    onOpenBell: () => overlays.setOverlayOpen("bell", true),
+  });
   const managerSurfaces = useDesktopManagerSurfaces();
   const winLayer = useOsWinLayer();
   const reducedMotion = useOsReducedMotion();

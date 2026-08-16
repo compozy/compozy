@@ -30,10 +30,22 @@ func notifyOperatorOperationSpec() OperationSpec {
 		RequestBody: contract.AgentNotifyRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Notification outcome", Body: contract.AgentNotifyResponse{}},
-			{Status: 401, Description: specAgentCallerIdentityIsMissingDescription, Body: contract.ErrorPayload{}},
-			{Status: 403, Description: specForbiddenWorkspaceOrPermissionMismatchDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      401,
+				Description: specAgentCallerIdentityIsMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{
+				Status:      403,
+				Description: specForbiddenWorkspaceOrPermissionMismatchDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 422, Description: "Invalid notification", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specServiceUnavailableDependentServiceMissingDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

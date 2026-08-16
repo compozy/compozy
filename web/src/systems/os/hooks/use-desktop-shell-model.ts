@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import { useAgentCreateDialog, useAgents } from "@/systems/agent";
 import { useSessionCatalogStreams, useSessionCreateDialogController } from "@/systems/session";
+
+import { publishAttentionEdge, publishOperatorNotification } from "../lib/attention-edge-bus";
 import {
   useActiveWorkspace,
   useUserHomeDir,
@@ -47,8 +49,12 @@ export function useDesktopShellModel() {
   const workspaceAgents = runtimeWorkspaceId === null ? undefined : agents;
   const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
   const [worktreeCreateWorkspaceId, setWorktreeCreateWorkspaceId] = useState<string | null>(null);
+  // Attention edges leave the stream through the module-level bus so the
+  // notifier can subscribe without ever reopening this connection.
   const sessionCatalogStreamStatus = useSessionCatalogStreams(registeredWorkspaces, {
     enabled: registeredWorkspaces.length > 0,
+    onAttentionEdge: publishAttentionEdge,
+    onOperatorNotification: publishOperatorNotification,
   });
 
   // One catalog subscription per shell; the query stays the snapshot authority

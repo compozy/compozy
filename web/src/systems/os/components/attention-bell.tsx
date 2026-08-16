@@ -1,46 +1,68 @@
-import { CircleAlert, ListChecks, SquareTerminal, type LucideIcon } from "lucide-react";
+import { Bell, CircleAlert } from "lucide-react";
 
-import { Icon, PopoverDescription, PopoverHeader, PopoverTitle } from "@compozy/ui";
+import { Eyebrow, Icon } from "@compozy/ui";
 
-import { LOOP_STORY_ICONS } from "@/systems/loops";
+import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model";
+import { AttentionBellRow } from "./attention-bell-row";
 
-import type { OsAttentionRow } from "../lib/attention-model";
-
-function attentionRowIcon(row: OsAttentionRow): LucideIcon {
-  if (row.kind === "session") return SquareTerminal;
-  if (row.kind === "task") return ListChecks;
-  return row.state === "waiting" ? LOOP_STORY_ICONS.waiting : LOOP_STORY_ICONS.attention;
-}
-
-function attentionRowTrail(row: OsAttentionRow): string {
-  if (row.kind === "session") return `${row.agentName} · waiting-for-auth`;
-  if (row.kind === "task") return `${row.identifier ?? row.id} · awaiting approval`;
-  return row.state;
+function BellSection({
+  label,
+  rows,
+  onSelect,
+  testId,
+}: {
+  label: string;
+  rows: readonly OsAttentionRow[];
+  onSelect: (row: OsAttentionRow) => void;
+  testId: string;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <section
+      className="flex flex-col border-line pt-1.5 first:pt-0 [&+&]:mt-1 [&+&]:border-t"
+      data-testid={testId}
+    >
+      <Eyebrow className="flex items-center gap-1.5 px-2.5 pt-1.5 pb-1 text-subtle">
+        {label}
+        <span className="font-mono text-micro text-faint">{rows.length}</span>
+      </Eyebrow>
+      {rows.map(row => (
+        <AttentionBellRow key={`${row.kind}:${row.id}`} row={row} onSelect={onSelect} />
+      ))}
+    </section>
+  );
 }
 
 export interface AttentionBellProps {
-  rows: readonly OsAttentionRow[];
+  sections: OsAttentionSections;
   sessionsDisconnected: boolean;
   tasksDisconnected: boolean;
   loading: boolean;
   onSelect: (row: OsAttentionRow) => void;
 }
 
+/**
+ * Two sections, populated only: **Needs you** (questions, permission gates,
+ * failures, task approvals) and **Finished** (work that completed while the
+ * operator was elsewhere). Finished is visible but never counted — the badge
+ * stays a trustworthy "how many are blocked on me" number.
+ *
+ * There is no dismiss control anywhere: a `done` marker clears by viewing the
+ * session and by nothing else, so a manual "mark seen" would be a lie the
+ * runtime cannot honour.
+ */
 export function AttentionBell({
-  rows,
+  sections,
   sessionsDisconnected,
   tasksDisconnected,
   loading,
   onSelect,
 }: AttentionBellProps) {
   const disconnected = sessionsDisconnected || tasksDisconnected;
+  const empty = sections.needsYou.length === 0 && sections.finished.length === 0;
 
   return (
     <div className="flex min-h-0 flex-col" data-testid="os-attention-bell">
-      <PopoverHeader className="border-b border-line-soft px-1 pb-2">
-        <PopoverTitle>Needs your attention</PopoverTitle>
-        <PopoverDescription>Open the owning window to review and respond.</PopoverDescription>
-      </PopoverHeader>
       {disconnected ? (
         <div
           role="status"
@@ -50,52 +72,37 @@ export function AttentionBell({
           <Icon as={CircleAlert} size="sm" className="mt-0.5 shrink-0" />
           <span>
             {sessionsDisconnected && tasksDisconnected
-              ? "Session and task attention are unavailable."
+              ? "Session and task attention are unavailable. Listed rows are frozen and do not count."
               : sessionsDisconnected
-                ? "Session attention is unavailable."
+                ? "Session attention is unavailable. Listed rows are frozen and do not count."
                 : "Task attention is unavailable."}
           </span>
         </div>
       ) : null}
-      <div className="-mx-1 flex max-h-80 min-h-0 flex-col overflow-y-auto">
-        {rows.map(row => (
-          <button
-            key={`${row.kind}:${row.id}`}
-            type="button"
-            className="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-row-hover focus-visible:shadow-focus-ring focus-visible:outline-none"
-            data-testid={`os-attention-${row.kind}-${row.id}`}
-            onClick={() => onSelect(row)}
+      <div className="-mx-1 flex max-h-96 min-h-0 flex-col overflow-y-auto">
+        <BellSection
+          label="Needs you"
+          rows={sections.needsYou}
+          onSelect={onSelect}
+          testId="os-bell-needs-you"
+        />
+        <BellSection
+          label="Finished"
+          rows={sections.finished}
+          onSelect={onSelect}
+          testId="os-bell-finished"
+        />
+        {!loading && empty && !disconnected ? (
+          <div
+            className="flex flex-col items-center gap-1.5 px-2 py-7 text-center"
+            data-testid="os-bell-empty"
           >
-            <span
-              className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-sm border border-line bg-elevated ${
-                row.kind === "loop-node" && row.state === "waiting"
-                  ? "text-info"
-                  : row.kind === "loop-node"
-                    ? "text-warning"
-                    : "text-muted"
-              }`}
-            >
-              <Icon as={attentionRowIcon(row)} size="sm" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-small-body font-medium text-fg-strong">
-                {row.title}
-              </span>
-              <span className="block truncate font-mono text-micro text-subtle">
-                {attentionRowTrail(row)}
-              </span>
-            </span>
-          </button>
-        ))}
-        {!loading && rows.length === 0 && !disconnected ? (
-          <div className="px-2 py-5 text-center" data-testid="os-bell-empty">
-            <p className="text-small-body font-medium text-fg-strong">Nothing waiting</p>
-            <p className="mt-1 text-small-body text-muted">
-              Waiting sessions and tasks awaiting approval will appear here.
-            </p>
+            <Icon as={Bell} size="lg" className="text-faint" />
+            <p className="text-small-body font-medium text-fg-strong">All quiet</p>
+            <p className="text-small-body text-muted">Nothing needs you.</p>
           </div>
         ) : null}
-        {loading && rows.length === 0 ? (
+        {loading && empty ? (
           <p className="px-2 py-5 text-center text-small-body text-muted">Loading attention…</p>
         ) : null}
       </div>

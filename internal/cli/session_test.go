@@ -1381,7 +1381,16 @@ func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeRootCommand(t, deps, "session", "clarify", "pending", "sess-1", "-o", "json")
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"session",
+		sessionClarifyCommandUse,
+		"pending",
+		"sess-1",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("executeRootCommand(session clarify pending) error = %v", err)
 	}
@@ -1423,7 +1432,7 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 		t,
 		deps,
 		"session",
-		"clarify",
+		sessionClarifyCommandUse,
 		"answer",
 		"sess-1",
 		"req-1",
@@ -1477,7 +1486,7 @@ func TestSessionClarifyAnswerRequiresExactlyOneAnswerFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			args := []string{"session", "clarify", "answer", "sess-1", "req-1"}
+			args := []string{"session", sessionClarifyCommandUse, "answer", "sess-1", "req-1"}
 			args = append(args, tt.args...)
 			_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), args...)
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {

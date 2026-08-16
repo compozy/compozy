@@ -11,7 +11,7 @@ func customizeAgentNotifyRequestSchema(schema *openapi3.Schema) {
 	setNotificationTextCap(schema, "body", session.NotificationBodyMaxChars, false)
 }
 
-func setNotificationTextCap(schema *openapi3.Schema, field string, max int, required bool) {
+func setNotificationTextCap(schema *openapi3.Schema, field string, limit uint64, required bool) {
 	if schema == nil {
 		return
 	}
@@ -19,7 +19,7 @@ func setNotificationTextCap(schema *openapi3.Schema, field string, max int, requ
 	if !exists || property == nil || property.Value == nil {
 		return
 	}
-	maxLength := uint64(max)
+	maxLength := limit
 	property.Value.MaxLength = &maxLength
 	if required {
 		property.Value.MinLength = 1

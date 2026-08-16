@@ -176,6 +176,23 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			t.Fatalf("Attention = %#v, want false/false/true with one muted workspace", configured.Attention)
 		}
 
+		for _, mutation := range [][2]string{
+			{"shell.sessions.sort", "attention"},
+			{"shell.sessions.scope", "all-workspaces"},
+		} {
+			if _, _, err := executeRootCommand(t, deps, "config", "set", mutation[0], mutation[1]); err != nil {
+				t.Fatalf("config set %s error = %v", mutation[0], err)
+			}
+		}
+		configured, err = compozyconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(shell) error = %v", err)
+		}
+		if configured.Shell.Sessions.Sort != compozyconfig.ShellSessionSortAttention ||
+			configured.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces {
+			t.Fatalf("Shell = %#v, want attention/all-workspaces", configured.Shell)
+		}
+
 		if _, _, err := executeRootCommand(
 			t,
 			deps,
@@ -672,6 +689,71 @@ func TestConfigSetAttentionUsesDaemonSettingsWhenRunning(t *testing.T) {
 	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
 		record.RestartRequired {
 		t.Fatalf("config set attention record = %#v, want live/applied=true", record)
+	}
+}
+
+func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	var captured UpdateSettingsShellRequest
+	client := &stubClient{
+		updateSettingsShellFn: func(
+			_ context.Context,
+			request UpdateSettingsShellRequest,
+		) (SettingsMutationRecord, error) {
+			captured = request
+			return SettingsMutationRecord{
+				Section:          "shell",
+				Scope:            contract.SettingsScopeGlobal,
+				Lifecycle:        contract.SettingsApplyLifecycleLive,
+				ApplyRecordID:    "cfgapp-shell",
+				Applied:          true,
+				ActiveGeneration: 4,
+				ActiveConfigHash: "sha256:shell",
+				NextAction:       contract.SettingsApplyNextActionNone,
+			}, nil
+		},
+	}
+
+	deps := newWorkspaceTestDeps(t, client)
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	out, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"shell.sessions.scope",
+		"all-workspaces",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set shell.sessions.scope error = %v", err)
+	}
+	if captured.Config.Sessions.Sort != contract.SettingsShellSessionSortLastActivity ||
+		captured.Config.Sessions.Scope != contract.SettingsShellSessionScopeAllWorkspaces {
+		t.Fatalf("daemon shell payload = %#v, want last_activity/all-workspaces", captured.Config)
+	}
+
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+	}
+
+	var record configSetRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config set shell) error = %v", err)
+	}
+	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
+		record.RestartRequired {
+		t.Fatalf("config set shell record = %#v, want live/applied=true", record)
 	}
 }
 

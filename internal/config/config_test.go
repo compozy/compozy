@@ -1796,6 +1796,15 @@ ttl = "30m"
 	if err == nil || !strings.Contains(err.Error(), "marketplace catalog settings are global-only") {
 		t.Fatalf("Load(workspace Marketplace config) error = %v, want global-only rejection", err)
 	}
+
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[shell.sessions]
+sort = "attention"
+`)
+	_, err = Load(WithWorkspaceRoot(workspaceRoot))
+	if err == nil || !strings.Contains(err.Error(), "shell settings are global-only") {
+		t.Fatalf("Load(workspace shell config) error = %v, want global-only rejection", err)
+	}
 }
 
 func TestLoadForHomeSkipsDuplicateWorkspaceOverlay(t *testing.T) {

@@ -35,6 +35,7 @@ type stubClient struct {
 	updateSettingsSkillsFn             func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
 	updateSettingsWindowManagerFn      func(context.Context, UpdateSettingsWindowManagerRequest) (SettingsMutationRecord, error)
 	updateSettingsAttentionFn          func(context.Context, UpdateSettingsAttentionRequest) (SettingsMutationRecord, error)
+	updateSettingsShellFn              func(context.Context, UpdateSettingsShellRequest) (SettingsMutationRecord, error)
 	reloadSettingsFn                   func(context.Context) (SettingsMutationRecord, error)
 	listSettingsApplyRecordsFn         func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
 	getOnboardingStatusFn              func(context.Context) (contract.OnboardingStatusResponse, error)
@@ -636,6 +637,16 @@ func (s *stubClient) UpdateSettingsAttention(
 		return s.updateSettingsAttentionFn(ctx, request)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsAttention call")
+}
+
+func (s *stubClient) UpdateSettingsShell(
+	ctx context.Context,
+	request UpdateSettingsShellRequest,
+) (SettingsMutationRecord, error) {
+	if s.updateSettingsShellFn != nil {
+		return s.updateSettingsShellFn(ctx, request)
+	}
+	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsShell call")
 }
 
 func (s *stubClient) ReloadSettings(ctx context.Context) (SettingsMutationRecord, error) {

@@ -1,24 +1,24 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-import { Icon, SearchInput } from "@compozy/ui";
-
-import { cn } from "@/lib/utils";
+import { SearchInput } from "@compozy/ui";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { buildSessionTree, filterThreadSessions } from "../../lib/session-hierarchy";
+import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionListArchived } from "./session-list-archived";
 import { SessionListGroup } from "./session-list-group";
 import { SessionListThread } from "./session-list-thread";
-
-type SessionListView = "recent" | "all";
+import { SessionListToolbar } from "./session-list-toolbar";
+import { SessionListWorkspaceGroups } from "./session-list-workspace-groups";
 
 interface SessionThreadModel {
   session: SessionPayload;
   childSessions: SessionPayload[];
 }
+
+const RECENT_THREAD_LIMIT = 6;
 
 export interface SessionListProps {
   sessions: readonly SessionPayload[];
@@ -28,21 +28,29 @@ export interface SessionListProps {
   collapsedAgentIds: readonly string[];
   collapsedThreadIds: readonly string[];
   currentSessionId?: string;
+  /** Scope, order, and the widened per-workspace groups. */
+  view: SessionListViewModel;
   onToggleGroup: (agentName: string) => void;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
-  /** Rendered above the filter (the modal's eyebrow + close chrome). */
+  /** Rendered above the controls (the modal's eyebrow + close chrome). */
   header?: (visibleCount: number) => React.ReactNode;
-  /** Rendered under the recent pane (the sidebar's new-session action). */
+  /** Rendered under the list (the sidebar's new-session action). */
   footer?: React.ReactNode;
 }
 
 /**
- * Shared sessions catalog body: filterable recent ⇄ all panes with provenance
- * threads. A matching descendant keeps its full ancestor path visible so a
- * thread never renders detached from its root.
+ * Shared sessions catalog body: a tri-state scope over provenance threads.
+ *
+ * `Recent` and `All` stay inside the active workspace; `All workspaces` widens
+ * to every workspace, grouped and labelled, so no workspace can stall
+ * unnoticed. Ordering is served by the daemon for the operator's chosen sort —
+ * this component renders the order it receives rather than re-deciding it.
+ *
+ * A matching descendant keeps its full ancestor path visible, so a thread never
+ * renders detached from its root.
  */
 export function SessionList({
   sessions,
@@ -52,6 +60,7 @@ export function SessionList({
   collapsedAgentIds,
   collapsedThreadIds,
   currentSessionId,
+  view,
   onToggleGroup,
   onToggleThread,
   onSelectSession,
@@ -60,7 +69,6 @@ export function SessionList({
   header,
   footer,
 }: SessionListProps) {
-  const [view, setView] = useState<SessionListView>("recent");
   const [filter, setFilter] = useState("");
   const normalizedFilter = filter.trim().toLocaleLowerCase();
   const matchesFilter = (session: SessionPayload) => {
@@ -76,10 +84,7 @@ export function SessionList({
   for (const root of tree.roots) {
     const childSessions = filterThreadSessions(root, tree.childrenByParent, matchesFilter);
     if (childSessions === null) continue;
-    threads.push({
-      session: root,
-      childSessions,
-    });
+    threads.push({ session: root, childSessions });
   }
   const visibleCount = threads.reduce(
     (count, thread) => count + 1 + thread.childSessions.length,
@@ -110,10 +115,20 @@ export function SessionList({
     />
   );
 
+  const visibleThreads = view.scope === "recent" ? threads.slice(0, RECENT_THREAD_LIMIT) : threads;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={`${testIdPrefix}-content`}>
       {header?.(visibleCount)}
-      <div className="px-3 py-1.5">
+      <SessionListToolbar
+        scope={view.scope}
+        sort={view.sort}
+        disabled={view.saving}
+        onScopeChange={view.setScope}
+        onSortChange={view.setSort}
+        testIdPrefix={testIdPrefix}
+      />
+      <div className="px-3 pb-1.5">
         <SearchInput
           value={filter}
           onChange={setFilter}
@@ -130,52 +145,22 @@ export function SessionList({
           Session updates are unavailable. Cached sessions remain visible.
         </p>
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div
-          className={cn(
-            "flex h-full min-h-0 w-[200%] transition-transform duration-shell-slow ease-spring",
-            view === "all" && "-translate-x-1/2"
-          )}
-          data-view={view}
-        >
-          <div className="flex h-full w-1/2 shrink-0 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5">
-              {threads.slice(0, 6).map(renderThread)}
-              {threads.length === 0 ? (
-                <p className="px-3 py-8 text-center text-small-body text-muted">
-                  No sessions match.
-                </p>
-              ) : null}
-            </div>
-            <div className="shrink-0">
-              <SessionListArchived
-                sessions={filteredArchived}
-                total={filteredArchivedTotal}
-                onSelectSession={onSelectSession}
-                sessionActions={sessionActions}
-                testIdPrefix={testIdPrefix}
-              />
-              <button
-                type="button"
-                className="flex w-full items-center justify-center gap-1.5 border-t border-line-soft px-2 py-2.5 text-small-body font-medium text-subtle transition-colors hover:bg-row-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-                onClick={() => setView("all")}
-              >
-                Show all sessions
-                <Icon as={ChevronRight} size="sm" />
-              </button>
-              {footer}
-            </div>
-          </div>
-          <div className="h-full w-1/2 shrink-0 overflow-y-auto px-2.5 pb-3">
-            <button
-              type="button"
-              className="mt-0.5 mb-1 flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-small-body font-medium text-subtle transition-colors hover:bg-row-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-              aria-label="Back to recent sessions"
-              onClick={() => setView("recent")}
-            >
-              <Icon as={ChevronLeft} size="sm" />
-              Recent
-            </button>
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+        data-scope={view.scope}
+      >
+        {view.scope === "all-workspaces" ? (
+          <SessionListWorkspaceGroups
+            groups={view.workspaceGroups}
+            collapsedWorkspaceIds={view.collapsedWorkspaceIds}
+            currentSessionId={currentSessionId}
+            onToggleWorkspace={view.toggleWorkspace}
+            onSelectSession={onSelectSession}
+            sessionActions={sessionActions}
+            testIdPrefix={testIdPrefix}
+          />
+        ) : view.scope === "all" ? (
+          <>
             {[...byAgent.entries()].map(([agentName, agentThreads]) => (
               <SessionListGroup
                 key={agentName}
@@ -194,8 +179,27 @@ export function SessionList({
             {byAgent.size === 0 ? (
               <p className="px-3 py-8 text-center text-small-body text-muted">No sessions match.</p>
             ) : null}
-          </div>
-        </div>
+          </>
+        ) : (
+          <>
+            {visibleThreads.map(renderThread)}
+            {threads.length === 0 ? (
+              <p className="px-3 py-8 text-center text-small-body text-muted">No sessions match.</p>
+            ) : null}
+          </>
+        )}
+      </div>
+      <div className="shrink-0">
+        {view.scope === "recent" ? (
+          <SessionListArchived
+            sessions={filteredArchived}
+            total={filteredArchivedTotal}
+            onSelectSession={onSelectSession}
+            sessionActions={sessionActions}
+            testIdPrefix={testIdPrefix}
+          />
+        ) : null}
+        {footer}
       </div>
     </div>
   );

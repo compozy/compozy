@@ -1,7 +1,10 @@
 // Suite: OS attention projections
-// Invariant: badges and bell rows expose only fresh runtime-owned attention;
-// loop-node rows appear only when a presence probe is true, never as static chrome.
-// Boundary IN: session catalog, task dashboard/list, loop-node probes, attention derivation, and dock adapter.
+// Invariant: session counts come from the daemon's cross-workspace summary and
+// never from a row page; bell sections split needs-you from finished-unseen and
+// order each by newest transition; a stale source counts for nothing while its
+// rows stay jumpable; loop-node rows appear only when a presence probe is true.
+// Boundary IN: attention summary, session rows, task dashboard/list, loop-node
+// probes, attention derivation, ordering, and the dock adapter.
 // Boundary OUT: query polling/stream transport and rendered popover/dock behavior.
 import { describe, expect, it } from "vitest";
 
@@ -13,9 +16,11 @@ import { OS_APPS } from "../app-registry";
 import {
   attentionCount,
   deriveAttentionBadges,
-  deriveAttentionRows,
+  deriveAttentionSections,
+  type DeriveAttentionSectionsInput,
   type OsLoopNodeAttentionRow,
 } from "../attention-model";
+import { attentionBand, compareAttentionFirst, sortAttentionFirst } from "../attention-order";
 
 const LOOP_NODE_ROWS: OsLoopNodeAttentionRow[] = [
   {
@@ -79,31 +84,56 @@ function dashboard(awaitingApprovalTasks: number): TaskDashboardView {
   } as TaskDashboardView;
 }
 
-describe("OS attention model", () => {
-  it("Should derive the two dock badges from their exact named projections (UT-062, UT-082)", () => {
+function sectionsInput(
+  overrides: Partial<DeriveAttentionSectionsInput> = {}
+): DeriveAttentionSectionsInput {
+  return {
+    sessions: [],
+    sessionRowsStale: false,
+    workspaceLabels: new Map([["workspace-1", "compozy"]]),
+    mutedWorkspaceIds: new Set(),
+    tasks: [],
+    taskRowsStale: false,
+    loopWaitingPresent: false,
+    loopAttentionPresent: false,
+    ...overrides,
+  };
+}
+
+describe("OS attention badges", () => {
+  it("Should count sessions from the summary projection, never from row pages", () => {
+    // The summary is exact past any page size; a row page is not.
     const badges = deriveAttentionBadges({
-      sessions: [
-        session(),
-        session({ id: "session-2", badge: "running" }),
-        session({ id: "session-3" }),
-      ],
-      sessionsStale: false,
+      summary: { needsYou: 137, finished: 5 },
+      summaryStale: false,
       dashboard: dashboard(4),
       tasksStale: false,
     });
 
-    expect(badges).toEqual({ sessions: 2, tasks: 4 });
-    expect(dockBadgeFor(OS_APPS.session, badges)).toBe(2);
+    expect(badges).toEqual({ sessions: 137, tasks: 4 });
+    expect(dockBadgeFor(OS_APPS.session, badges)).toBe(137);
     expect(dockBadgeFor(OS_APPS.tasks, badges)).toBe(4);
     expect(dockBadgeFor(OS_APPS.dashboard, badges)).toBeUndefined();
-    expect(attentionCount(badges)).toBe(6);
+    expect(attentionCount(badges)).toBe(141);
   });
 
-  it("Should hide zero and stale badge sources without substituting another count (UT-066, UT-082)", () => {
+  it("Should keep finished-unseen work out of the badge (UT-052)", () => {
+    const badges = deriveAttentionBadges({
+      summary: { needsYou: 0, finished: 9 },
+      summaryStale: false,
+      dashboard: dashboard(0),
+      tasksStale: false,
+    });
+
+    expect(badges).toEqual({ sessions: undefined, tasks: undefined });
+    expect(attentionCount(badges)).toBe(0);
+  });
+
+  it("Should hide zero and stale badge sources without substituting another count (UT-053)", () => {
     expect(
       deriveAttentionBadges({
-        sessions: [session()],
-        sessionsStale: true,
+        summary: { needsYou: 3, finished: 1 },
+        summaryStale: true,
         dashboard: dashboard(0),
         tasksStale: false,
       })
@@ -111,118 +141,230 @@ describe("OS attention model", () => {
 
     expect(
       deriveAttentionBadges({
-        sessions: [],
-        sessionsStale: false,
+        summary: null,
+        summaryStale: false,
         dashboard: dashboard(12),
         tasksStale: true,
       })
     ).toEqual({ sessions: undefined, tasks: undefined });
   });
+});
 
-  it("Should aggregate only unresolved fresh rows and reflect live source removal (UT-069)", () => {
-    const waiting = session();
-    const pending = task();
-    const rows = deriveAttentionRows({
-      sessions: [waiting, session({ id: "session-running", badge: "running" })],
-      sessionRowsStale: false,
-      tasks: [pending, task({ id: "task-done", approval_state: "approved" })],
-      taskRowsStale: false,
-      loopWaitingPresent: false,
-      loopAttentionPresent: false,
+describe("OS attention sections", () => {
+  it("Should split needs-you from finished and order each by newest transition (UT-052)", () => {
+    const auth = session({
+      id: "s-auth",
+      badge: "waiting-for-auth",
+      attention_changed_at: "2026-07-20T12:05:00Z",
+    });
+    const failed = session({
+      id: "s-failed",
+      badge: "failed",
+      attention_changed_at: "2026-07-20T12:09:00Z",
+    });
+    const doneOld = session({
+      id: "s-done-old",
+      badge: "done",
+      attention_changed_at: "2026-07-20T11:00:00Z",
+    });
+    const doneNew = session({
+      id: "s-done-new",
+      badge: "done",
+      attention_changed_at: "2026-07-20T12:30:00Z",
+    });
+    const running = session({ id: "s-running", badge: "running" });
+
+    const sections = deriveAttentionSections(
+      sectionsInput({ sessions: [auth, doneOld, running, failed, doneNew] })
+    );
+
+    expect(sections.needsYou.map(row => row.id)).toEqual(["s-failed", "s-auth"]);
+    expect(sections.finished.map(row => row.id)).toEqual(["s-done-new", "s-done-old"]);
+  });
+
+  it("Should keep task approvals in the needs-you section beside sessions (UT-052)", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({
+        sessions: [session({ id: "s-auth" })],
+        tasks: [task(), task({ id: "task-done", approval_state: "approved" })],
+        loopWaitingPresent: true,
+      })
+    );
+
+    expect(sections.needsYou.map(row => `${row.kind}:${row.id}`)).toEqual([
+      "session:s-auth",
+      "task:task-1",
+      "loop-node:waiting",
+    ]);
+    expect(sections.finished).toEqual([]);
+  });
+
+  it("Should quote the sanitized pending-interaction title as the reason", () => {
+    const asking = session({
+      id: "s-input",
+      badge: "waiting-for-input",
+      pending_interactions: [
+        {
+          interaction_id: "int-1",
+          kind: "clarify",
+          provider_request_id: "clr-1",
+          status: "pending",
+          created_at: "2026-07-20T12:00:00Z",
+          title: "Should I drop the legacy column?",
+        },
+      ],
     });
 
-    expect(rows).toEqual([
-      {
-        kind: "session",
-        id: waiting.id,
-        title: waiting.name,
-        agentName: waiting.agent_name,
-      },
-      {
-        kind: "task",
-        id: pending.id,
-        title: pending.title,
-        identifier: pending.identifier,
-      },
-    ]);
+    const sections = deriveAttentionSections(sectionsInput({ sessions: [asking] }));
 
-    expect(
-      deriveAttentionRows({
-        sessions: [session({ badge: "running" })],
-        sessionRowsStale: false,
-        tasks: [task({ approval_state: "approved" })],
-        taskRowsStale: false,
-        loopWaitingPresent: false,
-        loopAttentionPresent: false,
-      })
-    ).toEqual([]);
+    expect(sections.needsYou[0]).toMatchObject({
+      reason: "Should I drop the legacy column?",
+      badge: "waiting-for-input",
+    });
   });
 
-  it("Should suppress rows independently when either source is stale", () => {
+  it("Should fall back to the state word rather than invent a reason", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({ sessions: [session({ id: "s-failed", badge: "failed" })] })
+    );
+
+    expect(sections.needsYou[0]).toMatchObject({ reason: "failed" });
+  });
+
+  it("Should label rows by workspace and fall back to the id when the name is unknown", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({
+        sessions: [
+          session({ id: "s-a-known", attention_changed_at: "2026-07-20T12:10:00Z" }),
+          session({
+            id: "s-b-foreign",
+            workspace_id: "workspace-2",
+            attention_changed_at: "2026-07-20T12:05:00Z",
+          }),
+        ],
+      })
+    );
+
     expect(
-      deriveAttentionRows({
-        sessions: [session()],
-        sessionRowsStale: true,
+      sections.needsYou.map(row => (row.kind === "session" ? row.workspaceLabel : null))
+    ).toEqual(["compozy", "workspace-2"]);
+  });
+
+  it("Should mark muted workspaces without removing their rows (US-015.AC-1)", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({
+        sessions: [session({ id: "s-muted", workspace_id: "workspace-2" })],
+        mutedWorkspaceIds: new Set(["workspace-2"]),
+      })
+    );
+
+    expect(sections.needsYou).toHaveLength(1);
+    expect(sections.needsYou[0]).toMatchObject({ muted: true });
+  });
+
+  it("Should keep stale rows jumpable while marking them stale (UT-053, US-005.EC-2)", () => {
+    // A stale source contributes zero to every count (asserted above), but the
+    // operator can still reach the session from a frozen row.
+    const sections = deriveAttentionSections(
+      sectionsInput({ sessions: [session({ id: "s-auth" })], sessionRowsStale: true })
+    );
+
+    expect(sections.needsYou).toHaveLength(1);
+    expect(sections.needsYou[0]).toMatchObject({ stale: true });
+  });
+
+  it("Should suppress task rows independently when the task source is stale (UT-053)", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({
+        sessions: [session({ id: "s-auth" })],
         tasks: [task()],
-        taskRowsStale: false,
-        loopWaitingPresent: false,
-        loopAttentionPresent: false,
+        taskRowsStale: true,
       })
-    ).toEqual([
-      {
-        kind: "task",
-        id: "task-1",
-        title: "Approve deploy",
-        identifier: "CompozyOS-42",
-      },
-    ]);
-  });
+    );
 
-  it("Should omit loop-node rows when both presence probes are empty", () => {
-    expect(
-      deriveAttentionRows({
-        sessions: [],
-        sessionRowsStale: false,
-        tasks: [],
-        taskRowsStale: false,
-        loopWaitingPresent: false,
-        loopAttentionPresent: false,
-      })
-    ).toEqual([]);
+    expect(sections.needsYou.map(row => row.kind)).toEqual(["session"]);
   });
 
   it("Should append only the probed loop-node rows and keep their deep-link state", () => {
+    expect(deriveAttentionSections(sectionsInput()).needsYou).toEqual([]);
+    expect(deriveAttentionSections(sectionsInput({ loopWaitingPresent: true })).needsYou).toEqual([
+      LOOP_NODE_ROWS[0],
+    ]);
+    expect(deriveAttentionSections(sectionsInput({ loopAttentionPresent: true })).needsYou).toEqual(
+      [LOOP_NODE_ROWS[1]]
+    );
     expect(
-      deriveAttentionRows({
-        sessions: [],
-        sessionRowsStale: false,
-        tasks: [],
-        taskRowsStale: false,
-        loopWaitingPresent: true,
-        loopAttentionPresent: false,
-      })
-    ).toEqual([LOOP_NODE_ROWS[0]]);
-
-    expect(
-      deriveAttentionRows({
-        sessions: [],
-        sessionRowsStale: false,
-        tasks: [],
-        taskRowsStale: false,
-        loopWaitingPresent: false,
-        loopAttentionPresent: true,
-      })
-    ).toEqual([LOOP_NODE_ROWS[1]]);
-
-    expect(
-      deriveAttentionRows({
-        sessions: [],
-        sessionRowsStale: false,
-        tasks: [],
-        taskRowsStale: false,
-        loopWaitingPresent: true,
-        loopAttentionPresent: true,
-      })
+      deriveAttentionSections(
+        sectionsInput({ loopWaitingPresent: true, loopAttentionPresent: true })
+      ).needsYou
     ).toEqual(LOOP_NODE_ROWS);
+  });
+});
+
+describe("attention-first ordering (UT-066)", () => {
+  it("Should band needs-you above finished above working above the rest", () => {
+    expect(attentionBand("waiting-for-input")).toBe("needs-you");
+    expect(attentionBand("waiting-for-auth")).toBe("needs-you");
+    expect(attentionBand("failed")).toBe("needs-you");
+    expect(attentionBand("done")).toBe("finished");
+    expect(attentionBand("running")).toBe("working");
+    expect(attentionBand("idle")).toBe("rest");
+    expect(attentionBand("stopped")).toBe("rest");
+    expect(attentionBand("unknown")).toBe("rest");
+
+    const ordered = sortAttentionFirst([
+      session({ id: "s-idle", badge: "idle" }),
+      session({ id: "s-running", badge: "running" }),
+      session({ id: "s-done", badge: "done" }),
+      session({ id: "s-needs", badge: "waiting-for-input" }),
+    ]);
+
+    expect(ordered.map(entry => entry.id)).toEqual(["s-needs", "s-done", "s-running", "s-idle"]);
+  });
+
+  it("Should break ties by newest transition, then by session id, stably across re-sorts", () => {
+    const older = session({
+      id: "s-older",
+      badge: "failed",
+      attention_changed_at: "2026-07-20T12:00:00Z",
+    });
+    const newer = session({
+      id: "s-newer",
+      badge: "failed",
+      attention_changed_at: "2026-07-20T12:10:00Z",
+    });
+    const tieA = session({
+      id: "s-aaa",
+      badge: "failed",
+      attention_changed_at: "2026-07-20T12:10:00Z",
+    });
+
+    const once = sortAttentionFirst([older, newer, tieA]).map(entry => entry.id);
+    const twice = sortAttentionFirst(sortAttentionFirst([older, newer, tieA])).map(
+      entry => entry.id
+    );
+
+    expect(once).toEqual(["s-aaa", "s-newer", "s-older"]);
+    expect(twice).toEqual(once);
+    expect(compareAttentionFirst(tieA, tieA)).toBe(0);
+  });
+
+  it("Should fall back to last update when a session carries no transition stamp", () => {
+    const stamped = session({
+      id: "s-stamped",
+      badge: "failed",
+      attention_changed_at: "2026-07-20T12:00:00Z",
+      updated_at: "2026-07-20T09:00:00Z",
+    });
+    const unstamped = session({
+      id: "s-unstamped",
+      badge: "failed",
+      updated_at: "2026-07-20T13:00:00Z",
+    });
+
+    expect(sortAttentionFirst([stamped, unstamped]).map(entry => entry.id)).toEqual([
+      "s-unstamped",
+      "s-stamped",
+    ]);
   });
 });

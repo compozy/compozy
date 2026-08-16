@@ -47,6 +47,10 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 				method:     "PATCH",
 				transports: []Transport{TransportHTTP, TransportUDS},
 			},
+			{path: "/api/settings/attention", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/attention", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/shell", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
+			{path: "/api/settings/shell", method: "PATCH", transports: []Transport{TransportHTTP, TransportUDS}},
 			{path: "/api/settings/observability", method: "GET", transports: []Transport{TransportHTTP, TransportUDS}},
 			{
 				path:       "/api/settings/observability",
@@ -344,6 +348,27 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"live-remove-if-unused",
 			"restart-required",
 			"session-rebind",
+		)
+
+		updateShell := operationFor(t, doc, "/api/settings/shell", "PATCH")
+		shellRequestSchema := jsonRequestSchema(t, updateShell)
+		assertRequired(t, shellRequestSchema, "config")
+		shellConfigSchema := propertySchema(t, shellRequestSchema, "config")
+		assertRequired(t, shellConfigSchema, "sessions")
+		shellSessionsSchema := propertySchema(t, shellConfigSchema, "sessions")
+		assertRequired(t, shellSessionsSchema, "sort", "scope")
+		assertEnumValues(
+			t,
+			propertySchema(t, shellSessionsSchema, "sort"),
+			"attention",
+			"last_activity",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, shellSessionsSchema, "scope"),
+			"all",
+			"all-workspaces",
+			"recent",
 		)
 
 		updateWindowManager := operationFor(t, doc, "/api/settings/window-manager", "PATCH")

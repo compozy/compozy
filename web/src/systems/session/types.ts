@@ -50,6 +50,12 @@ export type SessionStreamResponse = OperationResponse<"streamSession", 200>;
 export type TranscriptSnapshotPayload = NonNullable<SessionStreamResponse["transcript_snapshot"]>;
 export type TranscriptDeltaPayload = NonNullable<SessionStreamResponse["transcript_delta"]>;
 export type SessionBadge = SessionPayload["badge"];
+/** Sanitized pending question / permission projection embedded on session payloads. */
+export type SessionPendingInteraction = SessionPayload["pending_interactions"][number];
+/** Exact cross-workspace attention counts — the only count source for badge and title. */
+export type SessionAttentionSummary = OperationResponse<"getSessionAttentionSummary", 200>;
+export type SessionPresenceRequest = OperationRequestBody<"updateSessionPresence">;
+export type SessionPresenceLease = OperationResponse<"updateSessionPresence", 200>;
 export type SessionAttachResponse = OperationResponse<"attachSession", 200>;
 export type SessionRecapResponse = OperationResponse<"getSessionRecap", 200>;
 export type SessionRecapPayload = SessionRecapResponse["recap"];

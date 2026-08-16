@@ -3366,6 +3366,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/shell": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the operator shell settings section */
+    get: operations["getSettingsShell"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the operator shell settings section */
+    patch: operations["updateSettingsShell"];
+    trace?: never;
+  };
   "/api/settings/skills": {
     parameters: {
       query?: never;
@@ -42020,6 +42038,7 @@ export interface operations {
                 | "network"
                 | "window-manager"
                 | "attention"
+                | "shell"
                 | "observability"
                 | "hooks-extensions"
                 | "providers"
@@ -52857,6 +52876,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -52967,6 +52987,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -53161,6 +53182,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -53274,6 +53296,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -53504,6 +53527,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -53639,6 +53663,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -54331,6 +54356,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
             transport_parity: {
@@ -54474,6 +54500,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -54854,6 +54881,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -55058,6 +55086,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -55461,6 +55490,7 @@ export interface operations {
                 | "network"
                 | "window-manager"
                 | "attention"
+                | "shell"
                 | "observability"
                 | "hooks-extensions"
                 | "providers"
@@ -55902,6 +55932,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -56142,6 +56173,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -57242,6 +57274,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -57467,6 +57500,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -57681,6 +57715,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -57814,6 +57849,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -58012,6 +58048,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -58128,6 +58165,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -59112,6 +59150,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -59316,6 +59355,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -59488,6 +59528,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -59707,6 +59748,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -59891,6 +59933,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -60410,6 +60453,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -60614,6 +60658,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -60666,6 +60711,296 @@ export interface operations {
       };
       /** @description Sandbox not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSettingsShell: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: "global"[];
+            config: {
+              sessions: {
+                /** @enum {string} */
+                scope: "recent" | "all" | "all-workspaces";
+                /** @enum {string} */
+                sort: "last_activity" | "attention";
+              };
+            };
+            /** @enum {string} */
+            scope: "global";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSettingsShell: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            sessions: {
+              /** @enum {string} */
+              scope: "recent" | "all" | "all-workspaces";
+              /** @enum {string} */
+              sort: "last_activity" | "attention";
+            };
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
+            applied: boolean;
+            apply_record_id: string;
+            /** @enum {string} */
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope?: "global" | "workspace" | "agent";
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
+            skipped?: boolean;
+            skipped_reason?: string;
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -60815,6 +61150,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
             workspace_id?: string;
@@ -61025,6 +61361,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -61387,6 +61724,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -61535,6 +61873,7 @@ export interface operations {
               | "network"
               | "window-manager"
               | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"

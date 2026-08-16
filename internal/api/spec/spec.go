@@ -60,6 +60,7 @@ const (
 	specAPISettingsNetworkPath                               = "/api/settings/network"
 	specAPISettingsWindowManagerPath                         = "/api/settings/window-manager"
 	specAPISettingsAttentionPath                             = "/api/settings/attention"
+	specAPISettingsShellPath                                 = "/api/settings/shell"
 	specAPISettingsObservabilityPath                         = "/api/settings/observability"
 	specAPISettingsProvidersNamePath                         = "/api/settings/providers/{name}"
 	specAPISettingsSandboxesNamePath                         = "/api/settings/sandboxes/{name}"

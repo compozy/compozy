@@ -46,6 +46,7 @@ export type {
   GoalPromptMeta,
   SessionAttachResponse,
   SessionBadge,
+  SessionPendingInteraction,
   SessionAttentionEventPayload,
   OperatorNotificationEventPayload,
   SessionCatalogEventPayload,
@@ -166,6 +167,50 @@ export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format
 export { isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
+// Attention surface — badge dictionary, pending-interaction reads, list
+// preferences, presence lease. Grouped in ./attention; re-exported here.
+export {
+  acquireSessionPresence,
+  DEFAULT_SESSION_LIST_PREFERENCES,
+  isFinishedBadge,
+  isNeedsYouBadge,
+  maskedAttentionNote,
+  pendingClarifyCount,
+  pendingInteractionReason,
+  pendingInteractions,
+  pendingPermissionCount,
+  releaseSessionPresence,
+  renewSessionPresence,
+  SESSION_BADGE_SIGNAL,
+  SESSION_BADGES,
+  SESSION_LIST_SCOPES,
+  SESSION_LIST_SORTS,
+  SessionBadgeGlyph,
+  SessionBadgeMark,
+  sessionAttentionClass,
+  sessionBadgeSignal,
+  sessionBadgeWordClass,
+  sessionListSortParam,
+  toSessionBadge,
+  toSessionListScope,
+  toSessionListSort,
+  useSessionListPreferences,
+  useSessionListView,
+  useSessionPresence,
+  useWorkspaceSessionGroups,
+  type SessionAttentionClass,
+  type SessionBadgeGlyphProps,
+  type SessionBadgeMarkProps,
+  type SessionBadgeShape,
+  type SessionBadgeSignal,
+  type SessionBadgeToken,
+  type SessionListPreferences,
+  type SessionListPreferencesModel,
+  type SessionListScope,
+  type SessionListSort,
+  type SessionListViewModel,
+  type WorkspaceSessionGroup,
+} from "./attention";
 export { queuedPromptAttachmentSummary } from "./lib/queued-prompt";
 export type {
   QueuedPrompt,
@@ -195,6 +240,7 @@ export {
   sessionClarificationsOptions,
   sessionCommandsOptions,
   sessionInputsOptions,
+  sessionAttentionSummaryOptions,
   sessionDetailOptions,
   sessionEventsOptions,
   sessionHistoryOptions,
@@ -204,6 +250,7 @@ export {
   sessionUsageOptions,
   sessionTranscriptOptions,
   sessionsListOptions,
+  sessionsCompleteListOptions,
 } from "./lib/query-options";
 export {
   sessionCommandMenuCatalog,

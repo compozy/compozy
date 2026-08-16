@@ -99138,6 +99138,7 @@
                             "network",
                             "window-manager",
                             "attention",
+                            "shell",
                             "observability",
                             "hooks-extensions",
                             "providers",
@@ -127517,6 +127518,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -127789,6 +127791,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -128274,6 +128277,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -128554,6 +128558,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -129175,6 +129180,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -129546,6 +129552,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -131078,6 +131085,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -131478,6 +131486,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -131970,6 +131979,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -132712,6 +132722,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -133855,6 +133866,7 @@
                             "network",
                             "window-manager",
                             "attention",
+                            "shell",
                             "observability",
                             "hooks-extensions",
                             "providers",
@@ -134942,6 +134954,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -135653,6 +135666,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -138550,6 +138564,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -139236,6 +139251,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -139785,6 +139801,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -140133,6 +140150,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -140618,6 +140636,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -140905,6 +140924,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -142315,6 +142335,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -143903,6 +143924,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -144384,6 +144406,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -145043,6 +145066,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -145632,6 +145656,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -146456,6 +146481,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -147359,6 +147385,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -147712,6 +147739,709 @@
         ]
       }
     },
+    "/api/settings/shell": {
+      "get": {
+        "operationId": "getSettingsShell",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "available_scopes": {
+                      "items": {
+                        "enum": [
+                          "global"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "config": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "sessions": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "scope": {
+                              "enum": [
+                                "recent",
+                                "all",
+                                "all-workspaces"
+                              ],
+                              "type": "string"
+                            },
+                            "sort": {
+                              "enum": [
+                                "last_activity",
+                                "attention"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "scope",
+                            "sort"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "sessions"
+                      ],
+                      "type": "object"
+                    },
+                    "scope": {
+                      "enum": [
+                        "global"
+                      ],
+                      "type": "string"
+                    },
+                    "section": {
+                      "enum": [
+                        "general",
+                        "memory",
+                        "roles",
+                        "skills",
+                        "automation",
+                        "network",
+                        "window-manager",
+                        "attention",
+                        "shell",
+                        "observability",
+                        "hooks-extensions"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "available_scopes",
+                    "config",
+                    "scope",
+                    "section"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Read the operator shell settings section",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "patch": {
+        "operationId": "updateSettingsShell",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "config": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sessions": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "scope": {
+                            "enum": [
+                              "recent",
+                              "all",
+                              "all-workspaces"
+                            ],
+                            "type": "string"
+                          },
+                          "sort": {
+                            "enum": [
+                              "last_activity",
+                              "attention"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "scope",
+                          "sort"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "sessions"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "config"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "active_config_hash": {
+                      "type": "string"
+                    },
+                    "active_generation": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "agent_name": {
+                      "type": "string"
+                    },
+                    "applied": {
+                      "type": "boolean"
+                    },
+                    "apply_record_id": {
+                      "type": "string"
+                    },
+                    "lifecycle": {
+                      "enum": [
+                        "live",
+                        "live-add",
+                        "live-remove-if-unused",
+                        "restart-required",
+                        "session-rebind"
+                      ],
+                      "type": "string"
+                    },
+                    "next_action": {
+                      "enum": [
+                        "none",
+                        "restart-daemon",
+                        "new-session",
+                        "retry"
+                      ],
+                      "type": "string"
+                    },
+                    "partial_failures": {
+                      "items": {
+                        "properties": {
+                          "diagnostic": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "data_freshness": {
+                                "type": "string"
+                              },
+                              "doc_url": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string"
+                              },
+                              "suggested_command": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "category",
+                              "code",
+                              "data_freshness",
+                              "id",
+                              "message",
+                              "severity",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "subsystem": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "diagnostic",
+                          "subsystem"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "restart_required": {
+                      "type": "boolean"
+                    },
+                    "restart_scope": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "enum": [
+                        "global",
+                        "workspace",
+                        "agent"
+                      ],
+                      "type": "string"
+                    },
+                    "section": {
+                      "enum": [
+                        "general",
+                        "memory",
+                        "roles",
+                        "skills",
+                        "automation",
+                        "network",
+                        "window-manager",
+                        "attention",
+                        "shell",
+                        "observability",
+                        "hooks-extensions",
+                        "providers",
+                        "mcp-servers",
+                        "sandboxes",
+                        "hooks"
+                      ],
+                      "type": "string"
+                    },
+                    "skipped": {
+                      "type": "boolean"
+                    },
+                    "skipped_reason": {
+                      "type": "string"
+                    },
+                    "warnings": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    },
+                    "write_target": {
+                      "enum": [
+                        "global-config",
+                        "workspace-config",
+                        "global-mcp-sidecar",
+                        "workspace-mcp-sidecar",
+                        "global-agent-file",
+                        "workspace-agent-file"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "active_config_hash",
+                    "active_generation",
+                    "applied",
+                    "apply_record_id",
+                    "lifecycle",
+                    "next_action"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid settings payload"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Conflicting settings change"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Update the operator shell settings section",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/settings/skills": {
       "get": {
         "operationId": "getSettingsSkills",
@@ -147981,6 +148711,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -148528,6 +149259,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",
@@ -149473,6 +150205,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions"
                       ],
@@ -149905,6 +150638,7 @@
                         "network",
                         "window-manager",
                         "attention",
+                        "shell",
                         "observability",
                         "hooks-extensions",
                         "providers",

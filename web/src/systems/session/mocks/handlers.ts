@@ -9,6 +9,7 @@ import {
 import {
   primarySessionFixture,
   sessionApprovalFixture,
+  operatorNotificationFixture,
   sessionAttentionChangedFixture,
   sessionCatalogChangedFixture,
   sessionEventsFixture,
@@ -91,6 +92,9 @@ function createSessionCatalogStreamResponse(): Response {
             "",
             "event: session_attention_changed",
             `data: ${JSON.stringify(sessionAttentionChangedFixture)}`,
+            "",
+            "event: operator_notification",
+            `data: ${JSON.stringify(operatorNotificationFixture)}`,
             "",
             "",
           ].join("\n")

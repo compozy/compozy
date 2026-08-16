@@ -302,4 +302,5 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	extensionConfigSetPathKinds(),
 	marketplaceConfigSetPathKinds(),
 	attentionConfigSetPathKinds(),
+	shellConfigSetPathKinds(),
 )

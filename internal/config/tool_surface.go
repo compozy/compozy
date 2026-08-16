@@ -154,6 +154,8 @@ var (
 		"skills.enabled":                                           ConfigValueBool,
 		"skills.disabled_skills":                                   ConfigValueStringSlice,
 		"skills.poll_interval":                                     ConfigValueDuration,
+		"shell.sessions.sort":                                      ConfigValueString,
+		"shell.sessions.scope":                                     ConfigValueString,
 		"network.enabled":                                          ConfigValueBool,
 		toolSurfaceNetworkMaxReplayAgePath:                         ConfigValueInt,
 		"network.live.defaults.max_wakes":                          ConfigValueInt,

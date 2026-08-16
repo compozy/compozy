@@ -5,6 +5,7 @@ import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
 import { useMenubarActions } from "../hooks/use-menubar-actions";
 import { useOsShell } from "../hooks/use-os-shell";
+import { useAttentionJump } from "../hooks/use-attention-jump";
 import { useDesktop } from "../hooks/use-desktop";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
@@ -105,6 +106,7 @@ export function DesktopMenubar({
   const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
+  const jumpToSession = useAttentionJump();
   const globalOn = scope === "global";
   if (rememberedWorkspaceName === undefined) {
     rememberedWorkspaceName = activeWorkspace ? activeWorkspace.name : null;
@@ -144,13 +146,10 @@ export function DesktopMenubar({
   const focusAttentionRow = (row: OsAttentionRow) => {
     onOverlayOpenChange("bell", false);
     if (row.kind === "session") {
-      void coordinator.userOpen({
-        app: "session",
-        instanceKey: row.id,
-        route: {
-          pathname: `/agents/${encodeURIComponent(row.agentName)}/sessions/${encodeURIComponent(row.id)}`,
-          search: {},
-        },
+      jumpToSession({
+        sessionId: row.id,
+        agentName: row.agentName,
+        workspaceId: row.workspaceId,
       });
       return;
     }
@@ -271,12 +270,13 @@ export function DesktopMenubar({
           <PopoverTrigger render={trigger} />
           <PopoverContent
             align="end"
+            aria-label="Attention"
             className="w-80 max-w-[calc(100vw-16px)] p-2"
             data-testid="os-bell-popover"
           >
             <AttentionBell
-              rows={attention.rows}
-              sessionsDisconnected={attention.sessionsDisconnected}
+              sections={attention.sections}
+              sessionsDisconnected={attention.attentionSessionsDisconnected}
               tasksDisconnected={attention.tasksDisconnected}
               loading={attention.loading}
               onSelect={focusAttentionRow}

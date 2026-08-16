@@ -3,7 +3,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
-import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
+import type {
+  SessionLifecycleActionHandlers,
+  SessionListViewModel,
+  SessionPayload,
+} from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { OsShellContext } from "../../contexts/os-shell-context";
@@ -70,6 +74,17 @@ const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
   onUnarchive: fn(),
 };
 
+const SESSION_LIST_VIEW: SessionListViewModel = {
+  scope: "recent",
+  sort: "last_activity",
+  saving: false,
+  setScope: fn(),
+  setSort: fn(),
+  workspaceGroups: [],
+  collapsedWorkspaceIds: new Set<string>(),
+  toggleWorkspace: fn(),
+};
+
 const WORKSPACE: WorkspacePayload = {
   id: "workspace-compozy",
   name: "compozy",
@@ -82,35 +97,60 @@ const WORKSPACE: WorkspacePayload = {
 const ATTENTION: OsAttentionModel = {
   badges: { sessions: 1, tasks: 1 },
   notificationCount: 2,
-  rows: [
-    {
-      kind: "session",
-      id: "session-2",
-      title: "Marketplace empty states",
-      agentName: "webgen",
-    },
-    {
-      kind: "task",
-      id: "task-42",
-      title: "Approve runtime contract",
-      identifier: "CompozyOS-42",
-    },
-    {
-      kind: "loop-node",
-      id: "waiting",
-      title: "Loop nodes waiting on you",
-      state: "waiting",
-    },
-    {
-      kind: "loop-node",
-      id: "attention",
-      title: "Loop nodes needing attention",
-      state: "attention",
-    },
-  ],
+  sections: {
+    needsYou: [
+      {
+        kind: "session",
+        id: "session-2",
+        title: "Marketplace empty states",
+        agentName: "webgen",
+        workspaceId: "workspace-1",
+        workspaceLabel: "compozy",
+        badge: "waiting-for-input",
+        reason: "Which empty state copy should ship?",
+        changedAt: "2026-07-20T12:04:00Z",
+        muted: false,
+        stale: false,
+      },
+      {
+        kind: "task",
+        id: "task-42",
+        title: "Approve runtime contract",
+        identifier: "CompozyOS-42",
+      },
+      {
+        kind: "loop-node",
+        id: "waiting",
+        title: "Loop nodes waiting on you",
+        state: "waiting",
+      },
+      {
+        kind: "loop-node",
+        id: "attention",
+        title: "Loop nodes needing attention",
+        state: "attention",
+      },
+    ],
+    finished: [
+      {
+        kind: "session",
+        id: "session-9",
+        title: "Release notes draft",
+        agentName: "hermes",
+        workspaceId: "workspace-2",
+        workspaceLabel: "infra",
+        badge: "done",
+        reason: "done",
+        changedAt: "2026-07-20T11:38:00Z",
+        muted: false,
+        stale: false,
+      },
+    ],
+  },
   sessions: CATALOG,
   archivedSessions: ARCHIVED_CATALOG,
   archivedSessionsTotal: ARCHIVED_CATALOG.length,
+  attentionSessionsDisconnected: false,
   sessionsDisconnected: false,
   tasksDisconnected: false,
   loading: false,
@@ -132,6 +172,7 @@ function SessionsModalFixture({ collapsedAgent }: { collapsedAgent?: string }) {
           archivedSessions={ARCHIVED_CATALOG}
           archivedTotal={ARCHIVED_CATALOG.length}
           disconnected={false}
+          view={SESSION_LIST_VIEW}
           sessionActions={SESSION_ACTIONS}
         />
         <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} />

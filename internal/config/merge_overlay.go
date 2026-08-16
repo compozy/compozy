@@ -4,6 +4,7 @@ type configOverlay struct {
 	Daemon        daemonOverlay              `toml:"daemon"`
 	HTTP          httpOverlay                `toml:"http"`
 	App           appOverlay                 `toml:"app"`
+	Shell         *shellOverlay              `toml:"shell"`
 	Attention     attentionOverlay           `toml:"attention"`
 	WindowManager windowManagerOverlay       `toml:"window_manager"`
 	Defaults      defaultsOverlay            `toml:"defaults"`
@@ -40,6 +41,9 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)
 	o.App.Apply(&dst.App)
+	if o.Shell != nil {
+		o.Shell.Apply(&dst.Shell)
+	}
 	o.Attention.Apply(&dst.Attention)
 	o.WindowManager.Apply(&dst.WindowManager)
 	o.Defaults.Apply(&dst.Defaults)

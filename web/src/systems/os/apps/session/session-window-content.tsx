@@ -125,6 +125,7 @@ export function SessionWindowContent({
         disconnected={sidebar.disconnected}
         collapsedAgentIds={sidebar.collapsedAgentIds}
         collapsedThreadIds={sidebar.collapsedThreadIds}
+        view={sidebar.view}
         currentSessionId={sessionId}
         onToggleGroup={sidebar.onToggleGroup}
         onToggleThread={sidebar.onToggleThread}

@@ -49,6 +49,7 @@ const (
 	networkChannelKey            = "channel"
 	networkChannelsKey           = "channels"
 	networkDirectIDKey           = "direct_id"
+	networkDeliveredKey          = "delivered"
 	networkEnabledKey            = "enabled"
 	networkKindKey               = "kind"
 	networkLastActivityAtKey     = "last_activity_at"

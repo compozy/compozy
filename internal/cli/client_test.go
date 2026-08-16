@@ -811,6 +811,41 @@ func TestUnixSocketClientUpdateSettingsAttentionRoundTripsContract(t *testing.T)
 	}
 }
 
+func TestUnixSocketClientUpdateSettingsShellRoundTripsContract(t *testing.T) {
+	t.Parallel()
+
+	want := UpdateSettingsShellRequest{Config: contract.SettingsShellPayload{
+		Sessions: contract.SettingsShellSessionsPayload{Sort: "attention", Scope: "all-workspaces"},
+	}}
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if req.Method != http.MethodPatch || req.URL.Path != "/api/settings/shell" {
+				t.Fatalf("request = %s %s, want PATCH /api/settings/shell", req.Method, req.URL.Path)
+			}
+			var got UpdateSettingsShellRequest
+			if err := json.NewDecoder(req.Body).Decode(&got); err != nil {
+				t.Fatalf("decode shell body: %v", err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("shell request = %#v, want %#v", got, want)
+			}
+			return newHTTPResponse(
+				http.StatusOK,
+				`{"section":"shell","scope":"global","applied":true,"lifecycle":"live","next_action":"none"}`,
+			), nil
+		})},
+	}
+
+	result, err := client.UpdateSettingsShell(context.Background(), want)
+	if err != nil {
+		t.Fatalf("UpdateSettingsShell() error = %v", err)
+	}
+	if string(result.Section) != string(contract.SettingsSectionShell) || !result.Applied {
+		t.Fatalf("UpdateSettingsShell() = %#v, want applied shell", result)
+	}
+}
+
 func TestUnixSocketClientSessionAttentionReadsUseCanonicalRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -827,7 +862,9 @@ func TestUnixSocketClientSessionAttentionReadsUseCanonicalRoutes(t *testing.T) {
 				), nil
 			case req.Method == http.MethodGet &&
 				req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/interactions":
-				if got, want := req.URL.Query()["status"], []string{"pending", "orphaned"}; !reflect.DeepEqual(got, want) {
+				got := req.URL.Query()["status"]
+				want := []string{"pending", "orphaned"}
+				if !reflect.DeepEqual(got, want) {
 					t.Fatalf("interaction statuses = %#v, want %#v", got, want)
 				}
 				return newHTTPResponse(http.StatusOK, `{"interactions":[]}`), nil

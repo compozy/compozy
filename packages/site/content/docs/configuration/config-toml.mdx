@@ -33,6 +33,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                   | toasts and sound on, system notifications off, no muted workspaces                                    |
+| `[shell.sessions]`                   | Live operator preferences for the session list.                                      | last-activity order, recent sessions                                                                   |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
@@ -154,6 +155,12 @@ toasts = true
 sound = true
 system = false
 muted_workspaces = []
+
+[shell.sessions]
+# Session ordering: "last_activity" or "attention".
+sort = "last_activity"
+# Session breadth: "recent", "all", or "all-workspaces".
+scope = "recent"
 
 [window_manager]
 new_window_policy = "floating"
@@ -929,6 +936,21 @@ Settings attention controls; agents can use `compozy config get|set attention.<k
 
 All four fields have the `live` lifecycle. Removing a workspace also removes its ID from
 `muted_workspaces`; unmuting never replays notifications that were suppressed.
+
+## `[shell.sessions]`
+
+Shell session preferences are global and live-applied as one validated candidate. The session list
+updates them through the typed Settings API; operators and agents can also use
+`compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
+
+| Field   | Type   | Default         | Valid values                          | Description                                              |
+| ------- | ------ | --------------- | ------------------------------------- | -------------------------------------------------------- |
+| `sort`  | string | `last_activity` | `last_activity`, `attention`          | Orders sessions by recent activity or attention urgency. |
+| `scope` | string | `recent`        | `recent`, `all`, `all-workspaces`     | Chooses the breadth of sessions shown in the shell.       |
+
+Both fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
+preference survives browser restarts without browser-local storage. Workspace overlays and
+workspace-scoped CLI or native-tool writes are rejected.
 
 ## `[window_manager]`
 

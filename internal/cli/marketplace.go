@@ -370,7 +370,7 @@ func marketplaceRefreshBundle(response MarketplaceRefreshRecord) outputBundle {
 		"Marketplace Refresh",
 		[]string{cliKindValue, "Outcome", "Entries", outputStaleValue, "Error Class"},
 		"marketplace_refresh",
-		[]string{networkKindKey, "outcome", "entry_count", outputStaleKey, "error_class"},
+		[]string{networkKindKey, cliOutcomeKey, "entry_count", outputStaleKey, "error_class"},
 		func(item contract.MarketplaceRefreshKindPayload) []string {
 			return []string{
 				item.Kind,

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 import type { SessionPayload } from "../types";
 import { SessionList } from "./session-list/session-list";
+import type { SessionListViewModel } from "../hooks/use-session-list-view";
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 
 export interface SessionSidebarProps {
@@ -15,6 +16,7 @@ export interface SessionSidebarProps {
   collapsedAgentIds: readonly string[];
   collapsedThreadIds: readonly string[];
   currentSessionId: string;
+  view: SessionListViewModel;
   onToggleGroup: (agentName: string) => void;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
@@ -34,6 +36,7 @@ export function SessionSidebar({
   collapsedAgentIds,
   collapsedThreadIds,
   currentSessionId,
+  view,
   onToggleGroup,
   onToggleThread,
   onSelectSession,
@@ -53,6 +56,7 @@ export function SessionSidebar({
     >
       <div className="flex h-full w-66 min-w-0 flex-col pt-1.5">
         <SessionList
+          view={view}
           sessions={sessions}
           disconnected={disconnected}
           collapsedAgentIds={collapsedAgentIds}

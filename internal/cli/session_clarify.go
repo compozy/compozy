@@ -9,13 +9,14 @@ import (
 )
 
 const (
+	sessionClarifyCommandUse = "clarify"
 	sessionClarifyChoiceFlag = "choice"
 	sessionClarifyTextFlag   = "text"
 )
 
 func newSessionClarifyCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "clarify",
+		Use:   sessionClarifyCommandUse,
 		Short: "Manage live session questions",
 	}
 	cmd.AddCommand(newSessionClarifyPendingCommand(deps))

@@ -85,3 +85,14 @@ export {
   type ShortcutConflict,
   type ShortcutConflictKind,
 } from "./lib/window-manager-shortcuts";
+
+// Attention: the system notification channel's truthful platform state, read by
+// Settings so the switch can never claim to be armed when the platform refused.
+export {
+  requestSystemNotifications,
+  showSystemNotification,
+  systemNotificationsArmed,
+  systemNotificationsSupported,
+  systemNotificationState,
+  type SystemNotificationState,
+} from "./lib/system-notification-channel";

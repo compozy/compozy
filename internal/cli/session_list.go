@@ -107,27 +107,18 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 			return err
 		}
 	}
-	state := strings.TrimSpace(flags.stateFilter)
-	if state == "" && !flags.includeAll && !flags.resumable && !flags.attention && len(badges) == 0 &&
-		!flags.archived && !flags.includeArchived {
-		state = string(session.StateActive)
+	page, err := client.ListSessions(cmd.Context(), buildSessionListQuery(flags, badges, workspaceID))
+	if err != nil {
+		return err
 	}
-	archive := string(session.ArchiveExclude)
-	if flags.archived {
-		archive = string(session.ArchiveOnly)
-	} else if flags.includeArchived {
-		archive = string(session.ArchiveInclude)
-	}
-	sort := strings.TrimSpace(flags.sortKey)
-	if sort == "" && flags.resumable {
-		sort = session.ListSortLastActivity
-	} else if sort == "" && (flags.attention || len(badges) > 0) {
-		sort = session.ListSortAttention
-	}
-	page, err := client.ListSessions(cmd.Context(), SessionListQuery{
+	return writeCommandOutput(cmd, sessionListBundle(page, deps.now))
+}
+
+func buildSessionListQuery(flags sessionListFlags, badges []session.Badge, workspaceID string) SessionListQuery {
+	return SessionListQuery{
 		Workspace:     workspaceID,
 		Worktree:      flags.worktreeFilter,
-		State:         state,
+		State:         sessionListState(flags, badges),
 		Type:          flags.typeFilter,
 		Agent:         flags.agentFilter,
 		Parent:        flags.parentFilter,
@@ -136,16 +127,42 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 		Resumable:     flags.resumable,
 		Attention:     flags.attention,
 		Badges:        badges,
-		Archive:       archive,
+		Archive:       sessionListArchive(flags),
 		IncludeHealth: flags.includeHealth,
 		Limit:         flags.limit,
-		Sort:          sort,
+		Sort:          sessionListSort(flags, badges),
 		Cursor:        flags.cursor,
-	})
-	if err != nil {
-		return err
 	}
-	return writeCommandOutput(cmd, sessionListBundle(page, deps.now))
+}
+
+func sessionListState(flags sessionListFlags, badges []session.Badge) string {
+	state := strings.TrimSpace(flags.stateFilter)
+	if state == "" && !flags.includeAll && !flags.resumable && !flags.attention && len(badges) == 0 &&
+		!flags.archived && !flags.includeArchived {
+		return string(session.StateActive)
+	}
+	return state
+}
+
+func sessionListArchive(flags sessionListFlags) string {
+	if flags.archived {
+		return string(session.ArchiveOnly)
+	}
+	if flags.includeArchived {
+		return string(session.ArchiveInclude)
+	}
+	return string(session.ArchiveExclude)
+}
+
+func sessionListSort(flags sessionListFlags, badges []session.Badge) string {
+	sort := strings.TrimSpace(flags.sortKey)
+	if sort == "" && flags.resumable {
+		return session.ListSortLastActivity
+	}
+	if sort == "" && (flags.attention || len(badges) > 0) {
+		return session.ListSortAttention
+	}
+	return sort
 }
 
 func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]session.Badge, error) {

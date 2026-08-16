@@ -109,7 +109,7 @@ vi.mock("../../hooks/use-window-manager-store", () => ({
 }));
 
 vi.mock("../../lib/attention-model", () => ({
-  isWaitingSession: (session: { id: string }) => paletteMocks.isWaiting(session.id),
+  isNeedsYouSession: (session: { id: string }) => paletteMocks.isWaiting(session.id),
 }));
 
 vi.mock("../../lib/window-slot-registry", () => ({

@@ -13,6 +13,7 @@
 - Session attachments
 - Auto-title role
 - Window manager
+- Shell session preferences
 
 ## Desired State And Apply Lifecycle
 
@@ -20,7 +21,7 @@
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
-- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
+- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
 - `SettingsMutationBehavior`: `applied_now`, `restart_required`, or `action_trigger`.
 - `SettingsApplyLifecycle`: `live`, `live-add`, `live-remove-if-unused`, `restart-required`, or `session-rebind`.
 - `ConfigApplyStatus`: `pending_apply`, `applied`, `blocked`, or `failed`.
@@ -159,3 +160,15 @@ ID from `muted_workspaces`.
 
 Use `compozy config get|set attention.<key>` or `GET/PATCH /api/settings/attention`. The title count
 is always on and is not a config key.
+
+## Shell Session Preferences
+
+`shell.sessions.sort` persists the session list order and accepts `last_activity` (default) or
+`attention`. `shell.sessions.scope` persists the list breadth and accepts `recent` (default), `all`,
+or `all-workspaces`. Both keys are global, apply live, and survive browser restarts in
+`$COMPOZY_HOME/config.toml`; workspace-scoped writes are rejected, and browser-local storage is not
+authoritative.
+
+Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`. The PATCH
+request replaces the complete `shell` config section, so read the current section before changing
+one field.

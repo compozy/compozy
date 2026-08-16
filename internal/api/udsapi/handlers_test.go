@@ -239,6 +239,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/memory",
 			"GET /api/settings/network",
 			"GET /api/settings/attention",
+			"GET /api/settings/shell",
 			"GET /api/settings/window-manager",
 			"GET /api/settings/observability",
 			"GET /api/settings/observability/log-tail",
@@ -301,6 +302,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/memory/:filename",
 			"PATCH /api/settings/automation",
 			"PATCH /api/settings/attention",
+			"PATCH /api/settings/shell",
 			"PATCH /api/settings/general",
 			"PATCH /api/settings/hooks-extensions",
 			"PATCH /api/settings/memory",
@@ -701,6 +703,8 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 				envelope.Attention = &settingspkg.AttentionSection{Config: compozyconfig.AttentionConfig{
 					Toasts: true, Sound: true,
 				}}
+			case settingspkg.SectionShell:
+				envelope.Shell = &settingspkg.ShellSection{Config: compozyconfig.DefaultShellConfig()}
 			case settingspkg.SectionWindowManager:
 				envelope.WindowManager = &settingspkg.WindowManagerSection{
 					Config: compozyconfig.DefaultWindowManagerConfig(),
@@ -852,6 +856,57 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 						[]string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
 					) {
 					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed attention config", request)
+				}
+			},
+		},
+		{
+			name:       "Should get shell section",
+			method:     http.MethodGet,
+			path:       "/api/settings/shell",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsShellResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionShell ||
+					response.Config.Sessions.Sort != contract.SettingsShellSessionSortLastActivity ||
+					response.Config.Sessions.Scope != contract.SettingsShellSessionScopeRecent {
+					t.Fatalf("shell response = %#v, want default session preferences", response)
+				}
+				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionShell {
+					t.Fatalf(
+						"LastGetSectionRequest.Section = %q, want %q",
+						settingsService.LastGetSectionRequest.Section,
+						settingspkg.SectionShell,
+					)
+				}
+			},
+		},
+		{
+			name:       "Should patch shell section",
+			method:     http.MethodPatch,
+			path:       "/api/settings/shell",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.UpdateSettingsShellRequest{
+				Config: contract.SettingsShellPayload{Sessions: contract.SettingsShellSessionsPayload{
+					Sort:  contract.SettingsShellSessionSortAttention,
+					Scope: contract.SettingsShellSessionScopeAllWorkspaces,
+				}},
+			}),
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsGlobalSectionMutationResult
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionShell {
+					t.Fatalf("response.Section = %q, want shell", response.Section)
+				}
+				request := settingsService.LastUpdateSectionRequest
+				if request.Section != settingspkg.SectionShell || request.Shell == nil ||
+					request.Shell.Sessions.Sort != compozyconfig.ShellSessionSortAttention ||
+					request.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces {
+					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed shell config", request)
 				}
 			},
 		},

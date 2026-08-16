@@ -81,6 +81,8 @@ const (
 	SectionWindowManager SectionName = "window-manager"
 	// SectionAttention exposes operator attention delivery settings.
 	SectionAttention SectionName = "attention"
+	// SectionShell exposes operator shell preferences.
+	SectionShell SectionName = "shell"
 	// SectionObservability exposes observe and transcript settings.
 	SectionObservability SectionName = "observability"
 	// SectionHooksExtensions exposes hook declarations plus extension policy.
@@ -185,6 +187,7 @@ type SectionUpdateRequest struct {
 	Gateway         *compozyconfig.GatewayConfig
 	WindowManager   *compozyconfig.WindowManagerConfig
 	Attention       *compozyconfig.AttentionConfig
+	Shell           *compozyconfig.ShellConfig
 	Observability   *compozyconfig.ObservabilityConfig
 	HooksExtensions *compozyconfig.ExtensionsConfig
 }
@@ -235,6 +238,7 @@ type SectionEnvelope struct {
 	Gateway         *GatewaySection
 	WindowManager   *WindowManagerSection
 	Attention       *AttentionSection
+	Shell           *ShellSection
 	Observability   *ObservabilitySection
 	HooksExtensions *HooksExtensionsSection
 }

@@ -8,6 +8,8 @@ export type SettingsSkillsSection = OperationResponse<"getSettingsSkills", 200>;
 export type SettingsAutomationSection = OperationResponse<"getSettingsAutomation", 200>;
 export type SettingsNetworkSection = OperationResponse<"getSettingsNetwork", 200>;
 export type SettingsAttentionSection = OperationResponse<"getSettingsAttention", 200>;
+/** Operator shell preferences (session list sort + scope) — persisted by the daemon. */
+export type SettingsShellSection = OperationResponse<"getSettingsShell", 200>;
 export type SettingsObservabilitySection = OperationResponse<"getSettingsObservability", 200>;
 export type SettingsHooksExtensionsSection = OperationResponse<"getSettingsHooksExtensions", 200>;
 export type SettingsWindowManagerSection = OperationResponse<"getSettingsWindowManager", 200>;
@@ -132,6 +134,7 @@ export type SettingsUpdateSkillsFilter = NonNullable<OperationQuery<"updateSetti
 export type SettingsUpdateAutomationRequest = OperationRequestBody<"updateSettingsAutomation">;
 export type SettingsUpdateNetworkRequest = OperationRequestBody<"updateSettingsNetwork">;
 export type SettingsUpdateAttentionRequest = OperationRequestBody<"updateSettingsAttention">;
+export type SettingsUpdateShellRequest = OperationRequestBody<"updateSettingsShell">;
 export type SettingsUpdateObservabilityRequest =
   OperationRequestBody<"updateSettingsObservability">;
 export type SettingsUpdateHooksExtensionsRequest =
@@ -157,6 +160,7 @@ export type SettingsMutationResult =
   | OperationResponse<"updateSettingsAutomation", 200>
   | OperationResponse<"updateSettingsNetwork", 200>
   | OperationResponse<"updateSettingsAttention", 200>
+  | OperationResponse<"updateSettingsShell", 200>
   | OperationResponse<"updateSettingsObservability", 200>
   | OperationResponse<"updateSettingsHooksExtensions", 200>
   | OperationResponse<"updateSettingsWindowManager", 200>
@@ -179,6 +183,7 @@ export type SettingsSectionName =
   | SettingsAutomationSection["section"]
   | SettingsNetworkSection["section"]
   | SettingsAttentionSection["section"]
+  | SettingsShellSection["section"]
   | SettingsObservabilitySection["section"]
   | SettingsHooksExtensionsSection["section"]
   | SettingsWindowManagerSection["section"];
@@ -189,7 +194,7 @@ export type SettingsMCPServerTarget = NonNullable<SettingsMCPServerPutFilter["ta
 
 export type SettingsCollectionName = "providers" | "mcp-servers" | "sandboxes" | "hooks";
 
-export type SettingsSectionGroup = "workspace" | "runtime" | "system";
+export type SettingsSectionGroup = "workspace" | "runtime" | "operator" | "system";
 
 export interface SettingsSectionDescriptor {
   slug: SettingsSectionSlug;
@@ -213,6 +218,7 @@ export type SettingsSectionSlug =
   | "automation"
   | "network"
   | "gateway"
+  | "attention"
   | "observability"
   | "hooks"
   | "extensions";

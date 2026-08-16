@@ -65,10 +65,11 @@ const WORKSPACES: WorkspacePayload[] = [
 const ATTENTION: OsAttentionModel = {
   badges: { sessions: 1, tasks: 1 },
   notificationCount: 2,
-  rows: [],
+  sections: { needsYou: [], finished: [] },
   sessions: [],
   archivedSessions: [],
   archivedSessionsTotal: 0,
+  attentionSessionsDisconnected: false,
   sessionsDisconnected: false,
   tasksDisconnected: false,
   loading: false,

@@ -8,6 +8,7 @@ import {
   settingsGeneralOptions,
   settingsHooksExtensionsOptions,
   settingsMemoryOptions,
+  settingsAttentionOptions,
   settingsObservabilityOptions,
   settingsProvidersListOptions,
   settingsRolesOptions,
@@ -54,6 +55,10 @@ export function preloadSettingsRolesRoute(queryClient: QueryClient): Promise<voi
     queryClient.ensureQueryData(settingsRolesStatusOptions()),
     queryClient.ensureQueryData(settingsRolesOptions()),
   ]);
+}
+
+export function preloadSettingsAttentionRoute(queryClient: QueryClient): Promise<void> {
+  return settleRouteQueries([queryClient.ensureQueryData(settingsAttentionOptions())]);
 }
 
 export function preloadSettingsObservabilityRoute(queryClient: QueryClient): Promise<void> {
