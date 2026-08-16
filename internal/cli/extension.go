@@ -153,10 +153,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			report, err := extensionInstallValidationReport(deps, plan, item)
-			if err != nil {
-				return err
-			}
+			report := extensionInstallValidationReport(deps, plan, item)
 			return writeCommandOutput(cmd, extensionInstallSuccessBundle(item, report))
 		},
 	}
@@ -248,10 +245,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			if !checkOnly {
 				portable := make([]extensionPortableUpdateOutput, 0, len(items))
 				for _, item := range items {
-					presentation, ok, presentationErr := extensionPortableUpdatePresentation(deps, item)
-					if presentationErr != nil {
-						return presentationErr
-					}
+					presentation, ok := extensionPortableUpdatePresentation(deps, item)
 					if ok {
 						portable = append(portable, presentation)
 					}

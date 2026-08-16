@@ -547,9 +547,10 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, "lifecycle-ext"), "VERSION.txt"), "2.0.0")
 
 		removeErr := errors.New("reload failed")
-		_, err = RemoveManagedExtension(t.Context(), homePaths, env.registry, "lifecycle-ext", func(context.Context) error {
-			return removeErr
-		})
+		_, err = RemoveManagedExtension(
+			t.Context(), homePaths, env.registry, "lifecycle-ext",
+			func(context.Context) error { return removeErr },
+		)
 		if !errors.Is(err, removeErr) {
 			t.Fatalf("RemoveManagedExtension(reload failure) error = %v, want reload failure", err)
 		}

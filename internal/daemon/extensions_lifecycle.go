@@ -76,7 +76,13 @@ func (s *daemonExtensionService) finishPreparedInstall(
 		return errors.Join(mutationErr, cleanupErr)
 	}
 	if cleanupErr != nil {
-		s.logger.Warn("daemon: clean committed extension install staging", "extension", prepared.name, "error", cleanupErr)
+		s.logger.Warn(
+			"daemon: clean committed extension install staging",
+			"extension",
+			prepared.name,
+			"error",
+			cleanupErr,
+		)
 	}
 	return nil
 }

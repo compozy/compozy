@@ -176,7 +176,12 @@ func verifyPortableDevGeneration(
 	}
 	dataDir, err := resolveDataDir(name)
 	if err != nil {
-		return nil, fmt.Errorf("%w: resolve portable generation %q data directory: %w", ErrExtensionGenerationInvalid, hash, err)
+		return nil, fmt.Errorf(
+			"%w: resolve portable generation %q data directory: %w",
+			ErrExtensionGenerationInvalid,
+			hash,
+			err,
+		)
 	}
 	manifest, err := LoadManifestWithAgentPluginDataDir(originPath, dataDir)
 	if err != nil {

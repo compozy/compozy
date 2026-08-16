@@ -113,9 +113,7 @@ func TestRuntimeHealthRegistry(t *testing.T) {
 		stale := registry.Begin(key)
 		var workers sync.WaitGroup
 		for index := range 64 {
-			workers.Add(1)
-			go func() {
-				defer workers.Done()
+			workers.Go(func() {
 				observation := registry.Begin(key)
 				if index%2 == 0 {
 					registry.RecordFailure(observation, fmt.Errorf("failure-%d", index))
@@ -126,7 +124,7 @@ func TestRuntimeHealthRegistry(t *testing.T) {
 				if index%8 == 0 {
 					registry.EvictInstance("kit", "workspace-a")
 				}
-			}()
+			})
 		}
 		workers.Wait()
 		registry.EvictInstance("kit", "workspace-a")

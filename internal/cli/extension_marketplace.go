@@ -66,23 +66,23 @@ type extensionPortableUpdateOutput struct {
 func extensionPortableUpdatePresentation(
 	deps commandDeps,
 	item extensionUpdateItem,
-) (extensionPortableUpdateOutput, bool, error) {
+) (extensionPortableUpdateOutput, bool) {
 	report, err := extensionpkg.ValidateBundleReport(item.Path)
 	if err != nil {
-		return extensionPortableUpdateOutput{}, false, nil
+		return extensionPortableUpdateOutput{}, false
 	}
 	if report.Format != string(extensionpkg.FormatAgentPlugin) {
-		return extensionPortableUpdateOutput{}, false, nil
+		return extensionPortableUpdateOutput{}, false
 	}
 	homePaths, err := deps.resolveHome()
 	if err != nil {
-		return extensionPortableUpdateOutput{}, false, nil
+		return extensionPortableUpdateOutput{}, false
 	}
 	dataPath, err := homePaths.ExtensionDataPath(item.Name, "")
 	if err != nil {
-		return extensionPortableUpdateOutput{}, false, nil
+		return extensionPortableUpdateOutput{}, false
 	}
-	return extensionPortableUpdateOutput{Update: item, Report: report, DataPath: dataPath}, true, nil
+	return extensionPortableUpdateOutput{Update: item, Report: report, DataPath: dataPath}, true
 }
 
 func searchExtensionsPage(

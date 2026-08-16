@@ -65,7 +65,7 @@ func extensionInstallValidationReport(
 	deps commandDeps,
 	plan extensionInstallPlan,
 	item ExtensionRecord,
-) (*extensionpkg.ValidationReport, error) {
+) *extensionpkg.ValidationReport {
 	for _, request := range plan.Attempts {
 		if request.Source != contract.InstallExtensionSourceLocalPath {
 			continue
@@ -83,22 +83,22 @@ func extensionInstallValidationReport(
 			continue
 		}
 		if report.DualManifest || report.Format == item.Format {
-			return report, nil
+			return report
 		}
 	}
 	if strings.TrimSpace(item.Format) != string(extensionpkg.FormatAgentPlugin) {
-		return nil, nil
+		return nil
 	}
 	homePaths, err := deps.resolveHome()
 	if err != nil {
-		return nil, nil
+		return nil
 	}
 	path := extensionpkg.ManagedInstallPath(homePaths, item.Name)
 	report, err := extensionpkg.ValidateBundleReport(path)
 	if err != nil {
-		return nil, nil
+		return nil
 	}
-	return report, nil
+	return report
 }
 
 func executeExtensionInstallPlan(

@@ -39,7 +39,8 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			t.Fatalf("finishPreparedInstall(committed) error = %v, want nil", err)
 		}
 		mutationErr := errors.New("commit failed")
-		if err := service.finishPreparedInstall(prepared, mutationErr); !errors.Is(err, mutationErr) || !errors.Is(err, cleanupErr) {
+		if err := service.finishPreparedInstall(prepared, mutationErr); !errors.Is(err, mutationErr) ||
+			!errors.Is(err, cleanupErr) {
 			t.Fatalf("finishPreparedInstall(failed) error = %v, want mutation and cleanup failures", err)
 		}
 	})

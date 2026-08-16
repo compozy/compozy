@@ -17,7 +17,10 @@ var manifestFields = map[string]struct{}{
 	fieldHomepage: {}, fieldRepository: {}, fieldLicense: {}, fieldKeywords: {}, fieldExtensions: {},
 }
 
-const manifestFileName = "plugin.json"
+const (
+	manifestFileName       = "plugin.json"
+	jsonObjectIssueMessage = "must be a JSON object"
+)
 
 // Load validates the root manifest and independently discovers portable
 // components. Only root-manifest failures are returned as errors.
@@ -59,7 +62,7 @@ func ReadManifestName(dir string) (string, error) {
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(content, &fields); err != nil || fields == nil {
-		return "", &ManifestError{Issues: []Issue{{Path: "$", Message: "must be a JSON object"}}}
+		return "", &ManifestError{Issues: []Issue{{Path: "$", Message: jsonObjectIssueMessage}}}
 	}
 	issues := make([]Issue, 0, 1)
 	name, ok := requiredString(fields, fieldName, &issues)
@@ -83,7 +86,9 @@ func readManifestContent(root string) ([]byte, error) {
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json is required"}}}
-	case errors.Is(err, fileutil.ErrSymlink), errors.Is(err, fileutil.ErrDirectory), errors.Is(err, fileutil.ErrNotRegular):
+	case errors.Is(err, fileutil.ErrSymlink),
+		errors.Is(err, fileutil.ErrDirectory),
+		errors.Is(err, fileutil.ErrNotRegular):
 		return nil, &ManifestError{Issues: []Issue{{Path: "$", Message: "plugin.json must be a regular file"}}}
 	default:
 		return nil, fmt.Errorf("read Agent Plugins manifest %q: %w", manifestPath, err)
@@ -93,10 +98,10 @@ func readManifestContent(root string) ([]byte, error) {
 func decodeManifest(content []byte) (*Package, string, error) {
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(content, &fields); err != nil {
-		return nil, "", &ManifestError{Issues: []Issue{{Path: "$", Message: "must be a JSON object"}}}
+		return nil, "", &ManifestError{Issues: []Issue{{Path: "$", Message: jsonObjectIssueMessage}}}
 	}
 	if fields == nil {
-		return nil, "", &ManifestError{Issues: []Issue{{Path: "$", Message: "must be a JSON object"}}}
+		return nil, "", &ManifestError{Issues: []Issue{{Path: "$", Message: jsonObjectIssueMessage}}}
 	}
 
 	pkg := &Package{}

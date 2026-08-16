@@ -56,7 +56,10 @@ func TestParseExtensionRemoteHeader(t *testing.T) {
 		{name: "Should reject an empty server", input: ":X-Key", wantError: "server is required"},
 		{name: "Should reject an empty header", input: "deployment-api:", wantError: "header is required"},
 		{name: "Should reject an invalid server name", input: "bad/server:X-Key", wantError: "--remote-header server"},
-		{name: "Should reject an invalid header name", input: "deployment-api:Bad Header", wantError: "--remote-header header"},
+		{
+			name: "Should reject an invalid header name", input: "deployment-api:Bad Header",
+			wantError: "--remote-header header",
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -65,7 +68,12 @@ func TestParseExtensionRemoteHeader(t *testing.T) {
 			server, header, err := parseExtensionRemoteHeader(testCase.input)
 			if testCase.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), testCase.wantError) {
-					t.Fatalf("parseExtensionRemoteHeader(%q) error = %v, want %q", testCase.input, err, testCase.wantError)
+					t.Fatalf(
+						"parseExtensionRemoteHeader(%q) error = %v, want %q",
+						testCase.input,
+						err,
+						testCase.wantError,
+					)
 				}
 				return
 			}

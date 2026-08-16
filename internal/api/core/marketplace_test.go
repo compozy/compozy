@@ -557,10 +557,17 @@ func marketplaceSearchHTTP(t *testing.T, handlers *core.BaseHandlers) contract.M
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/marketplace/search", nil)
+	ctx.Request = httptest.NewRequestWithContext(
+		t.Context(), http.MethodGet, "/api/marketplace/search", http.NoBody,
+	)
 	handlers.SearchMarketplace(ctx)
 	if recorder.Code != http.StatusOK {
-		t.Fatalf("GET /api/marketplace/search status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		t.Fatalf(
+			"GET /api/marketplace/search status = %d, want %d; body=%s",
+			recorder.Code,
+			http.StatusOK,
+			recorder.Body.String(),
+		)
 	}
 	var response contract.MarketplaceSearchResponse
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
