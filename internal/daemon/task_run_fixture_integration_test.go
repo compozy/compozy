@@ -64,6 +64,7 @@ func seedDaemonTaskRunLifecycle(t *testing.T, store taskpkg.Store, target taskpk
 	if fixtureSessionID == "" {
 		fixtureSessionID = "daemon-fixture-" + target.ID
 	}
+	var claimToken string
 	if target.LoopRunID != "" {
 		claimedBy := actor.Actor
 		if target.ClaimedBy != nil {
@@ -83,6 +84,7 @@ func seedDaemonTaskRunLifecycle(t *testing.T, store taskpkg.Store, target taskpk
 					Now:              timeline.claimedAt,
 				})
 				current = claim.Run
+				claimToken = claim.ClaimToken
 				return claimErr
 			},
 		)
@@ -133,6 +135,7 @@ func seedDaemonTaskRunLifecycle(t *testing.T, store taskpkg.Store, target taskpk
 	}
 	running, err := manager.StartRun(ctx, current.ID, taskpkg.StartRun{
 		IdempotencyKey: "daemon-fixture-start:" + current.ID,
+		ClaimToken:     claimToken,
 	}, actor)
 	if err != nil {
 		t.Fatalf("StartRun(%q) error = %v", target.ID, err)
