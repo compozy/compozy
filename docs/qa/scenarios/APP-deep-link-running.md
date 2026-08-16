@@ -6,7 +6,7 @@ persona: Théo
 journey: J-desktop-link-driven
 expected: Activating `compozyos://open/<path>` with the app running focuses the window and navigates to that view; a link to a deleted entity shows the product's own not-found view; a malformed or hostile payload lands safely on the default view with no dialog and no off-product navigation.
 entry_points: compozyos://open/<product-path> from terminal, docs, or notification while the app runs
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

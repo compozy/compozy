@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -22,6 +24,7 @@ type appControlCaller func(context.Context, string, string, any) (any, error)
 type appControlRequest struct {
 	SchemaVersion int    `json:"schema_version"`
 	ID            int    `json:"id"`
+	Token         string `json:"token"`
 	Method        string `json:"method"`
 	Params        any    `json:"params,omitempty"`
 }
@@ -46,6 +49,14 @@ func callAppControl(ctx context.Context, socketPath string, method string, param
 			)
 		}
 		return nil, fmt.Errorf("app control: inspect socket: %w", err)
+	}
+	token, err := readAppControlToken(socketPath)
+	if err != nil {
+		return nil, newAppCommandError(
+			appControlUnavailableCode,
+			"the CompozyOS desktop app control channel is unavailable",
+			err,
+		)
 	}
 
 	timeout := appControlTimeout
@@ -74,10 +85,31 @@ func callAppControl(ctx context.Context, socketPath string, method string, param
 	request := appControlRequest{
 		SchemaVersion: appControlSchemaVersion,
 		ID:            1,
+		Token:         token,
 		Method:        method,
 		Params:        params,
 	}
 	return exchangeAppControl(connection, request)
+}
+
+func readAppControlToken(socketPath string) (string, error) {
+	tokenPath := filepath.Join(filepath.Dir(socketPath), "app.token")
+	info, err := os.Stat(tokenPath)
+	if err != nil {
+		return "", fmt.Errorf("app control: inspect token: %w", err)
+	}
+	if info.Size() <= 0 || info.Size() > 4096 {
+		return "", errors.New("app control: token size is invalid")
+	}
+	data, err := os.ReadFile(tokenPath)
+	if err != nil {
+		return "", fmt.Errorf("app control: read token: %w", err)
+	}
+	token := strings.TrimSpace(string(data))
+	if token == "" {
+		return "", errors.New("app control: token is empty")
+	}
+	return token, nil
 }
 
 func exchangeAppControl(connection net.Conn, request appControlRequest) (any, error) {

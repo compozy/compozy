@@ -6,7 +6,7 @@ persona: Dora
 journey: J-desktop-update-moment
 expected: A forced apply failure leaves the installed app intact and launchable with the failure reported and a manual-download path to the release page; a post-migration runtime boot failure surfaces sticky `recovery_required` with typed error and diagnostics, the old binary is not auto-restarted, and a later fixed signed build clears the state.
 entry_points: update surface after a forced apply failure; compozy app status / diagnose in recovery_required
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
 retest_status: pass

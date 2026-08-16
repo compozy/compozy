@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,6 +29,11 @@ const (
 	bootstrapPhaseFailed    bootstrapPhase = "failed"
 )
 
+type bootstrapDaemon struct {
+	DaemonStatus
+	Origin string `json:"origin"`
+}
+
 type bootstrapEvent struct {
 	Type           string              `json:"type"`
 	Phase          bootstrapPhase      `json:"phase"`
@@ -37,7 +43,7 @@ type bootstrapEvent struct {
 	BackoffMS      int64               `json:"backoff_ms,omitempty"`
 	Classification bootstrapProbeClass `json:"classification,omitempty"`
 	Message        string              `json:"message"`
-	Daemon         *DaemonStatus       `json:"daemon,omitempty"`
+	Daemon         *bootstrapDaemon    `json:"daemon,omitempty"`
 }
 
 type bootstrapOptions struct {
@@ -96,9 +102,14 @@ func runDaemonBootstrap(cmd *cobra.Command, deps commandDeps, options bootstrapO
 		if err := validateBootstrapCompatibility(status, options.minimumRuntime, options.appVersion); err != nil {
 			return writeBootstrapFailure(cmd, bootstrapPhaseAttach, bootstrapProbeListeningUnhealthy, err)
 		}
+		daemon, err := bootstrapDaemonFromStatus(status)
+		if err != nil {
+			return writeBootstrapFailure(cmd, bootstrapPhaseAttach, bootstrapProbeListeningUnhealthy, err)
+		}
 		return writeBootstrapEvent(cmd, bootstrapEvent{
 			Type: "bootstrap", Phase: bootstrapPhaseReady, Status: "completed",
-			Resolution: bootstrapResolutionAttach, Message: "Attached to the running CompozyOS runtime.", Daemon: &status,
+			Resolution: bootstrapResolutionAttach, Message: "Attached to the running CompozyOS runtime.",
+			Daemon: daemon,
 		})
 	}
 	if err := cleanupStaleBootstrapDaemonRecord(homePaths, deps); err != nil {
@@ -138,9 +149,14 @@ func runDaemonBootstrap(cmd *cobra.Command, deps commandDeps, options bootstrapO
 			if compatibilityErr := validateBootstrapCompatibility(status, options.minimumRuntime, options.appVersion); compatibilityErr != nil {
 				return writeBootstrapFailure(cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, compatibilityErr)
 			}
+			daemon, daemonErr := bootstrapDaemonFromStatus(status)
+			if daemonErr != nil {
+				return writeBootstrapFailure(cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, daemonErr)
+			}
 			return writeBootstrapEvent(cmd, bootstrapEvent{
 				Type: "bootstrap", Phase: bootstrapPhaseReady, Status: "completed",
-				Resolution: resolution, Attempt: attempt, Message: "The CompozyOS runtime is ready.", Daemon: &status,
+				Resolution: resolution, Attempt: attempt, Message: "The CompozyOS runtime is ready.",
+				Daemon: daemon,
 			})
 		}
 		if bootstrapShouldGiveUp(attempt) {
@@ -165,6 +181,21 @@ func runDaemonBootstrap(cmd *cobra.Command, deps commandDeps, options bootstrapO
 		bootstrapProbeListeningUnhealthy,
 		fmt.Errorf("cli: runtime did not become ready after %d attempts: %w", bootstrapMaximumAttempts, lastErr),
 	)
+}
+
+func bootstrapDaemonFromStatus(status DaemonStatus) (*bootstrapDaemon, error) {
+	host := strings.TrimSpace(status.HTTPHost)
+	ip := net.ParseIP(host)
+	if (ip == nil || !ip.IsLoopback()) && !strings.EqualFold(host, "localhost") {
+		return nil, fmt.Errorf("cli: daemon reported non-loopback HTTP host %q", host)
+	}
+	if status.HTTPPort < 1 || status.HTTPPort > 65535 {
+		return nil, fmt.Errorf("cli: daemon reported invalid HTTP port %d", status.HTTPPort)
+	}
+	return &bootstrapDaemon{
+		DaemonStatus: status,
+		Origin:       "http://" + net.JoinHostPort(status.HTTPHost, fmt.Sprintf("%d", status.HTTPPort)),
+	}, nil
 }
 
 func cleanupStaleBootstrapDaemonRecord(homePaths compozyconfig.HomePaths, deps commandDeps) error {

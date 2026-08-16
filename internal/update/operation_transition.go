@@ -24,15 +24,18 @@ const (
 
 // Transition is the declarative input to the sole operation mutation API.
 type Transition struct {
-	Kind       TransitionKind
-	Actor      Actor
-	Target     Target
-	Phase      OperationPhase
-	Percent    int
-	Holder     *Holder
-	BackupPath string
-	LastError  string
-	Outcome    string
+	Kind                 TransitionKind
+	Actor                Actor
+	Target               Target
+	Phase                OperationPhase
+	Percent              int
+	Holder               *Holder
+	BackupPath           string
+	LastError            string
+	Outcome              string
+	AppWatchdogDeadline  *time.Time
+	IncrementAppFailures bool
+	ResetAppFailures     bool
 }
 
 // Transition applies one fenced compare-and-swap mutation to the live journal.
@@ -249,6 +252,33 @@ func applyTransition(operation *Operation, transition Transition, now time.Time)
 	}
 	if transition.Outcome != "" {
 		operation.Outcome = strings.TrimSpace(transition.Outcome)
+	}
+	if err := applyAppTransitionMetadata(operation, transition); err != nil {
+		return err
+	}
+	return nil
+}
+
+func applyAppTransitionMetadata(operation *Operation, transition Transition) error {
+	changesAppMetadata := transition.AppWatchdogDeadline != nil || transition.IncrementAppFailures ||
+		transition.ResetAppFailures
+	if !changesAppMetadata {
+		return nil
+	}
+	if transition.Target != TargetApp || operation.App == nil {
+		return errors.New("update: app transition metadata requires the app target")
+	}
+	if transition.IncrementAppFailures && transition.ResetAppFailures {
+		return errors.New("update: app failures cannot be incremented and reset together")
+	}
+	if transition.AppWatchdogDeadline != nil {
+		operation.App.WatchdogDeadline = transition.AppWatchdogDeadline.UTC()
+	}
+	if transition.IncrementAppFailures {
+		operation.App.ConsecutiveFailures++
+	}
+	if transition.ResetAppFailures {
+		operation.App.ConsecutiveFailures = 0
 	}
 	return nil
 }

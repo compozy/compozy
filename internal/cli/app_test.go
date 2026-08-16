@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -1042,6 +1043,68 @@ func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 		t.Parallel()
 		_, err := callAppControl(t.Context(), filepath.Join(t.TempDir(), "app.sock"), "retry", nil)
 		assertAppCommandError(t, err, appNotRunningCode)
+	})
+
+	t.Run("Should authenticate the request with the current control token", func(t *testing.T) {
+		t.Parallel()
+		directory, err := os.MkdirTemp("/tmp", "compozy-app-control-")
+		if err != nil {
+			t.Fatalf("MkdirTemp(app control) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if removeErr := os.RemoveAll(directory); removeErr != nil {
+				t.Errorf("RemoveAll(app control directory) error = %v", removeErr)
+			}
+		})
+		socketPath := filepath.Join(directory, "app.sock")
+		if err := os.WriteFile(filepath.Join(directory, "app.token"), []byte("token-current\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(app token) error = %v", err)
+		}
+		listener, err := net.Listen("unix", socketPath)
+		if err != nil {
+			t.Fatalf("Listen(app socket) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := listener.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+				t.Errorf("Close(app listener) error = %v", closeErr)
+			}
+		})
+		requests := make(chan appControlRequest, 1)
+		serverErrors := make(chan error, 1)
+		go func() {
+			connection, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				serverErrors <- acceptErr
+				return
+			}
+			var request appControlRequest
+			if decodeErr := json.NewDecoder(connection).Decode(&request); decodeErr != nil {
+				serverErrors <- errors.Join(decodeErr, connection.Close())
+				return
+			}
+			requests <- request
+			response := appControlResponse{SchemaVersion: appControlSchemaVersion, ID: request.ID, Result: json.RawMessage(`{"ok":true}`)}
+			if encodeErr := json.NewEncoder(connection).Encode(response); encodeErr != nil {
+				serverErrors <- errors.Join(encodeErr, connection.Close())
+				return
+			}
+			serverErrors <- connection.Close()
+		}()
+
+		result, err := callAppControl(t.Context(), socketPath, "diagnose", map[string]any{})
+		if err != nil {
+			t.Fatalf("callAppControl() error = %v", err)
+		}
+		request := <-requests
+		if request.Token != "token-current" || request.Method != "diagnose" {
+			t.Fatalf("control request = %#v, want current token and diagnose method", request)
+		}
+		if result == nil {
+			t.Fatal("callAppControl() result = nil, want success body")
+		}
+		if serverErr := <-serverErrors; serverErr != nil {
+			t.Fatalf("app control server error = %v", serverErr)
+		}
 	})
 
 	t.Run("Should report app_control_unavailable when the socket is present but unresponsive", func(t *testing.T) {

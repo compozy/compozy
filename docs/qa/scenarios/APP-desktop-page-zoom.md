@@ -6,7 +6,7 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: In the daemon-served main desktop window, Command or Control plus, minus, and zero scale or reset the whole product page while the in-product single-window Zoom action remains separate and boot-window privileges do not expand.
 entry_points: native desktop main window keyboard shortcuts
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

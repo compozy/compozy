@@ -8,7 +8,7 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
+.PHONY: deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e-desktop test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
 
 DEMO_HOME ?= $(HOME)/.agh
 
@@ -50,6 +50,13 @@ test-e2e-runtime:
 
 test-e2e-web:
 	@$(MAGE_RUN) testE2EWeb
+
+test-e2e-desktop: desktop-build
+	@if [ "$$(uname -s)" = "Linux" ]; then \
+		xvfb-run -a bun run --cwd desktop test:e2e; \
+	else \
+		bun run --cwd desktop test:e2e; \
+	fi
 
 test-e2e:
 	@$(MAGE_RUN) testE2E
@@ -100,19 +107,18 @@ demo-seed:
 # waits for readiness, then launches the desktop shell attached to the daemon
 # through the active COMPOZY_HOME. Quitting the app or pressing Ctrl-C tears
 # the stack down. Shell-only iteration against an already-running daemon:
-# `cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml`.
+# `bun run --cwd desktop dev`.
 desktop-dev: codegen web-build
 	@AIR_VERSION="$(AIR_VERSION)" bash scripts/desktop-dev.sh
 
 desktop-build:
-	@cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+	@bun run --cwd desktop build
 
 desktop-test:
-	@cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-features --all-targets
+	@bunx turbo run test --filter=@compozy/desktop
 
 desktop-lint:
-	@cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
-	@cargo clippy --locked --manifest-path desktop/src-tauri/Cargo.toml --all-features --all-targets -- -D warnings
+	@bunx turbo run lint typecheck --filter=@compozy/desktop
 
 help:
 	@$(MAGE_RUN) -l

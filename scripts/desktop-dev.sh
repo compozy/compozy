@@ -57,30 +57,9 @@ home_daemon_recorded_on_port() {
 }
 
 built_desktop_shell_binary() {
-  cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml \
-    --message-format=json-render-diagnostics | bun -e '
-    const lines = (await Bun.stdin.text()).split("\n").filter(Boolean);
-    let executable = "";
-    for (const line of lines) {
-      let message;
-      try {
-        message = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      const artifact =
-        message?.reason === "compiler-artifact" &&
-        message?.target?.name === "compozyos-desktop" &&
-        message?.executable;
-      if (artifact) {
-        executable = message.executable;
-      }
-    }
-    if (!executable) {
-      throw new Error("cargo build did not report the compozyos-desktop executable");
-    }
-    process.stdout.write(executable);
-  '
+  bun run --cwd desktop build:runtime >&2
+  bun run --cwd desktop build:main >&2
+  printf '%s' "$repo_root/desktop/node_modules/.bin/electron"
 }
 
 cleanup() {
@@ -167,7 +146,8 @@ if ((ready_status != 0)); then
 fi
 echo "desktop-dev: daemon ready for current Air build ($ready_binary_id)"
 
-"$app_binary" &
+COMPOZY_DESKTOP_BUNDLE_ROOT="$repo_root/desktop/.artifacts/runtime" \
+  "$app_binary" "$repo_root/desktop" &
 app_pid=$!
 echo "desktop-dev: desktop shell launched (quit the app or press Ctrl-C to stop the stack)"
 

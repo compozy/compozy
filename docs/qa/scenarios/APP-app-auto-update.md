@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-desktop-update-moment
 expected: With a newer version on the fixture feed, the app downloads in the background, surfaces "ready" without interrupting work, applies only on consented restart, and the new version indicator confirms it; quitting with the update pending applies it on the next launch per platform convention.
 entry_points: in-app update-ready indication; About/update surface; fixture update feed
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: blocked-verify

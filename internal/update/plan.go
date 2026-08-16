@@ -54,6 +54,10 @@ func (m *Manager) PlanOperation(
 		Holder:      holder,
 		Deadline:    m.now().Add(30 * time.Minute),
 	}
+	archivedApp, err := m.operationStore.LatestArchivedApp(ctx)
+	if err != nil {
+		return OperationRequest{}, err
+	}
 	for _, target := range targets {
 		switch target {
 		case TargetRuntime:
@@ -92,10 +96,26 @@ func (m *Manager) PlanOperation(
 				},
 				AttemptID: attemptID,
 				Phase:     PhasePending,
+				ConsecutiveFailures: consecutiveAppFailures(
+					state.App.CurrentVersion,
+					archivedApp,
+				),
 			}
 		}
 	}
 	return request, nil
+}
+
+func consecutiveAppFailures(currentVersion string, archived *Operation) int {
+	if archived == nil || archived.App == nil || archived.App.Phase != PhaseFailed ||
+		archived.App.ConsecutiveFailures < 1 {
+		return 0
+	}
+	comparison, err := compareVersions(currentVersion, archived.App.ToVersion)
+	if err == nil && comparison >= 0 {
+		return 0
+	}
+	return archived.App.ConsecutiveFailures
 }
 
 // AcquireOperation publishes one verified update plan.
@@ -104,14 +124,22 @@ func (m *Manager) AcquireOperation(ctx context.Context, request OperationRequest
 }
 
 func (m *Manager) resolveAppReleaseAsset(release *Release) (ReleaseAsset, error) {
+	var suffix string
+	switch m.runtimeOS {
+	case runtimeOSDarwin:
+		suffix = ".zip"
+	case runtimeOSLinux:
+		suffix = ".appimage"
+	default:
+		return ReleaseAsset{}, fmt.Errorf("update: desktop app auto-update is unsupported on %s", m.runtimeOS)
+	}
 	wantedArch := []string{strings.ToLower(m.runtimeArch)}
 	if m.runtimeArch == runtimeArchAMD64 {
 		wantedArch = append(wantedArch, "x64", "x86_64")
 	}
 	for _, asset := range release.Assets {
 		name := strings.ToLower(strings.TrimSpace(asset.Name))
-		if !strings.Contains(name, "compozy") ||
-			(!strings.HasSuffix(name, ".dmg") && !strings.HasSuffix(name, ".zip") && !strings.HasSuffix(name, ".appimage")) {
+		if !strings.Contains(name, "compozy") || !strings.HasSuffix(name, suffix) {
 			continue
 		}
 		for _, arch := range wantedArch {

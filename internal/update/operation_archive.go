@@ -45,6 +45,17 @@ func (s *OperationStore) ReadArchived(ctx context.Context, operationID string) (
 	return operation, err
 }
 
+// LatestArchivedApp returns the newest terminal operation containing the app track.
+func (s *OperationStore) LatestArchivedApp(ctx context.Context) (*Operation, error) {
+	var operation *Operation
+	err := s.withLock(ctx, func() error {
+		var err error
+		operation, err = readLatestArchivedAppOperation(s.historyPath)
+		return err
+	})
+	return operation, err
+}
+
 func readArchivedOperation(path string, operationID string) (operationResult *Operation, returnErr error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -71,6 +82,35 @@ func readArchivedOperation(path string, operationID string) (operationResult *Op
 		return nil, fmt.Errorf("update: scan update history: %w", err)
 	}
 	return nil, nil
+}
+
+func readLatestArchivedAppOperation(path string) (operationResult *Operation, returnErr error) {
+	file, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("update: open update history: %w", err)
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, file.Close())
+	}()
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), int(maxOperationBytes))
+	var latest *Operation
+	for scanner.Scan() {
+		var record Operation
+		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
+			return nil, fmt.Errorf("update: decode update history: %w", err)
+		}
+		if record.App != nil {
+			latest = cloneOperation(&record)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("update: scan update history: %w", err)
+	}
+	return latest, nil
 }
 
 func appendHistoryRecord(path string, operation *Operation) (returnErr error) {

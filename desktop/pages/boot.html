@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <title>CompozyOS</title>
+    <link rel="stylesheet" href="boot.css" />
+    <script src="boot.js" defer></script>
+  </head>
+  <body>
+    <main class="boot" aria-labelledby="boot-title">
+      <p class="boot__identity">CompozyOS</p>
+      <section class="boot__state">
+        <div class="boot__heading">
+          <span class="boot__mark" aria-hidden="true"></span>
+          <h1 id="boot-title" aria-atomic="true" aria-live="polite">Looking for CompozyOS</h1>
+        </div>
+        <p id="boot-detail" class="boot__detail" hidden></p>
+        <div id="boot-progress" class="boot__progress" role="status" aria-atomic="true" hidden>
+          <p id="boot-progress-label" class="boot__progress-label"></p>
+          <p id="boot-progress-attempt" class="boot__progress-attempt" hidden></p>
+          <progress id="boot-progress-bar" class="boot__progress-bar" max="100" hidden></progress>
+        </div>
+        <div
+          id="boot-controls"
+          class="boot__controls"
+          role="group"
+          aria-label="Available actions"
+          hidden
+        >
+          <button id="boot-retry" class="boot__control boot__control--primary" type="button" hidden>
+            Retry operation
+          </button>
+          <button id="boot-open-logs" class="boot__control" type="button" hidden>Open logs</button>
+          <button id="boot-quit" class="boot__control" type="button" hidden>Quit</button>
+          <button id="boot-diagnose" class="boot__control" type="button" hidden>
+            Load diagnostics
+          </button>
+        </div>
+        <p id="boot-result" class="boot__result" role="status" aria-atomic="true" hidden></p>
+        <details id="boot-technical" class="boot__technical" hidden>
+          <summary>Technical details</summary>
+          <div class="boot__technical-content">
+            <dl id="boot-diagnostics" class="boot__diagnostics"></dl>
+            <div
+              id="boot-diagnostic-controls"
+              class="boot__diagnostic-controls"
+              role="group"
+              aria-label="Diagnostic actions"
+              hidden
+            >
+              <button id="boot-copy" class="boot__control" type="button">Copy diagnostics</button>
+              <button id="boot-export" class="boot__control" type="button">
+                Export diagnostics
+              </button>
+            </div>
+          </div>
+        </details>
+      </section>
+    </main>
+  </body>
+</html>

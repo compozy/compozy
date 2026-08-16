@@ -6,7 +6,7 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: With a healthy runtime and an active session, the app shows the identical workspace/session state the browser tab shows (same origin, same local UI state), no second daemon appears, the existing process is never terminated, and side-by-side actions reflect live in both surfaces.
 entry_points: dock/launcher icon with a running daemon; browser tab open side by side
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260810-desktop-runtime-stalls
 fix_status: fixed
 retest_status: blocked-verify

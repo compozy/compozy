@@ -33,6 +33,7 @@ else
     internal/agentidentity
     internal/store/migration_refusal.go
     internal/update
+    desktop/pages
     desktop/src-tauri/pages
     desktop/src-tauri/tauri.conf.json
     .github/actions

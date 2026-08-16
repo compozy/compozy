@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-desktop-update-moment
 expected: On an app-provisioned home with agent work in flight, a ready runtime update asks for timing consent — "later" keeps everything working; "now" quiesces, stops, applies, restarts, reconnects — and both new versions appear in one update surface.
 entry_points: in-app update surface on an app-provisioned home; signed runtime.json feed
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: blocked-verify

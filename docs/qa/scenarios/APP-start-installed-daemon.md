@@ -6,7 +6,7 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: Opening the app with the runtime installed but stopped shows visible bounded starting progress and lands in the product UI; it waits for a live recorded daemon before a bounded desktop-owned retry, never starts a conflicting second daemon, and the started runtime survives app quit with `compozy status` healthy.
 entry_points: dock/launcher icon with an installed, stopped runtime; compozy app open
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent
 fix_status: fixed
 retest_status: blocked-verify

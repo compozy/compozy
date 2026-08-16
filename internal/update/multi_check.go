@@ -31,11 +31,35 @@ func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, 
 	if err != nil {
 		return MultiState{}, release, err
 	}
+	archivedApp, err := m.operationStore.LatestArchivedApp(ctx)
+	if err != nil {
+		return MultiState{}, release, err
+	}
+	applyArchivedAppFailure(app, archivedApp, opts.ForceRefresh)
 	operation, err := m.operationStore.Read(ctx)
 	if err != nil {
 		return MultiState{}, release, err
 	}
 	return ProjectMultiState(runtimeState, app, operation), release, checkErr
+}
+
+func applyArchivedAppFailure(app *AppTrackState, archived *Operation, forceRefresh bool) {
+	if forceRefresh || app == nil || archived == nil || archived.App == nil ||
+		archived.App.Phase != PhaseFailed || archived.App.ConsecutiveFailures < 1 {
+		return
+	}
+	comparison, err := compareVersions(app.CurrentVersion, archived.App.ToVersion)
+	if err == nil && comparison >= 0 {
+		return
+	}
+	app.Status = StatusFailed
+	app.LatestVersion = archived.App.ToVersion
+	app.AttemptID = archived.App.AttemptID
+	app.LastError = strings.TrimSpace(archived.LastError)
+	if app.LastError == "" {
+		app.LastError = "The previous app install did not complete."
+	}
+	app.Message = "Automatic app update checks are paused after the previous install failed. Retry manually."
 }
 
 // Snapshot returns the cached live projection, tolerating a recorded upstream refresh error.

@@ -348,26 +348,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install Tauri system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
         with:
-          components: clippy,rustfmt
+          go-version: ${{ env.GO_VERSION }}
 
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - name: Set up Bun
+        uses: ./.github/actions/setup-bun
         with:
-          workspaces: desktop/src-tauri
+          install-playwright: "false"
 
       - name: Run desktop verification
         run: |
           make desktop-lint
           make desktop-test
-          bash scripts/verify-desktop-release-build-contract.sh
           make desktop-build
 
   verify:
@@ -416,7 +410,9 @@ jobs:
           install-playwright: "true"
 
       - name: Run combined E2E lane
-        run: make test-e2e
+        run: |
+          make test-e2e
+          make test-e2e-desktop
         env:
           CGO_ENABLED: 0
           CI: "true"

@@ -166,68 +166,76 @@ func TestProvisionBundledRuntime(t *testing.T) {
 }
 
 func TestDaemonBootstrapEmitsAttachJSONL(t *testing.T) {
-	t.Parallel()
+	t.Run("Should emit the attached daemon origin in the ready event", func(t *testing.T) {
+		t.Parallel()
 
-	client := &stubClient{daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-		return DaemonStatus{
-			Status: "running", PID: 4242, Version: "v1.2.0", MinAppVersion: "v1.0.0",
-		}, nil
-	}}
-	deps := newTestDeps(t, client)
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		t.Fatalf("resolveHome() error = %v", err)
-	}
-	writeFile(t, homePaths.DaemonInfo, `{"pid":4242,"port":2123,"started_at":"2026-04-03T12:00:00Z"}`)
-	deps.processAlive = func(int) bool { return true }
-	deps.processMatchesStartTime = func(int, time.Time) bool { return true }
-	deps.executable = func() (string, error) { return os.Executable() }
+		client := &stubClient{daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+			return DaemonStatus{
+				Status: "running", PID: 4242, Version: "v1.2.0", MinAppVersion: "v1.0.0",
+				HTTPHost: "127.0.0.1", HTTPPort: 2123,
+			}, nil
+		}}
+		deps := newTestDeps(t, client)
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		writeFile(t, homePaths.DaemonInfo, `{"pid":4242,"port":2123,"started_at":"2026-04-03T12:00:00Z"}`)
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+		deps.executable = func() (string, error) { return os.Executable() }
 
-	stdout, _, err := executeRootCommand(
-		t,
-		deps,
-		"daemon",
-		"bootstrap",
-		"--minimum-runtime",
-		">=1.1.0",
-		"--app-version",
-		"v1.0.0",
-		"-o",
-		"jsonl",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand() error = %v", err)
-	}
-	lines := strings.Split(strings.TrimSpace(stdout), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("bootstrap JSONL lines = %d, want resolve and ready; output=%s", len(lines), stdout)
-	}
-	var ready bootstrapEvent
-	if err := json.Unmarshal([]byte(lines[1]), &ready); err != nil {
-		t.Fatalf("json.Unmarshal(ready) error = %v", err)
-	}
-	if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionAttach || ready.Daemon == nil {
-		t.Fatalf("ready event = %#v, want attach completion", ready)
-	}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"daemon",
+			"bootstrap",
+			"--minimum-runtime",
+			">=1.1.0",
+			"--app-version",
+			"v1.0.0",
+			"-o",
+			"jsonl",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 2 {
+			t.Fatalf("bootstrap JSONL lines = %d, want resolve and ready; output=%s", len(lines), stdout)
+		}
+		var ready bootstrapEvent
+		if err := json.Unmarshal([]byte(lines[1]), &ready); err != nil {
+			t.Fatalf("json.Unmarshal(ready) error = %v", err)
+		}
+		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionAttach || ready.Daemon == nil {
+			t.Fatalf("ready event = %#v, want attach completion", ready)
+		}
+		if ready.Daemon.Origin != "http://127.0.0.1:2123" {
+			t.Fatalf("ready daemon origin = %q, want listener origin", ready.Daemon.Origin)
+		}
+	})
 }
 
 func TestBootstrapRemovesOnlyStaleDaemonRecords(t *testing.T) {
-	t.Parallel()
+	t.Run("Should remove a daemon record whose process identity is stale", func(t *testing.T) {
+		t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{})
-	deps = deps.withDefaults()
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		t.Fatalf("resolveHome() error = %v", err)
-	}
-	writeFile(t, homePaths.DaemonInfo, `{"pid":4242,"port":2123,"started_at":"2026-04-03T12:00:00Z"}`)
-	deps.processAlive = func(int) bool { return true }
-	deps.processMatchesStartTime = func(int, time.Time) bool { return false }
+		deps := newTestDeps(t, &stubClient{})
+		deps = deps.withDefaults()
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		writeFile(t, homePaths.DaemonInfo, `{"pid":4242,"port":2123,"started_at":"2026-04-03T12:00:00Z"}`)
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return false }
 
-	if err := cleanupStaleBootstrapDaemonRecord(homePaths, deps); err != nil {
-		t.Fatalf("cleanupStaleBootstrapDaemonRecord() error = %v", err)
-	}
-	if _, err := os.Stat(homePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("Stat(stale daemon record) error = %v, want removed record", err)
-	}
+		if err := cleanupStaleBootstrapDaemonRecord(homePaths, deps); err != nil {
+			t.Fatalf("cleanupStaleBootstrapDaemonRecord() error = %v", err)
+		}
+		if _, err := os.Stat(homePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Stat(stale daemon record) error = %v, want removed record", err)
+		}
+	})
 }

@@ -6,7 +6,7 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: With agents/sessions working, closing the window ends only the app — the runtime and all in-flight work continue and are verifiable via `compozy status`; the same holds for runtimes the app itself started or provisioned, and after a force-kill the next launch attaches normally.
 entry_points: app window close/quit while agent work is in flight; force-kill of the app process
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260810-desktop-runtime-stalls
 fix_status: fixed
 retest_status: pass

@@ -6,7 +6,7 @@ persona: Lea
 journey: J-desktop-first-run
 expected: A machine with no runtime goes installer → guided provisioning with visible phases → download, verify, install, and self-start → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy. A startup failure keeps the boot window available for redacted diagnostics, local copy, and explicit local export.
 entry_points: CompozyOS installer (macOS dmg, Linux package); app first launch
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable
 fix_status: fixed
 retest_status: pass

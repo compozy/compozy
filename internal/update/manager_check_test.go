@@ -482,6 +482,85 @@ func TestManagerCheck(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("Should suppress automatic app checks after an archived installer failure", func(t *testing.T) {
+		t.Parallel()
+
+		archived := &Operation{
+			LastError: "installer exited before relaunch",
+			App: &AppOperationState{
+				ArtifactIdentity:    ArtifactIdentity{ToVersion: "v1.2.0"},
+				AttemptID:           "attempt-2",
+				Phase:               PhaseFailed,
+				ConsecutiveFailures: 2,
+			},
+		}
+		background := &AppTrackState{
+			Status: StatusAvailable, CurrentVersion: "v1.1.0", LatestVersion: "v1.2.0",
+		}
+		applyArchivedAppFailure(background, archived, false)
+		if background.Status != StatusFailed || background.AttemptID != "attempt-2" ||
+			background.LastError != archived.LastError || !strings.Contains(background.Message, "paused") {
+			t.Fatalf("background app state = %#v, want archived failure suppression", background)
+		}
+
+		manual := &AppTrackState{
+			Status: StatusAvailable, CurrentVersion: "v1.1.0", LatestVersion: "v1.2.0",
+		}
+		applyArchivedAppFailure(manual, archived, true)
+		if manual.Status != StatusAvailable || manual.AttemptID != "" || manual.LastError != "" {
+			t.Fatalf("manual app state = %#v, want recovery to remain available", manual)
+		}
+
+		updated := &AppTrackState{
+			Status: StatusUpToDate, CurrentVersion: "v1.2.0", LatestVersion: "v1.2.0",
+		}
+		applyArchivedAppFailure(updated, archived, false)
+		if updated.Status != StatusUpToDate || updated.AttemptID != "" || updated.LastError != "" {
+			t.Fatalf("updated app state = %#v, want stale failure ignored", updated)
+		}
+		if got := consecutiveAppFailures("v1.1.0", archived); got != 2 {
+			t.Fatalf("consecutiveAppFailures(old version) = %d, want 2", got)
+		}
+		if got := consecutiveAppFailures("v1.2.0", archived); got != 0 {
+			t.Fatalf("consecutiveAppFailures(updated version) = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should select only the platform-supported desktop updater asset", func(t *testing.T) {
+		t.Parallel()
+
+		release := &Release{
+			Version: "v1.2.0",
+			Assets: []ReleaseAsset{
+				{Name: "CompozyOS-1.2.0-darwin-arm64.dmg"},
+				{Name: "CompozyOS-1.2.0-darwin-arm64.zip"},
+				{Name: "CompozyOS-1.2.0-linux-arm64.AppImage"},
+			},
+		}
+		mac, _ := newManagerWithExecutable(t, Config{RuntimeOS: runtimeOSDarwin, RuntimeArch: runtimeArchARM64})
+		macAsset, err := mac.resolveAppReleaseAsset(release)
+		if err != nil {
+			t.Fatalf("resolveAppReleaseAsset(macOS) error = %v", err)
+		}
+		if macAsset.Name != "CompozyOS-1.2.0-darwin-arm64.zip" {
+			t.Fatalf("resolveAppReleaseAsset(macOS) = %q, want zip", macAsset.Name)
+		}
+
+		linux, _ := newManagerWithExecutable(t, Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchARM64})
+		linuxAsset, err := linux.resolveAppReleaseAsset(release)
+		if err != nil {
+			t.Fatalf("resolveAppReleaseAsset(Linux) error = %v", err)
+		}
+		if linuxAsset.Name != "CompozyOS-1.2.0-linux-arm64.AppImage" {
+			t.Fatalf("resolveAppReleaseAsset(Linux) = %q, want AppImage", linuxAsset.Name)
+		}
+
+		windows, _ := newManagerWithExecutable(t, Config{RuntimeOS: runtimeOSWindows, RuntimeArch: runtimeArchAMD64})
+		if _, err := windows.resolveAppReleaseAsset(release); err == nil {
+			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
+		}
+	})
 }
 
 func TestManagerFetchGitHubJSONCleanup(t *testing.T) {

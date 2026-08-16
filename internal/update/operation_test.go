@@ -225,6 +225,64 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 }
 
 func TestOperationPhaseMatrix(t *testing.T) {
+	t.Run("Should journal app watchdog and failure metadata with its phase transition", func(t *testing.T) {
+		t.Parallel()
+
+		store, _, _ := newOperationTestStore(t)
+		request := operationTestRequest(testOperationNow)
+		request.Targets = []Target{TargetApp}
+		request.Runtime = nil
+		operation, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Acquire() error = %v", err)
+		}
+		staged, err := store.Transition(
+			t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+			Transition{
+				Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp,
+				Phase: PhaseStaged, Percent: 100,
+			},
+		)
+		if err != nil {
+			t.Fatalf("Transition(staged) error = %v", err)
+		}
+		watchdog := testOperationNow.Add(5 * time.Minute)
+		applying, err := store.Transition(
+			t.Context(), staged.ID, staged.Holder.ExecutorGeneration, staged.Revision,
+			Transition{
+				Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp,
+				Phase: PhaseApplying, Percent: 0, AppWatchdogDeadline: &watchdog,
+			},
+		)
+		if err != nil {
+			t.Fatalf("Transition(applying) error = %v", err)
+		}
+		if applying.App == nil || !applying.App.WatchdogDeadline.Equal(watchdog) {
+			t.Fatalf("applying app metadata = %#v, want watchdog", applying.App)
+		}
+		failed, err := store.Transition(
+			t.Context(), applying.ID, applying.Holder.ExecutorGeneration, applying.Revision,
+			Transition{
+				Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp,
+				Phase: PhaseFailed, Percent: -1, IncrementAppFailures: true,
+			},
+		)
+		if err != nil {
+			t.Fatalf("Transition(failed) error = %v", err)
+		}
+		if failed.App == nil || failed.App.ConsecutiveFailures != 1 {
+			t.Fatalf("failed app metadata = %#v, want one failure", failed.App)
+		}
+		archived, err := store.LatestArchivedApp(t.Context())
+		if err != nil {
+			t.Fatalf("LatestArchivedApp() error = %v", err)
+		}
+		if archived == nil || archived.ID != failed.ID || archived.App == nil ||
+			archived.App.Phase != PhaseFailed || archived.App.ConsecutiveFailures != 1 {
+			t.Fatalf("LatestArchivedApp() = %#v, want failed app operation", archived)
+		}
+	})
+
 	t.Run("Should reject an app mutation before the runtime track finalizes", func(t *testing.T) {
 		t.Parallel()
 

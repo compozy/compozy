@@ -52,6 +52,8 @@ func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newDaemonBootstrapCommand(deps))
 	cmd.AddCommand(newDaemonRelaunchCommand(deps))
 	cmd.AddCommand(newDaemonUpdateCoordinatorCommand(deps))
+	cmd.AddCommand(newDaemonAppTransitionCommand(deps))
+	cmd.AddCommand(newDaemonAppDiagnosticBundleCommand(deps))
 	cmd.AddCommand(newDaemonStopCommand(deps))
 	return cmd
 }
