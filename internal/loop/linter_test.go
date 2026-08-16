@@ -14,6 +14,60 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
+func TestLinterShouldRejectDeletedNoProgressParameters(t *testing.T) {
+	t.Parallel()
+
+	definition, err := dsl.Parse([]byte(`
+apiVersion: compozy.loop/v1
+kind: Loop
+contract:
+  no_progress:
+    window: 2
+    hash_fields: [artifact]
+graph:
+  nodes: []
+  edges: []
+`))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	errList := loop.NewLinter().Lint(definition)
+	requireLintCodes(t, errList, loop.CodeUnknownParameter, loop.CodeNonTerminatingStructure)
+	requireLintMessageContains(t, errList, loop.CodeUnknownParameter, "contract.no_progress.hash_fields")
+}
+
+func TestLinterShouldValidatePredicateErrorPolicies(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		mutate func(*dsl.Definition)
+	}{
+		{
+			name: "Should reject an unknown predicate error policy",
+			mutate: func(definition *dsl.Definition) {
+				node := requireNode(t, definition, "agent")
+				node.Condition = "true"
+				node.OnEvalError = "retry"
+			},
+		},
+		{
+			name: "Should reject a policy without a condition or filter",
+			mutate: func(definition *dsl.Definition) {
+				requireNode(t, definition, "agent").OnEvalError = dsl.EvalErrorExit
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := validDefinition()
+			tt.mutate(&definition)
+			requireLintCodes(t, loop.NewLinter().Lint(definition), loop.CodeEvalErrorPolicyInvalid)
+		})
+	}
+}
+
 func TestLinterShouldValidateDefinitionNetworkParticipation(t *testing.T) {
 	t.Parallel()
 
@@ -269,7 +323,7 @@ func TestLinterShouldValidateGenerationHistoryReferences(t *testing.T) {
 		t.Parallel()
 
 		definition := validDefinition()
-		definition.Contract.StopWhen = "previous.generation >= 1 && best.score >= 0"
+		definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: "previous.generation >= 1 && best.score >= 0"}
 		requireNode(t, &definition, "agent").Params["prompt"] =
 			"Repair {{ .previous.verdicts.quality.blocking_issues }} from {{ .best.nodes.agent.output.summary }}"
 		requireLintCodes(t, loop.NewLinter().Lint(definition))
@@ -303,7 +357,7 @@ func TestLinterShouldValidateGenerationHistoryReferences(t *testing.T) {
 
 			definition := validDefinition()
 			if reference.asCondition {
-				definition.Contract.StopWhen = reference.path + " != null"
+				definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: reference.path + " != null"}
 			} else {
 				requireNode(t, &definition, "agent").Params["prompt"] = "{{ ." + reference.path + " }}"
 			}
@@ -671,7 +725,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 		{
 			name: "Should accept CEL member functions over node outputs",
 			mutate: func(def *dsl.Definition) {
-				def.Contract.StopWhen = `nodes.agent.output.summary.contains("done")`
+				def.Contract.StopWhen = dsl.StopWhenSpec{Expr: `nodes.agent.output.summary.contains("done")`}
 			},
 		},
 		{
@@ -689,7 +743,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 						},
 					},
 				}
-				def.Contract.StopWhen = `nodes.agent.output.issues[0].id == "issue-1"`
+				def.Contract.StopWhen = dsl.StopWhenSpec{Expr: `nodes.agent.output.issues[0].id == "issue-1"`}
 			},
 		},
 		{
@@ -707,7 +761,7 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 						},
 					},
 				}
-				def.Contract.StopWhen = `nodes.agent.output.issues[0].missing == "issue-1"`
+				def.Contract.StopWhen = dsl.StopWhenSpec{Expr: `nodes.agent.output.issues[0].missing == "issue-1"`}
 			},
 			wantCodes: []string{refs.CodeUnresolvablePath},
 		},
@@ -1846,10 +1900,7 @@ func validDefinition() dsl.Definition {
 				TerminalStates: []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
 			},
 			IterationCap: 3,
-			NoProgress: dsl.NoProgress{
-				Window:     2,
-				HashFields: []string{"nodes.agent.output.summary"},
-			},
+			NoProgress:   dsl.NoProgress{Window: 2},
 			Budget: dsl.Budget{
 				Tokens:       1000,
 				WallClockSec: 60,
@@ -1933,7 +1984,6 @@ func validFanoutGoalDefinition() dsl.Definition {
 	def := validDefinition()
 	goal := validGoalNode("agent", "")
 	def.Graph.Nodes[2] = goal
-	def.Contract.NoProgress.HashFields = []string{"nodes.agent.output.status"}
 	return def
 }
 

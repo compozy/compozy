@@ -265,10 +265,10 @@ func compileContract(
 		}
 		resolved.Templates[item.name] = template
 	}
-	if strings.TrimSpace(def.Contract.StopWhen) == "" {
+	if strings.TrimSpace(def.Contract.StopWhen.Expr) == "" {
 		return compileContractVerification(resolved, def, namespace)
 	}
-	condition, err := ctx.compileCondition(def.Contract.StopWhen, namespace)
+	condition, err := ctx.compileCondition(def.Contract.StopWhen.Expr, namespace)
 	if err != nil {
 		return fmt.Errorf("compile contract.stop_when: %w", err)
 	}

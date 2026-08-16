@@ -41,6 +41,7 @@ func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
 		loopRunEventGoalTurnCompleted:       {},
 		loopRunEventGoalStatusChanged:       {},
 		loopRunEventRuntimeApplied:          {},
+		loopRunEventPredicateDiagnostic:     {},
 		loopRunEventNodeRetryScheduled:      {},
 		loopRunEventNodePaused:              {},
 		loopRunEventNodeResumed:             {},
@@ -1555,6 +1556,61 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		}
 		if len(controls) != 3 || !controls[0].Quarantined || controls[0].Revision != 4 {
 			t.Fatalf("cap controls = %#v, want unchanged quarantine", controls)
+		}
+	})
+}
+
+// Invariant: coordinator boundaries persist gate revision counters by gate node and item lane.
+// The GlobalDB Loop suite owns the durable node-control projection.
+func TestGlobalDBGateRevisionCountersShouldPersistPerItem(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should round-trip isolated item counters through a coordinator boundary", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-gate-revisions", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(ctx, t, globalDB, run.ID, "gate-revisions", now)
+		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+				Actor: coordinatorActorContextForTest(), Now: now.Add(time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Yield: true,
+					Snapshot: taskpkg.GenerationSnapshot{
+						LoopRunID: string(run.ID), Generation: 1,
+						Payload: looppkg.GenerationSnapshotPayload{
+							Controls: []looppkg.NodeControlMutation{{
+								Kind: looppkg.NodeControlMutationGateRevision, NodeID: "quality_gate",
+								GateRevisions: map[int]int{0: 1, 2: 3}, At: now.Add(time.Second),
+							}},
+						},
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		)
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		controls, err := globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+		if err != nil {
+			t.Fatalf("ListNodeControls() error = %v", err)
+		}
+		if len(controls) != 1 || controls[0].NodeID != "quality_gate" ||
+			len(controls[0].GateRevisions) != 2 || controls[0].GateRevisions[0] != 1 ||
+			controls[0].GateRevisions[2] != 3 {
+			t.Fatalf("gate revision controls = %#v, want isolated lanes {0:1, 2:3}", controls)
 		}
 	})
 }

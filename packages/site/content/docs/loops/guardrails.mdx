@@ -61,11 +61,9 @@ restart restores the same `child_loop_run_id` without submitting another child. 
 
 <Workflow>
   <WorkflowStep title="Generation progress">
-    Each generation computes a typed hash over `contract.no_progress.hash_fields`. When the hash
-    fails to advance for `contract.no_progress.window` consecutive generations, the run ends
-    `stalled`. Alongside it, the **blocker-ID stall signature** compares the sorted set of
-    `blocking_issues[].id` a gate emits across the window — the same unresolved blockers repeating
-    means the Loop is spinning, and the run ends `stalled`.
+    The **blocker-ID stall signature** compares the sorted set of `blocking_issues[].id` a gate emits
+    across `contract.no_progress.window`. The same unresolved blockers repeating means the Loop is
+    spinning, and the run ends `stalled`.
   </WorkflowStep>
   <WorkflowStep title="Evidence-based liveness">
     A long-running node stays healthy while the daemon sees stream activity, an in-flight tool, or

@@ -247,6 +247,17 @@ func appendGenerationLifecycleEventWithExecutor(
 		return appendGenerationNodeWaitResumedEvent(ctx, exec, run, generation, event, at)
 	case looppkg.GenerationLifecycleEventTargetBreakerTransition:
 		return appendTargetBreakerTransitionEventWithExecutor(ctx, exec, run, generation, event, at)
+	case looppkg.GenerationLifecycleEventPredicateDiagnostic:
+		return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
+			loopRunEventPredicateDiagnostic, map[string]any{
+				loopRunEventPayloadKeyGeneration: generation,
+				"predicate":                      event.Predicate,
+				"code":                           event.DiagnosticCode,
+				loopRunEventPayloadKeyReason:     event.Reason,
+				"cost":                           event.Cost,
+				"cost_limit":                     event.CostLimit,
+				"warning":                        event.Warning,
+			}, at)
 	default:
 		return nil
 	}

@@ -11,10 +11,11 @@ import (
 type NodeControlMutationKind string
 
 const (
-	NodeControlMutationPause      NodeControlMutationKind = "pause"
-	NodeControlMutationQuarantine NodeControlMutationKind = "quarantine"
-	NodeControlMutationAttention  NodeControlMutationKind = "attention"
-	NodeControlMutationCancel     NodeControlMutationKind = "cancel"
+	NodeControlMutationPause        NodeControlMutationKind = "pause"
+	NodeControlMutationQuarantine   NodeControlMutationKind = "quarantine"
+	NodeControlMutationAttention    NodeControlMutationKind = "attention"
+	NodeControlMutationCancel       NodeControlMutationKind = "cancel"
+	NodeControlMutationGateRevision NodeControlMutationKind = "gate_revision"
 )
 
 // NodeControlMutation is persisted with the generation snapshot that caused it.
@@ -30,6 +31,7 @@ type NodeControlMutation struct {
 	// record a dependency-quarantined consumer routes to.
 	AttentionProducerNodeID string      `json:"attention_producer_node_id,omitempty"`
 	CancelState             CancelState `json:"cancel_state,omitempty"`
+	GateRevisions           map[int]int `json:"gate_revisions,omitempty"`
 	PauseActorKind          string      `json:"pause_actor_kind,omitempty"`
 	PauseActorID            string      `json:"pause_actor_id,omitempty"`
 	PauseReason             string      `json:"pause_reason,omitempty"`
@@ -50,6 +52,13 @@ func (m NodeControlMutation) normalized() NodeControlMutation {
 	m.PauseRuleID = strings.TrimSpace(m.PauseRuleID)
 	if len(m.QuarantineEntry) > 0 {
 		m.QuarantineEntry = append(json.RawMessage(nil), m.QuarantineEntry...)
+	}
+	if len(m.GateRevisions) > 0 {
+		cloned := make(map[int]int, len(m.GateRevisions))
+		for itemIndex, revision := range m.GateRevisions {
+			cloned[itemIndex] = revision
+		}
+		m.GateRevisions = cloned
 	}
 	if !m.At.IsZero() {
 		m.At = m.At.UTC()
@@ -78,6 +87,15 @@ func (m NodeControlMutation) validate() error {
 	case NodeControlMutationCancel:
 		if !m.ExpectExisting || m.CancelState != CancelStateCanceled {
 			return fmt.Errorf("%w: cancel mutation must close an existing node control", ErrValidation)
+		}
+	case NodeControlMutationGateRevision:
+		if len(m.GateRevisions) == 0 {
+			return fmt.Errorf("%w: gate revision mutation requires counters", ErrValidation)
+		}
+		for itemIndex, revision := range m.GateRevisions {
+			if itemIndex < 0 || revision < 1 {
+				return fmt.Errorf("%w: gate revision counter is invalid", ErrValidation)
+			}
 		}
 	default:
 		return fmt.Errorf("%w: node control mutation kind is invalid: %q", ErrValidation, m.Kind)

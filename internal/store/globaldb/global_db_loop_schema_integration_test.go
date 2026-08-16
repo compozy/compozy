@@ -212,6 +212,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		assertTableHasColumn(t, upgraded.db, "loop_runs", "cancel_requested")
 		assertTableHasColumn(t, upgraded.db, "loop_runs", "cancel_kind")
 		assertTableHasColumn(t, upgraded.db, "loop_run_events", "delivery_key")
+		assertTableHasColumn(t, upgraded.db, "loop_node_controls", "gate_revisions_json")
 		assertMigratedLoopLifecycleRows(t, upgraded.db, workspaceID)
 		if _, err := upgraded.db.ExecContext(
 			verificationCtx,
@@ -794,6 +795,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"cancel_requested_at",
 		"last_evidence_at",
 		"death_resume_streak",
+		"gate_revisions_json",
 		"revision",
 		"updated_at",
 	})
@@ -1036,6 +1038,20 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	for _, table := range []string{"loop_node_controls", "loop_node_attempts", "loop_node_waits", "loop_effect_outbox"} {
 		assertTableSQLContains(t, globalDB.db, table, "REFERENCES loop_runs(id) ON DELETE CASCADE")
 	}
+	assertSchemaSQLContainsNormalized(
+		t,
+		globalDB.db,
+		"table",
+		"loop_node_controls",
+		"gate_revisions_json TEXT NOT NULL DEFAULT '{}'",
+	)
+	assertSchemaSQLContainsNormalized(
+		t,
+		globalDB.db,
+		"table",
+		"loop_node_controls",
+		"json_valid(gate_revisions_json) AND json_type(gate_revisions_json) = 'object'",
+	)
 	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, loop_name, node_id)")
 	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, loop_name)")
 	assertGoalDurableStateSchema(t, globalDB)

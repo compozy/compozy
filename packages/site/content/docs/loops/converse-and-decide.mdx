@@ -59,7 +59,7 @@ contract:
   goal: "Reach a harvested team decision in {{ .inputs.channel }} and act on it."
   definition_of_done: "A designated result signal was harvested and the branch acted on it."
   iteration_cap: 1
-  no_progress: { window: 1, hash_fields: [gate_verdict] }
+  no_progress: { window: 1 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
   terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
 

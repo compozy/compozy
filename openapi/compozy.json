@@ -229179,12 +229179,6 @@
                             },
                             "no_progress": {
                               "properties": {
-                                "hash_fields": {
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "type": "array"
-                                },
                                 "window": {
                                   "type": "integer"
                                 }
@@ -229605,7 +229599,32 @@
                               "type": "array"
                             },
                             "stop_when": {
-                              "type": "string"
+                              "oneOf": [
+                                {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "expr": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "on_eval_error": {
+                                      "enum": [
+                                        "fail",
+                                        "exit"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "expr"
+                                  ],
+                                  "type": "object"
+                                }
+                              ]
                             },
                             "terminal_states": {
                               "items": {
@@ -231047,12 +231066,6 @@
                         },
                         "no_progress": {
                           "properties": {
-                            "hash_fields": {
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
                             "window": {
                               "type": "integer"
                             }
@@ -231473,7 +231486,32 @@
                           "type": "array"
                         },
                         "stop_when": {
-                          "type": "string"
+                          "oneOf": [
+                            {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "expr": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "on_eval_error": {
+                                  "enum": [
+                                    "fail",
+                                    "exit"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "expr"
+                              ],
+                              "type": "object"
+                            }
+                          ]
                         },
                         "terminal_states": {
                           "items": {
@@ -233874,6 +233912,7 @@
                             "goal_turn_completed",
                             "goal_status_changed",
                             "runtime_applied",
+                            "predicate_diagnostic",
                             "node_retry_scheduled",
                             "node_paused",
                             "node_resumed",
@@ -240402,12 +240441,6 @@
                               },
                               "no_progress": {
                                 "properties": {
-                                  "hash_fields": {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "type": "array"
-                                  },
                                   "window": {
                                     "type": "integer"
                                   }
@@ -240828,7 +240861,32 @@
                                 "type": "array"
                               },
                               "stop_when": {
-                                "type": "string"
+                                "oneOf": [
+                                  {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "expr": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "on_eval_error": {
+                                        "enum": [
+                                          "fail",
+                                          "exit"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "expr"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
                               },
                               "terminal_states": {
                                 "items": {
@@ -241545,12 +241603,6 @@
                           },
                           "no_progress": {
                             "properties": {
-                              "hash_fields": {
-                                "items": {
-                                  "type": "string"
-                                },
-                                "type": "array"
-                              },
                               "window": {
                                 "type": "integer"
                               }
@@ -241971,7 +242023,32 @@
                             "type": "array"
                           },
                           "stop_when": {
-                            "type": "string"
+                            "oneOf": [
+                              {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expr": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "on_eval_error": {
+                                    "enum": [
+                                      "fail",
+                                      "exit"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "expr"
+                                ],
+                                "type": "object"
+                              }
+                            ]
                           },
                           "terminal_states": {
                             "items": {
@@ -243187,12 +243264,6 @@
                                 },
                                 "no_progress": {
                                   "properties": {
-                                    "hash_fields": {
-                                      "items": {
-                                        "type": "string"
-                                      },
-                                      "type": "array"
-                                    },
                                     "window": {
                                       "type": "integer"
                                     }
@@ -243613,7 +243684,32 @@
                                   "type": "array"
                                 },
                                 "stop_when": {
-                                  "type": "string"
+                                  "oneOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "expr": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "on_eval_error": {
+                                          "enum": [
+                                            "fail",
+                                            "exit"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "expr"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
                                 },
                                 "terminal_states": {
                                   "items": {
@@ -245808,12 +245904,6 @@
                                 },
                                 "no_progress": {
                                   "properties": {
-                                    "hash_fields": {
-                                      "items": {
-                                        "type": "string"
-                                      },
-                                      "type": "array"
-                                    },
                                     "window": {
                                       "type": "integer"
                                     }
@@ -246234,7 +246324,32 @@
                                   "type": "array"
                                 },
                                 "stop_when": {
-                                  "type": "string"
+                                  "oneOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "expr": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "on_eval_error": {
+                                          "enum": [
+                                            "fail",
+                                            "exit"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "expr"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
                                 },
                                 "terminal_states": {
                                   "items": {
@@ -247841,12 +247956,6 @@
                           },
                           "no_progress": {
                             "properties": {
-                              "hash_fields": {
-                                "items": {
-                                  "type": "string"
-                                },
-                                "type": "array"
-                              },
                               "window": {
                                 "type": "integer"
                               }
@@ -248267,7 +248376,32 @@
                             "type": "array"
                           },
                           "stop_when": {
-                            "type": "string"
+                            "oneOf": [
+                              {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expr": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "on_eval_error": {
+                                    "enum": [
+                                      "fail",
+                                      "exit"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "expr"
+                                ],
+                                "type": "object"
+                              }
+                            ]
                           },
                           "terminal_states": {
                             "items": {
@@ -249487,12 +249621,6 @@
                                 },
                                 "no_progress": {
                                   "properties": {
-                                    "hash_fields": {
-                                      "items": {
-                                        "type": "string"
-                                      },
-                                      "type": "array"
-                                    },
                                     "window": {
                                       "type": "integer"
                                     }
@@ -249913,7 +250041,32 @@
                                   "type": "array"
                                 },
                                 "stop_when": {
-                                  "type": "string"
+                                  "oneOf": [
+                                    {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "expr": {
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "on_eval_error": {
+                                          "enum": [
+                                            "fail",
+                                            "exit"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "expr"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
                                 },
                                 "terminal_states": {
                                   "items": {
@@ -256623,12 +256776,6 @@
                             },
                             "no_progress": {
                               "properties": {
-                                "hash_fields": {
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "type": "array"
-                                },
                                 "window": {
                                   "type": "integer"
                                 }
@@ -257049,7 +257196,32 @@
                               "type": "array"
                             },
                             "stop_when": {
-                              "type": "string"
+                              "oneOf": [
+                                {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "expr": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "on_eval_error": {
+                                      "enum": [
+                                        "fail",
+                                        "exit"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "expr"
+                                  ],
+                                  "type": "object"
+                                }
+                              ]
                             },
                             "terminal_states": {
                               "items": {
@@ -257396,12 +257568,6 @@
                             },
                             "no_progress": {
                               "properties": {
-                                "hash_fields": {
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "type": "array"
-                                },
                                 "window": {
                                   "type": "integer"
                                 }
@@ -257822,7 +257988,32 @@
                               "type": "array"
                             },
                             "stop_when": {
-                              "type": "string"
+                              "oneOf": [
+                                {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "expr": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "on_eval_error": {
+                                      "enum": [
+                                        "fail",
+                                        "exit"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "expr"
+                                  ],
+                                  "type": "object"
+                                }
+                              ]
                             },
                             "terminal_states": {
                               "items": {
@@ -258456,12 +258647,6 @@
                             },
                             "no_progress": {
                               "properties": {
-                                "hash_fields": {
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "type": "array"
-                                },
                                 "window": {
                                   "type": "integer"
                                 }
@@ -258882,7 +259067,32 @@
                               "type": "array"
                             },
                             "stop_when": {
-                              "type": "string"
+                              "oneOf": [
+                                {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "expr": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "on_eval_error": {
+                                      "enum": [
+                                        "fail",
+                                        "exit"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "expr"
+                                  ],
+                                  "type": "object"
+                                }
+                              ]
                             },
                             "terminal_states": {
                               "items": {
@@ -259229,12 +259439,6 @@
                             },
                             "no_progress": {
                               "properties": {
-                                "hash_fields": {
-                                  "items": {
-                                    "type": "string"
-                                  },
-                                  "type": "array"
-                                },
                                 "window": {
                                   "type": "integer"
                                 }
@@ -259655,7 +259859,32 @@
                               "type": "array"
                             },
                             "stop_when": {
-                              "type": "string"
+                              "oneOf": [
+                                {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "expr": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "on_eval_error": {
+                                      "enum": [
+                                        "fail",
+                                        "exit"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "expr"
+                                  ],
+                                  "type": "object"
+                                }
+                              ]
                             },
                             "terminal_states": {
                               "items": {
@@ -260839,12 +261068,6 @@
                           },
                           "no_progress": {
                             "properties": {
-                              "hash_fields": {
-                                "items": {
-                                  "type": "string"
-                                },
-                                "type": "array"
-                              },
                               "window": {
                                 "type": "integer"
                               }
@@ -261265,7 +261488,32 @@
                             "type": "array"
                           },
                           "stop_when": {
-                            "type": "string"
+                            "oneOf": [
+                              {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expr": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "on_eval_error": {
+                                    "enum": [
+                                      "fail",
+                                      "exit"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "expr"
+                                ],
+                                "type": "object"
+                              }
+                            ]
                           },
                           "terminal_states": {
                             "items": {

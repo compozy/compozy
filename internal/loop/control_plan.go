@@ -20,6 +20,7 @@ func buildInitialControlAwareCoordinatorPlan(
 	effective EffectiveConfig,
 	gateEvaluator gate.GateEvaluator,
 	gateDecisions GateDecisionReader,
+	nodeControls NodeControlReader,
 	runtimeCatalog WorkspaceRuntimeCatalog,
 	fanOutWidth int,
 	watchRuntime coordinatorWatchRuntime,
@@ -53,6 +54,7 @@ func buildInitialControlAwareCoordinatorPlan(
 			effective:          effective,
 			gateEvaluator:      gateEvaluator,
 			gateDecisions:      gateDecisions,
+			nodeControls:       nodeControls,
 			runtimeCatalog:     runtimeCatalog,
 			fanOutWidth:        fanOutWidth,
 			watchRuntime:       watchRuntime,
@@ -182,6 +184,7 @@ func evaluateControlNode(
 		eval.topology,
 		eval.watchRuntime,
 		eval.watchEventsRuntime,
+		eval.gateEvaluations,
 		eval.history,
 		output,
 		node,
@@ -217,6 +220,7 @@ func evaluateControlNodeKind(
 			output,
 			node,
 			outputs,
+			eval.gateEvaluations,
 		)
 	case dsl.ControlGate:
 		gateOutput, terminal, err := evaluateGateNode(
@@ -228,12 +232,14 @@ func evaluateControlNodeKind(
 			eval.effective,
 			eval.gateEvaluator,
 			eval.gateDecisions,
+			eval.nodeControls,
 			eval.runtimeCatalog,
 			eval.history,
 			output,
 			node,
 			*outputs,
 			eval.gateEvaluations,
+			eval.now,
 		)
 		if err != nil || terminal == nil || terminal.Status != string(StatusNeedsApproval) {
 			return gateOutput, terminal, err

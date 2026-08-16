@@ -2291,7 +2291,6 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			dsl.Edge{From: "fan", To: "cancel_child"},
 			dsl.Edge{From: "fan", To: "abandon_child"},
 		)
-		definition.Contract.NoProgress.HashFields = []string{"nodes.agent.output.loop_run_id"}
 		store := newFakeLoopStore()
 		svc := newTestService(t, store, definition)
 		parent, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
@@ -2348,7 +2347,6 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
 			Params: dsl.NodeParams{"loop": "child-loop", "mode": string(dsl.RunLoopAwait)},
 		}
-		definition.Contract.NoProgress.HashFields = []string{"nodes.agent.output.loop_run_id"}
 		store := newFakeLoopStore()
 		var activated task.Run
 		svc := newTestServiceWithOptions(

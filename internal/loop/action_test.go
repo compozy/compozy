@@ -470,7 +470,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				DefinitionOfDone: "The action registry works",
 				Constraints:      []string{"Do not create a second registry"},
 				Boundaries:       []string{"Keep source and control closed"},
-				StopWhen:         "generation > 2",
+				StopWhen:         dsl.StopWhenSpec{Expr: "generation > 2"},
 			},
 			RuntimeSelection: &loop.ActionRuntimeSelection{Catalog: actionTestRuntimeCatalog{}},
 			Environment:      &dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot},

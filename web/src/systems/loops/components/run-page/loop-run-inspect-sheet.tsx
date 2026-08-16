@@ -67,6 +67,12 @@ function fanOutTileValue(graph: LoopGraph | null): string {
   return fanOutSummary(node) ?? node.id;
 }
 
+function stopWhenTileValue(stopWhen: LoopDefinition["contract"]["stop_when"]): string {
+  if (!stopWhen) return "—";
+  if (typeof stopWhen === "string") return stopWhen;
+  return `${stopWhen.expr} · on error ${stopWhen.on_eval_error ?? "exit"}`;
+}
+
 /**
  * Single-line `budget_on_exceeded` label for the inspect "On limit" tile. Mirrors
  * the split `value`/`ceiling` copy `buildLoopLimits` renders on the limits rail
@@ -91,7 +97,7 @@ function buildTiles(
         ? `${verification[0].id} · ${verification[0].type}`
         : `${verification[0].id} · ${verification[0].type} +${verification.length - 1}`;
   return [
-    { label: "Stop when", value: contract?.stop_when || "—" },
+    { label: "Stop when", value: stopWhenTileValue(contract?.stop_when) },
     { label: "Verification", value: verificationValue },
     { label: "Re-attempt", value: run.reattempt_strategy },
     { label: "Concurrency", value: definition?.concurrency || "—" },

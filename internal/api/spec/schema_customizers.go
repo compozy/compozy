@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -17,6 +18,13 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		schema.Format = schemaFormatBinary
 	},
 	reflect.TypeFor[contract.LoopGraph](): customizeLoopGraphSchema,
+	reflect.TypeFor[dsl.StopWhenSpec]():   customizeStopWhenSpecSchema,
+	reflect.TypeFor[dsl.EvalErrorPolicy](): func(schema *openapi3.Schema) {
+		*schema = *openapi3.NewStringSchema().WithEnum(
+			string(dsl.EvalErrorFail),
+			string(dsl.EvalErrorExit),
+		)
+	},
 	reflect.TypeFor[contract.LoopEffectSpec](): func(schema *openapi3.Schema) {
 		*schema = *loopEffectSchema()
 	},

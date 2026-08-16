@@ -38,6 +38,7 @@ const (
 	loopRunEventGoalTurnCompleted       = "goal_turn_completed"
 	loopRunEventGoalStatusChanged       = "goal_status_changed"
 	loopRunEventRuntimeApplied          = "runtime_applied"
+	loopRunEventPredicateDiagnostic     = "predicate_diagnostic"
 	loopRunEventNodeRetryScheduled      = "node_retry_scheduled"
 	loopRunEventStaleScheduleDropped    = "stale_schedule_dropped"
 	loopRunEventLateArrival             = "late_arrival"
@@ -269,6 +270,7 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventGoalTurnCompleted,
 		loopRunEventGoalStatusChanged,
 		loopRunEventRuntimeApplied,
+		loopRunEventPredicateDiagnostic,
 		loopRunEventNodeRetryScheduled,
 		loopRunEventStaleScheduleDropped,
 		loopRunEventLateArrival,

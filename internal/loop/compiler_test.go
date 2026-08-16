@@ -512,7 +512,7 @@ func compilerDefinition(t *testing.T) dsl.Definition {
 
 	def := validDefinition()
 	def.Concurrency = dsl.ConcurrencyQueue
-	def.Contract.StopWhen = "generation > 10"
+	def.Contract.StopWhen = dsl.StopWhenSpec{Expr: "generation > 10"}
 	def.Contract.Verification = []dsl.GateCriterion{{
 		ID:     "dod",
 		Type:   dsl.CriterionAgentJudge,

@@ -44,6 +44,7 @@ type Node struct {
 	MaxParallel         int                 `json:"max_parallel,omitempty"   yaml:"max_parallel,omitempty"`
 	MaxFanOut           int                 `json:"max_fan_out,omitempty"    yaml:"max_fan_out,omitempty"`
 	Condition           string              `json:"condition,omitempty"      yaml:"condition,omitempty"`
+	OnEvalError         EvalErrorPolicy     `json:"on_eval_error,omitempty"  yaml:"on_eval_error,omitempty"`
 	Criteria            []GateCriterion     `json:"criteria,omitempty"       yaml:"criteria,omitempty"`
 	VerdictPolicy       VerdictPolicy       `json:"verdict_policy,omitempty" yaml:"verdict_policy,omitempty"`
 	OnResult            map[string]any      `json:"on_result,omitempty"      yaml:"on_result,omitempty"`

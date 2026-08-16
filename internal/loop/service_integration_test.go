@@ -138,7 +138,6 @@ func TestServiceIntegrationExecutedDefinitionSnapshot(t *testing.T) {
 		definition.Inputs = map[string]dsl.Input{
 			"slug": {Type: dsl.InputTypeString, Required: true},
 		}
-		definition.Contract.NoProgress.HashFields = []string{"nodes.draft.output.summary"}
 		definition.Graph = dsl.Graph{
 			Nodes: []dsl.Node{
 				{

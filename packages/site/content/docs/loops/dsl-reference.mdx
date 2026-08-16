@@ -70,7 +70,9 @@ contract:
   definition_of_done: "All tasks pass their gates and the project's checks are green."
   constraints: [] # optional guardrail statements
   boundaries: [] # optional scope statements
-  stop_when: "" # optional CEL terminal condition
+  stop_when: # optional CEL terminal condition; a scalar expression is also valid
+    expr: "generation >= 4"
+    on_eval_error: exit # fail | exit
   verification: # gate criteria that decide "done"
     - {
         id: checks,
@@ -80,7 +82,7 @@ contract:
       }
   terminal_states: [done, no-op, blocked, failed, exhausted, stalled, canceled]
   iteration_cap: 50 # 0 = unbounded (watch Loops)
-  no_progress: { window: 3, hash_fields: [delivery_artifact, gate_verdict] }
+  no_progress: { window: 3 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
   runtime_defaults:
     worker: { provider: codex, model: gpt-5.4, reasoning: high }
@@ -90,9 +92,11 @@ contract:
       runtime: { model: gpt-5.5-codex }
 ```
 
-`verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. The stop
-model — `iteration_cap`, `no_progress`, and `budget` — is documented in full on the
-[guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed seven outcomes.
+`verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. `stop_when`
+accepts either a CEL string or the strict `{ expr, on_eval_error }` object. A broken continuation
+predicate exits by default so it cannot keep a run alive; set `on_eval_error: fail` to end the run
+`failed` instead. The stop model — `iteration_cap`, `no_progress`, and `budget` — is documented in
+full on the [guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed seven outcomes.
 `runtime_defaults.worker` seeds worker runtime fields; `runtime_defaults.judge` seeds judge fields.
 Each `runtime_rules` entry matches exactly one task `id`, `type`, or `complexity` and replaces only
 the runtime fields it sets.
@@ -160,13 +164,18 @@ rejects the node run deterministically before an ungated session can start.
 | ---------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `fan-out`  | Run a batch of branches over a collection | `collection`, `filter?`, `batch_size` (default 1), `max_parallel`, `max_fan_out` (ceiling 64)   |
 | `collect`  | Join barrier — waits for fanned branches  | —                                                                                               |
-| `branch`   | Route on a CEL condition                  | `condition` (true/false edges)                                                                  |
+| `branch`   | Route on a CEL condition                  | `condition` (true/false edges), optional `on_eval_error: fail \| exit`                           |
 | `gate`     | Verify against criteria and route         | `criteria`, `verdict_policy`, `on_result`, `max_revisions`                                      |
 | `sub-loop` | An inline nested Loop                     | `body` (graph) + `contract`                                                                     |
 | `wait`     | Park on time or one durable event         | `params`: exactly one of `for`, `until`, `event`; optional `expect`, `ahead_arrival`, `expires` |
 
 `fan-out` exposes `item` and `index` to its branch scope — a single element at `batch_size: 1`, an
 array slice above it.
+
+Routing predicates fail the node by default when CEL evaluation fails. A `branch` or filtered
+`watch-events` node may set `on_eval_error: exit` to end the Loop successfully instead. Predicate
+costs at or above 80% of the configured CEL limit emit a durable warning; exceeding the limit is an
+authoring failure handled by the same policy.
 
 ### Node reliability fields
 

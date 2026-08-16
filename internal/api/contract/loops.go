@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
@@ -372,7 +373,7 @@ type LoopContract struct {
 	DefinitionOfDone string               `json:"definition_of_done"`
 	Constraints      []string             `json:"constraints,omitempty"`
 	Boundaries       []string             `json:"boundaries,omitempty"`
-	StopWhen         string               `json:"stop_when,omitempty"`
+	StopWhen         dsl.StopWhenSpec     `json:"stop_when,omitempty,omitzero"`
 	Verification     []LoopGateCriterion  `json:"verification,omitempty"`
 	TerminalStates   []string             `json:"terminal_states,omitempty"`
 	IterationCap     int                  `json:"iteration_cap"`
@@ -384,8 +385,7 @@ type LoopContract struct {
 }
 
 type LoopNoProgress struct {
-	Window     int      `json:"window"`
-	HashFields []string `json:"hash_fields,omitempty"`
+	Window int `json:"window"`
 }
 
 type LoopBudget struct {
@@ -415,6 +415,7 @@ type LoopGraphNode struct {
 	MaxParallel   int                          `json:"max_parallel,omitempty"`
 	MaxFanOut     int                          `json:"max_fan_out,omitempty"`
 	Condition     string                       `json:"condition,omitempty"`
+	OnEvalError   dsl.EvalErrorPolicy          `json:"on_eval_error,omitempty"`
 	Criteria      []LoopGateCriterion          `json:"criteria,omitempty"`
 	VerdictPolicy string                       `json:"verdict_policy,omitempty"`
 	OnResult      map[string]any               `json:"on_result,omitempty"`

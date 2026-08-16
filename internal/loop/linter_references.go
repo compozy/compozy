@@ -20,8 +20,8 @@ func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
 			c.warnUnknownOutputReferences("", template.References, narrativeNamespace)
 		}
 	}
-	if strings.TrimSpace(c.def.Contract.StopWhen) != "" {
-		condition, err := c.compileCondition(c.def.Contract.StopWhen, namespace)
+	if strings.TrimSpace(c.def.Contract.StopWhen.Expr) != "" {
+		condition, err := c.compileCondition(c.def.Contract.StopWhen.Expr, namespace)
 		if err != nil {
 			c.addRefsError("", err)
 		} else if condition != nil {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -508,6 +509,71 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 			t.Fatalf("wake key = %q, want %q", got, want)
 		}
 	})
+
+	for _, tt := range []struct {
+		name       string
+		policy     dsl.EvalErrorPolicy
+		wantStatus string
+		wantDone   bool
+	}{
+		{
+			name:       "Should fail a broken event filter closed",
+			wantStatus: generationOutputFailed,
+		},
+		{
+			name:       "Should exit when a broken event filter requests it",
+			policy:     dsl.EvalErrorExit,
+			wantStatus: generationOutputSucceeded,
+			wantDone:   true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
+			loopRun := watchLoopRun(StatusWatching, 1, now.Add(-time.Minute))
+			coordinatorRun := watchCoordinatorRun(loopRun)
+			filter := `size(event.task_id) / 0 > 1`
+			definition := watchEventsDefinitionForTest(filter)
+			definition.Graph.Nodes[0].OnEvalError = tt.policy
+			runner := newWatchEventsCoordinatorRunnerForTest(
+				t,
+				loopRun,
+				coordinatorRun,
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+					{
+						Generation: 1, NodeID: "watch_tasks", Status: generationOutputPending,
+						OutputRef: watchEventsPendingRefForTest(t, 1, filter),
+					},
+					{Generation: 1, NodeID: "summarize", Status: generationOutputPending},
+				}}},
+				compileCoordinatorControlDefinition(t, definition),
+				&watchEventsLedgerForTest{rows: []WatchEvent{
+					watchTaskStatusEventForTest(2, "task-1", "blocked"),
+				}},
+			)
+			runner.now = func() time.Time { return now }
+
+			plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			outputs := outputsByNodeForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+			if outputs["watch_tasks"].Status != tt.wantStatus {
+				t.Fatalf("watch filter output status = %q, want %q", outputs["watch_tasks"].Status, tt.wantStatus)
+			}
+			if gotDone := plan.Terminal != nil && plan.Terminal.Status == string(StatusDone); gotDone != tt.wantDone {
+				t.Fatalf("watch filter terminal = %#v, want done=%v", plan.Terminal, tt.wantDone)
+			}
+			payload := coordinatorSnapshotPayloadForTest(t, plan)
+			if !slices.ContainsFunc(payload.Events, func(event GenerationLifecycleEventIntent) bool {
+				return event.Kind == GenerationLifecycleEventPredicateDiagnostic &&
+					event.DiagnosticCode == "predicate_evaluation_failed"
+			}) {
+				t.Fatalf("watch filter events = %#v, want predicate diagnostic", payload.Events)
+			}
+		})
+	}
 }
 
 // Invariant: event waits consume a matching durable event on entry by default, while reject
@@ -982,7 +1048,7 @@ func BenchmarkFilterWatchEventsRows(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			if _, _, _, err := filterWatchEventsRows(
+			if _, _, _, _, err := filterWatchEventsRows(
 				&watchEventsEvaluationContext{
 					control: controlEvalContext{
 						run: run, generation: 1, resolved: resolved, topology: topology,

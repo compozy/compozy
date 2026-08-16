@@ -44,7 +44,7 @@ const qualityGateContract: LoopContract = {
   definition_of_done: "Every configured gate passes.",
   iteration_cap: 50,
   budget: { tokens: 500_000, wall_clock_sec: 3_600, on_exceeded: "halt" },
-  no_progress: { window: 3, hash_fields: ["delivery_artifact", "gate_verdict"] },
+  no_progress: { window: 3 },
   boundaries: ["Do not touch unrelated packages."],
   constraints: ["No destructive git."],
   terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
@@ -71,7 +71,7 @@ const reviewContract: LoopContract = {
   stop_when: "nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0",
   iteration_cap: 3,
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "escalate" },
-  no_progress: { window: 2, hash_fields: ["nodes.review.output.issues"] },
+  no_progress: { window: 2 },
 };
 
 function buildRun(

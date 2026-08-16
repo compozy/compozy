@@ -23,6 +23,7 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -95,6 +96,55 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		}
 	})
 
+	t.Run("Should exit a broken stop-when with a durable diagnostic", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
+
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  mockFixturePath(t, "loop_events_fixture.json"),
+				FixtureAgent: "loop_events",
+				AgentName:    "loop-events-agent",
+			}},
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		definition := loopEventsDefinition()
+		definition.Meta.Name = "loop-broken-stop-when"
+		definition.Contract.StopWhen = dsl.StopWhenSpec{
+			Expr: "size(nodes.probe.output.summary) / 0 > 1",
+		}
+		definition.Contract.IterationCap = 3
+		createLoopViaHTTP(t, ctx, harness, definition)
+		run := runLoopViaHTTP(t, ctx, harness, definition.Meta.Name)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
+
+		events := readLoopRunSSEUntil(
+			t,
+			ctx,
+			harness,
+			loopRunEventsPath(harness.WorkspaceID, run.ID, 0),
+			func(events []loopRunSSEEvent) bool {
+				return loopSSEKinds(events).Contains(
+					string(compozycontract.LoopRunEventPredicateDiagnostic),
+				)
+			},
+		)
+		assertLoopSSEPayloadContains(
+			t,
+			events,
+			compozycontract.LoopRunEventPredicateDiagnostic,
+			"predicate_evaluation_failed",
+		)
+		assertLoopSSEPayloadContains(
+			t,
+			events,
+			compozycontract.LoopRunEventPredicateDiagnostic,
+			"contract.stop_when",
+		)
+	})
+
 	t.Run("Should resume a paused Loop into its next generation after restart", func(t *testing.T) {
 		t.Parallel()
 		acpmock.RequireDriver(t)
@@ -117,7 +167,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		definition := loopEventsDefinition()
 		definition.Meta.Name = "loop-control-restart"
 		definition.Meta.Description = "Runtime E2E probe for durable Loop resume."
-		definition.Contract.StopWhen = "generation > 1"
+		definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: "generation > 1"}
 		definition.Contract.IterationCap = 3
 		definition.Graph.Nodes[0].Params["agent"] = "loop-control-restart-agent"
 		definition.Graph.Nodes[0].Params["prompt"] = "loop control restart probe"
@@ -370,12 +420,9 @@ func loopEventsDefinition() compozycontract.LoopDefinitionDocument {
 		Contract: compozycontract.LoopContract{
 			Goal:             "Emit rich Loop run events.",
 			DefinitionOfDone: "The probe action completes.",
-			StopWhen:         "nodes.probe.status == 'succeeded'",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.probe.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress: compozycontract.LoopNoProgress{
-				Window:     2,
-				HashFields: []string{"delivery_artifact"},
-			},
+			NoProgress:       compozycontract.LoopNoProgress{Window: 2},
 			Budget: compozycontract.LoopBudget{
 				Tokens:       0,
 				WallClockSec: 0,
@@ -422,12 +469,9 @@ func awaitedChildHoldDefinition() compozycontract.LoopDefinitionDocument {
 		Contract: compozycontract.LoopContract{
 			Goal:             "Hold a child run in a live state.",
 			DefinitionOfDone: "The durable wait is released.",
-			StopWhen:         "nodes.hold.status == 'succeeded'",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.hold.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress: compozycontract.LoopNoProgress{
-				Window:     2,
-				HashFields: []string{"nodes.hold.status"},
-			},
+			NoProgress:       compozycontract.LoopNoProgress{Window: 2},
 			Budget: compozycontract.LoopBudget{
 				OnExceeded: compozycontract.LoopBudgetExceededHalt,
 			},
@@ -457,12 +501,9 @@ func awaitedParentProbeDefinition() compozycontract.LoopDefinitionDocument {
 		Contract: compozycontract.LoopContract{
 			Goal:             "Run two child Loops in strict sequence.",
 			DefinitionOfDone: "Both awaited child Loops finish in authored order.",
-			StopWhen:         "nodes.second_child.status == 'succeeded'",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.second_child.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress: compozycontract.LoopNoProgress{
-				Window:     2,
-				HashFields: []string{"nodes.first_child.status", "nodes.second_child.status"},
-			},
+			NoProgress:       compozycontract.LoopNoProgress{Window: 2},
 			Budget: compozycontract.LoopBudget{
 				OnExceeded: compozycontract.LoopBudgetExceededHalt,
 			},
@@ -674,7 +715,7 @@ contract:
   verification: []
   terminal_states: [done, failed, blocked, exhausted, stalled]
   iteration_cap: 2
-  no_progress: { window: 2, hash_fields: ["nodes.task_activity.output.events"] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:

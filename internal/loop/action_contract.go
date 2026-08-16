@@ -76,7 +76,7 @@ func RenderContractBlock(contract dsl.Contract) string {
 		builder.WriteString("\n\nBoundaries:\n")
 		writeBulletLines(&builder, contract.Boundaries)
 	}
-	if stopWhen := strings.TrimSpace(contract.StopWhen); stopWhen != "" {
+	if stopWhen := strings.TrimSpace(contract.StopWhen.Expr); stopWhen != "" {
 		builder.WriteString("\n\nStop when:\n")
 		builder.WriteString(stopWhen)
 	}

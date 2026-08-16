@@ -59,11 +59,8 @@ func buildSessionGoalDefinition(
 				},
 			},
 			IterationCap: 1,
-			NoProgress: dsl.NoProgress{
-				Window:     1,
-				HashFields: []string{"nodes.goal.output.status"},
-			},
-			Budget: dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			NoProgress:   dsl.NoProgress{Window: 1},
+			Budget:       dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
 		},
 		Graph: dsl.Graph{
 			Nodes: []dsl.Node{{

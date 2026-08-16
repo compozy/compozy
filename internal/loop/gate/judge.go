@@ -63,8 +63,8 @@ func RenderAgentJudgeRubric(
 			fmt.Fprintf(&builder, "  - %s\n", strings.TrimSpace(boundary))
 		}
 	}
-	if strings.TrimSpace(contract.StopWhen) != "" {
-		fmt.Fprintf(&builder, "- Stop when: %s\n", strings.TrimSpace(contract.StopWhen))
+	if strings.TrimSpace(contract.StopWhen.Expr) != "" {
+		fmt.Fprintf(&builder, "- Stop when: %s\n", strings.TrimSpace(contract.StopWhen.Expr))
 	}
 	builder.WriteString("\nJudge rubric:\n")
 	builder.WriteString(rubric)

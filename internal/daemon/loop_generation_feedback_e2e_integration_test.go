@@ -13,6 +13,7 @@ import (
 	"time"
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
@@ -252,7 +253,7 @@ func feedbackMetricDefinition(
 	gateDependsOnDraft bool,
 ) compozycontract.LoopDefinitionDocument {
 	definition := feedbackBaseDefinition(name, prompt, iterationCap)
-	definition.Contract.StopWhen = stopWhen
+	definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: stopWhen}
 	definition.Graph.Nodes = append(definition.Graph.Nodes, compozycontract.LoopGraphNode{
 		ID: "quality", Class: compozycontract.LoopNodeClassControl, Kind: "gate",
 		Criteria: []compozycontract.LoopGateCriterion{{
@@ -340,7 +341,7 @@ func feedbackBaseDefinition(name string, prompt string, iterationCap int) compoz
 			Goal:             "Converge through deterministic generation feedback.",
 			DefinitionOfDone: "The deterministic feedback gate approves.",
 			IterationCap:     iterationCap,
-			NoProgress:       compozycontract.LoopNoProgress{Window: 5, HashFields: []string{"delivery_artifact"}},
+			NoProgress:       compozycontract.LoopNoProgress{Window: 5},
 			Budget:           compozycontract.LoopBudget{OnExceeded: compozycontract.LoopBudgetExceededHalt},
 			TerminalStates:   []string{"done", "failed", "blocked", "exhausted", "stalled"},
 		},

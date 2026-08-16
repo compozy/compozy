@@ -126,13 +126,10 @@ func loopRuntimeMixedDefinition() contract.LoopDefinitionDocument {
 		Contract: contract.LoopContract{
 			Goal:             "Run three task-shaped fixtures with distinct runtime layers.",
 			DefinitionOfDone: "All task-shaped fixtures complete.",
-			StopWhen:         "nodes.collect.status == 'succeeded'",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.collect.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress: contract.LoopNoProgress{
-				Window:     2,
-				HashFields: []string{"delivery_artifact"},
-			},
-			Budget: contract.LoopBudget{OnExceeded: contract.LoopBudgetExceededHalt},
+			NoProgress:       contract.LoopNoProgress{Window: 2},
+			Budget:           contract.LoopBudget{OnExceeded: contract.LoopBudgetExceededHalt},
 			RuntimeDefaults: &contract.LoopRuntimeDefaults{
 				Worker: contract.LoopRuntimeSpec{
 					Provider:  acpmock.ProviderName,

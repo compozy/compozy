@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gorilla/websocket"
@@ -688,13 +689,10 @@ func gatewayWebhookLoopDefinition() contract.LoopDefinitionDocument {
 		Contract: contract.LoopContract{
 			Goal:             "Record a signed gateway delivery.",
 			DefinitionOfDone: "The delivery marker is recorded.",
-			StopWhen:         "nodes.record_delivery.status == 'succeeded'",
+			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.record_delivery.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress: contract.LoopNoProgress{
-				Window:     2,
-				HashFields: []string{"nodes.record_delivery.output.accepted"},
-			},
-			Budget: contract.LoopBudget{OnExceeded: contract.LoopBudgetExceededHalt},
+			NoProgress:       contract.LoopNoProgress{Window: 2},
+			Budget:           contract.LoopBudget{OnExceeded: contract.LoopBudgetExceededHalt},
 			TerminalStates: []string{
 				"done", "failed", "blocked", "exhausted", "stalled",
 			},

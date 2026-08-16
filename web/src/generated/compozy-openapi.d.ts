@@ -93461,7 +93461,6 @@ export interface operations {
                 goal: string;
                 iteration_cap: number;
                 no_progress: {
-                  hash_fields?: string[];
                   window: number;
                 };
                 on_blocked?: (
@@ -93600,7 +93599,13 @@ export interface operations {
                     reasoning?: string;
                   };
                 }[];
-                stop_when?: string;
+                stop_when?:
+                  | string
+                  | {
+                      expr: string;
+                      /** @enum {string} */
+                      on_eval_error?: "fail" | "exit";
+                    };
                 terminal_states?: string[];
                 verification?: {
                   agent?: string;
@@ -94084,7 +94089,6 @@ export interface operations {
               goal: string;
               iteration_cap: number;
               no_progress: {
-                hash_fields?: string[];
                 window: number;
               };
               on_blocked?: (
@@ -94223,7 +94227,13 @@ export interface operations {
                   reasoning?: string;
                 };
               }[];
-              stop_when?: string;
+              stop_when?:
+                | string
+                | {
+                    expr: string;
+                    /** @enum {string} */
+                    on_eval_error?: "fail" | "exit";
+                  };
               terminal_states?: string[];
               verification?: {
                 agent?: string;
@@ -95146,6 +95156,7 @@ export interface operations {
                   | "goal_turn_completed"
                   | "goal_status_changed"
                   | "runtime_applied"
+                  | "predicate_diagnostic"
                   | "node_retry_scheduled"
                   | "node_paused"
                   | "node_resumed"
@@ -97748,7 +97759,6 @@ export interface operations {
                 goal: string;
                 iteration_cap: number;
                 no_progress: {
-                  hash_fields?: string[];
                   window: number;
                 };
                 on_blocked?: (
@@ -97887,7 +97897,13 @@ export interface operations {
                     reasoning?: string;
                   };
                 }[];
-                stop_when?: string;
+                stop_when?:
+                  | string
+                  | {
+                      expr: string;
+                      /** @enum {string} */
+                      on_eval_error?: "fail" | "exit";
+                    };
                 terminal_states?: string[];
                 verification?: {
                   agent?: string;
@@ -98152,7 +98168,6 @@ export interface operations {
               goal: string;
               iteration_cap: number;
               no_progress: {
-                hash_fields?: string[];
                 window: number;
               };
               on_blocked?: (
@@ -98291,7 +98306,13 @@ export interface operations {
                   reasoning?: string;
                 };
               }[];
-              stop_when?: string;
+              stop_when?:
+                | string
+                | {
+                    expr: string;
+                    /** @enum {string} */
+                    on_eval_error?: "fail" | "exit";
+                  };
               terminal_states?: string[];
               verification?: {
                 agent?: string;
@@ -98704,7 +98725,6 @@ export interface operations {
                   goal: string;
                   iteration_cap: number;
                   no_progress: {
-                    hash_fields?: string[];
                     window: number;
                   };
                   on_blocked?: (
@@ -98843,7 +98863,13 @@ export interface operations {
                       reasoning?: string;
                     };
                   }[];
-                  stop_when?: string;
+                  stop_when?:
+                    | string
+                    | {
+                        expr: string;
+                        /** @enum {string} */
+                        on_eval_error?: "fail" | "exit";
+                      };
                   terminal_states?: string[];
                   verification?: {
                     agent?: string;
@@ -99465,7 +99491,6 @@ export interface operations {
                   goal: string;
                   iteration_cap: number;
                   no_progress: {
-                    hash_fields?: string[];
                     window: number;
                   };
                   on_blocked?: (
@@ -99604,7 +99629,13 @@ export interface operations {
                       reasoning?: string;
                     };
                   }[];
-                  stop_when?: string;
+                  stop_when?:
+                    | string
+                    | {
+                        expr: string;
+                        /** @enum {string} */
+                        on_eval_error?: "fail" | "exit";
+                      };
                   terminal_states?: string[];
                   verification?: {
                     agent?: string;
@@ -100325,7 +100356,6 @@ export interface operations {
               goal: string;
               iteration_cap: number;
               no_progress: {
-                hash_fields?: string[];
                 window: number;
               };
               on_blocked?: (
@@ -100464,7 +100494,13 @@ export interface operations {
                   reasoning?: string;
                 };
               }[];
-              stop_when?: string;
+              stop_when?:
+                | string
+                | {
+                    expr: string;
+                    /** @enum {string} */
+                    on_eval_error?: "fail" | "exit";
+                  };
               terminal_states?: string[];
               verification?: {
                 agent?: string;
@@ -100877,7 +100913,6 @@ export interface operations {
                   goal: string;
                   iteration_cap: number;
                   no_progress: {
-                    hash_fields?: string[];
                     window: number;
                   };
                   on_blocked?: (
@@ -101016,7 +101051,13 @@ export interface operations {
                       reasoning?: string;
                     };
                   }[];
-                  stop_when?: string;
+                  stop_when?:
+                    | string
+                    | {
+                        expr: string;
+                        /** @enum {string} */
+                        on_eval_error?: "fail" | "exit";
+                      };
                   terminal_states?: string[];
                   verification?: {
                     agent?: string;
@@ -103516,7 +103557,6 @@ export interface operations {
                 goal: string;
                 iteration_cap: number;
                 no_progress: {
-                  hash_fields?: string[];
                   window: number;
                 };
                 on_blocked?: (
@@ -103655,7 +103695,13 @@ export interface operations {
                     reasoning?: string;
                   };
                 }[];
-                stop_when?: string;
+                stop_when?:
+                  | string
+                  | {
+                      expr: string;
+                      /** @enum {string} */
+                      on_eval_error?: "fail" | "exit";
+                    };
                 terminal_states?: string[];
                 verification?: {
                   agent?: string;
@@ -103757,7 +103803,6 @@ export interface operations {
                 goal: string;
                 iteration_cap: number;
                 no_progress: {
-                  hash_fields?: string[];
                   window: number;
                 };
                 on_blocked?: (
@@ -103896,7 +103941,13 @@ export interface operations {
                     reasoning?: string;
                   };
                 }[];
-                stop_when?: string;
+                stop_when?:
+                  | string
+                  | {
+                      expr: string;
+                      /** @enum {string} */
+                      on_eval_error?: "fail" | "exit";
+                    };
                 terminal_states?: string[];
                 verification?: {
                   agent?: string;
@@ -104110,7 +104161,6 @@ export interface operations {
                 goal: string;
                 iteration_cap: number;
                 no_progress: {
-                  hash_fields?: string[];
                   window: number;
                 };
                 on_blocked?: (
@@ -104249,7 +104299,13 @@ export interface operations {
                     reasoning?: string;
                   };
                 }[];
-                stop_when?: string;
+                stop_when?:
+                  | string
+                  | {
+                      expr: string;
+                      /** @enum {string} */
+                      on_eval_error?: "fail" | "exit";
+                    };
                 terminal_states?: string[];
                 verification?: {
                   agent?: string;
@@ -104351,7 +104407,6 @@ export interface operations {
                 goal: string;
                 iteration_cap: number;
                 no_progress: {
-                  hash_fields?: string[];
                   window: number;
                 };
                 on_blocked?: (
@@ -104490,7 +104545,13 @@ export interface operations {
                     reasoning?: string;
                   };
                 }[];
-                stop_when?: string;
+                stop_when?:
+                  | string
+                  | {
+                      expr: string;
+                      /** @enum {string} */
+                      on_eval_error?: "fail" | "exit";
+                    };
                 terminal_states?: string[];
                 verification?: {
                   agent?: string;
@@ -104920,7 +104981,6 @@ export interface operations {
               goal: string;
               iteration_cap: number;
               no_progress: {
-                hash_fields?: string[];
                 window: number;
               };
               on_blocked?: (
@@ -105059,7 +105119,13 @@ export interface operations {
                   reasoning?: string;
                 };
               }[];
-              stop_when?: string;
+              stop_when?:
+                | string
+                | {
+                    expr: string;
+                    /** @enum {string} */
+                    on_eval_error?: "fail" | "exit";
+                  };
               terminal_states?: string[];
               verification?: {
                 agent?: string;

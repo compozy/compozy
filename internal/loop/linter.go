@@ -142,6 +142,7 @@ func (c *lintContext) lintNodeIDs() {
 
 func (c *lintContext) lintKindsAndSchemas() {
 	for _, node := range c.def.Graph.Nodes {
+		c.lintEvalErrorPolicy(node)
 		c.lintWatchEventsEnvelopeShape(node)
 		switch node.Class {
 		case dsl.NodeClassAction:
@@ -155,6 +156,25 @@ func (c *lintContext) lintKindsAndSchemas() {
 		}
 	}
 	c.lintContinuousGoalHandles()
+}
+
+func (c *lintContext) lintEvalErrorPolicy(node dsl.Node) {
+	if node.OnEvalError == "" {
+		return
+	}
+	if !node.OnEvalError.Valid() {
+		c.add(node.ID, CodeEvalErrorPolicyInvalid, "on_eval_error must be fail or exit")
+		return
+	}
+	if strings.TrimSpace(node.Condition) != "" {
+		return
+	}
+	for _, subscription := range node.Events {
+		if strings.TrimSpace(subscription.Filter) != "" {
+			return
+		}
+	}
+	c.add(node.ID, CodeEvalErrorPolicyInvalid, "on_eval_error requires a condition or filter")
 }
 
 func (c *lintContext) lintActionNode(node dsl.Node) {

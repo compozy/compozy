@@ -590,11 +590,10 @@ stateful color in the panel. A watch-source is a node INSIDE the body, never a s
 - `stop_when` (CEL, optional, ADR-020): a boolean early-terminal condition evaluated at
   the generation boundary; true → terminal `done` (e.g. `reviews-watch`:
   `nodes.fetch_issues.status == 'succeeded' && size(nodes.fetch_issues.output.issues) == 0`).
-- `no_progress: { window, hash_fields }` plus a structured blocker-ID signature: the
+- `no_progress: { window }` plus a structured blocker-ID signature: the
   `stalled` detector compares the sorted `blocking_issues[].id` set from the
   generation's gate verdicts across the window (same IDs = no progress), never
-  free-text signatures. The typed `hash_fields` progress hash covers non-gate progress;
-  the always-on inactivity clock is unchanged.
+  free-text signatures. The always-on inactivity clock is unchanged.
 - `budget: { tokens, wall_clock_sec, on_exceeded: halt | escalate }`: opt-in
   (0 = unlimited) but ENFORCED when set (5.4). USD stays out of v1 (cost display-only).
 - `concurrency: forbid | allow | queue` (default `forbid`) at the loop level (ADR-021):

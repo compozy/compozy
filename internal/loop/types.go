@@ -98,6 +98,10 @@ const (
 	CodeDuplicateNodeID = "duplicate_node_id"
 	// CodeUnknownTerminalState reports contract terminal states outside the closed enum.
 	CodeUnknownTerminalState = "unknown_terminal_state"
+	// CodeUnknownParameter reports a removed or unsupported authoring field.
+	CodeUnknownParameter = "unknown_parameter"
+	// CodeEvalErrorPolicyInvalid reports an on_eval_error value or placement outside its closed grammar.
+	CodeEvalErrorPolicyInvalid = "eval_error_policy_invalid"
 	// CodeGoalJudgeRequired reports a Goal without at least one valid supported judge.
 	CodeGoalJudgeRequired = "goal_judge_required"
 	// CodeGoalObjectiveRequired reports a Goal without a non-empty objective.

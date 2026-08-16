@@ -14,7 +14,7 @@ const deliveryContract: LoopContract = {
   definition_of_done: "Configured project checks are green.",
   iteration_cap: 50,
   budget: { tokens: 500_000, wall_clock_sec: 3_600, on_exceeded: "halt" },
-  no_progress: { window: 3, hash_fields: [] },
+  no_progress: { window: 3 },
   verification: [
     { id: "verify_build", type: "command", check: "npm test", expect: "exit 0" },
     { id: "acceptance_review", type: "agent-judge", agent: "reviewer", rubric: "Meets the goal." },
@@ -26,7 +26,7 @@ const watchContract: LoopContract = {
   definition_of_done: "All handled.",
   iteration_cap: 0,
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
-  no_progress: { window: 5, hash_fields: [] },
+  no_progress: { window: 5 },
 };
 
 describe("buildCheckDescriptors", () => {

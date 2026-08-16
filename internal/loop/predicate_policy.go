@@ -35,9 +35,13 @@ type PredicateFailureDisposition struct {
 
 // PredicateDiagnostic is the durable diagnostic payload later consumers append.
 type PredicateDiagnostic struct {
-	Predicate string
-	Cause     string
-	Outcome   PredicateErrorPolicy
+	Code      string               `json:"code"`
+	Predicate string               `json:"predicate"`
+	Cause     string               `json:"cause,omitempty"`
+	Outcome   PredicateErrorPolicy `json:"outcome,omitempty"`
+	Cost      uint64               `json:"cost,omitempty"`
+	CostLimit uint64               `json:"cost_limit,omitempty"`
+	Warning   bool                 `json:"warning,omitempty"`
 }
 
 // ApplyPredicateFailurePolicy maps a broken predicate to its deterministic policy result.
@@ -58,7 +62,9 @@ func ApplyPredicateFailurePolicy(
 	if err != nil {
 		return PredicateFailureDisposition{}, err
 	}
-	diagnostic := PredicateDiagnostic{Predicate: name, Cause: cause.Error(), Outcome: policy}
+	diagnostic := PredicateDiagnostic{
+		Code: "predicate_evaluation_failed", Predicate: name, Cause: cause.Error(), Outcome: policy,
+	}
 	result := PredicateFailureDisposition{Policy: policy, Diagnostic: diagnostic}
 	if policy == PredicateErrorExit {
 		result.ExitReason = fmt.Sprintf("predicate %s failed: %s", name, cause)

@@ -21,7 +21,8 @@ function richDefinition(): LoopDefinition {
       definition_of_done: "green",
       iteration_cap: 50,
       budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
-      no_progress: { window: 3, hash_fields: ["artifact"] },
+      no_progress: { window: 3 },
+      stop_when: { expr: "generation >= 4", on_eval_error: "fail" },
     },
     inputs: { slug: { type: "string", required: true } },
     start: [{ kind: "manual" }, { kind: "cli" }],
@@ -127,6 +128,7 @@ describe("loop codec", () => {
             id: "on_events",
             class: "source",
             kind: "watch-events",
+            on_eval_error: "exit",
             events: [
               { kind: "task.status_changed", filter: "event.payload.to_status == 'completed'" },
               { kind: "loop.terminal" },
@@ -150,6 +152,17 @@ describe("loop codec", () => {
       filter: "event.payload.to_status == 'completed'",
     });
     expect(graphToDefinition(def, nodes, edges)).toEqual(def);
+  });
+
+  it("Should round-trip strict predicate policies", () => {
+    const def = richDefinition();
+    const { nodes, edges } = definitionToGraph(def);
+    const rebuilt = graphToDefinition(def, nodes, edges);
+
+    expect(rebuilt.contract.stop_when).toEqual({
+      expr: "generation >= 4",
+      on_eval_error: "fail",
+    });
   });
 
   it("Should synthesize a raw edge for a connection drawn with no original JSON", () => {

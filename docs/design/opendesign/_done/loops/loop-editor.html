@@ -393,7 +393,7 @@
   <span class="k">goal</span>: <span class="s">"Ship every authored task under .compozy/tasks/{{ .inputs.slug }} · implemented, reviewed to acceptance, and verified by the project's own checks."</span>
   <span class="k">definition_of_done</span>: <span class="s">"All loaded tasks reached a terminal state, the acceptance judge approved with evidence, and the project verification passed."</span>
   <span class="k">iteration_cap</span>: 50            <span class="c"># generations (re-attempt rounds), not tasks · 0 = unbounded (watch)</span>
-  <span class="k">no_progress</span>: { <span class="k">window</span>: 3, <span class="k">hash_fields</span>: [delivery_artifact, gate_verdict] }
+  <span class="k">no_progress</span>: { <span class="k">window</span>: 3 }
   <span class="k">budget</span>: { <span class="k">tokens</span>: 0, <span class="k">wall_clock_sec</span>: 0, <span class="k">on_exceeded</span>: halt }   <span class="c"># 0 = unlimited · a SET budget is enforced</span>
   <span class="k">terminal_states</span>: [done, no_op, blocked, failed, exhausted, stalled]
 <span class="k">graph</span>:

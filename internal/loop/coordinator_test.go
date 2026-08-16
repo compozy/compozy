@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -574,6 +575,329 @@ func TestCoordinatorRunnerShouldApplyGateRevisionsFromWorkspaceDefaults(t *testi
 			t.Fatalf("original gate MaxRevisions = %d, want unchanged %d", got, want)
 		}
 	})
+}
+
+func TestBranchPredicateEvaluationShouldHonorFailurePolicy(t *testing.T) {
+	t.Parallel()
+
+	definition := dsl.Definition{
+		Inputs: map[string]dsl.Input{
+			"denominator": {Type: dsl.InputTypeNumber},
+			"seed":        {Type: dsl.InputTypeString},
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID: "load", Class: dsl.NodeClassSource, Kind: string(dsl.SourceInput),
+					InputRef: "seed",
+				},
+				{
+					ID: "route", Class: dsl.NodeClassControl, Kind: string(dsl.ControlBranch),
+					Condition: `inputs.denominator / 0 > 1`,
+				},
+				{
+					ID: "fallback", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{"routed": map[string]any{"value": true}}},
+				},
+				{
+					ID: "success", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+					Params: dsl.NodeParams{"map": map[string]any{"matched": map[string]any{"value": true}}},
+				},
+			},
+			Edges: []dsl.Edge{
+				{From: "load", To: "route"},
+				{From: "route", To: "fallback"},
+				{From: "route", To: "success"},
+			},
+		}}
+	resolved := compileCoordinatorControlDefinition(t, definition)
+	topology := newControlTopology(resolved.Definition.Graph)
+	baseOutputs := []GenerationOutput{
+		{Generation: 1, NodeID: "load", Status: generationOutputSucceeded, OutputRef: `{"items":[]}`},
+		{Generation: 1, NodeID: "route", Status: generationOutputPending},
+		{Generation: 1, NodeID: "fallback", Status: generationOutputPending},
+		{Generation: 1, NodeID: "success", Status: generationOutputPending},
+	}
+
+	t.Run("Should fail a broken routing predicate closed", func(t *testing.T) {
+		t.Parallel()
+
+		outputs := cloneGenerationOutputs(baseOutputs)
+		result, terminal, err := evaluateBranchNode(
+			Run{ID: "run-branch-fail", WorkspaceID: "ws-1", Inputs: map[string]any{"denominator": 1}},
+			1,
+			resolved,
+			topology,
+			GenerationHistory{},
+			outputs[1],
+			resolved.Definition.Graph.Nodes[1],
+			&outputs,
+			&gateEvaluationCollector{},
+		)
+		if err != nil {
+			t.Fatalf("evaluateBranchNode() error = %v", err)
+		}
+		if terminal != nil || result.Status != generationOutputFailed ||
+			!strings.Contains(result.OutputRef, "predicate_evaluation_failed") {
+			t.Fatalf("branch result = %#v terminal=%#v, want routable authoring failure", result, terminal)
+		}
+	})
+
+	t.Run("Should route a broken predicate through on-error", func(t *testing.T) {
+		t.Parallel()
+
+		outputs := cloneGenerationOutputs(baseOutputs)
+		node := resolved.Definition.Graph.Nodes[1]
+		node.NodeLifecycleState = &dsl.NodeLifecycleState{
+			OnError: &dsl.ErrorPolicy{Route: "fallback"},
+		}
+		result, terminal, err := evaluateBranchNode(
+			Run{ID: "run-branch-route", WorkspaceID: "ws-1", Inputs: map[string]any{"denominator": 1}},
+			1,
+			resolved,
+			topology,
+			GenerationHistory{},
+			outputs[1],
+			node,
+			&outputs,
+			&gateEvaluationCollector{},
+		)
+		if err != nil {
+			t.Fatalf("evaluateBranchNode() error = %v", err)
+		}
+		if terminal != nil || result.Status != generationOutputSucceeded ||
+			result.OutputRef != errorRoutedOutputRefPrefix+"fallback" ||
+			outputs[2].Status != generationOutputPending ||
+			outputs[3].OutputRef != branchSkippedOutputRef {
+			t.Fatalf("routed branch result = %#v outputs=%#v terminal=%#v", result, outputs, terminal)
+		}
+	})
+
+	t.Run("Should isolate a broken predicate to its item lane", func(t *testing.T) {
+		t.Parallel()
+
+		outputs := make([]GenerationOutput, 0, len(baseOutputs)*2)
+		for itemIndex := range 2 {
+			for _, output := range baseOutputs {
+				output.ItemIndex = itemIndex
+				outputs = append(outputs, output)
+			}
+		}
+		outputByKey := generationOutputMap(outputs)
+		failedLane := outputByKey[generationOutputKey{nodeID: "route", itemIndex: 1}]
+		result, terminal, err := evaluateBranchNode(
+			Run{ID: "run-branch-lane", WorkspaceID: "ws-1", Inputs: map[string]any{"denominator": 1}},
+			1,
+			resolved,
+			topology,
+			GenerationHistory{},
+			failedLane,
+			resolved.Definition.Graph.Nodes[1],
+			&outputs,
+			&gateEvaluationCollector{},
+		)
+		if err != nil {
+			t.Fatalf("evaluateBranchNode() error = %v", err)
+		}
+		outputByKey = generationOutputMap(outputs)
+		if terminal != nil || result.Status != generationOutputFailed ||
+			outputByKey[generationOutputKey{nodeID: "route", itemIndex: 0}].Status != generationOutputPending ||
+			outputByKey[generationOutputKey{nodeID: "route", itemIndex: 1}].Status != generationOutputFailed {
+			t.Fatalf("lane outputs = %#v terminal=%#v, want only item 1 failed", outputs, terminal)
+		}
+	})
+
+	t.Run("Should exit when the routing override requests it", func(t *testing.T) {
+		t.Parallel()
+
+		outputs := cloneGenerationOutputs(baseOutputs)
+		node := resolved.Definition.Graph.Nodes[1]
+		node.OnEvalError = dsl.EvalErrorExit
+		result, terminal, err := evaluateBranchNode(
+			Run{ID: "run-branch-exit", WorkspaceID: "ws-1", Inputs: map[string]any{"denominator": 1}},
+			1,
+			resolved,
+			topology,
+			GenerationHistory{},
+			outputs[1],
+			node,
+			&outputs,
+			&gateEvaluationCollector{},
+		)
+		if err != nil {
+			t.Fatalf("evaluateBranchNode() error = %v", err)
+		}
+		if terminal == nil || terminal.Status != string(StatusDone) || result.Status != generationOutputSucceeded {
+			t.Fatalf("branch exit result = %#v terminal=%#v, want successful policy exit", result, terminal)
+		}
+	})
+}
+
+func TestCoordinatorGateRevisionCountersShouldStayIsolated(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC)
+	rejected := func(action gate.RouteAction) gate.Verdict {
+		return gate.Verdict{
+			Outcome: gate.VerdictOutcomeRejected,
+			Route:   gate.RouteDecision{Placement: gate.PlacementInBody, Action: action},
+		}
+	}
+
+	t.Run("Should advance only the gate that caused succession", func(t *testing.T) {
+		t.Parallel()
+
+		gateA := NodeControl{NodeID: "gate_a", Revision: 7, GateRevisions: map[int]int{0: 2}}
+		gateB := NodeControl{NodeID: "gate_b", Revision: 3, GateRevisions: map[int]int{0: 1}}
+		for wantRevision := 3; wantRevision <= 4; wantRevision++ {
+			collector := &gateEvaluationCollector{}
+			collector.recordWithControl(gate.Gate{ID: "gate_a"}, 0, rejected(gate.RouteRevise), gateA, now)
+			collector.recordWithControl(
+				gate.Gate{ID: "gate_b"}, 0,
+				gate.Verdict{
+					Outcome: gate.VerdictOutcomeApproved,
+					Route:   gate.RouteDecision{Action: gate.RouteContinue},
+				},
+				gateB,
+				now,
+			)
+			mutations := collector.gateRevisionMutations()
+			if len(mutations) != 1 || mutations[0].NodeID != "gate_a" ||
+				mutations[0].ExpectedRevision != gateA.Revision ||
+				mutations[0].GateRevisions[0] != wantRevision {
+				t.Fatalf(
+					"gate revision mutations = %#v, want only gate_a item 0 at revision %d",
+					mutations,
+					wantRevision,
+				)
+			}
+			gateA.Revision++
+			gateA.GateRevisions = mutations[0].GateRevisions
+		}
+		if gateB.Revision != 3 || gateB.GateRevisions[0] != 1 {
+			t.Fatalf("gate_b control = %#v, want untouched after two gate_a revisions", gateB)
+		}
+	})
+
+	t.Run("Should advance fan-out lanes independently", func(t *testing.T) {
+		t.Parallel()
+
+		control := NodeControl{
+			NodeID: "lane_gate", Revision: 4, GateRevisions: map[int]int{0: 1, 3: 4},
+		}
+		collector := &gateEvaluationCollector{}
+		collector.recordWithControl(gate.Gate{ID: "lane_gate"}, 0, rejected(gate.RouteRevise), control, now)
+		collector.recordWithControl(gate.Gate{ID: "lane_gate"}, 3, rejected(gate.RouteRevise), control, now)
+		mutations := collector.gateRevisionMutations()
+		if len(mutations) != 1 || mutations[0].GateRevisions[0] != 2 ||
+			mutations[0].GateRevisions[3] != 5 {
+			t.Fatalf("lane gate revisions = %#v, want item 0=2 and item 3=5", mutations)
+		}
+	})
+
+	t.Run("Should record exhaustion without consuming another revision", func(t *testing.T) {
+		t.Parallel()
+
+		collector := &gateEvaluationCollector{}
+		collector.recordWithControl(
+			gate.Gate{ID: "exhausted_gate"}, 0,
+			gate.Verdict{
+				Outcome: gate.VerdictOutcomeRejected,
+				Route:   gate.RouteDecision{Action: gate.RouteHalt, ReasonCode: "gate_max_revisions_exhausted"},
+			},
+			NodeControl{NodeID: "exhausted_gate", GateRevisions: map[int]int{0: 2}}, now,
+		)
+		plan := task.CoordinatorCompletionPlan{Snapshot: task.GenerationSnapshot{
+			Payload: GenerationSnapshotPayload{},
+		}}
+		if err := applyGateEvaluationIntents(&plan, Run{}, 9, collector); err != nil {
+			t.Fatalf("applyGateEvaluationIntents() error = %v", err)
+		}
+		payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
+		if err != nil {
+			t.Fatalf("GenerationSnapshotPayloadFrom() error = %v", err)
+		}
+		if len(payload.Controls) != 0 || len(payload.Events) != 1 ||
+			payload.Events[0].GateID != "exhausted_gate" ||
+			payload.Events[0].Reason != "gate_max_revisions_exhausted" {
+			t.Fatalf("exhaustion payload = %#v, want named gate event and no counter mutation", payload)
+		}
+	})
+
+	t.Run("Should derive revision only from the persisted counter", func(t *testing.T) {
+		t.Parallel()
+
+		input, err := runtimeGateInput(
+			Run{ID: "run-operator-generation", WorkspaceID: "ws-1", Generation: 99},
+			0,
+			&ResolvedDefinition{Definition: dsl.Definition{}},
+			EffectiveConfig{},
+			gate.PlacementInBody,
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("runtimeGateInput() error = %v", err)
+		}
+		if input.Revision != 0 {
+			t.Fatalf("GateInput.Revision = %d, want persisted counter 0 despite generation 99", input.Revision)
+		}
+	})
+}
+
+func TestPredicateEvaluationShouldSurfaceCostDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	expression := `[1, 2, 3, 4, 5, 6, 7, 8].exists(value, value == 8)`
+	compiler, err := refs.NewConditionCompiler(refs.Namespace{}, refs.WithCostLimit(10_000))
+	if err != nil {
+		t.Fatalf("NewConditionCompiler() error = %v", err)
+	}
+	condition, err := compiler.Compile(expression)
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	baseline, err := condition.Evaluate(nil)
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	condition.CostLimit = max(1, baseline.Cost)
+	evaluated, err := evaluatePredicate("nodes.route.condition", condition, nil, PredicateRouting, "")
+	if err != nil {
+		t.Fatalf("evaluatePredicate(warning) error = %v", err)
+	}
+	if len(evaluated.Diagnostics) != 1 || !evaluated.Diagnostics[0].Warning ||
+		evaluated.Diagnostics[0].Code != predicateCostWarningCode ||
+		evaluated.Diagnostics[0].Cost != baseline.Cost {
+		t.Fatalf("cost warning diagnostics = %#v, want tracked threshold warning", evaluated.Diagnostics)
+	}
+
+	limitedCompiler, err := refs.NewConditionCompiler(refs.Namespace{}, refs.WithCostLimit(1))
+	if err != nil {
+		t.Fatalf("NewConditionCompiler(limited) error = %v", err)
+	}
+	limited, err := limitedCompiler.Compile(expression)
+	if err != nil {
+		t.Fatalf("Compile(limited) error = %v", err)
+	}
+	exhausted, err := evaluatePredicate("nodes.route.condition", limited, nil, PredicateRouting, "")
+	if err != nil {
+		t.Fatalf("evaluatePredicate(limit) error = %v", err)
+	}
+	if exhausted.Disposition == nil || exhausted.Disposition.Failure == nil ||
+		exhausted.Disposition.Failure.Class != FailureAuthoring ||
+		slices.ContainsFunc(exhausted.Diagnostics, func(diagnostic PredicateDiagnostic) bool {
+			return diagnostic.Warning
+		}) ||
+		!slices.ContainsFunc(exhausted.Diagnostics, func(diagnostic PredicateDiagnostic) bool {
+			return diagnostic.Code == "predicate_evaluation_failed" && diagnostic.CostLimit == 1
+		}) {
+		t.Fatalf("cost-limit result = %#v, want authoring failure with cost limit diagnostic", exhausted)
+	}
+	for _, diagnostic := range exhausted.Diagnostics {
+		if err := predicateDiagnosticEvent(diagnostic).validate(); err != nil {
+			t.Fatalf("persist cost-limit diagnostic error = %v", err)
+		}
+	}
 }
 
 func TestCoordinatorRunnerShouldReconcileReadyDependentsFromGenerationSnapshot(t *testing.T) {
@@ -1863,6 +2187,68 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 		}
 		if plan.NextCoordinator != nil {
 			t.Fatalf("NextCoordinator = %#v, want nil when stop_when is true", plan.NextCoordinator)
+		}
+	})
+
+	t.Run("Should exit with a durable diagnostic when stop_when evaluation fails", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID: "looprun-stop-when-broken", WorkspaceID: "ws-1", LoopName: "review-and-fix",
+			Status: StatusRunning, Generation: 1,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-stop-when-broken", TaskID: "task-coordinator-stop-when-broken",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(loopRun.ID), Status: task.TaskRunStatusClaimed,
+		}
+		runner := newCoordinatorRunnerForStopWhenSpecTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			`{"issues":[]}`,
+			dsl.StopWhenSpec{Expr: `nodes.inspect_issues.output.issues[0] == "done"`},
+		)
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal == nil || plan.Terminal.Status != string(StatusDone) || plan.NextCoordinator != nil {
+			t.Fatalf("broken stop_when plan = %#v, want done without succession", plan)
+		}
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if len(payload.Events) != 1 || payload.Events[0].Kind != GenerationLifecycleEventPredicateDiagnostic ||
+			payload.Events[0].DiagnosticCode != "predicate_evaluation_failed" {
+			t.Fatalf("predicate events = %#v, want evaluation diagnostic", payload.Events)
+		}
+	})
+
+	t.Run("Should honor a fail override on broken stop_when", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID: "looprun-stop-when-fail", WorkspaceID: "ws-1", LoopName: "review-and-fix",
+			Status: StatusRunning, Generation: 1,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-stop-when-fail", TaskID: "task-coordinator-stop-when-fail",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(loopRun.ID), Status: task.TaskRunStatusClaimed,
+		}
+		runner := newCoordinatorRunnerForStopWhenSpecTest(
+			t,
+			loopRun,
+			coordinatorRun,
+			`{"issues":[]}`,
+			dsl.StopWhenSpec{
+				Expr:        `nodes.inspect_issues.output.issues[0] == "done"`,
+				OnEvalError: dsl.EvalErrorFail,
+			},
+		)
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal == nil || plan.Terminal.Status != string(StatusFailed) {
+			t.Fatalf("broken overridden stop_when terminal = %#v, want failed", plan.Terminal)
 		}
 	})
 }
@@ -4195,13 +4581,30 @@ func newCoordinatorRunnerForStopWhenTest(
 	outputRef string,
 ) *CoordinatorRunner {
 	t.Helper()
+	return newCoordinatorRunnerForStopWhenSpecTest(
+		t,
+		loopRun,
+		coordinatorRun,
+		outputRef,
+		dsl.StopWhenSpec{
+			Expr: "nodes.inspect_issues.status == 'succeeded' && size(nodes.inspect_issues.output.issues) == 0",
+		},
+	)
+}
+
+func newCoordinatorRunnerForStopWhenSpecTest(
+	t *testing.T,
+	loopRun Run,
+	coordinatorRun task.Run,
+	outputRef string,
+	stopWhen dsl.StopWhenSpec,
+) *CoordinatorRunner {
+	t.Helper()
 	resolved := compileCoordinatorControlDefinition(t, dsl.Definition{
 		Inputs: map[string]dsl.Input{
 			"seed": {Type: dsl.InputTypeString},
 		},
-		Contract: dsl.Contract{
-			StopWhen: "nodes.inspect_issues.status == 'succeeded' && size(nodes.inspect_issues.output.issues) == 0",
-		},
+		Contract: dsl.Contract{StopWhen: stopWhen},
 		Graph: dsl.Graph{
 			Nodes: []dsl.Node{
 				{

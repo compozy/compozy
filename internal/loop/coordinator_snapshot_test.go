@@ -119,7 +119,7 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 
 		definition := pinnedSnapshotDefinition()
 		definition.DefinitionExtensionState = nil
-		definition.Contract.StopWhen = ""
+		definition.Contract.StopWhen = dsl.StopWhenSpec{}
 		resolved, err := NewCompiler().Compile(definition)
 		if err != nil {
 			t.Fatalf("Compile() error = %v", err)
@@ -428,7 +428,7 @@ func pinnedSnapshotDefinition() dsl.Definition {
 		Contract: dsl.Contract{
 			Goal:             "Use the pinned graph",
 			DefinitionOfDone: "The pinned graph completes",
-			StopWhen:         "generation > 5",
+			StopWhen:         dsl.StopWhenSpec{Expr: "generation > 5"},
 			IterationCap:     1,
 			NoProgress:       dsl.NoProgress{Window: 1},
 			Budget:           dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},

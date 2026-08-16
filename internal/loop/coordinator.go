@@ -279,6 +279,7 @@ func (r *CoordinatorRunner) buildCoordinatorPlan(
 		effective,
 		r.gateEvaluator,
 		r.store,
+		r.controls,
 		r.runtimeCatalog,
 		fanOutWidth,
 		r.watchRuntime(),

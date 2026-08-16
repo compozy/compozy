@@ -12,7 +12,8 @@ func applyGateEvaluationIntents(
 	generation int,
 	evaluations *gateEvaluationCollector,
 ) error {
-	if plan == nil || evaluations == nil || len(evaluations.values) == 0 {
+	if plan == nil || evaluations == nil ||
+		(len(evaluations.values) == 0 && len(evaluations.predicateDiagnostics) == 0) {
 		return nil
 	}
 	payload, err := GenerationSnapshotPayloadFrom(plan.Snapshot.Payload)
@@ -63,8 +64,20 @@ func applyGateEvaluationIntents(
 			BestGeneration: cloneInt64(bestGeneration),
 		})
 	}
+	for _, diagnostic := range evaluations.predicateDiagnostics {
+		payload.Events = append(payload.Events, predicateDiagnosticEvent(diagnostic))
+	}
+	payload.Controls = append(payload.Controls, evaluations.gateRevisionMutations()...)
 	plan.Snapshot.Payload = payload
 	return nil
+}
+
+func predicateDiagnosticEvent(diagnostic PredicateDiagnostic) GenerationLifecycleEventIntent {
+	return GenerationLifecycleEventIntent{
+		Kind: GenerationLifecycleEventPredicateDiagnostic, Predicate: diagnostic.Predicate,
+		DiagnosticCode: diagnostic.Code, Reason: diagnostic.Cause, Cost: diagnostic.Cost,
+		CostLimit: diagnostic.CostLimit, Warning: diagnostic.Warning,
+	}
 }
 
 func cloneInt64(value *int64) *int64 {

@@ -1869,7 +1869,7 @@ func validContract() dsl.Contract {
 		DefinitionOfDone: "All gates route correctly",
 		Constraints:      []string{"Do not emit false done"},
 		Boundaries:       []string{"No downstream coordinator rewrites"},
-		StopWhen:         "verified",
+		StopWhen:         dsl.StopWhenSpec{Expr: "verified"},
 	}
 }
 

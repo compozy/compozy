@@ -124,6 +124,9 @@ CREATE TABLE loop_node_controls (
 	cancel_requested_at   TIMESTAMP,
 	last_evidence_at      TIMESTAMP,
 	death_resume_streak   INTEGER NOT NULL DEFAULT 0 CHECK (death_resume_streak >= 0),
+	gate_revisions_json   TEXT NOT NULL DEFAULT '{}' CHECK (
+		json_valid(gate_revisions_json) AND json_type(gate_revisions_json) = 'object'
+	),
 	revision              INTEGER NOT NULL DEFAULT 0,
 	updated_at            TIMESTAMP NOT NULL,
 	PRIMARY KEY (loop_run_id, node_id)

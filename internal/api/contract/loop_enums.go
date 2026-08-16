@@ -17,6 +17,7 @@ const (
 	LoopRunEventGoalTurnCompleted    LoopRunEventKind = "goal_turn_completed"
 	LoopRunEventGoalStatusChanged    LoopRunEventKind = "goal_status_changed"
 	LoopRunEventRuntimeApplied       LoopRunEventKind = "runtime_applied"
+	LoopRunEventPredicateDiagnostic  LoopRunEventKind = "predicate_diagnostic"
 	LoopRunEventNodeRetryScheduled   LoopRunEventKind = "node_retry_scheduled"
 	LoopRunEventNodePaused           LoopRunEventKind = "node_paused"
 	LoopRunEventNodeResumed          LoopRunEventKind = "node_resumed"
@@ -94,6 +95,7 @@ func LoopRunEventKindValues() []string {
 		string(LoopRunEventGoalTurnCompleted),
 		string(LoopRunEventGoalStatusChanged),
 		string(LoopRunEventRuntimeApplied),
+		string(LoopRunEventPredicateDiagnostic),
 		string(LoopRunEventNodeRetryScheduled),
 		string(LoopRunEventNodePaused),
 		string(LoopRunEventNodeResumed),

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
@@ -22,12 +23,14 @@ func evaluateGateNode(
 	effective EffectiveConfig,
 	evaluator gate.GateEvaluator,
 	decisions GateDecisionReader,
+	controls NodeControlReader,
 	runtimeCatalog WorkspaceRuntimeCatalog,
 	history GenerationHistory,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs []GenerationOutput,
 	evaluations *gateEvaluationCollector,
+	evaluatedAt time.Time,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	if err := requireGateEvaluator(evaluator, node.ID); err != nil {
 		return GenerationOutput{}, nil, err
@@ -69,9 +72,13 @@ func evaluateGateNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
+	control, err := loadGateRevisionControl(ctx, controls, run, dsl.NodeID(runtimeGate.ID))
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
 	gateInput, err := runtimeGateInput(
 		run,
-		generation,
+		control.GateRevisions[output.ItemIndex],
 		resolved,
 		effective,
 		gate.PlacementInBody,
@@ -89,7 +96,7 @@ func evaluateGateNode(
 		return GenerationOutput{}, nil, err
 	}
 	if evaluations != nil {
-		evaluations.record(runtimeGate, output.ItemIndex, verdict)
+		evaluations.recordWithControl(runtimeGate, output.ItemIndex, verdict, control, evaluatedAt)
 	}
 	return gateOutputFromVerdict(output, node.ID, verdict)
 }
@@ -136,7 +143,7 @@ func validateJudgeGateRuntimes(
 
 func runtimeGateInput(
 	run Run,
-	generation int,
+	revision int,
 	resolved *ResolvedDefinition,
 	effective EffectiveConfig,
 	placement gate.Placement,
@@ -153,7 +160,7 @@ func runtimeGateInput(
 		LoopRunID:            string(run.ID),
 		Placement:            placement,
 		Contract:             &contract,
-		Revision:             max(0, generation-1),
+		Revision:             max(0, revision),
 		BestScore:            cloneFloat64(run.BestScore),
 		HumanDecisions:       humanDecisions,
 		JudgeRuntime:         effective.RuntimeDefaults.Judge,
@@ -163,6 +170,27 @@ func runtimeGateInput(
 			ActorKind:   startLoopMetaKey,
 		},
 	}, nil
+}
+
+func loadGateRevisionControl(
+	ctx context.Context,
+	reader NodeControlReader,
+	run Run,
+	gateID dsl.NodeID,
+) (NodeControl, error) {
+	if reader == nil {
+		return NodeControl{}, nil
+	}
+	controls, err := reader.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		return NodeControl{}, fmt.Errorf("loop: list gate revision controls: %w", err)
+	}
+	for _, control := range controls {
+		if control.NodeID == NodeID(gateID) {
+			return control, nil
+		}
+	}
+	return NodeControl{}, nil
 }
 
 func loadGateDecisions(

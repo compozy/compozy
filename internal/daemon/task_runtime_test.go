@@ -5023,7 +5023,6 @@ contract:
   iteration_cap: 3
   no_progress:
     window: 2
-    hash_fields: []
   budget:
     tokens: 0
     wall_clock_sec: 0

@@ -275,6 +275,12 @@ Definitions reference data over one namespace with two surfaces, chosen by the f
 - **Values** — Go `{{ }}` templates in string fields (`params.*`, rubrics, `transform.map.*`).
 - **Conditions** — CEL returning `bool` (`branch.condition`, `fan-out.filter`, `contract.stop_when`).
 
+`contract.stop_when` accepts either a CEL string or `{ expr, on_eval_error }`, where the policy is
+`fail` or `exit`. A broken continuation exits by default so it cannot keep a run alive; routing
+predicates on `branch` and filtered `watch-events` nodes fail the node by default. Set the node's
+`on_eval_error` to override that routing behavior. Predicate costs at or above 80% of the configured
+CEL limit produce a warning; exceeding the limit follows the same failure policy.
+
 Contract narrative fields (`goal`, `definition_of_done`, `constraints[]`, `boundaries[]`) accept only
 declared `inputs` references and materialize once before Goal work. Goal params and nested gate inputs
 materialize recursively at their execution boundary; direct references retain JSON types and raw
@@ -419,13 +425,15 @@ bounded before storage; reads are scoped to the run's workspace. The closed even
   `node_killed`, `node_quarantined`, `node_requeued`, `node_wait_started`, `node_wait_resumed`,
   `node_attention_flagged`, `node_attention_cleared`;
 - observation and safety: `effect_results`, `custom_event`, `duplicate_suppressed`,
-  `target_breaker_transition`, `stale_schedule_dropped`, `late_arrival`.
+  `target_breaker_transition`, `stale_schedule_dropped`, `late_arrival`, `predicate_diagnostic`.
 
 `generation_started` carries `generation`, `parent_generation`, `origin`, `reattempt_strategy`, and
 `loop_name`. `gate_verdict` carries the sanitized `node_id`, `generation`, `gate_id`, `item_index`,
 `verdict`, `reason`, `route`, `blocking_issues`, `criteria`, optional `score`, and optional
-`best_generation`. `goal_turn_completed` carries the settled Goal result plus bounded `criteria` and
-`warnings`, matching persisted turn reads. The retired `confidence` field is not part of either payload.
+`best_generation`. `predicate_diagnostic` identifies the predicate and includes the diagnostic code,
+reason, measured cost, configured cost limit, and warning flag. `goal_turn_completed` carries the
+settled Goal result plus bounded `criteria` and `warnings`, matching persisted turn reads. The retired
+`confidence` field is not part of either payload.
 
 ## Watch-Source Behavior
 

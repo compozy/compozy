@@ -819,6 +819,7 @@ type LoopNodeControl struct {
 	CancelRequestedAt       sql.NullTime   `json:"cancel_requested_at"`
 	LastEvidenceAt          sql.NullTime   `json:"last_evidence_at"`
 	DeathResumeStreak       int64          `json:"death_resume_streak"`
+	GateRevisionsJson       string         `json:"gate_revisions_json"`
 	Revision                int64          `json:"revision"`
 	UpdatedAt               time.Time      `json:"updated_at"`
 }

@@ -49,6 +49,7 @@ export const LOOP_RUN_EVENT_KINDS = [
   "goal_turn_completed",
   "goal_status_changed",
   "runtime_applied",
+  "predicate_diagnostic",
   "node_retry_scheduled",
   "node_paused",
   "node_resumed",

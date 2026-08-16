@@ -1,6 +1,7 @@
 package dsl_test
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -30,7 +31,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 `)
 
@@ -75,6 +76,113 @@ contract:
 	if !reflect.DeepEqual(reparsed.NetworkParticipation, want) {
 		t.Fatalf("round-trip NetworkParticipation = %#v, want %#v", reparsed.NetworkParticipation, want)
 	}
+}
+
+func TestCodecShouldRoundTripStrictPredicatePolicies(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve scalar and object stop-when forms", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			authored   string
+			wantPolicy dsl.EvalErrorPolicy
+		}{
+			{name: "Should preserve the scalar default", authored: `"inputs.done == true"`},
+			{
+				name:       "Should preserve the object override",
+				authored:   `{ expr: "inputs.done == true", on_eval_error: fail }`,
+				wantPolicy: dsl.EvalErrorFail,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				definition, err := dsl.Parse([]byte(minimalDefinition(`
+contract:
+  goal: Ship safely
+  definition_of_done: Tests pass
+  stop_when: ` + tt.authored + `
+  verification: []
+  terminal_states: [done, failed]
+  iteration_cap: 3
+  no_progress: { window: 2 }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+`)))
+				if err != nil {
+					t.Fatalf("Parse() error = %v", err)
+				}
+				if definition.Contract.StopWhen.Expr != "inputs.done == true" ||
+					definition.Contract.StopWhen.OnEvalError != tt.wantPolicy {
+					t.Fatalf("StopWhen = %#v, want expression and policy %q", definition.Contract.StopWhen, tt.wantPolicy)
+				}
+				serialized, err := dsl.Serialize(definition)
+				if err != nil {
+					t.Fatalf("Serialize() error = %v", err)
+				}
+				reparsed, err := dsl.Parse(serialized)
+				if err != nil {
+					t.Fatalf("Parse(serialized) error = %v", err)
+				}
+				if !reflect.DeepEqual(reparsed.Contract.StopWhen, definition.Contract.StopWhen) {
+					t.Fatalf("round-trip StopWhen = %#v, want %#v", reparsed.Contract.StopWhen, definition.Contract.StopWhen)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject malformed stop-when shapes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, authored := range []string{
+			`{ expr: "true", unknown: value }`,
+			`{ expr: "true", on_eval_error: continue }`,
+			`{ on_eval_error: fail }`,
+			`true`,
+		} {
+			body := minimalDefinition(`
+contract:
+  stop_when: ` + authored)
+			if _, err := dsl.Parse([]byte(body)); err == nil {
+				t.Fatalf("Parse(stop_when: %s) error = nil", authored)
+			}
+		}
+	})
+
+	t.Run("Should keep JSON and node policy codecs closed", func(t *testing.T) {
+		t.Parallel()
+
+		var stop dsl.StopWhenSpec
+		if err := json.Unmarshal([]byte(`{"expr":"true","on_eval_error":"exit"}`), &stop); err != nil {
+			t.Fatalf("json.Unmarshal(stop_when) error = %v", err)
+		}
+		if stop.OnEvalError != dsl.EvalErrorExit {
+			t.Fatalf("StopWhen.OnEvalError = %q, want exit", stop.OnEvalError)
+		}
+		for _, raw := range []string{
+			`{"expr":"true","unknown":1}`,
+			`null`,
+			`{"expr":"true"} {"expr":"false"}`,
+		} {
+			if err := json.Unmarshal([]byte(raw), &stop); err == nil {
+				t.Fatalf("json.Unmarshal(%s) error = nil", raw)
+			}
+		}
+		node := dsl.Node{OnEvalError: dsl.EvalErrorExit}
+		encoded, err := json.Marshal(node)
+		if err != nil {
+			t.Fatalf("json.Marshal(node) error = %v", err)
+		}
+		var decoded dsl.Node
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(node) error = %v", err)
+		}
+		if decoded.OnEvalError != dsl.EvalErrorExit {
+			t.Fatalf("Node.OnEvalError = %q, want exit", decoded.OnEvalError)
+		}
+	})
 }
 
 func testNetworkParticipationRequest() *participation.Request {
@@ -124,7 +232,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 `),
 			wantConstraints: []string{},
@@ -142,7 +250,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 `),
 			wantConstraints:  []string{"keep scope"},
@@ -170,8 +278,8 @@ contract:
 			if !reflect.DeepEqual(def.Contract.Boundaries, tt.wantBoundaries) {
 				t.Fatalf("Boundaries = %#v, want %#v", def.Contract.Boundaries, tt.wantBoundaries)
 			}
-			if def.Contract.StopWhen != tt.wantStopWhen {
-				t.Fatalf("StopWhen = %q, want %q", def.Contract.StopWhen, tt.wantStopWhen)
+			if def.Contract.StopWhen.Expr != tt.wantStopWhen {
+				t.Fatalf("StopWhen.Expr = %q, want %q", def.Contract.StopWhen.Expr, tt.wantStopWhen)
 			}
 
 			serialized, err := dsl.Serialize(def)
@@ -220,7 +328,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:
@@ -286,7 +394,7 @@ contract:
   verification: []
   terminal_states: [done, failed]
   iteration_cap: 0
-  no_progress: { window: 1, hash_fields: [] }
+  no_progress: { window: 1 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:
@@ -355,7 +463,7 @@ contract:
   verification: []
   terminal_states: [done, blocked, failed]
   iteration_cap: 3
-  no_progress: { window: 2, hash_fields: [] }
+  no_progress: { window: 2 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
 graph:
   nodes:

@@ -2,6 +2,7 @@ package spec
 
 import (
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -16,6 +17,21 @@ func customizeLoopGraphSchema(schema *openapi3.Schema) {
 		WithProperty("edges", openapi3.NewArraySchema().WithItems(loopGraphEdgeSchema())).
 		WithoutAdditionalProperties()
 	schema.Required = []string{"edges", "nodes"}
+}
+
+func customizeStopWhenSpecSchema(schema *openapi3.Schema) {
+	object := openapi3.NewObjectSchema().
+		WithProperty("expr", openapi3.NewStringSchema().WithMinLength(1)).
+		WithProperty("on_eval_error", openapi3.NewStringSchema().WithEnum(
+			string(dsl.EvalErrorFail),
+			string(dsl.EvalErrorExit),
+		)).
+		WithoutAdditionalProperties()
+	object.Required = []string{"expr"}
+	*schema = openapi3.Schema{OneOf: []*openapi3.SchemaRef{
+		{Value: openapi3.NewStringSchema().WithMinLength(1)},
+		{Value: object},
+	}}
 }
 
 func loopEffectListSchema() *openapi3.Schema {
