@@ -169,7 +169,7 @@ func verifyPortableDevGeneration(
 	}
 	name, err := agentplugin.ReadManifestName(originPath)
 	if err != nil {
-		return nil, fmt.Errorf("%w: read portable generation %q name: %v", ErrExtensionGenerationInvalid, hash, err)
+		return nil, fmt.Errorf("%w: read portable generation %q name: %w", ErrExtensionGenerationInvalid, hash, err)
 	}
 	if resolveDataDir == nil {
 		return nil, errors.New("extension: Agent Plugins development data path resolver is required")

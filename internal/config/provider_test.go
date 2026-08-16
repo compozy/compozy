@@ -1564,6 +1564,12 @@ func TestRedactedMCPServerDoesNotExposeEnvSecretValues(t *testing.T) {
 		if server.SecretEnv["GITHUB_TOKEN"] != "env:GITHUB_TOKEN" {
 			t.Fatalf("source secret env mutated = %#v", server.SecretEnv)
 		}
+		if server.Headers["X-Tenant"] != "tenant-value" {
+			t.Fatalf("source fixed headers mutated = %#v", server.Headers)
+		}
+		if server.SecretHeaders["Authorization"] != "vault:extensions/github/env/GITHUB_TOKEN" {
+			t.Fatalf("source secret headers mutated = %#v", server.SecretHeaders)
+		}
 	})
 }
 
