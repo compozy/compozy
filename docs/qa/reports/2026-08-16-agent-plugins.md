@@ -25,7 +25,7 @@
 | # | Charter | Scenarios | Persona | Tour | Status | Issue |
 |---|---|---|---|---|---|---|
 | 1 | CH-agent-plugin-conformance | validation; native precedence; conformance walk | Ada | Garbage Tour | Pass | path projection; validation exit; hosted projection fixed and re-walked |
-| 2 | CH-agent-plugin-provider-delivery | provider delivery | Ada | Feature Tour | Blocked (human decision) | OpenClaw ACP cannot accept per-session MCP |
+| 2 | CH-agent-plugin-provider-delivery | provider delivery | Ada | Feature Tour | Pass (known limitation) | Claude Code/Hermes pass; OpenClaw ACP fails closed |
 | 3 | CH-agent-plugin-lifecycle-recovery | source install; data removal | Bruno | Interrupt Tour | Pass | — |
 | 4 | CH-agent-plugin-diagnostics-parity | degraded inventory | Ada | Network Tour | Pass | adjacent daemon stop timeout tracked |
 | 5 | CH-agent-plugin-dev-isolation | dev reload | Bruno | Multi-Tab Tour | Pass | — |
@@ -34,7 +34,7 @@
 | 8 | CH-agent-plugin-native-canary | native published-source install | Bruno | Feature Tour | Pass | — |
 | 9 | CH-agent-plugin-real-scenario-runtime | task-role activation canary | Bruno | Feature Tour | Blocked (needs verify) | kickoff and provider-backed task-role journey were not executed |
 
-Status legend: `Pass | Blocked (needs verify) | Blocked (human decision)`
+Status legend: `Pass | Pass (known limitation) | Blocked (needs verify)`
 
 ## Session Debriefs
 
@@ -80,10 +80,11 @@ Claude Code session `sess-881a3c777fe36d33` and Hermes session `sess-718859a9a99
 successful data write, then invoked the daemon-hosted remote tool and received
 `{"authorized":true,"tenant":"acme"}`. Both final-code walks passed on their first attempt.
 
-OpenClaw session `sess-36b29c3eab89472f` failed before provider launch because Compozy truthfully
+OpenClaw session `sess-36b29c3eab89472f` failed before provider launch because CompozyOS truthfully
 advertises `session_mcp=false` for OpenClaw. Current OpenClaw ACP bridge documentation says
-per-session MCP servers are unsupported. The provider matrix is therefore terminal
-`blocked-decision`, not a false three-provider pass.
+per-session MCP servers are unsupported. The user narrowed the product claim to the complete Claude
+Code and Hermes paths. The raw provider matrix retains the OpenClaw block; the final verdict does not
+turn it into a provider-delivery pass.
 
 ### Real scenario runtime
 
@@ -120,16 +121,16 @@ The reviewed remediation batch is commit `35100d40b55c`.
 | BUG-20260816-agent-plugin-validation-exit | fatal result did not affect CLI process status | fatal exits 1; warning-only exits 0 |
 | BUG-20260816-hosted-mcp-bootstrap-projection | no reconcile idle fence, incomplete required-tool bootstrap, unstable generation cache, and typed-nil output schema | focused race tests plus first-attempt Claude Code and Hermes walks |
 
-## Open Bugs and Decisions
+## Known Limitations and Open Bugs
 
 | Bug | Status | Effect |
 |---|---|---|
-| BUG-20260816-openclaw-session-mcp-gap | open / blocked-decision | blocks the claimed three-provider compatible-client evidence |
+| BUG-20260816-openclaw-session-mcp-gap | closed / accepted limitation | OpenClaw is excluded from the portable MCP delivery claim |
 | BUG-20260816-daemon-stop-timeout | open | isolated daemon stop timed out; manifest teardown remains required and reliable |
 
-The user must choose whether to remove OpenClaw from this promise, add a supported gateway-side MCP
-integration, or defer the compatible-clients listing until the provider contract changes. Task 09
-must not open an external pull request while this evidence gate is blocked.
+The user chose the evidenced contract: complete provider delivery is claimed for Claude Code and
+Hermes. OpenClaw remains a disclosed ACP limitation. The compatible-clients contribution is a
+user-owned follow-up after the CompozyOS interoperability page is deployed.
 
 ## Paper Cuts
 
@@ -143,12 +144,12 @@ must not open an external pull request while this evidence gate is blocked.
 - **Native tools:** `compozy__extensions_validate`, `compozy__extensions_install`, `compozy__extensions_enable`, `compozy__extensions_info`, `compozy__extensions_list`, and `compozy__extensions_inventory` were exercised against the daemon. Secrets remain CLI/API-managed; there is no extension-secret native tool. No tool id, descriptor, schema digest, risk flag, or capability gate changed in the QA fix loop.
 - **Extensibility and hooks:** Agent Plugins skill/MCP synthesis, resource reconciliation, hosted MCP bootstrap/cache/wire schema, lifecycle, and remote secret binding were checked. No extension hook, capability, bridge SDK, sidecar API, or `config.toml` key changed; the isolated lab enabled existing external-tool policy only for provider verification.
 - **Workspace data isolation:** package bytes are instance-owned, dev overlays are workspace-scoped, plugin data is instance-scoped, and hosted tool projection is session-scoped. Dev reload and provider sessions used separate workspaces; inventory, caches, events, and provider projection did not cross workspace ids.
-- **Official Compozy skill:** checked `skills/compozy/` against the new public install, validate, lifecycle, inventory, and secret-header behavior authored in implementation tasks; the QA fixes changed internal readiness/wire behavior only, so no further skill edit is required.
+- **Official Compozy skill:** checked `skills/compozy/` against the new public install, validate, lifecycle, inventory, secret-header behavior, and the OpenClaw ACP delivery boundary. The reference now states the same Claude Code/Hermes evidence limit as the public docs.
 
 ## Final Status
 
-- **Scenario coverage:** 10/10 terminal — 7 Pass, 2 Blocked (needs verify), 1 Blocked (human decision), 0 untested/fail.
+- **Scenario coverage:** 10/10 terminal — 8 Pass (including 1 known limitation), 2 Blocked (needs verify), 0 untested/fail.
 - **Automated E2E:** `make test-e2e-runtime` pass; `make test-e2e-web` pass.
 - **Teardown:** pass — `/Users/pedronauck/dev/qa-labs/compozy-agent-plugins-20260816-20260816-061032-351590-lab/qa-artifacts/qa/teardown.json` records `clean: true`, no survivors, and all registered daemon, provider, fixture, and browser processes stopped.
 - **Exit gate:** this immutable report does not duplicate the content-addressed gate result; `make gate-status` is the authoritative record for the exact closing tree.
-- **Verdict:** **not ready for the external compatible-clients claim** because OpenClaw cannot accept the required hosted MCP projection. The implemented Claude Code/Hermes and eight-item conformance paths are ready for final review/gate.
+- **Verdict:** **ready for the CompozyOS PR with blocked items disclosed.** The 8-item conformance walk and complete Claude Code/Hermes provider paths pass. OpenClaw is outside the portable MCP delivery claim. The user owns the external compatible-clients PR after the interoperability docs are deployed.

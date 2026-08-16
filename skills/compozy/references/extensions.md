@@ -37,6 +37,10 @@ servers are skipped independently. Install, status, inventory, list, HTTP/UDS, a
 carry `format` plus diagnostics. The marketplace `format` badge is display metadata only; acquired
 package detection is authoritative.
 
+Portable skill and MCP delivery is verified on managed Claude Code and Hermes sessions. OpenClaw's
+ACP bridge rejects per-session MCP configuration, so a package that requires hosted MCP fails before
+provider launch; direct Agent Plugins support inside OpenClaw is a separate path.
+
 Recorded ingestion skips use `extension_agent_plugin_component_skipped`. Runtime availability uses
 live codes such as `extension_mcp_server_unhealthy`; reads sort ingest diagnostics before live ones so
 package validity is never confused with server health. Fatal detection codes are

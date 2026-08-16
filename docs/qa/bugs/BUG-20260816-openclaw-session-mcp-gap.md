@@ -1,6 +1,6 @@
 # BUG-20260816-openclaw-session-mcp-gap: OpenClaw cannot receive portable MCP tools
 
-- **Status:** open
+- **Status:** closed
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada
@@ -10,10 +10,10 @@
 
 ## Summary
 
-The Agent Plugins spec promises the same ingested MCP resources through Claude Code, OpenClaw, and
-Hermes, but OpenClaw's current ACP bridge rejects per-session MCP servers. Compozy truthfully marks
-that provider as not supporting session MCP, so the required hosted projection fails closed before a
-provider turn starts.
+The authored Agent Plugins spec promised the same ingested MCP resources through Claude Code,
+OpenClaw, and Hermes, but OpenClaw's current ACP bridge rejects per-session MCP servers. CompozyOS
+truthfully marks that provider as not supporting session MCP, so the required hosted projection fails
+closed before a provider turn starts.
 
 ## Reproduction
 
@@ -26,14 +26,17 @@ provider turn starts.
 **Expected:** OpenClaw consumes the same daemon-hosted tools as Claude Code and Hermes.
 **Actual:** Session `sess-36b29c3eab89472f` failed with `required hosted MCP is unavailable: provider openclaw disables session MCP` before provider launch.
 
-## Decision Required
+## Resolution
 
-Choose one product contract before making the external compatible-clients claim: remove OpenClaw from
-this delivery promise, add a supported gateway-side MCP bridge integration, or wait for OpenClaw to
-support per-session MCP. Flipping Compozy's capability flag is not a fix because the provider rejects
-the configuration.
+On 2026-08-16, the user limited the portable MCP delivery promise to the complete paths verified on
+Claude Code and Hermes. OpenClaw remains a documented provider limitation until its ACP bridge accepts
+the required session resources. Flipping CompozyOS's capability flag is not a fix because the provider
+rejects the configuration.
 
 ## Verification
 
-- **Result:** Blocked — the `openclaw` executable is absent on this host, and current OpenClaw documentation says ACP bridge mode does not support per-session MCP servers.
-- **Evidence:** `docs/qa/evidence/2026-08-16-agent-plugins/provider-matrix.json`; `internal/config/provider_builtin.go`; https://docs.openclaw.ai/tools/acp-agent.
+- **Result:** Pass for the narrowed contract — the provider matrix records Claude Code and Hermes
+  delivery, while OpenClaw fails closed at the truthful capability boundary.
+- **Evidence:** `docs/qa/evidence/2026-08-16-agent-plugins/provider-matrix.json`;
+  `internal/config/provider_builtin.go`; `packages/site/content/docs/extensions/agent-plugins.mdx`;
+  https://docs.openclaw.ai/tools/acp-agent.

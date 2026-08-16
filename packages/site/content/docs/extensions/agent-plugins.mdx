@@ -19,6 +19,15 @@ update, dev reload, secret binding, and removal continue to use the extension su
 | `PLUGIN_ROOT`                                    | Absolute package root for managed and dev instances.                                                              |
 | `PLUGIN_DATA`                                    | Stable absolute data directory at `<COMPOZY_HOME>/extension-data/<name>/`.                                        |
 
+## Provider delivery
+
+CompozyOS projects portable skills and MCP servers through the normal session resource path. The
+complete path is verified with managed Claude Code and Hermes sessions. The `openclaw acp` bridge
+currently rejects per-session MCP server configuration. When an enabled package requires hosted MCP,
+an OpenClaw-managed session fails before the provider launches instead of starting without its
+declared tools. OpenClaw's direct Agent Plugins support is separate from delivery through its ACP
+bridge.
+
 CompozyOS does not fetch a schema while detecting a package. Schema `1.0.0` is the accepted contract.
 Client-specific layouts are rejected, `sse` MCP servers are recorded as skipped, and sensitive
 package header values are never projected into runtime config. Bind remote credentials through the
