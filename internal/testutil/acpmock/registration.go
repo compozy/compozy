@@ -206,6 +206,18 @@ func renderAgentDef(name string, agent AgentFixture, command string, providerNam
 	if permissions := strings.TrimSpace(agent.Permissions); permissions != "" {
 		builder.WriteString("permissions: " + permissions + "\n")
 	}
+	wroteTools := false
+	for _, tool := range agent.Tools {
+		tool = strings.TrimSpace(tool)
+		if tool == "" {
+			continue
+		}
+		if !wroteTools {
+			builder.WriteString("tools:\n")
+			wroteTools = true
+		}
+		builder.WriteString("  - " + yamlSingleQuote(tool) + "\n")
+	}
 	builder.WriteString("---\n\n")
 	builder.WriteString(prompt)
 	builder.WriteString("\n")

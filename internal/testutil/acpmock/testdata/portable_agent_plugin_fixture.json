@@ -5,6 +5,7 @@
             "name": "portable-agent-plugin",
             "provider": "acpmock",
             "permissions": "approve-all",
+            "tools": ["mcp__local__echo_environment"],
             "prompt": "You exercise the portable agent plugin distribution contract.",
             "turns": [
                 {

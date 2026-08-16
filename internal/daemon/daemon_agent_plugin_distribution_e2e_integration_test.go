@@ -91,7 +91,7 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 		t, ctx, harness, true, "extension", "enable", "acme.tools",
 	)
 	assertAgentPluginTranscriptOrder(t, enableOut,
-		"✓ enable acme.tools",
+		"✓ Enabled acme.tools",
 		"next: compozy extension status acme.tools",
 	)
 
@@ -248,7 +248,7 @@ func testDaemonE2EAgentPluginCLIFailurePaths(t *testing.T) {
 		true,
 		"extension", "install", dualTarget, "--allow-unverified", "--yes",
 	)
-	note := "note: directory carries both extension.toml and plugin.json; installed as a Compozy extension (native manifest wins)"
+	note := "note: directory carries both extension.toml and plugin.json; installed as a CompozyOS extension (native manifest wins)"
 	if strings.Count(dualOut, note) != 1 {
 		t.Fatalf("dual-manifest output = %q, want note exactly once", dualOut)
 	}
