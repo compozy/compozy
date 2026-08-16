@@ -6,7 +6,12 @@ entry points into the same semantic desktop state.
 
 ```mermaid
 flowchart TD
-    E[Entry: Home, dock, menubar, palette, shortcut, or deep link] --> O[Open an app, session, or global dialog]
+    E[Entry: Home, dock, menubar, palette, shortcut, or deep link] --> K{Keyboard destination?}
+    K -->|palette| P[Open root or Sessions view and filter the current level]
+    K -->|direct shortcut| O[Run the daemon-bound semantic action]
+    P -->|push view| PV[Use breadcrumb, query, chips, and backspace-pop]
+    PV --> O[Open or focus the selected session]
+    K -->|pointer or URL| O[Open an app, session, or global dialog]
     O --> T{Target already open?}
     T -->|yes| F[Focus the existing semantic window]
     T -->|no| N[Create one window at its declared default size]
@@ -38,17 +43,22 @@ journey:
       origin: in-app-nav
     - url: "web deep link to an app or session route"
       origin: direct
+    - url: "web ⌘E Sessions view; Command palette › Views; Help › Keyboard shortcuts"
+      origin: in-app-nav
   actions:
     - step: 1
       verb: "Open the same app through multiple shell entry points"
       expected_observable: "One semantic window is created or focused, with the declared route and default size"
     - step: 2
-      verb: "Open and dismiss global Sessions, Shortcuts, and About surfaces"
-      expected_observable: "Dialog ownership, keyboard focus, and dismissal remain consistent"
+      verb: "Use live shortcuts and nested palette views to reach a session"
+      expected_observable: "Editable-field precedence, per-level query isolation, filters, breadcrumb, backspace-pop, Escape reset, and the cross-workspace landing all follow the daemon effective keymap"
     - step: 3
+      verb: "Open and dismiss global Sessions, Shortcuts, and About surfaces"
+      expected_observable: "The keyboard reference reflects live alternates and ranges; dialog ownership, keyboard focus, and dismissal remain consistent"
+    - step: 4
       verb: "Group related windows into tabs, arrange frames, hide one app, and restore it"
       expected_observable: "Visible sibling windows stay current; minimized, off-desktop, and inactive-stack apps suspend their own external work and reconcile current server state when restored"
-    - step: 4
+    - step: 5
       verb: "Reload and continue from the restored shell"
       expected_observable: "URL, active workspace, and visible windows converge without duplicates or lost routes"
   goal:
@@ -63,3 +73,10 @@ journey:
       resume: "Reopen from another shell entry point; no resource mutation or duplicate window remains."
   crosses: [web-router, window-manager, tab-deck, document-visibility, live-streams, polling, dock, menubar, command-palette, session-catalog, accessibility, connection-state]
 ```
+
+design_reference:
+  locked_root: "docs/design/opendesign/herdr-parity/"
+  visual_contracts:
+    - "task_05 VC-07..VC-08 — herdr-parity-cheatsheet.html"
+    - "task_06 VC-01..VC-05 — herdr-parity-palette-sessions.html"
+  judgment_rule: "Judge only the cheatsheet and palette pieces against the locked boards; live shell chrome, runtime rows, and daemon chords remain authoritative."

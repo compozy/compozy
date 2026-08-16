@@ -46,7 +46,11 @@ journey:
       origin: in-app-nav
     - url: "CLI: compozy tool approvals set|list|revoke; compozy session clarify pending|answer"
       origin: direct
-    - url: "HTTP/UDS: /api/tool-approval-grants; /api/workspaces/:workspace_id/sessions/:session_id/clarifications"
+    - url: "CLI: compozy session interactions <session-id>; compozy session status <session-id>"
+      origin: direct
+    - url: "HTTP/UDS: /api/tool-approval-grants; GET .../interactions; POST .../approve; POST .../clarifications/:request_id/answer"
+      origin: direct
+    - url: "native: compozy__session_approve; compozy__session_clarify_answer"
       origin: direct
   actions:
     - step: 1
@@ -59,8 +63,8 @@ journey:
       verb: "Set one explicit agent-wide and one tool-wide decision, then revoke"
       expected_observable: "Wider grants exist only through explicit set surfaces (no input_digest), list identically across Web/CLI/HTTP/UDS/native, and revocation restores prompting"
     - step: 4
-      verb: "Answer a live compozy__clarify question"
-      expected_observable: "The card shows the exact question and ≤4 choices; a live answer reports answered and unblocks the turn; after restart the durable orphan resolves once, queues one continuation, and duplicate resolution returns the original winner"
+      verb: "Answer a live compozy__clarify question through Web or a governed native tool"
+      expected_observable: "The card and interaction read show the same sanitized question and ≤4 choices; a live answer reports answered and unblocks the turn; after restart the durable orphan resolves once, queues one continuation, and duplicate resolution returns the original winner"
   goal:
     observable: "Zero re-prompts for remembered decisions; the clarify answer is inside the durable tool result"
     side_effects: [approval-grant-persisted, canonical-grant-events, clarify-session-events]

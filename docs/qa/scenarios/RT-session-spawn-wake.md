@@ -5,7 +5,7 @@ title: Wake a parent when its child settles
 persona: Cora
 journey: J-respond-to-agent-attention
 expected: A governed child that stops, fails, or enters a needs-you state queues one sanitized synthetic turn on its live parent by default, never interrupts an active parent prompt, and explicit notify_creator false suppresses only that child's wake with an auditable reason.
-entry_points: compozy spawn; POST /api/agent/spawn; compozy__session_spawn; parent session transcript
+entry_points: compozy spawn --no-notify-creator; POST /api/agent/spawn over HTTP and UDS; compozy__session_spawn; parent session transcript
 qa_status: untested
 bug_ids:
 fix_status:

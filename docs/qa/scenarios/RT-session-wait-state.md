@@ -5,7 +5,7 @@ title: Wait for one exact session state
 persona: Ada
 journey: J-15
 expected: compozy session wait returns immediately for an already-satisfied state, reports the first requested transition across --until, distinguishes timeout and gone outcomes by exit code, and --unbounded resumes bounded server registrations without losing an intervening edge.
-entry_points: compozy session wait; POST /api/workspaces/{workspace_id}/sessions/{session_id}/wait; compozy__session_wait
+entry_points: compozy session wait --until/--timeout/--unbounded; POST /api/workspaces/{workspace_id}/sessions/{session_id}/wait over HTTP and UDS; compozy__session_wait
 qa_status: untested
 bug_ids:
 fix_status:

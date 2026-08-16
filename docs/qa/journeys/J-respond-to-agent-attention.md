@@ -45,6 +45,8 @@ journey:
       origin: push
     - url: "web Settings → Attention"
       origin: in-app-nav
+    - url: "browser tab title and restored session window"
+      origin: direct
   actions:
     - step: 1
       verb: "Leave one or more agent sessions running while working elsewhere"
@@ -78,3 +80,12 @@ Taxonomy note: the six linked scenarios cover the end-to-end journey, channel an
 mechanics, notification permission/failure paths, quiet and overflow states, keyboard-accessible
 non-color signals, and cross-workspace continuity. Phone layout is skipped because the touched host
 surface is the desktop OS shell; Sol's keyboard/screen-reader pass remains in scope for Task 08.
+
+design_reference:
+  locked_root: "docs/design/opendesign/herdr-parity/"
+  visual_contracts:
+    - "task_03 VC-01..VC-10 — herdr-parity-sidebar.html"
+    - "task_03 VC-11..VC-16 — herdr-parity-bell.html"
+    - "task_03 VC-17..VC-20 — herdr-parity-toasts.html"
+    - "task_03 VC-21..VC-23 — herdr-parity-settings-attention.html"
+  judgment_rule: "Use runtime data and COPY.md wording inside the locked visual language; record authorized deltas rather than copying prototype content or host chrome."

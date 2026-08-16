@@ -5,7 +5,7 @@ title: Configure window behavior and declarative layouts safely
 persona: Bruno
 journey: J-administer-window-manager
 expected: Settings › Layouts exposes every supported `[window_manager]` value through direct manipulation — a desktop canvas, a 1:1 gap box, a snap-zone map, a repeat-width track, and a chord recorder — with no number field bound to a geometry value; out-of-range gaps, snap thresholds, history limit, duplicate repeat widths, and duplicate shortcut chords each name the exact value at fault and block the save while preserving the active known-good configuration; one floating save bar covers the global config and the workspace layout reviews inside its own card; a valid save hot-applies to the next command without restarting; workspace layout overrides remain isolated.
-entry_points: Settings › Layouts; global config.toml; compozy config get|set|apply; compozy layout-profile list|get|put|delete
+entry_points: Settings › Layouts; global config.toml; compozy config get|set|apply; GET/PATCH /api/settings/window-manager over HTTP and UDS; compozy layout-profile list|get|put|delete
 qa_status: untested
 bug_ids: BUG-20260801-window-manager-live-config-drift
 fix_status: fixed

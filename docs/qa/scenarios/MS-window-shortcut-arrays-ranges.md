@@ -5,7 +5,7 @@ title: Rebind shortcuts with arrays and numbered ranges
 persona: Bruno
 journey: J-administer-window-manager
 expected: Settings and config set persist ordered alternates, expand numbered ranges, name the exact conflicting member, and keep the prior effective keymap after a rejected save.
-entry_points: Settings › Layouts › Shortcuts; compozy config set window_manager.shortcuts
+entry_points: Settings › Layouts › Shortcuts; compozy config get/set window_manager.shortcuts; GET/PATCH /api/settings/window-manager over HTTP and UDS
 qa_status: untested
 bug_ids:
 fix_status:

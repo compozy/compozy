@@ -5,7 +5,7 @@ title: Keep done truthful through operator presence
 persona: Théo
 journey: J-11
 expected: A turn settled without a live operator lease derives `done` until explicitly seen, a settle under any live lease remains `idle`, CLI and API reads never mark it seen, independent client leases cannot renew or release each other, and the result survives daemon restart.
-entry_points: Web session view; POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence; compozy session list --badge done; compozy session status <session-id>
+entry_points: Web session view; POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence over HTTP and UDS; compozy session list --badge done; compozy session status <session-id>
 qa_status: untested
 bug_ids:
 fix_status:

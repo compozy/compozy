@@ -5,7 +5,7 @@ title: Report truthful operator notification delivery outcomes
 persona: Ada
 journey: J-15
 expected: compozy notify, POST /api/agent/notify, and compozy__notify return matching delivered, no-client, rate-limited, and muted-workspace outcomes; delivered is returned only when at least one live operator catalog subscriber receives the sanitized operator_notification event, and muted or rate-limited sends publish nothing.
-entry_points: compozy notify; POST /api/agent/notify; compozy__notify; GET /api/sessions/catalog-stream
+entry_points: compozy notify; POST /api/agent/notify over HTTP and UDS; compozy__notify; GET /api/sessions/catalog-stream
 qa_status: untested
 bug_ids:
 fix_status:

@@ -5,7 +5,7 @@ title: Discover sessions that need attention across workspaces
 persona: Ada
 journey: J-15
 expected: CLI, HTTP, and UDS return the same workspace-scoped attention catalog, exact badge filters, stable attention ordering, and 100-plus-session summary totals; operator-only cross-workspace and summary reads succeed while agent identity is confined to same-workspace interaction discovery.
-entry_points: compozy session list --attention/--badge/--all-workspaces/--summary; compozy session interactions <session-id>; GET /api/sessions/attention-summary; GET /api/workspaces/{workspace_id}/sessions/{session_id}/interactions
+entry_points: compozy session list --attention/--badge/--all-workspaces/--summary; compozy session interactions <session-id>; GET /api/sessions/attention-summary over HTTP and UDS; GET /api/workspaces/{workspace_id}/sessions/{session_id}/interactions over HTTP and UDS
 qa_status: untested
 bug_ids:
 fix_status:
