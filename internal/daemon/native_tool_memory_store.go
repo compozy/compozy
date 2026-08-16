@@ -14,6 +14,7 @@ import (
 
 	memorypkg "github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/session"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 
@@ -202,7 +203,7 @@ func (n *daemonNativeTools) memoryCallerActorKind(
 			err,
 		)
 	}
-	if info != nil && info.Lineage != nil && strings.TrimSpace(info.Lineage.ParentSessionID) != "" {
+	if info != nil && info.Type == session.SessionTypeSpawned {
 		return nativeMemoryActorKindSubagent, nil
 	}
 	return nativeMemoryActorKindRoot, nil

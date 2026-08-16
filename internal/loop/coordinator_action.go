@@ -59,6 +59,13 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
+	provenanceParentSessionID := ""
+	if dsl.ActionKind(actionCtx.node.Kind) == dsl.ActionGoal {
+		provenanceParentSessionID, err = r.provenanceParentSessionID(ctx, actionCtx.loopRun)
+		if err != nil {
+			return task.RunResult{}, err
+		}
+	}
 	input, err := actionExecutionInput(
 		taskRun,
 		actor,
@@ -69,6 +76,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		actionCtx.meta,
 		outputs,
 		history,
+		provenanceParentSessionID,
 	)
 	if err != nil {
 		return task.RunResult{}, err
@@ -328,6 +336,7 @@ func actionExecutionInput(
 	meta coordinatorActionRunMetadata,
 	outputs []GenerationOutput,
 	history GenerationHistory,
+	provenanceParentSessionID string,
 ) (ActionExecutionInput, error) {
 	topology := newControlTopology(resolved.Definition.Graph)
 	namespace, err := runtimeNamespaceWithHistory(
@@ -366,14 +375,15 @@ func actionExecutionInput(
 			ConfigRules: cloneRuntimeRules(effective.RuntimeRules),
 			RunRules:    cloneRuntimeRules(effective.RunRuntimeRules),
 		},
-		OriginSessionID:          loopRun.Origin.SessionID,
-		OriginCreationProfileRef: loopRun.Origin.CreationProfileRef,
-		OriginPolicySpecDigest:   loopRun.Origin.PolicySpecDigest,
-		OriginCreationDigest:     loopRun.Origin.CreationDigest,
-		GoalContextNudgeRatio:    new(loopRun.GoalContextNudgeRatio),
-		GoalSegmentEpoch:         meta.GoalSegmentEpoch,
-		NetworkParticipation:     new(loopRun.NetworkSpecSnapshot()),
-		Environment:              cloneEnvironmentSpec(effective.Environment),
+		OriginSessionID:           loopRun.Origin.SessionID,
+		ProvenanceParentSessionID: strings.TrimSpace(provenanceParentSessionID),
+		OriginCreationProfileRef:  loopRun.Origin.CreationProfileRef,
+		OriginPolicySpecDigest:    loopRun.Origin.PolicySpecDigest,
+		OriginCreationDigest:      loopRun.Origin.CreationDigest,
+		GoalContextNudgeRatio:     new(loopRun.GoalContextNudgeRatio),
+		GoalSegmentEpoch:          meta.GoalSegmentEpoch,
+		NetworkParticipation:      new(loopRun.NetworkSpecSnapshot()),
+		Environment:               cloneEnvironmentSpec(effective.Environment),
 	}
 	if meta.ContinuationKind == deathResumeContinuationKind {
 		input.DeathResume = &DeathResumeContext{

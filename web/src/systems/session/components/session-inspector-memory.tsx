@@ -96,7 +96,7 @@ function SessionLedgerMetaPanel({ meta }: { meta: SessionLedgerMeta }) {
       testId: "parent-session",
       mono: true,
     },
-    { label: "Spawn depth", value: String(meta.spawn_depth), testId: "spawn-depth", mono: true },
+    { label: "Lineage depth", value: String(meta.spawn_depth), testId: "spawn-depth", mono: true },
     {
       label: "Created",
       value: formatLedgerTimestamp(meta.created_at),

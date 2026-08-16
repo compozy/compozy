@@ -289,6 +289,7 @@ func (e *Executor) actionSessionBindRequest(
 		Handle:                         handle,
 		Mode:                           mode,
 		OriginSessionID:                strings.TrimSpace(segment.input.OriginSessionID),
+		ProvenanceParentSessionID:      strings.TrimSpace(segment.input.ProvenanceParentSessionID),
 		TargetBindingEpoch:             targetEpoch,
 		ExpectedControlEpoch:           segment.checkpoint.ControlEpoch,
 		ExpectedCheckpointPhase:        segment.checkpoint.Phase,

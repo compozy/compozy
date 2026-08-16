@@ -177,6 +177,7 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 			coordinatorActionRunMetadata{Generation: 1, GoalSegmentEpoch: 1},
 			nil,
 			GenerationHistory{},
+			"session-provenance",
 		)
 		if err != nil {
 			t.Fatalf("actionExecutionInput() error = %v", err)
@@ -189,6 +190,9 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 			input.OriginPolicySpecDigest != run.Origin.PolicySpecDigest ||
 			input.OriginCreationDigest != run.Origin.CreationDigest {
 			t.Fatalf("action origin identity = %#v, want %#v", input, run.Origin)
+		}
+		if input.ProvenanceParentSessionID != "session-provenance" {
+			t.Fatalf("ProvenanceParentSessionID = %q, want session-provenance", input.ProvenanceParentSessionID)
 		}
 	})
 
@@ -4363,6 +4367,7 @@ type coordinatorRunnerLoopStore struct {
 	run      Run
 	runs     map[RunID]Run
 	snapshot *DefinitionSnapshot
+	getRun   func(RunID) (Run, error)
 }
 
 func (s *coordinatorRunnerLoopStore) CreateLoopRunForStart(
@@ -4378,6 +4383,9 @@ func (s *coordinatorRunnerLoopStore) GetLoopRun(context.Context, WorkspaceID, Ru
 }
 
 func (s *coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID RunID) (Run, error) {
+	if s.getRun != nil {
+		return s.getRun(runID)
+	}
 	if s.runs != nil {
 		run, ok := s.runs[runID]
 		if !ok {

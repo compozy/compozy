@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -97,6 +98,39 @@ func TestCreateUsesPatchedSessionPreCreatePayload(t *testing.T) {
 	}
 	if got := h.driver.startCalls[0].Permissions; got != compozyconfig.PermissionModeApproveAll {
 		t.Fatalf("start permissions = %q, want %q", got, compozyconfig.PermissionModeApproveAll)
+	}
+}
+
+func TestCreateRejectsProvenanceWhenPreCreateChangesSystemType(t *testing.T) {
+	t.Parallel()
+
+	sessionType := string(SessionTypeUser)
+	hooks := newNativeHookDispatcher(t,
+		[]hookspkg.HookDecl{{
+			Name:         "change-system-type",
+			Event:        hookspkg.HookSessionPreCreate,
+			Mode:         hookspkg.HookModeSync,
+			ExecutorKind: hookspkg.HookExecutorNative,
+		}},
+		map[string]hookspkg.Executor{
+			"change-system-type": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreCreatePayload) (hookspkg.SessionCreatePatch, error) {
+					return hookspkg.SessionCreatePatch{SessionType: &sessionType}, nil
+				},
+			),
+		},
+	)
+
+	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+	parent := createSession(t, h)
+	t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+
+	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+		ProvenanceParentSessionID: parent.ID,
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("Create(pre-create changed system type) error = %v, want %v", err, ErrValidation)
 	}
 }
 

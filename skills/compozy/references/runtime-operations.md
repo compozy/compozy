@@ -322,6 +322,8 @@ The session catalog is counted and workspace-scoped. Dream sessions are internal
 
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
 
+Loop Goal sessions also record the session that started the Loop as internal creation provenance when that origin is available. They remain `type=system`: the parent/root/depth fields are informational and do not grant safe-spawn policy, caps, TTL, or parent-stop cleanup. If the origin was deleted before Goal creation, the Goal is created as its own root; deleting an origin after creation preserves the Goal and its recorded lineage.
+
 ## MCP Serve
 
 Use `compozy mcp serve` to expose the approved Host API subset to a trusted external MCP client over

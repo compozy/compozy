@@ -51,7 +51,10 @@ type CreateOpts struct {
 	RuntimeMode      string
 	Type             Type
 	Lineage          *store.SessionLineage
-	ParentSoulDigest string
+	// ProvenanceParentSessionID links an internal system session to its informational origin.
+	// It does not grant spawn governance and is unavailable on public create surfaces.
+	ProvenanceParentSessionID string
+	ParentSoulDigest          string
 	// AllowedToolsOverride is a concrete subset narrowing of the resolved agent tool policy.
 	AllowedToolsOverride []string
 	CreationProfile      *store.SessionCreationProfile

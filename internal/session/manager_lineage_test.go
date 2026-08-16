@@ -424,6 +424,7 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 			SessionTypeUser,
 			"ws-other",
 			&store.SessionLineage{ParentSessionID: parent.ID},
+			"",
 		)
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "another workspace") {
 			t.Fatalf("normalizeCreateLineage(cross-workspace) error = %v, want workspace validation", err)
@@ -463,6 +464,127 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 		})
 		if err == nil || !strings.Contains(err.Error(), "only spawned or user sessions") {
 			t.Fatalf("Create(system with parent) error = %v, want type rule rejection", err)
+		}
+	})
+}
+
+func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist lineage without spawn governance", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+
+		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: parent.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(system provenance) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+
+		info := child.Info()
+		if info.Type != SessionTypeSystem || info.Lineage == nil ||
+			info.Lineage.ParentSessionID != parent.ID ||
+			info.Lineage.RootSessionID != parent.ID || info.Lineage.SpawnDepth != 1 {
+			t.Fatalf("system provenance info = %#v, want system child of %q", info, parent.ID)
+		}
+		if info.Lineage.TTLExpiresAt != nil || info.Lineage.AutoStopOnParent ||
+			info.Lineage.SpawnRole != "" || !sessionPermissionPolicyIsEmpty(info.Lineage.PermissionPolicy) {
+			t.Fatalf("system provenance lineage = %#v, want no spawn governance", info.Lineage)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if meta.Lineage == nil || meta.Lineage.ParentSessionID != parent.ID {
+			t.Fatalf("persisted system provenance = %#v, want parent %q", meta.Lineage, parent.ID)
+		}
+	})
+
+	t.Run("Should accept a stopped provenance parent", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
+			t.Fatalf("Stop(parent) error = %v", err)
+		}
+		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: parent.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(system with stopped parent) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+		if child.Info().Lineage == nil || child.Info().Lineage.ParentSessionID != parent.ID {
+			t.Fatalf("system lineage = %#v, want stopped parent %q", child.Info().Lineage, parent.ID)
+		}
+	})
+
+	t.Run("Should degrade to a root when the provenance parent is missing", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: "sess-deleted",
+		})
+		if err != nil {
+			t.Fatalf("Create(system with deleted parent) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+		lineage := child.Info().Lineage
+		if lineage == nil || lineage.ParentSessionID != "" ||
+			lineage.RootSessionID != child.ID || lineage.SpawnDepth != 0 {
+			t.Fatalf("system lineage = %#v, want self-rooted child %q", lineage, child.ID)
+		}
+	})
+
+	t.Run("Should reject provenance for a non-system session", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeUser,
+			ProvenanceParentSessionID: parent.ID,
+		})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Create(user with internal provenance) error = %v, want %v", err, ErrValidation)
+		}
+	})
+
+	t.Run("Should reject simultaneous public and internal lineage", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			Lineage:                   &store.SessionLineage{ParentSessionID: parent.ID},
+			ProvenanceParentSessionID: parent.ID,
+		})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Create(system with two lineage inputs) error = %v, want %v", err, ErrValidation)
+		}
+	})
+
+	t.Run("Should reject an internal provenance parent from another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		_, err := h.manager.normalizeCreateLineage(
+			testutil.Context(t), "sess-system-foreign", SessionTypeSystem, "ws-other", nil, parent.ID,
+		)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("normalizeCreateLineage(system cross-workspace) error = %v, want %v", err, ErrValidation)
 		}
 	})
 }

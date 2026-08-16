@@ -79,7 +79,7 @@ const meta: Meta<typeof SessionSidebar> = {
     docs: {
       description: {
         component:
-          "In-window sessions rail with provenance threads: sessions spawned from another session nest under their root behind a hairline connector.",
+          "In-window sessions rail with provenance threads: child sessions nest under their origin behind a hairline connector.",
       },
     },
   },
@@ -100,7 +100,7 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * Open rail with two provenance threads; the active session carries the accent
- * marker and spawned children keep their own agent identity in the sub line.
+ * marker and child sessions keep their own agent identity in the sub line.
  */
 export const ProvenanceThreads: Story = {
   args: {

@@ -10,7 +10,7 @@ import { SessionListThread } from "./session-list-thread";
 
 export interface SessionListGroupProps {
   agentName: string;
-  /** Thread roots owned by this agent; spawned sessions stay with their thread. */
+  /** Thread roots owned by this agent; child sessions stay with their provenance thread. */
   threads: ReadonlyArray<{ session: SessionPayload; childSessions: SessionPayload[] }>;
   collapsed: boolean;
   collapsedThreadIds: ReadonlySet<string>;

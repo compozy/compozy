@@ -283,8 +283,37 @@ func TestRecordEventDispatchesSessionMessagePersistedAfterDurableAgentMessage(t 
 	if persistedPayload.ParentSessionID != "" {
 		t.Fatalf("parent session id = %q, want empty root session", persistedPayload.ParentSessionID)
 	}
-	if persistedPayload.ActorKind != "agent_root" {
+	if persistedPayload.ActorKind != sessionActorKindRoot {
 		t.Fatalf("actor kind = %q, want agent_root", persistedPayload.ActorKind)
+	}
+}
+
+func TestMessagePersistedLineageUsesSessionTypeForActorKind(t *testing.T) {
+	t.Parallel()
+
+	lineage := &store.SessionLineage{
+		ParentSessionID: "sess-orchestrator", RootSessionID: "sess-orchestrator", SpawnDepth: 1,
+	}
+	goal := &Session{ID: "sess-goal", Type: SessionTypeSystem, Lineage: lineage}
+	rootID, parentID, actorKind, sessionID := messagePersistedLineage(goal)
+	if rootID != "sess-orchestrator" || parentID != "sess-orchestrator" ||
+		actorKind != sessionActorKindRoot || sessionID != "sess-goal" {
+		t.Fatalf(
+			"messagePersistedLineage(system provenance) = %q/%q/%q/%q, want correlated agent_root",
+			rootID, parentID, actorKind, sessionID,
+		)
+	}
+
+	spawned := &Session{ID: "sess-worker", Type: SessionTypeSpawned, Lineage: lineage}
+	spawnedRootID, spawnedParentID, actorKind, spawnedSessionID := messagePersistedLineage(spawned)
+	if actorKind != sessionActorKindSubagent {
+		t.Fatalf("messagePersistedLineage(spawned) actor kind = %q, want agent_subagent", actorKind)
+	}
+	if spawnedRootID == "" || spawnedParentID == "" || spawnedSessionID != spawned.ID {
+		t.Fatalf(
+			"messagePersistedLineage(spawned) = %q/%q/%q, want complete lineage",
+			spawnedRootID, spawnedParentID, spawnedSessionID,
+		)
 	}
 }
 

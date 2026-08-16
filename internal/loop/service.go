@@ -324,7 +324,12 @@ func (s *service) effectiveConfig(
 	return effective, nil
 }
 
-func (s *service) ensureAncestry(ctx context.Context, parentID RunID, targetLoop string) error {
+func (s *service) ensureAncestry(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	parentID RunID,
+	targetLoop string,
+) error {
 	if parentID == "" {
 		return nil
 	}
@@ -340,6 +345,9 @@ func (s *service) ensureAncestry(ctx context.Context, parentID RunID, targetLoop
 		parent, err := s.store.GetLoopRunByID(ctx, currentID)
 		if err != nil {
 			return err
+		}
+		if parent.ID != currentID || parent.WorkspaceID != workspaceID {
+			return fmt.Errorf("%w: parent loop run is outside the target workspace", ErrAncestryRejected)
 		}
 		if parent.LoopName == targetLoop {
 			return reasonError(

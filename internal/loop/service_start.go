@@ -25,7 +25,7 @@ func (s *service) Start(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.ensureAncestry(ctx, inputs.ParentLoopRunID, loopName); err != nil {
+	if err := s.ensureAncestry(ctx, ws, inputs.ParentLoopRunID, loopName); err != nil {
 		return nil, err
 	}
 	prepared, err := s.prepareResolvedStart(

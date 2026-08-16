@@ -267,6 +267,35 @@ func TestManagerDelete(t *testing.T) {
 			},
 		},
 		{
+			name: "Should preserve a system child when its provenance parent is deleted",
+			run: func(t *testing.T) {
+				h := newHarness(t)
+				parent := createSession(t, h)
+				child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+					AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+					ProvenanceParentSessionID: parent.ID,
+				})
+				if err != nil {
+					t.Fatalf("Create(system child) error = %v", err)
+				}
+
+				if err := h.manager.Delete(testutil.Context(t), parent.ID); err != nil {
+					t.Fatalf("Delete(parent) error = %v", err)
+				}
+				info, err := h.manager.Status(testutil.Context(t), child.ID)
+				if err != nil {
+					t.Fatalf("Status(child after parent deletion) error = %v", err)
+				}
+				if info.Lineage == nil || info.Lineage.ParentSessionID != parent.ID ||
+					info.Lineage.RootSessionID != parent.ID {
+					t.Fatalf("child lineage = %#v, want preserved dangling provenance to %q", info.Lineage, parent.ID)
+				}
+				if err := h.manager.Delete(testutil.Context(t), child.ID); err != nil {
+					t.Fatalf("Delete(child with missing parent) error = %v", err)
+				}
+			},
+		},
+		{
 			name: "Should remove a stopped user session from durable counts",
 			run: func(t *testing.T) {
 				catalog := newRecordingSessionCatalog()

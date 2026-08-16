@@ -869,6 +869,147 @@ func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {
 	})
 }
 
+func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should start governed depth at one below a system provenance parent", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		root := createSession(t, h)
+		cleanupSessionStop(t, h, root.ID)
+		goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: root.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(system provenance parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, goal.ID)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: goal.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(system provenance parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		info := child.Info()
+		if info.Type != SessionTypeSpawned || info.Lineage == nil ||
+			info.Lineage.ParentSessionID != goal.ID || info.Lineage.RootSessionID != root.ID ||
+			info.Lineage.SpawnDepth != 2 {
+			t.Fatalf("spawned child = %#v, want display depth 2 under system Goal", info)
+		}
+	})
+
+	t.Run("Should rebase a child below a live system parent when its provenance root was deleted", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		root := createSession(t, h)
+		goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: root.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(system provenance parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, goal.ID)
+		if err := h.manager.Delete(testutil.Context(t), root.ID); err != nil {
+			t.Fatalf("Delete(provenance root) error = %v", err)
+		}
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: goal.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(system parent with deleted provenance root) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		info := child.Info()
+		if info.Type != SessionTypeSpawned || info.Lineage == nil ||
+			info.Lineage.ParentSessionID != goal.ID || info.Lineage.RootSessionID != goal.ID ||
+			info.Lineage.SpawnDepth != 2 {
+			t.Fatalf("spawned child = %#v, want display depth 2 rebased below live system parent", info)
+		}
+	})
+
+	t.Run("Should exclude provenance-only children from max children", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		root := createSession(t, h)
+		cleanupSessionStop(t, h, root.ID)
+		for range DefaultSpawnMaxChildren {
+			goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+				ProvenanceParentSessionID: root.ID,
+			})
+			if err != nil {
+				t.Fatalf("Create(system provenance child) error = %v", err)
+			}
+			cleanupSessionStop(t, h, goal.ID)
+		}
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: root.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(with provenance siblings) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+	})
+
+	t.Run("Should isolate max active counts by the nearest non-spawned parent", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		root := createSession(t, h)
+		cleanupSessionStop(t, h, root.ID)
+		firstGoal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: root.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(first Goal) error = %v", err)
+		}
+		cleanupSessionStop(t, h, firstGoal.ID)
+		secondGoal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: root.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(second Goal) error = %v", err)
+		}
+		cleanupSessionStop(t, h, secondGoal.ID)
+		spawned, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: firstGoal.ID, AgentName: "coder", TTL: time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(first Goal) error = %v", err)
+		}
+		cleanupSessionStop(t, h, spawned.ID)
+
+		err = h.manager.validateSpawnCaps(
+			testutil.Context(t), secondGoal.Info(),
+			store.SessionSpawnBudget{
+				MaxChildren: DefaultSpawnMaxChildren, MaxDepth: DefaultSpawnMaxDepth,
+				MaxActivePerWorkspace: 1,
+			},
+			h.workspaceID,
+		)
+		if err != nil {
+			t.Fatalf("validateSpawnCaps(second Goal) error = %v, want independent governed root", err)
+		}
+	})
+}
+
 func createSpawnParent(
 	t *testing.T,
 	h *harness,

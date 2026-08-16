@@ -15,6 +15,11 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+const (
+	sessionActorKindRoot     = "agent_root"
+	sessionActorKindSubagent = "agent_subagent"
+)
+
 func (m *Manager) dispatchEventPreRecord(ctx context.Context, session *Session, event acp.AgentEvent, content string) {
 	if m == nil {
 		return
@@ -187,9 +192,9 @@ func messagePersistedLineage(session *Session) (string, string, string, string) 
 		}
 		parentSessionID = strings.TrimSpace(info.Lineage.ParentSessionID)
 	}
-	actorKind := "agent_root"
-	if parentSessionID != "" {
-		actorKind = "agent_subagent"
+	actorKind := sessionActorKindRoot
+	if info.Type == SessionTypeSpawned {
+		actorKind = sessionActorKindSubagent
 	}
 	return rootSessionID, parentSessionID, actorKind, strings.TrimSpace(info.ID)
 }

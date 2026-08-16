@@ -76,6 +76,77 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve retry identity across provenance parent deletion", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "provenance-retry", nil, withoutInitialGoalBinding())
+		parentID, _ := fixture.createOriginSession(t, "provenance-retry", participation.LocalSpec())
+		request := fixture.bindingRequest("provenance-retry")
+		request.ProvenanceParentSessionID = parentID
+
+		profile, opts, materialized, err := fixture.runtime.resolveRunOwnedBindingProfile(
+			testutil.Context(t), request, goalpkg.SessionBinding{}, false,
+		)
+		if err != nil {
+			t.Fatalf("resolveEffectiveCreationProfile() error = %v", err)
+		}
+		if materialized != nil {
+			t.Fatalf("materialized worktree = %#v, want nil", materialized)
+		}
+		identity, err := bindingCreationIdentity(profile, opts, request.DesiredSessionID)
+		if err != nil {
+			t.Fatalf("bindingCreationIdentity() error = %v", err)
+		}
+		opts.DesiredSessionID = request.DesiredSessionID
+		opts.CreationProfile = cloneStoreCreationProfile(profile)
+		opts.CreationIdentity = cloneStoreCreationIdentity(identity)
+
+		created, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
+		if err != nil || created.Outcome != session.EnsureCreatedOutcomeCreated {
+			t.Fatalf("EnsureCreated(first) = %#v, %v, want created", created, err)
+		}
+		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, parentID)
+		if err := fixture.manager.Delete(testutil.Context(t), parentID); err != nil {
+			t.Fatalf("Delete(parent) error = %v", err)
+		}
+
+		matched, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
+		if err != nil || matched.Outcome != session.EnsureCreatedOutcomeExistingMatch {
+			t.Fatalf("EnsureCreated(existing after parent deletion) = %#v, %v, want existing-match", matched, err)
+		}
+		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, parentID)
+		spawned, err := fixture.manager.Spawn(testutil.Context(t), session.SpawnOpts{
+			ParentSessionID: request.DesiredSessionID,
+			AgentName:       fixture.agentName,
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(Goal after provenance parent deletion) error = %v", err)
+		}
+		spawnedInfo := spawned.Info()
+		if spawnedInfo.Lineage == nil ||
+			spawnedInfo.Lineage.ParentSessionID != request.DesiredSessionID ||
+			spawnedInfo.Lineage.RootSessionID != request.DesiredSessionID {
+			t.Fatalf("spawned Goal child lineage = %#v, want rebased under live Goal", spawnedInfo.Lineage)
+		}
+		if err := fixture.manager.Delete(testutil.Context(t), spawned.ID); err != nil {
+			t.Fatalf("Delete(spawned Goal child) error = %v", err)
+		}
+
+		if err := fixture.manager.Delete(testutil.Context(t), request.DesiredSessionID); err != nil {
+			t.Fatalf("Delete(child) error = %v", err)
+		}
+		recreated, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
+		if err != nil || recreated.Outcome != session.EnsureCreatedOutcomeCreated {
+			t.Fatalf("EnsureCreated(recreate without parent) = %#v, %v, want created", recreated, err)
+		}
+		t.Cleanup(func() { _ = fixture.manager.Delete(testutil.Context(t), request.DesiredSessionID) })
+		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, "")
+		retry, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
+		if err != nil || retry.Outcome != session.EnsureCreatedOutcomeExistingMatch {
+			t.Fatalf("EnsureCreated(retry root) = %#v, %v, want existing-match", retry, err)
+		}
+		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, "")
+	})
+
 	t.Run("Should reject a runtime triple that diverges from the active pinned profile", func(t *testing.T) {
 		fixture := newLoopGoalManagedRuntimeFixture(t, "runtime-profile", nil, withoutInitialGoalBinding())
 		firstRequest := fixture.bindingRequest("runtime-profile")
@@ -1117,6 +1188,25 @@ func (f loopGoalManagedRuntimeFixture) createOriginSession(
 		t.Fatalf("EnsureCreated(origin) error = %v", err)
 	}
 	return sessionID, identity
+}
+
+func assertSessionProvenanceParent(
+	t *testing.T,
+	manager *session.Manager,
+	sessionID string,
+	wantParentID string,
+) {
+	t.Helper()
+	info, err := manager.Status(testutil.Context(t), sessionID)
+	if err != nil {
+		t.Fatalf("Status(%q) error = %v", sessionID, err)
+	}
+	if info.Lineage == nil || info.Lineage.ParentSessionID != wantParentID {
+		t.Fatalf("Status(%q).Lineage = %#v, want parent %q", sessionID, info.Lineage, wantParentID)
+	}
+	if wantParentID == "" && (info.Lineage.RootSessionID != sessionID || info.Lineage.SpawnDepth != 0) {
+		t.Fatalf("Status(%q).Lineage = %#v, want self-rooted lineage", sessionID, info.Lineage)
+	}
 }
 
 func (f loopGoalManagedRuntimeFixture) preparePrompt(

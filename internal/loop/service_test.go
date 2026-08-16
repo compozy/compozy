@@ -1143,6 +1143,24 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 			t.Fatalf("Start() reason = %#v, want ancestry cycle reason code", reason)
 		}
 	})
+
+	t.Run("Should reject a parent run from another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		parent := seedFakeRun(store, loop.StatusRunning)
+		parent.WorkspaceID = "ws-foreign"
+		store.seed(parent)
+		svc := newTestService(t, store, validDefinition())
+
+		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values:          map[string]any{"tasks": "task-ref"},
+			ParentLoopRunID: parent.ID,
+		}, humanActor(t))
+		if !errors.Is(err, loop.ErrAncestryRejected) {
+			t.Fatalf("Start() error = %v, want ErrAncestryRejected", err)
+		}
+	})
 }
 
 func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {

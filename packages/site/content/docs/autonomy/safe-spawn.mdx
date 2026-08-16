@@ -7,6 +7,11 @@ description: How agent-initiated child sessions are bounded by lineage, TTL, cap
 delegation surface for the autonomy MVP, but it is safe by default: the daemon owns lineage, TTL,
 caps, workspace inheritance, permission narrowing, and cleanup.
 
+Parent lineage is also used as informational creation provenance for some daemon-managed system
+sessions, including Loop Goals. Those sessions can appear beneath their origin in session views,
+but only sessions with `type=spawned` participate in safe-spawn depth, child caps, permission
+narrowing, TTL, and parent-stop cleanup.
+
 ## Required constraints
 
 | Constraint              | Behavior                                                                                                                      |

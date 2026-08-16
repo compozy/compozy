@@ -337,12 +337,16 @@ func (m *Manager) spawnLineage(
 ) (*store.SessionLineage, error) {
 	parentLineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
 	budget := effectiveSpawnBudget(parentLineage.SpawnBudget)
-	childDepth := parentLineage.SpawnDepth + 1
-	if childDepth > budget.MaxDepth {
+	governance, err := m.spawnGovernanceForParent(ctx, parent)
+	if err != nil {
+		return nil, err
+	}
+	governedChildDepth := governance.depth + 1
+	if governedChildDepth > budget.MaxDepth {
 		return nil, fmt.Errorf(
 			"%w: child depth %d exceeds max_depth %d",
 			ErrSpawnLimitExceeded,
-			childDepth,
+			governedChildDepth,
 			budget.MaxDepth,
 		)
 	}
@@ -350,7 +354,7 @@ func (m *Manager) spawnLineage(
 	if targetWorkspaceID == "" {
 		targetWorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 	}
-	if err := m.validateSpawnCaps(ctx, parent, parentLineage, budget, targetWorkspaceID); err != nil {
+	if err := m.validateSpawnCaps(ctx, parent, budget, targetWorkspaceID); err != nil {
 		return nil, err
 	}
 
@@ -358,12 +362,25 @@ func (m *Manager) spawnLineage(
 	if rootID == "" {
 		rootID = parent.ID
 	}
+	if rootID != governance.rootID {
+		if _, statusErr := m.Status(ctx, rootID); statusErr != nil {
+			if !errors.Is(statusErr, ErrSessionNotFound) {
+				return nil, fmt.Errorf(
+					"%w: resolve child lineage root %q: %w",
+					ErrSpawnValidation,
+					rootID,
+					statusErr,
+				)
+			}
+			rootID = governance.rootID
+		}
+	}
 	ttlExpiresAt := m.now().UTC().Add(opts.TTL)
 	budget.TTLSeconds = durationSecondsCeil(opts.TTL)
 	return store.NormalizeSessionLineage("", &store.SessionLineage{
 		ParentSessionID:  parent.ID,
 		RootSessionID:    rootID,
-		SpawnDepth:       childDepth,
+		SpawnDepth:       parentLineage.SpawnDepth + 1,
 		SpawnRole:        opts.SpawnRole,
 		TTLExpiresAt:     &ttlExpiresAt,
 		AutoStopOnParent: opts.AutoStopOnParent,
@@ -375,7 +392,6 @@ func (m *Manager) spawnLineage(
 func (m *Manager) validateSpawnCaps(
 	ctx context.Context,
 	parent *Info,
-	parentLineage *store.SessionLineage,
 	budget store.SessionSpawnBudget,
 	targetWorkspaceID string,
 ) error {
@@ -385,22 +401,37 @@ func (m *Manager) validateSpawnCaps(
 	}
 	activeChildren := 0
 	activeInWorkspace := 0
-	rootID := strings.TrimSpace(parentLineage.RootSessionID)
-	if rootID == "" {
-		rootID = parent.ID
+	infosByID := make(map[string]*Info, len(infos))
+	for _, info := range infos {
+		if info != nil {
+			infosByID[info.ID] = info
+		}
+	}
+	lookup := func(sessionID string) (*Info, bool, error) {
+		info, ok := infosByID[sessionID]
+		return info, ok, nil
+	}
+	governance, err := resolveSpawnGovernance(parent, lookup)
+	if err != nil {
+		return err
 	}
 	for _, info := range infos {
-		if info == nil || info.Lineage == nil || !isLiveSpawnState(info.State) {
+		if info == nil || normalizeSessionType(info.Type) != SessionTypeSpawned ||
+			info.Lineage == nil || !isLiveSpawnState(info.State) {
 			continue
 		}
 		lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
 		if lineage.ParentSessionID == parent.ID {
 			activeChildren++
 		}
-		if budget.MaxActivePerWorkspace > 0 &&
-			lineage.RootSessionID == rootID &&
-			strings.TrimSpace(info.WorkspaceID) == targetWorkspaceID {
-			activeInWorkspace++
+		if budget.MaxActivePerWorkspace > 0 && strings.TrimSpace(info.WorkspaceID) == targetWorkspaceID {
+			candidate, candidateErr := resolveSpawnGovernance(info, lookup)
+			if candidateErr != nil {
+				return candidateErr
+			}
+			if candidate.rootID == governance.rootID {
+				activeInWorkspace++
+			}
 		}
 	}
 	if activeChildren >= budget.MaxChildren {

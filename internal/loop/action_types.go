@@ -67,33 +67,34 @@ type ActionExecutor interface {
 
 // ActionExecutionInput is the loop-owned execution context for one node instance.
 type ActionExecutionInput struct {
-	WorkspaceID              WorkspaceID
-	LoopRunID                RunID
-	Generation               int
-	NodeID                   dsl.NodeID
-	ItemIndex                int
-	Attempt                  int
-	CellEpoch                int64
-	DeathResume              *DeathResumeContext
-	RetryFailure             *ClassifiedFailure
-	RepairFailures           []ActionRepairFailure
-	Namespace                map[string]any
-	Contract                 *dsl.Contract
-	ToolScope                tools.Scope
-	Actor                    task.ActorContext
-	CorrelationID            string
-	RuntimeSelection         *ActionRuntimeSelection
-	Environment              *dsl.EnvironmentSpec
-	AllowedTools             []string
-	OriginSessionID          string
-	OriginCreationProfileRef string
-	OriginPolicySpecDigest   string
-	OriginCreationDigest     string
-	GoalContextNudgeRatio    *float64
-	UsageReporter            ActionUsageReporter
-	PersistedTaskTokensUsed  int64
-	GoalSegmentEpoch         int64
-	NetworkParticipation     *participation.Spec
+	WorkspaceID               WorkspaceID
+	LoopRunID                 RunID
+	Generation                int
+	NodeID                    dsl.NodeID
+	ItemIndex                 int
+	Attempt                   int
+	CellEpoch                 int64
+	DeathResume               *DeathResumeContext
+	RetryFailure              *ClassifiedFailure
+	RepairFailures            []ActionRepairFailure
+	Namespace                 map[string]any
+	Contract                  *dsl.Contract
+	ToolScope                 tools.Scope
+	Actor                     task.ActorContext
+	CorrelationID             string
+	RuntimeSelection          *ActionRuntimeSelection
+	Environment               *dsl.EnvironmentSpec
+	AllowedTools              []string
+	OriginSessionID           string
+	ProvenanceParentSessionID string
+	OriginCreationProfileRef  string
+	OriginPolicySpecDigest    string
+	OriginCreationDigest      string
+	GoalContextNudgeRatio     *float64
+	UsageReporter             ActionUsageReporter
+	PersistedTaskTokensUsed   int64
+	GoalSegmentEpoch          int64
+	NetworkParticipation      *participation.Spec
 }
 
 // ActionRuntimeSelection carries the runtime inputs shared by runtime-aware action executors.
@@ -238,6 +239,7 @@ type ActionSessionBindRequest struct {
 	SharedKey                      string
 	Mode                           string
 	OriginSessionID                string
+	ProvenanceParentSessionID      string
 	TargetBindingEpoch             int64
 	CellFence                      *ActionSessionCellFence
 	ExpectedControlEpoch           int64
