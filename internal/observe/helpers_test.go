@@ -216,6 +216,62 @@ command = "codex"
 	}
 }
 
+func TestDefaultPermissionModeResolverUsesBuiltinAgentInWorkspace(t *testing.T) {
+	t.Run("Should resolve built-in agent with workspace permissions", func(t *testing.T) {
+		t.Parallel()
+
+		home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(home); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		if err := os.WriteFile(home.ConfigFile, []byte(`
+[defaults]
+provider = "codex"
+
+[providers.codex]
+command = "codex"
+
+[permissions]
+mode = "deny-all"
+`), 0o644); err != nil {
+			t.Fatalf("WriteFile(global config) error = %v", err)
+		}
+
+		workspace := filepath.Join(t.TempDir(), "workspace")
+		workspaceConfigDir := filepath.Join(workspace, compozyconfig.DirName)
+		if err := os.MkdirAll(workspaceConfigDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspace config) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(workspaceConfigDir, compozyconfig.ConfigName), []byte(`
+[permissions]
+mode = "approve-all"
+`), 0o644); err != nil {
+			t.Fatalf("WriteFile(workspace config) error = %v", err)
+		}
+
+		resolver := defaultPermissionModeResolver(home, &fakeObserveWorkspaceResolver{
+			expectedRef: "ws-observe",
+			resolved: workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{ID: "ws-observe", RootDir: workspace},
+			},
+		})
+		got, err := resolver(
+			testutil.Context(t),
+			compozyconfig.BuiltinDreamingCuratorAgentName,
+			"ws-observe",
+		)
+		if err != nil {
+			t.Fatalf("resolver(builtin workspace agent) error = %v", err)
+		}
+		if got != "approve-all" {
+			t.Fatalf("resolver(builtin workspace agent) = %q, want approve-all", got)
+		}
+	})
+}
+
 func TestDefaultPermissionModeResolverUsesWorkspaceResolvedAgentDef(t *testing.T) {
 	t.Parallel()
 

@@ -250,10 +250,7 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 }
 
 func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
-	if info == nil || info.Type == SessionTypeDream {
-		return false
-	}
-	if lineage := info.Lineage; lineage != nil && IsInternalSpawnRole(lineage.SpawnRole) {
+	if !isPublicSessionCatalogInfo(info) {
 		return false
 	}
 	return (query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
@@ -261,6 +258,14 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&
 		(query.SessionType == "" || normalizeSessionType(info.Type) == query.SessionType) &&
 		(query.AgentName == "" || strings.TrimSpace(info.AgentName) == query.AgentName)
+}
+
+func isPublicSessionCatalogInfo(info *Info) bool {
+	if info == nil || info.Type == SessionTypeDream {
+		return false
+	}
+	lineage := info.Lineage
+	return lineage == nil || !IsInternalSpawnRole(lineage.SpawnRole)
 }
 
 func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {

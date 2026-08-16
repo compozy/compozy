@@ -35,6 +35,7 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 
 func registerStatusRoutes(api gin.IRouter, handlers *Handlers) {
 	api.GET("/status", handlers.GetStatus)
+	api.GET("/status/identity", handlers.GetRuntimeIdentity)
 	api.GET("/doctor", handlers.GetDoctor)
 	privileged := handlers.privilegedMutationGuard()
 	api.POST("/drain", privileged, handlers.DrainDaemon)

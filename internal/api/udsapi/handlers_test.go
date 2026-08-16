@@ -181,6 +181,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/network/status",
 			"GET /api/workspaces/:workspace_id/network/work/:work_id",
 			"GET /api/status",
+			"GET /api/status/identity",
 			"POST /api/undrain",
 			"GET /api/onboarding",
 			"POST /api/onboarding/complete",
