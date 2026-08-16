@@ -73,7 +73,8 @@ or `workspace`. Pre-create, pre-resume, and pre-stop hooks can also deny the ope
 | `prompt.post_assemble` | yes  | `PromptPayload`         | `PromptPatch`         | After CompozyOS assembles the final prompt and before it reaches the agent. |
 
 `input.pre_submit` patches can replace `message`, append or replace `context_blocks`, or deny the
-submission. `prompt.post_assemble` patches can replace `prompt`, adjust `context_blocks`, or deny
+submission. Its `attachments` field exposes only read-only `id`, `name`, `mime`, `bytes`, and `kind`
+metadata; file contents never enter the hook payload or patch. `prompt.post_assemble` patches can replace `prompt`, adjust `context_blocks`, or deny
 the assembled prompt.
 
 ## Event Persistence Events

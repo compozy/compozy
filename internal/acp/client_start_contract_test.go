@@ -50,6 +50,54 @@ func TestStartInitializeContract(t *testing.T) {
 	})
 }
 
+func TestStartCapturesPromptCapabilities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		scenario string
+		want     Caps
+	}{
+		{
+			name:     "Should preserve the image prompt capability after session negotiation",
+			scenario: "prompt_capabilities_image",
+			want:     Caps{PromptImage: true},
+		},
+		{
+			name:     "Should preserve the audio prompt capability after session negotiation",
+			scenario: "prompt_capabilities_audio",
+			want:     Caps{PromptAudio: true},
+		},
+		{
+			name:     "Should preserve the embedded-context prompt capability after session negotiation",
+			scenario: "prompt_capabilities_embedded_context",
+			want:     Caps{PromptEmbeddedContext: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			proc := startHelperProcess(t, driver, tt.scenario, "", StartOpts{})
+			t.Cleanup(func() {
+				stopProcess(t, driver, proc)
+			})
+
+			caps := proc.CapsSnapshot()
+			if got, want := caps.PromptImage, tt.want.PromptImage; got != want {
+				t.Fatalf("Start() PromptImage = %t, want %t", got, want)
+			}
+			if got, want := caps.PromptAudio, tt.want.PromptAudio; got != want {
+				t.Fatalf("Start() PromptAudio = %t, want %t", got, want)
+			}
+			if got, want := caps.PromptEmbeddedContext, tt.want.PromptEmbeddedContext; got != want {
+				t.Fatalf("Start() PromptEmbeddedContext = %t, want %t", got, want)
+			}
+		})
+	}
+}
+
 func TestStartActivatesMCPAfterInitializeBeforeSessionNegotiation(t *testing.T) {
 	t.Parallel()
 

@@ -10,6 +10,7 @@
 - Goals
 - Automation schedules
 - Session compaction
+- Session attachments
 - Auto-title role
 - Window manager
 
@@ -29,6 +30,18 @@ Use `compozy config reload -o json` to reconcile edited desired state with the a
 
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
+
+## Session Attachments
+
+`session.attachments.max_file_bytes` (10 MiB), `session.attachments.max_files_per_prompt` (10), and
+`session.attachments.allowed_mime` (the v1 PNG/JPEG/WebP/PDF/Markdown/plain-text allowlist) control
+admission. `session.attachments.retention.max_count` (200),
+`session.attachments.retention.max_bytes` (1 GiB), and `session.attachments.retention.max_age` (720h)
+control retention. A workspace config overlay supplies the effective values. All six paths are
+agent-mutable and restart-required; inspect or change them with `compozy config get|set|unset -o json`
+or the typed `compozy__config_*` tools, then confirm the result through a structured read. The v1 store
+preserves image bytes, including EXIF metadata; support bundles exclude the attachment tree. Retention
+sweeps run at startup, during store access, and every hour while the daemon is running.
 
 ## Gateway
 

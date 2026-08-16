@@ -18,7 +18,8 @@ var (
 	ErrSessionArchiveUnavailable = errors.New("session: archive store is unavailable")
 )
 
-// Archive removes a stopped session from the default catalog without deleting its history.
+// Archive removes a stopped session from the default catalog without deleting
+// its history or attachments, which remain readable after unarchive.
 func (m *Manager) Archive(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
 	return m.setArchived(ctx, workspaceID, sessionID, true)
 }

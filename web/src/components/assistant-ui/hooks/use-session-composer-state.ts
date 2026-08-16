@@ -5,10 +5,14 @@ import { toast } from "sonner";
 
 import type { SessionComposerInputHandle } from "../session-composer-lexical-plugins";
 import { sessionComposerSyncLogic } from "./session-composer-sync-store";
-import { sessionStore, useSessionComposerDraft } from "@/systems/session";
+import {
+  retainSubmittedComposerAttachments,
+  sessionStore,
+  useSessionComposerDraft,
+} from "@/systems/session";
 
 export interface SessionComposerState {
-  clearComposer: () => void;
+  clearComposer: (options?: { retainAttachments?: boolean }) => void;
   persistComposerText: (text: string) => void;
   setComposerText: (text: string) => void;
   setComposerInputElement: (handle: SessionComposerInputHandle | null) => void;
@@ -31,8 +35,12 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
 
   const clearDraftForSession = () => sessionStore.trigger.composerDraftDiscarded({ sessionId });
 
-  const clearComposer = () => {
+  const clearComposer = ({ retainAttachments = false }: { retainAttachments?: boolean } = {}) => {
+    if (retainAttachments) {
+      retainSubmittedComposerAttachments(aui.composer.getState().attachments);
+    }
     aui.composer.setText("");
+    void aui.composer.clearAttachments();
     sessionStore.trigger.composerDraftDiscarded({ sessionId });
   };
 

@@ -10,9 +10,11 @@ import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import { createSessionPromptChatTransport } from "../lib/session-prompt-chat-transport";
+import { SessionPromptRecovery } from "../lib/session-prompt-recovery";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { getSessionPromptRuntimeSnapshot } from "./use-session-prompt-runtime";
+import { useSessionAttachmentAdapter } from "./use-session-attachment-adapter";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
 import { loopsKeys } from "@/systems/loops";
 
@@ -23,6 +25,7 @@ function buildSessionRuntimeConfig(
   workspaceId: string,
   sessionId: string,
   promptDispatch: SessionPromptDispatchStore,
+  promptRecovery: SessionPromptRecovery,
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null,
   idempotencyKeys?: Map<string, string>
 ) {
@@ -68,6 +71,7 @@ function buildSessionRuntimeConfig(
       const target = await authorizeStreamFetchInput(input, controller.signal);
       const response = await goalAwareFetch(target, { ...init, signal: controller.signal });
       await reportGatewayResponse(response);
+      if (response.ok) promptRecovery.acknowledge();
       return response;
     } finally {
       upstreamSignal?.removeEventListener("abort", abortFromUpstream);
@@ -80,6 +84,7 @@ function buildSessionRuntimeConfig(
       fetch: trackedFetch,
       ...(getRuntimeSnapshot ? { getRuntimeSnapshot } : {}),
       ...(idempotencyKeys ? { idempotencyKeys } : {}),
+      onPromptPrepared: messages => promptRecovery.stage(messages),
     }),
     onFinish: () => {
       startTransition(() => {
@@ -93,25 +98,39 @@ export function useSessionChatRuntime({
   sessionId,
   workspaceId,
   promptDispatch,
+  promptRecovery,
 }: {
   sessionId: string;
   workspaceId: string;
   promptDispatch: SessionPromptDispatchStore;
+  promptRecovery: SessionPromptRecovery;
 }) {
   const queryClient = useQueryClient();
   const promptRuntime = useOptionalSessionPromptRuntimeContext();
   const [idempotencyKeys] = useState(() => new Map<string, string>());
+  const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
     workspaceId,
     sessionId,
     promptDispatch,
+    promptRecovery,
     promptRuntime ? () => getSessionPromptRuntimeSnapshot(promptRuntime) : undefined,
     idempotencyKeys
   );
 
   return useChatRuntime({
     transport: runtimeConfig.transport,
-    onFinish: runtimeConfig.onFinish,
+    onError: () => {
+      promptRecovery.recover(attachmentAdapter.recoverSentFiles());
+    },
+    onFinish: ({ isError }) => {
+      if (!isError) {
+        promptRecovery.acknowledge();
+        attachmentAdapter.acknowledgeSentFiles();
+      }
+      runtimeConfig.onFinish();
+    },
+    adapters: { attachments: attachmentAdapter },
   });
 }

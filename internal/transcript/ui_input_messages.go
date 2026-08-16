@@ -5,23 +5,38 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	commandpkg "github.com/compozy/compozy/internal/command"
 )
 
 func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 	text := decoded.parsed.Text
-	if strings.TrimSpace(text) == "" {
+	attachments := decoded.agent.Attachments()
+	hasText := strings.TrimSpace(text) != ""
+	if !hasText && len(attachments) == 0 {
 		return nil
+	}
+	parts := make([]UIMessagePart, 0, len(attachments)+1)
+	for _, attachment := range attachments {
+		parts = append(parts, UIMessagePart{
+			Type:      UIMessagePartTypeFile,
+			MediaType: attachment.MIMEType,
+			URL:       attachmentspkg.AttachmentURIPrefix + attachment.ID,
+			Filename:  attachment.Name,
+		})
+	}
+	if hasText {
+		parts = append(parts, UIMessagePart{
+			Type:  uiPartText,
+			Text:  text,
+			State: uiPartStateDone,
+		})
 	}
 	return &UIMessage{
 		ID:       inputMessageID(decoded, role),
 		Role:     role,
 		Metadata: inputUIMessageMetadata(decoded.agent),
-		Parts: []UIMessagePart{{
-			Type:  uiPartText,
-			Text:  text,
-			State: uiPartStateDone,
-		}},
+		Parts:    parts,
 	}
 }
 
@@ -30,7 +45,8 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	messageID := event.MessageIDValue()
 	goal := acp.CloneGoalPromptMeta(event.Goal)
 	invocations := inputUISkillInvocations(event.SkillInvocations())
-	if turnID == "" && messageID == "" && goal == nil && len(invocations) == 0 {
+	attachments := event.Attachments()
+	if turnID == "" && messageID == "" && goal == nil && len(invocations) == 0 && len(attachments) == 0 {
 		return nil
 	}
 	encoded, err := json.Marshal(struct {
@@ -38,7 +54,11 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 		MessageID        string                   `json:"message_id,omitempty"`
 		Goal             *acp.GoalPromptMeta      `json:"goal,omitempty"`
 		SkillInvocations []inputUISkillInvocation `json:"skill_invocations,omitempty"`
-	}{TurnID: turnID, MessageID: messageID, Goal: goal, SkillInvocations: invocations})
+		Attachments      []acp.EventAttachment    `json:"attachments,omitempty"`
+	}{
+		TurnID: turnID, MessageID: messageID, Goal: goal,
+		SkillInvocations: invocations, Attachments: attachments,
+	})
 	if err != nil {
 		return nil
 	}

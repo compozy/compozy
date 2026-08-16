@@ -156,7 +156,8 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 			t.Fatalf("startup contexts = %#v, want bound, root, and child contexts", contextsSnapshot)
 		}
 		for _, index := range []int{0, 1, 2, 4} {
-			if contextsSnapshot[index].WorkspaceID != h.workspaceID || contextsSnapshot[index].Workspace != h.workspace {
+			if contextsSnapshot[index].WorkspaceID != h.workspaceID ||
+				contextsSnapshot[index].Workspace != h.workspace {
 				t.Fatalf("startup context[%d] = %#v, want parent workspace", index, contextsSnapshot[index])
 			}
 		}

@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type TaskTreeNodePayload struct {
+	Task           TaskReferencePayload   `json:"task"`
+	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
+	Depth          int                    `json:"depth"`
+	ChildCount     int                    `json:"child_count,omitempty"`
+	ActiveRun      *TaskRunSummaryPayload `json:"active_run,omitempty"`
+	LastActivityAt time.Time              `json:"last_activity_at"`
+}
+
 type TaskTreeParams struct {
 	ID string `json:"id"`
 }
@@ -283,8 +292,4 @@ type Trigger struct {
 type TriggerResult struct {
 	Matched int   `json:"matched"`
 	Runs    []Run `json:"runs,omitempty"`
-}
-
-type TurnContext struct {
-	TurnID string `json:"turn_id,omitempty"`
 }

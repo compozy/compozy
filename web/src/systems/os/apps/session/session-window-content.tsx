@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { loadSessionThread } from "./session-window-module-loader";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
+import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import {
   type SessionPayload,
   SessionEnvironmentControl,
@@ -84,10 +85,21 @@ export function SessionWindowContent({
     commandCatalog,
     commandCatalogStatus,
     refreshCommandCatalog,
+    promptRuntimeSnapshot,
     worktreeBinding,
   } = page;
   const environmentControl = useRef<SessionEnvironmentControlHandle>(null);
   const forkSession = useCreateSession();
+  const promptImageCapability = sessionPromptCapability(
+    session,
+    "prompt_image",
+    promptRuntimeSnapshot
+  );
+  const promptEmbeddedContextCapability = sessionPromptCapability(
+    session,
+    "prompt_embedded_context",
+    promptRuntimeSnapshot
+  );
 
   const handleForkDeadSession = () => {
     forkSession.mutate(
@@ -190,6 +202,8 @@ export function SessionWindowContent({
             environmentControl.current?.openFork();
             return true;
           }}
+          promptImageCapability={promptImageCapability}
+          promptEmbeddedContextCapability={promptEmbeddedContextCapability}
         />
       </div>
       {inspector.open ? (

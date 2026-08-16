@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,10 +10,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -20,6 +23,121 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+type signalingAttachmentScopeLease struct {
+	permits              chan struct{}
+	uploadLeaseAttempted chan struct{}
+	mu                   sync.Mutex
+	acquisitions         int
+	deleted              bool
+}
+
+func newSignalingAttachmentScopeLease() *signalingAttachmentScopeLease {
+	lease := &signalingAttachmentScopeLease{
+		permits:              make(chan struct{}, 1),
+		uploadLeaseAttempted: make(chan struct{}),
+	}
+	lease.permits <- struct{}{}
+	return lease
+}
+
+func (s *signalingAttachmentScopeLease) AcquireScopeLease(
+	ctx context.Context,
+	_ string,
+	_ string,
+) (attachmentspkg.ScopeLeaseGuard, error) {
+	s.mu.Lock()
+	s.acquisitions++
+	if s.acquisitions == 2 {
+		close(s.uploadLeaseAttempted)
+	}
+	s.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.permits:
+		return &signalingAttachmentScopeLeaseGuard{lease: s}, nil
+	}
+}
+
+func (s *signalingAttachmentScopeLease) Put(ctx context.Context) error {
+	guard, err := s.AcquireScopeLease(ctx, "ws-delete-race", "sess-delete-race")
+	if err != nil {
+		return err
+	}
+	defer guard.Release()
+
+	s.mu.Lock()
+	deleted := s.deleted
+	s.mu.Unlock()
+	if deleted {
+		return attachmentspkg.ErrNotFound
+	}
+	return nil
+}
+
+type signalingAttachmentScopeLeaseGuard struct {
+	lease *signalingAttachmentScopeLease
+	once  sync.Once
+}
+
+func (g *signalingAttachmentScopeLeaseGuard) Release() {
+	if g == nil || g.lease == nil {
+		return
+	}
+	g.once.Do(func() { g.lease.permits <- struct{}{} })
+}
+
+func (g *signalingAttachmentScopeLeaseGuard) MarkDeleted() {
+	if g == nil || g.lease == nil {
+		return
+	}
+	g.lease.mu.Lock()
+	g.lease.deleted = true
+	g.lease.mu.Unlock()
+}
+
+var _ attachmentScopeLease = (*signalingAttachmentScopeLease)(nil)
+
+type nonReentrantAttachmentScopeLease struct {
+	mu     sync.Mutex
+	active bool
+}
+
+func (s *nonReentrantAttachmentScopeLease) AcquireScopeLease(
+	_ context.Context,
+	_ string,
+	_ string,
+) (attachmentspkg.ScopeLeaseGuard, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active {
+		return nil, errors.New("nested attachment scope lease")
+	}
+	s.active = true
+	return &nonReentrantAttachmentScopeLeaseGuard{lease: s}, nil
+}
+
+type nonReentrantAttachmentScopeLeaseGuard struct {
+	lease *nonReentrantAttachmentScopeLease
+	once  sync.Once
+}
+
+func (g *nonReentrantAttachmentScopeLeaseGuard) Release() {
+	if g == nil || g.lease == nil {
+		return
+	}
+	g.once.Do(func() {
+		g.lease.mu.Lock()
+		g.lease.active = false
+		g.lease.mu.Unlock()
+	})
+}
+
+func (*nonReentrantAttachmentScopeLeaseGuard) MarkDeleted() {}
+
+var _ attachmentScopeLease = (*nonReentrantAttachmentScopeLease)(nil)
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
@@ -29,11 +147,132 @@ func TestManagerDelete(t *testing.T) {
 		run  func(*testing.T)
 	}{
 		{
+			name: "Should fence a concurrent attachment upload until deletion commits",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t)
+				homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+				if err != nil {
+					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+				}
+				if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+					t.Fatalf("EnsureHomeLayout() error = %v", err)
+				}
+				const workspaceID = "ws-delete-race"
+				const sessionID = "sess-delete-race"
+				attachmentPath := filepath.Join(
+					homePaths.SessionAttachmentsDir,
+					workspaceID,
+					sessionID,
+					"before.txt",
+				)
+				if err := os.MkdirAll(filepath.Dir(attachmentPath), 0o700); err != nil {
+					t.Fatalf("MkdirAll(attachment fixture) error = %v", err)
+				}
+				if err := os.WriteFile(attachmentPath, []byte("before"), 0o600); err != nil {
+					t.Fatalf("WriteFile(attachment fixture) error = %v", err)
+				}
+
+				lease := newSignalingAttachmentScopeLease()
+				manager := &Manager{homePaths: homePaths, attachmentScopeLease: lease}
+				staged, err := manager.stageSessionAttachmentDelete(ctx, workspaceID, sessionID, "delete-race")
+				if err != nil {
+					t.Fatalf("stageSessionAttachmentDelete() error = %v", err)
+				}
+				t.Cleanup(func() {
+					if releaseErr := staged.Release(); releaseErr != nil {
+						t.Errorf("Release(staged attachment delete) error = %v", releaseErr)
+					}
+				})
+
+				putDone := make(chan error, 1)
+				go func() { putDone <- lease.Put(ctx) }()
+				select {
+				case <-lease.uploadLeaseAttempted:
+				case <-ctx.Done():
+					t.Fatalf("concurrent upload did not reach scope lease acquisition: %v", ctx.Err())
+				}
+				select {
+				case putErr := <-putDone:
+					t.Fatalf("Put(concurrent) returned before deletion commit: %v", putErr)
+				default:
+				}
+
+				if err := commitStagedAttachmentDelete(staged); err != nil {
+					t.Fatalf("commitStagedAttachmentDelete() error = %v", err)
+				}
+				select {
+				case putErr := <-putDone:
+					if !errors.Is(putErr, attachmentspkg.ErrNotFound) {
+						t.Fatalf("Put(after committed delete) error = %v, want attachment not found", putErr)
+					}
+				case <-ctx.Done():
+					t.Fatalf("Put(concurrent) did not finish after delete released the lease: %v", ctx.Err())
+				}
+			},
+		},
+		{
+			name: "Should reject malformed session deletion tombstones at the parser boundary",
+			run: func(t *testing.T) {
+				tests := []struct {
+					name  string
+					value string
+				}{
+					{
+						name:  "Should reject an unknown tombstone prefix",
+						value: ".compozy-delete-unknown-c2Vzcw.delete-1",
+					},
+					{
+						name: "Should reject a tombstone without a target separator",
+						value: sessionDeleteStagedPrefix +
+							base64.RawURLEncoding.EncodeToString([]byte("sess-1")),
+					},
+					{
+						name:  "Should reject a tombstone without a deletion identifier",
+						value: sessionDeleteStagedPrefix + base64.RawURLEncoding.EncodeToString([]byte("sess-1")) + ".",
+					},
+					{
+						name:  "Should reject an invalid encoded session identifier",
+						value: sessionDeleteCommittedPrefix + "%%%" + ".delete-1",
+					},
+					{
+						name: "Should reject an invalid stored session identifier",
+						value: sessionDeleteStagedPrefix +
+							base64.RawURLEncoding.EncodeToString([]byte("../sess-1")) + ".delete-1",
+					},
+				}
+				for _, test := range tests {
+					t.Run(test.name, func(t *testing.T) {
+						t.Parallel()
+
+						state, target, deletionID, err := parseSessionDeleteTombstoneParts(test.value)
+						if !errors.Is(err, errInvalidSessionDeleteTombstone) {
+							t.Fatalf(
+								"parseSessionDeleteTombstoneParts(%q) error = %v, want %v",
+								test.value,
+								err,
+								errInvalidSessionDeleteTombstone,
+							)
+						}
+						if state != 0 || target != "" || deletionID != "" {
+							t.Fatalf(
+								"parseSessionDeleteTombstoneParts(%q) = (%d, %q, %q), want zero values",
+								test.value,
+								state,
+								target,
+								deletionID,
+							)
+						}
+					})
+				}
+			},
+		},
+		{
 			name: "Should remove a stopped user session from durable counts",
 			run: func(t *testing.T) {
 				catalog := newRecordingSessionCatalog()
 				h := newHarness(t, WithSessionCatalog(catalog))
 				session := createSession(t, h)
+				attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "delete-me")
 
 				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 					t.Fatalf("Stop() error = %v", err)
@@ -56,6 +295,9 @@ func TestManagerDelete(t *testing.T) {
 
 				if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("Stat(session dir after delete) error = %v, want os.ErrNotExist", err)
+				}
+				if _, err := os.Stat(attachmentPath); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("Stat(attachment after delete) error = %v, want os.ErrNotExist", err)
 				}
 				if _, err := h.manager.Status(testutil.Context(t), session.ID); !errors.Is(err, ErrSessionNotFound) {
 					t.Fatalf("Status(after delete) error = %v, want %v", err, ErrSessionNotFound)
@@ -328,6 +570,7 @@ func TestManagerDelete(t *testing.T) {
 				)
 				shutdownQueryStoreRuntimeForTest(t, h.manager)
 				session := createSession(t, h)
+				attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "restore-me")
 				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 					t.Fatalf("Stop() error = %v", err)
 				}
@@ -340,6 +583,9 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if _, err := os.Stat(session.SessionDir()); err != nil {
 					t.Fatalf("Stat(restored session dir) error = %v", err)
+				}
+				if payload, err := os.ReadFile(attachmentPath); err != nil || string(payload) != "restore-me" {
+					t.Fatalf("ReadFile(restored attachment) = %q, %v", payload, err)
 				}
 				listed, err := catalog.ListSessions(testutil.Context(t), store.SessionListQuery{
 					WorkspaceID: h.workspaceID,
@@ -512,6 +758,7 @@ func TestManagerDelete(t *testing.T) {
 						}
 						h := newHarness(t, managerOptions...)
 						session := createSession(t, h)
+						attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "recover-me")
 						if err := h.manager.Stop(ctx, session.ID); err != nil {
 							t.Fatalf("Stop() error = %v", err)
 						}
@@ -550,8 +797,19 @@ func TestManagerDelete(t *testing.T) {
 							if err := reader.Close(ctx); err != nil {
 								t.Fatalf("Close(restored staged reader) error = %v", err)
 							}
+							if payload, err := os.ReadFile(
+								attachmentPath,
+							); err != nil ||
+								string(payload) != "recover-me" {
+								t.Fatalf("ReadFile(restored staged attachment) = %q, %v", payload, err)
+							}
 						} else if !errors.Is(statErr, os.ErrNotExist) {
 							t.Fatalf("Stat(deleted staged session) error = %v, want os.ErrNotExist", statErr)
+						}
+						if !test.wantRestored {
+							if _, err := os.Stat(attachmentPath); !errors.Is(err, os.ErrNotExist) {
+								t.Fatalf("Stat(deleted staged attachment) error = %v, want os.ErrNotExist", err)
+							}
 						}
 						assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
 					})
@@ -720,6 +978,7 @@ func TestManagerDelete(t *testing.T) {
 					}
 				})
 				h := newHarness(t, WithSessionCatalog(db))
+				h.manager.attachmentScopeLease = &nonReentrantAttachmentScopeLease{}
 				now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 				if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
 					ID:        h.workspaceID,
@@ -731,6 +990,19 @@ func TestManagerDelete(t *testing.T) {
 					t.Fatalf("InsertWorkspace() error = %v", err)
 				}
 				session := createSession(t, h)
+				attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "workspace-session")
+				orphanPath := filepath.Join(
+					h.homePaths.SessionAttachmentsDir,
+					h.workspaceID,
+					"orphan-session",
+					"orphan.bin",
+				)
+				if err := os.MkdirAll(filepath.Dir(orphanPath), 0o700); err != nil {
+					t.Fatalf("MkdirAll(orphan attachment) error = %v", err)
+				}
+				if err := os.WriteFile(orphanPath, []byte("orphan"), 0o600); err != nil {
+					t.Fatalf("WriteFile(orphan attachment) error = %v", err)
+				}
 				if err := h.manager.Stop(ctx, session.ID); err != nil {
 					t.Fatalf("Stop() error = %v", err)
 				}
@@ -793,6 +1065,11 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("Stat(session dir after prune) error = %v, want os.ErrNotExist", err)
+				}
+				for _, path := range []string{attachmentPath, orphanPath} {
+					if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("Stat(workspace attachment %q) error = %v, want os.ErrNotExist", path, err)
+					}
 				}
 				for _, table := range []string{"permission_log", "token_stats"} {
 					var count int
@@ -861,6 +1138,18 @@ func assertNoSessionDeleteTombstones(t *testing.T, sessionsDir string) {
 			t.Fatalf("unexpected session deletion tombstone %q", entry.Name())
 		}
 	}
+}
+
+func writeSessionAttachmentFixture(t *testing.T, h *harness, sessionID string, contents string) string {
+	t.Helper()
+	path := filepath.Join(h.homePaths.SessionAttachmentsDir, h.workspaceID, sessionID, "attachment.bin")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatalf("MkdirAll(attachment fixture) error = %v", err)
+	}
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatalf("WriteFile(attachment fixture) error = %v", err)
+	}
+	return path
 }
 
 func assertDeletedUserSessionCatalogTruth(

@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type TurnContext struct {
+	TurnID string `json:"turn_id,omitempty"`
+}
+
 type TurnEndPatch struct {
 	Deny       bool              `json:"deny,omitempty"`
 	DenyReason string            `json:"deny_reason,omitempty"`
@@ -229,16 +233,3 @@ type WorktreeControlPatch struct {
 }
 
 type WorktreeObservationPatch struct{}
-
-type WorktreeObservationPayload struct {
-	Event         HookEvent `json:"event"`
-	Timestamp     time.Time `json:"timestamp"`
-	WorktreeID    string    `json:"worktree_id"`
-	WorkspaceID   string    `json:"workspace_id"`
-	WorkspaceRoot string    `json:"workspace_root,omitempty"`
-	Name          string    `json:"name"`
-	Branch        string    `json:"branch"`
-	Path          string    `json:"path"`
-	Origin        string    `json:"origin"`
-	RunID         string    `json:"run_id,omitempty"`
-}

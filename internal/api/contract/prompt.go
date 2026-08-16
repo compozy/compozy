@@ -30,6 +30,19 @@ type SendPromptRequest struct {
 	Mode           PromptMode                     `json:"mode,omitempty"`
 	ExpectedTurnID string                         `json:"expected_turn_id,omitempty"`
 	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+	Attachments    []PromptAttachmentRef          `json:"attachments,omitempty"`
+}
+
+// PromptAttachmentRef is one provider-neutral attachment on a prompt request.
+type PromptAttachmentRef struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MIMEType string `json:"mime_type"`
+	Bytes    int64  `json:"bytes"`
+	SHA256   string `json:"sha256"`
+	Kind     string `json:"kind"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
 }
 
 // PromptUIMessage carries Vercel AI SDK compatible message input.
@@ -87,6 +100,7 @@ type SessionInputPayload struct {
 	EnqueuedAt       time.Time                       `json:"enqueued_at"`
 	Runtime          *PromptRuntimeSelectionPayload  `json:"runtime,omitempty"`
 	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
+	Attachments      []PromptAttachmentRef           `json:"attachments,omitempty"`
 }
 
 // SessionInputListResponse returns current-generation pending input in dispatch order.

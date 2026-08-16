@@ -2,7 +2,9 @@ package acp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -321,6 +323,172 @@ func TestBuildWirePromptRequestAttachesPromptCacheControlMetadata(t *testing.T) 
 		}
 		if len(request.Prompt[0].Text.Meta) != 0 {
 			t.Fatalf("Prompt[0].Text.Meta = %#v, want empty metadata", request.Prompt[0].Text.Meta)
+		}
+	})
+}
+
+func TestBuildWirePromptRequestAppendsAttachments(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should append attachment blocks after text", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{SessionID: "sess-attachments"}
+		proc.setCaps(Caps{PromptImage: true})
+		request, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID:  "turn-attachments",
+			Message: "inspect this",
+			Attachments: []PromptAttachment{{
+				Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
+			}},
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest() error = %v", err)
+		}
+		if len(request.Prompt) != 2 || request.Prompt[0].Text == nil || request.Prompt[1].Image == nil {
+			t.Fatalf("Prompt = %#v, want text followed by image", request.Prompt)
+		}
+	})
+
+	t.Run("Should omit the text block for an attachment-only prompt", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{SessionID: "sess-attachment-only"}
+		proc.setCaps(Caps{PromptImage: true})
+		request, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID: "turn-attachment-only",
+			Attachments: []PromptAttachment{{
+				Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
+			}},
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest() error = %v", err)
+		}
+		if len(request.Prompt) != 1 || request.Prompt[0].Image == nil {
+			t.Fatalf("Prompt = %#v, want one image block", request.Prompt)
+		}
+	})
+}
+
+func TestPromptAttachmentBuildFailurePreservesFirstTurnSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the first-turn system prompt after attachment failure", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{
+			SessionID:    "sess-system-after-attachment-error",
+			systemPrompt: "Keep this first-turn guidance.",
+		}
+		_, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID: "turn-invalid-attachment",
+			Attachments: []PromptAttachment{{
+				Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
+			}},
+		})
+		if !errors.Is(err, ErrPromptImagesUnsupported) {
+			t.Fatalf("buildWirePromptRequest(invalid attachment) error = %v, want ErrPromptImagesUnsupported", err)
+		}
+
+		request, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID:  "turn-first-delivered",
+			Message: "first accepted request",
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest(first accepted) error = %v", err)
+		}
+		if len(request.Prompt) != 1 || request.Prompt[0].Text == nil {
+			t.Fatalf("Prompt = %#v, want first-turn text block", request.Prompt)
+		}
+		if !strings.Contains(request.Prompt[0].Text.Text, "Keep this first-turn guidance.") {
+			t.Fatalf("first accepted prompt = %q, want preserved system guidance", request.Prompt[0].Text.Text)
+		}
+	})
+}
+
+func TestPromptSendsAttachmentBlocksThroughACPSubprocess(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send typed image blocks through the ACP subprocess", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt_blocks", "", StartOpts{})
+		t.Cleanup(func() {
+			stopProcess(t, driver, proc)
+		})
+
+		attachmentData := []byte("image-through-acp")
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID: "turn-subprocess-attachment",
+			Attachments: []PromptAttachment{{
+				Name: "diagram.png", MIMEType: "image/png", Data: attachmentData,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+
+		var blocks []acpsdk.ContentBlock
+		if err := json.Unmarshal([]byte(events[0].Text), &blocks); err != nil {
+			t.Fatalf("json.Unmarshal(echoed prompt blocks) error = %v", err)
+		}
+		if len(blocks) != 1 || blocks[0].Image == nil {
+			t.Fatalf("echoed prompt blocks = %#v, want one image block", blocks)
+		}
+		if got, want := blocks[0].Image.MimeType, "image/png"; got != want {
+			t.Fatalf("image MIME type = %q, want %q", got, want)
+		}
+		if got, want := blocks[0].Image.Data, base64.StdEncoding.EncodeToString(attachmentData); got != want {
+			t.Fatalf("image data = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestPromptSendsZeroByteTextAttachmentThroughACPSubprocess(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send an attachment-only zero-byte text resource through the ACP subprocess", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt_blocks", "", StartOpts{})
+		t.Cleanup(func() {
+			stopProcess(t, driver, proc)
+		})
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID: "turn-subprocess-empty-text-attachment",
+			Attachments: []PromptAttachment{{
+				Name: "empty.txt", MIMEType: "text/plain",
+			}},
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+
+		var blocks []acpsdk.ContentBlock
+		if err := json.Unmarshal([]byte(events[0].Text), &blocks); err != nil {
+			t.Fatalf("json.Unmarshal(echoed prompt blocks) error = %v", err)
+		}
+		if len(blocks) != 1 || blocks[0].Resource == nil ||
+			blocks[0].Resource.Resource.TextResourceContents == nil {
+			t.Fatalf("echoed prompt blocks = %#v, want one empty text resource block", blocks)
+		}
+		resource := blocks[0].Resource.Resource.TextResourceContents
+		if resource.MimeType == nil || *resource.MimeType != "text/plain" {
+			t.Fatalf("text resource MIME type = %#v, want text/plain", resource.MimeType)
+		}
+		if resource.Text != "" {
+			t.Fatalf("text resource text = %q, want empty", resource.Text)
 		}
 	})
 }

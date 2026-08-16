@@ -45,6 +45,7 @@ func parseEvent(sessionEvent store.SessionEvent) event {
 func parseCanonicalEvent(parsed event, payload map[string]any) event {
 	parsed.Type = firstNonEmpty(nestedString(payload, "type"), parsed.Type)
 	parsed.Text = firstNonEmpty(nestedString(payload, "authored_text"), nestedString(payload, "text"))
+	parsed.Attachments = eventAttachmentsFromValue(payload["attachments"])
 	parsed.StopReason = nestedString(payload, "stop_reason")
 	parsed.Error = nestedString(payload, "error")
 	parsed.Failure = sessionFailureFromValue(payload["failure"])
@@ -63,6 +64,21 @@ func parseCanonicalEvent(parsed event, payload map[string]any) event {
 		parsed.ToolError = true
 	}
 	return parsed
+}
+
+func eventAttachmentsFromValue(value any) []acp.EventAttachment {
+	if value == nil {
+		return nil
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	var attachments []acp.EventAttachment
+	if err := json.Unmarshal(raw, &attachments); err != nil {
+		return nil
+	}
+	return attachments
 }
 
 func parseLegacyEvent(parsed event, payload map[string]any) event {

@@ -13,7 +13,7 @@ var putNetworkCoordinationInvitationRequestType = reflect.TypeFor[contract.PutNe
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[binaryResponse](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewStringSchema()
-		schema.Format = "binary"
+		schema.Format = schemaFormatBinary
 	},
 	reflect.TypeFor[contract.LoopGraph](): customizeLoopGraphSchema,
 	reflect.TypeFor[contract.LoopEffectSpec](): func(schema *openapi3.Schema) {

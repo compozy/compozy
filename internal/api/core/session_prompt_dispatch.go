@@ -38,7 +38,10 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 		return nil, false
 	}
 
-	input, err := contract.ExtractPromptInput(request)
+	input, err := contract.ExtractPromptInputWithAttachmentLimit(
+		request,
+		h.Config.Session.Attachments.MaxFilesPerPrompt,
+	)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return nil, false
@@ -64,6 +67,7 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 			Mode:            session.BusyInputMode(request.Mode),
 			ExpectedTurnID:  request.ExpectedTurnID,
 			Runtime:         PromptRuntimeSelectionFromPayload(request.Runtime),
+			Attachments:     contract.AttachmentMetaFromRefs(input.Attachments),
 			DeliveryContext: deliveryContext,
 			Caller:          caller,
 			AllowCommands:   true,

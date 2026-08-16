@@ -1,11 +1,11 @@
 import { createStoreLogic } from "@xstate/store";
 
+import type { SessionBusyInputDraft, SessionBusyInputHandler } from "@/systems/session";
+
 interface SessionBusyInputState {
   editingQueuedPromptId: string | null;
   phase: "idle" | "submitting";
 }
-
-export type SessionBusyInputHandler = (message: string) => void | Promise<unknown>;
 
 type SessionBusyInputEvents = {
   editCompleted: Record<never, never>;
@@ -14,9 +14,9 @@ type SessionBusyInputEvents = {
   submissionFinished: Record<never, never>;
   submissionRequested: {
     canSubmit: boolean;
-    clearComposer: () => void;
+    clearComposer: (options?: { retainAttachments?: boolean }) => void;
     handler: SessionBusyInputHandler | undefined;
-    message: string;
+    draft: SessionBusyInputDraft;
     onFailure: (error: unknown) => void;
     onSuccess?: () => void;
   };
@@ -39,8 +39,8 @@ export const sessionBusyInputLogic = createStoreLogic<
       if (!event.canSubmit || !handler || context.phase === "submitting") return;
       enqueue.effect(async ({ trigger }) => {
         try {
-          await handler(event.message);
-          event.clearComposer();
+          await handler(event.draft);
+          event.clearComposer({ retainAttachments: event.draft.attachments.length > 0 });
           event.onSuccess?.();
         } catch (error) {
           event.onFailure(error);

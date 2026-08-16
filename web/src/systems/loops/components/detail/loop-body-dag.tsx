@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import { createElement } from "react";
 
 import { fanOutSummary, nodeClassLabel } from "../../lib/loop-graph";
 import type { LoopGraph, LoopGraphNode } from "../../lib/loop-graph";
@@ -47,7 +48,7 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
 function DagNode({ node }: { node: LoopGraphNode }) {
   const summary = fanOutSummary(node);
   const kindLabel = summary ?? node.kind;
-  const ClassIcon = node.nodeClass
+  const classIcon = node.nodeClass
     ? loopNodeClassIcon({
         nodeClass: node.nodeClass,
         isFanOut: node.kind === "fan-out" || summary !== null,
@@ -61,9 +62,12 @@ function DagNode({ node }: { node: LoopGraphNode }) {
       data-node-id={node.id}
     >
       <span className="flex min-w-0 items-center gap-1.5">
-        {ClassIcon ? (
-          <ClassIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
-        ) : null}
+        {classIcon
+          ? createElement(classIcon, {
+              "aria-hidden": true,
+              className: "size-3.5 shrink-0 text-muted",
+            })
+          : null}
         <span
           className="min-w-0 truncate text-small-body font-medium text-fg-strong"
           title={node.id}

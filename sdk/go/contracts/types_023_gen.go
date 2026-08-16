@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type TaskDashboardFailedCardPayload struct {
+	Tasks        int    `json:"tasks"`
+	FailedRuns   int    `json:"failed_runs"`
+	ForcedStops  int    `json:"forced_stops"`
+	HealthStatus string `json:"health_status"`
+}
+
 type TaskDashboardFreshnessPayload struct {
 	ObservedAt       time.Time `json:"observed_at"`
 	LatestActivityAt time.Time `json:"latest_activity_at"`
@@ -212,16 +219,4 @@ type TaskInboxPriorityFacetPayload struct {
 type TaskInboxStatusFacetPayload struct {
 	Status Status `json:"status"`
 	Count  int    `json:"count"`
-}
-
-type TaskInboxTaskPayload struct {
-	ID             string     `json:"id"`
-	Identifier     string     `json:"identifier,omitempty"`
-	Title          string     `json:"title"`
-	Status         Status     `json:"status"`
-	Priority       Priority   `json:"priority,omitempty"`
-	Owner          *Ownership `json:"owner,omitempty"`
-	Scope          TaskScope  `json:"scope"`
-	WorkspaceID    string     `json:"workspace_id,omitempty"`
-	LatestEventSeq int64      `json:"latest_event_seq"`
 }

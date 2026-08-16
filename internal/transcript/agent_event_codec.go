@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+const legacyEventContentKey = "content"
+
 // MarshalAgentEvent converts a runtime ACP event into the canonical stored payload.
 func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 	return marshalAgentEvent(event, "")
@@ -77,6 +79,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Goal:              acp.CloneGoalPromptMeta(event.Goal),
 		AvailableCommands: event.AvailableCommands.Values(),
 		SkillInvocations:  event.SkillInvocations(),
+		Attachments:       event.Attachments(),
 		Usage:             event.Usage,
 		Runtime:           cloneRuntimeActivity(event.Runtime),
 		PromptRuntime:     event.PromptRuntimeSnapshot(),
@@ -111,7 +114,7 @@ func applyLegacyRawPayload(
 		payload.ToolResult = buildToolResult(
 			payload.ToolName,
 			effectiveToolError,
-			extractLegacyContentText(rawPayload["content"]),
+			extractLegacyContentText(rawPayload[legacyEventContentKey]),
 			rawPayload["rawOutput"],
 		)
 		payload.ToolError = effectiveToolError
@@ -152,6 +155,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}.WithRequestID(decoded.RequestID)
+	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)
 	if messageID := strings.TrimSpace(decoded.MessageID); messageID != "" {

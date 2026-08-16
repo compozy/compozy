@@ -106,6 +106,18 @@ func (s *Service) mutate(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
 	}
+	if spec.mode == store.SessionInputQueueModeSteer && len(existing.Attachments) > 0 {
+		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
+			"%w: input %s",
+			store.ErrSessionInputSteerTextOnly,
+			targetEntryID,
+		)
+	}
+	attachments := []store.SessionInputAttachment(nil)
+	if spec.mode == store.SessionInputQueueModeQueue {
+		// A replace keeps the source entry's attachment snapshot.
+		attachments = append([]store.SessionInputAttachment(nil), existing.Attachments...)
+	}
 	replacement, err := s.newInsert(insertSpec{
 		sessionID:        targetSessionID,
 		text:             spec.text,
@@ -115,6 +127,7 @@ func (s *Service) mutate(
 		generation:       existing.SessionGeneration,
 		runtime:          existing.Runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), spec.skillInvocations...),
+		attachments:      attachments,
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
@@ -182,7 +195,9 @@ func (s *Service) replayMutation(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
 	}
-	if !sameMutation(&entry, text, messageID, idempotencyKey, mode, delivery, targetTurnID, skillInvocations) {
+	if !sameMutation(
+		&entry, text, messageID, idempotencyKey, mode, delivery, targetTurnID, skillInvocations,
+	) {
 		return store.SessionInputQueueEntry{}, false, fmt.Errorf(
 			"%w: %s",
 			store.ErrSessionInputMutationConflict,

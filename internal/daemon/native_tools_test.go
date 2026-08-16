@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -120,16 +122,50 @@ func (m *nativeSessionPageHealthManager) SessionHealthForPage(
 }
 
 func nativeNetworkTestWorkspaceService(t *testing.T) apitest.StubWorkspaceService {
-	return nativeNetworkTestWorkspaceServiceWithIdentity(t, "")
+	return nativeNetworkTestWorkspaceServiceWithRootAndIdentity(t, t.TempDir(), "")
 }
 
 func nativeNetworkTestWorkspaceServiceWithIdentity(
 	t *testing.T,
 	identityID string,
 ) apitest.StubWorkspaceService {
+	return nativeNetworkTestWorkspaceServiceWithRootAndIdentity(t, t.TempDir(), identityID)
+}
+
+func nativeNetworkTestWorkspaceServiceWithRoot(
+	t *testing.T,
+	root string,
+) apitest.StubWorkspaceService {
+	return nativeNetworkTestWorkspaceServiceWithRootAndIdentity(t, root, "")
+}
+
+func nativeNetworkTestWorkspaceServiceWithRootAndAdditionalDirs(
+	t *testing.T,
+	root string,
+	additionalDirs []string,
+) apitest.StubWorkspaceService {
 	t.Helper()
 
-	root := t.TempDir()
+	service := nativeNetworkTestWorkspaceServiceWithRoot(t, root)
+	resolve := service.ResolveFn
+	service.ResolveFn = func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+		resolved, err := resolve(ctx, ref)
+		if err != nil {
+			return workspacepkg.ResolvedWorkspace{}, err
+		}
+		resolved.AdditionalDirs = slices.Clone(additionalDirs)
+		return resolved, nil
+	}
+	return service
+}
+
+func nativeNetworkTestWorkspaceServiceWithRootAndIdentity(
+	t *testing.T,
+	root string,
+	identityID string,
+) apitest.StubWorkspaceService {
+	t.Helper()
+
 	resolve := func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 		if err := ctx.Err(); err != nil {
 			return workspacepkg.ResolvedWorkspace{}, err
@@ -183,6 +219,221 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should read a native session prompt attachment path within its workspace", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		prefixedPath := filepath.Join(workspaceRoot, "att_from-path.txt")
+		if err := os.WriteFile(prefixedPath, []byte("prefixed path attachment"), 0o600); err != nil {
+			t.Fatalf("WriteFile(prefixed path attachment) error = %v", err)
+		}
+
+		name, data, err := readNativeAttachmentPath(
+			t.Context(),
+			[]string{workspaceRoot},
+			prefixedPath,
+			math.MaxInt64,
+		)
+		if err != nil {
+			t.Fatalf("readNativeAttachmentPath(MaxInt64) error = %v", err)
+		}
+		if got, want := name, "att_from-path.txt"; got != want {
+			t.Fatalf("readNativeAttachmentPath(MaxInt64) name = %q, want %q", got, want)
+		}
+		if got, want := string(data), "prefixed path attachment"; got != want {
+			t.Fatalf("readNativeAttachmentPath(MaxInt64) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject an oversized native session prompt attachment path", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		path := filepath.Join(workspaceRoot, "oversized.txt")
+		if err := os.WriteFile(path, []byte("oversized"), 0o600); err != nil {
+			t.Fatalf("WriteFile(oversized attachment) error = %v", err)
+		}
+
+		_, _, err := readNativeAttachmentPath(t.Context(), []string{workspaceRoot}, path, 3)
+		if !errors.Is(err, attachmentspkg.ErrTooLarge) {
+			t.Fatalf("readNativeAttachmentPath(oversized) error = %v, want too-large error", err)
+		}
+	})
+
+	t.Run("Should reject a nonregular native session prompt attachment path", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		_, _, err := readNativeAttachmentPath(
+			t.Context(),
+			[]string{workspaceRoot},
+			workspaceRoot,
+			math.MaxInt64,
+		)
+		if err == nil || !strings.Contains(err.Error(), "regular file") {
+			t.Fatalf("readNativeAttachmentPath(directory) error = %v, want regular-file error", err)
+		}
+	})
+
+	t.Run("Should honor cancellation before reading a native session prompt attachment path", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, _, err := readNativeAttachmentPath(ctx, []string{t.TempDir()}, "ignored.txt", math.MaxInt64)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("readNativeAttachmentPath(canceled) error = %v, want context canceled", err)
+		}
+	})
+
+	t.Run("Should resolve native session prompt attachment paths and scoped ids", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		workspaceRoot := t.TempDir()
+		attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(
+			t.Context(),
+			attachmentspkg.FilesystemStoreConfig{
+				Root:      t.TempDir(),
+				Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: time.Hour},
+				Limits: attachmentspkg.StoreLimits{
+					MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
+					AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
+		}
+		path := filepath.Join(workspaceRoot, "from-path.txt")
+		if err := os.WriteFile(path, []byte("path attachment"), 0o600); err != nil {
+			t.Fatalf("WriteFile(path attachment) error = %v", err)
+		}
+		prefixedPath := filepath.Join(workspaceRoot, "att_from-path.txt")
+		if err := os.WriteFile(prefixedPath, []byte("prefixed path attachment"), 0o600); err != nil {
+			t.Fatalf("WriteFile(prefixed path attachment) error = %v", err)
+		}
+		additionalDir := t.TempDir()
+		additionalPath := filepath.Join(additionalDir, "from-additional-dir.txt")
+		if err := os.WriteFile(additionalPath, []byte("additional directory attachment"), 0o600); err != nil {
+			t.Fatalf("WriteFile(additional directory attachment) error = %v", err)
+		}
+		stored, err := attachmentStore.Put(t.Context(), attachmentspkg.PutRequest{
+			WorkspaceID: "ws-native",
+			SessionID:   "sess-native",
+			Name:        "stored.txt",
+			Data:        []byte("stored attachment"),
+		})
+		if err != nil {
+			t.Fatalf("Put(stored attachment) error = %v", err)
+		}
+
+		var submitted session.SendPromptOpts
+		manager := nativeNetworkTestSessionManager("ws-native")
+		manager.SendPromptFn = func(
+			_ context.Context,
+			_ string,
+			opts session.SendPromptOpts,
+		) (session.SendPromptResult, error) {
+			submitted = opts
+			return session.SendPromptResult{Status: "accepted", Delivery: store.SessionInputDeliveryDirect}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Config: cfg, Sessions: manager, SessionAttachments: attachmentStore,
+			Workspaces: nativeNetworkTestWorkspaceServiceWithRootAndAdditionalDirs(
+				t,
+				workspaceRoot,
+				[]string{additionalDir},
+			),
+		}, nativeApproveAllPolicyInputs())
+		input, err := json.Marshal(map[string]any{
+			"workspace": "ws-native", "session_id": "sess-native",
+			"message_id": "msg-native", "idempotency_key": "idem-native",
+			"attachments": []string{path, prefixedPath, additionalPath, stored.ID},
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(input) error = %v", err)
+		}
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionPrompt, Input: input,
+		}); err != nil {
+			t.Fatalf("Registry.Call(session_prompt attachments) error = %v", err)
+		}
+		if submitted.Message != "" || len(submitted.Attachments) != 4 {
+			t.Fatalf("session_prompt opts = %#v, want attachment-only prompt with four refs", submitted)
+		}
+		if submitted.Attachments[0].Name != "from-path.txt" ||
+			submitted.Attachments[1].Name != "att_from-path.txt" ||
+			submitted.Attachments[2].Name != "from-additional-dir.txt" ||
+			submitted.Attachments[3].ID != stored.ID {
+			t.Fatalf("session_prompt attachments = %#v", submitted.Attachments)
+		}
+	})
+
+	t.Run("Should reject native session prompt attachment paths outside the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		workspaceRoot := t.TempDir()
+		attachmentRoot := t.TempDir()
+		attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(
+			t.Context(),
+			attachmentspkg.FilesystemStoreConfig{
+				Root:      attachmentRoot,
+				Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: time.Hour},
+				Limits: attachmentspkg.StoreLimits{
+					MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
+					AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
+		}
+		outsidePath := filepath.Join(t.TempDir(), "operator-secret.txt")
+		if err := os.WriteFile(outsidePath, []byte("must not be uploaded"), 0o600); err != nil {
+			t.Fatalf("WriteFile(outside attachment) error = %v", err)
+		}
+
+		promptCalls := 0
+		manager := nativeNetworkTestSessionManager("ws-native")
+		manager.SendPromptFn = func(
+			context.Context,
+			string,
+			session.SendPromptOpts,
+		) (session.SendPromptResult, error) {
+			promptCalls++
+			return session.SendPromptResult{}, errors.New("SendPrompt() must not run for a rejected attachment path")
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Config:             cfg,
+			Sessions:           manager,
+			SessionAttachments: attachmentStore,
+			Workspaces:         nativeNetworkTestWorkspaceServiceWithRoot(t, workspaceRoot),
+		}, nativeApproveAllPolicyInputs())
+		input, err := json.Marshal(map[string]any{
+			"workspace": "ws-native", "session_id": "sess-native",
+			"message_id": "msg-native-outside", "idempotency_key": "idem-native-outside",
+			"attachments": []string{outsidePath},
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(input) error = %v", err)
+		}
+
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionPrompt,
+			Input:  input,
+		})
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		if promptCalls != 0 {
+			t.Fatalf("SendPrompt() calls = %d, want 0", promptCalls)
+		}
+		_, statErr := os.Stat(filepath.Join(attachmentRoot, "ws-native", "sess-native"))
+		if !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("attachment session directory stat error = %v, want %v", statErr, os.ErrNotExist)
+		}
+	})
 
 	t.Run("Should execute window manager tools through scoped revisioned state", func(t *testing.T) {
 		t.Parallel()

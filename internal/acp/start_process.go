@@ -188,9 +188,12 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 		)
 	}
 
-	process.setCaps(Caps{
-		SupportsLoadSession:  initializeResponse.AgentCapabilities.LoadSession,
-		SupportsCloseSession: initializeResponse.AgentCapabilities.SessionCapabilities.Close != nil,
-	})
+	process.setCaps(captureCaps(Caps{
+		SupportsLoadSession:   initializeResponse.AgentCapabilities.LoadSession,
+		SupportsCloseSession:  initializeResponse.AgentCapabilities.SessionCapabilities.Close != nil,
+		PromptImage:           initializeResponse.AgentCapabilities.PromptCapabilities.Image,
+		PromptAudio:           initializeResponse.AgentCapabilities.PromptCapabilities.Audio,
+		PromptEmbeddedContext: initializeResponse.AgentCapabilities.PromptCapabilities.EmbeddedContext,
+	}, nil, nil))
 	return nil
 }

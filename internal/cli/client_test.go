@@ -2143,6 +2143,228 @@ func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agen
 	}
 }
 
+func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should upload the file as a real session multipart attachment", func(t *testing.T) {
+		t.Parallel()
+
+		filePath := filepath.Join(t.TempDir(), "frame.png")
+		fileBytes := []byte("exact attachment bytes")
+		if err := os.WriteFile(filePath, fileBytes, 0o600); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+
+		var preflightCalls int
+		var uploadCalls int
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					switch {
+					case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+						preflightCalls++
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/attachments":
+						uploadCalls++
+						rawBody, err := io.ReadAll(req.Body)
+						if err != nil {
+							t.Fatalf("io.ReadAll(upload body) error = %v", err)
+						}
+						if req.ContentLength != int64(len(rawBody)) {
+							t.Fatalf("ContentLength = %d, want %d", req.ContentLength, len(rawBody))
+						}
+						if got := req.Header.Get("Expect"); got != "100-continue" {
+							t.Fatalf("Expect = %q, want 100-continue", got)
+						}
+						req.Body = io.NopCloser(bytes.NewReader(rawBody))
+						reader, err := req.MultipartReader()
+						if err != nil {
+							t.Fatalf("Request.MultipartReader() error = %v", err)
+						}
+						part, err := reader.NextPart()
+						if err != nil {
+							t.Fatalf("multipart NextPart() error = %v", err)
+						}
+						if got := part.FormName(); got != "file" {
+							t.Fatalf("multipart field = %q, want file", got)
+						}
+						if got := part.FileName(); got != "frame.png" {
+							t.Fatalf("multipart filename = %q, want frame.png", got)
+						}
+						gotBytes, err := io.ReadAll(part)
+						if err != nil {
+							t.Fatalf("io.ReadAll(multipart file) error = %v", err)
+						}
+						if !bytes.Equal(gotBytes, fileBytes) {
+							t.Fatalf("multipart bytes = %q, want %q", gotBytes, fileBytes)
+						}
+						if _, err := reader.NextPart(); !errors.Is(err, io.EOF) {
+							t.Fatalf("multipart trailing part error = %v, want io.EOF", err)
+						}
+						return newHTTPResponse(
+							http.StatusCreated,
+							`{"attachment":{"id":"att-1","name":"frame.png","mime_type":"image/png","bytes":22,"sha256":"sha256:abc","kind":"image","width":4,"height":3,"created_at":"2026-04-03T12:00:00Z"}}`,
+						), nil
+					default:
+						t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+						return nil, nil
+					}
+				}),
+			},
+		}
+
+		record, err := client.UploadSessionAttachment(context.Background(), "sess-1", filePath)
+		if err != nil {
+			t.Fatalf("UploadSessionAttachment() error = %v", err)
+		}
+		if preflightCalls != 1 || uploadCalls != 1 {
+			t.Fatalf("request counts = preflight:%d upload:%d, want 1 each", preflightCalls, uploadCalls)
+		}
+		if record.ID != "att-1" || record.Name != "frame.png" || record.MIMEType != "image/png" ||
+			record.SHA256 != "sha256:abc" || record.Kind != contract.PromptAttachmentKindImage {
+			t.Fatalf("attachment record = %#v, want uploaded attachment metadata", record)
+		}
+		if got := fmt.Sprint(record.Bytes); got != "22" {
+			t.Fatalf("attachment bytes = %s, want 22", got)
+		}
+	})
+
+	t.Run("Should stop the multipart producer when transport fails before reading", func(t *testing.T) {
+		t.Parallel()
+
+		filePath := filepath.Join(t.TempDir(), "large-frame.png")
+		if err := os.WriteFile(filePath, bytes.Repeat([]byte("x"), 1<<20), 0o600); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+		transportErr := errors.New("injected upload transport failure")
+		var multipartBody *sessionAttachmentMultipartBody
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method == http.MethodGet {
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+					), nil
+				}
+				var ok bool
+				multipartBody, ok = req.Body.(*sessionAttachmentMultipartBody)
+				if !ok {
+					t.Fatalf("upload request body = %T, want *sessionAttachmentMultipartBody", req.Body)
+				}
+				return nil, transportErr
+			})},
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := client.UploadSessionAttachment(ctx, "sess-1", filePath)
+		if !errors.Is(err, transportErr) {
+			t.Fatalf("UploadSessionAttachment() error = %v, want transport failure", err)
+		}
+		if multipartBody == nil {
+			t.Fatal("upload transport did not receive the multipart body")
+		}
+		select {
+		case _, open := <-multipartBody.done:
+			if open {
+				t.Fatal("multipart producer completion was not joined")
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for multipart producer completion")
+		}
+	})
+
+	t.Run("Should preserve the daemon rejection when it stops reading the upload early", func(t *testing.T) {
+		t.Parallel()
+
+		filePath := filepath.Join(t.TempDir(), "oversize-frame.png")
+		if err := os.WriteFile(filePath, bytes.Repeat([]byte("x"), 1<<20), 0o600); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method == http.MethodGet {
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+					), nil
+				}
+				if err := req.Body.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Fatalf("request body Close() error = %v", err)
+				}
+				return newHTTPResponse(
+					http.StatusRequestEntityTooLarge,
+					`{"error":"session attachment exceeds maximum file size of 10485760 bytes"}`,
+				), nil
+			})},
+		}
+
+		_, err := client.UploadSessionAttachment(context.Background(), "sess-1", filePath)
+		if err == nil || !strings.Contains(err.Error(), "exceeds maximum file size") {
+			t.Fatalf("UploadSessionAttachment() error = %v, want daemon size rejection", err)
+		}
+		if strings.Contains(err.Error(), "closed pipe") {
+			t.Fatalf("UploadSessionAttachment() error = %v, want no expected pipe interruption", err)
+		}
+	})
+
+	t.Run("Should drain an upload response when multipart cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		requestErr := errors.New("upload request failed")
+		bodyErr := errors.New("multipart cleanup failed")
+		reader := &stagedResponseReader{chunks: [][]byte{[]byte("cleanup response")}}
+		responseBody := &responseBodyProbe{reader: reader}
+		response := newHTTPResponse(http.StatusCreated, "")
+		response.Body = responseBody
+
+		err := cleanupSessionAttachmentUpload("unread-frame.png", requestErr, bodyErr, response)
+		if !errors.Is(err, requestErr) || !errors.Is(err, bodyErr) {
+			t.Fatalf("cleanupSessionAttachmentUpload() error = %v, want request and cleanup errors", err)
+		}
+		if got := len(reader.chunks); got != 0 {
+			t.Fatalf("cleanup response chunks = %d, want 0", got)
+		}
+		if got, want := responseBody.closeCalls.Load(), int32(1); got != want {
+			t.Fatalf("cleanup response Close() calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should reject a missing file without sending an upload", func(t *testing.T) {
+		t.Parallel()
+
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodGet || req.URL.Path != "/api/sessions/sess-1" {
+						t.Fatalf("unexpected upload request = %s %s", req.Method, req.URL.Path)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+					), nil
+				}),
+			},
+		}
+
+		_, err := client.UploadSessionAttachment(
+			context.Background(),
+			"sess-1",
+			filepath.Join(t.TempDir(), "missing.png"),
+		)
+		if err == nil || !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("UploadSessionAttachment() error = %v, want os.ErrNotExist", err)
+		}
+	})
+}
+
 func TestUnixSocketClientMethods(t *testing.T) {
 	t.Parallel()
 
@@ -5037,6 +5259,11 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 			name:    "Should alias SessionRecord to the shared contract",
 			cliType: SessionRecord{},
 			want:    contract.SessionPayload{},
+		},
+		{
+			name:    "Should alias SessionAttachmentRecord to the shared contract",
+			cliType: SessionAttachmentRecord{},
+			want:    contract.SessionAttachmentPayload{},
 		},
 		{
 			name:    "Should alias SessionEventRecord to the shared contract",

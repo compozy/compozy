@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -170,6 +171,7 @@ func statusForSessionLookupError(err error) (int, bool) {
 		errors.Is(err, store.ErrSessionNotFound),
 		errors.Is(err, store.ErrConversationRewindTargetNotFound),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotFound),
+		errors.Is(err, attachmentspkg.ErrNotFound),
 		errors.Is(err, os.ErrNotExist),
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound, true
@@ -193,7 +195,9 @@ func statusForSessionValidationError(err error) (int, bool) {
 		return http.StatusBadRequest, true
 	case isProviderNegotiationFailure(err),
 		isProviderAuthFailure(err),
-		isReasoningEffortUnsupportedFailure(err):
+		isReasoningEffortUnsupportedFailure(err),
+		errors.Is(err, session.ErrPromptImagesUnsupported),
+		errors.Is(err, session.ErrPromptFilesUnsupported):
 		return http.StatusUnprocessableEntity, true
 	default:
 		return 0, false
@@ -216,6 +220,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 		errors.Is(err, session.ErrActiveTurnMismatch),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotQueued),
 		errors.Is(err, store.ErrSessionInputMutationConflict),
+		errors.Is(err, store.ErrSessionInputSteerTextOnly),
 		errors.Is(err, session.ErrPendingPermissionNotFound),
 		errors.Is(err, session.ErrPendingPermissionConflict),
 		errors.Is(err, store.ErrSessionAttachLocked),

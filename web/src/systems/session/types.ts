@@ -53,7 +53,20 @@ export type TranscriptMarkerPayload = SessionRecapPayload["recent_markers"][numb
 export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
 export type SessionRepairPayload = SessionRepairResponse["repair"];
 export type SessionRepairQuery = OperationQuery<"repairSession">;
+export type SessionAttachment = OperationResponse<"uploadSessionAttachment", 201>["attachment"];
+export type SessionPromptAttachment = NonNullable<
+  OperationRequestBody<"sendSessionPrompt">["attachments"]
+>[number];
+
+export interface SessionBusyInputDraft {
+  attachments: SessionPromptAttachment[];
+  message: string;
+}
+
+export type SessionBusyInputHandler = (draft: SessionBusyInputDraft) => void | Promise<unknown>;
+
 export interface SessionPromptRequest {
+  attachments?: SessionPromptAttachment[];
   expected_turn_id?: string;
   idempotency_key: string;
   message_id: string;

@@ -23,18 +23,11 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 	for _, param := range spec.Parameters {
 		operation.AddParameter(buildParameter(param))
 	}
-	if spec.RequestBody != nil {
-		schemaRef, err := schemaRefForValue(spec.RequestBody, schemas)
-		if err != nil {
-			return nil, fmt.Errorf("request body schema: %w", err)
-		}
-		operation.RequestBody = &openapi3.RequestBodyRef{
-			Value: openapi3.NewRequestBody().
-				WithContent(openapi3.NewContentWithJSONSchemaRef(schemaRef)).
-				WithDescription("JSON request body"),
-		}
-		operation.RequestBody.Value.Required = !spec.RequestBodyOptional
+	requestBody, err := buildRequestBody(schemas, spec)
+	if err != nil {
+		return nil, err
 	}
+	operation.RequestBody = requestBody
 	for _, response := range spec.Responses {
 		built, err := buildResponse(schemas, response)
 		if err != nil {
@@ -47,6 +40,47 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 		operation.AddResponse(response.Status, built)
 	}
 	return operation, nil
+}
+
+const schemaFormatBinary = "binary"
+
+func buildRequestBody(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.RequestBodyRef, error) {
+	if spec.RequestContentType == RequestUploadForm {
+		if spec.RequestBody != nil {
+			return nil, fmt.Errorf("operation %s: upload form requests do not take a body schema", spec.OperationID)
+		}
+		fileSchema := openapi3.NewStringSchema().WithFormat(schemaFormatBinary)
+		formSchema := openapi3.NewObjectSchema().
+			WithProperty("file", fileSchema).
+			WithoutAdditionalProperties()
+		formSchema.Required = []string{"file"}
+		body := openapi3.NewRequestBody().
+			WithContent(openapi3.Content{
+				RequestUploadForm: &openapi3.MediaType{Schema: &openapi3.SchemaRef{Value: formSchema}},
+			}).
+			WithDescription("Multipart upload with one required binary file field")
+		body.Required = !spec.RequestBodyOptional
+		return &openapi3.RequestBodyRef{Value: body}, nil
+	}
+	if spec.RequestContentType != "" && spec.RequestContentType != "application/json" {
+		return nil, fmt.Errorf(
+			"operation %s: unsupported request content type %q",
+			spec.OperationID,
+			spec.RequestContentType,
+		)
+	}
+	if spec.RequestBody == nil {
+		return nil, nil
+	}
+	schemaRef, err := schemaRefForValue(spec.RequestBody, schemas)
+	if err != nil {
+		return nil, fmt.Errorf("request body schema: %w", err)
+	}
+	body := openapi3.NewRequestBody().
+		WithContent(openapi3.NewContentWithJSONSchemaRef(schemaRef)).
+		WithDescription("JSON request body")
+	body.Required = !spec.RequestBodyOptional
+	return &openapi3.RequestBodyRef{Value: body}, nil
 }
 
 func buildResponse(schemas openapi3.Schemas, response ResponseSpec) (*openapi3.Response, error) {

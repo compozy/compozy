@@ -252,6 +252,67 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 	})
 }
 
+func TestDocumentDescribesSessionAttachmentContracts(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
+
+	t.Run("Should describe multipart upload, binary attachment reads, and deletion", func(t *testing.T) {
+		t.Parallel()
+
+		upload := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
+			http.MethodPost,
+		)
+		if upload.RequestBody == nil || upload.RequestBody.Value == nil {
+			t.Fatal("attachment upload is missing a request body")
+		}
+		if !upload.RequestBody.Value.Required {
+			t.Fatal("attachment upload request body is optional")
+		}
+		if len(upload.RequestBody.Value.Content) != 1 {
+			t.Fatalf("attachment upload content types = %d, want one", len(upload.RequestBody.Value.Content))
+		}
+		form := upload.RequestBody.Value.Content.Get(RequestUploadForm)
+		if form == nil || form.Schema == nil || form.Schema.Value == nil {
+			t.Fatalf("missing %s upload schema", RequestUploadForm)
+		}
+		if form.Schema.Value.Type == nil || !form.Schema.Value.Type.Is("object") {
+			t.Fatalf("upload schema type = %#v, want object", form.Schema.Value.Type)
+		}
+		assertSchemaHasAdditionalProperties(t, form.Schema.Value, false)
+		assertRequired(t, form.Schema.Value, "file")
+		file := propertySchema(t, form.Schema.Value, "file")
+		if file.Type == nil || !file.Type.Is("string") || file.Format != "binary" {
+			t.Fatalf("file schema = %#v, want string/binary", file)
+		}
+
+		bytesRead := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes",
+			http.MethodGet,
+		)
+		bytesSchema := responseSchema(t, bytesRead, http.StatusOK, "*/*")
+		if bytesSchema.Type == nil || !bytesSchema.Type.Is("string") || bytesSchema.Format != "binary" {
+			t.Fatalf("bytes response schema = %#v, want string/binary", bytesSchema)
+		}
+
+		deleteOperation := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}",
+			http.MethodDelete,
+		)
+		assertResponseStatus(t, deleteOperation, http.StatusNoContent)
+	})
+}
+
 func validRegistryOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,

@@ -31,6 +31,10 @@ interface DirectoryBrowserProps extends ComponentProps<"div"> {
   testIdPrefix?: string;
 }
 
+function defaultPickRowLabel(name: string): string {
+  return `Use ${name}`;
+}
+
 /**
  * Filesystem root picker: home/up toolbar with a mono path, "use this folder",
  * hover-reveal row picks, and reading/empty/error states.
@@ -54,7 +58,7 @@ export function DirectoryBrowser({
   isPicked,
   pickPending = false,
   pickLabel = "Use this folder",
-  pickRowLabel = name => `Use ${name}`,
+  pickRowLabel = defaultPickRowLabel,
   testIdPrefix = "directory-browser",
   className,
   ...props

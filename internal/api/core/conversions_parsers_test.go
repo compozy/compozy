@@ -103,11 +103,15 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 					TurnID: "turn-1",
 				},
 			},
-			CreatedAt: now,
-			UpdatedAt: now,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			ACPCapsKnown: true,
 			ACPCaps: acp.Caps{
-				SupportsLoadSession: true,
-				SupportedModes:      []string{"chat"},
+				SupportsLoadSession:   true,
+				PromptImage:           true,
+				PromptAudio:           false,
+				PromptEmbeddedContext: true,
+				SupportedModes:        []string{"chat"},
 				ConfigOptions: []acp.SessionConfigOption{
 					{
 						ID:      "reasoning_effort",
@@ -191,6 +195,11 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 		if payload.Runtime.ACPCaps == nil || !payload.Runtime.ACPCaps.SupportsLoadSession {
 			t.Fatalf("caps = %#v", payload.Runtime.ACPCaps)
+		}
+		if !payload.Runtime.ACPCaps.PromptImage ||
+			payload.Runtime.ACPCaps.PromptAudio ||
+			!payload.Runtime.ACPCaps.PromptEmbeddedContext {
+			t.Fatalf("prompt caps = %#v, want image/context true and audio false", payload.Runtime.ACPCaps)
 		}
 		if len(payload.AvailableCommands) != 1 || payload.AvailableCommands[0].Name != "compact" ||
 			payload.AvailableCommands[0].Input == nil ||

@@ -1,4 +1,4 @@
-import { INTERNAL } from "@assistant-ui/react";
+import { INTERNAL, useAui } from "@assistant-ui/react";
 import { DirectiveNode } from "@assistant-ui/react-lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
@@ -9,7 +9,9 @@ import {
   $isRangeSelection,
   $isTextNode,
   COMMAND_PRIORITY_CRITICAL,
+  COMMAND_PRIORITY_HIGH,
   KEY_ENTER_COMMAND,
+  PASTE_COMMAND,
   type RangeSelection,
 } from "lexical";
 import { useEffect, useEffectEvent } from "react";
@@ -233,4 +235,40 @@ export function SessionCommandScopePlugin({
   }, [editor]);
 
   return null;
+}
+
+/**
+ * Clipboard files become composer attachments. Binary never enters the editor;
+ * text/markdown clipboard content keeps the default paste path.
+ */
+export function SessionComposerPastePlugin() {
+  const [editor] = useLexicalComposerContext();
+  const aui = useAui();
+
+  const addFiles = useEffectEvent((files: File[]) => {
+    for (const file of files) {
+      void aui.composer.addAttachment(file);
+    }
+  });
+
+  useEffect(() => {
+    return editor.registerCommand(
+      PASTE_COMMAND,
+      event => {
+        if (!isClipboardEvent(event)) return false;
+        const files = Array.from(event.clipboardData?.files ?? []);
+        if (files.length === 0) return false;
+        event.preventDefault();
+        addFiles(files);
+        return true;
+      },
+      COMMAND_PRIORITY_HIGH
+    );
+  }, [editor]);
+
+  return null;
+}
+
+function isClipboardEvent(event: unknown): event is ClipboardEvent {
+  return typeof event === "object" && event !== null && "clipboardData" in event;
 }

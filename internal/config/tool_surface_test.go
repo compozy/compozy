@@ -75,6 +75,36 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueDuration,
 		},
 		{
+			name: "Should allow session attachment max file bytes mutation",
+			path: "session.attachments.max_file_bytes",
+			kind: ConfigValueInt64,
+		},
+		{
+			name: "Should allow session attachment prompt count mutation",
+			path: "session.attachments.max_files_per_prompt",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow session attachment allowed mime mutation",
+			path: "session.attachments.allowed_mime",
+			kind: ConfigValueStringSlice,
+		},
+		{
+			name: "Should allow session attachment retention count mutation",
+			path: "session.attachments.retention.max_count",
+			kind: ConfigValueInt,
+		},
+		{
+			name: "Should allow session attachment retention bytes mutation",
+			path: "session.attachments.retention.max_bytes",
+			kind: ConfigValueInt64,
+		},
+		{
+			name: "Should allow session attachment retention age mutation",
+			path: "session.attachments.retention.max_age",
+			kind: ConfigValueDuration,
+		},
+		{
 			name: "Should allow soul enabled mutation",
 			path: "agents.soul.enabled",
 			kind: ConfigValueBool,

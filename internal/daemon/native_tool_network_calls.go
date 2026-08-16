@@ -215,7 +215,7 @@ func (n *daemonNativeTools) networkSend(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredNetworkResult(map[string]any{"message_id": messageID}, messageID)
+	return structuredNetworkResult(map[string]any{watchEventsPayloadMessageIDKey: messageID}, messageID)
 }
 
 func (n *daemonNativeTools) networkDirectResolve(

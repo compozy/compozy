@@ -117,6 +117,7 @@ export function OsWindowDeck({
   dragHandleClassName,
 }: OsWindowDeckProps) {
   const deck = useOsWindowDeck(frame);
+  const { registerTabs } = deck;
   const windows = useDesktop(state => state.windows);
   const indicatorIndex = deck.dropIndex ?? deck.tabDrag?.insertIndex ?? null;
 
@@ -135,7 +136,7 @@ export function OsWindowDeck({
         wrapZoom={zoomMenu}
       />
       <div
-        ref={deck.registerTabs}
+        ref={registerTabs}
         role="tablist"
         aria-label="Open tabs"
         className="no-scrollbar flex min-w-0 items-end gap-0.5 overflow-x-auto"

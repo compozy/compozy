@@ -82,7 +82,7 @@ type HomeTreeEntry struct {
 	Mode string `json:"mode"`
 }
 
-func collectHomeTree(ctx context.Context, root string, supportDir string, limit int) ([]HomeTreeEntry, error) {
+func collectHomeTree(ctx context.Context, root string, limit int, excludedDirs ...string) ([]HomeTreeEntry, error) {
 	if err := buildContextError(ctx); err != nil {
 		return nil, err
 	}
@@ -104,8 +104,12 @@ func collectHomeTree(ctx context.Context, root string, supportDir string, limit 
 			}
 			return nil
 		}
-		if samePath(path, supportDir) && path != root {
-			return filepath.SkipDir
+		if path != root {
+			for _, excludedDir := range excludedDirs {
+				if samePath(path, excludedDir) {
+					return filepath.SkipDir
+				}
+			}
 		}
 		info, err := entry.Info()
 		if err != nil {

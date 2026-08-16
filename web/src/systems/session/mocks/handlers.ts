@@ -15,7 +15,8 @@ import {
   sessionRepairFixture,
   sessionTranscriptFixture,
 } from "./fixtures";
-import type { CreateSessionParams } from "../types";
+import { uploadedAttachmentFromRequest } from "./session-attachment-upload";
+import type { CreateSessionParams, SessionAttachment } from "../types";
 
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
 const storyWorkspaceNameById = new Map(
@@ -25,6 +26,50 @@ const storyWorkspaceNameById = new Map(
   ])
 );
 const sessionCatalogStreamEncoder = new TextEncoder();
+const attachmentBytes = new Map<string, { bytes: Uint8Array; attachment: SessionAttachment }>();
+
+export function seedSessionAttachmentMock(
+  workspaceId: string,
+  sessionId: string,
+  attachment: SessionAttachment,
+  bytes: Uint8Array
+): void {
+  attachmentBytes.set(attachmentStoreKey(workspaceId, sessionId, attachment.id), {
+    attachment,
+    bytes: Uint8Array.from(bytes),
+  });
+}
+
+export function resetSessionAttachmentMock(): void {
+  attachmentBytes.clear();
+}
+
+function attachmentStoreKey(workspaceId: string, sessionId: string, attachmentId: string): string {
+  return `${workspaceId}\u0000${sessionId}\u0000${attachmentId}`;
+}
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function mockAttachmentClassification(mimeType: string): {
+  kind: "file" | "image";
+  mimeType: string;
+} | null {
+  switch (mimeType) {
+    case "image/png":
+    case "image/jpeg":
+    case "image/webp":
+      return { kind: "image", mimeType };
+    case "application/pdf":
+    case "text/markdown":
+    case "text/plain":
+      return { kind: "file", mimeType };
+    default:
+      return null;
+  }
+}
 
 function createSessionCatalogStreamResponse(): Response {
   const stream = new ReadableStream<Uint8Array>({
@@ -197,6 +242,73 @@ export const handlers: HttpHandler[] = [
       const unarchivedSession = { ...session, archived_at: null };
       sessionById.set(id, unarchivedSession);
       return HttpResponse.json({ session: unarchivedSession });
+    }
+  ),
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
+    async ({ params, request }) => {
+      const id = String(params.session_id);
+      const workspaceId = String(params.workspace_id);
+      const session = sessionById.get(id);
+      if (!session || session.workspace_id !== workspaceId) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const uploaded = await uploadedAttachmentFromRequest(request);
+      if (!uploaded) {
+        return HttpResponse.json({ error: "file is required" }, { status: 400 });
+      }
+      const classification = mockAttachmentClassification(uploaded.mimeType);
+      if (!classification) {
+        return HttpResponse.json({ error: "unsupported mime type" }, { status: 415 });
+      }
+      const bytes = uploaded.bytes;
+      const digest = await sha256Hex(bytes);
+      const attachment: SessionAttachment = {
+        bytes: bytes.byteLength,
+        created_at: "2026-04-17T18:11:00Z",
+        height: 0,
+        id: `att_${digest}`,
+        kind: classification.kind,
+        mime_type: classification.mimeType,
+        name: uploaded.name,
+        sha256: digest,
+        width: 0,
+      };
+      seedSessionAttachmentMock(workspaceId, id, attachment, bytes);
+      return HttpResponse.json({ attachment }, { status: 201 });
+    }
+  ),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes",
+    ({ params }) => {
+      const workspaceId = String(params.workspace_id);
+      const sessionId = String(params.session_id);
+      const attachmentId = String(params.attachment_id);
+      const stored = attachmentBytes.get(attachmentStoreKey(workspaceId, sessionId, attachmentId));
+      if (!stored) {
+        return HttpResponse.json({ error: "Attachment not found" }, { status: 404 });
+      }
+      return new Response(Uint8Array.from(stored.bytes).buffer, {
+        status: 200,
+        headers: { "Content-Type": stored.attachment.mime_type },
+      });
+    }
+  ),
+  compozyApiMock.delete(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}",
+    ({ params }) => {
+      const id = String(params.session_id);
+      const workspaceId = String(params.workspace_id);
+      const session = sessionById.get(id);
+      if (!session || session.workspace_id !== workspaceId) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const attachmentId = String(params.attachment_id);
+      const key = attachmentStoreKey(workspaceId, id, attachmentId);
+      if (!attachmentBytes.delete(key)) {
+        return HttpResponse.json({ error: "Attachment not found" }, { status: 404 });
+      }
+      return new HttpResponse(null, { status: 204 });
     }
   ),
   compozyApiMock.post(

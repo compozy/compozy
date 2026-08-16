@@ -190,7 +190,7 @@ func (n *hooksNotifier) notifyEventPostRecordObservers(
 			observer,
 			payload,
 			"event record",
-			[]any{"session_id", payload.SessionID, "sequence", payload.Sequence},
+			[]any{watchEventsPayloadSessionIDKey, payload.SessionID, "sequence", payload.Sequence},
 			func(ctx context.Context, observer eventRecordWatchObserver, payload hookspkg.EventPostRecordPayload) error {
 				return observer.OnEventPostRecord(ctx, payload)
 			},

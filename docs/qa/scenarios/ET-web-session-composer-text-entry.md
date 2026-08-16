@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-17
 expected: In a newly created session, sequential keyboard entry preserves every character including spaces, opening and closing the Next prompt runtime selector does not alter the draft, and the same behavior remains correct after a refresh and deep-link return.
 entry_points: web agent detail New session; web destination session composer; web session deep link
-qa_status: untested
-bug_ids:
+qa_status: pass
+bug_ids: BUG-20260815-session-composer-draft-reload
 fix_status: fixed
 retest_status: pass
-fix_commits: f54e62b;acbbb25
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/screenshots/07-exact-text-new-session.png;/Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/screenshots/08-exact-text-after-refresh.png;/Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/screenshots/09-exact-text-deep-link.png;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/exact-prompt-history.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/screenshots/05-exact-prompt-after-refresh.png
-last_report: docs/qa/reports/2026-08-05-session-slash-commands.md
+fix_commits: f54e62b;acbbb25;current-pr-head
+evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412-final/26-composer-draft-after-reload.png
+last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412-final.md
 overlaps: ET-web-session-prompt-runtime-and-create-navigation;ET-web-runtime-selector-minimal-slider
 ---
 
@@ -29,3 +29,7 @@ QA impact 2026-08-05 (review remediation): reset because programmatic assistant-
 QA verdict 2026-08-05 (reviewed head): passed. The composer and persisted transcript retained the Unicode text and repeated spacing in `Revisão 😊 /browser-qa /browser-qa antes   do lançamento`; the same text remained in the session history after a cold Web reload.
 
 QA impact 2026-08-05 (composer redesign): reset — the composer input moved from a textarea to a Lexical contenteditable (@assistant-ui/react-lexical). Re-walk exact character preservation (spaces, Unicode, newlines), draft persistence across remount/refresh/deep link, and runtime-selector interaction with the draft.
+
+QA impact 2026-08-15 (attachments): reset remains `untested` because paste, drop, picker, preview removal, and attachment-aware send now share the composer input path. Re-walk exact text and draft persistence beside attachment interactions.
+
+QA verdict 2026-08-15 (attachments): passed after remediation. Sequential Unicode text and repeated spaces survived the next-prompt runtime selector, full reload, and return to the deep-linked session; only validated non-empty draft text rehydrated.

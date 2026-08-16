@@ -5471,6 +5471,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload a session attachment */
+    post: operations["uploadSessionAttachment"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a session attachment */
+    delete: operations["deleteSessionAttachment"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read session attachment bytes */
+    get: operations["readSessionAttachmentBytes"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications": {
     parameters: {
       query?: never;
@@ -12384,6 +12435,9 @@ export interface operations {
                         value: string;
                       }[];
                     }[];
+                    prompt_audio: boolean;
+                    prompt_embedded_context: boolean;
+                    prompt_image: boolean;
                     supported_modes?: string[];
                     supports_load_session: boolean;
                   } | null;
@@ -50623,6 +50677,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -51112,6 +51169,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -51614,6 +51674,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -89210,6 +89273,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -104973,6 +105039,9 @@ export interface operations {
                         value: string;
                       }[];
                     }[];
+                    prompt_audio: boolean;
+                    prompt_embedded_context: boolean;
+                    prompt_image: boolean;
                     supported_modes?: string[];
                     supports_load_session: boolean;
                   } | null;
@@ -105413,6 +105482,9 @@ export interface operations {
                         value: string;
                       }[];
                     }[];
+                    prompt_audio: boolean;
+                    prompt_embedded_context: boolean;
+                    prompt_image: boolean;
                     supported_modes?: string[];
                     supports_load_session: boolean;
                   } | null;
@@ -105862,6 +105934,9 @@ export interface operations {
                         value: string;
                       }[];
                     }[];
+                    prompt_audio: boolean;
+                    prompt_embedded_context: boolean;
+                    prompt_image: boolean;
                     supported_modes?: string[];
                     supports_load_session: boolean;
                   } | null;
@@ -109244,6 +109319,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -109664,6 +109742,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -110177,6 +110258,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -110583,6 +110667,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -110732,6 +110819,511 @@ export interface operations {
       };
       /** @description Session cannot be attached */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  uploadSessionAttachment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description Multipart upload with one required binary file field */
+    requestBody: {
+      content: {
+        "multipart/form-data": {
+          /** Format: binary */
+          file: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            attachment: {
+              /** Format: int64 */
+              bytes: number;
+              /** Format: date-time */
+              created_at: string;
+              height: number;
+              id: string;
+              kind: string;
+              mime_type: string;
+              name: string;
+              sha256: string;
+              width: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid attachment upload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Attachment exceeds configured size limit */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Attachment MIME type is not allowed */
+      415: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  deleteSessionAttachment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Attachment id */
+        attachment_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid attachment id */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  readSessionAttachmentBytes: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Attachment id */
+        attachment_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Attachment bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Invalid attachment id */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -111252,6 +111844,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -112594,6 +113189,17 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          attachments?: {
+            /** Format: int64 */
+            bytes: number;
+            height: number;
+            id: string;
+            kind: string;
+            mime_type: string;
+            name: string;
+            sha256: string;
+            width: number;
+          }[];
           expected_turn_id?: string;
           idempotency_key: string;
           message?: string;
@@ -112997,7 +113603,7 @@ export interface operations {
           };
         };
       };
-      /** @description Session not found */
+      /** @description Session or attachment not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -113696,6 +114302,17 @@ export interface operations {
         content: {
           "application/json": {
             inputs: {
+              attachments?: {
+                /** Format: int64 */
+                bytes: number;
+                height: number;
+                id: string;
+                kind: string;
+                mime_type: string;
+                name: string;
+                sha256: string;
+                width: number;
+              }[];
               delivery: string;
               /** Format: date-time */
               enqueued_at: string;
@@ -113827,6 +114444,17 @@ export interface operations {
         content: {
           "application/json": {
             input: {
+              attachments?: {
+                /** Format: int64 */
+                bytes: number;
+                height: number;
+                id: string;
+                kind: string;
+                mime_type: string;
+                name: string;
+                sha256: string;
+                width: number;
+              }[];
               delivery: string;
               /** Format: date-time */
               enqueued_at: string;
@@ -114702,8 +115330,10 @@ export interface operations {
                 parts: {
                   data?: unknown;
                   errorText?: string;
+                  filename?: string;
                   id?: string;
                   input?: unknown;
+                  mediaType?: string;
                   output?: unknown;
                   preliminary?: boolean;
                   rawInput?: unknown;
@@ -114713,6 +115343,7 @@ export interface operations {
                   toolCallId?: string;
                   toolName?: string;
                   type: string;
+                  url?: string;
                 }[];
                 role: string;
               }[];
@@ -114878,6 +115509,9 @@ export interface operations {
                         value: string;
                       }[];
                     }[];
+                    prompt_audio: boolean;
+                    prompt_embedded_context: boolean;
+                    prompt_image: boolean;
                     supported_modes?: string[];
                     supports_load_session: boolean;
                   } | null;
@@ -115419,6 +116053,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -115854,6 +116491,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -116247,6 +116887,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -117465,8 +118108,10 @@ export interface operations {
                   parts: {
                     data?: unknown;
                     errorText?: string;
+                    filename?: string;
                     id?: string;
                     input?: unknown;
+                    mediaType?: string;
                     output?: unknown;
                     preliminary?: boolean;
                     rawInput?: unknown;
@@ -117476,6 +118121,7 @@ export interface operations {
                     toolCallId?: string;
                     toolName?: string;
                     type: string;
+                    url?: string;
                   }[];
                   role: string;
                 };
@@ -117503,8 +118149,10 @@ export interface operations {
                   parts: {
                     data?: unknown;
                     errorText?: string;
+                    filename?: string;
                     id?: string;
                     input?: unknown;
+                    mediaType?: string;
                     output?: unknown;
                     preliminary?: boolean;
                     rawInput?: unknown;
@@ -117514,6 +118162,7 @@ export interface operations {
                     toolCallId?: string;
                     toolName?: string;
                     type: string;
+                    url?: string;
                   }[];
                   role: string;
                 };
@@ -118674,8 +119323,10 @@ export interface operations {
                 parts: {
                   data?: unknown;
                   errorText?: string;
+                  filename?: string;
                   id?: string;
                   input?: unknown;
+                  mediaType?: string;
                   output?: unknown;
                   preliminary?: boolean;
                   rawInput?: unknown;
@@ -118685,6 +119336,7 @@ export interface operations {
                   toolCallId?: string;
                   toolName?: string;
                   type: string;
+                  url?: string;
                 }[];
                 role: string;
               };
@@ -119007,6 +119659,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -119480,6 +120135,9 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
+                  prompt_audio: boolean;
+                  prompt_embedded_context: boolean;
+                  prompt_image: boolean;
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;

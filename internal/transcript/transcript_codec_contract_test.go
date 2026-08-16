@@ -173,6 +173,16 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 	t.Run("Should round-trip structured fields without restoring canonical raw payloads", func(t *testing.T) {
 		t.Parallel()
 
+		wantAttachments := []acp.EventAttachment{{
+			ID:       "att-image",
+			Name:     "diagram.png",
+			MIMEType: "image/png",
+			Bytes:    2048,
+			SHA256:   "sha256-diagram",
+			Kind:     "image",
+			Width:    1280,
+			Height:   720,
+		}}
 		wantInvocations := []commandpkg.Invocation{{
 			Ref: commandpkg.SkillRef{
 				CommandID: "skill:extension:ops-4f1:review",
@@ -202,7 +212,8 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 				{Name: "review", Description: "Review changes"},
 			}),
 			Raw: json.RawMessage(`{"chunk":1}`),
-		}).WithRequestID("req-1").WithSkillInvocations(wantInvocations).WithPromptRuntime(&acp.PromptRuntime{
+		}).WithRequestID("req-1").WithAttachments(wantAttachments).
+			WithSkillInvocations(wantInvocations).WithPromptRuntime(&acp.PromptRuntime{
 			Provider:        "codex",
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
@@ -211,6 +222,22 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		payload, err := MarshalAgentEvent(event)
 		if err != nil {
 			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+		if strings.Contains(strings.ToLower(payload), "base64") {
+			t.Fatalf("MarshalAgentEvent() payload contains inline attachment content: %s", payload)
+		}
+		var storedPayload struct {
+			Attachments []map[string]any `json:"attachments"`
+		}
+		if err := json.Unmarshal([]byte(payload), &storedPayload); err != nil {
+			t.Fatalf("json.Unmarshal(payload) error = %v", err)
+		}
+		for _, attachment := range storedPayload.Attachments {
+			for _, forbidden := range []string{"body", "content", "data", "bytes_base64"} {
+				if _, ok := attachment[forbidden]; ok {
+					t.Fatalf("stored attachment contains forbidden %q field: %#v", forbidden, attachment)
+				}
+			}
 		}
 
 		event, err = UnmarshalAgentEvent(payload)
@@ -251,6 +278,9 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		}
 		if !slices.Equal(event.SkillInvocations(), wantInvocations) {
 			t.Fatalf("SkillInvocations = %#v, want %#v", event.SkillInvocations(), wantInvocations)
+		}
+		if got := event.Attachments(); !slices.Equal(got, wantAttachments) {
+			t.Fatalf("Attachments = %#v, want %#v", got, wantAttachments)
 		}
 		if len(event.Raw) != 0 {
 			t.Fatalf("Raw = %s, want empty canonical raw payload", string(event.Raw))

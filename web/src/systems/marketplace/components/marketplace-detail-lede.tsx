@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Fragment, type ReactNode } from "react";
+import { createElement, Fragment, type ReactNode } from "react";
 
 import { Pill, Time } from "@compozy/ui";
 
@@ -24,7 +24,7 @@ interface MarketplaceDetailLedeProps {
 function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
   const entry = data.entry;
   const kind = entry.kind as MarketplaceKind;
-  const Icon = marketplaceKindIcon(kind);
+  const icon = marketplaceKindIcon(kind);
   const blocked = kind === "extension" && entry.trust?.decision === "blocked";
   const description = entry.description?.trim();
   const meta = ledeMeta(data);
@@ -38,7 +38,7 @@ function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
         aria-hidden="true"
         className="grid size-(--size-provider-logo-well) shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted"
       >
-        <Icon className="size-5" />
+        {createElement(icon, { className: "size-5" })}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">

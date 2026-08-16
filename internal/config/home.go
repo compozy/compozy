@@ -26,6 +26,8 @@ const (
 	SessionsDirName = "sessions"
 	// ToolArtifactsDirName is the directory used for retained oversized tool results.
 	ToolArtifactsDirName = "tool-artifacts"
+	// SessionAttachmentsDirName is the directory used for persisted session attachments.
+	SessionAttachmentsDirName = "session-attachments"
 	// RestartsDirName is the directory used for persisted daemon restart operations.
 	RestartsDirName = "restarts"
 	// LogsDirName is the directory used for structured logs.
@@ -63,6 +65,7 @@ type HomePaths struct {
 	MemoryDir             string
 	SessionsDir           string
 	ToolArtifactsDir      string
+	SessionAttachmentsDir string
 	RestartsDir           string
 	LogsDir               string
 	GatewayDir            string
@@ -207,6 +210,7 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		MemoryDir:             filepath.Join(root, MemoryDirName),
 		SessionsDir:           filepath.Join(root, SessionsDirName),
 		ToolArtifactsDir:      filepath.Join(root, ToolArtifactsDirName),
+		SessionAttachmentsDir: filepath.Join(root, SessionAttachmentsDirName),
 		RestartsDir:           filepath.Join(root, RestartsDirName),
 		LogsDir:               filepath.Join(root, LogsDirName),
 		GatewayDir:            filepath.Join(root, GatewayDirName),
@@ -230,6 +234,7 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.MemoryDir,
 		paths.SessionsDir,
 		paths.ToolArtifactsDir,
+		paths.SessionAttachmentsDir,
 		paths.RestartsDir,
 		paths.LogsDir,
 		paths.GatewayDir,

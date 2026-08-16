@@ -83,6 +83,7 @@ type Info struct {
 	Failure                  *store.SessionFailure
 	ACPSessionID             string
 	ACPCaps                  acp.Caps
+	ACPCapsKnown             bool
 	AdvertisedCommands       []store.SessionAdvertisedCommand
 	Liveness                 *store.SessionLivenessMeta
 	Sandbox                  *store.SessionSandboxMeta
@@ -133,6 +134,7 @@ type Session struct {
 	failure                  *store.SessionFailure
 	ACPSessionID             string
 	ACPCaps                  acp.Caps
+	ACPCapsKnown             bool
 	AdvertisedCommands       []store.SessionAdvertisedCommand
 	Liveness                 *store.SessionLivenessMeta
 	Sandbox                  *store.SessionSandboxMeta
@@ -284,6 +286,7 @@ func (s *Session) rollbackActivation(now time.Time) {
 	s.process = nil
 	s.ACPSessionID = ""
 	s.ACPCaps = acp.Caps{}
+	s.ACPCapsKnown = false
 	s.Liveness = nil
 	s.State = StateStarting
 	if !now.IsZero() {

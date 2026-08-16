@@ -42,6 +42,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionCompactionConfig(deps.SessionCompaction),
 			session.WithSessionInputQueueStore(deps.SessionInputQueue),
 			session.WithSessionPromptAdmissionStore(deps.SessionPromptAdmission),
+			session.WithAttachmentOpener(deps.SessionAttachments),
 			session.WithSessionHealthConfig(deps.SessionHealthConfig),
 			session.WithSessionHealthStore(deps.SessionHealthStore),
 			session.WithSessionCatalog(deps.SessionCatalog),

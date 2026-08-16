@@ -1,5 +1,11 @@
 package contract
 
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/acp"
+)
+
 // ACPPromptStopReason is the closed turn-completion vocabulary exposed by ACP sessions.
 type ACPPromptStopReason string
 
@@ -35,9 +41,63 @@ type ACPAvailableCommandInputPayload struct {
 
 // ACPCapsPayload is the JSON representation of ACP capabilities.
 type ACPCapsPayload struct {
-	SupportsLoadSession bool                         `json:"supports_load_session"`
-	SupportedModes      []string                     `json:"supported_modes,omitempty"`
-	ConfigOptions       []SessionConfigOptionPayload `json:"config_options,omitempty"`
+	SupportsLoadSession   bool                         `json:"supports_load_session"`
+	PromptImage           bool                         `json:"prompt_image"`
+	PromptAudio           bool                         `json:"prompt_audio"`
+	PromptEmbeddedContext bool                         `json:"prompt_embedded_context"`
+	SupportedModes        []string                     `json:"supported_modes,omitempty"`
+	ConfigOptions         []SessionConfigOptionPayload `json:"config_options,omitempty"`
+}
+
+// ACPCapsPayloadFromACP projects negotiated ACP capabilities into the wire contract.
+func ACPCapsPayloadFromACP(caps acp.Caps, known bool) *ACPCapsPayload {
+	if !known {
+		return nil
+	}
+
+	return &ACPCapsPayload{
+		SupportsLoadSession:   caps.SupportsLoadSession,
+		PromptImage:           caps.PromptImage,
+		PromptAudio:           caps.PromptAudio,
+		PromptEmbeddedContext: caps.PromptEmbeddedContext,
+		SupportedModes:        append([]string(nil), caps.SupportedModes...),
+		ConfigOptions:         sessionConfigOptionPayloadsFromACP(caps.ConfigOptions),
+	}
+}
+
+func sessionConfigOptionPayloadsFromACP(options []acp.SessionConfigOption) []SessionConfigOptionPayload {
+	if len(options) == 0 {
+		return nil
+	}
+	payloads := make([]SessionConfigOptionPayload, 0, len(options))
+	for _, option := range options {
+		payloads = append(payloads, SessionConfigOptionPayload{
+			ID:          strings.TrimSpace(option.ID),
+			Label:       strings.TrimSpace(option.Label),
+			Description: strings.TrimSpace(option.Description),
+			Kind:        string(option.Kind),
+			Current:     strings.TrimSpace(option.Current),
+			Values:      sessionConfigOptionValuePayloadsFromACP(option.Values),
+		})
+	}
+	return payloads
+}
+
+func sessionConfigOptionValuePayloadsFromACP(
+	values []acp.SessionConfigOptionValue,
+) []SessionConfigOptionValuePayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]SessionConfigOptionValuePayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, SessionConfigOptionValuePayload{
+			Value:       strings.TrimSpace(value.Value),
+			Label:       strings.TrimSpace(value.Label),
+			Description: strings.TrimSpace(value.Description),
+		})
+	}
+	return payloads
 }
 
 // SessionConfigOptionPayload is one active ACP session config option.

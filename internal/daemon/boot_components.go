@@ -9,6 +9,8 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 	steps := []func() error{
 		func() error { return d.bootConfig(state, cleanup) },
 		func() error { return d.bootPromptProviders(ctx, state) },
+		func() error { return d.bootRuntimeFoundation(ctx, state, cleanup) },
+		func() error { return d.bootSessionAttachments(ctx, state, cleanup) },
 		func() error { return d.bootRuntime(ctx, state, cleanup) },
 		func() error { return d.bootSessionRepair(ctx, state) },
 		func() error { return d.bootGoalSessionOutboxRelay(ctx, state, cleanup) },

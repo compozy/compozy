@@ -5,9 +5,12 @@ package contracts
 import "time"
 
 type ACPCapsPayload struct {
-	SupportsLoadSession bool                         `json:"supports_load_session"`
-	SupportedModes      []string                     `json:"supported_modes,omitempty"`
-	ConfigOptions       []SessionConfigOptionPayload `json:"config_options,omitempty"`
+	SupportsLoadSession   bool                         `json:"supports_load_session"`
+	PromptImage           bool                         `json:"prompt_image"`
+	PromptAudio           bool                         `json:"prompt_audio"`
+	PromptEmbeddedContext bool                         `json:"prompt_embedded_context"`
+	SupportedModes        []string                     `json:"supported_modes,omitempty"`
+	ConfigOptions         []SessionConfigOptionPayload `json:"config_options,omitempty"`
 }
 
 type AcceptedCapabilities struct {

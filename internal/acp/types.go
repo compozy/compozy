@@ -135,9 +135,17 @@ func (o StartOpts) Validate() error {
 type PromptRequest struct {
 	TurnID                    string
 	Message                   string
+	Attachments               []PromptAttachment
 	Meta                      PromptMeta
 	ActivityReporter          PromptActivityReporter
 	ActivityHeartbeatInterval time.Duration
+}
+
+// PromptAttachment carries resolved attachment bytes into the ACP boundary.
+type PromptAttachment struct {
+	Name     string
+	MIMEType string
+	Data     []byte
 }
 
 // Validate ensures the prompt request can be sent to the agent.
@@ -145,8 +153,22 @@ func (r PromptRequest) Validate() error {
 	if strings.TrimSpace(r.TurnID) == "" {
 		return errors.New("acp: prompt turn id is required")
 	}
-	if strings.TrimSpace(r.Message) == "" {
+	if strings.TrimSpace(r.Message) == "" && len(r.Attachments) == 0 {
 		return errors.New("acp: prompt message is required")
+	}
+	for index, attachment := range r.Attachments {
+		attachmentClass := classifyPromptAttachmentMIME(attachment.MIMEType)
+		if len(attachment.Data) == 0 && attachmentClass != promptAttachmentText {
+			return fmt.Errorf("acp: prompt attachment %d: %w", index, ErrPromptAttachmentDataRequired)
+		}
+		if attachmentClass == promptAttachmentUnsupported {
+			return fmt.Errorf(
+				"acp: prompt attachment %d mime type %q: %w",
+				index,
+				strings.TrimSpace(attachment.MIMEType),
+				ErrPromptAttachmentMIMEUnsupported,
+			)
+		}
 	}
 	if r.ActivityHeartbeatInterval < 0 {
 		return errors.New("acp: prompt activity heartbeat interval must be zero or positive")
@@ -169,21 +191,27 @@ type PromptActivityReport struct {
 
 // Caps captures the usable capabilities exposed by an ACP agent.
 type Caps struct {
-	SupportsLoadSession  bool
-	SupportsCloseSession bool
-	SupportedModes       []string
-	ConfigOptions        []SessionConfigOption
-	SpeedResolution      *speedpkg.Resolution
+	SupportsLoadSession   bool
+	SupportsCloseSession  bool
+	PromptImage           bool
+	PromptAudio           bool
+	PromptEmbeddedContext bool
+	SupportedModes        []string
+	ConfigOptions         []SessionConfigOption
+	SpeedResolution       *speedpkg.Resolution
 }
 
 // CloneCaps returns a deep copy of ACP caps.
 func CloneCaps(caps Caps) Caps {
 	return Caps{
-		SupportsLoadSession:  caps.SupportsLoadSession,
-		SupportsCloseSession: caps.SupportsCloseSession,
-		SupportedModes:       append([]string(nil), caps.SupportedModes...),
-		ConfigOptions:        CloneSessionConfigOptions(caps.ConfigOptions),
-		SpeedResolution:      speedpkg.CloneResolution(caps.SpeedResolution),
+		SupportsLoadSession:   caps.SupportsLoadSession,
+		SupportsCloseSession:  caps.SupportsCloseSession,
+		PromptImage:           caps.PromptImage,
+		PromptAudio:           caps.PromptAudio,
+		PromptEmbeddedContext: caps.PromptEmbeddedContext,
+		SupportedModes:        append([]string(nil), caps.SupportedModes...),
+		ConfigOptions:         CloneSessionConfigOptions(caps.ConfigOptions),
+		SpeedResolution:       speedpkg.CloneResolution(caps.SpeedResolution),
 	}
 }
 

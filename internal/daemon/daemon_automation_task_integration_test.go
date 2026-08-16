@@ -308,7 +308,12 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 		t.Fatalf("claimedRun.Status = %q, want %q", got, want)
 	}
 
-	startedRun, err := harness.StartTaskRun(ctx, run.TaskRunID, compozycontract.StartTaskRunRequest{})
+	startedRun, err := harness.StartClaimedTaskRunForSession(
+		ctx,
+		run.TaskRunID,
+		worker,
+		compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + run.TaskRunID},
+	)
 	if err != nil {
 		t.Fatalf("StartTaskRun(%q) error = %v", run.TaskRunID, err)
 	}

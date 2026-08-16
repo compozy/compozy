@@ -2,14 +2,24 @@ package hooks
 
 import "encoding/json"
 
+// InputAttachmentMetadata is the byte-free attachment view exposed to hooks.
+type InputAttachmentMetadata struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	MIME  string `json:"mime"`
+	Bytes int64  `json:"bytes"`
+	Kind  string `json:"kind"`
+}
+
 // InputPreSubmitPayload is delivered before prompt submission.
 type InputPreSubmitPayload struct {
 	PayloadBase
 	SessionContext
 	TurnContext
-	InputClass    string         `json:"input_class,omitempty"`
-	Message       string         `json:"message,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+	InputClass    string                    `json:"input_class,omitempty"`
+	Message       string                    `json:"message,omitempty"`
+	ContextBlocks []ContextBlock            `json:"context_blocks,omitempty"`
+	Attachments   []InputAttachmentMetadata `json:"attachments,omitempty"`
 }
 
 // InputPreSubmitPatch mutates or denies the submitted input.

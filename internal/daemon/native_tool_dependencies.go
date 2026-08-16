@@ -4,6 +4,7 @@ import (
 	"context"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	memorypkg "github.com/compozy/compozy/internal/memory"
@@ -42,6 +43,7 @@ type daemonNativeToolsDeps struct {
 	Config                     compozyconfig.Config
 	Skills                     daemonNativeSkillsRegistry
 	Sessions                   core.SessionManager
+	SessionAttachments         attachmentspkg.Store
 	Workspaces                 core.WorkspaceService
 	Worktrees                  core.WorktreeService
 	WorkspaceResolver          workspacepkg.RuntimeResolver

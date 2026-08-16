@@ -2471,6 +2471,14 @@ export interface InputPreSubmitPatch {
   context_blocks?: ContextBlock[];
 }
 
+export interface InputAttachmentMetadata {
+  id: string;
+  name: string;
+  mime: string;
+  bytes: number;
+  kind: string;
+}
+
 export interface InputPreSubmitPayload {
   event: HookEvent;
   timestamp: ISODateTime;
@@ -2491,6 +2499,7 @@ export interface InputPreSubmitPayload {
   input_class?: string;
   message?: string;
   context_blocks?: ContextBlock[];
+  attachments?: InputAttachmentMetadata[];
 }
 
 export interface ListLogsParams {
@@ -4797,6 +4806,9 @@ export interface SessionConfigOptionPayload {
 
 export interface ACPCapsPayload {
   supports_load_session: boolean;
+  prompt_image: boolean;
+  prompt_audio: boolean;
+  prompt_embedded_context: boolean;
   supported_modes?: string[];
   config_options?: SessionConfigOptionPayload[];
 }

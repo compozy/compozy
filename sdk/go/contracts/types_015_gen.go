@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+type NetworkThreadSummaryPayload struct {
+	WorkspaceID        string                          `json:"workspace_id,omitempty"`
+	Channel            string                          `json:"channel"`
+	ThreadID           string                          `json:"thread_id"`
+	RootMessageID      string                          `json:"root_message_id"`
+	Title              string                          `json:"title,omitempty"`
+	OpenedByPeerID     string                          `json:"opened_by_peer_id,omitempty"`
+	OpenedSessionID    string                          `json:"opened_session_id,omitempty"`
+	OpenedAt           *time.Time                      `json:"opened_at,omitempty"`
+	LastActivityAt     *time.Time                      `json:"last_activity_at,omitempty"`
+	MessageCount       int                             `json:"message_count"`
+	ParticipantCount   int                             `json:"participant_count"`
+	OpenWorkCount      int                             `json:"open_work_count"`
+	CoordinationCost   *NetworkCoordinationCostPayload `json:"coordination_cost,omitempty"`
+	LastMessagePreview string                          `json:"last_message_preview,omitempty"`
+}
+
 type NetworkThreadTargetParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
@@ -238,11 +255,4 @@ type PermissionDeniedPayload struct {
 	DecisionClass  string             `json:"decision_class,omitempty"`
 	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
 	ToolCall       PermissionToolCall `json:"tool_call"`
-}
-
-type PermissionOption struct {
-	Decision string `json:"decision,omitempty"`
-	OptionID string `json:"option_id,omitempty"`
-	Kind     string `json:"kind,omitempty"`
-	Label    string `json:"label,omitempty"`
 }

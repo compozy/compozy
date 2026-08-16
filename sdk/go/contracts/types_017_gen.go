@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type Resolution struct {
+	Requested Speed            `json:"requested"`
+	Status    ResolutionStatus `json:"status"`
+	Reason    ResolutionReason `json:"reason,omitempty"`
+}
+
 type ResolutionReason string
 
 type ResolutionStatus string
@@ -135,5 +141,3 @@ type RunDesignationSummary struct {
 	Index int    `json:"index"`
 	Brief string `json:"brief,omitempty"`
 }
-
-type RunStatus string

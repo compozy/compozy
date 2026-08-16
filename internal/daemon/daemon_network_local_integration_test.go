@@ -78,7 +78,12 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 		if claimedRun.Status.Normalize() != taskpkg.TaskRunStatusClaimed {
 			t.Fatalf("claimed task run status = %q, want claimed", claimedRun.Status)
 		}
-		startedRun, err := harness.StartTaskRun(ctx, taskRun.ID, compozycontract.StartTaskRunRequest{})
+		startedRun, err := harness.StartClaimedTaskRunForSession(
+			ctx,
+			taskRun.ID,
+			localSession,
+			compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + taskRun.ID},
+		)
 		if err != nil {
 			t.Fatalf("StartTaskRun(%q) error = %v", taskRun.ID, err)
 		}

@@ -67,6 +67,7 @@ type SessionPromptAdmission struct {
 	AuthoredText        string
 	Runtime             SessionInputRuntime
 	SkillInvocations    []commandpkg.Invocation
+	Attachments         []SessionInputAttachment
 	TurnID              string
 	EventID             string
 	Result              *SessionPromptAdmissionResult
@@ -91,12 +92,13 @@ type SessionPromptAdmissionRequest struct {
 	AuthoredText       string
 	Runtime            SessionInputRuntime
 	SkillInvocations   []commandpkg.Invocation
+	Attachments        []SessionInputAttachment
 	TurnID             string
 	EventID            string
 	Now                time.Time
 }
 
-// Normalize trims identity fields and normalizes the request clock.
+// Normalize trims scalar and attachment fields, clones slices, and normalizes the request clock to UTC.
 func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest {
 	normalized := r
 	normalized.ID = strings.TrimSpace(normalized.ID)
@@ -111,6 +113,7 @@ func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest
 	normalized.AuthoredText = strings.TrimSpace(normalized.AuthoredText)
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
+	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
 	normalized.EventID = strings.TrimSpace(normalized.EventID)
 	if normalized.Now.IsZero() {
@@ -139,7 +142,10 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 		return errors.New("store: session prompt admission fingerprint version is required")
 	case normalized.RequestFingerprint == "":
 		return errors.New("store: session prompt admission request fingerprint is required")
-	case normalized.AuthoredText == "":
+	case normalized.Operation == SessionPromptOperationSteer && len(normalized.Attachments) > 0:
+		return ErrSessionInputSteerTextOnly
+	case normalized.AuthoredText == "" &&
+		(normalized.Operation == SessionPromptOperationSteer || len(normalized.Attachments) == 0):
 		return errors.New("store: session prompt admission authored text is required")
 	case normalized.TurnID == "":
 		return errors.New("store: session prompt admission turn id is required")

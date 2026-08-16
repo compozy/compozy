@@ -53,8 +53,16 @@ accept or send a prompt or runtime. A named Worktree must be ready; new creation
 session persistence.
 The calling session is recorded automatically as `lineage.parent_session_id` (provenance only, no
 governance) when the new session lands in the caller's workspace; the link is not a tool input.
-Use `compozy__session_prompt` with `session_id`, `message`, and an optional `runtime` snapshot. A
-first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, and speed
+Use `compozy__session_prompt` with `session_id`, optional `message`, optional `attachments`, and an
+optional `runtime` snapshot. `attachments` is an array of file paths within the resolved workspace
+root or configured `additional_dirs`, or existing workspace/session-scoped `att_...` IDs; at least
+`message` or one attachment is required. Paths are
+uploaded through the attachment store before submission. Use
+`compozy session attachments upload <session-id> <file> -o json` when the caller needs a durable ID.
+The store enforces `session.attachments.max_file_bytes`,
+`session.attachments.max_files_per_prompt`, and `session.attachments.allowed_mime`; inspect the
+attachment settings in `references/configuration.md` before submitting large or unsupported files.
+The first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, and speed
 are optional snapshot fields. Read the runtime semantics, queued/interrupt snapshot behavior, and
 rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
 `runtime` object rather than deriving it from the session state.
@@ -93,7 +101,9 @@ session `type`, exact agent, exact `parent` (direct children) or `root` (whole t
 search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
 archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
 daemon-managed dream, system, coordinator, or spawned sessions. Archive only stopped sessions;
-unarchive before prompting or resuming one. Both archive operations preserve the session history.
+unarchive before prompting or resuming one. Archive and conversation clear preserve attachments;
+conversation clear preserves attachments. `compozy session remove` and `compozy workspace remove`
+remove their scoped attachment trees.
 `compozy__session_rename` changes the durable display name of a user session without changing its
 runtime or transcript identity. Pass `session_id` and a non-empty `name` of at most 64 characters;
 the CLI fallback is `compozy session rename <id> <name>`.

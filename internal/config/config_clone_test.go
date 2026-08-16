@@ -51,6 +51,7 @@ func TestCloneConfig(t *testing.T) {
 		cloned.Skills.AllowedMarketplaceMCP[0] = "mutated"
 		cloned.Extensions.Resources.AllowedKinds[0] = resources.ResourceKind("task")
 		cloned.Tools.Policy.TrustedSources[0] = "mutated"
+		cloned.Session.Attachments.AllowedMIME[0] = "mutated"
 		cloned.Automation.Jobs[0].Task.Owner.Ref = "mutated"
 		*cloned.Automation.Jobs[0].Task.NetworkParticipation.ChannelID = "mutated"
 		cloned.Automation.Jobs[0].LoopTarget.Inputs["nested"].(map[string]any)["value"] = "mutated"
@@ -124,6 +125,9 @@ func configCloneFixture() Config {
 			AllowedKinds: []resources.ResourceKind{resources.ResourceKind("tool")},
 		}},
 		Tools: ToolsConfig{Policy: ToolsPolicyConfig{TrustedSources: []string{"bundled"}}},
+		Session: SessionConfig{Attachments: SessionAttachmentsConfig{
+			AllowedMIME: []string{"image/png"},
+		}},
 		Automation: AutomationConfig{
 			Jobs: []AutomationJob{{
 				Task: &automationpkg.JobTaskConfig{

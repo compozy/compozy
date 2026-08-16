@@ -41,6 +41,10 @@ func TestDispatchInputPreSubmitAsyncHookSeesStablePayloadSnapshot(t *testing.T) 
 			SoulSnapshotID: "snap-before",
 			SoulDigest:     "digest-before",
 		}
+		wantAttachment := InputAttachmentMetadata{
+			ID: "att_before", Name: "before.png", MIME: "image/png", Bytes: 42, Kind: "image",
+		}
+		payload.Attachments = []InputAttachmentMetadata{wantAttachment}
 		if _, err := hooks.DispatchInputPreSubmit(t.Context(), payload); err != nil {
 			t.Fatalf("DispatchInputPreSubmit() error = %v", err)
 		}
@@ -49,6 +53,7 @@ func TestDispatchInputPreSubmitAsyncHookSeesStablePayloadSnapshot(t *testing.T) 
 		payload.ContextBlocks[0].Metadata["scope"] = "mutated"
 		payload.SoulSnapshotID = "snap-after"
 		payload.SoulDigest = "digest-after"
+		payload.Attachments[0].Name = "after.png"
 
 		close(release)
 
@@ -68,6 +73,13 @@ func TestDispatchInputPreSubmitAsyncHookSeesStablePayloadSnapshot(t *testing.T) 
 			}
 			if got.SoulDigest != "digest-before" {
 				t.Fatalf("async hook saw soul digest %q, want digest-before", got.SoulDigest)
+			}
+			if len(got.Attachments) != 1 || got.Attachments[0] != wantAttachment {
+				t.Fatalf(
+					"async hook saw attachments %#v, want %#v",
+					got.Attachments,
+					[]InputAttachmentMetadata{wantAttachment},
+				)
 			}
 		case <-t.Context().Done():
 			t.Fatal("timed out waiting for async hook")

@@ -68,6 +68,8 @@ export function SessionThread({
   commandCatalogStatus,
   onCommandCatalogOpen,
   onCommandAction,
+  promptImageCapability = "unknown",
+  promptEmbeddedContextCapability = "unknown",
 }: SessionThreadProps) {
   const aui = useAui();
   const reducedMotion = usePrefersReducedMotion();
@@ -158,6 +160,8 @@ export function SessionThread({
           commandCatalogStatus={commandCatalogStatus}
           onCommandCatalogOpen={onCommandCatalogOpen}
           onCommandAction={onCommandAction}
+          promptImageCapability={promptImageCapability}
+          promptEmbeddedContextCapability={promptEmbeddedContextCapability}
         />
       </SessionComposerPrefillProvider>
     </ThreadPrimitive.Root>

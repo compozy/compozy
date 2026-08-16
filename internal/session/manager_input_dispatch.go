@@ -22,6 +22,7 @@ type humanQueuedInput struct {
 	text              string
 	runtime           store.SessionInputRuntime
 	skillInvocations  []commandpkg.Invocation
+	attachments       []AttachmentMeta
 	sessionGeneration int64
 }
 
@@ -65,6 +66,7 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		text:              entry.Text,
 		runtime:           entry.Runtime,
 		skillInvocations:  append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
+		attachments:       attachmentMetaFromStore(entry.Attachments),
 		sessionGeneration: entry.SessionGeneration,
 	})
 }
@@ -127,6 +129,7 @@ func (m *Manager) newQueuedInputPromptRequest(
 		meta:             acp.PromptMeta{TurnSource: string(TurnSourceUser)},
 		runtime:          runtimeSelectionFromStore(entry.runtime),
 		skillInvocations: append([]commandpkg.Invocation(nil), entry.skillInvocations...),
+		attachments:      cloneAttachmentMeta(entry.attachments),
 	}
 	turnID := strings.TrimSpace(entry.turnID)
 	if turnID == "" {

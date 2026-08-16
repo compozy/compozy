@@ -116,6 +116,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		return nil, err
 	}
 	manager.cleanupDeleteTombstones()
+	manager.cleanupWorkspaceAttachmentDeleteTombstones()
 
 	return manager, nil
 }

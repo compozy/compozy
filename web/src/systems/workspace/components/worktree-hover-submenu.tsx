@@ -24,7 +24,16 @@ export function WorktreeHoverSubmenu({
   focusOnOpen = false,
   onReturnFocus,
 }: WorktreeHoverSubmenuProps) {
-  const submenu = useWorktreeHoverSubmenu({
+  const {
+    anchor,
+    contentRef,
+    handleBlur,
+    handleContentKeyDown,
+    handleTriggerKeyDown,
+    openNow,
+    scheduleClose,
+    triggerRef,
+  } = useWorktreeHoverSubmenu({
     open,
     onOpenChange,
     focusOnOpen,
@@ -34,18 +43,18 @@ export function WorktreeHoverSubmenu({
   return (
     <>
       <div
-        ref={submenu.triggerRef}
-        onMouseEnter={submenu.openNow}
-        onMouseLeave={submenu.scheduleClose}
-        onFocusCapture={submenu.openNow}
-        onBlurCapture={submenu.handleBlur}
-        onKeyDown={submenu.handleTriggerKeyDown}
+        ref={triggerRef}
+        onMouseEnter={openNow}
+        onMouseLeave={scheduleClose}
+        onFocusCapture={openNow}
+        onBlurCapture={handleBlur}
+        onKeyDown={handleTriggerKeyDown}
       >
         {trigger}
       </div>
       <Popover modal={false} open={open} onOpenChange={onOpenChange}>
         <PopoverContent
-          ref={submenu.contentRef}
+          ref={contentRef}
           role="dialog"
           aria-label={label}
           data-testid={testId}
@@ -53,12 +62,12 @@ export function WorktreeHoverSubmenu({
           align="start"
           sideOffset={0}
           className={cn(WORKTREE_SUBMENU_FRAME_CLASS, "p-1")}
-          anchor={submenu.anchor}
-          onMouseEnter={submenu.openNow}
-          onMouseLeave={submenu.scheduleClose}
-          onFocusCapture={submenu.openNow}
-          onBlurCapture={submenu.handleBlur}
-          onKeyDown={submenu.handleContentKeyDown}
+          anchor={anchor}
+          onMouseEnter={openNow}
+          onMouseLeave={scheduleClose}
+          onFocusCapture={openNow}
+          onBlurCapture={handleBlur}
+          onKeyDown={handleContentKeyDown}
         >
           {children}
         </PopoverContent>

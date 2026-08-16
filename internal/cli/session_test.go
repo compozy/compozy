@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -1889,6 +1891,66 @@ func TestSessionResumeReturnsSessionRecord(t *testing.T) {
 	if decoded.ID != "sess-1" || decoded.State != session.StateActive {
 		t.Fatalf("decoded = %#v, want sess-1 active", decoded)
 	}
+}
+
+func TestSessionAttachmentsUploadRendersAttachmentPayload(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should print the direct attachment payload and forward arguments", func(t *testing.T) {
+		t.Parallel()
+
+		filePath := filepath.Join(t.TempDir(), "frame.png")
+		if err := os.WriteFile(filePath, []byte("attachment"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+		var (
+			gotSessionID string
+			gotFilePath  string
+		)
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			uploadSessionAttachmentFn: func(_ context.Context, sessionID string, path string) (SessionAttachmentRecord, error) {
+				gotSessionID = sessionID
+				gotFilePath = path
+				return SessionAttachmentRecord{
+					ID:        "att-1",
+					Name:      "frame.png",
+					MIMEType:  "image/png",
+					Bytes:     10,
+					SHA256:    "sha256:abc",
+					Kind:      contract.PromptAttachmentKindImage,
+					Width:     4,
+					Height:    3,
+					CreatedAt: fixedTestNow,
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "attachments", "upload", "sess-1", filePath, "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session attachments upload) error = %v", err)
+		}
+		if gotSessionID != "sess-1" || gotFilePath != filePath {
+			t.Fatalf(
+				"UploadSessionAttachment() = (%q, %q), want (%q, %q)",
+				gotSessionID,
+				gotFilePath,
+				"sess-1",
+				filePath,
+			)
+		}
+
+		var decoded SessionAttachmentRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(session attachment) error = %v", err)
+		}
+		if decoded.ID != "att-1" || decoded.Name != "frame.png" || decoded.MIMEType != "image/png" {
+			t.Fatalf("decoded = %#v, want direct attachment payload", decoded)
+		}
+	})
 }
 
 func TestSessionResumeLatestUsesBoundedPage(t *testing.T) {

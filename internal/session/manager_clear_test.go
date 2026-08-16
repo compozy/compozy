@@ -26,8 +26,11 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should restart the same session with fresh provider and transcript state", func(t *testing.T) {
+		t.Parallel()
+
 		h := newHarness(t)
 		session := createSession(t, h)
+		attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "preserve-on-clear")
 
 		firstEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "before clear")
 		if err != nil {
@@ -74,6 +77,13 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 		stored := readStoredEvents(t, cleared)
 		if got := len(stored); got != 0 {
 			t.Fatalf("stored events after clear = %d, want 0", got)
+		}
+		payload, err := os.ReadFile(attachmentPath)
+		if err != nil {
+			t.Fatalf("ReadFile(attachment after clear) error = %v", err)
+		}
+		if got, want := string(payload), "preserve-on-clear"; got != want {
+			t.Fatalf("attachment after clear = %q, want %q", got, want)
 		}
 
 		secondEvents, err := h.manager.Prompt(testutil.Context(t), cleared.ID, "after clear")

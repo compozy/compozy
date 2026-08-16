@@ -145,6 +145,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
 		h := newHarness(t, WithSessionCatalog(catalog))
 		ctx := testutil.Context(t)
+		const attachmentContents = "preserve-on-archive"
 		stopped, err := h.manager.Create(ctx, CreateOpts{
 			AgentName: "coder",
 			Name:      "archivable",
@@ -157,6 +158,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if err := h.manager.Stop(ctx, stopped.ID); err != nil {
 			t.Fatalf("Stop(stopped) error = %v", err)
 		}
+		attachmentPath := writeSessionAttachmentFixture(t, h, stopped.ID, attachmentContents)
 		catalog.durable = sessionCatalogInfoFromRuntime(stopped.Info())
 
 		archived, err := h.manager.Archive(ctx, h.workspaceID, stopped.ID)
@@ -165,6 +167,13 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 		if archived.ArchivedAt == nil || archived.State != StateStopped {
 			t.Fatalf("Archive() = %#v, want archived stopped session", archived)
+		}
+		payload, err := os.ReadFile(attachmentPath)
+		if err != nil {
+			t.Fatalf("ReadFile(attachment after archive) error = %v", err)
+		}
+		if got := string(payload); got != attachmentContents {
+			t.Fatalf("attachment after archive = %q, want %q", got, attachmentContents)
 		}
 		defaultPage, err := h.manager.ListPage(ctx, ListQuery{WorkspaceID: h.workspaceID})
 		if err != nil {

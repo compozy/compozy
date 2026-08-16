@@ -10,6 +10,15 @@ import (
 )
 
 func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (promptRequest, error) {
+	return m.parsePromptRequestWithMessagePolicy(ctx, id, opts, false)
+}
+
+func (m *Manager) parsePromptRequestWithMessagePolicy(
+	ctx context.Context,
+	id string,
+	opts PromptOpts,
+	allowEmptyMessage bool,
+) (promptRequest, error) {
 	if ctx == nil {
 		return promptRequest{}, errors.New("session: prompt context is required")
 	}
@@ -18,7 +27,7 @@ func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts Prompt
 		return promptRequest{}, errors.New("session: session id is required")
 	}
 	message := strings.TrimSpace(opts.Message)
-	if message == "" {
+	if message == "" && !allowEmptyMessage {
 		return promptRequest{}, errors.New("session: prompt message is required")
 	}
 	turnSource := normalizeTurnSource(opts.TurnSource)

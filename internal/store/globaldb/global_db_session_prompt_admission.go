@@ -235,12 +235,17 @@ func claimSessionPromptAdmission(
 			err,
 		)
 	}
+	attachmentsJSON, err := encodeSessionInputAttachments(req.Attachments)
+	if err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
 	if err := queries.InsertSessionPromptAdmission(ctx, sqlcgen.InsertSessionPromptAdmissionParams{
 		ID: req.ID, WorkspaceID: req.WorkspaceID, SessionID: req.SessionID,
 		MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey, Operation: req.Operation,
 		FingerprintVersion: req.FingerprintVersion, RequestFingerprint: req.RequestFingerprint,
 		State: store.SessionPromptAdmissionReserved, Mode: req.Mode, AuthoredText: req.AuthoredText,
 		SkillInvocationsJson: string(skillInvocationsJSON),
+		AttachmentsJson:      attachmentsJSON,
 		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,
 		RuntimeReasoningEffort: req.Runtime.ReasoningEffort, RuntimeSpeed: req.Runtime.Speed,
 		TurnID: req.TurnID, EventID: req.EventID, CreatedAt: nowRaw, UpdatedAt: nowRaw,

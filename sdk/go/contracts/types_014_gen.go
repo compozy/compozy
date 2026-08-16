@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+type NetworkDirectRoomOpenedPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
+}
+
 type NetworkDirectRoomPayload struct {
 	WorkspaceID        string     `json:"workspace_id,omitempty"`
 	Channel            string     `json:"channel"`
@@ -291,21 +313,4 @@ type NetworkThreadOpenedPayload struct {
 	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
 	TraceID     string     `json:"trace_id,omitempty"`
 	CausationID string     `json:"causation_id,omitempty"`
-}
-
-type NetworkThreadSummaryPayload struct {
-	WorkspaceID        string                          `json:"workspace_id,omitempty"`
-	Channel            string                          `json:"channel"`
-	ThreadID           string                          `json:"thread_id"`
-	RootMessageID      string                          `json:"root_message_id"`
-	Title              string                          `json:"title,omitempty"`
-	OpenedByPeerID     string                          `json:"opened_by_peer_id,omitempty"`
-	OpenedSessionID    string                          `json:"opened_session_id,omitempty"`
-	OpenedAt           *time.Time                      `json:"opened_at,omitempty"`
-	LastActivityAt     *time.Time                      `json:"last_activity_at,omitempty"`
-	MessageCount       int                             `json:"message_count"`
-	ParticipantCount   int                             `json:"participant_count"`
-	OpenWorkCount      int                             `json:"open_work_count"`
-	CoordinationCost   *NetworkCoordinationCostPayload `json:"coordination_cost,omitempty"`
-	LastMessagePreview string                          `json:"last_message_preview,omitempty"`
 }

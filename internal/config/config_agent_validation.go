@@ -157,7 +157,10 @@ func (c SessionConfig) Validate() error {
 	if err := c.BusyInput.Validate(); err != nil {
 		return err
 	}
-	return c.Compaction.Validate()
+	if err := c.Compaction.Validate(); err != nil {
+		return err
+	}
+	return c.Attachments.Validate()
 }
 
 // Validate ensures session timeout settings are internally consistent.

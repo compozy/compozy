@@ -56,6 +56,9 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		proc.emitPromptEvent(event)
 		return
 	}
+	if _, included := promptRequest.Meta["system"]; included {
+		proc.markSystemPromptSent()
+	}
 
 	usage := proc.mergePromptUsage(tokenUsageFromPromptResponse(req.TurnID, response.Usage))
 	doneEvent := AgentEvent{
@@ -131,10 +134,19 @@ func (d *Driver) sendPromptCancellationNotification(
 }
 
 func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, error) {
+	attachmentBlocks, err := attachmentContentBlocks(req.Attachments, proc.CapsSnapshot())
+	if err != nil {
+		return acpsdk.PromptRequest{}, err
+	}
 	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(req.Message)
+	prompt := make([]acpsdk.ContentBlock, 0, 1+len(req.Attachments))
+	if promptText != "" {
+		prompt = append(prompt, textBlockWithPromptCacheControl(promptText, proc.promptCacheControl))
+	}
+	prompt = append(prompt, attachmentBlocks...)
 	promptRequest := acpsdk.PromptRequest{
 		SessionId: acpsdk.SessionId(proc.SessionID),
-		Prompt:    []acpsdk.ContentBlock{textBlockWithPromptCacheControl(promptText, proc.promptCacheControl)},
+		Prompt:    prompt,
 	}
 	meta := req.Meta.Normalize()
 	if includedSystemPrompt {

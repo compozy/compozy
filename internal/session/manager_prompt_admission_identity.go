@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionPromptFingerprintVersion = "session-prompt/v2"
+const sessionPromptFingerprintVersion = "session-prompt/v4"
 
 type promptAdmissionLock struct {
 	mu   sync.Mutex
@@ -102,6 +103,7 @@ func (m *Manager) newPromptAdmissionRequest(
 		AuthoredText:       req.authoredMessage,
 		Runtime:            storeRuntimeSelection(req.runtime),
 		SkillInvocations:   append([]commandpkg.Invocation(nil), req.skillInvocations...),
+		Attachments:        storeAttachments(req.attachments),
 		TurnID:             req.turnID,
 		EventID:            eventID,
 		Now:                m.now(),
@@ -114,6 +116,8 @@ func promptAdmissionFingerprint(
 	req promptRequest,
 ) (string, error) {
 	runtime := storeRuntimeSelection(req.runtime).Normalize()
+	attachmentIdentities := attachmentFingerprintIdentities(req.attachments)
+	slices.Sort(attachmentIdentities)
 	canonical := struct {
 		Version          string                  `json:"version"`
 		Operation        string                  `json:"operation"`
@@ -126,6 +130,7 @@ func promptAdmissionFingerprint(
 		Speed            string                  `json:"speed"`
 		ExpectedTurnID   string                  `json:"expected_turn_id,omitempty"`
 		SkillInvocations []commandpkg.Invocation `json:"skill_invocations,omitempty"`
+		AttachmentIDs    []string                `json:"attachment_ids,omitempty"`
 	}{
 		Version: sessionPromptFingerprintVersion, Operation: strings.TrimSpace(operation),
 		MessageID: strings.TrimSpace(req.messageID), AuthoredText: strings.TrimSpace(req.authoredMessage),
@@ -133,6 +138,7 @@ func promptAdmissionFingerprint(
 		ReasoningEffort: runtime.ReasoningEffort, Speed: runtime.Speed,
 		ExpectedTurnID:   strings.TrimSpace(req.expectedTurnID),
 		SkillInvocations: append([]commandpkg.Invocation(nil), req.skillInvocations...),
+		AttachmentIDs:    attachmentIdentities,
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
@@ -172,6 +178,7 @@ func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPrompt
 	req.messageID = admission.MessageID
 	req.idempotencyKey = admission.IdempotencyKey
 	req.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
+	req.attachments = attachmentMetaFromStore(admission.Attachments)
 	return req
 }
 

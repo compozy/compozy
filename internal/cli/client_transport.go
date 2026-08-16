@@ -188,55 +188,91 @@ func (c *daemonClient) doRequestWithCredentialsAndClient(
 	credentials agentidentity.Credentials,
 	client *http.Client,
 ) (*http.Response, error) {
-	if ctx == nil {
-		return nil, errors.New("cli: context is required")
-	}
-	if client == nil {
-		return nil, errors.New("cli: http client is required")
-	}
-	if err := c.validateTargetOperation(method, path); err != nil {
-		return nil, err
-	}
-
-	target := c.target.requestBaseURL() + path
-	if len(query) > 0 {
-		target += "?" + query.Encode()
-	}
-
 	var body io.Reader
+	contentType := ""
 	if requestBody != nil {
 		payload, err := json.Marshal(requestBody)
 		if err != nil {
 			return nil, fmt.Errorf("cli: encode %s %s request: %w", method, path, err)
 		}
 		body = bytes.NewReader(payload)
+		contentType = "application/json"
+	}
+	return c.doRequestWithReaderAndClient(ctx, clientReaderRequest{
+		Method:      method,
+		Path:        path,
+		Query:       query,
+		Body:        body,
+		ContentType: contentType,
+		LastEventID: lastEventID,
+		Credentials: credentials,
+		Client:      client,
+	})
+}
+
+type clientReaderRequest struct {
+	Method         string
+	Path           string
+	Query          url.Values
+	Body           io.Reader
+	ContentType    string
+	ContentLength  int64
+	ExpectContinue bool
+	LastEventID    string
+	Credentials    agentidentity.Credentials
+	Client         *http.Client
+}
+
+func (c *daemonClient) doRequestWithReaderAndClient(
+	ctx context.Context,
+	options clientReaderRequest,
+) (*http.Response, error) {
+	if ctx == nil {
+		return nil, errors.New("cli: context is required")
+	}
+	if options.Client == nil {
+		return nil, errors.New("cli: http client is required")
+	}
+	if err := c.validateTargetOperation(options.Method, options.Path); err != nil {
+		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, target, body)
+	target := c.target.requestBaseURL() + options.Path
+	if len(options.Query) > 0 {
+		target += "?" + options.Query.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, options.Method, target, options.Body)
 	if err != nil {
-		return nil, fmt.Errorf("cli: build %s %s request: %w", method, path, err)
+		return nil, fmt.Errorf("cli: build %s %s request: %w", options.Method, options.Path, err)
 	}
 	req.Header.Set("User-Agent", defaultUserAgentName)
-	if requestBody != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if options.ContentLength > 0 {
+		req.ContentLength = options.ContentLength
 	}
-	if strings.TrimSpace(lastEventID) != "" {
-		req.Header.Set("Last-Event-ID", strings.TrimSpace(lastEventID))
+	if options.ExpectContinue {
+		req.Header.Set("Expect", "100-continue")
 	}
-	setAgentIdentityHeaders(req, credentials)
+	if strings.TrimSpace(options.ContentType) != "" {
+		req.Header.Set("Content-Type", options.ContentType)
+	}
+	if strings.TrimSpace(options.LastEventID) != "" {
+		req.Header.Set("Last-Event-ID", strings.TrimSpace(options.LastEventID))
+	}
+	setAgentIdentityHeaders(req, options.Credentials)
 	if c.target.isRemoteGateway() && strings.TrimSpace(c.target.credential) != "" {
 		req.Header.Set("Authorization", "Bearer "+c.target.credential)
 	}
 
-	response, err := client.Do(req)
+	response, err := options.Client.Do(req)
 	if err != nil {
 		if c.target.isRemoteGateway() {
 			return nil, newGatewayReachabilityError(c.target, err)
 		}
 		if c.target.kind == clientTargetLocal && isDaemonUnavailableTransportError(err) {
-			return nil, newDaemonUnavailableError(c.target.socketPath, method, path, err)
+			return nil, newDaemonUnavailableError(c.target.socketPath, options.Method, options.Path, err)
 		}
-		return nil, fmt.Errorf("cli: %s %s via %s: %w", method, path, c.target.displayName(), err)
+		return nil, fmt.Errorf("cli: %s %s via %s: %w", options.Method, options.Path, c.target.displayName(), err)
 	}
 	return response, nil
 }

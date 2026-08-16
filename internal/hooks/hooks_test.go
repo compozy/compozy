@@ -728,15 +728,22 @@ func TestDispatchInputPreSubmitAppliesMatchingHooksInOrder(t *testing.T) {
 		t.Fatalf("Rebuild() error = %v, want nil", err)
 	}
 
+	wantAttachments := []InputAttachmentMetadata{{
+		ID: "att_readonly", Name: "input.png", MIME: "image/png", Bytes: 12, Kind: "image",
+	}}
 	result, err := hooks.DispatchInputPreSubmit(t.Context(), InputPreSubmitPayload{
 		PayloadBase: PayloadBase{Event: HookInputPreSubmit},
 		Message:     "seed-",
+		Attachments: wantAttachments,
 	})
 	if err != nil {
 		t.Fatalf("DispatchInputPreSubmit() error = %v, want nil", err)
 	}
 	if result.Message != "seed-ab" {
 		t.Fatalf("result.Message = %q, want %q", result.Message, "seed-ab")
+	}
+	if !reflect.DeepEqual(result.Attachments, wantAttachments) {
+		t.Fatalf("result.Attachments = %#v, want %#v", result.Attachments, wantAttachments)
 	}
 	if got, want := len(seen), 2; got != want {
 		t.Fatalf("len(seen) = %d, want %d", got, want)

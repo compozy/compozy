@@ -23,6 +23,7 @@ type PendingInput struct {
 	EnqueuedAt       time.Time
 	Runtime          *RuntimeSelection
 	SkillInvocations []commandpkg.Invocation
+	Attachments      []AttachmentMeta
 }
 
 // ReplacePendingInputOpts carries an atomic queued-input replacement.
@@ -64,6 +65,7 @@ type SendPromptOpts struct {
 	DeliveryContext context.Context
 	Caller          PromptCaller
 	AllowCommands   bool
+	Attachments     []AttachmentMeta
 }
 
 // SendPromptResult reports how and when the daemon accepted input for delivery.

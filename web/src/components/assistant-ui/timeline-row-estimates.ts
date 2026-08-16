@@ -7,6 +7,18 @@
 // once a row is on screen — these estimates only seed off-screen rows, so a closer
 // guess reduces scroll drift on long, heterogeneous threads without pixel accuracy.
 
+import {
+  isImageMediaType,
+  sessionAttachmentMediaType,
+  userMessageHasAttachments,
+  userMessageHasText,
+} from "@/systems/session/lib/session-attachment-items";
+import {
+  SESSION_ATTACHMENT_FILE_HEIGHT,
+  SESSION_ATTACHMENT_GALLERY_GAP,
+  SESSION_ATTACHMENT_IMAGE_MAX_HEIGHT,
+} from "@/systems/session/lib/session-attachment-geometry";
+
 import { deriveSessionRows, type SessionRow } from "./session-timeline.logic";
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import { toTimelineParts } from "./timeline-message-parts";
@@ -16,6 +28,7 @@ export const VIRTUAL_MESSAGE_ESTIMATE = 144;
 
 // A right-aligned user prompt is typically one or two lines.
 const USER_MESSAGE_ESTIMATE = 64;
+const USER_MESSAGE_ATTACHMENT_ONLY_TEXT_ESTIMATE = 28;
 
 // Vertical rhythm around an assistant message (`pt-1` + content-aware `pb-2`/`pb-4`).
 const MESSAGE_VERTICAL_PADDING = 28;
@@ -56,13 +69,30 @@ function rowEstimate(row: SessionRow): number {
   return ROW_KIND_ESTIMATE[row.kind];
 }
 
+function userGalleryEstimate(content: unknown): number {
+  if (!Array.isArray(content)) {
+    return SESSION_ATTACHMENT_FILE_HEIGHT;
+  }
+  const hasImage = content.some(part => {
+    const attachmentMediaType = sessionAttachmentMediaType(part);
+    return attachmentMediaType !== null && isImageMediaType(attachmentMediaType);
+  });
+  return hasImage ? SESSION_ATTACHMENT_IMAGE_MAX_HEIGHT : SESSION_ATTACHMENT_FILE_HEIGHT;
+}
+
 function computeMessageEstimate(message: {
   role?: unknown;
   id?: string;
   content?: unknown;
 }): number {
   if (message.role === "user") {
-    return USER_MESSAGE_ESTIMATE;
+    if (!userMessageHasAttachments(message.content)) {
+      return USER_MESSAGE_ESTIMATE;
+    }
+    const textHeight = userMessageHasText(message.content)
+      ? USER_MESSAGE_ESTIMATE
+      : USER_MESSAGE_ATTACHMENT_ONLY_TEXT_ESTIMATE;
+    return userGalleryEstimate(message.content) + SESSION_ATTACHMENT_GALLERY_GAP + textHeight;
   }
   const parts = toTimelineParts(message);
   if (parts.length === 0) {

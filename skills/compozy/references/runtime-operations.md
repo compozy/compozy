@@ -132,6 +132,7 @@ cannot be validated fail closed.
     compozy session new --agent general --name review-run
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
     compozy session prompt <session-id> "Inspect the failing build." --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
+    compozy session attachments upload <session-id> ./diagram.png -o json
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
     compozy session list --resumable -o json
@@ -167,6 +168,17 @@ cannot be validated fail closed.
 unbound session; use its ID in a later `compozy session prompt`. A prompt to an unbound session must
 select `--provider`; `--model`, `--reasoning-effort`, and `--speed` refine that prompt's snapshot.
 `--speed` defaults to `normal`; `fast` applies only through an unambiguous ACP select/value-ID option.
+
+Session attachments are durable, workspace/session-scoped refs. Upload with
+`POST /api/workspaces/:workspace_id/sessions/:session_id/attachments` or
+`compozy session attachments upload`. HTTP and UDS share that route contract: the upload response
+returns attachment metadata, and `POST /api/workspaces/:workspace_id/sessions/:session_id/prompt`
+sends the returned `PromptAttachmentRef` metadata object in `attachments`. In contrast,
+`compozy__session_prompt` accepts the `att_...` ID or a file path under the resolved workspace root or
+configured `additional_dirs` and can submit an attachment-only prompt. Images require ACP image input
+and PDFs require embedded context. Markdown and plain text fall back to text blocks when embedded
+context is unavailable. Archive and conversation clear retain attachments; `compozy session remove`
+removes a session's attachments, and `compozy workspace remove` removes the workspace attachment tree.
 
 `session runtime set` persists the complete default selection without starting or reconfiguring ACP;
 the next prompt applies it. `session runtime clear` returns resolution to the effective/agent default.

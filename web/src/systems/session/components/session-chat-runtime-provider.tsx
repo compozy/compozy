@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
 import { useSelector, useStore } from "@xstate/store-react";
+import { toast } from "sonner";
 
 import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
 import {
@@ -13,7 +14,54 @@ import { useSessionRuntimeExtensions } from "@/systems/session/hooks/use-session
 import { CompozyEventDataUI, CompozyPermissionDataUI } from "@/systems/session/lib/session-data-ui";
 import { sessionToolkit } from "@/systems/session/lib/session-toolkit";
 import { SessionRuntimeRenderProvider } from "@/systems/session/lib/session-runtime-render-context";
+import {
+  SessionPromptRecovery,
+  type RestoredSessionPromptDraft,
+} from "@/systems/session/lib/session-prompt-recovery";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
+
+async function restoreRejectedPromptDraft(
+  aui: ReturnType<typeof useAui>,
+  draft: RestoredSessionPromptDraft
+): Promise<void> {
+  if (aui.composer.getState().text.length === 0) {
+    aui.composer.setText(draft.text);
+  }
+  for (const file of draft.files) {
+    await aui.composer.addAttachment(file);
+  }
+}
+
+function SessionPromptRecoveryBridge({ recovery }: { recovery: SessionPromptRecovery }) {
+  const aui = useAui();
+  const [draft, setDraft] = useState<RestoredSessionPromptDraft | null>(null);
+
+  useEffect(() => recovery.subscribe(setDraft), [recovery]);
+
+  useEffect(() => {
+    if (draft === null) return;
+    let active = true;
+    // assistant-ui finalizes the submitted composer after its onError callback.
+    // Restore on the next task so that finalization cannot erase the recovered draft.
+    const timeout = window.setTimeout(() => {
+      void restoreRejectedPromptDraft(aui, draft)
+        .catch(() => {
+          toast.error("Couldn't restore the rejected attachment.");
+        })
+        .finally(() => {
+          if (active) {
+            setDraft(current => (current === draft ? null : current));
+          }
+        });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [aui, draft]);
+
+  return null;
+}
 
 function SessionRuntimeExtensions({
   sessionId,
@@ -84,17 +132,20 @@ function SessionChatRuntimeBinding({
   sessionId,
   workspaceId,
   promptDispatch,
+  promptRecovery,
   eventSourceFactory,
   liveTailEnabled = true,
   children,
 }: SessionChatRuntimeProviderProps & {
   promptDispatch: SessionPromptDispatchStore;
+  promptRecovery: SessionPromptRecovery;
 }) {
   const resolvedWorkspaceId = requireWorkspaceId(workspaceId);
   const runtime = useSessionChatRuntime({
     sessionId,
     workspaceId: resolvedWorkspaceId,
     promptDispatch,
+    promptRecovery,
   });
   const aui = useAui({
     tools: Tools({ toolkit: sessionToolkit }),
@@ -104,6 +155,7 @@ function SessionChatRuntimeBinding({
   return (
     <AssistantRuntimeProvider runtime={runtime} aui={aui}>
       <SessionPromptDispatchPendingProvider store={promptDispatch}>
+        <SessionPromptRecoveryBridge recovery={promptRecovery} />
         <SessionRuntimeExtensions
           sessionId={sessionId}
           workspaceId={resolvedWorkspaceId}
@@ -120,9 +172,15 @@ function SessionChatRuntimeBinding({
 
 export function SessionChatRuntimeProvider(props: SessionChatRuntimeProviderProps) {
   const promptDispatch = useStore(sessionPromptDispatchLogic);
+  const [promptRecovery] = useState(() => new SessionPromptRecovery());
   const runtimeGeneration = useSelector(promptDispatch, snapshot => snapshot.context.generation);
 
   return (
-    <SessionChatRuntimeBinding {...props} key={runtimeGeneration} promptDispatch={promptDispatch} />
+    <SessionChatRuntimeBinding
+      {...props}
+      key={`${props.workspaceId}:${props.sessionId}:${runtimeGeneration}`}
+      promptDispatch={promptDispatch}
+      promptRecovery={promptRecovery}
+    />
   );
 }

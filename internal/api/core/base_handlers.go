@@ -43,6 +43,7 @@ type BaseHandlerConfig struct {
 	Extensions                   ExtensionService
 	Tools                        ToolRegistry
 	ToolArtifacts                toolspkg.ToolArtifactStore
+	SessionAttachments           SessionAttachmentStore
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalGrants               ToolApprovalGrantService
@@ -125,6 +126,7 @@ type BaseHandlers struct {
 	Extensions                   ExtensionService
 	Tools                        ToolRegistry
 	ToolArtifacts                toolspkg.ToolArtifactStore
+	SessionAttachments           SessionAttachmentStore
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
 	ApprovalGrants               ToolApprovalGrantService
@@ -225,6 +227,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Extensions:                   cfg.Extensions,
 		Tools:                        cfg.Tools,
 		ToolArtifacts:                cfg.ToolArtifacts,
+		SessionAttachments:           cfg.SessionAttachments,
 		Toolsets:                     cfg.Toolsets,
 		ToolApprovals:                cfg.ToolApprovals,
 		ApprovalGrants:               cfg.ApprovalGrants,

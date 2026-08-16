@@ -16,6 +16,13 @@ func cloneContextBlocks(blocks []ContextBlock) []ContextBlock {
 	return cloned
 }
 
+func cloneInputAttachmentMetadata(items []InputAttachmentMetadata) []InputAttachmentMetadata {
+	if items == nil {
+		return nil
+	}
+	return append([]InputAttachmentMetadata(nil), items...)
+}
+
 func cloneRawMessage(payload []byte) []byte {
 	if payload == nil {
 		return nil

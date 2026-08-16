@@ -40,6 +40,7 @@ type SessionManagerDeps struct {
 	SessionCompaction      compozyconfig.SessionCompactionConfig
 	SessionInputQueue      store.SessionInputQueueStore
 	SessionPromptAdmission store.SessionPromptAdmissionStore
+	SessionAttachments     session.AttachmentOpener
 	SessionHealthConfig    compozyconfig.HeartbeatConfig
 	SessionCatalog         store.SessionCatalog
 	ProcessRegistry        *toolruntime.Registry
@@ -90,6 +91,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionCompaction:      state.cfg.Session.Compaction,
 		SessionInputQueue:      sessionInputQueueStoreDependency(state.registry),
 		SessionPromptAdmission: sessionPromptAdmissionStoreDependency(state.registry),
+		SessionAttachments:     state.sessionAttachments,
 		SessionHealthConfig:    state.cfg.Agents.Heartbeat,
 		SessionCatalog:         state.registry,
 		ProcessRegistry:        state.processRegistry,

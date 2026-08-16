@@ -259,6 +259,16 @@ func WithSessionPromptAdmissionStore(admissionStore store.SessionPromptAdmission
 	}
 }
 
+// WithAttachmentOpener injects session-scoped attachment reads at prompt dispatch.
+func WithAttachmentOpener(opener AttachmentOpener) Option {
+	return func(manager *Manager) {
+		manager.attachmentOpener = opener
+		if scopeLease, ok := opener.(attachmentScopeLease); ok {
+			manager.attachmentScopeLease = scopeLease
+		}
+	}
+}
+
 // WithTranscriptEpochStore injects durable transcript reset epoch storage.
 func WithTranscriptEpochStore(epochStore store.SessionTranscriptEpochStore) Option {
 	return func(manager *Manager) {

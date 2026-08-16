@@ -24,8 +24,66 @@ export interface SessionStoreContext {
   goalFeedback: Record<string, SessionGoalFeedback>;
 }
 
+export const SESSION_DRAFTS_STORAGE_KEY = "compozy:session:drafts:v1";
+
+interface SessionDraftStorageEnvelope {
+  drafts: Record<string, string>;
+  version: 1;
+}
+
+function normalizedDrafts(value: unknown): Record<string, string> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] =>
+        entry[0].length > 0 && typeof entry[1] === "string" && entry[1].length > 0
+    )
+  );
+}
+
+function draftsFromStorageValue(value: string | null): Record<string, string> {
+  if (!value) return {};
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+    const envelope = parsed as Partial<SessionDraftStorageEnvelope>;
+    return envelope.version === 1 ? normalizedDrafts(envelope.drafts) : {};
+  } catch (error) {
+    console.error("Failed to read persisted session drafts", error);
+    return {};
+  }
+}
+
+function readPersistedDrafts(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    return draftsFromStorageValue(window.localStorage.getItem(SESSION_DRAFTS_STORAGE_KEY));
+  } catch (error) {
+    console.error("Failed to access persisted session drafts", error);
+    return {};
+  }
+}
+
+function writePersistedDrafts(drafts: Record<string, string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (Object.keys(drafts).length === 0) {
+      window.localStorage.removeItem(SESSION_DRAFTS_STORAGE_KEY);
+      return;
+    }
+    const envelope: SessionDraftStorageEnvelope = { drafts, version: 1 };
+    window.localStorage.setItem(SESSION_DRAFTS_STORAGE_KEY, JSON.stringify(envelope));
+  } catch (error) {
+    console.error("Failed to persist session drafts", error);
+  }
+}
+
 const initialSessionContext: SessionStoreContext = {
-  drafts: {},
+  drafts: readPersistedDrafts(),
   firstPrompts: {},
   goalFeedback: {},
 };
@@ -90,6 +148,10 @@ export const sessionStore = createStore({
         firstPrompts: withoutSessionValue(context.firstPrompts, event.sessionId),
       };
     },
+    persistedDraftsHydrated: (context, event: { drafts: Record<string, string> }) => {
+      if (stringRecordsEqual(context.drafts, event.drafts)) return;
+      return { ...context, drafts: event.drafts };
+    },
     goalCommandReported: (
       context,
       event: { command?: string; result: SessionGoalCommandResult; sessionId: string }
@@ -135,6 +197,23 @@ export const sessionStore = createStore({
   },
 });
 
+let observedDrafts = sessionStore.getSnapshot().context.drafts;
+sessionStore.subscribe(snapshot => {
+  if (snapshot.context.drafts === observedDrafts) return;
+  observedDrafts = snapshot.context.drafts;
+  writePersistedDrafts(observedDrafts);
+});
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", event => {
+    if (event.key === SESSION_DRAFTS_STORAGE_KEY) {
+      sessionStore.trigger.persistedDraftsHydrated({
+        drafts: draftsFromStorageValue(event.newValue),
+      });
+    }
+  });
+}
+
 export type SessionStore = typeof sessionStore;
 
 function discardSessionDraft(
@@ -159,4 +238,12 @@ function withoutSessionValue<T>(values: Record<string, T>, sessionId: string): R
   }
   const { [sessionId]: _removed, ...rest } = values;
   return rest;
+}
+
+function stringRecordsEqual(left: Record<string, string>, right: Record<string, string>): boolean {
+  const leftEntries = Object.entries(left);
+  return (
+    leftEntries.length === Object.keys(right).length &&
+    leftEntries.every(([key, value]) => right[key] === value)
+  );
 }

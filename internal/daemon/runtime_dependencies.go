@@ -32,6 +32,7 @@ func (d *Daemon) runtimeDeps(
 		HomePaths:           d.homePaths,
 		Logger:              state.logger,
 		Sessions:            sessions,
+		SessionAttachments:  state.sessionAttachments,
 		DrainController:     d,
 		Bridges:             state.bridges,
 		Notifications:       state.notificationPresets,

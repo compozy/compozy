@@ -18,22 +18,12 @@ import {
   storyWorkspaceSkillDir,
 } from "@/storybook/fintech-scenario";
 import { buildLiveNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+import { sessionRuntime } from "./runtime-fixture";
+
+export { sessionRuntime } from "./runtime-fixture";
 
 function liveParticipation(workspaceId: string, channelId: string) {
   return buildLiveNetworkParticipationFixture({ workspaceId, channelId });
-}
-
-export function sessionRuntime(
-  provider: string,
-  acpCaps?: SessionPayload["runtime"]["acp_caps"]
-): SessionPayload["runtime"] {
-  return {
-    status: "ready",
-    transition: "initial_bind",
-    effective: { provider },
-    selection_revision: 0,
-    ...(acpCaps ? { acp_caps: acpCaps } : {}),
-  };
 }
 
 export const sessionFixtures: SessionPayload[] = [

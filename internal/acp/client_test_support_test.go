@@ -458,6 +458,13 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
 				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options",
+			PromptCapabilities: acpsdk.PromptCapabilities{
+				Image: a.scenario == "prompt_capabilities_image" ||
+					a.scenario == "echo_prompt_blocks",
+				Audio: a.scenario == "prompt_capabilities_audio",
+				EmbeddedContext: a.scenario == "prompt_capabilities_embedded_context" ||
+					a.scenario == "echo_prompt_blocks",
+			},
 		},
 		AuthMethods: []acpsdk.AuthMethod{},
 	}, nil
@@ -616,6 +623,17 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 		}
 	case "echo_prompt_meta":
 		data, err := json.Marshal(params.Meta)
+		if err != nil {
+			return acpsdk.PromptResponse{}, err
+		}
+		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: params.SessionId,
+			Update:    acpsdk.UpdateAgentMessageText(string(data)),
+		}); sendErr != nil {
+			return acpsdk.PromptResponse{}, sendErr
+		}
+	case "echo_prompt_blocks":
+		data, err := json.Marshal(params.Prompt)
 		if err != nil {
 			return acpsdk.PromptResponse{}, err
 		}

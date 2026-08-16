@@ -922,7 +922,20 @@ func createWorktreeScriptFixture(t *testing.T, withResources bool) (string, stri
 	runTestCommand(t, "", "git", "init", "-b", "main", mainDir)
 	writeTestFile(t, mainDir, "README.md", "fixture")
 	runTestCommand(t, mainDir, "git", "add", "README.md")
-	runTestCommand(t, mainDir, "git", "-c", "user.name=CompozyOS Test", "-c", "user.email=test@compozy.local", "-c", "commit.gpgsign=false", "commit", "-m", "test fixture")
+	runTestCommand(
+		t,
+		mainDir,
+		"git",
+		"-c",
+		"user.name=CompozyOS Test",
+		"-c",
+		"user.email=test@compozy.local",
+		"-c",
+		"commit.gpgsign=false",
+		"commit",
+		"-m",
+		"test fixture",
+	)
 	if withResources {
 		writeTestFile(t, filepath.Join(mainDir, ".resources"), "existing.txt", "existing")
 	}

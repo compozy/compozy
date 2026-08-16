@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -43,7 +45,13 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				operation: store.SessionPromptOperationPrompt,
 				mode:      store.SessionInputQueueModeQueue,
 				call: func(ctx context.Context, queue *inputqueue.Service, sessionID string, _ store.SessionPromptAdmissionRequest) error {
-					_, _, err := queue.Enqueue(ctx, sessionID, "queued prompt", 0, store.SessionInputRuntime{}, nil)
+					_, _, err := queue.Enqueue(
+						ctx,
+						inputqueue.InputRequest{
+							SessionID: sessionID,
+							Text:      "queued prompt",
+						},
+					)
 					return err
 				},
 			},
@@ -55,12 +63,11 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				call: func(ctx context.Context, queue *inputqueue.Service, sessionID string, _ store.SessionPromptAdmissionRequest) error {
 					_, err := queue.StageSteer(
 						ctx,
-						sessionID,
-						"steering prompt",
-						"turn-active",
-						0,
-						store.SessionInputRuntime{},
-						nil,
+						inputqueue.InputRequest{
+							SessionID:    sessionID,
+							Text:         "steering prompt",
+							TargetTurnID: "turn-active",
+						},
 					)
 					return err
 				},
@@ -209,9 +216,14 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		t.Parallel()
 
 		queueStore := openManagerInputQueueStore(t)
+		queuedAttachmentData := []byte("queued attachment")
+		opener := &promptAttachmentOpenerStub{data: map[string][]byte{
+			"att-queued": queuedAttachmentData,
+		}}
 		h := newHarness(
 			t,
 			WithSessionInputQueueStore(queueStore),
+			WithAttachmentOpener(opener),
 			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
 				DefaultMode:  string(BusyInputModeQueue),
 				QueueCap:     3,
@@ -266,6 +278,10 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		queued, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
 			Message: "queued prompt",
 			Mode:    BusyInputModeQueue,
+			Attachments: []AttachmentMeta{promptAttachmentMeta(
+				t,
+				"att-queued", "queued.txt", "text/plain", queuedAttachmentData,
+			)},
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(queue) error = %v", err)
@@ -291,6 +307,10 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		}
 		if got := promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceUser {
 			t.Fatalf("queued dispatch turn source = %q, want user", got)
+		}
+		if len(promptCalls[1].Attachments) != 1 ||
+			!bytes.Equal(promptCalls[1].Attachments[0].Data, queuedAttachmentData) {
+			t.Fatalf("queued dispatch attachments = %#v, want resolved attachment", promptCalls[1].Attachments)
 		}
 	})
 
@@ -1711,13 +1731,26 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		t.Parallel()
 
 		queueStore := openManagerInputQueueStore(t)
-		h := newHarness(t, WithSessionInputQueueStore(queueStore), WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+		attachmentID := "att_" + strings.Repeat("c", 64)
+		attachmentData := []byte("Goal context")
+		opener := &promptAttachmentOpenerStub{
+			data: map[string][]byte{attachmentID: attachmentData},
+			refs: map[string]attachmentspkg.AttachmentRef{
+				attachmentID: storedPromptAttachmentRef(
+					t,
+					attachmentID, "goal-context.txt", "text/plain", attachmentData,
+				),
+			},
+		}
+		handlerCalls := 0
+		goalHandler := GoalCommandHandlerFunc(func(
 			_ context.Context,
 			workspaceID string,
 			sessionID string,
 			caller PromptCaller,
 			command GoalCommand,
 		) (GoalDispatchDecision, error) {
+			handlerCalls++
 			if workspaceID == "" || sessionID == "" || caller.ID != "operator" || command.Verb != "status" {
 				t.Fatalf(
 					"Goal handler input = workspace:%q session:%q caller:%#v command:%#v",
@@ -1733,7 +1766,13 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 					RunID: "run-1", Status: "active",
 				}},
 			}, nil
-		})))
+		})
+		h := newHarness(
+			t,
+			WithSessionInputQueueStore(queueStore),
+			WithAttachmentOpener(opener),
+			WithGoalCommandHandler(goalHandler),
+		)
 		registerManagerInputQueueWorkspace(t, queueStore, h)
 		sess := createSession(t, h)
 		registerManagerInputQueueSession(t, queueStore, h, sess)
@@ -1743,12 +1782,16 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			}
 		})
 
-		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+		opts := SendPromptOpts{
 			Message: "/goal status", AllowCommands: true,
 			MessageID:      "client-goal-status",
 			IdempotencyKey: "idem-goal-status",
 			Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "http"},
-		})
+			Attachments: []AttachmentMeta{
+				promptAttachmentMeta(t, attachmentID, "goal-context.txt", "text/plain", attachmentData),
+			},
+		}
+		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
 		if err != nil {
 			t.Fatalf("SendPrompt(Goal status) error = %v", err)
 		}
@@ -1757,6 +1800,22 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		}
 		if calls := managerPromptCalls(h); len(calls) != 0 {
 			t.Fatalf("ACP prompt calls = %d, want 0", len(calls))
+		}
+		callsBeforeReplay := opener.calls
+		delete(opener.data, attachmentID)
+		delete(opener.refs, attachmentID)
+		replayed, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
+		if err != nil {
+			t.Fatalf("SendPrompt(replay Goal status) error = %v", err)
+		}
+		if !replayed.Replayed || replayed.Goal == nil || replayed.Goal.Outcome != GoalOutcomeStatus {
+			t.Fatalf("replayed Goal result = %#v, want replayed status result", replayed)
+		}
+		if opener.calls != callsBeforeReplay {
+			t.Fatalf("attachment opener calls = %d after replay, want %d", opener.calls, callsBeforeReplay)
+		}
+		if handlerCalls != 1 {
+			t.Fatalf("Goal handler calls = %d, want 1", handlerCalls)
 		}
 		persistedInputs := managerUserPromptEvents(t, h, sess.ID)
 		if got, want := len(persistedInputs), 1; got != want {

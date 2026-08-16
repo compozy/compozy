@@ -2,6 +2,8 @@ import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
 import { useSessionRenameDialog } from "@/hooks/routes/use-session-rename-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
+import { shallowEqual } from "@xstate/store";
+import { useSelector } from "@xstate/store-react";
 
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
 import {
@@ -43,6 +45,11 @@ export function useSessionWindowController(input: {
     onResolveMissingWorktree,
   } = input;
   const promptRuntime = useSessionPromptRuntimeContext();
+  const promptRuntimeSnapshot = useSelector(
+    promptRuntime,
+    () => getSessionPromptRuntimeSnapshot(promptRuntime),
+    shallowEqual
+  );
   const controls = useSessionPageControls(sessionId, session, {
     getRuntimeSnapshot: () => getSessionPromptRuntimeSnapshot(promptRuntime),
     onDeleteSuccess,
@@ -155,5 +162,6 @@ export function useSessionWindowController(input: {
       void sessionCommands.refetch();
     },
     worktreeBinding,
+    promptRuntimeSnapshot,
   };
 }

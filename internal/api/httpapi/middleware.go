@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	ipv4WildcardBind = "0.0.0.0"
+	ipv4WildcardBind                 = "0.0.0.0"
+	sessionAttachmentUploadRoutePath = "/api/workspaces/:workspace_id/sessions/:session_id/attachments"
 )
 
 var errLoopbackMutationRequired = errors.New(
@@ -347,6 +348,10 @@ func errorMiddleware() gin.HandlerFunc {
 }
 
 func requestBodyLimitMiddleware(maxBytes int64) gin.HandlerFunc {
+	return requestBodyLimitMiddlewareWithUploadLimit(maxBytes, 0)
+}
+
+func requestBodyLimitMiddlewareWithUploadLimit(maxBytes int64, uploadMaxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if maxBytes <= 0 || c.Request == nil || c.Request.Body == nil || c.Request.Body == http.NoBody {
 			c.Next()
@@ -356,12 +361,17 @@ func requestBodyLimitMiddleware(maxBytes int64) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if c.Request.ContentLength > maxBytes {
+		limit := maxBytes
+		if c.Request.Method == http.MethodPost && c.FullPath() == sessionAttachmentUploadRoutePath &&
+			uploadMaxBytes > 0 {
+			limit = uploadMaxBytes
+		}
+		if c.Request.ContentLength > limit {
 			core.RespondError(c, http.StatusRequestEntityTooLarge, errRequestBodyTooLarge, false)
 			c.Abort()
 			return
 		}
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		c.Next()
 	}
 }

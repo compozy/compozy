@@ -20,6 +20,19 @@ type agentEventPayload struct {
 	hasTool          bool
 	promptRuntime    *PromptRuntime
 	skillInvocations []commandpkg.Invocation
+	attachments      []EventAttachment
+}
+
+// EventAttachment is durable attachment metadata carried by an agent event.
+type EventAttachment struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MIMEType string `json:"mime_type"`
+	Bytes    int64  `json:"bytes"`
+	SHA256   string `json:"sha256"`
+	Kind     string `json:"kind"`
+	Width    int    `json:"width,omitempty"`
+	Height   int    `json:"height,omitempty"`
 }
 
 func (e AgentEvent) clonePayload() *agentEventPayload {
@@ -30,13 +43,14 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
 	cloned.promptRuntime = ClonePromptRuntime(e.payload.promptRuntime)
 	cloned.skillInvocations = append([]commandpkg.Invocation(nil), e.payload.skillInvocations...)
+	cloned.attachments = append([]EventAttachment(nil), e.payload.attachments...)
 	return &cloned
 }
 
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
-		len(payload.skillInvocations) == 0 {
+		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
 		return nil
 	}
 	return payload
@@ -56,6 +70,22 @@ func (e AgentEvent) SkillInvocations() []commandpkg.Invocation {
 		return nil
 	}
 	return append([]commandpkg.Invocation(nil), e.payload.skillInvocations...)
+}
+
+// WithAttachments returns an event carrying isolated attachment metadata.
+func (e AgentEvent) WithAttachments(attachments []EventAttachment) AgentEvent {
+	payload := e.clonePayload()
+	payload.attachments = append([]EventAttachment(nil), attachments...)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// Attachments returns an isolated copy of attachment metadata.
+func (e AgentEvent) Attachments() []EventAttachment {
+	if e.payload == nil {
+		return nil
+	}
+	return append([]EventAttachment(nil), e.payload.attachments...)
 }
 
 // WithEventID returns an event carrying its stable durable event identity.

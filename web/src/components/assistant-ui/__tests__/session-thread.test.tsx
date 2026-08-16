@@ -56,10 +56,67 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 // Boundary IN: SessionThread state branching and readonly row rendering.
 // Boundary OUT: transcript query/refetch wiring, covered by session-chat-runtime-provider.test.tsx.
 
-function jsonResponse(body: unknown) {
+function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
-    headers: { "Content-Type": "application/json" },
+    status: init?.status ?? 200,
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
   });
+}
+
+function pngFile(name = "shot.png") {
+  const header = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+  return new File([header, new Uint8Array(24)], name, { type: "image/png" });
+}
+
+function pdfFile(name = "report.pdf") {
+  return new File(["%PDF-1.7\nattachment"], name, { type: "application/pdf" });
+}
+
+function zipFile() {
+  return new File([Uint8Array.of(0x50, 0x4b, 0x03, 0x04)], "archive.zip", {
+    type: "application/zip",
+  });
+}
+
+let attachmentUploadSequence = 0;
+
+function nextAttachmentUploadIdentity(): { id: string; sha256: string } {
+  attachmentUploadSequence += 1;
+  const digest = attachmentUploadSequence.toString(16).padStart(64, "0");
+  return { id: `att_${digest}`, sha256: digest };
+}
+
+function attachmentUploadPayload({
+  id,
+  kind,
+  mimeType,
+  name = "shot.png",
+  sha256,
+}: {
+  id?: string;
+  kind?: "file" | "image";
+  mimeType?: string;
+  name?: string;
+  sha256?: string;
+} = {}) {
+  const identity = nextAttachmentUploadIdentity();
+  const isPNG = name.endsWith(".png");
+  return {
+    attachment: {
+      bytes: 32,
+      created_at: "2026-08-15T00:00:00Z",
+      height: 10,
+      id: id ?? identity.id,
+      kind: kind ?? (isPNG ? "image" : "file"),
+      mime_type: mimeType ?? (isPNG ? "image/png" : "application/pdf"),
+      name,
+      sha256: sha256 ?? identity.sha256,
+      width: 10,
+    },
+  };
 }
 
 function getPathname(input: RequestInfo | URL): string {
@@ -72,6 +129,34 @@ function getPathname(input: RequestInfo | URL): string {
   }
 
   return new URL(input.url, "http://localhost").pathname;
+}
+
+interface UploadedFileMetadata {
+  name: string;
+  type: string;
+}
+
+function uploadedFileMetadata(entry: FormDataEntryValue | null): UploadedFileMetadata | null {
+  if (entry === null || typeof entry === "string") {
+    return null;
+  }
+  return { name: entry.name, type: entry.type };
+}
+
+async function uploadedFileFromRequest(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<UploadedFileMetadata | null> {
+  if (init?.body instanceof FormData) {
+    return uploadedFileMetadata(init.body.get("file"));
+  }
+  if (!(input instanceof Request)) {
+    return null;
+  }
+  const body = await input.clone().text();
+  const filename = body.match(/filename="([^"]+)"/)?.[1];
+  const type = body.match(/\r?\nContent-Type:\s*([^\r\n]+)/i)?.[1];
+  return filename && type ? { name: filename, type } : null;
 }
 
 function fixtureWorkspaceId(): string {
@@ -147,12 +232,40 @@ function createPromptRecordingFetchMock(promptCalls: string[]) {
       promptCalls.push(String(init?.body ?? ""));
       return sseResponse([]);
     }
-    return base(input);
+    return base(input, init);
   });
 }
 
-function createFetchMock() {
-  return vi.fn(async (input: RequestInfo | URL) => {
+function createPromptRejectedFetchMock() {
+  const base = createFetchMock();
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const pathname = getPathname(input);
+    if (pathname === "/api/status") {
+      return new Response(JSON.stringify({}), {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Compozy-Gateway-Tier": "local",
+        },
+      });
+    }
+    if (pathname.endsWith("/prompt")) {
+      return jsonResponse(
+        {
+          code: "acp_prompt_image_unsupported",
+          error: "The selected agent does not accept images",
+        },
+        { status: 422 }
+      );
+    }
+    return base(input, init);
+  });
+}
+
+function createFetchMock(options?: {
+  attachmentUpload?: Parameters<typeof attachmentUploadPayload>[0];
+  beforeAttachmentUpload?: () => Promise<void>;
+}) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const pathname = getPathname(input);
 
     if (pathname === "/api/sessions") {
@@ -185,6 +298,40 @@ function createFetchMock() {
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt/queue`
     ) {
       return jsonResponse({ inputs: [] });
+    }
+
+    if (
+      pathname ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments`
+    ) {
+      if (options?.beforeAttachmentUpload) {
+        await options.beforeAttachmentUpload();
+      }
+      const uploaded = await uploadedFileFromRequest(input, init);
+      if (uploaded === null) {
+        return jsonResponse({ error: "file is required" }, { status: 400 });
+      }
+      if (uploaded.type === "application/zip") {
+        return jsonResponse({ error: "unsupported mime type" }, { status: 415 });
+      }
+      return jsonResponse(
+        attachmentUploadPayload(
+          options?.attachmentUpload ?? {
+            kind: uploaded.type.startsWith("image/") ? "image" : "file",
+            mimeType: uploaded.type,
+            name: uploaded.name,
+          }
+        ),
+        { status: 201 }
+      );
+    }
+
+    if (
+      pathname.startsWith(
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments/`
+      )
+    ) {
+      return new Response(null, { status: 204 });
     }
 
     throw new Error(`Unhandled fetch in thread test: ${pathname}`);
@@ -279,6 +426,7 @@ describe("SessionThread transcript states", () => {
   });
 
   beforeEach(() => {
+    attachmentUploadSequence = 0;
     resetSessionDebugTelemetry();
     vi.stubGlobal("fetch", createFetchMock());
   });
@@ -627,6 +775,199 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findAllByTestId("session-skill-directive")).toHaveLength(2);
     expect(screen.getByTestId("user-message-bubble").textContent).toBe("/review /review");
+  });
+
+  it("Should render the attachment gallery above the user text bubble", async () => {
+    const workspaceId = fixtureWorkspaceId();
+    const sessionId = primarySessionFixture.id;
+    const transcript = [
+      {
+        id: "user-with-attachments",
+        role: "user",
+        metadata: {
+          attachments: [
+            {
+              id: "att-image",
+              name: "diagram.png",
+              mime_type: "image/png",
+              bytes: 2048,
+              sha256: "a".repeat(64),
+              kind: "image",
+              width: 1280,
+              height: 720,
+            },
+            {
+              id: "att-notes",
+              name: "notes.pdf",
+              mime_type: "application/pdf",
+              bytes: 4096,
+              sha256: "b".repeat(64),
+              kind: "file",
+            },
+          ],
+        },
+        parts: [
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: "compozy://session-attachments/att-image",
+            filename: "diagram.png",
+          },
+          {
+            type: "file",
+            mediaType: "application/pdf",
+            url: "compozy://session-attachments/att-notes",
+            filename: "notes.pdf",
+          },
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: "compozy://session-attachments/att-image",
+            filename: "diagram.png",
+          },
+          { type: "text", text: "Flatten both.", state: "done" },
+        ],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const gallery = await screen.findByTestId("user-message-attachment-gallery");
+    const bubble = screen.getByTestId("user-message-bubble");
+    expect(bubble).toHaveTextContent("Flatten both.");
+    expect(gallery.compareDocumentPosition(bubble) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const imageFrames = screen.getAllByTestId("user-message-attachment-frame");
+    expect(imageFrames).toHaveLength(2);
+    expect(imageFrames[0]).toHaveAttribute(
+      "href",
+      `/api/workspaces/${workspaceId}/sessions/${sessionId}/attachments/att-image/bytes`
+    );
+    expect(imageFrames[0]).not.toHaveAttribute("role");
+    expect(screen.getByTestId("user-message-attachment-file-card")).toHaveAttribute(
+      "href",
+      `/api/workspaces/${workspaceId}/sessions/${sessionId}/attachments/att-notes/bytes`
+    );
+    expect(screen.getByTestId("user-message-attachment-file-card")).not.toHaveAttribute("role");
+    expect(screen.getByTestId("user-message-attachment-file-card")).toHaveTextContent("notes.pdf");
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(within(gallery).getAllByRole("link")).toHaveLength(3);
+    const images = screen.getAllByRole("img", { name: "diagram.png" });
+    expect(images).toHaveLength(2);
+    expect(images[0]).toHaveAttribute("width", "1280");
+    expect(images[0]).toHaveAttribute("height", "720");
+    expect(images[0]?.getAttribute("src")).not.toMatch(/^data:/);
+  });
+
+  it("Should skip the empty bubble on an image-only user turn", async () => {
+    const transcript = [
+      {
+        id: "user-image-only",
+        role: "user",
+        parts: [
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: "compozy://session-attachments/att-shot",
+            filename: "shot.png",
+          },
+        ],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("user-message-attachment-gallery")).toBeInTheDocument();
+    expect(screen.getByTestId("user-message-attachment-frame")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-bubble")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-actions-copy")).not.toBeInTheDocument();
+  });
+
+  it("Should render a local image-only attachment before transcript replacement", async () => {
+    const transcript = [
+      {
+        id: "user-local-image-only",
+        role: "user",
+        parts: [
+          {
+            type: "data-compozy-attachment",
+            data: {
+              bytes: 2048,
+              height: 720,
+              id: "att-local-shot",
+              kind: "image",
+              mime_type: "image/png",
+              name: "local-shot.png",
+              sha256: "c".repeat(64),
+              width: 1280,
+            },
+          },
+        ],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("user-message-attachment-gallery")).toBeInTheDocument();
+    expect(screen.getByTestId("user-message-attachment-frame")).toHaveAttribute(
+      "href",
+      `/api/workspaces/${fixtureWorkspaceId()}/sessions/${primarySessionFixture.id}/attachments/att-local-shot/bytes`
+    );
+    expect(screen.queryByTestId("user-message-bubble")).not.toBeInTheDocument();
+  });
+
+  it("Should leave a text-only user turn without a gallery", async () => {
+    const transcript = [
+      {
+        id: "user-text-only",
+        role: "user",
+        parts: [{ type: "text", text: "Ship the landing page.", state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("user-message-bubble")).toHaveTextContent(
+      "Ship the landing page."
+    );
+    expect(screen.queryByTestId("user-message-attachment-gallery")).not.toBeInTheDocument();
+  });
+
+  it("Should copy only the user-turn text when attachments are present", async () => {
+    const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    const transcript = [
+      {
+        id: "user-copy-with-attachments",
+        role: "user",
+        parts: [
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: "compozy://session-attachments/att-image",
+            filename: "diagram.png",
+          },
+          { type: "text", text: "Flatten both.", state: "done" },
+        ],
+      } as SessionMessage,
+    ];
+
+    try {
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+      const copy = await screen.findByTestId("user-message-actions-copy");
+      fireEvent.click(copy);
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith("Flatten both.");
+      });
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
+      }
+    }
   });
 
   it.each([
@@ -1451,14 +1792,14 @@ describe("SessionThread transcript states", () => {
     try {
       vi.setSystemTime(new Date("2026-07-07T12:00:00Z"));
       const startedAt = Date.parse("2026-07-07T12:00:00Z");
-      let renders = 0;
+      const renderSpy = vi.fn();
       function Probe() {
-        renders += 1;
+        renderSpy();
         return <WorkingIndicator startedAt={startedAt} reducedMotion={false} />;
       }
 
       render(<Probe />);
-      expect(renders).toBe(1);
+      expect(renderSpy).toHaveBeenCalledTimes(1);
       const timer = screen.getByTestId("session-working-timer");
       expect(timer.textContent).toBe("0s");
 
@@ -1470,7 +1811,7 @@ describe("SessionThread transcript states", () => {
 
       // The text node advanced to 3s while the React tree never re-rendered.
       expect(timer.textContent).toBe("3s");
-      expect(renders).toBe(1);
+      expect(renderSpy).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
@@ -2127,7 +2468,10 @@ describe("SessionThread composer running semantics", () => {
     });
 
     await waitFor(() => {
-      expect(onQueuePrompt).toHaveBeenCalledWith("queue this follow-up");
+      expect(onQueuePrompt).toHaveBeenCalledWith({
+        message: "queue this follow-up",
+        attachments: [],
+      });
     });
     expect(onQueuePrompt).toHaveBeenCalledTimes(1);
     await waitFor(() => {
@@ -2157,6 +2501,53 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
     resolveQueue?.();
     await waitFor(() => expect(composerText()).toBe(""));
+  });
+
+  it("Should queue ready attachment refs and keep steer text-only", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    const fetch = createFetchMock({ attachmentUpload: { name: "queued.png" } });
+    vi.stubGlobal("fetch", fetch);
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      onSteerPrompt,
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("review this image");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("queued.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    expect(onQueuePrompt).toHaveBeenCalledWith({
+      message: "review this image",
+      attachments: [
+        expect.objectContaining({
+          id: expect.stringMatching(/^att_[a-f0-9]{64}$/),
+          name: "queued.png",
+          mime_type: "image/png",
+        }),
+      ],
+    });
+    expect(onSteerPrompt).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+    });
+    expect(
+      fetch.mock.calls.some(([input]) =>
+        /\/attachments\/att_[a-f0-9]{64}$/.test(getPathname(input))
+      )
+    ).toBe(false);
   });
 
   it("Should show an error toast and preserve the draft when queue fails", async () => {
@@ -2201,7 +2592,10 @@ describe("SessionThread composer running semantics", () => {
     await user.click(screen.getByTestId("composer-steer-button"));
 
     await waitFor(() => {
-      expect(onSteerPrompt).toHaveBeenCalledWith("steer with this constraint");
+      expect(onSteerPrompt).toHaveBeenCalledWith({
+        message: "steer with this constraint",
+        attachments: [],
+      });
       expect(composerText()).toBe("");
     });
   });
@@ -2222,7 +2616,10 @@ describe("SessionThread composer running semantics", () => {
     });
 
     await waitFor(() => {
-      expect(onSteerPrompt).toHaveBeenCalledWith("steer to the new direction");
+      expect(onSteerPrompt).toHaveBeenCalledWith({
+        message: "steer to the new direction",
+        attachments: [],
+      });
       expect(composerText()).toBe("");
     });
   });
@@ -2463,6 +2860,359 @@ describe("SessionThread composer running semantics", () => {
     expect(sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]?.text).toBe(
       "Not yet"
     );
+  });
+});
+
+// Invariant: picker, paste, and drop create durable-ready composer tiles, while
+// queue/interrupt preserve daemon-owned refs and capability gates stay truthful.
+// Owning layer: SessionThread's public composer interaction boundary.
+describe("SessionThread composer attachments", () => {
+  beforeEach(() => {
+    composerAui = null;
+    vi.stubGlobal("fetch", createFetchMock());
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.warning).mockClear();
+    sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+    sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetGatewayStreamAuth();
+    act(() => {
+      sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+      sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
+    });
+  });
+
+  it("Should turn a pasted image into a draft tile", async () => {
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    const editable = await findComposerEditable();
+    const file = pngFile();
+    fireEvent.paste(editable, {
+      clipboardData: {
+        files: [file],
+        items: [{ kind: "file", type: file.type, getAsFile: () => file }],
+        types: ["Files"],
+      },
+    });
+
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveTextContent("shot.png");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should add an attachment when browser crypto is unavailable", async () => {
+    vi.stubGlobal("crypto", undefined);
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("fallback-id.png"));
+    });
+
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveTextContent("fallback-id.png");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should prevent disabled file drops without adding an attachment", async () => {
+    renderComposer({ canPrompt: false, promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    const overlay = screen.getByTestId("composer-drop-overlay");
+    const dropRoot = overlay.parentElement;
+    if (!dropRoot) {
+      throw new Error("composer drop root is not mounted");
+    }
+    const transfer = {
+      dropEffect: "copy",
+      files: [pngFile()],
+      types: ["Files"],
+    };
+
+    expect(fireEvent.dragOver(dropRoot, { dataTransfer: transfer })).toBe(false);
+    expect(transfer.dropEffect).toBe("none");
+    expect(fireEvent.drop(dropRoot, { dataTransfer: transfer })).toBe(false);
+    expect(overlay).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+  });
+
+  it("Should add a ready tile when an enabled drop contains a file", async () => {
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    const overlay = screen.getByTestId("composer-drop-overlay");
+    const dropRoot = overlay.parentElement;
+    if (!dropRoot) throw new Error("composer drop root is not mounted");
+    const file = pngFile("dropped.png");
+
+    fireEvent.drop(dropRoot, {
+      dataTransfer: { dropEffect: "copy", files: [file], types: ["Files"] },
+    });
+
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveTextContent("dropped.png");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should clear an active file drag when prompting becomes unavailable", async () => {
+    const view = renderComposerRerenderable({
+      canPrompt: true,
+      promptImageCapability: "supported",
+    });
+    await screen.findByTestId("composer-input");
+    const overlay = screen.getByTestId("composer-drop-overlay");
+    const dropRoot = overlay.parentElement;
+    if (!dropRoot) {
+      throw new Error("composer drop root is not mounted");
+    }
+    const transfer = {
+      dropEffect: "copy",
+      files: [pngFile()],
+      types: ["Files"],
+    };
+
+    fireEvent.dragEnter(dropRoot, { dataTransfer: transfer });
+    expect(overlay).toHaveAttribute("aria-hidden", "false");
+
+    view.rerender({ canPrompt: false, promptImageCapability: "supported" });
+    expect(overlay).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("Should turn a picker file into a draft tile", async () => {
+    const user = userEvent.setup();
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByRole("button", { name: "Attach files" });
+    const input = screen.getByLabelText("Choose attachments");
+    if (!(input instanceof HTMLInputElement)) throw new Error("composer file input is not mounted");
+    await user.upload(input, pngFile("picked.png"));
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveTextContent("picked.png");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should disable send while a tile is uploading", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    vi.stubGlobal("fetch", createFetchMock({ beforeAttachmentUpload: () => hold }));
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    let add!: Promise<void>;
+    act(() => {
+      add = requireComposerAui().composer.addAttachment(pngFile());
+    });
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveAttribute("data-state", "uploading");
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "Saving shot.png");
+    await act(async () => {
+      release();
+      await add;
+    });
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should enable image-only send when every tile is ready", async () => {
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+    expect(composerText()).toBe("");
+    expect(screen.getByTestId("composer-send-button")).toBeEnabled();
+  });
+
+  it("Should refuse unsupported files in place and keep send disabled", async () => {
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(zipFile());
+    });
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveAttribute("data-state", "rejected");
+    expect(tile).toHaveTextContent("PNG, JPEG, WebP, PDF, Markdown, or text");
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "Remove files that are not supported");
+  });
+
+  it("Should show the capability gate for images when the targeted agent cannot accept them", async () => {
+    renderComposer({ promptImageCapability: "unsupported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getByTestId("composer-attachment-gate")).toHaveTextContent(
+      "This agent does not accept images."
+    );
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "This agent does not accept images");
+  });
+
+  it("Should show the capability gate for PDF files without embedded context", async () => {
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUpload: { name: "report.pdf" } }));
+    renderComposer({
+      promptEmbeddedContextCapability: "unsupported",
+      promptImageCapability: "supported",
+    });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pdfFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getByTestId("composer-attachment-gate")).toHaveTextContent(
+      "This agent does not accept PDF files."
+    );
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "This agent does not accept PDF files");
+  });
+
+  it("Should send a ready PDF while embedded-context capability is unknown", async () => {
+    const promptCalls: string[] = [];
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    renderComposer({
+      promptEmbeddedContextCapability: "unknown",
+      promptImageCapability: "supported",
+    });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pdfFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toMatch(/att_[a-f0-9]{64}/);
+  });
+
+  it("Should send a ready image while the target capability is unknown", async () => {
+    const promptCalls: string[] = [];
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    renderComposer({ promptImageCapability: "unknown" });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toMatch(/att_[a-f0-9]{64}/);
+  });
+
+  it("Should preserve uploaded attachment state through a session runtime rerender", async () => {
+    const promptCalls: string[] = [];
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    const view = renderComposerRerenderable({ promptImageCapability: "supported" });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    view.rerender({ promptImageCapability: "supported" });
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toMatch(/att_[a-f0-9]{64}/);
+  });
+
+  it("Should restore a rejected image and text to the composer", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRejectedFetchMock());
+    renderComposer({ promptImageCapability: "unknown" });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Retry this image");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(composerText()).toBe("Retry this image"));
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+  });
+
+  it("Should remove a draft tile and release its image preview", async () => {
+    const previewUrls: string[] = [];
+    const MockURL = class extends URL {};
+    MockURL.createObjectURL = vi.fn(() => {
+      const url = `blob:session-attachment-${previewUrls.length}`;
+      previewUrls.push(url);
+      return url;
+    });
+    MockURL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", MockURL);
+    const user = userEvent.setup();
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await screen.findByTestId("composer-attachment-tile");
+    await user.click(screen.getByRole("button", { name: "Remove shot.png" }));
+    await waitFor(() => {
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+    });
+    expect(previewUrls.length).toBeGreaterThan(0);
+    expect(MockURL.revokeObjectURL).toHaveBeenCalledTimes(previewUrls.length);
+    for (const url of previewUrls) {
+      expect(MockURL.revokeObjectURL).toHaveBeenCalledWith(url);
+    }
+  });
+
+  it("Should summarize queued attachments when the queue payload includes them", async () => {
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      onSteerQueuedPrompt: vi.fn(),
+      queuedPrompts: [
+        {
+          id: "inq-att",
+          text: "Review the screenshots.",
+          attachments: {
+            fileCount: 1,
+            imageCount: 2,
+            preview: { kind: "file", mark: "PDF" },
+          },
+        },
+      ],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    expect(within(row).getByTestId("composer-queued-attachment-well")).toHaveTextContent("PDF");
+    expect(row).toHaveTextContent("· 2 images · 1 file");
+    expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
   });
 });
 

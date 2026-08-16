@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/udsapi"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
@@ -32,6 +33,7 @@ type RuntimeDeps struct {
 	ToolRegistry        toolspkg.Registry
 	Toolsets            core.ToolsetRegistry
 	ToolArtifacts       toolspkg.ToolArtifactStore
+	SessionAttachments  attachmentspkg.Store
 	ToolApprovals       toolspkg.ApprovalTokenIssuer
 	ApprovalGrants      toolspkg.ApprovalGrantStore
 	Clarify             toolspkg.ClarifyBroker

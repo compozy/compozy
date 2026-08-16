@@ -616,8 +616,9 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 				State:      "prepared",
 				InstanceID: "instance-json",
 			},
-			CreatedAt: now,
-			UpdatedAt: now,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			ACPCapsKnown: true,
 			ACPCaps: acp.Caps{
 				SupportsLoadSession: true,
 				SupportedModes:      []string{"chat"},
@@ -723,6 +724,48 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			t.Fatalf("sandbox JSON = %#v", sandboxPayload)
 		}
 	})
+}
+
+func TestACPCapsPayloadFromACP(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		caps  acp.Caps
+		known bool
+		want  *contract.ACPCapsPayload
+	}{
+		{
+			name: "Should omit capabilities before ACP negotiation",
+		},
+		{
+			name:  "Should preserve negotiated all-false capabilities",
+			known: true,
+			want:  &contract.ACPCapsPayload{},
+		},
+		{
+			name:  "Should preserve each negotiated prompt capability independently",
+			known: true,
+			caps: acp.Caps{
+				PromptImage:           true,
+				PromptEmbeddedContext: true,
+			},
+			want: &contract.ACPCapsPayload{
+				PromptImage:           true,
+				PromptEmbeddedContext: true,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := contract.ACPCapsPayloadFromACP(test.caps, test.known)
+			if !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("ACPCapsPayloadFromACP() = %#v, want %#v", got, test.want)
+			}
+		})
+	}
 }
 
 func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
@@ -952,6 +995,60 @@ func TestSendPromptRequestJSONShape(t *testing.T) {
 			}
 			if got != want {
 				t.Fatalf("prompt shape %q = %q, want %q", field, got, want)
+			}
+		}
+	})
+
+	t.Run("Should round-trip prompt attachment refs on the wire", func(t *testing.T) {
+		t.Parallel()
+
+		req := contract.SendPromptRequest{
+			MessageID:      "msg-prompt-attachments",
+			IdempotencyKey: "idem-prompt-attachments",
+			Attachments: []contract.PromptAttachmentRef{{
+				ID:       "att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Name:     "shot.png",
+				MIMEType: "image/png",
+				Bytes:    2048,
+				SHA256:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Kind:     contract.PromptAttachmentKindImage,
+				Width:    640,
+				Height:   480,
+			}},
+		}
+		raw, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var decoded contract.SendPromptRequest
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if len(decoded.Attachments) != 1 {
+			t.Fatalf("decoded attachments = %#v, want 1 ref", decoded.Attachments)
+		}
+		got := decoded.Attachments[0]
+		if got.ID != req.Attachments[0].ID || got.Name != "shot.png" ||
+			got.MIMEType != "image/png" || got.Bytes != 2048 ||
+			got.SHA256 != req.Attachments[0].SHA256 ||
+			got.Kind != contract.PromptAttachmentKindImage ||
+			got.Width != 640 || got.Height != 480 {
+			t.Fatalf("decoded attachment = %#v, want %#v", got, req.Attachments[0])
+		}
+		var shape map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &shape); err != nil {
+			t.Fatalf("json.Unmarshal(attachment shape) error = %v", err)
+		}
+		var attachments []map[string]json.RawMessage
+		if err := json.Unmarshal(shape["attachments"], &attachments); err != nil {
+			t.Fatalf("json.Unmarshal(attachments) error = %v", err)
+		}
+		if len(attachments) != 1 {
+			t.Fatalf("attachments shape = %#v, want 1 object", attachments)
+		}
+		for _, field := range []string{"id", "name", "mime_type", "bytes", "sha256", "kind", "width", "height"} {
+			if _, ok := attachments[0][field]; !ok {
+				t.Fatalf("attachment shape missing %q: %#v", field, attachments[0])
 			}
 		}
 	})

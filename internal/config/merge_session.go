@@ -5,6 +5,7 @@ func (o sessionOverlay) Apply(dst *SessionConfig) {
 	o.Supervision.Apply(&dst.Supervision)
 	o.BusyInput.Apply(&dst.BusyInput)
 	o.Compaction.Apply(&dst.Compaction)
+	o.Attachments.Apply(&dst.Attachments)
 }
 
 func (o sessionLimitsOverlay) Apply(dst *SessionLimitsConfig) {

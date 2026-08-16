@@ -27,6 +27,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		supportBundles:     s.supportBundles,
 		tools:              s.tools,
 		toolArtifacts:      s.toolArtifacts,
+		sessionAttachments: s.sessionAttachments,
 		toolsets:           s.toolsets,
 		toolApprovals:      s.toolApprovals,
 		approvalGrants:     s.approvalGrants,

@@ -45,6 +45,7 @@ func cloneSandboxStopPayload(payload SandboxStopPayload) SandboxStopPayload {
 func cloneInputPreSubmitPayload(payload InputPreSubmitPayload) InputPreSubmitPayload {
 	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ContextBlocks = cloneContextBlocks(payload.ContextBlocks)
+	payload.Attachments = cloneInputAttachmentMetadata(payload.Attachments)
 	return payload
 }
 

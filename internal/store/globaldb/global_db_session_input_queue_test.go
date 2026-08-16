@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,6 +94,48 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		}
 		if !slices.Equal(claimed.SkillInvocations, want) {
 			t.Fatalf("claimed skill refs = %#v, want %#v", claimed.SkillInvocations, want)
+		}
+	})
+
+	t.Run("Should preserve attachments through queue insert and lease", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+		want := []store.SessionInputAttachment{testSessionInputAttachment()}
+		enqueued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "inq-attachments", SessionID: sessionID,
+			Mode: store.SessionInputQueueModeQueue, Text: "",
+			Attachments: want, SessionGeneration: 0, QueueCap: 10, Now: now,
+		})
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput() error = %v", err)
+		}
+		if !slices.Equal(enqueued.Attachments, want) {
+			t.Fatalf("enqueued attachments = %#v, want %#v", enqueued.Attachments, want)
+		}
+		loaded, err := globalDB.GetSessionInputQueueEntry(ctx, sessionID, enqueued.ID)
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntry() error = %v", err)
+		}
+		if !slices.Equal(loaded.Attachments, want) {
+			t.Fatalf("loaded attachments = %#v, want %#v", loaded.Attachments, want)
+		}
+		pending, err := globalDB.ListPendingSessionInputs(ctx, sessionID)
+		if err != nil {
+			t.Fatalf("ListPendingSessionInputs() error = %v", err)
+		}
+		if len(pending) != 1 || !slices.Equal(pending[0].Attachments, want) {
+			t.Fatalf("pending attachments = %#v, want %#v", pending, want)
+		}
+		claimed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Second))
+		if err != nil || !ok {
+			t.Fatalf("ClaimNextSessionInput() = ok %v, error %v", ok, err)
+		}
+		if !slices.Equal(claimed.Attachments, want) {
+			t.Fatalf("claimed attachments = %#v, want %#v", claimed.Attachments, want)
 		}
 	})
 
@@ -404,7 +448,8 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 
 		replacementRequest := store.SessionInputQueueInsert{
 			ID: "inq-replace-new", Text: "replacement input", MessageID: "message-replace",
-			IdempotencyKey: "idem-replace", QueueCap: 10, Now: now.Add(time.Second),
+			IdempotencyKey: "idem-replace", Attachments: []store.SessionInputAttachment{testSessionInputAttachment()},
+			QueueCap: 10, Now: now.Add(time.Second),
 		}
 		replacement, created, err := globalDB.ReplaceSessionInput(ctx, sessionID, original.ID, replacementRequest)
 		if err != nil {
@@ -416,6 +461,9 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if replacement.ID != "inq-replace-new" || replacement.Mode != store.SessionInputQueueModeQueue ||
 			replacement.Delivery != store.SessionInputDeliveryAfterTurn || replacement.Text != "replacement input" {
 			t.Fatalf("replacement = %#v, want new queued input", replacement)
+		}
+		if !slices.Equal(replacement.Attachments, replacementRequest.Attachments) {
+			t.Fatalf("replacement attachments = %#v, want %#v", replacement.Attachments, replacementRequest.Attachments)
 		}
 		canceled, err := globalDB.GetSessionInputQueueEntry(ctx, sessionID, original.ID)
 		if err != nil {
@@ -447,8 +495,12 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 				replayCreated,
 			)
 		}
+		if !slices.Equal(replayed.Attachments, replacementRequest.Attachments) {
+			t.Fatalf("replayed attachments = %#v, want %#v", replayed.Attachments, replacementRequest.Attachments)
+		}
 		conflictingRequest := replacementRequest
-		conflictingRequest.Text = "different replacement"
+		conflictingRequest.Attachments = append([]store.SessionInputAttachment(nil), replacementRequest.Attachments...)
+		conflictingRequest.Attachments[0].Name = "different-shot.png"
 		_, _, err = globalDB.ReplaceSessionInput(ctx, sessionID, original.ID, conflictingRequest)
 		if !errors.Is(err, store.ErrSessionInputMutationConflict) {
 			t.Fatalf("ReplaceSessionInput(conflict) error = %v, want ErrSessionInputMutationConflict", err)
@@ -582,6 +634,10 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			"idempotency_key",
 			"turn_id",
 			"event_id",
+			"attachments_json",
+		})
+		assertTableHasColumns(t, globalDB.db, "session_prompt_admissions", []string{
+			"attachments_json",
 		})
 		assertIndexesPresent(
 			t,
@@ -1217,6 +1273,38 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist and replay admission attachments", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 8, 14, 13, 0, 0, 0, time.UTC)
+		req := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "attachments", now)
+		req.AuthoredText = ""
+		req.Attachments = []store.SessionInputAttachment{testSessionInputAttachment()}
+		first, created, err := globalDB.ClaimSessionPromptAdmission(ctx, req)
+		if err != nil {
+			t.Fatalf("ClaimSessionPromptAdmission() error = %v", err)
+		}
+		if !created {
+			t.Fatal("ClaimSessionPromptAdmission() created = false, want true")
+		}
+		if !slices.Equal(first.Attachments, req.Attachments) {
+			t.Fatalf("first attachments = %#v, want %#v", first.Attachments, req.Attachments)
+		}
+		replayed, created, err := globalDB.ClaimSessionPromptAdmission(ctx, req)
+		if err != nil {
+			t.Fatalf("ClaimSessionPromptAdmission(replay) error = %v", err)
+		}
+		if created {
+			t.Fatal("ClaimSessionPromptAdmission(replay) created = true, want false")
+		}
+		if !slices.Equal(replayed.Attachments, req.Attachments) {
+			t.Fatalf("replayed attachments = %#v, want %#v", replayed.Attachments, req.Attachments)
+		}
+	})
+
 	t.Run("Should replay an admitted queue entry without consuming capacity twice", func(t *testing.T) {
 		t.Parallel()
 
@@ -1225,6 +1313,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		sessionID := registerInputQueueSession(t, globalDB)
 		now := time.Date(2026, 7, 31, 12, 5, 0, 0, time.UTC)
 		admissionReq := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "queue", now)
+		admissionReq.Attachments = []store.SessionInputAttachment{testSessionInputAttachment()}
 		queueReq := store.SessionInputQueueInsert{
 			ID: "inq-admitted", SessionID: sessionID, Text: "queued once",
 			SessionGeneration: 0, QueueCap: 1, Now: now,
@@ -1245,6 +1334,9 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 			entry.TurnID != admissionReq.TurnID || entry.EventID != admissionReq.EventID {
 			t.Fatalf("entry identity = %#v, want admission identity %#v", entry, admissionReq)
 		}
+		if !slices.Equal(entry.Attachments, admissionReq.Attachments) {
+			t.Fatalf("entry attachments = %#v, want %#v", entry.Attachments, admissionReq.Attachments)
+		}
 
 		replayed, replayedEntry, replayedPosition, created, err := globalDB.EnqueueAdmittedSessionInput(
 			ctx,
@@ -1262,6 +1354,9 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 				replayedPosition,
 				created,
 			)
+		}
+		if !slices.Equal(replayedEntry.Attachments, admissionReq.Attachments) {
+			t.Fatalf("replayed entry attachments = %#v, want %#v", replayedEntry.Attachments, admissionReq.Attachments)
 		}
 		summary, err := globalDB.SessionInputQueueSummary(ctx, sessionID)
 		if err != nil {
@@ -1418,6 +1513,176 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 			t.Fatalf("StageAdmittedSessionSteer(retry) error = %v, want dispatch indeterminate", err)
 		}
 	})
+}
+
+func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
+	t.Run("Should add attachments_json with an empty-array default on reopen", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00064_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open prefix before 00064 error = %v", err)
+		}
+		prefixClosed := false
+		t.Cleanup(func() {
+			if prefixClosed {
+				return
+			}
+			if closeErr := prefixDB.Close(); closeErr != nil {
+				t.Errorf("prefixDB.Close() error = %v", closeErr)
+			}
+		})
+		assertTableHasColumns(t, prefixDB, "session_input_queue", []string{"text"})
+		queueColumns, err := tableColumns(testutil.Context(t), prefixDB, "session_input_queue")
+		if err != nil {
+			t.Fatalf("tableColumns(session_input_queue) error = %v", err)
+		}
+		if _, ok := queueColumns["attachments_json"]; ok {
+			t.Fatal("attachments_json present before 00064, want absent")
+		}
+		admissionColumns, err := tableColumns(testutil.Context(t), prefixDB, "session_prompt_admissions")
+		if err != nil {
+			t.Fatalf("tableColumns(session_prompt_admissions) error = %v", err)
+		}
+		if _, ok := admissionColumns["attachments_json"]; ok {
+			t.Fatal("session_prompt_admissions.attachments_json present before 00064, want absent")
+		}
+		if _, err := prefixDB.ExecContext(testutil.Context(t), "PRAGMA foreign_keys = OFF"); err != nil {
+			t.Fatalf("disable foreign keys for pre-00063 fixture: %v", err)
+		}
+		if _, err := prefixDB.ExecContext(
+			testutil.Context(t),
+			`INSERT INTO session_prompt_admissions (
+				id, workspace_id, session_id, message_id, idempotency_key, operation,
+				fingerprint_version, request_fingerprint, state, turn_id, event_id, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"admission-before-63", "workspace-before-63", "session-before-63", "message-before-63",
+			"idempotency-before-63", "prompt", "prompt/v1", "sha256:before-63", "reserved",
+			"turn-before-63", "event-before-63", "2026-08-15T00:00:00Z", "2026-08-15T00:00:00Z",
+		); err != nil {
+			t.Fatalf("insert pre-00063 session_prompt_admissions row: %v", err)
+		}
+		if _, err := prefixDB.ExecContext(
+			testutil.Context(t),
+			`INSERT INTO session_input_queue (
+				id, session_id, status, mode, text, enqueued_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			"queue-before-63", "session-before-63", "queued", "queue", "preserved text",
+			"2026-08-15T00:00:00Z", "2026-08-15T00:00:00Z",
+		); err != nil {
+			t.Fatalf("insert pre-00063 session_input_queue row: %v", err)
+		}
+		if err := applyGlobalMigrationPrefix(
+			t,
+			prefixDB,
+			globalMigrationPrefixThrough(t, "00064_schema.sql"),
+		); err != nil {
+			t.Fatalf("Apply(through 00064) error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+		prefixClosed = true
+
+		reopened, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixThrough(t, "00064_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("reopen through 00064 error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(); closeErr != nil {
+				t.Errorf("reopened.Close() error = %v", closeErr)
+			}
+		})
+		assertTableHasColumns(t, reopened, "session_input_queue", []string{"attachments_json"})
+		assertTableHasColumns(t, reopened, "session_prompt_admissions", []string{"attachments_json"})
+		var queueDefault string
+		if err := reopened.QueryRowContext(
+			testutil.Context(t),
+			`SELECT attachments_json FROM session_input_queue WHERE id = ?`,
+			"queue-before-63",
+		).Scan(&queueDefault); err != nil {
+			t.Fatalf("read session_input_queue.attachments_json error = %v", err)
+		}
+		if queueDefault != "[]" {
+			t.Fatalf("session_input_queue.attachments_json = %q, want []", queueDefault)
+		}
+		var admissionDefault string
+		if err := reopened.QueryRowContext(
+			testutil.Context(t),
+			`SELECT attachments_json FROM session_prompt_admissions WHERE id = ?`,
+			"admission-before-63",
+		).Scan(&admissionDefault); err != nil {
+			t.Fatalf("read session_prompt_admissions.attachments_json error = %v", err)
+		}
+		if admissionDefault != "[]" {
+			t.Fatalf("session_prompt_admissions.attachments_json = %q, want []", admissionDefault)
+		}
+		for _, mutation := range []struct {
+			name  string
+			query string
+			id    string
+		}{
+			{
+				name:  "session input queue",
+				query: `UPDATE session_input_queue SET attachments_json = ? WHERE id = ?`,
+				id:    "queue-before-63",
+			},
+			{
+				name:  "session prompt admissions",
+				query: `UPDATE session_prompt_admissions SET attachments_json = ? WHERE id = ?`,
+				id:    "admission-before-63",
+			},
+		} {
+			_, updateErr := reopened.ExecContext(testutil.Context(t), mutation.query, "not-json", mutation.id)
+			if updateErr == nil || !strings.Contains(updateErr.Error(), "CHECK constraint failed") {
+				t.Fatalf(
+					"invalid attachments_json update for %s error = %v, want CHECK constraint failure",
+					mutation.name,
+					updateErr,
+				)
+			}
+		}
+	})
+}
+
+func globalMigrationPrefixThrough(t *testing.T, lastMigration string) store.MigrationStream {
+	t.Helper()
+
+	fullStream := MigrationStream()
+	entries, err := fs.ReadDir(fullStream.FS, fullStream.Dir)
+	if err != nil {
+		t.Fatalf("read global migration directory: %v", err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") || entry.Name() > lastMigration {
+			continue
+		}
+		names = append(names, entry.Name())
+	}
+	return globalMigrationPrefix(t, names...)
+}
+
+func testSessionInputAttachment() store.SessionInputAttachment {
+	return store.SessionInputAttachment{
+		ID:       "att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Name:     "shot.png",
+		MIMEType: "image/png",
+		Bytes:    1024,
+		SHA256:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Kind:     store.SessionInputAttachmentKindImage,
+		Width:    320,
+		Height:   240,
+	}
 }
 
 func promptAdmissionRequest(
