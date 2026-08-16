@@ -10,14 +10,14 @@ update, dev reload, secret binding, and removal continue to use the extension su
 
 ## Package mapping
 
-| Agent Plugins package                            | CompozyOS extension                                                                    |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| Root `plugin.json` identity                      | A synthesized resource-only manifest with `format: "agent-plugin"`.                    |
+| Agent Plugins package                            | CompozyOS extension                                                                                               |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Root `plugin.json` identity                      | A synthesized resource-only manifest with `format: "agent-plugin"`.                                               |
 | Immediate child directories under `skills/`      | Extension-kit skills. Malformed immediate entries are recorded as skipped diagnostics; deeper nesting is ignored. |
-| `mcp.json` server with `type: "stdio"`           | A packaged stdio MCP server.                                                           |
-| `mcp.json` server with `type: "streamable-http"` | A packaged remote MCP server, normalized to the native `http` transport.               |
-| `PLUGIN_ROOT`                                    | Absolute package root for managed and dev instances.                                   |
-| `PLUGIN_DATA`                                    | Stable absolute data directory at `<COMPOZY_HOME>/extension-data/<name>/`.             |
+| `mcp.json` server with `type: "stdio"`           | A packaged stdio MCP server.                                                                                      |
+| `mcp.json` server with `type: "streamable-http"` | A packaged remote MCP server, normalized to the native `http` transport.                                          |
+| `PLUGIN_ROOT`                                    | Absolute package root for managed and dev instances.                                                              |
+| `PLUGIN_DATA`                                    | Stable absolute data directory at `<COMPOZY_HOME>/extension-data/<name>/`.                                        |
 
 CompozyOS does not fetch a schema while detecting a package. Schema `1.0.0` is the accepted contract.
 Client-specific layouts are rejected, `sse` MCP servers are recorded as skipped, and sensitive
