@@ -132,7 +132,7 @@
             "type": "object",
             "required": ["schema_version", "pid", "started_at", "diagnostic_report", "state"],
             "properties": {
-                "schema_version": { "const": 1 },
+                "schema_version": { "const": 2 },
                 "pid": { "type": "integer", "minimum": 1 },
                 "started_at": { "type": "string", "format": "date-time" },
                 "app_version": { "type": "string" },
@@ -182,7 +182,19 @@
             "type": "object",
             "required": ["app_state", "runtime_state"],
             "properties": {
-                "app_state": { "enum": ["idle", "checking", "downloading", "ready", "failed"] },
+                "app_state": {
+                    "enum": [
+                        "idle",
+                        "checking",
+                        "downloading",
+                        "ready",
+                        "failed",
+                        "staged",
+                        "applying",
+                        "blocked",
+                        "accepted"
+                    ]
+                },
                 "app_available": { "type": "string" },
                 "runtime_state": {
                     "enum": [
@@ -191,12 +203,20 @@
                         "applying",
                         "recovery_required",
                         "failed",
-                        "managed"
+                        "managed",
+                        "staged",
+                        "blocked",
+                        "accepted"
                     ]
                 },
                 "runtime_available": { "type": "string" },
                 "last_checked_at": { "type": "string", "format": "date-time" },
-                "last_error": { "$ref": "#/$defs/error" }
+                "last_error": { "$ref": "#/$defs/error" },
+                "operation_id": { "type": "string", "minLength": 1 },
+                "phase": {
+                    "enum": ["download", "verify", "install", "start", "ready-check", "ready"]
+                },
+                "percent": { "type": "integer", "minimum": -1, "maximum": 100 }
             },
             "additionalProperties": false
         },
@@ -204,7 +224,7 @@
             "type": "object",
             "required": ["schema_version", "installed", "running", "runtime", "update"],
             "properties": {
-                "schema_version": { "const": 1 },
+                "schema_version": { "const": 2 },
                 "installed": { "type": "boolean" },
                 "app_version": { "type": "string" },
                 "channel": { "type": "string" },

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
 func TestAppStatusReportsCanonicalState(t *testing.T) {
@@ -60,7 +61,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"app_version":       "9.9.9-stale",
@@ -112,6 +113,45 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		}
 	})
 
+	t.Run("Should overlay the durable operation onto the schema v2 update block", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := appTestHome(t)
+		store, err := compozyupdate.NewOperationStore(homePaths, nil)
+		if err != nil {
+			t.Fatalf("NewOperationStore() error = %v", err)
+		}
+		operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{compozyupdate.TargetApp})
+		staged, err := store.Transition(t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+			compozyupdate.Transition{
+				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI,
+				Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100,
+			})
+		if err != nil {
+			t.Fatalf("Transition(staged) error = %v", err)
+		}
+		_, err = store.Transition(t.Context(), staged.ID, staged.Holder.ExecutorGeneration, staged.Revision,
+			compozyupdate.Transition{
+				Kind: compozyupdate.TransitionWaitForApp, Actor: compozyupdate.ActorCLI,
+				Target: compozyupdate.TargetApp, Percent: -1,
+			})
+		if err != nil {
+			t.Fatalf("Transition(waiting) error = %v", err)
+		}
+		deps := appTestDeps(homePaths)
+		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
+			return appInstallation{Installed: true, Version: "v1.0.0"}, nil
+		}
+		report, err := resolveAppStatus(t.Context(), deps, homePaths)
+		if err != nil {
+			t.Fatalf("resolveAppStatus() error = %v", err)
+		}
+		if report.Update.OperationID != operation.ID || report.Update.AppState != "staged" ||
+			report.Update.AppAvailable != "v1.1.0" || report.Update.Percent == nil || *report.Update.Percent != -1 {
+			t.Fatalf("app update projection = %#v, want dormant staged operation", report.Update)
+		}
+	})
+
 	t.Run("Should preserve every nonterminal state shape written by Rust", func(t *testing.T) {
 		t.Parallel()
 		states := []struct {
@@ -135,7 +175,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 				t.Parallel()
 				homePaths := appTestHome(t)
 				record := map[string]any{
-					"schema_version":    1,
+					"schema_version":    2,
 					"pid":               4242,
 					"started_at":        "2026-08-10T03:00:00Z",
 					"state":             state.name,
@@ -165,7 +205,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "attaching",
@@ -190,7 +230,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 2,
+			"schema_version": 3,
 			"pid":            4242,
 			"started_at":     "2026-08-10T03:00:00Z",
 			"state":          "starting",
@@ -484,7 +524,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 1,
+			"schema_version": 2,
 			"pid":            4242,
 			"started_at":     "2026-08-10T03:00:00Z",
 			"state":          "error",
@@ -542,7 +582,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 			"safe_message": "token=raw-secret",
 		}
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 1,
+			"schema_version": 2,
 			"pid":            4242,
 			"started_at":     "2026-08-10T03:00:00Z",
 			"state":          "error",
@@ -662,7 +702,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 			t.Fatalf("Chmod(default bundle directory) error = %v", err)
 		}
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -693,7 +733,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		}
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -729,7 +769,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -783,7 +823,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -826,7 +866,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -970,7 +1010,7 @@ func TestAppOpenUsesValidatedProductTargets(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 2,
+			"schema_version": 3,
 			"pid":            4242,
 			"started_at":     "2026-08-10T03:00:00Z",
 			"state":          "product",
@@ -1000,7 +1040,7 @@ func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 
 	t.Run("Should report app_not_running when the socket is absent", func(t *testing.T) {
 		t.Parallel()
-		_, err := callAppControl(t.Context(), filepath.Join(t.TempDir(), "app.sock"), "update.check", nil)
+		_, err := callAppControl(t.Context(), filepath.Join(t.TempDir(), "app.sock"), "retry", nil)
 		assertAppCommandError(t, err, appNotRunningCode)
 	})
 
@@ -1010,26 +1050,17 @@ func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 		if err := os.WriteFile(socketPath, []byte("stale"), 0o600); err != nil {
 			t.Fatalf("WriteFile(socket) error = %v", err)
 		}
-		_, err := callAppControl(t.Context(), socketPath, "update.apply", map[string]string{"target": "runtime"})
+		_, err := callAppControl(t.Context(), socketPath, "navigate", map[string]string{"path": "/"})
 		assertAppCommandError(t, err, appControlUnavailableCode)
 	})
 
-	t.Run("Should surface an absent socket through app update apply", func(t *testing.T) {
+	t.Run("Should reject the removed app update command", func(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
-		deps := appTestDeps(homePaths)
-		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
-			return appInstallation{Installed: true, Version: "0.3.0"}, nil
+		_, err := executeAppTestCommand(t, appTestDeps(homePaths), "app", "update", "--check")
+		if err == nil || !strings.Contains(err.Error(), `unknown command "update"`) {
+			t.Fatalf("app update error = %v, want unknown command", err)
 		}
-		deps.callAppControl = callAppControl
-		_, err := executeAppTestCommand(t, deps, "app", "update", "--apply", "runtime", "-o", "json")
-		assertAppCommandError(t, err, appNotRunningCode)
-		assertStructuredAppError(
-			t,
-			[]string{"app", "update", "--apply", "runtime", "-o", "json"},
-			err,
-			appNotRunningCode,
-		)
 	})
 }
 

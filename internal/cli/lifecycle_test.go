@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,31 +16,81 @@ import (
 )
 
 type stubUpdateManager struct {
-	checkFn    func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
-	applyFn    func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error)
-	restoreFn  func(compozyupdate.AppliedBinary) error
-	finalizeFn func(compozyupdate.AppliedBinary) error
+	checkFn        func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
+	checkAllFn     func(context.Context, compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error)
+	planFn         func(context.Context, compozyupdate.Actor, []compozyupdate.Target, compozyupdate.Holder) (compozyupdate.OperationRequest, error)
+	acquireFn      func(context.Context, compozyupdate.OperationRequest) (*compozyupdate.Operation, error)
+	resolveFn      func(context.Context, string) (*compozyupdate.Release, error)
+	applyFn        func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error)
+	restoreFn      func(compozyupdate.AppliedBinary) error
+	finalizeFn     func(compozyupdate.AppliedBinary) error
+	operationStore *compozyupdate.OperationStore
+	runtimeTarget  string
 }
 
-func (s stubUpdateManager) Check(
+func (s stubUpdateManager) CheckAll(
 	ctx context.Context,
 	opts compozyupdate.CheckOptions,
-) (compozyupdate.State, *compozyupdate.Release, error) {
-	if s.checkFn != nil {
-		return s.checkFn(ctx, opts)
+) (compozyupdate.MultiState, *compozyupdate.Release, error) {
+	if s.checkAllFn != nil {
+		return s.checkAllFn(ctx, opts)
 	}
-	return compozyupdate.State{}, nil, nil
+	if s.checkFn != nil {
+		state, release, err := s.checkFn(ctx, opts)
+		return compozyupdate.ProjectMultiState(state, nil, nil), release, err
+	}
+	return compozyupdate.MultiState{}, nil, nil
 }
 
-func (s stubUpdateManager) ApplyRelease(
+func (s stubUpdateManager) PlanOperation(
+	ctx context.Context,
+	actor compozyupdate.Actor,
+	targets []compozyupdate.Target,
+	holder compozyupdate.Holder,
+) (compozyupdate.OperationRequest, error) {
+	if s.planFn != nil {
+		return s.planFn(ctx, actor, targets, holder)
+	}
+	return compozyupdate.OperationRequest{}, errors.New("stub update plan is not configured")
+}
+
+func (s stubUpdateManager) AcquireOperation(
+	ctx context.Context,
+	request compozyupdate.OperationRequest,
+) (*compozyupdate.Operation, error) {
+	if s.acquireFn != nil {
+		return s.acquireFn(ctx, request)
+	}
+	if s.operationStore == nil {
+		return nil, errors.New("stub update operation store is not configured")
+	}
+	return s.operationStore.Acquire(ctx, request)
+}
+
+func (s stubUpdateManager) OperationStore() *compozyupdate.OperationStore { return s.operationStore }
+
+func (s stubUpdateManager) ResolveReleaseByTag(ctx context.Context, tag string) (*compozyupdate.Release, error) {
+	if s.resolveFn != nil {
+		return s.resolveFn(ctx, tag)
+	}
+	return &compozyupdate.Release{Version: tag}, nil
+}
+
+func (s stubUpdateManager) ApplyReleaseObserved(
 	ctx context.Context,
 	release *compozyupdate.Release,
+	observer compozyupdate.ApplyObserver,
 ) (compozyupdate.AppliedBinary, error) {
 	if s.applyFn != nil {
+		if err := observer(ctx, compozyupdate.ApplyStep{Phase: compozyupdate.PhaseDownloading, Percent: 0}); err != nil {
+			return compozyupdate.AppliedBinary{}, err
+		}
 		return s.applyFn(ctx, release)
 	}
 	return compozyupdate.AppliedBinary{}, nil
 }
+
+func (s stubUpdateManager) RuntimeTargetPath() string { return s.runtimeTarget }
 
 func (s stubUpdateManager) Restore(applied compozyupdate.AppliedBinary) error {
 	if s.restoreFn != nil {
@@ -77,7 +128,7 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 					CurrentVersion: "v1.0.0",
 					LatestVersion:  "v1.1.0",
 					Available:      true,
-					Status:         compozyupdate.StatusDeferred,
+					Status:         compozyupdate.StatusAvailable,
 					Recommendation: "Use `brew upgrade compozy`.",
 					Message:        "CompozyOS is managed by an external package manager; no local update was performed.",
 				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
@@ -105,9 +156,9 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 	if err := json.Unmarshal([]byte(updateOut), &update); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if update.Status != string(compozyupdate.StatusDeferred) || !update.Managed ||
-		!strings.Contains(update.Recommendation, "brew") {
-		t.Fatalf("managed update record = %#v, want deferred brew recommendation", update)
+	if update.Status != compozyupdate.StatusAvailable || !update.Runtime.Managed ||
+		!strings.Contains(update.Runtime.Recommendation, "brew") {
+		t.Fatalf("managed update record = %#v, want available brew recommendation", update)
 	}
 
 	uninstallOut, _, err := executeRootCommand(t, deps, "uninstall", "--purge", "-o", "json")
@@ -240,63 +291,9 @@ func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) 
 	if err := json.Unmarshal([]byte(out), &record); err != nil {
 		t.Fatalf("json.Unmarshal(update) error = %v", err)
 	}
-	if record.Status != string(compozyupdate.StatusAvailable) ||
-		record.Managed || record.InstallMethod != "direct-binary" {
+	if record.Status != compozyupdate.StatusAvailable ||
+		record.Runtime.Managed || record.Runtime.InstallMethod != "direct-binary" {
 		t.Fatalf("update record = %#v, want available direct-binary update", record)
-	}
-}
-
-func TestUpdateAppliesReleaseAndRestartsDaemonWhenRunning(t *testing.T) {
-	t.Parallel()
-
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		triggerSettingsRestartFn: func(context.Context) (SettingsRestartActionRecord, error) {
-			return SettingsRestartActionRecord{OperationID: "op-123", Status: "pending"}, nil
-		},
-		getSettingsRestartStatusFn: func(context.Context, string) (SettingsRestartStatusRecord, error) {
-			return SettingsRestartStatusRecord{OperationID: "op-123", Status: "ready"}, nil
-		},
-	})
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		t.Fatalf("resolveHome() error = %v", err)
-	}
-	writeFile(t, homePaths.DaemonInfo, `{"pid":42,"port":2123,"started_at":"2026-04-03T12:00:00Z"}`)
-	deps.processAlive = func(int) bool { return true }
-	deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
-		return stubUpdateManager{
-			checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
-				return compozyupdate.State{
-					Supported:      true,
-					Managed:        false,
-					InstallMethod:  "direct-binary",
-					CurrentVersion: "v1.0.0",
-					LatestVersion:  "v1.1.0",
-					Available:      true,
-					Status:         compozyupdate.StatusAvailable,
-					Message:        "A newer stable CompozyOS release is available.",
-				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
-			},
-			applyFn: func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {
-				return compozyupdate.AppliedBinary{
-					TargetPath: filepath.Join(t.TempDir(), "compozy"),
-					BackupPath: filepath.Join(t.TempDir(), "compozy.backup"),
-					Version:    "v1.1.0",
-				}, nil
-			},
-		}, nil
-	}
-
-	out, _, err := executeRootCommand(t, deps, "update", "-o", "json")
-	if err != nil {
-		t.Fatalf("update error = %v", err)
-	}
-	var record updateRecord
-	if err := json.Unmarshal([]byte(out), &record); err != nil {
-		t.Fatalf("json.Unmarshal(update) error = %v", err)
-	}
-	if record.Status != string(compozyupdate.StatusUpdated) || !record.DaemonRestarted {
-		t.Fatalf("update record = %#v, want updated with daemon restart", record)
 	}
 }
 

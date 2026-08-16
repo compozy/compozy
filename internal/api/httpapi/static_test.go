@@ -23,6 +23,12 @@ func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
 	if !strings.Contains(rootResp.Body.String(), `<div id="app"></div>`) {
 		t.Fatalf("GET / body = %q, want SPA shell", rootResp.Body.String())
 	}
+	if got := rootResp.Header().Get("Content-Security-Policy"); got != productionContentSecurityPolicy {
+		t.Fatalf("GET / Content-Security-Policy = %q, want exact production policy", got)
+	}
+	if strings.Contains(rootResp.Header().Get("Content-Security-Policy"), "'unsafe-eval'") {
+		t.Fatal("GET / Content-Security-Policy contains unsafe-eval")
+	}
 
 	deepLinkResp := performRequest(t, engine, http.MethodGet, "/session/sess-001", nil)
 	if deepLinkResp.Code != http.StatusOK {

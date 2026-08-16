@@ -165,7 +165,7 @@ func runDesktopProvenanceCases(t *testing.T) {
 				return []byte(`{"installed_by":"desktop-app","binary_sha256":"` + digest + `"}`)
 			},
 			wantMethod:  InstallMethodDesktopApp,
-			wantManaged: true,
+			wantManaged: false,
 		},
 		{
 			name: "Should fall through when desktop provenance hash mismatches",

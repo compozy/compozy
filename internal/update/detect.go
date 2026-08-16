@@ -84,7 +84,7 @@ func (m *Manager) resolveInstall(ctx context.Context) (installInfo, error) {
 
 	normalizedPath := normalizePath(m.executablePath)
 	if isDesktopAppInstall(m.homePaths.HomeDir, m.executablePath, m.runtimeOS) {
-		return installInfo{Method: string(InstallMethodDesktopApp), Managed: true}, nil
+		return installInfo{Method: string(InstallMethodDesktopApp)}, nil
 	}
 	switch {
 	case isHomebrewPath(normalizedPath):

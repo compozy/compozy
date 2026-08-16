@@ -88,6 +88,7 @@ func testReleaseAssets(t testing.TB, manager *Manager) []ReleaseAsset {
 		{Name: archiveName, DownloadURL: "https://downloads.example/archive"},
 		{Name: checksumsAssetName, DownloadURL: "https://downloads.example/checksums.txt"},
 		{Name: checksumsBundleAssetName, DownloadURL: "https://downloads.example/checksums.txt.sigstore.json"},
+		{Name: compatibilityAssetName, DownloadURL: "https://downloads.example/compat.json"},
 	}
 }
 

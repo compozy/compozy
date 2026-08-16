@@ -27,6 +27,7 @@ type DaemonStatusPayload struct {
 	ActiveSessions int                   `json:"active_sessions"`
 	TotalSessions  int                   `json:"total_sessions"`
 	Version        string                `json:"version,omitempty"`
+	MinAppVersion  string                `json:"min_app_version"`
 	Network        *NetworkStatusPayload `json:"network,omitempty"`
 	Gateway        *GatewayStatusPayload `json:"gateway,omitempty"`
 	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`

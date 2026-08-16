@@ -9,11 +9,13 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
 	"github.com/compozy/compozy/internal/procutil"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 
 	"github.com/spf13/cobra"
 )
@@ -47,9 +49,93 @@ func newDaemonCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.AddCommand(newDaemonStartCommand(deps))
+	cmd.AddCommand(newDaemonBootstrapCommand(deps))
 	cmd.AddCommand(newDaemonRelaunchCommand(deps))
+	cmd.AddCommand(newDaemonUpdateCoordinatorCommand(deps))
 	cmd.AddCommand(newDaemonStopCommand(deps))
 	return cmd
+}
+
+func newDaemonUpdateCoordinatorCommand(deps commandDeps) *cobra.Command {
+	var operationID string
+	var executorGeneration string
+	cmd := &cobra.Command{
+		Use:    "update-coordinator",
+		Short:  "Internal detached update coordinator",
+		Hidden: true,
+		Args:   cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runDaemonUpdateCoordinator(cmd.Context(), deps, operationID, executorGeneration)
+		},
+	}
+	cmd.Flags().StringVar(&operationID, "operation-id", "", "Update operation id")
+	cmd.Flags().StringVar(&executorGeneration, "executor-generation", "", "Update executor generation")
+	if err := cmd.MarkFlagRequired("operation-id"); err != nil {
+		panic(err)
+	}
+	if err := cmd.MarkFlagRequired("executor-generation"); err != nil {
+		panic(err)
+	}
+	return cmd
+}
+
+func runDaemonUpdateCoordinator(
+	ctx context.Context,
+	deps commandDeps,
+	operationID string,
+	executorGeneration string,
+) error {
+	manager, err := resolveUpdateManager(deps)
+	if err != nil {
+		return err
+	}
+	operation, err := manager.OperationStore().Read(ctx)
+	if err != nil {
+		return err
+	}
+	if operation == nil || operation.ID != strings.TrimSpace(operationID) || operation.Holder == nil ||
+		operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) {
+		return compozyupdate.ErrExecutorFenced
+	}
+	startedAt, err := procutil.StartedAt(os.Getpid())
+	if err != nil {
+		return fmt.Errorf("cli: resolve detached update executor identity: %w", err)
+	}
+	holder := *operation.Holder
+	holder.PID = os.Getpid()
+	holder.PIDStartTime = startedAt
+	holder.Surface = compozyupdate.ActorDaemon
+	holder.LeaseExpiresAt = deps.now().UTC().Add(2 * time.Minute)
+	transitionKind := compozyupdate.TransitionRenewLease
+	fenceGeneration := executorGeneration
+	if !manager.OperationStore().HolderLive(operation.Holder) {
+		transitionKind = compozyupdate.TransitionAcquireLease
+		fenceGeneration = ""
+	}
+	operation, err = manager.OperationStore().Transition(
+		ctx,
+		operation.ID,
+		fenceGeneration,
+		operation.Revision,
+		compozyupdate.Transition{
+			Kind: transitionKind, Actor: compozyupdate.ActorDaemon, Target: operation.ActiveTarget,
+			Holder: &holder, Percent: operation.Percent,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	runtime, err := newCLIUpdateRuntime(deps)
+	if err != nil {
+		return err
+	}
+	coordinator, err := compozyupdate.NewCoordinator(compozyupdate.CoordinatorConfig{
+		Store: manager.OperationStore(), Manager: manager, Runtime: runtime,
+	})
+	if err != nil {
+		return err
+	}
+	return coordinator.Run(ctx, operation.ID, holder.ExecutorGeneration)
 }
 
 func newDaemonStartCommand(deps commandDeps) *cobra.Command {

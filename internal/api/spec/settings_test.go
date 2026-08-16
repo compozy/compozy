@@ -597,30 +597,41 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertRequired(
 			t,
 			updateStatusSchema,
-			"supported",
-			"managed",
-			"install_method",
-			"current_version",
-			"available",
-			"status",
+			"aggregate",
+			"operation",
+			"runtime",
+			"app",
 		)
-		assertNotRequired(
-			t,
-			updateStatusSchema,
-			"latest_version",
-			"recommendation",
-			"release_url",
-			"checked_at",
-			"last_error",
-		)
-		assertEnumValues(t, propertySchema(t, updateStatusSchema, "status"),
+		assertEnumValues(t, propertySchema(t, updateStatusSchema, "aggregate"),
+			"accepted",
+			"applying",
 			"available",
-			"current",
-			"deferred",
+			"blocked",
+			"canceled",
 			"failed",
+			"staged",
 			"unsupported",
+			"up-to-date",
 			"updated",
 		)
+		runtimeSchema := propertySchema(t, updateStatusSchema, "runtime")
+		assertRequired(
+			t,
+			runtimeSchema,
+			"status",
+			"install_method",
+			"managed",
+			"current_version",
+			"daemon_restarted",
+			"message",
+		)
+
+		applyUpdate := operationFor(t, doc, "/api/settings/update/apply", "POST")
+		assertRequired(t, jsonRequestSchema(t, applyUpdate), "target")
+		assertRequired(t, jsonResponseSchema(t, applyUpdate, 200), "target", "status", "message")
+
+		cancelUpdate := operationFor(t, doc, "/api/settings/update/cancel", "POST")
+		assertRequired(t, jsonResponseSchema(t, cancelUpdate, 200), "status", "message")
 	})
 
 	t.Run("Should describe settings collections and log tail", func(t *testing.T) {

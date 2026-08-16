@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/store"
+	versionpkg "github.com/compozy/compozy/internal/version"
 )
 
 // SchemaStreamStatusReader reads the daemon-global migration streams exposed by status.
@@ -67,6 +68,7 @@ func (h *BaseHandlers) daemonStatusPayload(
 		ActiveSessions: activeSessions,
 		TotalSessions:  totalSessions,
 		Version:        version,
+		MinAppVersion:  versionpkg.Current().MinAppVersion,
 		Network:        networkStatus,
 		Gateway:        gatewayStatus,
 		SchemaStreams:  schemaStreams,

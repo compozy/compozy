@@ -10,7 +10,7 @@ func TestCurrentReturnsDefaults(t *testing.T) {
 		t.Parallel()
 
 		info := Current()
-		if info.Version == "" || info.Commit == "" || info.BuildDate == "" {
+		if info.Version == "" || info.Commit == "" || info.BuildDate == "" || info.MinAppVersion == "" {
 			t.Fatalf("Current() = %#v, want non-empty fields", info)
 		}
 	})

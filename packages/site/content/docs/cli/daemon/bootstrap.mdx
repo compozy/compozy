@@ -1,22 +1,23 @@
 ---
-title: "compozy app update"
-description: "Check or apply desktop-managed updates"
+title: "compozy daemon bootstrap"
+description: "Resolve, provision, and start the desktop runtime"
 ---
 
-## compozy app update
+## compozy daemon bootstrap
 
-Check or apply desktop-managed updates
+Resolve, provision, and start the desktop runtime
 
 ```
-compozy app update [flags]
+compozy daemon bootstrap [flags]
 ```
 
 ### Options
 
 ```
-      --apply string   Apply an update target: app or runtime
-      --check          Check for app and runtime updates
-  -h, --help           help for update
+      --app-version string       Desktop app version for compatibility checks
+      --bundle-path string       Bundled runtime payload path
+  -h, --help                     help for bootstrap
+      --minimum-runtime string   Minimum compatible runtime version (default ">=0.0.0")
 ```
 
 ### Options inherited from parent commands
@@ -40,5 +41,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy app update -o json
+compozy daemon bootstrap -o json
 ```

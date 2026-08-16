@@ -19,6 +19,7 @@ const (
 	goInstallModulePath        = "github.com/compozy/compozy"
 	checksumsAssetName         = "checksums.txt"
 	checksumsBundleAssetName   = "checksums.txt.sigstore.json"
+	compatibilityAssetName     = "compat.json"
 	sigstoreOIDCIssuer         = "https://token.actions.githubusercontent.com"
 	releaseWorkflowIdentityExp = `^https://github\.com/compozy/compozy/\.github/workflows/release\.yml@refs/heads/main$`
 )
@@ -44,6 +45,7 @@ const (
 	defaultHTTPTimeout     = 30 * time.Second
 	maxChecksumsBytes      = int64(1 << 20)
 	maxSigstoreBundleBytes = int64(8 << 20)
+	maxCompatibilityBytes  = int64(64 << 10)
 )
 
 var ErrNoCachedRelease = errors.New("update: cached release info not found")
@@ -55,12 +57,16 @@ const ManagedEnvName = "COMPOZY_MANAGED"
 type Status string
 
 const (
-	StatusCurrent     Status = "current"
+	StatusUpToDate    Status = "up-to-date"
 	StatusAvailable   Status = "available"
+	StatusAccepted    Status = "accepted"
+	StatusApplying    Status = "applying"
+	StatusStaged      Status = "staged"
 	StatusUpdated     Status = "updated"
-	StatusDeferred    Status = "deferred"
-	StatusUnsupported Status = "unsupported"
 	StatusFailed      Status = "failed"
+	StatusBlocked     Status = "blocked"
+	StatusUnsupported Status = "unsupported"
+	StatusCanceled    Status = "canceled"
 )
 
 // InstallMethod reports how the running CompozyOS binary was installed.
@@ -95,18 +101,20 @@ type Release struct {
 
 // State is the transport-safe update status snapshot shared by CLI and API surfaces.
 type State struct {
-	Supported      bool       `json:"supported"`
-	Managed        bool       `json:"managed"`
-	InstallMethod  string     `json:"install_method"`
-	CurrentVersion string     `json:"current_version"`
-	LatestVersion  string     `json:"latest_version,omitempty"`
-	Available      bool       `json:"available"`
-	Status         Status     `json:"status"`
-	Recommendation string     `json:"recommendation,omitempty"`
-	ReleaseURL     string     `json:"release_url,omitempty"`
-	CheckedAt      *time.Time `json:"checked_at,omitempty"`
-	LastError      string     `json:"last_error,omitempty"`
-	Message        string     `json:"message,omitempty"`
+	Supported       bool       `json:"supported"`
+	Managed         bool       `json:"managed"`
+	InstallMethod   string     `json:"install_method"`
+	CurrentVersion  string     `json:"current_version"`
+	LatestVersion   string     `json:"latest_version,omitempty"`
+	Available       bool       `json:"available"`
+	Status          Status     `json:"status"`
+	Recommendation  string     `json:"recommendation,omitempty"`
+	ReleaseURL      string     `json:"release_url,omitempty"`
+	CheckedAt       *time.Time `json:"checked_at,omitempty"`
+	LastError       string     `json:"last_error,omitempty"`
+	Message         string     `json:"message,omitempty"`
+	RestoredVersion string     `json:"restored_version,omitempty"`
+	DaemonRestarted bool       `json:"daemon_restarted"`
 }
 
 // AppliedBinary describes one on-disk binary swap that still retains a rollback backup.
@@ -149,6 +157,7 @@ type Config struct {
 	BundleVerifier  BundleVerifier
 	BinaryApplier   BinaryApplier
 	ArtifactPolicy  ArtifactPolicy
+	OperationEvents OperationEventEmitter
 }
 
 type cacheEntry struct {
@@ -183,6 +192,7 @@ type Manager struct {
 	installMu      sync.Mutex
 	installFlight  chan struct{}
 	install        *installInfo
+	operationStore *OperationStore
 }
 
 func (m *Manager) cachePath() string {

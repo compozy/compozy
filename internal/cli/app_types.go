@@ -12,10 +12,11 @@ import (
 
 	appschema "github.com/compozy/compozy/desktop/schema"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const appStateSchemaVersion = 1
+const appStateSchemaVersion = 2
 
 // AppStatusReport is the stable machine-readable desktop app status projection.
 type AppStatusReport struct {
@@ -53,6 +54,9 @@ type AppUpdateState struct {
 	RuntimeAvailable string          `json:"runtime_available,omitempty"`
 	LastCheckedAt    string          `json:"last_checked_at,omitempty"`
 	LastError        *AppErrorReport `json:"last_error,omitempty"`
+	OperationID      string          `json:"operation_id,omitempty"`
+	Phase            string          `json:"phase,omitempty"`
+	Percent          *int            `json:"percent,omitempty"`
 }
 
 type appStateRecord struct {
@@ -107,6 +111,9 @@ func resolveAppStatus(
 		return AppStatusReport{}, err
 	}
 	if !found {
+		if err := overlayAppUpdateOperation(ctx, homePaths, &report); err != nil {
+			return AppStatusReport{}, err
+		}
 		return validateAppStatusReport(report)
 	}
 
@@ -137,11 +144,81 @@ func resolveAppStatus(
 	if !report.Running {
 		report.PID = 0
 	}
+	if err := overlayAppUpdateOperation(ctx, homePaths, &report); err != nil {
+		return AppStatusReport{}, err
+	}
 	return validateAppStatusReport(report)
 }
 
+func overlayAppUpdateOperation(
+	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
+	report *AppStatusReport,
+) error {
+	store, err := compozyupdate.NewOperationStore(homePaths, nil)
+	if err != nil {
+		return err
+	}
+	operation, err := store.Read(ctx)
+	if err != nil || operation == nil {
+		return err
+	}
+	report.Update.OperationID = operation.ID
+	percent := operation.Percent
+	report.Update.Percent = &percent
+	if phase, ok := compozyupdate.PhaseForUI(operation.ActiveTarget, activeOperationPhase(operation), operation.Percent); ok {
+		report.Update.Phase = string(phase)
+	}
+	if operation.Runtime != nil {
+		report.Update.RuntimeAvailable = operation.Runtime.ToVersion
+		switch {
+		case operation.Runtime.Phase == compozyupdate.PhaseFailed || operation.Runtime.Phase == compozyupdate.PhaseRolledBack:
+			report.Update.RuntimeState = "failed"
+		case operation.ActiveTarget == compozyupdate.TargetRuntime:
+			if operation.Runtime.Phase == compozyupdate.PhasePending {
+				report.Update.RuntimeState = "accepted"
+			} else {
+				report.Update.RuntimeState = "applying"
+			}
+		}
+	}
+	if operation.App != nil {
+		report.Update.AppAvailable = operation.App.ToVersion
+		switch {
+		case operation.Waiting == compozyupdate.WaitingForApp || operation.App.Phase == compozyupdate.PhaseStaged:
+			report.Update.AppState = "staged"
+		case operation.App.Phase == compozyupdate.PhaseFailed:
+			report.Update.AppState = "failed"
+		case operation.ActiveTarget == compozyupdate.TargetApp:
+			if operation.App.Phase == compozyupdate.PhasePending {
+				report.Update.AppState = "accepted"
+			} else {
+				report.Update.AppState = "applying"
+			}
+		}
+	}
+	return nil
+}
+
+func activeOperationPhase(operation *compozyupdate.Operation) compozyupdate.OperationPhase {
+	if operation == nil {
+		return ""
+	}
+	if operation.ActiveTarget == compozyupdate.TargetRuntime && operation.Runtime != nil {
+		return operation.Runtime.Phase
+	}
+	if operation.ActiveTarget == compozyupdate.TargetApp && operation.App != nil {
+		return operation.App.Phase
+	}
+	return ""
+}
+
 func readAppStateRecord(homePaths compozyconfig.HomePaths) (appStateRecord, bool, error) {
-	raw, err := os.ReadFile(filepath.Join(homePaths.HomeDir, "app.json"))
+	appStatePath := homePaths.AppStateFile
+	if appStatePath == "" {
+		appStatePath = filepath.Join(homePaths.HomeDir, compozyconfig.AppStateFileName)
+	}
+	raw, err := os.ReadFile(appStatePath)
 	if errors.Is(err, os.ErrNotExist) {
 		return appStateRecord{}, false, nil
 	}

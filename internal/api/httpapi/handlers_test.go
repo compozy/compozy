@@ -437,6 +437,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/tools/search",
 		"POST /api/settings/actions/restart",
 		"POST /api/settings/reload",
+		"POST /api/settings/update/apply",
+		"POST /api/settings/update/cancel",
 		"POST /api/support/bundles",
 		"POST /api/skills/:name/disable",
 		"POST /api/skills/:name/enable",

@@ -178,11 +178,15 @@ func settingsStreamTransportValues() []string {
 
 func settingsUpdateStatusValues() []string {
 	return []string{
-		string(contract.SettingsUpdateStatusCurrent),
+		string(contract.SettingsUpdateStatusUpToDate),
 		string(contract.SettingsUpdateStatusAvailable),
+		string(contract.SettingsUpdateStatusAccepted),
+		string(contract.SettingsUpdateStatusApplying),
+		string(contract.SettingsUpdateStatusStaged),
 		string(contract.SettingsUpdateStatusUpdated),
-		string(contract.SettingsUpdateStatusDeferred),
+		string(contract.SettingsUpdateStatusBlocked),
 		string(contract.SettingsUpdateStatusUnsupported),
 		string(contract.SettingsUpdateStatusFailed),
+		string(contract.SettingsUpdateStatusCanceled),
 	}
 }

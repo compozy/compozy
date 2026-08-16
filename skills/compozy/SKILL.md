@@ -20,7 +20,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Task                                                                                                                           | MUST read                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
 | Start, inspect, prompt, stop, resume, or debug CompozyOS sessions and daemon state                                             | references/runtime-operations.md                                   |
-| Open, inspect, update, retry, diagnose, or recover the CompozyOS desktop app and its managed runtime                           | references/desktop.md                                              |
+| Open, inspect, retry, diagnose, or recover the desktop app; update the host runtime and app                                    | references/desktop.md                                              |
 | Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing             | references/runtime-operations.md + references/agent-definitions.md |
 | Inspect, refresh, curate, or configure provider models, reasoning strategy, and pricing                                        | references/runtime-operations.md + references/native-tools.md      |
 | Configure provider authentication or run provider authentication login                                                         | references/agent-definitions.md + references/native-tools.md       |
@@ -43,7 +43,7 @@ Match the task to the row. Read the listed files in full before producing output
 ## Reference Index
 
 - references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
-- references/desktop.md - desktop app commands, attachment and ownership, app and runtime updates, diagnostics, and recovery.
+- references/desktop.md - desktop app commands, attachment and ownership, unified host updates, diagnostics, and recovery.
 - references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.
 - references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.

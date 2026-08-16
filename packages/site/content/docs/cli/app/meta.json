@@ -1,4 +1,4 @@
 {
     "title": "App",
-    "pages": ["index", "diagnose", "open", "retry", "status", "update"]
+    "pages": ["index", "diagnose", "open", "retry", "status"]
 }

@@ -41,6 +41,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		observer:               state.observer,
 		resourceReconcile:      state.resourceReconcile,
 		supportBundles:         state.supportBundles,
+		backgroundUpdates:      state.backgroundUpdates,
 		agentCatalog:           state.agentCatalog,
 		soulCatalog:            state.soulCatalog,
 		heartbeatCatalog:       state.heartbeatCatalog,

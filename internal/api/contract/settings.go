@@ -168,10 +168,29 @@ const (
 type SettingsUpdateStatusKind string
 
 const (
-	SettingsUpdateStatusCurrent     SettingsUpdateStatusKind = "current"
+	SettingsUpdateStatusUpToDate    SettingsUpdateStatusKind = "up-to-date"
 	SettingsUpdateStatusAvailable   SettingsUpdateStatusKind = "available"
+	SettingsUpdateStatusAccepted    SettingsUpdateStatusKind = "accepted"
+	SettingsUpdateStatusApplying    SettingsUpdateStatusKind = "applying"
+	SettingsUpdateStatusStaged      SettingsUpdateStatusKind = "staged"
 	SettingsUpdateStatusUpdated     SettingsUpdateStatusKind = "updated"
-	SettingsUpdateStatusDeferred    SettingsUpdateStatusKind = "deferred"
+	SettingsUpdateStatusBlocked     SettingsUpdateStatusKind = "blocked"
 	SettingsUpdateStatusUnsupported SettingsUpdateStatusKind = "unsupported"
 	SettingsUpdateStatusFailed      SettingsUpdateStatusKind = "failed"
+	SettingsUpdateStatusCanceled    SettingsUpdateStatusKind = "canceled"
+)
+
+type SettingsUpdateTarget string
+
+const (
+	SettingsUpdateTargetRuntime SettingsUpdateTarget = "runtime"
+	SettingsUpdateTargetApp     SettingsUpdateTarget = "app"
+)
+
+type SettingsUpdateApplyStatus string
+
+const (
+	SettingsUpdateApplyAccepted SettingsUpdateApplyStatus = "accepted"
+	SettingsUpdateApplyBlocked  SettingsUpdateApplyStatus = "blocked"
+	SettingsUpdateApplyFailed   SettingsUpdateApplyStatus = "failed"
 )

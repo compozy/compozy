@@ -5,6 +5,7 @@ import (
 
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"net/http"
 	"os"
@@ -93,6 +94,15 @@ func NewManager(cfg Config) (*Manager, error) {
 	if strings.TrimSpace(manager.homePaths.HomeDir) == "" {
 		return nil, errors.New("update: CompozyOS home directory is required")
 	}
+	operationEvents := cfg.OperationEvents
+	if operationEvents == nil {
+		operationEvents = NewSlogOperationEventEmitter(slog.Default())
+	}
+	operationStore, err := NewOperationStore(manager.homePaths, operationEvents)
+	if err != nil {
+		return nil, err
+	}
+	manager.operationStore = operationStore
 	return manager, nil
 }
 
@@ -187,10 +197,45 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 	return m.composeState(install, latest, checkedAt), latest, nil
 }
 
+// ApplyStep reports the next journal phase immediately before its work begins.
+type ApplyStep struct {
+	Phase         OperationPhase
+	Percent       int
+	BackupPath    string
+	Compatibility *Compatibility
+}
+
+// ApplyObserver journals and fences one apply step before the manager performs it.
+type ApplyObserver func(context.Context, ApplyStep) error
+
 // ApplyRelease downloads, verifies, extracts, and swaps in the supplied release.
-func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (applied AppliedBinary, err error) {
+func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (AppliedBinary, error) {
+	return m.applyRelease(ctx, release, nil)
+}
+
+// ApplyReleaseObserved exposes real apply boundaries to the operation coordinator.
+func (m *Manager) ApplyReleaseObserved(
+	ctx context.Context,
+	release *Release,
+	observer ApplyObserver,
+) (AppliedBinary, error) {
+	if observer == nil {
+		return AppliedBinary{}, errors.New("update: apply observer is required")
+	}
+	return m.applyRelease(ctx, release, observer)
+}
+
+func (m *Manager) applyRelease(
+	ctx context.Context,
+	release *Release,
+	observer ApplyObserver,
+) (applied AppliedBinary, err error) {
 	if release == nil {
 		return AppliedBinary{}, errors.New("update: release metadata is required")
+	}
+	install, err := m.detectInstall(ctx)
+	if err != nil {
+		return AppliedBinary{}, err
 	}
 
 	assets, err := m.resolveReleaseAssets(release)
@@ -212,11 +257,21 @@ func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (applied A
 		}
 	}()
 
+	if err := notifyApplyObserver(ctx, observer, ApplyStep{Phase: PhaseDownloading, Percent: 0}); err != nil {
+		return AppliedBinary{}, err
+	}
 	downloaded, err := m.downloadReleaseArtifacts(ctx, tmpDir, assets)
 	if err != nil {
 		return AppliedBinary{}, err
 	}
+	if err := notifyApplyObserver(ctx, observer, ApplyStep{Phase: PhaseVerifying, Percent: -1}); err != nil {
+		return AppliedBinary{}, err
+	}
 	if err := m.verifyReleaseArtifacts(ctx, downloaded, assets.archive.Name); err != nil {
+		return AppliedBinary{}, err
+	}
+	compatibility, err := readCompatibility(downloaded.compatibilityPath)
+	if err != nil {
 		return AppliedBinary{}, err
 	}
 
@@ -232,8 +287,22 @@ func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (applied A
 	binaryMode = executableBinaryMode(binaryMode, currentInfo.Mode().Perm())
 
 	backupPath := siblingBackupPath(m.executablePath, m.now().UTC())
+	if err := notifyApplyObserver(ctx, observer, ApplyStep{
+		Phase: PhaseSwapping, Percent: -1, BackupPath: backupPath, Compatibility: &compatibility,
+	}); err != nil {
+		return AppliedBinary{}, err
+	}
 	if err := m.binaryApplier.ApplyBinary(binaryPath, m.executablePath, backupPath, binaryMode); err != nil {
 		return AppliedBinary{}, err
+	}
+	if install.Method == string(InstallMethodDesktopApp) {
+		if err := rewriteDesktopProvenance(m.homePaths, m.executablePath); err != nil {
+			restoreErr := m.binaryApplier.RestoreBinary(backupPath, m.executablePath, currentInfo.Mode().Perm())
+			if restoreErr == nil {
+				restoreErr = rewriteDesktopProvenance(m.homePaths, m.executablePath)
+			}
+			return AppliedBinary{}, errors.Join(err, restoreErr)
+		}
 	}
 
 	return AppliedBinary{
@@ -243,16 +312,28 @@ func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (applied A
 	}, nil
 }
 
+func notifyApplyObserver(ctx context.Context, observer ApplyObserver, step ApplyStep) error {
+	if observer == nil {
+		return nil
+	}
+	return observer(ctx, step)
+}
+
+// RuntimeTargetPath returns the concrete executable path owned by this manager.
+func (m *Manager) RuntimeTargetPath() string { return m.executablePath }
+
 type releaseAssets struct {
 	archive   ReleaseAsset
 	checksums ReleaseAsset
 	bundle    ReleaseAsset
+	compat    ReleaseAsset
 }
 
 type downloadedReleaseArtifacts struct {
-	archivePath   string
-	checksumsPath string
-	bundlePath    string
+	archivePath       string
+	checksumsPath     string
+	bundlePath        string
+	compatibilityPath string
 }
 
 func (m *Manager) resolveReleaseAssets(release *Release) (releaseAssets, error) {
@@ -285,11 +366,20 @@ func (m *Manager) resolveReleaseAssets(release *Release) (releaseAssets, error) 
 			checksumsBundleAssetName,
 		)
 	}
+	compatibilityAsset, ok := release.findAsset(compatibilityAssetName)
+	if !ok {
+		return releaseAssets{}, fmt.Errorf(
+			"update: release %q is missing %s",
+			release.Version,
+			compatibilityAssetName,
+		)
+	}
 
 	return releaseAssets{
 		archive:   archiveAsset,
 		checksums: checksumsAsset,
 		bundle:    bundleAsset,
+		compat:    compatibilityAsset,
 	}, nil
 }
 
@@ -299,9 +389,10 @@ func (m *Manager) downloadReleaseArtifacts(
 	assets releaseAssets,
 ) (downloadedReleaseArtifacts, error) {
 	downloaded := downloadedReleaseArtifacts{
-		archivePath:   filepath.Join(tmpDir, assets.archive.Name),
-		checksumsPath: filepath.Join(tmpDir, assets.checksums.Name),
-		bundlePath:    filepath.Join(tmpDir, assets.bundle.Name),
+		archivePath:       filepath.Join(tmpDir, assets.archive.Name),
+		checksumsPath:     filepath.Join(tmpDir, assets.checksums.Name),
+		bundlePath:        filepath.Join(tmpDir, assets.bundle.Name),
+		compatibilityPath: filepath.Join(tmpDir, assets.compat.Name),
 	}
 
 	if err := m.downloadFile(
@@ -318,6 +409,14 @@ func (m *Manager) downloadReleaseArtifacts(
 				Limit: downloadErr.Limit,
 			}
 		}
+		return downloadedReleaseArtifacts{}, err
+	}
+	if err := m.downloadFile(
+		ctx,
+		assets.compat.DownloadURL,
+		downloaded.compatibilityPath,
+		maxCompatibilityBytes,
+	); err != nil {
 		return downloadedReleaseArtifacts{}, err
 	}
 	if err := m.downloadFile(
@@ -353,5 +452,12 @@ func (m *Manager) verifyReleaseArtifacts(
 	if err != nil {
 		return err
 	}
-	return verifySHA256(downloaded.archivePath, expectedChecksum)
+	if err := verifySHA256(downloaded.archivePath, expectedChecksum); err != nil {
+		return err
+	}
+	expectedCompatibilityChecksum, err := checksumForAsset(downloaded.checksumsPath, compatibilityAssetName)
+	if err != nil {
+		return err
+	}
+	return verifySHA256(downloaded.compatibilityPath, expectedCompatibilityChecksum)
 }

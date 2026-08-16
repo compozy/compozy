@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -22,9 +21,15 @@ const (
 
 func newAppCommand(deps commandDeps) *cobra.Command {
 	command := &cobra.Command{
-		Use:   appCommandKey,
-		Short: "Manage the CompozyOS desktop app",
-		Args:  cobra.NoArgs,
+		Use:                appCommandKey,
+		Short:              "Manage the CompozyOS desktop app",
+		DisableFlagParsing: true,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return nil
+			}
+			return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
+		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
@@ -32,7 +37,6 @@ func newAppCommand(deps commandDeps) *cobra.Command {
 	command.AddCommand(
 		newAppOpenCommand(deps),
 		newAppStatusCommand(deps),
-		newAppUpdateCommand(deps),
 		newAppControlCommand(deps, appRetryMethod, "Retry the current desktop app operation", appRetryMethod),
 		newAppDiagnoseCommand(deps),
 	)
@@ -116,34 +120,6 @@ func newAppOpenCommand(deps commandDeps) *cobra.Command {
 			}))
 		},
 	}
-}
-
-func newAppUpdateCommand(deps commandDeps) *cobra.Command {
-	var check bool
-	var apply string
-	command := &cobra.Command{
-		Use:   updateUpdateKey,
-		Short: "Check or apply desktop-managed updates",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if check && strings.TrimSpace(apply) != "" {
-				return errors.New("app update: --check and --apply are mutually exclusive")
-			}
-			method := "update.check"
-			var params any
-			if target := strings.TrimSpace(apply); target != "" {
-				if target != appCommandKey && target != loopRuntimeKey {
-					return errors.New("app update: --apply must be app or runtime")
-				}
-				method = "update.apply"
-				params = map[string]string{automationTargetKey: target}
-			}
-			return runAppControlCommand(cmd, deps, method, params)
-		},
-	}
-	command.Flags().BoolVar(&check, "check", false, "Check for app and runtime updates")
-	command.Flags().StringVar(&apply, "apply", "", "Apply an update target: app or runtime")
-	return command
 }
 
 func newAppControlCommand(deps commandDeps, use string, short string, method string) *cobra.Command {

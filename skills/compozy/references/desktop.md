@@ -19,13 +19,18 @@ compozy app open
 compozy app open /workspaces
 ```
 
-Check or apply updates:
+Check, apply, or cancel runtime and app updates through the single host update command:
 
 ```bash
-compozy app update --check -o json
-compozy app update --apply app
-compozy app update --apply runtime
+compozy update --check -o json
+compozy update -o json
+compozy update --cancel -o json
 ```
+
+The structured result always contains `runtime` and includes `app` only when the desktop app is
+installed. A managed runtime returns its exact package-manager recommendation without changing the
+binary. Apply and cancel are also available through `POST /api/settings/update/apply` and
+`POST /api/settings/update/cancel` over HTTP or UDS; read live state with `GET /api/settings/update`.
 
 Retry the current operation or request structured diagnostics:
 
@@ -56,10 +61,11 @@ Treat attachment and ownership separately. Attaching to an existing daemon never
 ownership. Quitting the app never stops any runtime, including one the app started or provisioned.
 Use the runtime's own control surface for an intentional stop.
 
-App updates require consent and restart the desktop process. The app can replace an app-owned
-runtime after verification when durable provenance still proves ownership. For an operator-managed
-or inconclusively owned runtime, report the install method and its
-update command; never replace the binary through `compozy app`.
+App updates require consent and restart the desktop process. The runtime updates first, then a
+running app applies its verified artifact or a closed app stages it for the next launch. The app can
+replace an app-owned runtime after verification when durable provenance still proves ownership. For
+an operator-managed or inconclusively owned runtime, report the install method and its update
+command; never replace the binary through `compozy app`.
 
 ## Recovery
 

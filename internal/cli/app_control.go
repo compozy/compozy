@@ -49,8 +49,7 @@ func callAppControl(ctx context.Context, socketPath string, method string, param
 	}
 
 	timeout := appControlTimeout
-	if method == "update.check" || method == "update.apply" || method == appRetryMethod ||
-		method == appExportDiagnosticsMethod {
+	if method == appExportDiagnosticsMethod {
 		timeout = appControlUpdateTimeout
 	}
 	callCtx, cancel := context.WithTimeout(ctx, timeout)

@@ -7,7 +7,7 @@ every failure leaves the app launchable with a way forward.
 
 ```mermaid
 flowchart TD
-    A[Entry: unobtrusive update-ready indication while working] --> B[Background check + download already verified the artifact]
+    A[Entry: update-ready indication, compozy update, or Settings Updates] --> B[One daemon check reports runtime and app from the same release]
     B --> C{User consents to restart now?}
     C -->|later| D[Keep working - offer stays, no nagging]
     D --> C
@@ -24,6 +24,10 @@ flowchart TD
     K --> L[App still launchable, install path permissions intact]
     H -->|post-migration boot failure| M[recovery_required sticky, old binary not restarted, resolved by a later signed build]
     C -.->|quit with the update downloaded| X1[Abandon: next launch applies or launches into the new version - the update is never lost]
+    B -->|apply through Settings HTTP or UDS| O[Accepted operation id, runtime-first execution, live projection converges]
+    O --> J
+    B -->|dormant operation blocks progress| P[Cancel through CLI, HTTP, or UDS]
+    P --> J
 ```
 
 ```yaml
@@ -33,7 +37,7 @@ journey:
   value_statement: "I stay current without manual downloads, my agent work is never interrupted without consent, and a failed update always leaves me a way forward."
   personas: [Bruno, Dora]
   entry_points:
-    - url: "in-app update-ready indication; About/update surface"
+    - url: "in-app update-ready indication; Settings Updates; compozy update"
       origin: in-app-nav
   actions:
     - step: 1
@@ -51,6 +55,9 @@ journey:
     - step: 5
       verb: "Check the About/update surface"
       expected_observable: "Channel (beta) and versions visible; no stable channel selector exists"
+    - step: 6
+      verb: "Apply or cancel through a structured settings route"
+      expected_observable: "HTTP and UDS return the same accepted, blocked, or canceled operation truth"
   goal:
     observable: "One coherent update experience covering app and app-owned runtime"
     side_effects: [app-binary-replaced-on-restart, runtime-binary-swapped-under-lock, provenance-marker-updated]

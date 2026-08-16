@@ -8,6 +8,7 @@ import (
 	"time"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/gin-gonic/gin"
 )
 
@@ -239,6 +240,46 @@ func (h *BaseHandlers) GetSettingsUpdate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, SettingsUpdateResponseFromStatus(status))
+}
+
+// ApplySettingsUpdate durably acquires an asynchronous update operation.
+func (h *BaseHandlers) ApplySettingsUpdate(c *gin.Context) {
+	if h.SettingsUpdate == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
+		return
+	}
+	var request struct {
+		Target string `json:"target" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	target := compozyupdate.Target(strings.TrimSpace(request.Target))
+	if target != compozyupdate.TargetRuntime && target != compozyupdate.TargetApp {
+		h.respondError(c, http.StatusBadRequest, errors.New("settings: update target must be runtime or app"))
+		return
+	}
+	result, err := h.SettingsUpdate.ApplyUpdate(c.Request.Context(), target)
+	if err != nil && result.Status == "" {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, SettingsUpdateApplyResponseFromResult(result))
+}
+
+// CancelSettingsUpdate cancels and archives a dormant update operation.
+func (h *BaseHandlers) CancelSettingsUpdate(c *gin.Context) {
+	if h.SettingsUpdate == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
+		return
+	}
+	result, err := h.SettingsUpdate.CancelUpdate(c.Request.Context())
+	if err != nil && result.Status == "" {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, SettingsUpdateCancelResponseFromResult(result))
 }
 
 // UpdateSettingsHooksExtensions persists the hooks and extensions settings section.

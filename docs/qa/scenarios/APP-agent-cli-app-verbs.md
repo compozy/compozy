@@ -4,9 +4,9 @@ area: APP
 title: Drive the desktop surface end-to-end through compozy app
 persona: Ada
 journey: J-desktop-agent-headless
-expected: The full lifecycle — status before install (installed:false), open (launch/focus), transitional provisioning/updating states verbatim, attached running:true with runtime fields, open /settings navigation, update --check/--apply app|runtime, a redacted DiagnosticReport with local fallback, consent-gated `diagnose --bundle --yes` export, and running:false after kill — is deterministic, schema-valid `-o json`, with named error codes for every failure.
-entry_points: compozy app status|open|update|diagnose -o json; app.sock control socket
-qa_status: blocked-verify
+expected: The full lifecycle — status before install, open or focus, schema-v2 transitional state, navigation, `compozy update` handoff, redacted diagnostics, consent-gated bundle export, and stopped state — is deterministic structured output with named errors.
+entry_points: compozy app status|open|retry|diagnose -o json; compozy update [--check|--cancel] -o json; app.sock control socket
+qa_status: untested
 bug_ids: BUG-20260810-app-control-timeout; BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
 retest_status: blocked-verify
@@ -37,3 +37,6 @@ sessions, or transcripts. The archive may contain only `manifest.json` plus boun
 current-boot `desktop.log` and `desktop-bootstrap.jsonl` tails. The isolated macOS walk passed live
 and offline diagnose, consent, allowlist, permissions, stale-socket, and no-clobber legs. The full
 packaged status/open/update matrix and shipping OS coverage remain blocked for artifact verification.
+
+QA impact 2026-08-16: `compozy app update` was deleted, app state moved to schema v2, and the
+runtime/app operation moved to `compozy update`. Reset for the task_07 headless walk.

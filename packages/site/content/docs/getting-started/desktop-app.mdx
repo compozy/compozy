@@ -83,12 +83,11 @@ App and runtime updates are separate:
 - **App-owned runtime update:** the app verifies and installs the runtime, then restarts the process it owns.
 - **Operator-managed runtime:** the app reports the detected install method and the exact update command. It does not replace that binary.
 
-Check or apply updates from a terminal:
+Check or apply runtime and app updates from a terminal:
 
 ```bash
-compozy app update --check -o json
-compozy app update --apply app
-compozy app update --apply runtime
+compozy update --check -o json
+compozy update -o json
 ```
 
 ## Recovery required

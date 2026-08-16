@@ -861,6 +861,9 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 
 	var payload contract.StatusPayload
 	decodeJSON(t, resp.Body.Bytes(), &payload)
+	if payload.Daemon.MinAppVersion == "" {
+		t.Fatal("daemon.min_app_version is empty")
+	}
 	if payload.Health.Persistence.Status != "degraded" ||
 		payload.Health.Persistence.GlobalDBSizeBytes != 4096 ||
 		payload.Health.Persistence.SessionDBSizeBytes != 2048 {

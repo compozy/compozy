@@ -1,6 +1,7 @@
 package update
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,10 +13,33 @@ import (
 	"testing"
 	"testing/iotest"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	goselfupdate "github.com/creativeprojects/go-selfupdate/update"
 )
 
 func TestManagerApplyRelease(t *testing.T) {
+	t.Run("Should rewrite desktop provenance to the replacement binary identity", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		binaryPath := filepath.Join(homePaths.BinDir, compozyBinaryName)
+		if err := os.MkdirAll(homePaths.BinDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(bin) error = %v", err)
+		}
+		if err := os.WriteFile(binaryPath, []byte("replacement-runtime"), 0o700); err != nil {
+			t.Fatalf("WriteFile(binary) error = %v", err)
+		}
+		if err := rewriteDesktopProvenance(homePaths, binaryPath); err != nil {
+			t.Fatalf("rewriteDesktopProvenance() error = %v", err)
+		}
+		if !isDesktopAppInstall(homePaths.HomeDir, binaryPath, runtimeOSLinux) {
+			t.Fatal("isDesktopAppInstall() = false after provenance rewrite")
+		}
+	})
+
 	t.Run("Should apply a verified archive and preserve rollback metadata", func(t *testing.T) {
 		t.Parallel()
 
@@ -577,6 +601,7 @@ func TestManagerRestore(t *testing.T) {
 
 type assetFixture struct {
 	archiveBody          []byte
+	compatibilityBody    []byte
 	checksumsBody        []byte
 	bundleBody           []byte
 	archiveStatus        int
@@ -596,8 +621,26 @@ func newReleaseFixtureServer(
 	}
 
 	checksumsBody := fixture.checksumsBody
+	compatibilityBody := fixture.compatibilityBody
+	if len(compatibilityBody) == 0 {
+		compatibilityBody = []byte(`{"runtime_version":"v1.1.0","min_app_version":"v1.0.0"}`)
+	}
 	if len(checksumsBody) == 0 {
-		checksumsBody = fmt.Appendf(nil, "%s  %s\n", sha256Hex(fixture.archiveBody), archiveName)
+		checksumsBody = fmt.Appendf(
+			nil,
+			"%s  %s\n%s  %s\n",
+			sha256Hex(fixture.archiveBody),
+			archiveName,
+			sha256Hex(compatibilityBody),
+			compatibilityAssetName,
+		)
+	} else if !bytes.Contains(checksumsBody, []byte(compatibilityAssetName)) {
+		checksumsBody = fmt.Appendf(
+			checksumsBody,
+			"%s  %s\n",
+			sha256Hex(compatibilityBody),
+			compatibilityAssetName,
+		)
 	}
 
 	server := newReleaseAssetServer(t, map[string]assetResponse{
@@ -612,6 +655,9 @@ func newReleaseFixtureServer(
 		"/checksums.txt.sigstore.json": {
 			body: fixture.bundleBody,
 		},
+		"/compat.json": {
+			body: compatibilityBody,
+		},
 	})
 
 	release := &Release{
@@ -621,6 +667,7 @@ func newReleaseFixtureServer(
 			{Name: archiveName, DownloadURL: server.URL + "/archive"},
 			{Name: checksumsAssetName, DownloadURL: server.URL + "/checksums.txt"},
 			{Name: checksumsBundleAssetName, DownloadURL: server.URL + "/checksums.txt.sigstore.json"},
+			{Name: compatibilityAssetName, DownloadURL: server.URL + "/compat.json"},
 		},
 	}
 	return release, archiveName, server

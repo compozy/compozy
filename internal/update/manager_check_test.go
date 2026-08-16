@@ -91,6 +91,7 @@ func TestManagerCheck(t *testing.T) {
 							Name:               checksumsBundleAssetName,
 							BrowserDownloadURL: "https://downloads.example/checksums.txt.sigstore.json",
 						},
+						{Name: compatibilityAssetName, BrowserDownloadURL: "https://downloads.example/compat.json"},
 					},
 				}), nil
 			}),
@@ -388,11 +389,6 @@ func TestManagerCheck(t *testing.T) {
 			want   string
 		}{
 			{
-				name:   "Should route desktop-owned installs through the app",
-				method: InstallMethodDesktopApp,
-				want:   "Update via the CompozyOS desktop app.",
-			},
-			{
 				name:   "Should recommend npm global update for npm installs",
 				method: InstallMethodNPM,
 				want:   "npm update -g @compozy/cli",
@@ -413,13 +409,27 @@ func TestManagerCheck(t *testing.T) {
 					&Release{Version: "v1.1.0"},
 					nil,
 				)
-				if state.Status != StatusDeferred || !state.Managed {
+				if state.Status != StatusAvailable || !state.Managed {
 					t.Fatalf("state = %#v, want deferred managed update", state)
 				}
 				if !strings.Contains(state.Recommendation, tc.want) {
 					t.Fatalf("state.Recommendation = %q, want %q", state.Recommendation, tc.want)
 				}
 			})
+		}
+	})
+
+	t.Run("Should self-apply a desktop-owned runtime", func(t *testing.T) {
+		t.Parallel()
+
+		manager, _ := newManagerWithExecutable(t, Config{})
+		state := manager.composeState(
+			installInfo{Method: string(InstallMethodDesktopApp)},
+			&Release{Version: "v1.1.0"},
+			nil,
+		)
+		if !state.Supported || state.Managed || state.Status != StatusAvailable || state.Recommendation != "Run `compozy update`." {
+			t.Fatalf("desktop state = %#v, want supported self-apply", state)
 		}
 	})
 
@@ -460,7 +470,7 @@ func TestManagerCheck(t *testing.T) {
 					&Release{Version: "v0.3.0-beta.2"},
 					nil,
 				)
-				if state.Status != StatusDeferred || !state.Managed {
+				if state.Status != StatusAvailable || !state.Managed {
 					t.Fatalf("state = %#v, want deferred managed beta update", state)
 				}
 				if !strings.Contains(state.Recommendation, tc.want) {
