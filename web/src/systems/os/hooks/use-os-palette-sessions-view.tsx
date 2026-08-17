@@ -46,6 +46,9 @@ export function useOsPaletteSessionsView({
   onDismiss,
 }: PaletteViewControllerInput): PaletteViewContent {
   const [filterId, setFilterId] = useState<PaletteSessionFilterId>("all");
+  // Transient, like the sidebar's: the archive is a way of looking right now,
+  // not a preference worth round-tripping through config.
+  const [archived, setArchived] = useState(false);
   const preferences = useSessionListPreferences();
   const { workspaces, runtimeWorkspaceId } = useActiveWorkspace();
   const jumpToSession = useAttentionJump();
@@ -57,11 +60,17 @@ export function useOsPaletteSessionsView({
     // rather than the first page: a chip that counted one page would promise
     // sessions the list could never show.
     loadAll: true,
-    filters: { include_health: true, limit: 100, sort },
+    filters: {
+      include_health: true,
+      limit: 100,
+      sort,
+      ...(archived ? { archive: "only" as const } : {}),
+    },
   });
   const groups = useWorkspaceSessionGroups({
     workspaces,
     sort: preferences.sort,
+    archived,
     enabled: allWorkspaces,
   });
 
@@ -109,14 +118,16 @@ export function useOsPaletteSessionsView({
         filterId={filterId}
         counts={counts}
         allWorkspaces={allWorkspaces}
+        archived={archived}
         scopeBusy={preferences.saving}
         onFilterChange={setFilterId}
-        onAllWorkspacesChange={next => preferences.setScope(next ? "all-workspaces" : "all")}
+        onAllWorkspacesChange={next => preferences.setScope(next ? "all-workspaces" : "workspace")}
+        onArchivedChange={setArchived}
       />
     ),
     empty: (
-      <OsPaletteViewNote>
-        {emptySessionsMessage({ loading, query, filterId, allWorkspaces })}
+      <OsPaletteViewNote placement="empty">
+        {emptySessionsMessage({ loading, query, filterId, allWorkspaces, archived })}
       </OsPaletteViewNote>
     ),
     note:
@@ -131,7 +142,7 @@ export function useOsPaletteSessionsView({
         </OsPaletteViewNote>
       ),
     backHint: filterId === "all" ? "back" : "clear filter",
-    resetKey: `${filterId}:${allWorkspaces ? "all-workspaces" : "workspace"}`,
+    resetKey: `${filterId}:${allWorkspaces ? "all-workspaces" : "workspace"}:${archived}`,
     onEmptyQueryBackspace: () => {
       if (filterId === "all") return false;
       setFilterId("all");
@@ -145,9 +156,11 @@ function emptySessionsMessage(input: {
   query: string;
   filterId: PaletteSessionFilterId;
   allWorkspaces: boolean;
+  archived: boolean;
 }): string {
   if (input.loading) return "Loading sessions…";
   if (input.query.trim() !== "") return `No sessions match “${input.query.trim()}”.`;
+  if (input.filterId === "all" && input.archived) return "No archived sessions yet.";
   if (input.filterId === "all" && input.allWorkspaces) return "No sessions across workspaces yet.";
   return paletteSessionFilter(input.filterId).emptyMessage;
 }

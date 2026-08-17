@@ -18,7 +18,7 @@ flowchart TD
     FOLD --> CHOOSE
     QUIET --> CHOOSE
     CHOOSE -->|bell row, toast, or system notification| JUMP[Activate the named session]
-    CHOOSE -->|Sessions catalog| LIST[Choose Recent, All, or All workspaces and optional Attention first sort]
+    CHOOSE -->|Sessions catalog| LIST[Toggle the All workspaces globe and optional Attention first sort]
     LIST --> JUMP
     JUMP -->|foreign workspace| SWITCH[Switch workspace after the runtime barrier]
     JUMP -->|current workspace| LAND[Focus or open the session window]

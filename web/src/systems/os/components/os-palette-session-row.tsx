@@ -30,7 +30,7 @@ export function OsPaletteSessionRow({ session, workspaceLabel }: OsPaletteSessio
   return (
     <>
       <SessionBadgeGlyph badge={session.badge} />
-      <span className="flex min-w-0 flex-col gap-px">
+      <span className="flex min-w-0 flex-col gap-1">
         <span className="truncate text-small-body font-medium text-fg-strong">
           {getSessionDisplayTitle(session)}
         </span>

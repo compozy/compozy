@@ -11,7 +11,6 @@ export interface SessionListTree {
 
 export interface VisibleSessionOrderOptions {
   scope: SessionListScope;
-  collapsedAgentIds: ReadonlySet<string>;
   collapsedThreadIds: ReadonlySet<string>;
   collapsedWorkspaceIds: ReadonlySet<string>;
   workspaceGroups: ReadonlyArray<{
@@ -19,8 +18,6 @@ export interface VisibleSessionOrderOptions {
     sessions: readonly SessionPayload[];
   }>;
 }
-
-const RECENT_THREAD_LIMIT = 6;
 
 /**
  * Projects the same unfiltered row order the shared session catalog renders.
@@ -38,30 +35,12 @@ export function visibleSessionOrder(
   }
 
   const tree = buildSessionTree(sessions);
-  const roots = options.scope === "recent" ? tree.roots.slice(0, RECENT_THREAD_LIMIT) : tree.roots;
-  const orderedRoots =
-    options.scope === "all"
-      ? [...groupRootsByAgent(roots).entries()].flatMap(([agentName, agentRoots]) =>
-          options.collapsedAgentIds.has(agentName) ? [] : agentRoots
-        )
-      : roots;
-
-  return orderedRoots.flatMap(root => [
+  return tree.roots.flatMap(root => [
     root,
     ...(options.collapsedThreadIds.has(root.id)
       ? []
       : collectThreadSessions(root.id, tree.childrenByParent)),
   ]);
-}
-
-function groupRootsByAgent(roots: readonly SessionPayload[]): Map<string, SessionPayload[]> {
-  const groups = new Map<string, SessionPayload[]>();
-  for (const root of roots) {
-    const current = groups.get(root.agent_name);
-    if (current) current.push(root);
-    else groups.set(root.agent_name, [root]);
-  }
-  return groups;
 }
 
 /**

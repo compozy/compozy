@@ -170,8 +170,8 @@ is always on and is not a config key.
 ## Shell Session Preferences
 
 `shell.sessions.sort` persists the session list order and accepts `last_activity` (default) or
-`attention`. `shell.sessions.scope` persists the list breadth and accepts `recent` (default), `all`,
-or `all-workspaces`. Both keys are global, apply live, and survive browser restarts in
+`attention`. `shell.sessions.scope` persists the list breadth and accepts `workspace` (default) or
+`all-workspaces`. Both keys are global, apply live, and survive browser restarts in
 `$COMPOZY_HOME/config.toml`; workspace-scoped writes are rejected, and browser-local storage is not
 authoritative.
 

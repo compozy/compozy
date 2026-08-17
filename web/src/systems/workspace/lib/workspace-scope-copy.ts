@@ -7,7 +7,6 @@ export const GLOBAL_SCOPE_COPY = {
   tooltipPickWorkspace: "Pick a workspace to scope down",
   liveOn: "Global scope on",
   liveOff: "Global scope off",
-  menuNotice: "Global scope is on — picking a workspace turns it off.",
   rememberedWorkspaceRemoved:
     "The remembered workspace was removed — pick a workspace to leave Global scope",
   paletteToggleOn: "Turn on Global scope",

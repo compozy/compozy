@@ -10,7 +10,7 @@
  */
 
 export const SESSION_LIST_SORTS = ["last_activity", "attention"] as const;
-export const SESSION_LIST_SCOPES = ["recent", "all", "all-workspaces"] as const;
+export const SESSION_LIST_SCOPES = ["workspace", "all-workspaces"] as const;
 
 export type SessionListSort = (typeof SESSION_LIST_SORTS)[number];
 export type SessionListScope = (typeof SESSION_LIST_SCOPES)[number];
@@ -20,10 +20,10 @@ export interface SessionListPreferences {
   scope: SessionListScope;
 }
 
-/** Calm defaults: last activity, this workspace's recent work. */
+/** Calm defaults: last activity, this workspace's own sessions. */
 export const DEFAULT_SESSION_LIST_PREFERENCES: SessionListPreferences = {
   sort: "last_activity",
-  scope: "recent",
+  scope: "workspace",
 };
 
 const SORTS: ReadonlySet<string> = new Set(SESSION_LIST_SORTS);

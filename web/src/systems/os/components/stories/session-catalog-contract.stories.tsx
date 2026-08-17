@@ -68,11 +68,13 @@ function SessionCatalogContract({ state }: { state: CatalogState }) {
     },
   ];
   const view: SessionListViewModel = {
-    scope: allWorkspaces ? "all-workspaces" : "recent",
+    scope: allWorkspaces ? "all-workspaces" : "workspace",
     sort: "attention",
+    archived: false,
     saving: false,
     setScope: fn(),
     setSort: fn(),
+    setArchived: fn(),
     workspaceGroups,
     collapsedWorkspaceIds: state === "group-collapsed" ? new Set(["workspace-infra"]) : new Set(),
     toggleWorkspace: fn(),
@@ -82,12 +84,11 @@ function SessionCatalogContract({ state }: { state: CatalogState }) {
       <SessionList
         sessions={allWorkspaces ? [] : workspaceGroups.flatMap(group => group.sessions)}
         disconnected={false}
-        collapsedAgentIds={[]}
         collapsedThreadIds={[]}
         view={view}
-        onToggleGroup={fn()}
         onToggleThread={fn()}
         onSelectSession={fn()}
+        onNewSession={fn()}
         sessionActions={ACTIONS}
         testIdPrefix="contract-catalog"
       />

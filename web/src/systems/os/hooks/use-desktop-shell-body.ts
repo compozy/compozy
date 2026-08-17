@@ -115,7 +115,11 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const worktreesByWorkspace = useWorktreeListings(model.workspaces, {
     enabled: overlays.activeOverlay === "workspace-menu" || overlays.activeOverlay === "workspaces",
   });
-  const attention = useOsAttention(model.runtimeWorkspace, model.sessionCatalogStreamStatus);
+  const attention = useOsAttention(
+    model.runtimeWorkspace,
+    model.sessionCatalogStreamStatus,
+    options.sessionListView.archived
+  );
   const jumpToSession = useAttentionJump();
   useDocumentTitleBadge(attention.notificationCount);
   useAttentionNotifier({
@@ -148,7 +152,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
         state.client !== null &&
         state.hydration === "live" &&
         state.connectionStatus === "connected",
-      collapsedAgentIds: state.railCollapsedAgentIds,
     }),
     shallowEqual
   );
@@ -172,7 +175,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
         const state = manager.getState();
         const visibleSessions = visibleSessionOrder(attention.sessions, {
           scope: options.sessionListView.scope,
-          collapsedAgentIds: new Set(pager.collapsedAgentIds),
           collapsedThreadIds: new Set(collapsedThreadIds),
           collapsedWorkspaceIds: options.sessionListView.collapsedWorkspaceIds,
           workspaceGroups: options.sessionListView.workspaceGroups,

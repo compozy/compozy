@@ -83,7 +83,6 @@ function desktopState(
     windows,
     activeDesktopId: "desktop:one",
     focusedId,
-    railCollapsedAgentIds: [],
     wallpaper: "ember",
     reduceMotion: false,
     dockMagnify: true,

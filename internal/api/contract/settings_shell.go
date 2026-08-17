@@ -12,8 +12,7 @@ const (
 type SettingsShellSessionScope string
 
 const (
-	SettingsShellSessionScopeRecent        SettingsShellSessionScope = "recent"
-	SettingsShellSessionScopeAll           SettingsShellSessionScope = "all"
+	SettingsShellSessionScopeWorkspace     SettingsShellSessionScope = "workspace"
 	SettingsShellSessionScopeAllWorkspaces SettingsShellSessionScope = "all-workspaces"
 )
 

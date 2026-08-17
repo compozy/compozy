@@ -129,26 +129,25 @@ describe("collectThreadSessions", () => {
 });
 
 describe("visibleSessionOrder", () => {
-  it("Should match recent, grouped, and all-workspace visible row order [UT-065]", () => {
+  it("Should match workspace and all-workspace visible row order [UT-065]", () => {
     const rootA = treeSession("sess-a");
     const childA = treeSession("sess-a-child", { parent: "sess-a" });
     const rootB = { ...treeSession("sess-b"), agent_name: "reviewer" };
     const base = {
-      collapsedAgentIds: new Set<string>(),
       collapsedThreadIds: new Set<string>(),
       collapsedWorkspaceIds: new Set<string>(),
       workspaceGroups: [],
     };
 
     expect(
-      visibleSessionOrder([rootA, childA, rootB], { ...base, scope: "recent" }).map(
+      visibleSessionOrder([rootA, childA, rootB], { ...base, scope: "workspace" }).map(
         session => session.id
       )
     ).toEqual(["sess-a", "sess-a-child", "sess-b"]);
     expect(
       visibleSessionOrder([rootA, childA, rootB], {
         ...base,
-        scope: "all",
+        scope: "workspace",
         collapsedThreadIds: new Set(["sess-a"]),
       }).map(session => session.id)
     ).toEqual(["sess-a", "sess-b"]);

@@ -49,6 +49,13 @@ export type {
   SessionListScope,
   SessionListSort,
 } from "./lib/session-list-preferences";
+export { SESSION_ARCHIVED_COPY, SESSION_SCOPE_COPY } from "./lib/session-toolbar-copy";
+export {
+  SessionArchivedToggle,
+  SessionScopeToggle,
+  type SessionArchivedToggleProps,
+  type SessionScopeToggleProps,
+} from "./components/session-list/session-toolbar-toggles";
 export {
   acquireSessionPresence,
   releaseSessionPresence,

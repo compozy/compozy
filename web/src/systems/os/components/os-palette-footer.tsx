@@ -26,6 +26,7 @@ export interface OsPaletteFooterProps {
   backHint?: string;
   /** True when the active view renders filter controls ⇥ can reach. */
   hasFilters?: boolean;
+  className?: string;
 }
 
 /**
@@ -36,11 +37,19 @@ export interface OsPaletteFooterProps {
  * operator to discover that backspace does something other than delete. Each
  * hint is rendered only where it is true.
  */
-export function OsPaletteFooter({ enterHint, backHint, hasFilters }: OsPaletteFooterProps) {
+export function OsPaletteFooter({
+  enterHint,
+  backHint,
+  hasFilters,
+  className,
+}: OsPaletteFooterProps) {
   return (
     <div
       data-testid="os-palette-footer"
-      className="flex items-center gap-3 border-t border-line px-3 py-1.5 text-micro text-subtle"
+      className={cn(
+        "flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line px-3.5 py-2.5 text-micro text-subtle",
+        className
+      )}
     >
       <Hint keys="↑↓">move</Hint>
       <Hint keys="⏎">{enterHint}</Hint>

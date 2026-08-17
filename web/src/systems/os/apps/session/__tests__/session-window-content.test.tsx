@@ -46,12 +46,10 @@ vi.mock("../use-session-window-controller", () => ({
     renameDialog: { open: false },
     sessionVault: { data: [], error: null, isLoading: false },
     sidebar: {
-      collapsedAgentIds: [],
       collapsedThreadIds: [],
       disconnected: false,
       onNewSession: vi.fn(),
       onSelectSession: mocks.selectSession,
-      onToggleGroup: vi.fn(),
       onToggleThread: vi.fn(),
       open: false,
       rowDeleteDialog: { open: false },

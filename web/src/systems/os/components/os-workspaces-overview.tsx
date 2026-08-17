@@ -280,14 +280,6 @@ function OsWorkspacesStage({
         >
           {subtitleFor(tree.length, totalWorktrees)}
         </DialogDescription>
-        {!empty && scope === "global" ? (
-          <p
-            data-testid="os-workspaces-notice"
-            className="-mt-1.5 mb-3.5 max-w-workspaces-notice text-center text-form-label text-muted"
-          >
-            Global scope is on — picking a workspace turns it off.
-          </p>
-        ) : null}
         {empty ? (
           <div
             data-slot="os-workspaces-strip"

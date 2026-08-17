@@ -14,8 +14,8 @@ func TestShellConfig(t *testing.T) {
 		t.Parallel()
 
 		got := DefaultShellConfig()
-		if got.Sessions.Sort != ShellSessionSortLastActivity || got.Sessions.Scope != ShellSessionScopeRecent {
-			t.Fatalf("DefaultShellConfig() = %#v, want last_activity/recent", got)
+		if got.Sessions.Sort != ShellSessionSortLastActivity || got.Sessions.Scope != ShellSessionScopeWorkspace {
+			t.Fatalf("DefaultShellConfig() = %#v, want last_activity/workspace", got)
 		}
 		if err := got.Validate(); err != nil {
 			t.Fatalf("Validate(defaults) error = %v", err)
@@ -30,14 +30,15 @@ func TestShellConfig(t *testing.T) {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 		}
 		cfg := DefaultWithHome(homePaths)
-		cfg.Shell.Sessions.Scope = ShellSessionScopeAll
+		cfg.Shell.Sessions.Scope = ShellSessionScopeAllWorkspaces
 		overlayPath := filepath.Join(t.TempDir(), "overlay.toml")
 		writeFile(t, overlayPath, "[shell.sessions]\nsort = \"attention\"\n")
 		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Shell.Sessions.Sort != ShellSessionSortAttention || cfg.Shell.Sessions.Scope != ShellSessionScopeAll {
-			t.Fatalf("Shell after overlay = %#v, want attention/all", cfg.Shell)
+		if cfg.Shell.Sessions.Sort != ShellSessionSortAttention ||
+			cfg.Shell.Sessions.Scope != ShellSessionScopeAllWorkspaces {
+			t.Fatalf("Shell after overlay = %#v, want attention/all-workspaces", cfg.Shell)
 		}
 	})
 
@@ -52,7 +53,7 @@ func TestShellConfig(t *testing.T) {
 			{
 				name: "Should reject an unsupported sort",
 				cfg: ShellConfig{Sessions: ShellSessionsConfig{
-					Sort: "priority", Scope: ShellSessionScopeRecent,
+					Sort: "priority", Scope: ShellSessionScopeWorkspace,
 				}},
 				path: shellSessionsSortPath,
 			},

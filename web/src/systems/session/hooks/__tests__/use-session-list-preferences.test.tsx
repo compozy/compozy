@@ -11,7 +11,7 @@ const { mutation, query } = vi.hoisted(() => ({
   mutation: { isPending: false, mutate: vi.fn() },
   query: {
     data: {
-      config: { sessions: { sort: "last_activity", scope: "recent" } },
+      config: { sessions: { sort: "last_activity", scope: "workspace" } },
     },
     isLoading: false,
   },
@@ -48,7 +48,7 @@ describe("useSessionListPreferences", () => {
 
     expect(mutation.mutate).toHaveBeenCalledTimes(1);
     expect(mutation.mutate).toHaveBeenCalledWith(
-      { config: { sessions: { sort: "attention", scope: "recent" } } },
+      { config: { sessions: { sort: "attention", scope: "workspace" } } },
       expect.objectContaining({ onSettled: expect.any(Function) })
     );
   });

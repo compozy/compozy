@@ -291,7 +291,7 @@ test.describe("E2E-013 Settings → Attention", () => {
   });
 });
 
-test.describe("E2E-014 tri-state Show all", () => {
+test.describe("E2E-014 All workspaces breadth", () => {
   test("Should widen to every workspace, grouped and labelled", async ({
     appPage: page,
     runtime,
@@ -303,7 +303,7 @@ test.describe("E2E-014 tri-state Show all", () => {
     await reloadShell(page);
 
     const modal = await openSessionsModal(page);
-    await modal.getByTestId("os-sessions-modal-scope-all-workspaces").click();
+    await modal.getByTestId("os-sessions-modal-scope").click();
     await expect(modal.getByTestId(`os-sessions-modal-workspace-${first.id}`)).toBeVisible();
     await expect(modal.getByTestId(`os-sessions-modal-workspace-${second.id}`)).toBeVisible();
   });
@@ -320,7 +320,7 @@ test.describe("E2E-014 tri-state Show all", () => {
     await failWorkspaceSessionCatalog(page, project.id);
 
     const modal = await openSessionsModal(page);
-    await modal.getByTestId("os-sessions-modal-scope-all-workspaces").click();
+    await modal.getByTestId("os-sessions-modal-scope").click();
     await expect(modal.getByText("Couldn’t load sessions")).toBeVisible();
     await expect(
       modal.getByTestId(`os-sessions-modal-workspace-${project.id}-retry`)
@@ -328,19 +328,26 @@ test.describe("E2E-014 tri-state Show all", () => {
     await expect(modal.getByTestId(`os-sessions-modal-workspace-${healthy.id}`)).toBeVisible();
   });
 
-  test("Should persist the scope across a reload", async ({ appPage: page }) => {
+  test("Should persist the breadth across a reload", async ({ appPage: page }) => {
     let modal = await openSessionsModal(page);
-    await modal.getByTestId("os-sessions-modal-scope-all").click();
-    await expect(modal.getByTestId("os-sessions-modal-scope-all")).toHaveAttribute(
-      "data-active",
+    await modal.getByTestId("os-sessions-modal-scope").click();
+    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
+      "aria-pressed",
       "true"
     );
     await reloadShell(page);
 
     modal = await openSessionsModal(page);
-    await expect(modal.getByTestId("os-sessions-modal-scope-all")).toHaveAttribute(
-      "data-active",
+    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
+      "aria-pressed",
       "true"
+    );
+    // Narrow again so the daemon-persisted breadth returns to its default for
+    // the suites that follow.
+    await modal.getByTestId("os-sessions-modal-scope").click();
+    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
+      "aria-pressed",
+      "false"
     );
   });
 });
@@ -355,7 +362,6 @@ test.describe("E2E-015 sidebar badges and sort", () => {
     const done = await createDoneSession(runtime, workspace);
 
     const modal = await openSessionsModal(page);
-    await modal.getByTestId("os-sessions-modal-scope-all").click();
     await expect(
       modal.getByTestId(`os-sessions-modal-session-${failed.id}`).getByRole("img")
     ).toHaveAttribute("aria-label", "Session badge: failed");
@@ -373,7 +379,6 @@ test.describe("E2E-015 sidebar badges and sort", () => {
     const failed = await createFailedSession(runtime, workspace);
 
     const modal = await openSessionsModal(page);
-    await modal.getByTestId("os-sessions-modal-scope-all").click();
     await modal.getByTestId("os-sessions-modal-sort-trigger").click();
     await page.getByTestId("os-sessions-modal-sort-attention").click();
 

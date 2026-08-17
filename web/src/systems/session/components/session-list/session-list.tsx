@@ -7,8 +7,6 @@ import { buildSessionTree, filterThreadSessions } from "../../lib/session-hierar
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
-import { SessionListArchived } from "./session-list-archived";
-import { SessionListGroup } from "./session-list-group";
 import { SessionListThread } from "./session-list-thread";
 import { SessionListToolbar } from "./session-list-toolbar";
 import { SessionListWorkspaceGroups } from "./session-list-workspace-groups";
@@ -18,56 +16,46 @@ interface SessionThreadModel {
   childSessions: SessionPayload[];
 }
 
-const RECENT_THREAD_LIMIT = 6;
-
 export interface SessionListProps {
   sessions: readonly SessionPayload[];
-  archivedSessions?: readonly SessionPayload[];
-  archivedTotal?: number;
   disconnected: boolean;
-  collapsedAgentIds: readonly string[];
   collapsedThreadIds: readonly string[];
   currentSessionId?: string;
-  /** Scope, order, and the widened per-workspace groups. */
+  /** Breadth, order, and the widened per-workspace groups. */
   view: SessionListViewModel;
-  onToggleGroup: (agentName: string) => void;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
+  onNewSession: () => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   /** Rendered above the controls (the modal's eyebrow + close chrome). */
   header?: (visibleCount: number) => React.ReactNode;
-  /** Rendered under the list (the sidebar's new-session action). */
-  footer?: React.ReactNode;
 }
 
 /**
- * Shared sessions catalog body: a tri-state scope over provenance threads.
+ * Shared sessions catalog body: this workspace, or every workspace.
  *
- * `Recent` and `All` stay inside the active workspace; `All workspaces` widens
- * to every workspace, grouped and labelled, so no workspace can stall
- * unnoticed. Ordering is served by the daemon for the operator's chosen sort —
- * this component renders the order it receives rather than re-deciding it.
+ * The narrow breadth lists the active workspace's complete catalog as
+ * provenance threads; `All workspaces` widens to every workspace, grouped and
+ * labelled, so no workspace can stall unnoticed. Ordering is served by the
+ * daemon for the operator's chosen sort — this component renders the order it
+ * receives rather than re-deciding it.
  *
  * A matching descendant keeps its full ancestor path visible, so a thread never
  * renders detached from its root.
  */
 export function SessionList({
   sessions,
-  archivedSessions = [],
-  archivedTotal,
   disconnected,
-  collapsedAgentIds,
   collapsedThreadIds,
   currentSessionId,
   view,
-  onToggleGroup,
   onToggleThread,
   onSelectSession,
+  onNewSession,
   sessionActions,
   testIdPrefix,
   header,
-  footer,
 }: SessionListProps) {
   const [filter, setFilter] = useState("");
   const normalizedFilter = filter.trim().toLocaleLowerCase();
@@ -90,42 +78,29 @@ export function SessionList({
     (count, thread) => count + 1 + thread.childSessions.length,
     0
   );
-  const filteredArchived = archivedSessions.filter(matchesFilter);
-  const filteredArchivedTotal = normalizedFilter === "" ? archivedTotal : undefined;
-  const byAgent = new Map<string, SessionThreadModel[]>();
-  for (const thread of threads) {
-    const current = byAgent.get(thread.session.agent_name) ?? [];
-    current.push(thread);
-    byAgent.set(thread.session.agent_name, current);
-  }
-  const collapsedAgents = new Set(collapsedAgentIds);
   const collapsedThreads = new Set(collapsedThreadIds);
-
-  const renderThread = (thread: SessionThreadModel) => (
-    <SessionListThread
-      key={thread.session.id}
-      session={thread.session}
-      childSessions={thread.childSessions}
-      currentSessionId={currentSessionId}
-      collapsed={collapsedThreads.has(thread.session.id)}
-      onToggleThread={onToggleThread}
-      onSelectSession={onSelectSession}
-      sessionActions={sessionActions}
-      testIdPrefix={testIdPrefix}
-    />
-  );
-
-  const visibleThreads = view.scope === "recent" ? threads.slice(0, RECENT_THREAD_LIMIT) : threads;
+  const allWorkspaces = view.scope === "all-workspaces";
+  // Say what is actually empty: an archived list with no rows is not the same
+  // claim as an active list with no rows.
+  const emptyMessage =
+    normalizedFilter !== ""
+      ? "No sessions match."
+      : view.archived
+        ? "No archived sessions."
+        : "No sessions yet.";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={`${testIdPrefix}-content`}>
       {header?.(visibleCount)}
       <SessionListToolbar
-        scope={view.scope}
+        allWorkspaces={allWorkspaces}
+        archived={view.archived}
         sort={view.sort}
         disabled={view.saving}
-        onScopeChange={view.setScope}
+        onAllWorkspacesChange={next => view.setScope(next ? "all-workspaces" : "workspace")}
+        onArchivedChange={view.setArchived}
         onSortChange={view.setSort}
+        onNewSession={onNewSession}
         testIdPrefix={testIdPrefix}
       />
       <div className="px-3 pb-1.5">
@@ -149,7 +124,7 @@ export function SessionList({
         className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
         data-scope={view.scope}
       >
-        {view.scope === "all-workspaces" ? (
+        {allWorkspaces ? (
           <SessionListWorkspaceGroups
             groups={view.workspaceGroups}
             collapsedWorkspaceIds={view.collapsedWorkspaceIds}
@@ -159,47 +134,26 @@ export function SessionList({
             sessionActions={sessionActions}
             testIdPrefix={testIdPrefix}
           />
-        ) : view.scope === "all" ? (
+        ) : (
           <>
-            {[...byAgent.entries()].map(([agentName, agentThreads]) => (
-              <SessionListGroup
-                key={agentName}
-                agentName={agentName}
-                threads={agentThreads}
-                collapsed={collapsedAgents.has(agentName)}
-                collapsedThreadIds={collapsedThreads}
+            {threads.map(thread => (
+              <SessionListThread
+                key={thread.session.id}
+                session={thread.session}
+                childSessions={thread.childSessions}
                 currentSessionId={currentSessionId}
-                onToggleGroup={onToggleGroup}
+                collapsed={collapsedThreads.has(thread.session.id)}
                 onToggleThread={onToggleThread}
                 onSelectSession={onSelectSession}
                 sessionActions={sessionActions}
                 testIdPrefix={testIdPrefix}
               />
             ))}
-            {byAgent.size === 0 ? (
-              <p className="px-3 py-8 text-center text-small-body text-muted">No sessions match.</p>
-            ) : null}
-          </>
-        ) : (
-          <>
-            {visibleThreads.map(renderThread)}
             {threads.length === 0 ? (
-              <p className="px-3 py-8 text-center text-small-body text-muted">No sessions match.</p>
+              <p className="px-3 py-8 text-center text-small-body text-muted">{emptyMessage}</p>
             ) : null}
           </>
         )}
-      </div>
-      <div className="shrink-0">
-        {view.scope === "recent" ? (
-          <SessionListArchived
-            sessions={filteredArchived}
-            total={filteredArchivedTotal}
-            onSelectSession={onSelectSession}
-            sessionActions={sessionActions}
-            testIdPrefix={testIdPrefix}
-          />
-        ) : null}
-        {footer}
       </div>
     </div>
   );

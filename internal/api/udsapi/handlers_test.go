@@ -873,7 +873,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionShell ||
 					response.Config.Sessions.Sort != contract.SettingsShellSessionSortLastActivity ||
-					response.Config.Sessions.Scope != contract.SettingsShellSessionScopeRecent {
+					response.Config.Sessions.Scope != contract.SettingsShellSessionScopeWorkspace {
 					t.Fatalf("shell response = %#v, want default session preferences", response)
 				}
 				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionShell {

@@ -294,7 +294,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if got, want := envelope.Shell.Config.Sessions.Sort, compozyconfig.ShellSessionSortLastActivity; got != want {
 					t.Fatalf("Shell session sort = %q, want %q", got, want)
 				}
-				if got, want := envelope.Shell.Config.Sessions.Scope, compozyconfig.ShellSessionScopeRecent; got != want {
+				if got, want := envelope.Shell.Config.Sessions.Scope, compozyconfig.ShellSessionScopeWorkspace; got != want {
 					t.Fatalf("Shell session scope = %q, want %q", got, want)
 				}
 			},
@@ -776,7 +776,7 @@ func TestUpdateSectionShell(t *testing.T) {
 		before := readFile(t, homePaths.ConfigFile)
 		service := testService(t, homePaths, Dependencies{})
 		invalid := compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
-			Sort: "priority", Scope: compozyconfig.ShellSessionScopeRecent,
+			Sort: "priority", Scope: compozyconfig.ShellSessionScopeWorkspace,
 		}}
 
 		_, err := service.UpdateSection(ctx, SectionUpdateRequest{

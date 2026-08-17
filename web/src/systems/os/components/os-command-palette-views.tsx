@@ -1,6 +1,6 @@
 import { CornerDownLeft } from "lucide-react";
 
-import { CommandGroup, CommandItem, Icon } from "@compozy/ui";
+import { CommandGroup, CommandItem, CommandShortcut, Icon } from "@compozy/ui";
 
 import { PALETTE_VIEW_LIST, type PaletteViewId } from "../lib/palette-view-registry";
 
@@ -27,10 +27,10 @@ export function OsCommandPaletteViews({ onPushView }: OsCommandPaletteViewsProps
         >
           <Icon as={view.icon} size="sm" className="text-muted" />
           {view.title}
-          <span className="ml-auto flex items-center gap-1 text-micro text-subtle">
+          <CommandShortcut className="flex items-center gap-1">
             view
             <Icon as={CornerDownLeft} size="xs" />
-          </span>
+          </CommandShortcut>
         </CommandItem>
       ))}
     </CommandGroup>

@@ -23,7 +23,7 @@ charter:
     must_try:
       - "Traverse every badge, bell section, task row, workspace group, sort, and channel state by keyboard; the announced name must distinguish input, auth, failure, done, muted, stale, denied, and unavailable."
       - "Open and close the bell and Settings routes with Escape and browser Back; focus must return to a sensible trigger without clearing done early."
-      - "Switch to All workspaces, collapse and retry groups, then land on a foreign session using only the keyboard and confirm the destination receives focus."
+      - "Press the All workspaces globe, collapse and retry workspace groups, then land on a foreign session using only the keyboard and confirm the destination receives focus."
       - "Enable reduced motion and verify attention transitions remain perceivable without animation or color alone."
     must_avoid:
       - "Do not replace the real screen-reader transcript with DOM inspection or treat board color parity as accessibility evidence."

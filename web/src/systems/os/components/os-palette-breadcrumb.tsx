@@ -4,6 +4,7 @@ import { Icon } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
+import { paletteViewLeadClass } from "../lib/palette-view-inset";
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
 
 export interface OsPaletteBreadcrumbProps {
@@ -23,7 +24,10 @@ export function OsPaletteBreadcrumb({ breadcrumb }: OsPaletteBreadcrumbProps) {
     <nav
       aria-label="Palette path"
       data-testid="os-palette-breadcrumb"
-      className="flex items-center gap-1.5 px-3 pt-2 text-micro text-muted"
+      className={cn(
+        "flex items-center gap-1.5 pt-2.5 pb-2 text-micro text-muted",
+        paletteViewLeadClass
+      )}
     >
       <Icon as={CornerUpLeft} size="xs" className="shrink-0 text-subtle" aria-hidden="true" />
       {breadcrumb.truncated ? (

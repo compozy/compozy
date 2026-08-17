@@ -11,8 +11,7 @@ func settingsShellSessionSortValues() []string {
 
 func settingsShellSessionScopeValues() []string {
 	return []string{
-		string(contract.SettingsShellSessionScopeRecent),
-		string(contract.SettingsShellSessionScopeAll),
+		string(contract.SettingsShellSessionScopeWorkspace),
 		string(contract.SettingsShellSessionScopeAllWorkspaces),
 	}
 }

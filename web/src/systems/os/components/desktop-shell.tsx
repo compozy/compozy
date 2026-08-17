@@ -304,11 +304,10 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
         dismissalBlocked={sessionLifecycle.deleteDialog.open || sessionLifecycle.renameDialog.open}
         sessions={attention.sessions}
-        archivedSessions={attention.archivedSessions}
-        archivedTotal={attention.archivedSessionsTotal}
         disconnected={attention.sessionsDisconnected}
         view={sessionListView}
         currentWorkspaceId={model.runtimeWorkspaceId}
+        onNewSession={openNewSession}
         sessionActions={sessionLifecycle.actions}
       />
       {sessionLifecycle.deleteDialog.session ? (

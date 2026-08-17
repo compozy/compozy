@@ -20,8 +20,7 @@ const (
 type ShellSessionScope string
 
 const (
-	ShellSessionScopeRecent        ShellSessionScope = "recent"
-	ShellSessionScopeAll           ShellSessionScope = "all"
+	ShellSessionScopeWorkspace     ShellSessionScope = "workspace"
 	ShellSessionScopeAllWorkspaces ShellSessionScope = "all-workspaces"
 )
 
@@ -40,7 +39,7 @@ type ShellSessionsConfig struct {
 func DefaultShellConfig() ShellConfig {
 	return ShellConfig{Sessions: ShellSessionsConfig{
 		Sort:  ShellSessionSortLastActivity,
-		Scope: ShellSessionScopeRecent,
+		Scope: ShellSessionScopeWorkspace,
 	}}
 }
 
@@ -60,15 +59,14 @@ func (c ShellConfig) Validate() error {
 		)
 	}
 	switch c.Sessions.Scope {
-	case ShellSessionScopeRecent, ShellSessionScopeAll, ShellSessionScopeAllWorkspaces:
+	case ShellSessionScopeWorkspace, ShellSessionScopeAllWorkspaces:
 		return nil
 	default:
 		return shellValidationError(
 			shellSessionsScopePath,
 			fmt.Sprintf(
-				"must be one of %q, %q, or %q: %q",
-				ShellSessionScopeRecent,
-				ShellSessionScopeAll,
+				"must be one of %q or %q: %q",
+				ShellSessionScopeWorkspace,
 				ShellSessionScopeAllWorkspaces,
 				c.Sessions.Scope,
 			),

@@ -10,7 +10,6 @@ import {
   Icon,
 } from "@compozy/ui";
 
-import { useOsSessionsModal } from "../hooks/use-os-sessions-modal";
 import { useAttentionJump } from "../hooks/use-attention-jump";
 import {
   type SessionLifecycleActionHandlers,
@@ -25,12 +24,11 @@ export interface OsSessionsModalProps {
   onOpenChange: (open: boolean) => void;
   dismissalBlocked?: boolean;
   sessions: readonly SessionPayload[];
-  archivedSessions: readonly SessionPayload[];
-  archivedTotal?: number;
   disconnected: boolean;
-  /** Scope, order, and widened workspace groups — owned by the shell, not fetched here. */
+  /** Breadth, order, and widened workspace groups — owned by the shell, not fetched here. */
   view: SessionListViewModel;
   currentWorkspaceId?: string | null;
+  onNewSession: () => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 
@@ -44,14 +42,12 @@ export function OsSessionsModal({
   onOpenChange,
   dismissalBlocked = false,
   sessions,
-  archivedSessions,
-  archivedTotal,
   disconnected,
   view,
   currentWorkspaceId,
+  onNewSession,
   sessionActions,
 }: OsSessionsModalProps) {
-  const { manager, collapsedAgentIds } = useOsSessionsModal();
   const jumpToSession = useAttentionJump();
   const { collapsedThreadIds, toggleThread } = useSessionSidebarState();
 
@@ -83,14 +79,11 @@ export function OsSessionsModal({
         <SessionList
           view={view}
           sessions={sessions}
-          archivedSessions={archivedSessions}
-          archivedTotal={archivedTotal}
           disconnected={disconnected}
-          collapsedAgentIds={collapsedAgentIds}
           collapsedThreadIds={collapsedThreadIds}
-          onToggleGroup={agentName => manager.toggleRailGroup(agentName)}
           onToggleThread={toggleThread}
           onSelectSession={selectSession}
+          onNewSession={onNewSession}
           sessionActions={sessionActions}
           testIdPrefix="os-sessions-modal"
           header={visibleCount => (

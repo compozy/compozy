@@ -147846,8 +147846,7 @@
                           "properties": {
                             "scope": {
                               "enum": [
-                                "recent",
-                                "all",
+                                "workspace",
                                 "all-workspaces"
                               ],
                               "type": "string"
@@ -148006,8 +148005,7 @@
                         "properties": {
                           "scope": {
                             "enum": [
-                              "recent",
-                              "all",
+                              "workspace",
                               "all-workspaces"
                             ],
                             "type": "string"

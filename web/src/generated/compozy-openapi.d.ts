@@ -60831,7 +60831,7 @@ export interface operations {
             config: {
               sessions: {
                 /** @enum {string} */
-                scope: "recent" | "all" | "all-workspaces";
+                scope: "workspace" | "all-workspaces";
                 /** @enum {string} */
                 sort: "last_activity" | "attention";
               };
@@ -60899,7 +60899,7 @@ export interface operations {
           config: {
             sessions: {
               /** @enum {string} */
-              scope: "recent" | "all" | "all-workspaces";
+              scope: "workspace" | "all-workspaces";
               /** @enum {string} */
               sort: "last_activity" | "attention";
             };

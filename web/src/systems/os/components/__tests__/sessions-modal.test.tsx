@@ -67,11 +67,13 @@ const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
 
 function listView(overrides: Partial<SessionListViewModel> = {}): SessionListViewModel {
   return {
-    scope: "recent",
+    scope: "workspace",
     sort: "last_activity",
+    archived: false,
     saving: false,
     setScope: vi.fn(),
     setSort: vi.fn(),
+    setArchived: vi.fn(),
     workspaceGroups: [],
     collapsedWorkspaceIds: new Set<string>(),
     toggleWorkspace: vi.fn(),
@@ -93,9 +95,8 @@ function createShell(): OsShellHandle {
 function renderModal(
   shell: OsShellHandle,
   open = true,
-  archivedSessions: SessionPayload[] = [],
-  archivedTotal?: number,
-  view: SessionListViewModel = listView()
+  view: SessionListViewModel = listView(),
+  onNewSession: () => void = vi.fn()
 ) {
   return render(
     <OsShellContext.Provider value={shell}>
@@ -103,10 +104,9 @@ function renderModal(
         open={open}
         onOpenChange={() => {}}
         sessions={SESSIONS}
-        archivedSessions={archivedSessions}
-        archivedTotal={archivedTotal}
         disconnected={false}
         view={view}
+        onNewSession={onNewSession}
         sessionActions={SESSION_ACTIONS}
       />
     </OsShellContext.Provider>
@@ -130,8 +130,6 @@ describe("OsSessionsModal", () => {
     renderModal(
       createShell(),
       true,
-      [],
-      undefined,
       listView({
         scope: "all-workspaces",
         workspaceGroups: [
@@ -189,9 +187,9 @@ describe("OsSessionsModal", () => {
           open
           onOpenChange={() => {}}
           sessions={[...SESSIONS, child]}
-          archivedSessions={[]}
           disconnected={false}
           view={listView()}
+          onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
       </OsShellContext.Provider>
@@ -269,9 +267,9 @@ describe("OsSessionsModal", () => {
           open
           onOpenChange={() => {}}
           sessions={[...SESSIONS, parent, grandchild]}
-          archivedSessions={[]}
           disconnected={false}
           view={listView()}
+          onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
       </OsShellContext.Provider>
@@ -302,35 +300,40 @@ describe("OsSessionsModal", () => {
     expect(screen.getAllByTestId("os-sessions-modal-session-session-3")).not.toHaveLength(0);
   });
 
-  it("Should retain an agent collapse after the modal remounts (UT-068)", async () => {
+  it("Should write the widest breadth through the globe toggle (UT-068)", async () => {
     const user = userEvent.setup();
     const shell = createShell();
-    // The agent-grouped pane is the `all` scope; scope itself is an operator
-    // preference the shell owns, so it arrives as a prop.
-    const allScope = listView({ scope: "all" });
-    const first = renderModal(shell, true, [], undefined, allScope);
+    // Breadth is an operator preference the shell owns, so it arrives as a prop
+    // and the toggle only reports the next value.
+    const narrow = listView();
+    const first = renderModal(shell, true, narrow);
 
-    const group = screen.getByRole("button", { name: /codex/i, expanded: true });
-    const groupSection = group.closest("section");
-    expect(groupSection).not.toBeNull();
-    const groupedSession = within(groupSection!).getByTestId("os-sessions-modal-session-session-1");
-    expect(groupedSession.closest("[inert]")).toBeNull();
-    await user.click(group);
-    expect(group).toHaveAttribute("aria-expanded", "false");
-    expect(groupedSession.closest("[inert]")).not.toBeNull();
-    expect(shell.manager.getState().railCollapsedAgentIds).toEqual(["codex"]);
+    const toggle = screen.getByTestId("os-sessions-modal-scope");
+    expect(toggle).toHaveAccessibleName("All workspaces");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await user.click(toggle);
+    expect(narrow.setScope).toHaveBeenCalledWith("all-workspaces");
 
     first.unmount();
-    renderModal(shell, true, [], undefined, allScope);
-    const persistedGroup = screen.getByRole("button", { name: /codex/i, expanded: false });
-    expect(persistedGroup).toHaveAttribute("aria-expanded", "false");
-    const persistedSection = persistedGroup.closest("section");
-    expect(persistedSection).not.toBeNull();
-    expect(
-      within(persistedSection!)
-        .getByTestId("os-sessions-modal-session-session-1")
-        .closest("[inert]")
-    ).not.toBeNull();
+    const wide = listView({
+      scope: "all-workspaces",
+      workspaceGroups: [
+        {
+          workspaceId: "workspace-2",
+          workspaceName: "Other",
+          sessions: [SESSIONS[0]!],
+          total: 1,
+          loading: false,
+          failed: false,
+          retry: vi.fn(),
+        },
+      ],
+    });
+    renderModal(shell, true, wide);
+    const pressed = screen.getByTestId("os-sessions-modal-scope");
+    expect(pressed).toHaveAttribute("aria-pressed", "true");
+    await user.click(pressed);
+    expect(wide.setScope).toHaveBeenCalledWith("workspace");
   });
 
   it("Should dismiss the Dialog and restore focus to the opener (UT-084)", async () => {
@@ -348,10 +351,9 @@ describe("OsSessionsModal", () => {
             open={open}
             onOpenChange={setOpen}
             sessions={SESSIONS}
-            archivedSessions={[]}
-            archivedTotal={0}
             disconnected={false}
             view={listView()}
+            onNewSession={vi.fn()}
             sessionActions={SESSION_ACTIONS}
           />
         </OsShellContext.Provider>
@@ -369,39 +371,62 @@ describe("OsSessionsModal", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("Should reveal archived sessions only on request and offer unarchive", async () => {
+  it("Should switch the list to the archive and keep unarchive reachable", async () => {
     const user = userEvent.setup();
     const shell = createShell();
-    renderModal(
-      shell,
-      true,
-      [
-        session({
-          id: "session-archived",
-          name: "Archived audit",
-          state: "stopped",
-          badge: "stopped",
-          archived_at: "2026-08-04T12:00:00Z",
-        }),
-      ],
-      4
+    // Breadth and the archive are two independent controls in the same row.
+    const active = listView();
+    const first = renderModal(shell, true, active);
+
+    const archivedToggle = screen.getByTestId("os-sessions-modal-archived");
+    expect(archivedToggle).toHaveAccessibleName("Archived");
+    expect(archivedToggle).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("os-sessions-modal-scope")).toHaveAttribute("aria-pressed", "false");
+    await user.click(archivedToggle);
+    expect(active.setArchived).toHaveBeenCalledWith(true);
+
+    first.unmount();
+    const archivedSession = session({
+      id: "session-archived",
+      name: "Archived audit",
+      state: "stopped",
+      badge: "stopped",
+      archived_at: "2026-08-04T12:00:00Z",
+    });
+    render(
+      <OsShellContext.Provider value={shell}>
+        <OsSessionsModal
+          open
+          onOpenChange={() => {}}
+          sessions={[archivedSession]}
+          disconnected={false}
+          view={listView({ archived: true })}
+          onNewSession={vi.fn()}
+          sessionActions={SESSION_ACTIONS}
+        />
+      </OsShellContext.Provider>
     );
 
-    const archivedDisclosure = screen.getByRole("button", { name: "Archived sessions (4)" });
-    expect(archivedDisclosure).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByTestId("os-sessions-modal-session-session-archived")).toBeNull();
-    // Scope is a tri-state now: Recent, All, and every workspace.
-    expect(screen.getByTestId("os-sessions-modal-scope-recent")).toBeInTheDocument();
-    expect(screen.getByTestId("os-sessions-modal-scope-all")).toBeInTheDocument();
-    expect(screen.getByTestId("os-sessions-modal-scope-all-workspaces")).toBeInTheDocument();
-
-    await user.click(archivedDisclosure);
+    expect(screen.getByTestId("os-sessions-modal-archived")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
     expect(screen.getByTestId("os-sessions-modal-session-session-archived")).toHaveTextContent(
       "Archived"
     );
     fireEvent.click(screen.getByTestId("session-row-actions-session-archived"));
     expect(screen.getByTestId("session-row-unarchive-session-archived")).toBeInTheDocument();
     expect(screen.queryByTestId("session-row-archive-session-archived")).toBeNull();
+  });
+
+  it("Should start a session from the toolbar instead of a footer action", async () => {
+    const user = userEvent.setup();
+    const onNewSession = vi.fn();
+    renderModal(createShell(), true, listView(), onNewSession);
+
+    await user.click(screen.getByTestId("os-sessions-modal-new-session"));
+
+    expect(onNewSession).toHaveBeenCalledOnce();
   });
 
   it("Should keep the catalog open when a row requests delete confirmation", async () => {
@@ -415,10 +440,9 @@ describe("OsSessionsModal", () => {
           open
           onOpenChange={onOpenChange}
           sessions={SESSIONS}
-          archivedSessions={[]}
-          archivedTotal={0}
           disconnected={false}
           view={listView()}
+          onNewSession={vi.fn()}
           sessionActions={{ ...SESSION_ACTIONS, onDelete }}
         />
       </OsShellContext.Provider>
@@ -443,10 +467,9 @@ describe("OsSessionsModal", () => {
           onOpenChange={onOpenChange}
           dismissalBlocked
           sessions={SESSIONS}
-          archivedSessions={[]}
-          archivedTotal={0}
           disconnected={false}
           view={listView()}
+          onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
       </OsShellContext.Provider>

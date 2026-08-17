@@ -137,13 +137,16 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group/command-item relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-small-body text-fg outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-elevated data-selected:text-fg-strong [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-fg-strong",
+        "group/command-item relative flex w-full min-w-0 cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-small-body text-fg outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-elevated data-selected:text-fg-strong [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-fg-strong",
         className
       )}
       {...props}
     >
       {children}
-      <CheckIcon className="ml-auto opacity-0 group-has-data-[slot=command-shortcut]/command-item:hidden group-data-[checked=true]/command-item:opacity-100" />
+      <CheckIcon
+        aria-hidden="true"
+        className="ms-auto hidden group-data-[checked=true]/command-item:block group-has-data-[slot=command-shortcut]/command-item:hidden"
+      />
     </CommandPrimitive.Item>
   );
 }
@@ -152,7 +155,7 @@ function CommandShortcut({ className, ...props }: React.ComponentProps<"span">) 
   return (
     <span
       data-slot="command-shortcut"
-      className={cn("ml-auto font-mono text-badge tracking-mono text-faint", className)}
+      className={cn("ms-auto shrink-0 font-mono text-badge tracking-mono text-faint", className)}
       {...props}
     />
   );

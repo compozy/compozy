@@ -20,6 +20,8 @@ export interface WorkspaceSessionGroup {
 export interface WorkspaceSessionGroupsInput {
   workspaces: ReadonlyArray<{ id: string; name: string }>;
   sort: SessionListSort;
+  /** Read the archive instead of the active catalog. */
+  archived: boolean;
   enabled: boolean;
 }
 
@@ -39,6 +41,7 @@ export interface WorkspaceSessionGroupsInput {
 export function useWorkspaceSessionGroups({
   workspaces,
   sort,
+  archived,
   enabled,
 }: WorkspaceSessionGroupsInput): WorkspaceSessionGroup[] {
   const results = useQueries({
@@ -48,6 +51,7 @@ export function useWorkspaceSessionGroups({
         include_health: true,
         limit: WORKSPACE_GROUP_PAGE_SIZE,
         sort: sessionListSortParam(sort),
+        ...(archived ? { archive: "only" as const } : {}),
       }),
       enabled,
     })),

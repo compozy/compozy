@@ -1,7 +1,7 @@
 import { useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
-import { useOsSessionsModal } from "../../hooks/use-os-sessions-modal";
+import { useOsShell } from "../../hooks/use-os-shell";
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 import {
   type SessionLifecycleActionHandlers,
@@ -20,10 +20,8 @@ export interface SessionWindowSidebarModel {
   toggle: () => void;
   sessions: SessionPayload[];
   disconnected: boolean;
-  collapsedAgentIds: readonly string[];
   collapsedThreadIds: string[];
   view: SessionListViewModel;
-  onToggleGroup: (agentName: string) => void;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
   onNewSession: () => void;
@@ -48,7 +46,7 @@ export function useSessionWindowSidebar({
   sessionId: string;
 }): SessionWindowSidebarModel {
   const sidebar = useSessionSidebarState();
-  const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
+  const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionLifecycleActions({ workspaceId });
@@ -60,6 +58,9 @@ export function useSessionWindowSidebar({
   });
   const sessionsQuery = useSessions(workspaceId, {
     enabled: sidebar.open && worktree.resolved,
+    // The narrow breadth lists this workspace's complete catalog, so the rail
+    // and the shell modal never disagree about what exists.
+    loadAll: view.scope === "workspace",
     filters: {
       include_health: true,
       limit: 100,
@@ -67,6 +68,7 @@ export function useSessionWindowSidebar({
       // attention band and its tie-breaks.
       sort: sessionListSortParam(view.sort),
       worktree: worktree.worktreeId,
+      ...(view.archived ? { archive: "only" as const } : {}),
     },
   });
 
@@ -95,10 +97,8 @@ export function useSessionWindowSidebar({
     toggle: sidebar.toggle,
     sessions: sessionsQuery.data ?? [],
     disconnected: sidebar.open && worktree.resolved && sessionsQuery.isError,
-    collapsedAgentIds,
     collapsedThreadIds: sidebar.collapsedThreadIds,
     view,
-    onToggleGroup: agentName => manager.toggleRailGroup(agentName),
     onToggleThread: sidebar.toggleThread,
     onSelectSession,
     onNewSession: () => openForAgent(""),

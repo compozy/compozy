@@ -24,7 +24,7 @@ const PALETTE_SESSIONS = sessionFixtures.filter(
 );
 
 type SessionFixture = (typeof sessionFixtures)[number];
-type SessionListScope = "recent" | "all" | "all-workspaces";
+type SessionListScope = "workspace" | "all-workspaces";
 
 function shellSettings(scope: SessionListScope) {
   return {
@@ -35,7 +35,7 @@ function shellSettings(scope: SessionListScope) {
   };
 }
 
-function paletteHandlers(sessions: SessionFixture[], scope: SessionListScope = "recent") {
+function paletteHandlers(sessions: SessionFixture[], scope: SessionListScope = "workspace") {
   return storybookMswParameters({
     workspace: [
       compozyApiMock.get("/api/workspaces", () =>

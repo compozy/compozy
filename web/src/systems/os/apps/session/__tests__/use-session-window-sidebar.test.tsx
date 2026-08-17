@@ -19,12 +19,8 @@ vi.mock("@/systems/workspace", () => ({
 vi.mock("../../../hooks/use-attention-jump", () => ({
   useAttentionJump: () => jumpToSession,
 }));
-vi.mock("../../../hooks/use-os-sessions-modal", () => ({
-  useOsSessionsModal: () => ({
-    collapsedAgentIds: [],
-    coordinator: { userRetarget },
-    manager: { toggleRailGroup: vi.fn() },
-  }),
+vi.mock("../../../hooks/use-os-shell", () => ({
+  useOsShell: () => ({ coordinator: { userRetarget } }),
 }));
 vi.mock("@/systems/session", () => ({
   sessionListSortParam: (sort: string) => sort,
@@ -34,7 +30,7 @@ vi.mock("@/systems/session", () => ({
     deleteDialog: { open: false },
     renameDialog: { open: false },
   }),
-  useSessionListView: () => ({ sort: "last_activity" }),
+  useSessionListView: () => ({ sort: "last_activity", scope: "workspace" }),
   useSessions: () => ({ data: [], isError: false }),
   useSessionSidebarState: () => ({
     open: true,

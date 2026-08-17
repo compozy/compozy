@@ -50,11 +50,12 @@ const paletteMocks = vi.hoisted(() => {
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
     paletteIntentCleared: vi.fn(),
     paletteIntentRequested: vi.fn(),
-    sessionListScope: "recent" as "recent" | "all" | "all-workspaces",
+    sessionListScope: "workspace" as "workspace" | "all-workspaces",
     sessionListSaving: false,
     sessions: [] as PaletteSessionFixture[],
     sessionsLoading: false,
     sessionsWorkspaceId: vi.fn(),
+    sessionsFilters: vi.fn(),
     setSessionListScope: vi.fn(),
     toggleLocked: false,
     windowCommands: {
@@ -109,8 +110,9 @@ vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
   useActiveWorktree: () => ({ selectedWorktreeId: null, activeWorktree: null, fallback: null }),
 }));
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
-  useSessions: (workspaceId: string | null) => {
+  useSessions: (workspaceId: string | null, options?: { filters?: Record<string, unknown> }) => {
     paletteMocks.sessionsWorkspaceId(workspaceId);
+    paletteMocks.sessionsFilters(options?.filters ?? {});
     return { data: paletteMocks.sessions, isLoading: paletteMocks.sessionsLoading };
   },
 }));
@@ -284,7 +286,6 @@ function desktopFixture(
     hydration: "live",
     presentation: "floating",
     projections: {},
-    railCollapsedAgentIds: [],
     reduceMotion: false,
     snapshot: null,
     viewportState: "ready",
@@ -314,7 +315,7 @@ describe("useOsCommandPalette", () => {
     paletteMocks.sessions = [];
     paletteMocks.sessionsLoading = false;
     paletteMocks.sessionsWorkspaceId.mockClear();
-    paletteMocks.sessionListScope = "recent";
+    paletteMocks.sessionListScope = "workspace";
     paletteMocks.sessionListSaving = false;
     paletteMocks.setSessionListScope.mockClear();
     paletteMocks.jumpToSession.mockClear();
@@ -515,7 +516,7 @@ describe("palette nested views", () => {
     paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
     paletteMocks.writeViewStack([]);
     paletteMocks.sessions = [];
-    paletteMocks.sessionListScope = "recent";
+    paletteMocks.sessionListScope = "workspace";
     paletteMocks.setSessionListScope.mockClear();
     paletteMocks.jumpToSession.mockClear();
   });
@@ -572,8 +573,10 @@ describe("palette nested views", () => {
     render(<OsCommandPalette open onOpenChange={vi.fn()} />);
     const input = await pushSessionsView(user);
 
-    expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent("All2");
-    expect(screen.getByTestId("os-palette-session-filter-finished")).toHaveTextContent("Finished0");
+    expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*2/);
+    expect(screen.getByTestId("os-palette-session-filter-finished")).toHaveTextContent(
+      /Finished\s*0/
+    );
 
     await user.click(screen.getByTestId("os-palette-session-filter-needs-you"));
     expect(screen.getByTestId("os-palette-session-view-s-needs")).toBeInTheDocument();
@@ -596,6 +599,7 @@ describe("palette nested views", () => {
     await pushSessionsView(user);
 
     const scope = screen.getByTestId("os-palette-session-scope");
+    expect(scope).toHaveAccessibleName("All workspaces");
     expect(scope).toHaveAttribute("aria-pressed", "false");
     await user.click(scope);
     expect(paletteMocks.setSessionListScope).toHaveBeenCalledWith("all-workspaces");
@@ -629,11 +633,37 @@ describe("palette nested views", () => {
     ]);
 
     await user.click(screen.getByTestId("os-palette-session-scope"));
-    expect(paletteMocks.setSessionListScope).toHaveBeenLastCalledWith("all");
+    expect(paletteMocks.setSessionListScope).toHaveBeenLastCalledWith("workspace");
 
     paletteMocks.workspaceGroups = [];
     rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
     expect(screen.getByText("No sessions across workspaces yet.")).toBeInTheDocument();
+  });
+
+  it("Should read the archive through its own toggle without touching the breadth [UT-061]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [paletteSession({ id: "s-alpha", name: "Refactor session store" })];
+    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    await pushSessionsView(user);
+
+    const archived = screen.getByTestId("os-palette-session-archived");
+    expect(archived).toHaveAccessibleName("Archived");
+    expect(archived).toHaveAttribute("aria-pressed", "false");
+    expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ archive: expect.anything() })
+    );
+
+    await user.click(archived);
+
+    expect(screen.getByTestId("os-palette-session-archived")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+      expect.objectContaining({ archive: "only" })
+    );
+    // The archive is its own axis: flipping it never writes the persisted breadth.
+    expect(paletteMocks.setSessionListScope).not.toHaveBeenCalled();
   });
 
   it("Should land on a session through the shared attention jump [UT-060]", async () => {

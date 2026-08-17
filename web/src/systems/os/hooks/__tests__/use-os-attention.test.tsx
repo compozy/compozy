@@ -13,7 +13,7 @@ vi.mock("@/systems/session/hooks/use-sessions", () => ({ useSessions: vi.fn() })
 vi.mock("@/systems/session/hooks/use-session-list-preferences", () => ({
   useSessionListPreferences: vi.fn(() => ({
     sort: "last_activity",
-    scope: "recent",
+    scope: "workspace",
     setSort: vi.fn(),
     setScope: vi.fn(),
     loading: false,
@@ -106,11 +106,10 @@ function waitingSession(id: string): SessionPayload {
   };
 }
 
-/** Call order in the hook: needs-you rows, finished rows, modal (scoped), archived (scoped). */
+/** Call order in the hook: needs-you rows, finished rows, modal (scoped). */
 const NEEDS_YOU_CALL = 0;
 const FINISHED_CALL = 1;
 const MODAL_CALL = 2;
-const ARCHIVED_CALL = 3;
 
 function filtersForCall(call: number): Record<string, unknown> {
   const options = vi.mocked(useSessions).mock.calls[call]?.[1];
@@ -144,17 +143,23 @@ describe("useOsAttention", () => {
     });
   });
 
-  it("Should mark attention disconnected when the archived catalog query fails", () => {
-    vi.mocked(useSessions)
-      .mockReturnValueOnce(sessionsQuery({}))
-      .mockReturnValueOnce(sessionsQuery({}))
-      .mockReturnValueOnce(sessionsQuery({}))
-      .mockReturnValueOnce(sessionsQuery({ data: undefined, isError: true }));
+  it("Should read the archive only through the modal catalog leg", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({}));
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    renderHook(() => useOsAttention(workspace, "live", true));
 
-    expect(result.current.sessionsDisconnected).toBe(true);
-    expect(result.current.archivedSessions).toEqual([]);
+    expect(filtersForCall(MODAL_CALL).archive).toBe("only");
+    // The archive is a window's content, never an attention signal.
+    expect(filtersForCall(NEEDS_YOU_CALL).archive).toBeUndefined();
+    expect(filtersForCall(FINISHED_CALL).archive).toBeUndefined();
+  });
+
+  it("Should leave the modal catalog on active sessions when the archive is off", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({}));
+
+    renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(filtersForCall(MODAL_CALL).archive).toBeUndefined();
   });
 
   it("Should isolate attention-row failures from the sessions modal catalog", () => {
@@ -164,7 +169,7 @@ describe("useOsAttention", () => {
       .mockReturnValueOnce(sessionsQuery({}))
       .mockReturnValueOnce(sessionsQuery({}));
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
     expect(result.current.attentionSessionsDisconnected).toBe(true);
     expect(result.current.sessionsDisconnected).toBe(false);
@@ -181,7 +186,7 @@ describe("useOsAttention", () => {
       .mockReturnValueOnce(sessionsQuery({ data: [] }))
       .mockReturnValueOnce(sessionsQuery({ data: [] }));
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
     // Attention rows must carry neither a workspace nor a worktree, or a blocked
     // session elsewhere would stop raising a row.
@@ -192,7 +197,6 @@ describe("useOsAttention", () => {
     expect(filtersForCall(FINISHED_CALL).badge).toBe("done");
     expect(workspaceForCall(MODAL_CALL)).toBe(workspace.id);
     expect(filtersForCall(MODAL_CALL).worktree).toBe("wt_payments");
-    expect(filtersForCall(ARCHIVED_CALL).worktree).toBe("wt_payments");
     expect(result.current.sections.needsYou.map(row => row.id)).toEqual(["sess_other_worktree"]);
     expect(result.current.sessions).toEqual([]);
   });
@@ -201,13 +205,12 @@ describe("useOsAttention", () => {
     vi.mocked(useScopedWorktreeFilter).mockReturnValue({ worktreeId: undefined, resolved: true });
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
 
-    renderHook(() => useOsAttention(workspace, "live"));
+    renderHook(() => useOsAttention(workspace, "live", false));
 
     // A missing or unavailable selection sends no filter at all rather than an
     // empty one, so the list matches the fallback notice.
     expect(filtersForCall(MODAL_CALL)).not.toHaveProperty("worktree", expect.anything());
     expect(filtersForCall(MODAL_CALL).worktree).toBeUndefined();
-    expect(filtersForCall(ARCHIVED_CALL).worktree).toBeUndefined();
   });
 
   it("Should count sessions from the summary, not from the rows that happened to load", () => {
@@ -220,7 +223,7 @@ describe("useOsAttention", () => {
       sessionsQuery({ data: [waitingSession("sess_page_1")] })
     );
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
     expect(result.current.badges.sessions).toBe(137);
   });
@@ -233,7 +236,7 @@ describe("useOsAttention", () => {
     });
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [waitingSession("sess_stale")] }));
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
     expect(result.current.badges.sessions).toBeUndefined();
   });
@@ -242,7 +245,7 @@ describe("useOsAttention", () => {
     vi.mocked(useLoopNodeExists).mockImplementation((_workspaceId, state) => state === "waiting");
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
     expect(result.current.sections.needsYou).toEqual([
       {

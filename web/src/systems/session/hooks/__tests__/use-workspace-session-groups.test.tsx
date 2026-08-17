@@ -54,6 +54,7 @@ describe("useWorkspaceSessionGroups", () => {
         useWorkspaceSessionGroups({
           workspaces: [{ id: "ws-alpha", name: "Alpha" }],
           sort: "attention",
+          archived: false,
           enabled: true,
         }),
       { wrapper }
@@ -64,6 +65,31 @@ describe("useWorkspaceSessionGroups", () => {
     expect(fetchSessions).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ cursor: "cursor-1", workspace: "ws-alpha" }),
+      expect.any(AbortSignal)
+    );
+    expect(vi.mocked(fetchSessions).mock.calls[0]?.[0]).not.toHaveProperty("archive");
+  });
+
+  it("Should read the archive per workspace when the archived breadth is on", async () => {
+    vi.mocked(fetchSessions).mockResolvedValue({
+      sessions: [session("sess-archived")],
+      page: { has_more: false, limit: 100, total: 1 },
+    });
+
+    const { result } = renderHook(
+      () =>
+        useWorkspaceSessionGroups({
+          workspaces: [{ id: "ws-alpha", name: "Alpha" }],
+          sort: "attention",
+          archived: true,
+          enabled: true,
+        }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current[0]?.sessions).toHaveLength(1));
+    expect(fetchSessions).toHaveBeenCalledWith(
+      expect.objectContaining({ archive: "only", workspace: "ws-alpha" }),
       expect.any(AbortSignal)
     );
   });

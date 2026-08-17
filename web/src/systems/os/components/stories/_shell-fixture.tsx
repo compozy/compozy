@@ -19,9 +19,8 @@ const ROUTER: OsRouterPort = { navigate: () => {}, replace: () => {} };
  * Story shell over the real runtime. Nothing is bound, so window commands read
  * as unavailable — which is exactly the resting state of a cold desktop.
  */
-export function createStoryShell({ collapsedAgent }: { collapsedAgent?: string } = {}) {
+export function createStoryShell() {
   const manager = new WindowManagerRuntime(new QueryClient());
-  if (collapsedAgent) manager.toggleRailGroup(collapsedAgent);
   const coordinator = new RoutingCoordinator(manager, ROUTER);
   coordinator.completeHydration();
   return { projection: manager.projectionAtom, manager, coordinator } satisfies OsShellHandle;
@@ -147,7 +146,6 @@ export function createLiveStoryShell({
     windows,
     activeDesktopId: STORY_DESKTOP_ID,
     focusedId: focusedWindowId,
-    railCollapsedAgentIds: [],
     wallpaper: "ember",
     reduceMotion: false,
     dockMagnify: true,
@@ -190,7 +188,6 @@ export function createLiveStoryShell({
     pinWindow: () => outcome(),
     reopenWindow: () => outcome(),
     closeWindowScoped: async () => true,
-    toggleRailGroup: fn(),
     setWallpaper: fn(),
     setDockMagnify: fn(),
     setReduceMotion: fn(),

@@ -366,9 +366,8 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(
 			t,
 			propertySchema(t, shellSessionsSchema, "scope"),
-			"all",
 			"all-workspaces",
-			"recent",
+			"workspace",
 		)
 
 		updateWindowManager := operationFor(t, doc, "/api/settings/window-manager", "PATCH")

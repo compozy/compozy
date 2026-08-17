@@ -259,7 +259,6 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
       routeIntents,
       connectionStatus,
       loadError: this.currentLoadError(),
-      railCollapsedAgentIds: this.railCollapsedAgentIds,
       wallpaper: this.wallpaper,
       reduceMotion: this.reduceMotion,
       dockMagnify: this.dockMagnify,
@@ -461,15 +460,6 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
         ...(splitId ? { split_id: splitId } : {}),
       },
     });
-  };
-
-  toggleRailGroup = (agentId: string): void => {
-    const normalized = agentId.trim();
-    if (!normalized) return;
-    this.railCollapsedAgentIds = this.railCollapsedAgentIds.includes(normalized)
-      ? this.railCollapsedAgentIds.filter(id => id !== normalized)
-      : [...this.railCollapsedAgentIds, normalized];
-    this.publish();
   };
 
   setWallpaper = (wallpaper: OsWallpaper): void => {
