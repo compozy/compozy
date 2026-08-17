@@ -837,17 +837,18 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"arch: x64",
 			"id: linux",
 			"runner: ubuntu-22.04",
-			"bunx --cwd desktop electron-builder",
+			"bunx --cwd=desktop electron-builder",
 			"--publish never",
 			"release:collect",
 		} {
 			assertContainsText(t, "Electron release matrix", workflow, required)
 		}
-		if got := strings.Count(workflow, "bunx --cwd desktop electron-builder"); got != 2 {
+		if got := strings.Count(workflow, "bunx --cwd=desktop electron-builder"); got != 2 {
 			t.Fatalf("electron-builder invocation count = %d, want dry-run and production", got)
 		}
 		productionBuild := workflowJobSection(t, workflow, "desktop-build", "desktop-publish")
-		assertContainsText(t, "production Electron builder", productionBuild, "bunx --cwd desktop electron-builder")
+		assertContainsText(t, "production Electron builder", productionBuild, "bunx --cwd=desktop electron-builder")
+		assertNotContainsText(t, "ambiguous Bun cwd syntax", workflow, "bunx --cwd desktop")
 		assertContainsText(t, "production Electron publish suppression", productionBuild, "--publish never")
 		for _, forbidden := range []string{
 			"runner: windows-latest",
