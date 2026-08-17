@@ -106,6 +106,28 @@ func TestParseMCPServersJSONRejectsUnknownNestedFields(t *testing.T) {
 	}
 }
 
+func TestParseMCPServersJSONKeepsInternalHeaderFieldsClosed(t *testing.T) {
+	t.Parallel()
+
+	for _, field := range []string{"headers", "secret_headers"} {
+		t.Run("Should reject "+field, func(t *testing.T) {
+			t.Parallel()
+			_, err := ParseMCPServersJSON([]byte(`{
+  "mcpServers": {
+    "remote": {
+      "transport": "http",
+      "url": "https://mcp.example/mcp",
+      "`+field+`": {"X-Tenant": "value"}
+    }
+  }
+}`), "closed-header-field.json")
+			if err == nil || !strings.Contains(err.Error(), `unknown field "`+field+`"`) {
+				t.Fatalf("ParseMCPServersJSON(%s) error = %v, want closed-field rejection", field, err)
+			}
+		})
+	}
+}
+
 func TestParseMCPServersJSONRejectsTrailingJSON(t *testing.T) {
 	t.Parallel()
 

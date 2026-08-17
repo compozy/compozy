@@ -469,6 +469,50 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 		}
 	})
 
+	t.Run("Should discover a deferred tool required by the agent policy during bootstrap", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
+		remote := mcpDescriptor("mcp__github__search", "github", "search")
+		remotePattern, err := ParseToolPattern(remote.ID.String())
+		if err != nil {
+			t.Fatalf("ParseToolPattern() error = %v", err)
+		}
+		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
+		remoteProvider.deferred = true
+		remoteListCalls := 0
+		remoteProvider.list = func() []Descriptor {
+			remoteListCalls++
+			return []Descriptor{remote}
+		}
+		registry, err := NewRegistry(
+			WithProviders(
+				providerWithDescriptors(SourceRef{Kind: SourceBuiltin, Owner: "daemon"}, local),
+				remoteProvider,
+			),
+			WithPolicyInputs(PolicyInputs{
+				SystemPermissionMode: PermissionModeApproveAll,
+				ExternalDefault:      ExternalDefaultEnabled,
+				Agent: AgentToolPolicy{
+					Tools: []ToolPattern{remotePattern},
+				},
+			}, ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		bootstrap, err := registry.BootstrapSessionProjection(ctx, Scope{})
+		if err != nil {
+			t.Fatalf("BootstrapSessionProjection() error = %v", err)
+		}
+		requireToolIDs(t, bootstrap, remote.ID)
+		if got, want := remoteListCalls, 1; got != want {
+			t.Fatalf("deferred provider list calls = %d, want %d during required bootstrap", got, want)
+		}
+	})
+
 	t.Run("Should retain deferred descriptor metadata after a bootstrap projection", func(t *testing.T) {
 		t.Parallel()
 

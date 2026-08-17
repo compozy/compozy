@@ -177,7 +177,7 @@ func newLoopCreateCommand(deps commandDeps) *cobra.Command {
 func newLoopValidateCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, filePath, name string
 	cmd := &cobra.Command{
-		Use:   "validate",
+		Use:   cliValidateVerb,
 		Short: "Validate one Loop definition without saving",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

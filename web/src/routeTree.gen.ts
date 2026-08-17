@@ -40,6 +40,7 @@ import { Route as AppMarketplaceSkillsRouteImport } from './routes/_app/marketpl
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
+import { Route as AppSettingsAttentionRouteImport } from './routes/_app/settings/attention'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
 import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
 import { Route as AppSettingsGatewayRouteImport } from './routes/_app/settings/gateway'
@@ -225,6 +226,11 @@ const AppSettingsAppearanceRoute = AppSettingsAppearanceRouteImport.update({
   path: '/appearance',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsAttentionRoute = AppSettingsAttentionRouteImport.update({
+  id: '/attention',
+  path: '/attention',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
   id: '/automation',
   path: '/automation',
@@ -406,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
   '/settings/appearance': typeof AppSettingsAppearanceRoute
+  '/settings/attention': typeof AppSettingsAttentionRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/gateway': typeof AppSettingsGatewayRoute
@@ -463,6 +470,7 @@ export interface FileRoutesByTo {
   '/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/session/$id': typeof AppSessionIdRoute
   '/settings/appearance': typeof AppSettingsAppearanceRoute
+  '/settings/attention': typeof AppSettingsAttentionRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/gateway': typeof AppSettingsGatewayRoute
@@ -526,6 +534,7 @@ export interface FileRoutesById {
   '/_app/marketplace/skills': typeof AppMarketplaceSkillsRoute
   '/_app/session/$id': typeof AppSessionIdRoute
   '/_app/settings/appearance': typeof AppSettingsAppearanceRoute
+  '/_app/settings/attention': typeof AppSettingsAttentionRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
   '/_app/settings/extensions': typeof AppSettingsExtensionsRoute
   '/_app/settings/gateway': typeof AppSettingsGatewayRoute
@@ -589,6 +598,7 @@ export interface FileRouteTypes {
     | '/marketplace/skills'
     | '/session/$id'
     | '/settings/appearance'
+    | '/settings/attention'
     | '/settings/automation'
     | '/settings/extensions'
     | '/settings/gateway'
@@ -646,6 +656,7 @@ export interface FileRouteTypes {
     | '/marketplace/skills'
     | '/session/$id'
     | '/settings/appearance'
+    | '/settings/attention'
     | '/settings/automation'
     | '/settings/extensions'
     | '/settings/gateway'
@@ -708,6 +719,7 @@ export interface FileRouteTypes {
     | '/_app/marketplace/skills'
     | '/_app/session/$id'
     | '/_app/settings/appearance'
+    | '/_app/settings/attention'
     | '/_app/settings/automation'
     | '/_app/settings/extensions'
     | '/_app/settings/gateway'
@@ -964,6 +976,13 @@ declare module '@tanstack/react-router' {
       path: '/appearance'
       fullPath: '/settings/appearance'
       preLoaderRoute: typeof AppSettingsAppearanceRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/attention': {
+      id: '/_app/settings/attention'
+      path: '/attention'
+      fullPath: '/settings/attention'
+      preLoaderRoute: typeof AppSettingsAttentionRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/automation': {
@@ -1338,6 +1357,7 @@ const AppNetworkRouteWithChildren = AppNetworkRoute._addFileChildren(
 
 interface AppSettingsRouteChildren {
   AppSettingsAppearanceRoute: typeof AppSettingsAppearanceRoute
+  AppSettingsAttentionRoute: typeof AppSettingsAttentionRoute
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
   AppSettingsExtensionsRoute: typeof AppSettingsExtensionsRoute
   AppSettingsGatewayRoute: typeof AppSettingsGatewayRoute
@@ -1355,6 +1375,7 @@ interface AppSettingsRouteChildren {
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsAppearanceRoute: AppSettingsAppearanceRoute,
+  AppSettingsAttentionRoute: AppSettingsAttentionRoute,
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
   AppSettingsExtensionsRoute: AppSettingsExtensionsRoute,
   AppSettingsGatewayRoute: AppSettingsGatewayRoute,

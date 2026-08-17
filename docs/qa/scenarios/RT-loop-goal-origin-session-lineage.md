@@ -8,11 +8,11 @@ expected: A Goal action reached from a session-started Loop creates or reuses on
 entry_points: session compozy__loop_run; Loop Goal action; session catalog HTTP/UDS/CLI; session ledger inspector
 qa_status: pass
 bug_ids: compozy/compozy#416
-fix_status: pending
-retest_status:
-fix_commits:
-evidence: docs/qa/evidence/2026-08-16-loop-goal-origin-session-lineage/structured-walk.md; docs/qa/evidence/2026-08-16-loop-goal-origin-session-lineage/teardown.json
-last_report: docs/qa/reports/2026-08-16-loop-goal-origin-session-lineage.md
+fix_status: fixed
+retest_status: pass
+fix_commits: ea021855; 49601716
+evidence: docs/qa/evidence/2026-08-17-pr-420-review/structured-walk.md; docs/qa/evidence/2026-08-17-pr-420-review/teardown.json
+last_report: docs/qa/reports/2026-08-17-pr-420-review.md
 overlaps: ET-web-session-sidebar-threads; RT-session-parent-provenance; LP-run-loop-await-child-ordering
 ---
 
@@ -27,3 +27,8 @@ carried the exact origin parent/root without spawn governance, and the origin wa
 public child spawn from the still-live Goal succeeded with a five-minute TTL and rebased its new
 root to the live Goal; HTTP and UDS parent projections matched byte for byte. The child and Goal
 stopped cleanly. The missing-origin creation path remains covered by the owning integration suite.
+
+2026-08-17 isolated completion walk: a real Goal session retained its origin across CLI/UDS and
+HTTP, remained usable after that origin was removed, and safely spawned a child whose governance
+root rebased to the live Goal. The structured projections matched and cleanup left no active
+sessions. Verdict: pass.

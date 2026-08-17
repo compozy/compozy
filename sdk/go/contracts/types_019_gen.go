@@ -4,6 +4,19 @@ package contracts
 
 import "time"
 
+type ScheduleMode string
+
+type ScheduleSpec struct {
+	Mode                ScheduleMode           `json:"mode"`
+	Expr                string                 `json:"expr,omitempty"`
+	Interval            string                 `json:"interval,omitempty"`
+	Time                string                 `json:"time,omitempty"`
+	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+}
+
+type SchedulerCatchUpPolicy string
+
 type Scope string
 
 type SessionActivityHealth struct {
@@ -25,6 +38,30 @@ type SessionActivityHealth struct {
 	StallState         string     `json:"stall_state,omitempty"`
 	StallReason        string     `json:"stall_reason,omitempty"`
 }
+
+type SessionAttentionChangedPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	From           string    `json:"from"`
+	To             string    `json:"to"`
+	Class          string    `json:"class"`
+	At             time.Time `json:"at"`
+}
+
+type SessionAttentionObservationPatch struct{}
 
 type SessionConfigOptionPayload struct {
 	ID          string                            `json:"id"`
@@ -174,38 +211,4 @@ type SessionInput struct {
 
 type SessionInputListResult struct {
 	Inputs []SessionInput `json:"inputs"`
-}
-
-type SessionInputPromoteParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	SessionID      string `json:"session_id"`
-	QueueEntryID   string `json:"queue_entry_id"`
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	ExpectedTurnID string `json:"expected_turn_id"`
-}
-
-type SessionInputReplaceParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	SessionID      string `json:"session_id"`
-	QueueEntryID   string `json:"queue_entry_id"`
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-}
-
-type SessionInputResult struct {
-	Input SessionInput `json:"input"`
-}
-
-type SessionInputTargetParams struct {
-	WorkspaceID  string `json:"workspace_id"`
-	SessionID    string `json:"session_id"`
-	QueueEntryID string `json:"queue_entry_id"`
-}
-
-type SessionInputsListParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
 }

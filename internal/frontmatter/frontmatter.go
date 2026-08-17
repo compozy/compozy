@@ -84,6 +84,18 @@ func Decode(content []byte, decode func([]byte) error) (string, error) {
 	return parts.Body, nil
 }
 
+// UnmarshalMetadata decodes YAML metadata without exposing the YAML dependency
+// to callers that only need the shared frontmatter parser.
+func UnmarshalMetadata(metadata []byte, target any) error {
+	if target == nil {
+		return errors.New("frontmatter: metadata target is required")
+	}
+	if err := yaml.Unmarshal(metadata, target); err != nil {
+		return fmt.Errorf("frontmatter: unmarshal metadata: %w", err)
+	}
+	return nil
+}
+
 // Format serializes metadata and a Markdown body using the canonical frontmatter byte shape.
 func Format[T any](metadata T, body string) (string, error) {
 	rawYAML, err := yaml.Marshal(metadata)

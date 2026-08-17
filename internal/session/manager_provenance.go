@@ -77,3 +77,48 @@ func (m *Manager) prepareInternalSystemProvenance(
 		SpawnDepth:      parentLineage.SpawnDepth + 1,
 	}, true, nil
 }
+
+func (m *Manager) prepareSpawnedLineageReferences(
+	ctx context.Context,
+	lineage *store.SessionLineage,
+) (*store.SessionLineage, error) {
+	parentID := strings.TrimSpace(lineage.ParentSessionID)
+	parent, err := m.Status(ctx, parentID)
+	if err != nil {
+		return nil, fmt.Errorf("session: validate parent lineage %q: %w", parentID, err)
+	}
+	rootID := strings.TrimSpace(lineage.RootSessionID)
+	if rootID == "" || rootID == parentID {
+		return lineage, nil
+	}
+	root, err := m.Status(ctx, rootID)
+	if err == nil {
+		if strings.TrimSpace(root.WorkspaceID) != strings.TrimSpace(parent.WorkspaceID) {
+			return nil, fmt.Errorf("%w: spawned root belongs to another workspace", ErrValidation)
+		}
+		return lineage, nil
+	}
+	if !errors.Is(err, ErrSessionNotFound) {
+		return nil, fmt.Errorf("session: validate root lineage %q: %w", rootID, err)
+	}
+
+	governance, err := m.spawnGovernanceForParent(ctx, parent)
+	if err != nil {
+		return nil, err
+	}
+	rebased := *lineage
+	rebased.RootSessionID = governance.rootID
+	return &rebased, nil
+}
+
+func (m *Manager) revalidateSpawnedLineageForStart(ctx context.Context, spec *sessionStartSpec) error {
+	if spec.startAction != sessionStartActionCreate || normalizeSessionType(spec.sessionType) != SessionTypeSpawned {
+		return nil
+	}
+	lineage, err := m.prepareSpawnedLineageReferences(ctx, spec.lineage)
+	if err != nil {
+		return fmt.Errorf("session: revalidate spawned lineage for %q: %w", spec.sessionID, err)
+	}
+	spec.lineage = lineage
+	return nil
+}

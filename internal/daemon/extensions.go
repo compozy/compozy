@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -174,7 +175,11 @@ func (s *daemonExtensionService) payloadFromExtension(
 	ctx context.Context,
 	ext *extensionpkg.Extension,
 ) (contract.ExtensionPayload, error) {
-	payload := extensionpkg.DescribeExtension(ext, s.runtime != nil, s.now())
+	now := time.Now().UTC()
+	if s.now != nil {
+		now = s.now()
+	}
+	payload := extensionpkg.DescribeExtension(ext, s.runtime != nil, now)
 	if ext == nil {
 		return payload, nil
 	}
@@ -219,6 +224,7 @@ func (s *daemonExtensionService) payloadFromExtension(
 		payload.NetworkConfirmationRequired = confirmation.Digest != "" &&
 			(strings.TrimSpace(confirmation.ConfirmedBy) == "" || confirmation.ConfirmedAt.IsZero())
 	}
+	payload.Diagnostics = append(payload.Diagnostics, extensionMCPHealthDiagnostics(s.mcpRuntimeHealth, ext)...)
 	return payload, nil
 }
 

@@ -57,6 +57,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 				SpawnRole:        "worker",
 				TTLExpiresAt:     &ttl,
 				AutoStopOnParent: true,
+				NotifyCreator:    true,
 				SpawnBudget: store.SessionSpawnBudget{
 					MaxChildren:           2,
 					MaxDepth:              1,
@@ -112,7 +113,8 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 			lineage.RootSessionID != "sess-root" ||
 			lineage.SpawnDepth != 1 ||
 			lineage.SpawnRole != "worker" ||
-			!lineage.AutoStopOnParent {
+			!lineage.AutoStopOnParent ||
+			!lineage.NotifyCreator {
 			t.Fatalf("lineage = %#v", lineage)
 		}
 		if lineage.TTLExpiresAt == nil || !lineage.TTLExpiresAt.Equal(ttl) {
@@ -136,6 +138,94 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 		if len(roots) != 1 || roots[0].Lineage == nil || roots[0].Lineage.ParentSessionID != "" ||
 			roots[0].Lineage.RootSessionID != "sess-root" || roots[0].Lineage.SpawnDepth != 0 {
 			t.Fatalf("root sessions = %#v", roots)
+		}
+	})
+
+	t.Run("Should default existing children to notify creator and preserve opt out after reopen", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00066_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open prefix before 00066 error = %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		now := store.FormatTimestamp(time.Date(2026, 8, 16, 9, 0, 0, 0, time.UTC))
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO workspaces (
+			id, root_dir, add_dirs, name, created_at, updated_at
+		) VALUES ('ws-notify-migration', ?, '[]', 'notify-migration', ?, ?)`,
+			t.TempDir(), now, now); err != nil {
+			t.Fatalf("seed workspace before 00066 error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO sessions (
+			id, name, agent_name, workspace_id, session_type, state, created_at, updated_at
+		) VALUES ('sess-notify-root', 'Root', 'creator', 'ws-notify-migration', 'user', 'active', ?, ?)`,
+			now, now); err != nil {
+			t.Fatalf("seed root before 00066 error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO sessions (
+			id, name, agent_name, workspace_id, session_type, state,
+			parent_session_id, root_session_id, spawn_depth, spawn_role, created_at, updated_at
+		) VALUES ('sess-notify-child', 'Child', 'worker', 'ws-notify-migration', 'spawned', 'active',
+			'sess-notify-root', 'sess-notify-root', 1, 'worker', ?, ?)`, now, now); err != nil {
+			t.Fatalf("seed child before 00066 error = %v", err)
+		}
+		columns, err := tableColumns(ctx, prefixDB, "sessions")
+		if err != nil {
+			t.Fatalf("tableColumns(sessions before 00066) error = %v", err)
+		}
+		if _, exists := columns["notify_creator"]; exists {
+			t.Fatal("sessions.notify_creator exists before 00066")
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("close prefix before 00066 error = %v", err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("upgrade through 00066 error = %v", err)
+		}
+		children, err := upgraded.ListSessions(ctx, SessionListQuery{ID: "sess-notify-child"})
+		if err != nil {
+			t.Fatalf("ListSessions(after migration) error = %v", err)
+		}
+		if len(children) != 1 || children[0].Lineage == nil || !children[0].Lineage.NotifyCreator {
+			t.Fatalf("migrated child lineage = %#v, want notify_creator=true", children)
+		}
+		child := children[0]
+		child.Lineage.NotifyCreator = false
+		child.UpdatedAt = time.Date(2026, 8, 16, 9, 1, 0, 0, time.UTC)
+		if err := upgraded.RegisterSession(ctx, child); err != nil {
+			t.Fatalf("RegisterSession(opt out) error = %v", err)
+		}
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(after migration) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("close upgraded database error = %v", err)
+		}
+
+		reopened, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("reopen migrated database error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("close reopened database error = %v", closeErr)
+			}
+		})
+		children, err = reopened.ListSessions(ctx, SessionListQuery{ID: "sess-notify-child"})
+		if err != nil {
+			t.Fatalf("ListSessions(after reopen) error = %v", err)
+		}
+		if len(children) != 1 || children[0].Lineage == nil || children[0].Lineage.NotifyCreator {
+			t.Fatalf("reopened child lineage = %#v, want notify_creator=false", children)
 		}
 	})
 }

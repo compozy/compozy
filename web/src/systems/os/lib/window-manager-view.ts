@@ -183,7 +183,6 @@ export interface OsDesktopRuntimeViewInput {
   routeIntents: Readonly<Record<string, { route: OsWindowRoute }>>;
   connectionStatus: WindowManagerConnectionStatus;
   loadError: Error | null;
-  railCollapsedAgentIds: readonly string[];
   wallpaper: OsWallpaper;
   reduceMotion: boolean;
   dockMagnify: boolean;
@@ -238,7 +237,6 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     windows,
     activeDesktopId: client?.activeDesktopId ?? snapshot?.desktops[0]?.id ?? null,
     focusedId: client?.focusedWindowId ?? null,
-    railCollapsedAgentIds: input.railCollapsedAgentIds,
     wallpaper: input.wallpaper,
     reduceMotion: input.reduceMotion,
     dockMagnify: input.dockMagnify,

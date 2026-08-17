@@ -84,7 +84,7 @@ func (s *promptActivitySupervisor) cancelPromptAfterRuntimeTimeout() {
 		return
 	}
 	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.config.TimeoutCancelGrace)
-	cancelErr := s.manager.CancelPrompt(cancelCtx, s.session.ID)
+	_, cancelErr := s.manager.CancelPrompt(cancelCtx, s.session.ID)
 	cancel()
 	if cancelErr != nil {
 		s.manager.sessionLogger(s.session).

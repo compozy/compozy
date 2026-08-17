@@ -21,7 +21,7 @@ import { marketplaceMCPInstalledStatus } from "../lib/mcp-installed-status";
 import type { MarketplaceKind, MarketplaceListing } from "../types";
 import { formatMarketplaceVersion, marketplaceKindIcon } from "./marketplace-ui";
 import { useMarketplaceInstalledCardConfirmation } from "./use-marketplace-installed-card-confirmation";
-import { ExtensionTrustBadges } from "@/systems/extensions";
+import { ExtensionFormatBadge, ExtensionTrustBadges } from "@/systems/extensions";
 import { deriveMCPManagementFilter } from "@/systems/settings";
 import { SkillActivationPill, SkillActivationReasons } from "@/systems/skill";
 
@@ -278,6 +278,7 @@ function InstalledPills({
           {mcpStatus.label}
         </Pill>
       ) : null}
+      <ExtensionFormatBadge format={entry.format} />
       {item.extensionFacts ? <ExtensionTrustBadges facts={item.extensionFacts} showSource /> : null}
       {entry.update_available ? (
         <Pill mono tone="warning">

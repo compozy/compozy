@@ -28,20 +28,7 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.providerSecrets == nil {
 		m.providerSecrets = envProviderSecretResolver{lookupEnv: os.LookupEnv}
 	}
-	if m.now == nil {
-		m.now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	if m.newSessionID == nil {
-		m.newSessionID = newIDGenerator("sess")
-	}
-	if m.newSandboxID == nil {
-		m.newSandboxID = newIDGenerator("env")
-	}
-	if m.newTurnID == nil {
-		m.newTurnID = newIDGenerator("turn")
-	}
+	m.applyRuntimeGeneratorDefaults()
 	if m.promptBufSize <= 0 {
 		m.promptBufSize = defaultPromptBufferSize
 	}
@@ -68,6 +55,32 @@ func (m *Manager) applyRuntimeDefaults() error {
 		m.sessionHealthHookMinInterval = compozyconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval
 	}
 	return nil
+}
+
+func (m *Manager) applyRuntimeGeneratorDefaults() {
+	if m.now == nil {
+		m.now = func() time.Time {
+			return time.Now().UTC()
+		}
+	}
+	if m.newSessionID == nil {
+		m.newSessionID = newIDGenerator("sess")
+	}
+	if m.newSandboxID == nil {
+		m.newSandboxID = newIDGenerator("env")
+	}
+	if m.newTurnID == nil {
+		m.newTurnID = newIDGenerator("turn")
+	}
+	if m.newWaitID == nil {
+		m.newWaitID = newULIDGenerator("wait")
+	}
+	if m.newWaitTimer == nil {
+		m.newWaitTimer = newRealWaitTimer
+	}
+	if m.newWaitAfterFunc == nil {
+		m.newWaitAfterFunc = newRealWaitAfterFunc
+	}
 }
 
 func (m *Manager) applyMutableStateDefaults() {

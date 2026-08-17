@@ -6,6 +6,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/resources"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -19,6 +20,7 @@ const (
 	manifestBackendKey                  = "backend"
 	manifestCommandKey                  = "command"
 	manifestCommandGroupsKey            = "command_groups"
+	manifestCapabilitiesKey             = "capabilities"
 	manifestDescriptionKey              = "description"
 	manifestEnvKey                      = "env"
 	manifestEventKey                    = "event"
@@ -37,6 +39,7 @@ const (
 	manifestNullKey                     = "null"
 	manifestOutputSchemaKey             = "output_schema"
 	manifestPathKey                     = "path"
+	manifestPermissionsKey              = "permissions"
 	manifestPublishKey                  = "publish"
 	manifestReadOnlyKey                 = "read_only"
 	manifestResourcesKey                = "resources"
@@ -48,14 +51,25 @@ const (
 	manifestToolsKey                    = "tools"
 	manifestVersionKey                  = "version"
 	manifestVisibilityKey               = "visibility"
+	validationStatusInvalid             = "invalid"
+	agentPluginMCPKind                  = "mcp"
+	agentPluginMCPServerKind            = "mcp_server"
+	agentPluginSkillKind                = "skill"
+	agentPluginStdioTransport           = "stdio"
+	agentPluginStreamableHTTPTransport  = "streamable-http"
+	diagnosticEvidenceScopeKey          = "scope"
+	diagnosticEvidenceComponentKey      = "component"
+	marketplaceCleanupTargetKey         = "cleanup_target"
+	installedInfoProvenanceField        = "provenance"
 )
 
 type manifestCommandSpec = toolspkg.ExtensionCommandSpec
 type manifestCommandGroupSpec = extensioncontract.ExtensionCommandGroupSpec
 
 const (
-	manifestTOMLFileName = "extension.toml"
-	manifestJSONFileName = "extension.json"
+	manifestTOMLFileName        = "extension.toml"
+	manifestJSONFileName        = "extension.json"
+	agentPluginManifestFileName = "plugin.json"
 )
 
 var (
@@ -71,6 +85,9 @@ var (
 
 // Manifest describes one extension without executing any extension code.
 type Manifest struct {
+	Format            ExtensionFormat                     `toml:"-" json:"-"`
+	IngestDiagnostics []diagnosticcontract.DiagnosticItem `toml:"-" json:"-"`
+
 	Name        string `toml:"name"                  json:"name"`
 	Version     string `toml:"version"               json:"version"`
 	Description string `toml:"description,omitempty" json:"description,omitempty"`
@@ -186,10 +203,14 @@ type HookMatcherConfig struct {
 
 // MCPServerConfig declares one MCP server packaged with the extension.
 type MCPServerConfig struct {
-	Command   string            `toml:"command"              json:"command"`
+	Command   string            `toml:"command,omitempty"    json:"command,omitempty"`
+	CWD       string            `toml:"-"                    json:"-"`
 	Args      []string          `toml:"args,omitempty"       json:"args,omitempty"`
 	Env       map[string]string `toml:"env,omitempty"        json:"env,omitempty"`
 	SecretEnv map[string]string `toml:"secret_env,omitempty" json:"secret_env,omitempty"`
+	Transport string            `toml:"transport,omitempty"  json:"transport,omitempty"`
+	URL       string            `toml:"url,omitempty"        json:"url,omitempty"`
+	Headers   map[string]string `toml:"headers,omitempty"    json:"headers,omitempty"`
 }
 
 // ToolConfig declares one static tool packaged with the extension.

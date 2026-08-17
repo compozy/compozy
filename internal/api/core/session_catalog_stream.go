@@ -13,6 +13,9 @@ const sessionCatalogChangedEvent = "session_catalog_changed"
 
 // StreamSessionCatalog emits workspace-identified wake signals for catalog reconciliation.
 func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
+	if !h.requireOperatorSurface(c, "session catalog stream") {
+		return
+	}
 	subscriber, ok := h.Sessions.(SessionCatalogEventSubscriber)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session catalog stream is required"))
@@ -45,15 +48,35 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 			if !open {
 				return
 			}
+			name, data := sessionCatalogSSEMessage(event)
 			if err := WriteSSE(writer, SSEMessage{
-				Name: sessionCatalogChangedEvent,
-				Data: sessionCatalogEventPayload(event),
+				Name: name,
+				Data: data,
 			}); err != nil {
-				h.logSSEWriteFailure(sessionCatalogChangedEvent, err)
+				h.logSSEWriteFailure(name, err)
 				return
 			}
 		}
 	}
+}
+
+func sessionCatalogSSEMessage(event session.CatalogEvent) (string, any) {
+	if event.Name == session.CatalogEventNameOperatorNotification && event.OperatorNotification != nil {
+		notification := event.OperatorNotification
+		return string(session.CatalogEventNameOperatorNotification), contract.OperatorNotificationEventPayload{
+			NotificationID: notification.NotificationID,
+			SessionID:      notification.SessionID, WorkspaceID: notification.WorkspaceID,
+			Title: notification.Title, Body: notification.Body, At: notification.At,
+		}
+	}
+	if event.Name == session.CatalogEventNameAttention && event.Attention != nil {
+		return string(session.CatalogEventNameAttention), contract.SessionAttentionEventPayload{
+			SessionID: event.Attention.SessionID, WorkspaceID: event.Attention.WorkspaceID,
+			From: event.Attention.From, To: event.Attention.To,
+			Class: event.Attention.Class, At: event.Attention.At,
+		}
+	}
+	return sessionCatalogChangedEvent, sessionCatalogEventPayload(event)
 }
 
 func sessionCatalogEventPayload(event session.CatalogEvent) contract.SessionCatalogEventPayload {

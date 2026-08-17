@@ -6,11 +6,19 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+// WithHomePaths binds extension-owned runtime data to the daemon's canonical home layout.
+func WithHomePaths(paths compozyconfig.HomePaths) Option {
+	return func(manager *Manager) {
+		manager.homePaths = paths
+	}
+}
 
 // SecretRefResolver resolves env: and vault: refs for extension launch bindings.
 type SecretRefResolver interface {

@@ -1,8 +1,11 @@
 package extensionpkg
 
 import (
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 func TestDescribeExtension(t *testing.T) {
@@ -125,6 +128,44 @@ func TestDescribeExtension(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDescribeExtensionProjectsFormatAndOrderedDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should project recorded diagnostics before provenance warnings", func(t *testing.T) {
+		t.Parallel()
+
+		recorded := diagnosticcontract.DiagnosticItem{ID: "recorded", Code: "recorded"}
+		provenance := diagnosticcontract.DiagnosticItem{ID: "provenance", Code: "provenance"}
+		payload := DescribeExtension(&Extension{Info: ExtensionInfo{
+			Name: "portable", Format: FormatAgentPlugin,
+			IngestDiagnostics: []diagnosticcontract.DiagnosticItem{recorded},
+			Provenance:        ExtensionProvenance{Warnings: []diagnosticcontract.DiagnosticItem{provenance}},
+		}}, false, time.Now())
+
+		if payload.Format != string(FormatAgentPlugin) {
+			t.Fatalf("DescribeExtension().Format = %q, want %q", payload.Format, FormatAgentPlugin)
+		}
+		if want := []diagnosticcontract.DiagnosticItem{
+			recorded,
+			provenance,
+		}; !reflect.DeepEqual(
+			payload.Diagnostics,
+			want,
+		) {
+			t.Fatalf("DescribeExtension().Diagnostics = %#v, want %#v", payload.Diagnostics, want)
+		}
+	})
+
+	t.Run("Should default legacy zero values to the native format", func(t *testing.T) {
+		t.Parallel()
+
+		payload := DescribeExtension(&Extension{Info: ExtensionInfo{Name: "native"}}, false, time.Now())
+		if payload.Format != string(FormatCompozy) {
+			t.Fatalf("DescribeExtension().Format = %q, want %q", payload.Format, FormatCompozy)
+		}
+	})
 }
 
 func TestDescribeExtensionProjectsCuratedArchiveIdentity(t *testing.T) {

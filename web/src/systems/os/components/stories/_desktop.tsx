@@ -5,6 +5,7 @@ import { OsDockZone, type OsDockEntry, type OsDockItemData } from "../os-dock";
 import { DockIcons } from "../os-dock-icons";
 import { OsMenuBar } from "../os-menubar";
 import { OsWallpaper, type OsWallpaperKind } from "../os-wallpaper";
+import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 
 const DOCK_DEFS = [
   { id: "sessions", name: "Sessions", icon: DockIcons.sessions },
@@ -105,6 +106,7 @@ export function DesktopShell({
           notifications={notifications}
           onCommandClick={fn()}
           onSettingsClick={fn()}
+          commandShortcutLabel={shortcutLabel("meta+KeyK")}
         />
       ) : null}
       <div className="relative min-h-0 flex-1">

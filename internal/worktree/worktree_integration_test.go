@@ -673,11 +673,14 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(missing restore) error = %v", err)
 		}
-		reconcile.git(reconcile.workspace.Root, "worktree", "remove", "--force", item.Path)
+		if err := os.RemoveAll(item.Path); err != nil {
+			t.Fatalf("RemoveAll(missing checkout) error = %v", err)
+		}
 		listing, err := reconcile.service.List(context.Background(), reconcile.workspace.ID, true)
 		if err != nil || len(listing.Worktrees) != 1 || listing.Worktrees[0].State != StateMissing {
 			t.Fatalf("List(out-of-band removal) = (%#v, %v), want missing", listing, err)
 		}
+		reconcile.git(reconcile.workspace.Root, "worktree", "prune")
 		reconcile.git(reconcile.workspace.Root, "worktree", "add", item.Path, item.Branch)
 		if err := reconcile.service.RecoverCreations(context.Background()); err != nil {
 			t.Fatalf("RecoverCreations(restored) error = %v", err)

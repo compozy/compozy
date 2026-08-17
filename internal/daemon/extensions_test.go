@@ -16,12 +16,34 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestExtensionLifecycleCoordinator(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should keep a committed install successful when staging cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		cleanupErr := errors.New("staging cleanup failed")
+		service := &daemonExtensionService{logger: discardLogger()}
+		prepared := preparedDaemonExtensionInstall{
+			name: "portable",
+			cleanup: func() error {
+				return cleanupErr
+			},
+		}
+		if err := service.finishPreparedInstall(prepared, nil); err != nil {
+			t.Fatalf("finishPreparedInstall(committed) error = %v, want nil", err)
+		}
+		mutationErr := errors.New("commit failed")
+		if err := service.finishPreparedInstall(prepared, mutationErr); !errors.Is(err, mutationErr) ||
+			!errors.Is(err, cleanupErr) {
+			t.Fatalf("finishPreparedInstall(failed) error = %v, want mutation and cleanup failures", err)
+		}
+	})
 
 	t.Run("Should serialize same-name mutations while allowing other names to proceed", func(t *testing.T) {
 		t.Parallel()
@@ -71,22 +93,57 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}
 	})
 
+	t.Run("Should isolate a global instance from a same-name workspace instance", func(t *testing.T) {
+		t.Parallel()
+
+		coordinator := newExtensionLifecycleCoordinator()
+		globalEntered := make(chan struct{})
+		releaseGlobal := make(chan struct{})
+		releaseGlobalMutation := newLifecycleRelease(t, releaseGlobal)
+		workspaceEntered := make(chan struct{})
+		results := make(chan error, 2)
+		key := extensionpkg.InstanceKey{Name: "shared", WorkspaceID: "workspace-a"}
+
+		go func() {
+			results <- coordinator.withName(t.Context(), "shared", func() error {
+				close(globalEntered)
+				<-releaseGlobal
+				return nil
+			})
+		}()
+		requireLifecycleSignal(t, globalEntered, "global instance mutation")
+
+		go func() {
+			results <- coordinator.withInstance(t.Context(), key, func() error {
+				close(workspaceEntered)
+				return nil
+			})
+		}()
+		requireLifecycleSignal(t, workspaceEntered, "same-name workspace mutation")
+		releaseGlobalMutation()
+		for range 2 {
+			if err := <-results; err != nil {
+				t.Fatalf("instance lifecycle mutation error = %v", err)
+			}
+		}
+	})
+
 	t.Run("Should cancel a waiter without retaining entries or running its mutation", func(t *testing.T) {
 		t.Parallel()
 
 		coordinator := newExtensionLifecycleCoordinator()
-		exclusiveEntered := make(chan struct{})
-		releaseExclusive := make(chan struct{})
-		releaseExclusiveMutation := newLifecycleRelease(t, releaseExclusive)
-		exclusiveDone := make(chan error, 1)
+		firstEntered := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		releaseFirstMutation := newLifecycleRelease(t, releaseFirst)
+		firstDone := make(chan error, 1)
 		go func() {
-			exclusiveDone <- coordinator.exclusive(context.Background(), func() error {
-				close(exclusiveEntered)
-				<-releaseExclusive
+			firstDone <- coordinator.withName(context.Background(), "alpha", func() error {
+				close(firstEntered)
+				<-releaseFirst
 				return nil
 			})
 		}()
-		requireLifecycleSignal(t, exclusiveEntered, "exclusive mutation")
+		requireLifecycleSignal(t, firstEntered, "first alpha mutation")
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -104,20 +161,19 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		coordinator.mu.Lock()
 		retained := len(coordinator.entries)
 		coordinator.mu.Unlock()
-		if retained != 0 {
-			t.Fatalf("retained lifecycle entries = %d, want 0", retained)
-		}
-		coordinator.gate.mu.Lock()
-		readers := coordinator.gate.readers
-		waitingWriters := coordinator.gate.waitingWriters
-		coordinator.gate.mu.Unlock()
-		if readers != 0 || waitingWriters != 0 {
-			t.Fatalf("gate after cancellation readers=%d waiting_writers=%d, want zero", readers, waitingWriters)
+		if retained != 1 {
+			t.Fatalf("retained lifecycle entries = %d, want only the active mutation", retained)
 		}
 
-		releaseExclusiveMutation()
-		if err := <-exclusiveDone; err != nil {
-			t.Fatalf("exclusive() error = %v", err)
+		releaseFirstMutation()
+		if err := <-firstDone; err != nil {
+			t.Fatalf("withName(first) error = %v", err)
+		}
+		coordinator.mu.Lock()
+		retained = len(coordinator.entries)
+		coordinator.mu.Unlock()
+		if retained != 0 {
+			t.Fatalf("retained lifecycle entries after release = %d, want 0", retained)
 		}
 	})
 
@@ -215,136 +271,6 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}
 	})
 
-	t.Run("Should block later readers behind a waiting exclusive mutation", func(t *testing.T) {
-		t.Parallel()
-
-		coordinator := newExtensionLifecycleCoordinator()
-		activeReaderEntered := make(chan struct{})
-		releaseActiveReader := make(chan struct{})
-		releaseReader := newLifecycleRelease(t, releaseActiveReader)
-		writerEntered := make(chan struct{})
-		releaseWriterMutation := make(chan struct{})
-		releaseWriter := newLifecycleRelease(t, releaseWriterMutation)
-		laterReaderEntered := make(chan struct{})
-		activeReaderDone := make(chan error, 1)
-		writerDone := make(chan error, 1)
-		laterReaderDone := make(chan error, 1)
-
-		go func() {
-			activeReaderDone <- coordinator.withName(t.Context(), "alpha", func() error {
-				close(activeReaderEntered)
-				<-releaseActiveReader
-				return nil
-			})
-		}()
-		requireLifecycleSignal(t, activeReaderEntered, "active lifecycle reader")
-
-		go func() {
-			writerDone <- coordinator.exclusive(t.Context(), func() error {
-				close(writerEntered)
-				<-releaseWriterMutation
-				return nil
-			})
-		}()
-		waitForLifecycleWriters(t, coordinator, 1)
-
-		go func() {
-			laterReaderDone <- coordinator.withName(t.Context(), "beta", func() error {
-				close(laterReaderEntered)
-				return nil
-			})
-		}()
-		select {
-		case <-laterReaderEntered:
-			t.Fatal("later lifecycle reader bypassed waiting exclusive mutation")
-		default:
-		}
-
-		releaseReader()
-		select {
-		case <-writerEntered:
-		case <-laterReaderEntered:
-			t.Fatal("later lifecycle reader entered before waiting exclusive mutation")
-		case <-time.After(2 * time.Second):
-			t.Fatal("timed out waiting for exclusive lifecycle mutation")
-		}
-		releaseWriter()
-		requireLifecycleSignal(t, laterReaderEntered, "later lifecycle reader")
-		for label, result := range map[string]<-chan error{
-			"active reader":    activeReaderDone,
-			"exclusive writer": writerDone,
-			"later reader":     laterReaderDone,
-		} {
-			if err := requireLifecycleResult(t, result, label); err != nil {
-				t.Fatalf("%s error = %v", label, err)
-			}
-		}
-	})
-
-	t.Run("Should release readers after a waiting writer is canceled", func(t *testing.T) {
-		t.Parallel()
-
-		coordinator := newExtensionLifecycleCoordinator()
-		activeReaderEntered := make(chan struct{})
-		releaseActiveReader := make(chan struct{})
-		releaseReader := newLifecycleRelease(t, releaseActiveReader)
-		activeReaderDone := make(chan error, 1)
-		writerCtx, cancelWriter := context.WithCancel(t.Context())
-		t.Cleanup(cancelWriter)
-		writerDone := make(chan error, 1)
-		laterReaderEntered := make(chan struct{})
-		laterReaderDone := make(chan error, 1)
-
-		go func() {
-			activeReaderDone <- coordinator.withName(t.Context(), "alpha", func() error {
-				close(activeReaderEntered)
-				<-releaseActiveReader
-				return nil
-			})
-		}()
-		requireLifecycleSignal(t, activeReaderEntered, "active lifecycle reader")
-
-		go func() {
-			writerDone <- coordinator.exclusive(writerCtx, func() error {
-				return errors.New("canceled exclusive mutation ran")
-			})
-		}()
-		waitForLifecycleWriters(t, coordinator, 1)
-
-		go func() {
-			laterReaderDone <- coordinator.withName(t.Context(), "beta", func() error {
-				close(laterReaderEntered)
-				return nil
-			})
-		}()
-		select {
-		case <-laterReaderEntered:
-			t.Fatal("later lifecycle reader bypassed waiting exclusive mutation")
-		default:
-		}
-
-		cancelWriter()
-		writerErr := requireLifecycleResult(t, writerDone, "canceled exclusive writer")
-		if !errors.Is(writerErr, context.Canceled) {
-			t.Fatalf("exclusive(canceled) error = %v, want %v", writerErr, context.Canceled)
-		}
-		requireLifecycleSignal(t, laterReaderEntered, "reader released after writer cancellation")
-		select {
-		case err := <-activeReaderDone:
-			t.Fatalf("active reader completed before release with error %v", err)
-		default:
-		}
-		releaseReader()
-		for label, result := range map[string]<-chan error{
-			"active reader": activeReaderDone,
-			"later reader":  laterReaderDone,
-		} {
-			if err := requireLifecycleResult(t, result, label); err != nil {
-				t.Fatalf("%s error = %v", label, err)
-			}
-		}
-	})
-
 	t.Run("Should serialize enable update and disable as whole service operations", func(t *testing.T) {
 		// This assertion intentionally owns one mutable extension lifecycle.
 		deps, registry, source, _ := newNativeExtensionToolDeps(t)
@@ -359,6 +285,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			},
 			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
 			withDaemonExtensionAutomation(&fakeAutomationManager{}),
+			withDaemonExtensionMCPRuntimeHealth(mcppkg.NewRuntimeHealthRegistry()),
 		).(*daemonExtensionService)
 		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "lifecycle serialization")
 		if err != nil {
@@ -370,6 +297,10 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		}, actor); err != nil {
 			t.Fatalf("Install() error = %v", err)
 		}
+		healthObservation := service.mcpRuntimeHealth.Begin(mcppkg.RuntimeHealthKey{
+			InstanceName: "tool-ext", BundleGeneration: "generation-before-disable", ServerName: "remote",
+		})
+		service.mcpRuntimeHealth.RecordFailure(healthObservation, errors.New("connection failed"))
 		runtime.resetReloads()
 		source.latestVersion = "2.0.0"
 		entered, release := runtime.blockNextReload()
@@ -429,6 +360,58 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 				finalInfo.Enabled,
 				runtime.reloadCount(),
 			)
+		}
+		if entries := service.mcpRuntimeHealth.Entries(
+			"tool-ext", "", "generation-before-disable",
+		); len(entries) != 0 {
+			t.Fatalf("runtime health after disable = %#v, want evicted", entries)
+		}
+	})
+
+	t.Run("Should evict MCP health after a committed update and removal", func(t *testing.T) {
+		t.Parallel()
+
+		// This assertion intentionally owns one mutable extension lifecycle.
+		deps, registry, source, _ := newNativeExtensionToolDeps(t)
+		runtime := newLifecycleStateRuntime(registry)
+		health := mcppkg.NewRuntimeHealthRegistry()
+		service := newDaemonExtensionService(
+			daemonExtensionServiceDeps{
+				Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths,
+				Logger: discardLogger(), Now: time.Now,
+			},
+			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+			withDaemonExtensionAutomation(&fakeAutomationManager{}),
+			withDaemonExtensionMCPRuntimeHealth(health),
+		).(*daemonExtensionService)
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"operator", taskpkg.OriginKindCLI, "lifecycle MCP health eviction",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		source.latestVersion = "1.0.0"
+		if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceGitHub, Ref: "acme/tool-ext", AllowUnverified: true,
+		}, actor); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		recordRuntimeHealthFailure(health, "tool-ext", "before-update")
+		source.latestVersion = "2.0.0"
+		if _, err := service.Update(
+			t.Context(), "tool-ext", contract.UpdateExtensionRequest{AllowUnverified: true}, actor,
+		); err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if entries := health.Entries("tool-ext", "", "before-update"); len(entries) != 0 {
+			t.Fatalf("runtime health after update = %#v, want evicted", entries)
+		}
+		recordRuntimeHealthFailure(health, "tool-ext", "before-remove")
+		if _, err := service.Remove(t.Context(), "tool-ext", actor); err != nil {
+			t.Fatalf("Remove() error = %v", err)
+		}
+		if entries := health.Entries("tool-ext", "", "before-remove"); len(entries) != 0 {
+			t.Fatalf("runtime health after remove = %#v, want evicted", entries)
 		}
 	})
 
@@ -1045,6 +1028,13 @@ func (h *lifecycleFailureHarness) assertRestored(t *testing.T) {
 	}
 }
 
+func recordRuntimeHealthFailure(registry *mcppkg.RuntimeHealthRegistry, name string, generation string) {
+	observation := registry.Begin(mcppkg.RuntimeHealthKey{
+		InstanceName: name, BundleGeneration: generation, ServerName: "remote",
+	})
+	registry.RecordFailure(observation, errors.New("connection failed"))
+}
+
 func waitForLifecycleRefs(
 	t *testing.T,
 	coordinator *extensionLifecycleCoordinator,
@@ -1070,27 +1060,6 @@ func waitForLifecycleRefs(
 		case <-changed:
 		case <-timer.C:
 			t.Fatalf("lifecycle refs for %q did not reach %d", name, want)
-		}
-	}
-}
-
-func waitForLifecycleWriters(t *testing.T, coordinator *extensionLifecycleCoordinator, want int) {
-	t.Helper()
-	timer := time.NewTimer(2 * time.Second)
-	defer timer.Stop()
-	for {
-		coordinator.gate.mu.Lock()
-		got := coordinator.gate.waitingWriters
-		coordinator.gate.ensureChangedLocked()
-		changed := coordinator.gate.changed
-		coordinator.gate.mu.Unlock()
-		if got == want {
-			return
-		}
-		select {
-		case <-changed:
-		case <-timer.C:
-			t.Fatalf("lifecycle waiting writers did not reach %d", want)
 		}
 	}
 }

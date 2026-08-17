@@ -14,11 +14,12 @@ import {
   fetchSessions,
   SessionLedgerUnavailableError,
 } from "../adapters/session-api";
+import { fetchSessionAttentionSummary } from "../adapters/session-attention-api";
 import { fetchSessionCommands } from "../adapters/session-command-api";
 import { fetchSessionOwner } from "../adapters/session-owner-api";
 import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
-import type { SessionListFilters, SessionState } from "../types";
+import type { SessionListFilters, SessionState, SessionsResponse } from "../types";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
 import {
@@ -87,6 +88,52 @@ export function sessionsListOptions(filters: SessionListFilters = {}) {
       fetchSessions(sessionListRequest(normalizedFilters, pageParam), signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    staleTime: 2_000,
+  });
+}
+
+async function fetchCompleteSessionList(
+  filters: SessionListFilters,
+  signal: AbortSignal
+): Promise<SessionsResponse> {
+  const sessions: SessionsResponse["sessions"] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+  let response = await fetchSessions(sessionListRequest(filters, cursor), signal);
+  const total = response.page.total;
+
+  while (true) {
+    sessions.push(...response.sessions);
+    if (!response.page.has_more) break;
+    const nextCursor = response.page.next_cursor?.trim();
+    if (!nextCursor || seenCursors.has(nextCursor)) {
+      throw new Error("Session catalog pagination did not advance");
+    }
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+    response = await fetchSessions(sessionListRequest(filters, cursor), signal);
+  }
+
+  return {
+    sessions,
+    page: { ...response.page, has_more: false, total },
+  };
+}
+
+/** Complete list for one isolated workspace group. */
+export function sessionsCompleteListOptions(filters: SessionListFilters = {}) {
+  const normalizedFilters = normalizeSessionListFilters(filters);
+  return queryOptions({
+    queryKey: sessionKeys.completeList(normalizedFilters),
+    queryFn: ({ signal }) => fetchCompleteSessionList(normalizedFilters, signal),
+    staleTime: 2_000,
+  });
+}
+
+export function sessionAttentionSummaryOptions() {
+  return queryOptions({
+    queryKey: sessionKeys.attentionSummary(),
+    queryFn: ({ signal }) => fetchSessionAttentionSummary(signal),
     staleTime: 2_000,
   });
 }

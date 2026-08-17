@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -16,6 +17,15 @@ var _ managedInstallRegistry = (*recordingManagedInstallRegistry)(nil)
 type managedInstallRegistryStub struct {
 	getFn     func(string) (*ExtensionInfo, error)
 	installFn func(*Manifest, string, string, ...InstallOption) error
+}
+
+type managedInstallReconcileRegistryStub struct {
+	infos []ExtensionInfo
+	err   error
+}
+
+func (s managedInstallReconcileRegistryStub) List() ([]ExtensionInfo, error) {
+	return append([]ExtensionInfo(nil), s.infos...), s.err
 }
 
 func (s managedInstallRegistryStub) Get(name string) (*ExtensionInfo, error) {
@@ -84,6 +94,132 @@ func TestManagedInstallHelpers(t *testing.T) {
 	if err := os.RemoveAll(stagingDir); err != nil {
 		t.Fatalf("os.RemoveAll(stagingDir) error = %v", err)
 	}
+}
+
+func TestReconcileManagedExtensionArtifacts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should restore committed artifacts and remove managed residues", func(t *testing.T) {
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		root := ManagedInstallRoot(homePaths)
+		registered := filepath.Join(root, "registered")
+		backup := registered + managedInstallBackupMarker + "1755280000000000000"
+		orphan := filepath.Join(root, "orphan")
+		staging := filepath.Join(root, managedInstallStagingPrefix+"interrupted")
+		for _, path := range []string{registered, backup, orphan, staging, homePaths.ExtensionDataRoot} {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatalf("MkdirAll(%q) error = %v", path, err)
+			}
+		}
+		writeFile(t, filepath.Join(registered, manifestTOMLFileName), "candidate")
+		writeFile(t, filepath.Join(backup, manifestTOMLFileName), "committed")
+		writeFile(t, filepath.Join(orphan, manifestTOMLFileName), "orphan")
+		writeFile(t, filepath.Join(staging, "partial"), "staged")
+		dataSentinel := filepath.Join(homePaths.ExtensionDataRoot, "registered", "state")
+		if err := os.MkdirAll(filepath.Dir(dataSentinel), 0o755); err != nil {
+			t.Fatalf("MkdirAll(data sentinel) error = %v", err)
+		}
+		writeFile(t, dataSentinel, "preserve")
+		quarantine := filepath.Join(homePaths.ExtensionDataRoot, "removed.compozy-quarantine-1755280000000000000")
+		if err := os.MkdirAll(quarantine, 0o755); err != nil {
+			t.Fatalf("MkdirAll(quarantine) error = %v", err)
+		}
+		writeFile(t, filepath.Join(quarantine, "state"), "residue")
+		committedChecksum, err := ComputeDirectoryChecksum(backup)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(backup) error = %v", err)
+		}
+		registry := managedInstallReconcileRegistryStub{infos: []ExtensionInfo{{
+			Name:         "registered",
+			ManifestPath: filepath.Join(registered, manifestTOMLFileName),
+			Checksum:     committedChecksum,
+		}}}
+
+		if err := ReconcileManagedExtensionArtifacts(homePaths, registry); err != nil {
+			t.Fatalf("ReconcileManagedExtensionArtifacts() error = %v", err)
+		}
+		content, err := os.ReadFile(filepath.Join(registered, manifestTOMLFileName))
+		if err != nil || string(content) != "committed" {
+			t.Fatalf("registered artifact = %q, %v; want restored committed bytes", content, err)
+		}
+		for _, removed := range []string{backup, orphan, staging} {
+			if _, statErr := os.Lstat(removed); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("orphan %q stat error = %v, want not exists", removed, statErr)
+			}
+		}
+		if _, statErr := os.Lstat(quarantine); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("quarantine stat error = %v, want startup sweep removal", statErr)
+		}
+		data, err := os.ReadFile(dataSentinel)
+		if err != nil || string(data) != "preserve" {
+			t.Fatalf("extension data = %q, %v; want preserved", data, err)
+		}
+	})
+}
+
+func TestReconcileManagedExtensionArtifactsRejectsEscapedRoot(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("directory symlink setup is platform-specific")
+	}
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	outside := t.TempDir()
+	sentinel := filepath.Join(outside, "sentinel")
+	writeFile(t, sentinel, "preserve")
+	if err := os.Symlink(outside, ManagedInstallRoot(homePaths)); err != nil {
+		t.Fatalf("Symlink(managed root) error = %v", err)
+	}
+	if err := ReconcileManagedExtensionArtifacts(homePaths, managedInstallReconcileRegistryStub{}); err == nil ||
+		!strings.Contains(err.Error(), "escapes home") {
+		t.Fatalf("ReconcileManagedExtensionArtifacts(symlink root) error = %v, want containment failure", err)
+	}
+	if data, err := os.ReadFile(sentinel); err != nil || string(data) != "preserve" {
+		t.Fatalf("outside sentinel = %q, %v; want preserved", data, err)
+	}
+}
+
+func TestReconcileManagedExtensionArtifactsRejectsBackupLookalikes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not restore a non-generated backup suffix", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		root := ManagedInstallRoot(homePaths)
+		registered := filepath.Join(root, "registered")
+		lookalike := registered + managedInstallBackupMarker + "interrupted"
+		for _, path := range []string{registered, lookalike} {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatalf("MkdirAll(%q) error = %v", path, err)
+			}
+		}
+		writeFile(t, filepath.Join(registered, manifestTOMLFileName), "candidate")
+		writeFile(t, filepath.Join(lookalike, manifestTOMLFileName), "lookalike")
+		if err := ReconcileManagedExtensionArtifacts(homePaths, managedInstallReconcileRegistryStub{
+			infos: []ExtensionInfo{{
+				Name: "registered", ManifestPath: filepath.Join(registered, manifestTOMLFileName), Checksum: "expected",
+			}},
+		}); err != nil {
+			t.Fatalf("ReconcileManagedExtensionArtifacts() error = %v", err)
+		}
+		content, err := os.ReadFile(filepath.Join(registered, manifestTOMLFileName))
+		if err != nil || string(content) != "candidate" {
+			t.Fatalf("registered artifact = %q, %v; want candidate untouched", content, err)
+		}
+		if _, err := os.Lstat(lookalike); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("lookalike stat error = %v, want removed as an orphan", err)
+		}
+	})
 }
 
 func TestRemoveManagedInstallContainment(t *testing.T) {
@@ -500,6 +636,73 @@ func TestCopyInstallTreeRejectsRuntimeDependencySymlinkOutsideSourceRoot(t *test
 
 func TestInstallLocalManaged(t *testing.T) {
 	t.Parallel()
+
+	for _, boundary := range []managedInstallBoundary{
+		managedInstallBoundaryStaged,
+		managedInstallBoundaryFinalMoved,
+	} {
+		t.Run("Should leave no visible state after interruption at "+string(boundary), func(t *testing.T) {
+			t.Parallel()
+
+			sourceDir := t.TempDir()
+			writeFile(t, filepath.Join(sourceDir, manifestTOMLFileName), "[extension]\nname = \"interrupted-ext\"\n")
+			checksum, err := ComputeDirectoryChecksum(sourceDir)
+			if err != nil {
+				t.Fatalf("ComputeDirectoryChecksum(source) error = %v", err)
+			}
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			installCalls := 0
+			registry := managedInstallRegistryStub{installFn: func(
+				*Manifest,
+				string,
+				string,
+				...InstallOption,
+			) error {
+				installCalls++
+				return nil
+			}}
+			interruption := errors.New("injected interruption")
+			err = InstallLocalManaged(
+				homePaths,
+				registry,
+				&Manifest{Name: "interrupted-ext"},
+				sourceDir,
+				checksum,
+				withManagedInstallBoundaryObserver(func(current managedInstallBoundary) error {
+					if current == boundary {
+						return interruption
+					}
+					return nil
+				}),
+			)
+			if !errors.Is(err, interruption) {
+				t.Fatalf("InstallLocalManaged(interrupted) error = %v, want %v", err, interruption)
+			}
+			if installCalls != 0 {
+				t.Fatalf("registry install calls after interruption = %d, want zero", installCalls)
+			}
+			finalDir := ManagedInstallPath(homePaths, "interrupted-ext")
+			if _, statErr := os.Stat(finalDir); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("final dir after interruption stat error = %v, want not exists", statErr)
+			}
+
+			if err := InstallLocalManaged(
+				homePaths,
+				registry,
+				&Manifest{Name: "interrupted-ext"},
+				sourceDir,
+				checksum,
+			); err != nil {
+				t.Fatalf("InstallLocalManaged(retry) error = %v", err)
+			}
+			if installCalls != 1 {
+				t.Fatalf("registry install calls after retry = %d, want one", installCalls)
+			}
+		})
+	}
 
 	t.Run("Should use the installed checksum for materialized symlinks", func(t *testing.T) {
 		t.Parallel()

@@ -27,39 +27,64 @@ func (s *daemonExtensionService) Install(
 	event := extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionInstallFailed, ExtensionName: req.Ref, SourceKind: string(req.Source),
 	}
-	var item contract.ExtensionPayload
 	installedBy := extensionInstalledBy(actor)
+	prepared, err := s.prepareExtensionInstall(ctx, req, actor, installedBy)
+	if err != nil {
+		return contract.ExtensionPayload{}, errors.Join(
+			err,
+			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
+		)
+	}
+	event.ExtensionName = prepared.name
+	var item contract.ExtensionPayload
 	mutation := func() error {
-		name, err := s.installExtensionSource(ctx, req, actor, installedBy)
-		if strings.TrimSpace(name) != "" {
-			event.ExtensionName = name
-		}
-		if err != nil {
+		if err := prepared.commit(); err != nil {
 			return err
 		}
 		if err := s.reload(ctx); err != nil {
-			return s.rollbackFailedInstall(ctx, name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err)
 		}
-		item, err = s.Status(ctx, name)
+		item, err = s.Status(ctx, prepared.name)
 		if err != nil {
-			return s.rollbackFailedInstall(ctx, name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err)
 		}
 		completedEvent := event
 		completedEvent.Type = eventspkg.ExtensionInstallCompleted
 		completedEvent.ExtensionName = item.Name
 		completedEvent.DigestMatched = item.DigestMatched
 		if err := s.recordCanonicalExtensionLifecycleEvent(ctx, actor, completedEvent); err != nil {
-			return s.rollbackFailedInstall(ctx, name, err)
+			return s.rollbackFailedInstall(ctx, prepared.name, err)
 		}
 		return nil
 	}
-	if err := s.lifecycle.exclusive(ctx, mutation); err != nil {
+	err = s.lifecycle.withInstance(ctx, extensionpkg.GlobalInstanceKey(prepared.name), mutation)
+	if err = s.finishPreparedInstall(prepared, err); err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,
 			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
 		)
 	}
 	return item, nil
+}
+
+func (s *daemonExtensionService) finishPreparedInstall(
+	prepared preparedDaemonExtensionInstall,
+	mutationErr error,
+) error {
+	cleanupErr := prepared.Close()
+	if mutationErr != nil {
+		return errors.Join(mutationErr, cleanupErr)
+	}
+	if cleanupErr != nil {
+		s.logger.Warn(
+			"daemon: clean committed extension install staging",
+			"extension",
+			prepared.name,
+			"error",
+			cleanupErr,
+		)
+	}
+	return nil
 }
 
 func (s *daemonExtensionService) Update(
@@ -174,15 +199,18 @@ func (s *daemonExtensionService) Remove(
 		if retireErr != nil {
 			return retireErr
 		}
-		removed, removeErr := extensionpkg.RemoveManagedExtension(ctx, s.registry, name, s.reload)
+		removed, removeErr := extensionpkg.RemoveManagedExtension(ctx, s.homePaths, s.registry, name, s.reload)
 		if removeErr != nil {
 			return errors.Join(removeErr, retirement.rollback(ctx, s))
 		}
+		s.evictExtensionMCPHealth(name, "")
 		item = contract.ManagedExtensionRemovePayload{
-			Name:     removed.Name,
-			Path:     removed.Path,
-			Status:   removed.Status,
-			Warnings: append([]contract.DiagnosticItem(nil), removed.Warnings...),
+			Name:           removed.Name,
+			Path:           removed.Path,
+			DataPath:       removed.DataPath,
+			QuarantinePath: removed.QuarantinePath,
+			Status:         removed.Status,
+			Warnings:       append([]contract.DiagnosticItem(nil), removed.Warnings...),
 		}
 		return s.recordExtensionRemoveEvent(ctx, actor, item)
 	})
@@ -308,6 +336,7 @@ func (s *daemonExtensionService) Disable(
 		if reloadErr := s.reload(ctx); reloadErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
 		}
+		s.evictExtensionMCPHealth(name, "")
 		var statusErr error
 		item, statusErr = s.Status(ctx, name)
 		if statusErr != nil {

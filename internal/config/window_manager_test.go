@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestWindowManagerConfig(t *testing.T) {
@@ -100,7 +102,7 @@ top_center = "none"
 		base.NavStackLimit = 90
 		base.ClosedEntryLimit = 30
 		base.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
-		base.Shortcuts = map[string]string{"window.focus.left": "alt+KeyH"}
+		base.Shortcuts = map[string]windowmanager.ShortcutBinding{"window.focus.left": {"alt+KeyH"}}
 		path := filepath.Join(t.TempDir(), ConfigName)
 		writeFile(t, path, `
 [window_manager]
@@ -112,7 +114,8 @@ closed_entry_limit = 10
 right = 14
 
 [window_manager.shortcuts]
-"desktop.switch.next" = "alt+ArrowRight"
+"desktop.switch.next" = ["alt+ArrowRight", "alt+KeyL"]
+"window.focus.left" = "alt+KeyH"
 `)
 
 		got, err := ApplyWindowManagerOverlayFile(path, base)
@@ -126,13 +129,18 @@ right = 14
 		if got.Gaps.Right != 14 || got.Gaps.Left != base.Gaps.Left {
 			t.Fatalf("window manager gaps = %#v, want workspace right and active left", got.Gaps)
 		}
-		if len(got.Shortcuts) != 1 || got.Shortcuts["desktop.switch.next"] != "alt+ArrowRight" {
+		if len(got.Shortcuts) != 2 ||
+			!slices.Equal(
+				got.Shortcuts["desktop.switch.next"],
+				windowmanager.ShortcutBinding{"alt+ArrowRight", "alt+KeyL"},
+			) ||
+			!slices.Equal(got.Shortcuts["window.focus.left"], windowmanager.ShortcutBinding{"alt+KeyH"}) {
 			t.Fatalf("window manager shortcuts = %#v, want workspace replacement", got.Shortcuts)
 		}
 
 		got.Snap.RepeatRatios[0] = 0.4
-		got.Shortcuts["desktop.switch.next"] = "meta+ArrowRight"
-		if base.Snap.RepeatRatios[0] != 0.5 || base.Shortcuts["window.focus.left"] != "alt+KeyH" {
+		got.Shortcuts["desktop.switch.next"][0] = "meta+ArrowRight"
+		if base.Snap.RepeatRatios[0] != 0.5 || base.Shortcuts["window.focus.left"][0] != "alt+KeyH" {
 			t.Fatalf("ApplyWindowManagerOverlayFile() aliased active defaults: %#v", base)
 		}
 	})
@@ -187,9 +195,9 @@ right = 14
 	t.Run("Should reject a duplicate shortcut chord", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWindowManagerConfig()
-		cfg.Shortcuts = map[string]string{
-			"desktop.switch.next": "Shift+Meta+ArrowRight",
-			"window.focus.right":  "meta+shift+ArrowRight",
+		cfg.Shortcuts = map[string]windowmanager.ShortcutBinding{
+			"desktop.switch.next": {"Shift+Meta+ArrowRight"},
+			"window.focus.right":  {"meta+shift+ArrowRight"},
 		}
 
 		err := cfg.Validate()

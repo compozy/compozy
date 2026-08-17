@@ -543,10 +543,13 @@ func TestPromptSyntheticMetaNormalizeAndValidate(t *testing.T) {
 	t.Parallel()
 
 	meta := PromptSyntheticMeta{
-		TaskID:    " task-1 ",
-		TaskRunID: " run-1 ",
-		Reason:    " task_run_completed ",
-		Summary:   " ready ",
+		TaskID:         " task-1 ",
+		TaskRunID:      " run-1 ",
+		ChildSessionID: " child-1 ",
+		ChildAgentName: " researcher ",
+		Badge:          " waiting-for-input ",
+		Reason:         " task_run_completed ",
+		Summary:        " ready ",
 	}
 	normalized := meta.Normalize()
 
@@ -555,6 +558,15 @@ func TestPromptSyntheticMetaNormalizeAndValidate(t *testing.T) {
 	}
 	if got, want := normalized.TaskRunID, "run-1"; got != want {
 		t.Fatalf("Normalize().TaskRunID = %q, want %q", got, want)
+	}
+	if got, want := normalized.ChildSessionID, "child-1"; got != want {
+		t.Fatalf("Normalize().ChildSessionID = %q, want %q", got, want)
+	}
+	if got, want := normalized.ChildAgentName, "researcher"; got != want {
+		t.Fatalf("Normalize().ChildAgentName = %q, want %q", got, want)
+	}
+	if got, want := normalized.Badge, "waiting-for-input"; got != want {
+		t.Fatalf("Normalize().Badge = %q, want %q", got, want)
 	}
 	if got, want := normalized.Reason, "task_run_completed"; got != want {
 		t.Fatalf("Normalize().Reason = %q, want %q", got, want)

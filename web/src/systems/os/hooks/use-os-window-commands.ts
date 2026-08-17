@@ -6,7 +6,10 @@ import {
   type WindowPlacementCommand,
 } from "../lib/window-manager-command-registry";
 import { dispatchWindowPlacement } from "../lib/window-manager-action-dispatch";
-import { resolveWindowManagerActions } from "../lib/window-manager-shortcuts";
+import {
+  primaryShortcutModifier,
+  resolveWindowManagerActions,
+} from "../lib/window-manager-shortcuts";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import type { FocusDirection } from "../lib/window-manager-types";
 import { useDesktop } from "./use-desktop";
@@ -84,8 +87,13 @@ export function useOsWindowCommands(): OsWindowCommandsModel {
   });
 
   const shortcutLabels = Object.fromEntries(
-    resolveWindowManagerActions(windowManagerConfig?.shortcuts ?? {}).flatMap(action =>
-      action.shortcutLabel ? [[action.id, action.shortcutLabel] as const] : []
+    resolveWindowManagerActions(
+      windowManagerConfig?.effectiveShortcuts ?? {},
+      primaryShortcutModifier(typeof navigator === "undefined" ? "" : navigator.platform)
+    ).flatMap(action =>
+      action.shortcutLabels.length > 0
+        ? [[action.id, action.shortcutLabels.join(" / ")] as const]
+        : []
     )
   ) as Partial<Record<WindowManagerActionId, string>>;
 

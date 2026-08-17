@@ -12,6 +12,7 @@
             "artifact_url": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/artifacts/repository-orientation-v1.0.0.tar.gz",
             "digest_sha256": "291157eca591bd08538efec1ffc48f139ff951e05e3126760bba850af019e767",
             "tier": "official",
+            "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/repository-orientation"
         }

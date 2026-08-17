@@ -5,6 +5,8 @@ import (
 
 	"slices"
 
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -64,6 +66,7 @@ func cloneExtensionInfo(info ExtensionInfo) ExtensionInfo {
 	cloned := info
 	cloned.Capabilities = normalizeCapabilitiesConfig(info.Capabilities)
 	cloned.Permissions = normalizePermissionsConfig(info.Permissions)
+	cloned.IngestDiagnostics = cloneDiagnosticItems(info.IngestDiagnostics)
 	return cloned
 }
 
@@ -73,11 +76,24 @@ func cloneManifest(src *Manifest) *Manifest {
 	}
 
 	cloned := *src
+	cloned.IngestDiagnostics = cloneDiagnosticItems(src.IngestDiagnostics)
 	cloned.Resources = normalizeResourcesConfig(src.Resources)
 	cloned.Capabilities = normalizeCapabilitiesConfig(src.Capabilities)
 	cloned.Permissions = normalizePermissionsConfig(src.Permissions)
 	cloned.Subprocess = normalizeSubprocessConfig(src.Subprocess)
 	return &cloned
+}
+
+func cloneDiagnosticItems(src []diagnosticcontract.DiagnosticItem) []diagnosticcontract.DiagnosticItem {
+	if len(src) == 0 {
+		return nil
+	}
+	cloned := make([]diagnosticcontract.DiagnosticItem, len(src))
+	for index := range src {
+		cloned[index] = src[index]
+		cloned[index].Evidence = diagnostics.RedactEvidence(src[index].Evidence)
+	}
+	return cloned
 }
 
 func cloneSkillSnapshot(skill *skillspkg.Skill) *skillspkg.Skill {

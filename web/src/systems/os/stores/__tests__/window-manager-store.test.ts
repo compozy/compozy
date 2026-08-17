@@ -205,6 +205,47 @@ describe("window manager store", () => {
     });
   });
 
+  it("Should keep the palette on one mode, dropping the other whenever either is raised [UT-059]", () => {
+    const store = createWindowManagerStore();
+
+    store.trigger.paletteViewPushed({ viewId: "sessions" });
+    store.trigger.paletteViewPushed({ viewId: "sessions" });
+    expect(state(store).paletteViewStack).toEqual([{ viewId: "sessions" }, { viewId: "sessions" }]);
+
+    // A destination picker raised from a new tab replaces the view path.
+    store.trigger.paletteIntentRequested({
+      intent: { kind: "destination", windowId: "window:new-tab" },
+    });
+    expect(state(store).paletteViewStack).toEqual([]);
+    expect(state(store).paletteIntent).toEqual({ kind: "destination", windowId: "window:new-tab" });
+
+    // ⌘E in the other direction drops the destination scope.
+    store.trigger.paletteViewStackSet({ stack: [{ viewId: "sessions" }] });
+    expect(state(store).paletteIntent).toBeNull();
+    expect(state(store).paletteViewStack).toEqual([{ viewId: "sessions" }]);
+
+    store.trigger.paletteViewPopped();
+    expect(state(store).paletteViewStack).toEqual([]);
+    store.trigger.paletteViewPopped();
+    expect(state(store).paletteViewStack).toEqual([]);
+  });
+
+  it("Should reset the palette view path for a new binding and isolate a seeded stack", () => {
+    const store = createWindowManagerStore();
+    const seeded = [{ viewId: "sessions" as const }];
+    store.trigger.bindingBound({
+      binding: { workspaceId: "workspace:alpha", clientId: "client:one" },
+    });
+    store.trigger.paletteViewStackSet({ stack: seeded });
+    seeded.push({ viewId: "sessions" as const });
+    expect(state(store).paletteViewStack).toHaveLength(1);
+
+    store.trigger.bindingBound({
+      binding: { workspaceId: "workspace:beta", clientId: "client:two" },
+    });
+    expect(state(store).paletteViewStack).toEqual([]);
+  });
+
   it("Should isolate measured work-area and transition inputs from caller mutation", () => {
     const store = createWindowManagerStore();
     const rect = { x: 10, y: 20, w: 1200, h: 760 };

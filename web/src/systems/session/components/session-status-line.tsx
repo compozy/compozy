@@ -1,27 +1,13 @@
 import type * as React from "react";
 
-import { cn, Pill, type PillTone } from "@compozy/ui";
+import { cn } from "@compozy/ui";
 
-import type { SessionBadge, SessionPayload, SessionState } from "../types";
+import { sessionBadgeSignal, type SessionBadgeToken } from "../lib/session-badge";
+import { sessionBadgeWordClass } from "../lib/session-badge-classes";
+import { SessionBadgeGlyph } from "./session-badge-mark";
+import type { SessionPayload, SessionState } from "../types";
 
-interface StateSignal {
-  tone: PillTone;
-  pulse?: boolean;
-  label: string;
-}
-
-const BADGE_SIGNAL: Record<SessionBadge, StateSignal> = {
-  running: { tone: "success", pulse: true, label: "running" },
-  idle: { tone: "info", label: "idle" },
-  unhealthy: { tone: "warning", label: "unhealthy" },
-  hung: { tone: "danger", pulse: true, label: "hung" },
-  "waiting-for-auth": { tone: "warning", label: "waiting-for-auth" },
-  stopped: { tone: "neutral", label: "stopped" },
-  failed: { tone: "danger", label: "failed" },
-  unknown: { tone: "neutral", label: "unknown" },
-};
-
-const STATE_BADGE_FALLBACK: Record<SessionState, SessionBadge> = {
+const STATE_BADGE_FALLBACK: Record<SessionState, SessionBadgeToken> = {
   active: "idle",
   starting: "running",
   stopping: "running",
@@ -44,8 +30,8 @@ export function SessionStatusLine({
   showState = true,
   ...props
 }: SessionStatusLineProps) {
-  const badge = session.badge ?? STATE_BADGE_FALLBACK[session.state] ?? "unknown";
-  const signal = BADGE_SIGNAL[badge] ?? BADGE_SIGNAL.unknown;
+  const badge = session.badge || STATE_BADGE_FALLBACK[session.state];
+  const signal = sessionBadgeSignal(badge);
   const agentLabel = session.agent_name.trim();
   const providerLabel = session.runtime.effective?.provider.trim();
 
@@ -57,14 +43,11 @@ export function SessionStatusLine({
     >
       {showState ? (
         <>
-          <Pill.Dot
-            size="md"
-            tone={signal.tone}
-            pulse={signal.pulse}
-            data-testid="agent-status-dot"
-            aria-label={`Session badge: ${signal.label}`}
-          />
-          <span data-testid="session-status-badge" className="font-mono text-eyebrow text-faint">
+          <SessionBadgeGlyph badge={badge} data-testid="agent-status-dot" />
+          <span
+            data-testid="session-status-badge"
+            className={cn("font-mono text-eyebrow", sessionBadgeWordClass(badge))}
+          >
             {signal.label}
           </span>
         </>

@@ -6,10 +6,12 @@ import {
   DEV_EXTENSION_WORKSPACE_ID,
   devExtensionFixture,
   extensionFixtures,
+  extensionInventoryDiagnosticsFixtures,
   extensionInventoryFixtures,
   extensionLogFixtures,
   extensionProvenanceFixtures,
 } from "./fixtures";
+import type { ExtensionInventoryDiagnostic } from "../lib/extension-skipped-diagnostics";
 import type { ExtensionEntry, ExtensionKitItem, ExtensionLogsSnapshot } from "../types";
 
 function cloneExtensions(): ExtensionEntry[] {
@@ -18,6 +20,10 @@ function cloneExtensions(): ExtensionEntry[] {
 
 function cloneInventory(): Record<string, ExtensionKitItem[]> {
   return structuredClone(extensionInventoryFixtures);
+}
+
+function cloneInventoryDiagnostics(): Record<string, ExtensionInventoryDiagnostic[]> {
+  return structuredClone(extensionInventoryDiagnosticsFixtures);
 }
 
 function cloneDevExtensions(): Record<string, ExtensionEntry[]> {
@@ -37,12 +43,14 @@ function emptyExtensionLogs(name: string, workspace: string): ExtensionLogsSnaps
 
 let extensionsState = cloneExtensions();
 let inventoryState = cloneInventory();
+let inventoryDiagnosticsState = cloneInventoryDiagnostics();
 let devExtensionsState = cloneDevExtensions();
 let extensionLogsState = cloneExtensionLogs();
 
 export function resetExtensionMockState(): void {
   extensionsState = cloneExtensions();
   inventoryState = cloneInventory();
+  inventoryDiagnosticsState = cloneInventoryDiagnostics();
   devExtensionsState = cloneDevExtensions();
   extensionLogsState = cloneExtensionLogs();
 }
@@ -131,8 +139,10 @@ export const handlers: HttpHandler[] = [
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }
     return HttpResponse.json({
+      diagnostics: inventoryDiagnosticsState[name] ?? [],
       enabled: extension.enabled,
       extension: name,
+      format: extension.format,
       items: inventoryState[name] ?? [],
     });
   }),

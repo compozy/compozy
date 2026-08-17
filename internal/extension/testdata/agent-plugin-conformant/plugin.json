@@ -1,0 +1,6 @@
+{
+    "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+    "name": "acme.tools",
+    "version": "1.2.0",
+    "description": "Portable tools for Agent Plugins conformance tests"
+}

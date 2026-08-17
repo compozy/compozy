@@ -27,6 +27,7 @@ interface InstalledItemsInput {
       name: string;
       version: string;
       enabled: boolean;
+      format?: string;
       marketplace?: MarketplaceListing | null;
     };
     listing: MarketplaceListing | null;
@@ -180,9 +181,12 @@ function buildInstalledExtensionItems(input: InstalledItemsInput): MarketplaceIn
   for (const item of input.extensions) {
     const extension = item.extension;
     const listing = item.listing;
+    // Detection at ingestion decides the format, so the instance's own value wins over any curated
+    // marker the listing carries.
     const entry: MarketplaceListing = listing
       ? {
           ...listing,
+          format: extension.format ?? listing.format,
           installed: true,
           installed_name: extension.name,
           installed_version: extension.version,
@@ -190,6 +194,7 @@ function buildInstalledExtensionItems(input: InstalledItemsInput): MarketplaceIn
         }
       : {
           entry_id: extension.name,
+          format: extension.format,
           kind: "extension",
           name: extension.name,
           description: "",

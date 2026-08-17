@@ -2,12 +2,38 @@ import type {
   CompozyApiJsonResponseFor,
   CompozyApiOkJsonResponseFor,
 } from "@/storybook/openapi-msw";
-import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
+import {
+  storyDefaultWorkspaceId,
+  storySessionIds,
+  storyWorkspaceIds,
+} from "@/storybook/fintech-scenario";
+import type {
+  OperatorNotificationEventPayload,
+  SessionAttentionEventPayload,
+} from "@/systems/session";
 
 import { resolveAppForPath } from "../lib/app-registry";
 
 export const windowManagerStoryDesktopId = "desktop-launch";
 export const windowManagerStoryWindowId = "w-story-settings";
+
+export const osSessionAttentionEventFixture: SessionAttentionEventPayload = {
+  session_id: storySessionIds.cto,
+  workspace_id: storyWorkspaceIds.hq,
+  from: "running",
+  to: "waiting-for-input",
+  class: "needs-you",
+  at: "2026-04-17T18:11:30Z",
+};
+
+export const osOperatorNotificationEventFixture: OperatorNotificationEventPayload = {
+  notification_id: "ntf_story_deps_audit",
+  session_id: storySessionIds.cto,
+  workspace_id: storyWorkspaceIds.hq,
+  title: "Dependency audit done",
+  body: "3 findings, 1 high severity",
+  at: "2026-04-17T18:12:00Z",
+};
 
 /**
  * Window IDs are opaque and generated (ADR-010); stories keep them

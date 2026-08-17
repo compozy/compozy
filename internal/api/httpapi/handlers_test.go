@@ -204,6 +204,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/roles",
 		"GET /api/roles/:role",
 		"GET /api/sessions",
+		"GET /api/sessions/attention-summary",
 		"GET /api/sessions/catalog-stream",
 		"GET /api/sessions/:session_id",
 		"GET /api/sessions/:session_id/owner",
@@ -215,6 +216,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/interactions",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/recap",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/usage",
@@ -241,6 +243,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/settings/mcp-servers/:name/auth/logout",
 		"GET /api/settings/memory",
 		"GET /api/settings/network",
+		"GET /api/settings/attention",
+		"GET /api/settings/shell",
 		"GET /api/settings/window-manager",
 		"GET /api/settings/observability",
 		"GET /api/settings/observability/log-tail",
@@ -302,6 +306,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/bridges/:id",
 		"PATCH /api/memory/:filename",
 		"PATCH /api/settings/automation",
+		"PATCH /api/settings/attention",
+		"PATCH /api/settings/shell",
 		"PATCH /api/settings/general",
 		"PATCH /api/settings/hooks-extensions",
 		"PATCH /api/settings/memory",
@@ -317,6 +323,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/workspaces/:workspace_id/sessions/:session_id",
 		"POST /api/agent/channels/:channel/send",
 		"POST /api/agent/channels/reply",
+		"POST /api/agent/notify",
 		"POST /api/agent/soul/validate",
 		"POST /api/agent/spawn",
 		"POST /api/agent/tasks/:run_id/complete",
@@ -414,6 +421,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/rewind",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/presence",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/wait",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id/steer",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
@@ -1105,6 +1114,8 @@ func TestDaemonAPIRoutesReturnForbiddenOnNonLoopbackHost(t *testing.T) {
 		"/api/settings/skills",
 		"/api/settings/automation",
 		"/api/settings/network",
+		"/api/settings/attention",
+		"/api/settings/shell",
 		"/api/settings/window-manager",
 		"/api/settings/observability",
 		"/api/settings/hooks-extensions",
@@ -1238,6 +1249,8 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 		{method: http.MethodPatch, path: "/api/settings/skills", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/automation", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/network", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/attention", body: []byte(`{}`)},
+		{method: http.MethodPatch, path: "/api/settings/shell", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/window-manager", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/observability", body: []byte(`{}`)},
 		{method: http.MethodPatch, path: "/api/settings/hooks-extensions", body: []byte(`{}`)},
@@ -3269,11 +3282,14 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		CancelPromptFn: func(_ context.Context, id string) error {
+		CancelPromptFn: func(_ context.Context, id string) (session.PromptCancelResult, error) {
 			if id != "sess-123" {
 				t.Fatalf("CancelPrompt() id = %q, want sess-123", id)
 			}
-			return nil
+			return session.PromptCancelResult{
+				Outcome: session.PromptCancelOutcomeCanceled,
+				TurnID:  "turn-1",
+			}, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -3289,8 +3305,10 @@ func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
-	if got := recorder.Body.String(); got != "" {
-		t.Fatalf("body = %q, want empty", got)
+	var payload contract.SessionPromptCancelResponse
+	apitestutil.DecodeJSONResponse(t, recorder, &payload)
+	if payload.SessionID != "sess-123" || payload.Outcome != "canceled" || payload.TurnID != "turn-1" {
+		t.Fatalf("prompt cancel payload = %#v, want canceled turn", payload)
 	}
 }
 
@@ -3569,8 +3587,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 
 	t.Run("Should session not found", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
-				return session.ErrSessionNotFound
+			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
+				return session.ApprovalResult{}, session.ErrSessionNotFound
 			},
 		}, stubObserver{}, homePaths))
 		recorder := performRequest(
@@ -3587,8 +3605,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 
 	t.Run("Should pending permission missing", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
-				return session.ErrPendingPermissionNotFound
+			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
+				return session.ApprovalResult{}, session.ErrPendingPermissionNotFound
 			},
 		}, stubObserver{}, homePaths))
 		recorder := performRequest(
@@ -3605,8 +3623,8 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 
 	t.Run("Should session not active", func(t *testing.T) {
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(context.Context, string, acp.ApproveRequest) error {
-				return session.ErrSessionNotActive
+			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
+				return session.ApprovalResult{}, session.ErrSessionNotActive
 			},
 		}, stubObserver{}, homePaths))
 		recorder := performRequest(
@@ -3627,10 +3645,18 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			gotReq acp.ApproveRequest
 		)
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(_ context.Context, id string, req acp.ApproveRequest) error {
+			ApproveFn: func(
+				_ context.Context,
+				id string,
+				req acp.ApproveRequest,
+			) (session.ApprovalResult, error) {
 				gotID = id
 				gotReq = req
-				return nil
+				return session.ApprovalResult{
+					Outcome:   "applied",
+					RequestID: req.RequestID,
+					Decision:  req.Decision,
+				}, nil
 			},
 		}, stubObserver{}, homePaths))
 		recorder := performRequest(
@@ -3648,6 +3674,12 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 		}
 		if gotReq.RequestID != "req-1" || gotReq.TurnID != "turn-1" || gotReq.Decision != "allow-always" {
 			t.Fatalf("approve request = %#v", gotReq)
+		}
+		var response contract.SessionApprovalResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Outcome != "applied" || response.RequestID != "req-1" ||
+			response.Decision != "allow-always" {
+			t.Fatalf("approve response = %#v", response)
 		}
 	})
 }
@@ -3744,7 +3776,8 @@ func TestExtensionKitAndSecretsRoutesReachHTTPService(t *testing.T) {
 			req contract.SetExtensionSecretsRequest,
 			actor taskpkg.ActorContext,
 		) (contract.ExtensionSecretsPayload, error) {
-			if name != "kit" || !actor.Authority.Write || req.Secrets["API_KEY"].Value == nil {
+			if name != "kit" || !actor.Authority.Write || len(req.Bindings) != 1 ||
+				req.Bindings[0].EnvName != "API_KEY" || req.Bindings[0].Value == nil {
 				t.Fatal("SetExtensionSecrets() did not receive trusted actor and write-only value")
 			}
 			secretWrites++
@@ -3821,7 +3854,7 @@ func TestExtensionKitAndSecretsRoutesReachHTTPService(t *testing.T) {
 	}
 	t.Run("Should set a secret without returning its value", func(t *testing.T) {
 		setResponse := performRequest(t, engine, http.MethodPut, "/api/extensions/kit/secrets", []byte(
-			`{"secrets":{"API_KEY":{"value":"planted-secret-value"}}}`,
+			`{"bindings":[{"env_name":"API_KEY","value":"planted-secret-value"}]}`,
 		))
 		if setResponse.Code != http.StatusOK {
 			t.Fatalf("PUT secrets status=%d body=%s, want 200", setResponse.Code, setResponse.Body.String())

@@ -37,8 +37,10 @@ import {
   ExtensionLogPanel,
   ExtensionNetworkConfirmDialog,
   ExtensionProvenanceDialog,
+  ExtensionSkippedComponents,
   extensionTrustFacts,
   RemoveExtensionDialog,
+  selectExtensionSkippedDiagnostics,
   useExtensionDetailState,
 } from "@/systems/extensions";
 
@@ -163,11 +165,12 @@ type ExtensionDetailState = ReturnType<typeof useExtensionDetailState>;
 function MarketplaceExtensionKitSection({ state }: { state: ExtensionDetailState }) {
   const items = state.inventory.data?.items;
   const total = items?.length ?? 0;
+  const skippedDiagnostics = selectExtensionSkippedDiagnostics(state.inventory.data?.diagnostics);
   const allLive = total > 0 && items!.every(item => item.live);
-  const summary =
-    state.inventory.isLoading || state.inventory.error
-      ? undefined
-      : `${total} ${total === 1 ? "item" : "items"}${allLive ? " · all live" : ""}`;
+  const settled = !state.inventory.isLoading && !state.inventory.error;
+  const summary = settled
+    ? `${total} ${total === 1 ? "item" : "items"}${allLive ? " · all live" : ""}`
+    : undefined;
   return (
     <MarketplaceDetailSection
       data-testid="marketplace-extension-kit"
@@ -181,7 +184,11 @@ function MarketplaceExtensionKitSection({ state }: { state: ExtensionDetailState
         isLoading={state.inventory.isLoading}
         items={items}
         onRetry={() => void state.inventory.refetch()}
+        showEmptyState={skippedDiagnostics.length === 0}
       />
+      {settled ? (
+        <ExtensionSkippedComponents diagnostics={skippedDiagnostics} ingestedCount={total} />
+      ) : null}
     </MarketplaceDetailSection>
   );
 }

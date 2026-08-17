@@ -96,7 +96,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 }
 
 func newConfigValidateCommand(deps commandDeps) *cobra.Command {
-	return newConfigValidateCommandNamed(deps, "validate")
+	return newConfigValidateCommandNamed(deps, cliValidateVerb)
 }
 
 func newConfigCheckCommand(deps commandDeps) *cobra.Command {

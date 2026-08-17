@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -315,6 +316,7 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 				MCPServers: map[string]MCPServerConfig{
 					"git": {
 						Command: "./bin/mcp-git",
+						CWD:     rootDir,
 						Args:    []string{"--config", "{{config_dir}}/git.toml"},
 						Env: map[string]string{
 							"GIT_MODE": "{{env:GIT_MODE}}",
@@ -339,8 +341,15 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 		if got, want := len(servers), 1; got != want {
 			t.Fatalf("len(ResolveManifestMCPServerResources()) = %d, want %d", got, want)
 		}
-		if got, want := servers[0].Command, filepath.Join(rootDir, "bin", "mcp-git"); got != want {
+		canonicalRoot, err := filepath.EvalSymlinks(rootDir)
+		if err != nil {
+			t.Fatalf("filepath.EvalSymlinks(rootDir) error = %v", err)
+		}
+		if got, want := servers[0].Command, filepath.Join(canonicalRoot, "bin", "mcp-git"); got != want {
 			t.Fatalf("servers[0].Command = %q, want %q", got, want)
+		}
+		if got, want := servers[0].CWD, rootDir; got != want {
+			t.Fatalf("servers[0].CWD = %q, want %q", got, want)
 		}
 		if got, want := servers[0].Args, []string{
 			"--config",
@@ -356,6 +365,43 @@ func TestResolveManifestMCPServerResourcesResolvesTemplates(t *testing.T) {
 		}
 		if got, want := servers[0].SecretEnv["GIT_TOKEN"], "env:GIT_TOKEN"; got != want {
 			t.Fatalf("servers[0].SecretEnv[GIT_TOKEN] = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve portable remote transport metadata", func(t *testing.T) {
+		t.Parallel()
+
+		manifest := &Manifest{Resources: ResourcesConfig{MCPServers: map[string]MCPServerConfig{
+			"remote": {
+				Transport: string(compozyconfig.MCPServerTransportHTTP),
+				URL:       "https://{{env:MCP_HOST}}/mcp",
+				Headers:   map[string]string{"X-Tenant": "{{env:MCP_TENANT}}"},
+			},
+		}}}
+		servers, err := ResolveManifestMCPServerResources(t.TempDir(), manifest, func(key string) string {
+			switch key {
+			case "MCP_HOST":
+				return "example.com"
+			case "MCP_TENANT":
+				return "acme"
+			default:
+				return ""
+			}
+		})
+		if err != nil {
+			t.Fatalf("ResolveManifestMCPServerResources() error = %v", err)
+		}
+		if got, want := len(servers), 1; got != want {
+			t.Fatalf("len(ResolveManifestMCPServerResources()) = %d, want %d", got, want)
+		}
+		if got, want := servers[0].Transport, compozyconfig.MCPServerTransportHTTP; got != want {
+			t.Fatalf("servers[0].Transport = %q, want %q", got, want)
+		}
+		if got, want := servers[0].URL, "https://example.com/mcp"; got != want {
+			t.Fatalf("servers[0].URL = %q, want %q", got, want)
+		}
+		if got, want := servers[0].Headers["X-Tenant"], "acme"; got != want {
+			t.Fatalf("servers[0].Headers[X-Tenant] = %q, want %q", got, want)
 		}
 	})
 }

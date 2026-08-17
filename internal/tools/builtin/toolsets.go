@@ -82,6 +82,13 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionEvents.String(),
 			toolspkg.ToolIDSessionDescribe.String(),
 			toolspkg.ToolIDSessionHealth.String(),
+			toolspkg.ToolIDNotify.String(),
+			toolspkg.ToolIDSessionWait.String(),
+			toolspkg.ToolIDSessionSpawn.String(),
+			toolspkg.ToolIDSessionStop.String(),
+			toolspkg.ToolIDSessionApprove.String(),
+			toolspkg.ToolIDSessionClarifyAnswer.String(),
+			toolspkg.ToolIDSessionPromptCancel.String(),
 		},
 	},
 	{

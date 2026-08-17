@@ -202,28 +202,19 @@ func cloneWorkspaceConfig(config WorkspaceConfig) WorkspaceConfig {
 		config.Snap = &cloned
 	}
 	config.Bindings = clonePointer(config.Bindings)
-	config.Shortcuts = cloneStringMap(config.Shortcuts)
+	config.Shortcuts = CloneShortcutMap(config.Shortcuts)
 	return config
 }
 
 func cloneConfig(config Config) Config {
 	config.Snap = cloneSnapConfig(config.Snap)
-	config.Shortcuts = cloneStringMap(config.Shortcuts)
+	config.Shortcuts = CloneShortcutMap(config.Shortcuts)
 	return config
 }
 
 func cloneSnapConfig(config SnapConfig) SnapConfig {
 	config.RepeatRatios = append([]float64(nil), config.RepeatRatios...)
 	return config
-}
-
-func cloneStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-	cloned := make(map[string]string, len(values))
-	maps.Copy(cloned, values)
-	return cloned
 }
 
 func cloneChangeSet(changes ChangeSet) ChangeSet {

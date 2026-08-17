@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import {
   sessionDetailOptions,
@@ -19,6 +20,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
 interface UseSessionsOptions {
   enabled?: boolean;
   filters?: Omit<SessionListFilters, "workspace">;
+  /** Follow the cursor chain until this filtered catalog is complete. */
+  loadAll?: boolean;
 }
 
 export function useSessions(workspace: string | null = null, options?: UseSessionsOptions) {
@@ -30,6 +33,21 @@ export function useSessions(workspace: string | null = null, options?: UseSessio
     ...sessionsListOptions(filters),
     enabled: options?.enabled ?? true,
   });
+
+  useEffect(() => {
+    if (
+      !options?.loadAll ||
+      options.enabled === false ||
+      !query.hasNextPage ||
+      query.isFetchingNextPage ||
+      query.isError
+    ) {
+      return;
+    }
+    // React Query records a continuation failure on the query; the consumer
+    // reads that state, so the promise itself needs no second error channel.
+    void query.fetchNextPage().catch(() => undefined);
+  }, [options?.enabled, options?.loadAll, query]);
 
   return {
     ...query,

@@ -17,7 +17,37 @@ func registryAgentRuntimeOperations() []OperationSpec {
 		failAgentTaskRunOperationSpec(),
 		releaseAgentTaskRunOperationSpec(),
 		spawnAgentSessionOperationSpec(),
+		notifyOperatorOperationSpec(),
 		getAgentCoordinatorConfigOperationSpec(),
+	}
+}
+
+func notifyOperatorOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodPost, Path: "/api/agent/notify",
+		OperationID: "notifyOperator", Summary: "Notify live operator clients from the calling agent",
+		Tags: []string{specAgentKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.AgentNotifyRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Notification outcome", Body: contract.AgentNotifyResponse{}},
+			{
+				Status:      401,
+				Description: specAgentCallerIdentityIsMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{
+				Status:      403,
+				Description: specForbiddenWorkspaceOrPermissionMismatchDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 422, Description: "Invalid notification", Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
 	}
 }
 

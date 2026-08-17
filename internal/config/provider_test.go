@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"reflect"
@@ -8,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/BurntSushi/toml"
 	"github.com/compozy/compozy/internal/reasoning"
+	"gopkg.in/yaml.v3"
 )
 
 const expectedCodexModelsReleaseDate = "2026-06-26"
@@ -1428,23 +1432,145 @@ func TestMCPServerValidateRejectsRemoteProcessFields(t *testing.T) {
 	}
 }
 
+func TestMCPServerValidateHeaderFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept fixed headers and secret references for a remote server", func(t *testing.T) {
+		t.Parallel()
+		server := MCPServer{
+			Name: "remote", Transport: MCPServerTransportHTTP, URL: "https://mcp.example/mcp",
+			Headers:       map[string]string{"X-Tenant": "public"},
+			SecretHeaders: map[string]string{"Authorization": "vault:extensions/acme/env/API_TOKEN"},
+		}
+		if err := server.Validate("mcp_servers[0]"); err != nil {
+			t.Fatalf("Validate(remote headers) error = %v", err)
+		}
+	})
+
+	for _, test := range []struct {
+		name   string
+		server MCPServer
+		field  string
+	}{
+		{
+			name: "Should reject fixed headers on stdio",
+			server: MCPServer{
+				Name: "local", Command: "server", Headers: map[string]string{"X-Tenant": "public"},
+			},
+			field: ".headers",
+		},
+		{
+			name: "Should reject secret headers on stdio",
+			server: MCPServer{
+				Name: "local", Command: "server",
+				SecretHeaders: map[string]string{"Authorization": "vault:extensions/acme/env/API_TOKEN"},
+			},
+			field: ".secret_headers",
+		},
+		{
+			name: "Should reject package-owned credentials",
+			server: MCPServer{
+				Name: "remote", Transport: MCPServerTransportHTTP, URL: "https://mcp.example/mcp",
+				Headers: map[string]string{"Authorization": "embedded"},
+			},
+			field: "package_credential_forbidden",
+		},
+		{
+			name: "Should reject operator authorization when OAuth owns it",
+			server: MCPServer{
+				Name: "remote", Transport: MCPServerTransportHTTP, URL: "https://mcp.example/mcp",
+				SecretHeaders: map[string]string{"Authorization": "vault:extensions/acme/env/API_TOKEN"},
+				Auth:          MCPAuthConfig{Registration: MCPAuthRegistrationAuto},
+			},
+			field: "oauth_authorization_owned",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := test.server.Validate("mcp_servers[0]")
+			if err == nil || !strings.Contains(err.Error(), test.field) {
+				t.Fatalf("Validate() error = %v, want %q", err, test.field)
+			}
+		})
+	}
+}
+
+func TestMCPServerSecretHeadersSerializeReferencesOnly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize references without resolved secret values", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			secretRef      = "vault:extensions/acme/env/API_TOKEN"
+			resolvedSecret = "resolved-secret-must-not-serialize"
+		)
+		server := MCPServer{
+			Name: "remote", Transport: MCPServerTransportHTTP, URL: "https://mcp.example/mcp",
+			SecretHeaders: map[string]string{"Authorization": secretRef},
+		}
+		cloned := cloneMCPServer(server)
+		if cloned.SecretHeaders["Authorization"] != secretRef {
+			t.Fatalf("cloneMCPServer().SecretHeaders = %#v, want reference", cloned.SecretHeaders)
+		}
+
+		jsonBytes, err := json.Marshal(cloned)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		yamlBytes, err := yaml.Marshal(cloned)
+		if err != nil {
+			t.Fatalf("yaml.Marshal() error = %v", err)
+		}
+		var tomlBytes bytes.Buffer
+		if err := toml.NewEncoder(&tomlBytes).Encode(cloned); err != nil {
+			t.Fatalf("toml.Encode() error = %v", err)
+		}
+		for format, payload := range map[string][]byte{
+			"json": jsonBytes, "yaml": yamlBytes, "toml": tomlBytes.Bytes(),
+		} {
+			if !bytes.Contains(payload, []byte(secretRef)) || bytes.Contains(payload, []byte(resolvedSecret)) {
+				t.Fatalf("%s serialization = %s, want reference and no resolved credential", format, payload)
+			}
+		}
+	})
+}
+
 func TestRedactedMCPServerDoesNotExposeEnvSecretValues(t *testing.T) {
 	t.Parallel()
 
-	server := MCPServer{
-		Name:    "github",
-		Command: "npx",
-		SecretEnv: map[string]string{
-			"GITHUB_TOKEN": "env:GITHUB_TOKEN",
-		},
-	}
-	redacted := RedactedMCPServer(server)
-	if got := redacted.SecretEnv["GITHUB_TOKEN"]; got != RedactedValue() {
-		t.Fatalf("redacted secret env = %q, want placeholder", got)
-	}
-	if server.SecretEnv["GITHUB_TOKEN"] != "env:GITHUB_TOKEN" {
-		t.Fatalf("source secret env mutated = %#v", server.SecretEnv)
-	}
+	t.Run("Should redact fixed and secret values without mutating the source", func(t *testing.T) {
+		t.Parallel()
+
+		server := MCPServer{
+			Name:    "github",
+			Command: "npx",
+			Headers: map[string]string{"X-Tenant": "tenant-value"},
+			SecretEnv: map[string]string{
+				"GITHUB_TOKEN": "env:GITHUB_TOKEN",
+			},
+			SecretHeaders: map[string]string{"Authorization": "vault:extensions/github/env/GITHUB_TOKEN"},
+		}
+		redacted := RedactedMCPServer(server)
+		if got := redacted.SecretEnv["GITHUB_TOKEN"]; got != RedactedValue() {
+			t.Fatalf("redacted secret env = %q, want placeholder", got)
+		}
+		if got := redacted.Headers["X-Tenant"]; got != RedactedValue() {
+			t.Fatalf("redacted fixed header = %q, want placeholder", got)
+		}
+		if got := redacted.SecretHeaders["Authorization"]; got != RedactedValue() {
+			t.Fatalf("redacted secret header = %q, want placeholder", got)
+		}
+		if server.SecretEnv["GITHUB_TOKEN"] != "env:GITHUB_TOKEN" {
+			t.Fatalf("source secret env mutated = %#v", server.SecretEnv)
+		}
+		if server.Headers["X-Tenant"] != "tenant-value" {
+			t.Fatalf("source fixed headers mutated = %#v", server.Headers)
+		}
+		if server.SecretHeaders["Authorization"] != "vault:extensions/github/env/GITHUB_TOKEN" {
+			t.Fatalf("source secret headers mutated = %#v", server.SecretHeaders)
+		}
+	})
 }
 
 func TestMergeMCPServersTrimmedNamesCollide(t *testing.T) {

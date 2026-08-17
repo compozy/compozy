@@ -25,6 +25,7 @@ function sidebarSession(
     attachable: true,
     archived_at: null,
     available_commands: [],
+    pending_interactions: [],
     ...(parentId
       ? {
           lineage: {
@@ -32,6 +33,7 @@ function sidebarSession(
             root_session_id: parentId,
             spawn_depth: 1,
             auto_stop_on_parent: false,
+            notify_creator: true,
             spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
             permission_policy: {
               tools: [],
@@ -107,10 +109,8 @@ export const ProvenanceThreads: Story = {
     open: true,
     sessions: PROVENANCE_FAMILY,
     disconnected: false,
-    collapsedAgentIds: [],
     collapsedThreadIds: [],
     currentSessionId: "sess-migration",
-    onToggleGroup: fn(),
     onToggleThread: fn(),
     onSelectSession: fn(),
     onNewSession: fn(),

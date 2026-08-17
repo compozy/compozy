@@ -6,6 +6,13 @@ import {
   finishLayoutGesture,
   previewLayoutGesture,
 } from "../lib/layout-gesture-session";
+import type { PaletteViewId } from "../lib/palette-view-registry";
+import {
+  PALETTE_VIEW_STACK_ROOT,
+  popPaletteViewFrame,
+  pushPaletteViewFrame,
+  type PaletteViewFrame,
+} from "../lib/palette-view-stack";
 import type { SeamPreview } from "../lib/seam-preview";
 import type { SnapCorner, SnapSide } from "../lib/snap-targets";
 import type { WindowManagerConnectionStatus } from "../lib/window-manager-types";
@@ -73,6 +80,7 @@ function bindingScopedState(
     transitionIntent: null,
     routeIntents: {},
     paletteIntent: null,
+    paletteViewStack: PALETTE_VIEW_STACK_ROOT,
     deckDropTarget: null,
     placementCycles: {},
     gesture: null,
@@ -169,12 +177,33 @@ export function createWindowManagerStore() {
         delete routeIntents[event.windowId];
         return { ...state, routeIntents };
       },
+      // A destination scope and a view path are two answers to "what is this
+      // palette showing"; letting both stand would leave the surface deciding
+      // between them on every render, so the newer request wins outright.
       paletteIntentRequested: (state, event: { intent: WindowPaletteIntent }) => ({
         ...state,
         paletteIntent: { ...event.intent },
+        paletteViewStack: PALETTE_VIEW_STACK_ROOT,
       }),
       paletteIntentCleared: state =>
         state.paletteIntent === null ? undefined : { ...state, paletteIntent: null },
+      paletteViewPushed: (state, event: { viewId: PaletteViewId }) => ({
+        ...state,
+        paletteIntent: null,
+        paletteViewStack: pushPaletteViewFrame(state.paletteViewStack, event.viewId),
+      }),
+      paletteViewPopped: state =>
+        state.paletteViewStack.length === 0
+          ? undefined
+          : { ...state, paletteViewStack: popPaletteViewFrame(state.paletteViewStack) },
+      paletteViewStackSet: (state, event: { stack: readonly PaletteViewFrame[] }) =>
+        state.paletteViewStack.length === 0 && event.stack.length === 0
+          ? undefined
+          : {
+              ...state,
+              paletteIntent: event.stack.length === 0 ? state.paletteIntent : null,
+              paletteViewStack: [...event.stack],
+            },
       deckDropTargeted: (state, event: { target: DeckDropTarget }) =>
         state.gesture?.status === "active"
           ? { ...state, deckDropTarget: { ...event.target } }

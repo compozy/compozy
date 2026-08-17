@@ -152,9 +152,10 @@ func (p *AgentProcess) emitPermissionEvent(
 	toolCallID string,
 	resource string,
 	decision permissionDecision,
+	resolvedBy string,
 	raw json.RawMessage,
 ) {
-	p.emitPromptEvent(AgentEvent{
+	event := AgentEvent{
 		Type:       EventTypePermission,
 		SessionID:  sessionID,
 		TurnID:     turnID,
@@ -165,5 +166,6 @@ func (p *AgentProcess) emitPermissionEvent(
 		Resource:   resource,
 		Decision:   string(decision),
 		Raw:        CloneRawMessage(raw),
-	}.WithRequestID(requestID))
+	}.WithRequestID(requestID).WithResolvedBy(resolvedBy)
+	p.emitPromptEvent(event)
 }

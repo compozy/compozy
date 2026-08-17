@@ -83,7 +83,6 @@ export abstract class WindowManagerRuntimeCore {
   protected wallpaper: OsWallpaper = "ember";
   protected reduceMotion = false;
   protected dockMagnify = true;
-  protected railCollapsedAgentIds: readonly string[] = [];
   protected loadError: Error | null = null;
 
   constructor(queryClient: QueryClient) {

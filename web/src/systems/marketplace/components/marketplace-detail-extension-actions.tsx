@@ -16,6 +16,7 @@ import {
 
 import {
   type ExtensionEntry,
+  ExtensionFormatBadge,
   ExtensionTrustBadges,
   type ExtensionTrustFacts,
 } from "@/systems/extensions";
@@ -80,6 +81,7 @@ export function MarketplaceDetailExtensionActions({
         </DropdownMenu>
       </div>
       <div className="flex flex-wrap items-center gap-1.5" data-testid="extension-trust-badges">
+        <ExtensionFormatBadge format={extension.format} />
         <ExtensionTrustBadges facts={facts} showRegistryTier={false} showSource />
       </div>
       {facts.dev ? (

@@ -1,6 +1,7 @@
 export {
   settingsAppliedMutationFixture,
   settingsAutomationSectionFixture,
+  settingsAttentionSectionFixture,
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
   settingsGeneralSectionFixture,

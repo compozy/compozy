@@ -24,6 +24,7 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
     updated_at: "2026-04-01T01:00:00Z",
     ...overrides,
     archived_at: overrides.archived_at ?? null,
+    pending_interactions: overrides.pending_interactions ?? [],
   };
 }
 

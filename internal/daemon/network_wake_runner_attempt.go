@@ -171,7 +171,7 @@ func (r *networkWakeRunner) releasePromptContention(
 func (r *networkWakeRunner) cancelProviderPrompt(ctx context.Context, targetSessionID string) error {
 	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
 	defer cancel()
-	if err := r.prompter.CancelPrompt(cancelCtx, targetSessionID); err != nil {
+	if _, err := r.prompter.CancelPrompt(cancelCtx, targetSessionID); err != nil {
 		return fmt.Errorf("daemon: cancel network wake provider prompt: %w", err)
 	}
 	return nil

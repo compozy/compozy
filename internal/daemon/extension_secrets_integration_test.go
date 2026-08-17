@@ -31,6 +31,110 @@ func TestExtensionSecrets(t *testing.T) {
 	t.Run("Should isolate a development binding from the global instance", testExtensionSecretDevBindingIsolation)
 	t.Run("Should roll back a failed transport batch", testExtensionSecretTransportRollback)
 	t.Run("Should retire global and development bindings by instance", testExtensionSecretBindingRetirement)
+	t.Run("Should preserve remote header binding parity across HTTP and UDS", testExtensionRemoteHeaderBindingParity)
+}
+
+func testExtensionRemoteHeaderBindingParity(t *testing.T) {
+	t.Parallel()
+
+	const (
+		extensionName = "remote-header-binding"
+		secretValue   = "remote-header-secret-59f2"
+	)
+	harness := newExtensionSecretIntegrationHarness(t, extensionSecretIntegrationHarnessOptions{
+		actorReason: "remote header transport parity", allowUnverified: true,
+	})
+	fixtureDir := writeRemoteHeaderExtensionFixture(t, t.TempDir(), extensionName)
+	if _, err := harness.service.Install(t.Context(), contract.InstallExtensionRequest{
+		Source: contract.InstallExtensionSourceLocalPath, Ref: fixtureDir, AllowUnverified: true,
+	}, harness.actor); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	secretRef := vault.ExtensionSecretRef(extensionName, "", "DEPLOYMENT_KEY")
+	if _, err := harness.vault.PutSecret(t.Context(), secretRef, "operator_remote_header", secretValue); err != nil {
+		t.Fatalf("PutSecret(remote header) error = %v", err)
+	}
+	engines := []struct {
+		name   string
+		engine *gin.Engine
+	}{
+		{name: "HTTP", engine: harness.transport},
+		{name: "UDS", engine: newExtensionTransportEngine(harness.service, harness.actor, "uds")},
+	}
+	for _, transport := range engines {
+		setResponse := performExtensionTransportRequest(
+			t,
+			transport.engine,
+			http.MethodPut,
+			"/extensions/"+extensionName+"/secrets",
+			mustExtensionTransportJSON(t, contract.SetExtensionSecretsRequest{
+				Bindings: []contract.ExtensionSecretBindingInput{{
+					EnvName: "DEPLOYMENT_KEY", VaultRef: &secretRef,
+					MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+				}},
+			}),
+		)
+		if setResponse.Code != http.StatusOK {
+			t.Fatalf("%s set status = %d, want 200; body=%s", transport.name, setResponse.Code, setResponse.Body)
+		}
+		assertSecretsAbsent(
+			t,
+			transport.name+" set response",
+			setResponse.Body.String(),
+			[]string{secretValue, secretRef},
+		)
+		rows, err := harness.db.ExtensionEnvRepo.ListEnvBindings(t.Context(), extensionName, "")
+		if err != nil {
+			t.Fatalf("%s ListEnvBindings() error = %v", transport.name, err)
+		}
+		if len(rows) != 1 || rows[0].SecretRef != secretRef || rows[0].MCPServer != "deployment-api" ||
+			rows[0].HeaderName != "X-Deployment-Key" {
+			t.Fatalf("%s binding rows = %#v, want identical remote mapping", transport.name, rows)
+		}
+		listResponse := performExtensionTransportRequest(
+			t, transport.engine, http.MethodGet, "/extensions/"+extensionName+"/secrets", nil,
+		)
+		if listResponse.Code != http.StatusOK {
+			t.Fatalf("%s list status = %d, want 200; body=%s", transport.name, listResponse.Code, listResponse.Body)
+		}
+		var payload contract.ExtensionSecretsPayload
+		if err := json.Unmarshal(listResponse.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("%s json.Unmarshal(list) error = %v", transport.name, err)
+		}
+		if len(payload.Bindings) != 1 || payload.Bindings[0].EnvName != "DEPLOYMENT_KEY" ||
+			payload.Bindings[0].MCPServer != "deployment-api" ||
+			payload.Bindings[0].HeaderName != "X-Deployment-Key" || payload.Bindings[0].Stale {
+			t.Fatalf("%s presence-only payload = %#v", transport.name, payload)
+		}
+		assertSecretsAbsent(
+			t,
+			transport.name+" list response",
+			listResponse.Body.String(),
+			[]string{secretValue, secretRef},
+		)
+	}
+
+	missingRef := vault.ExtensionSecretRef(extensionName, "", "MISSING_KEY")
+	danglingResponse := performExtensionTransportRequest(
+		t,
+		harness.transport,
+		http.MethodPut,
+		"/extensions/"+extensionName+"/secrets",
+		mustExtensionTransportJSON(t, contract.SetExtensionSecretsRequest{
+			Bindings: []contract.ExtensionSecretBindingInput{{
+				EnvName: "MISSING_KEY", VaultRef: &missingRef,
+				MCPServer: "deployment-api", HeaderName: "X-Missing-Key",
+			}},
+		}),
+	)
+	if danglingResponse.Code != http.StatusBadRequest ||
+		!strings.Contains(danglingResponse.Body.String(), "extension_env_binding_dangling") {
+		t.Fatalf(
+			"dangling remote binding status = %d body=%s, want binding error",
+			danglingResponse.Code,
+			danglingResponse.Body,
+		)
+	}
 }
 
 type extensionSecretIntegrationHarnessOptions struct {
@@ -203,9 +307,9 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 	if _, err := harness.service.SetExtensionSecrets(
 		t.Context(),
 		extensionName,
-		contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-			"BOUND_SECRET": {Value: extensionSecretInputValue(ownedGlobal)},
-			"OTHER_SECRET": {VaultRef: &foreignRef},
+		contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+			{EnvName: "BOUND_SECRET", Value: extensionSecretInputValue(ownedGlobal)},
+			{EnvName: "OTHER_SECRET", VaultRef: &foreignRef},
 		}},
 		harness.actor,
 	); err != nil {
@@ -262,9 +366,9 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 	if _, err := harness.service.SetExtensionSecrets(
 		t.Context(),
 		extensionName,
-		contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-			"BOUND_SECRET": {Value: extensionSecretInputValue(ownedDev)},
-			"OTHER_SECRET": {VaultRef: &devForeignRef},
+		contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+			{EnvName: "BOUND_SECRET", Value: extensionSecretInputValue(ownedDev)},
+			{EnvName: "OTHER_SECRET", VaultRef: &devForeignRef},
 		}},
 		devActor,
 	); err != nil {
@@ -392,8 +496,8 @@ func testExtensionSecretDevBindingIsolation(t *testing.T) {
 		"/extensions/"+extensionName+"/secrets",
 		mustExtensionTransportJSON(
 			t,
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"BOUND_SECRET": {Value: &boundValue},
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "BOUND_SECRET", Value: &boundValue},
 			}},
 		),
 	)
@@ -561,9 +665,9 @@ func testExtensionSecretTransportRollback(t *testing.T) {
 		"/extensions/"+extensionName+"/secrets",
 		mustExtensionTransportJSON(
 			t,
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"A_KEY": {Value: &oldA},
-				"B_KEY": {VaultRef: &oldBRef},
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "A_KEY", Value: &oldA},
+				{EnvName: "B_KEY", VaultRef: &oldBRef},
 			}},
 		),
 	)
@@ -586,9 +690,9 @@ func testExtensionSecretTransportRollback(t *testing.T) {
 		"/extensions/"+extensionName+"/secrets",
 		mustExtensionTransportJSON(
 			t,
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"B_KEY": {Value: &newB},
-				"A_KEY": {Value: &newA},
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "B_KEY", Value: &newB},
+				{EnvName: "A_KEY", Value: &newA},
 			}},
 		),
 	)
@@ -693,8 +797,8 @@ func testExtensionSecretBindingEnableInjection(t *testing.T) {
 		http.MethodPut,
 		"/extensions/"+extensionName+"/secrets",
 		mustExtensionTransportJSON(t, contract.SetExtensionSecretsRequest{
-			Secrets: map[string]contract.ExtensionSecretInput{
-				"BOUND_SECRET": {Value: &boundValue},
+			Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "BOUND_SECRET", Value: &boundValue},
 			},
 		}),
 	)
@@ -747,6 +851,27 @@ func extensionSecretInputValue(value string) *string {
 func writeBoundSecretExtensionFixture(t *testing.T, root, name string) string {
 	t.Helper()
 	return writeBoundSecretExtensionFixtureWithEnv(t, root, name, []string{"BOUND_SECRET"})
+}
+
+func writeRemoteHeaderExtensionFixture(t *testing.T, root, name string) string {
+	t.Helper()
+	dir := writeBoundSecretExtensionFixtureWithEnv(t, root, name, nil)
+	manifestPath := filepath.Join(dir, "extension.toml")
+	manifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", manifestPath, err)
+	}
+	manifest = append(manifest, []byte(`
+
+[resources.mcp_servers.deployment-api]
+transport = "http"
+url = "https://deployment.example.test/mcp"
+headers = { "X-Tenant" = "acme" }
+`)...)
+	if err := os.WriteFile(manifestPath, manifest, 0o644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", manifestPath, err)
+	}
+	return dir
 }
 
 func writeBoundSecretExtensionFixtureWithEnv(

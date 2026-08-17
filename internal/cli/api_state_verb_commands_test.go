@@ -68,7 +68,11 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 				if request.RequestID != "req-1" || request.Decision != "allow-once" {
 					t.Fatalf("approval request = %#v", request)
 				}
-				return SessionApprovalRecord{Status: "approved"}, nil
+				return SessionApprovalRecord{
+					Outcome:   "applied",
+					RequestID: request.RequestID,
+					Decision:  request.Decision,
+				}, nil
 			},
 		}
 		stdout, stderr, err := executeRootCommand(
@@ -89,12 +93,15 @@ func TestAPIStateTransitionCommandsCallDaemonClient(t *testing.T) {
 		}
 		var payload struct {
 			SessionID string `json:"session_id"`
-			Status    string `json:"status"`
+			Outcome   string `json:"outcome"`
+			RequestID string `json:"request_id"`
+			Decision  string `json:"decision"`
 		}
 		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
 			t.Fatalf("decode stdout %q: %v", stdout, err)
 		}
-		if payload.SessionID != "sess-1" || payload.Status != "approved" {
+		if payload.SessionID != "sess-1" || payload.Outcome != "applied" ||
+			payload.RequestID != "req-1" || payload.Decision != "allow-once" {
 			t.Fatalf("session approval payload = %#v", payload)
 		}
 	})

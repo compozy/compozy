@@ -201,6 +201,8 @@ func registryInstallInfo(
 		Source:                   config.source,
 		Enabled:                  config.enabled,
 		ManifestPath:             manifestPath,
+		Format:                   normalizeExtensionFormat(resolvedManifest.Format),
+		IngestDiagnostics:        cloneDiagnosticItems(resolvedManifest.IngestDiagnostics),
 		InstalledAt:              installedAt,
 		Capabilities:             capabilities,
 		Permissions:              permissions,
@@ -214,24 +216,16 @@ func registryInstallInfo(
 }
 
 func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, replaceExisting bool) error {
-	capabilitiesJSON, err := json.Marshal(info.Capabilities.Provides)
+	encoded, err := marshalInstalledInfoFields(info)
 	if err != nil {
-		return fmt.Errorf("extension: marshal capabilities for %q: %w", info.Name, err)
-	}
-	permissionsJSON, err := json.Marshal(info.Permissions.Requires)
-	if err != nil {
-		return fmt.Errorf("extension: marshal permissions for %q: %w", info.Name, err)
-	}
-	provenanceJSON, err := json.Marshal(info.Provenance)
-	if err != nil {
-		return fmt.Errorf("extension: marshal provenance for %q: %w", info.Name, err)
+		return err
 	}
 
 	query := `
 		INSERT INTO extensions (
 ` + registryInsertColumns + `
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	if replaceExisting {
 		query += `
@@ -239,6 +233,8 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 			version = excluded.version,
 			source = excluded.source,
 			manifest_path = excluded.manifest_path,
+			format = excluded.format,
+			ingest_diagnostics_json = excluded.ingest_diagnostics_json,
 			installed_at = excluded.installed_at,
 			provides_json = excluded.provides_json,
 			permissions_json = excluded.permissions_json,
@@ -269,14 +265,16 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		sourceText,
 		info.Enabled,
 		info.ManifestPath,
+		string(normalizeExtensionFormat(info.Format)),
+		string(encoded.diagnostics),
 		store.FormatTimestamp(info.InstalledAt),
-		string(capabilitiesJSON),
-		string(permissionsJSON),
+		string(encoded.capabilities),
+		string(encoded.permissions),
 		info.Checksum,
 		nullableStringValue(info.RegistrySlug),
 		nullableStringValue(info.RegistryName),
 		nullableStringValue(info.RemoteVersion),
-		string(provenanceJSON),
+		string(encoded.provenance),
 		strings.TrimSpace(info.NetworkRequirementDigest),
 		nullableRegistryString(info.NetworkConfirmedBy),
 		nullableRegistryTime(info.NetworkConfirmedAt),
@@ -289,4 +287,42 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 	}
 	r.invalidateEnabledBundledNames()
 	return nil
+}
+
+type installedInfoJSONFields struct {
+	capabilities []byte
+	permissions  []byte
+	diagnostics  []byte
+	provenance   []byte
+}
+
+func marshalInstalledInfoFields(info ExtensionInfo) (installedInfoJSONFields, error) {
+	values := installedInfoJSONFields{}
+	fields := []struct {
+		name  string
+		value any
+		dest  *[]byte
+	}{
+		{name: manifestCapabilitiesKey, value: info.Capabilities.Provides, dest: &values.capabilities},
+		{name: "permissions", value: info.Permissions.Requires, dest: &values.permissions},
+		{name: "ingest diagnostics", value: info.IngestDiagnostics, dest: &values.diagnostics},
+		{name: installedInfoProvenanceField, value: info.Provenance, dest: &values.provenance},
+	}
+	for _, field := range fields {
+		encoded, err := json.Marshal(field.value)
+		if err != nil {
+			return installedInfoJSONFields{}, fmt.Errorf(
+				"extension: marshal %s for %q: %w", field.name, info.Name, err,
+			)
+		}
+		*field.dest = encoded
+	}
+	return values, nil
+}
+
+func normalizeExtensionFormat(format ExtensionFormat) ExtensionFormat {
+	if format == FormatAgentPlugin {
+		return FormatAgentPlugin
+	}
+	return FormatCompozy
 }

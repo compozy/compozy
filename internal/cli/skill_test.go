@@ -2025,7 +2025,7 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 			t.Fatal("installMarketplaceSkill(missing skill file) error = nil, want failure")
 		} else if !strings.Contains(
 			err.Error(),
-			"archive missing extension.toml or SKILL.md at root",
+			"archive missing extension.toml, SKILL.md, or Agent Plugins plugin.json at root",
 		) {
 			t.Fatalf("installMarketplaceSkill(missing skill file) error = %v, want missing-skill-file context", err)
 		}

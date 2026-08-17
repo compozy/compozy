@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+type ReasoningSource string
+
+type Redaction struct {
+	Path   string     `json:"path"`
+	Reason ReasonCode `json:"reason"`
+	Bytes  int64      `json:"bytes,omitempty"`
+}
+
+type Request struct {
+	Mode            *Mode            `json:"mode,omitempty"`
+	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
+	ChannelID       *string          `json:"channel_id,omitempty"`
+	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
+}
+
 type Resolution struct {
 	Requested Speed            `json:"requested"`
 	Status    ResolutionStatus `json:"status"`
@@ -108,36 +123,4 @@ type RoutingKey struct {
 	PeerID           string      `json:"peer_id,omitempty"`
 	ThreadID         string      `json:"thread_id,omitempty"`
 	GroupID          string      `json:"group_id,omitempty"`
-}
-
-type RoutingPolicy struct {
-	IncludePeer   bool `json:"include_peer"`
-	IncludeThread bool `json:"include_thread"`
-	IncludeGroup  bool `json:"include_group"`
-}
-
-type Run struct {
-	ID                   string         `json:"id"`
-	JobID                string         `json:"job_id,omitempty"`
-	TriggerID            string         `json:"trigger_id,omitempty"`
-	SessionID            string         `json:"session_id,omitempty"`
-	TaskID               string         `json:"task_id,omitempty"`
-	TaskRunID            string         `json:"task_run_id,omitempty"`
-	LoopRunID            string         `json:"loop_run_id,omitempty"`
-	FireID               string         `json:"fire_id,omitempty"`
-	Status               RunStatus      `json:"status"`
-	Attempt              int            `json:"attempt"`
-	ScheduledAt          *time.Time     `json:"scheduled_at,omitempty"`
-	StartedAt            *time.Time     `json:"started_at,omitempty"`
-	EndedAt              *time.Time     `json:"ended_at,omitempty"`
-	Error                string         `json:"error,omitempty"`
-	DeliveryError        string         `json:"delivery_error,omitempty"`
-	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
-	NetworkParticipation *Request       `json:"network_participation,omitempty"`
-	Metadata             map[string]any `json:"metadata,omitempty"`
-}
-
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
 }

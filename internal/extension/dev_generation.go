@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 )
 
 var generationHashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -64,13 +66,24 @@ func canonicalizeDevOrigin(workspaceRoot, originPath string) (string, error) {
 	return canonicalOrigin, nil
 }
 
-func verifyDevGeneration(originPath, generationHash string) (*verifiedDevGeneration, error) {
+func verifyDevGeneration(
+	originPath string,
+	generationHash string,
+	resolvePortableDataDir func(string) (string, error),
+) (*verifiedDevGeneration, error) {
 	hash := strings.TrimSpace(generationHash)
 	if !generationHashPattern.MatchString(hash) {
 		return nil, fmt.Errorf(
 			"%w: generation hash must be 64 lowercase hexadecimal characters",
 			ErrExtensionGenerationInvalid,
 		)
+	}
+	portable, err := isPortableDevOrigin(originPath)
+	if err != nil {
+		return nil, err
+	}
+	if portable {
+		return verifyPortableDevGeneration(originPath, hash, resolvePortableDataDir)
 	}
 	generationDir := filepath.Join(originPath, "dist", generationPrefix+hash)
 	distRoot, err := filepath.EvalSymlinks(filepath.Join(originPath, "dist"))
@@ -115,6 +128,79 @@ func verifyDevGeneration(originPath, generationHash string) (*verifiedDevGenerat
 		GenerationDir:            canonicalDir,
 		GenerationHash:           hash,
 		ManifestPath:             extensionManifestPath(canonicalDir),
+		Manifest:                 manifest,
+		NetworkRequirementDigest: networkDigest,
+	}, nil
+}
+
+func isPortableDevOrigin(originPath string) (bool, error) {
+	for _, name := range []string{manifestTOMLFileName, manifestJSONFileName} {
+		exists, err := fileExists(filepath.Join(originPath, name))
+		if err != nil {
+			return false, fmt.Errorf("extension: inspect development manifest %q: %w", name, err)
+		}
+		if exists {
+			return false, nil
+		}
+	}
+	exists, err := fileExists(filepath.Join(originPath, agentPluginManifestFileName))
+	if err != nil {
+		return false, fmt.Errorf("extension: inspect Agent Plugins development manifest: %w", err)
+	}
+	return exists, nil
+}
+
+func verifyPortableDevGeneration(
+	originPath string,
+	hash string,
+	resolveDataDir func(string) (string, error),
+) (*verifiedDevGeneration, error) {
+	actualHash, err := ComputeDirectoryChecksum(originPath)
+	if err != nil {
+		return nil, fmt.Errorf("%w: verify portable generation %q: %v", ErrExtensionGenerationInvalid, hash, err)
+	}
+	if actualHash != hash {
+		return nil, fmt.Errorf(
+			"%w: generation %q digest mismatch (actual %s)",
+			ErrExtensionGenerationInvalid,
+			hash,
+			actualHash,
+		)
+	}
+	name, err := agentplugin.ReadManifestName(originPath)
+	if err != nil {
+		return nil, fmt.Errorf("%w: read portable generation %q name: %w", ErrExtensionGenerationInvalid, hash, err)
+	}
+	if resolveDataDir == nil {
+		return nil, errors.New("extension: Agent Plugins development data path resolver is required")
+	}
+	dataDir, err := resolveDataDir(name)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: resolve portable generation %q data directory: %w",
+			ErrExtensionGenerationInvalid,
+			hash,
+			err,
+		)
+	}
+	manifest, err := LoadManifestWithAgentPluginDataDir(originPath, dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("%w: load portable generation %q manifest: %v", ErrExtensionGenerationInvalid, hash, err)
+	}
+	networkDigest, err := NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: digest portable generation %q network requirement: %w",
+			ErrExtensionGenerationInvalid,
+			hash,
+			err,
+		)
+	}
+	return &verifiedDevGeneration{
+		OriginPath:               originPath,
+		GenerationDir:            originPath,
+		GenerationHash:           hash,
+		ManifestPath:             filepath.Join(originPath, agentPluginManifestFileName),
 		Manifest:                 manifest,
 		NetworkRequirementDigest: networkDigest,
 	}, nil

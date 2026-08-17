@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+type NetworkDirectResolveParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	SessionID   string `json:"session_id"`
+	PeerID      string `json:"peer_id"`
+}
+
+type NetworkDirectRoomMessagesResponse struct {
+	Messages []NetworkConversationMessagePayload `json:"messages"`
+	Page     CursorPagePayload                   `json:"page"`
+}
+
 type NetworkDirectRoomOpenedPayload struct {
 	Event       HookEvent  `json:"event"`
 	Timestamp   time.Time  `json:"timestamp"`
@@ -286,31 +298,4 @@ type NetworkThreadMessagesParams struct {
 	Kind        string `json:"kind,omitempty"`
 	WorkID      string `json:"work_id,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
-}
-
-type NetworkThreadMessagesResponse struct {
-	Messages []NetworkConversationMessagePayload `json:"messages"`
-	Page     CursorPagePayload                   `json:"page"`
-}
-
-type NetworkThreadOpenedPayload struct {
-	Event       HookEvent  `json:"event"`
-	Timestamp   time.Time  `json:"timestamp"`
-	WorkspaceID string     `json:"workspace_id,omitempty"`
-	SessionID   string     `json:"session_id,omitempty"`
-	Channel     string     `json:"channel,omitempty"`
-	Surface     string     `json:"surface,omitempty"`
-	ThreadID    string     `json:"thread_id,omitempty"`
-	DirectID    string     `json:"direct_id,omitempty"`
-	MessageID   string     `json:"message_id,omitempty"`
-	Kind        string     `json:"kind,omitempty"`
-	Direction   string     `json:"direction,omitempty"`
-	WorkID      string     `json:"work_id,omitempty"`
-	WorkState   string     `json:"work_state,omitempty"`
-	PeerID      string     `json:"peer_id,omitempty"`
-	PeerFrom    string     `json:"peer_from,omitempty"`
-	PeerTo      string     `json:"peer_to,omitempty"`
-	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
-	TraceID     string     `json:"trace_id,omitempty"`
-	CausationID string     `json:"causation_id,omitempty"`
 }

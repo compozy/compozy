@@ -14,6 +14,7 @@ const (
 	sessionCatalogSessionTypeColumn = "session_type"
 	sessionCatalogSpawnRoleColumn   = "spawn_role"
 	sessionCatalogSortRecent        = "recent"
+	sessionCatalogSortAttention     = "attention"
 )
 
 const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, model, reasoning_effort, speed,
@@ -22,11 +23,13 @@ const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, model, re
 	runtime_selection_revision, workspace_id, worktree_id,
 	network_spec_json, network_mode, network_channel, network_source, session_type,
 	parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
-	auto_stop_on_parent, spawn_budget_json, permission_policy_json,
+	auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
 	state, archived_at, acp_session_id, stop_reason, stop_detail,
 	failure_kind, failure_summary, crash_bundle_path,
 	subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 	activity_json, attached_to, attach_expires_at, transcript_epoch,
+	pending_permission_count, pending_clarify_count, attention_revision,
+	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at,
 	soul_snapshot_id, soul_digest, parent_soul_digest,
 	sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
 	sandbox_state, sandbox_provider_state_json,
@@ -250,6 +253,8 @@ func sessionCatalogOrderClause(sortKey string) (string, error) {
 		return " ORDER BY updated_at DESC, created_at DESC, id DESC", nil
 	case sessionListSortActivity:
 		return " ORDER BY COALESCE(last_update_at, updated_at) DESC, updated_at DESC, created_at DESC, id DESC", nil
+	case sessionCatalogSortAttention:
+		return sessionCatalogAttentionOrderClause, nil
 	default:
 		return "", fmt.Errorf("store: unsupported session catalog sort %q", sortKey)
 	}
@@ -273,6 +278,9 @@ func sessionCatalogCursorClause(
 			primary, secondary, created,
 			primary, secondary, created, strings.TrimSpace(position.ID),
 		}
+	}
+	if strings.TrimSpace(sortKey) == sessionCatalogSortAttention {
+		return sessionCatalogAttentionCursorClause(position, primary, secondary, created)
 	}
 	clause := `(updated_at < ? OR (updated_at = ? AND created_at < ?) OR
 		(updated_at = ? AND created_at = ? AND id < ?))`

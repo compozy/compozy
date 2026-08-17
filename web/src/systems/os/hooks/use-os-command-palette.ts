@@ -1,7 +1,7 @@
 import { shallowEqual } from "@xstate/store";
 import { useEffect, useSyncExternalStore } from "react";
 
-import { isWaitingSession } from "../lib/attention-model";
+import { isNeedsYouSession } from "../lib/attention-model";
 import { getOsAppDescriptor } from "../lib/app-catalog";
 import { frameForWindow } from "../lib/group-projection";
 import type {
@@ -177,7 +177,7 @@ export function useOsCommandPalette(
         app: win.app,
         label,
         desktopName: desktopNames.get(win.desktopId) ?? "",
-        needsInput: session !== undefined && isWaitingSession(session),
+        needsInput: session !== undefined && isNeedsYouSession(session),
         minimized: win.minimized,
       });
     }

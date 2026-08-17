@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -57,6 +59,46 @@ func installExtension(
 			return localExtensionRecord(*info, deps.now, deps.getenv), nil
 		},
 	)
+}
+
+func extensionInstallValidationReport(
+	deps commandDeps,
+	plan extensionInstallPlan,
+	item ExtensionRecord,
+) *extensionpkg.ValidationReport {
+	for _, request := range plan.Attempts {
+		if request.Source != contract.InstallExtensionSourceLocalPath {
+			continue
+		}
+		path := strings.TrimSpace(request.Ref)
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		if !info.IsDir() {
+			continue
+		}
+		report, err := extensionpkg.ValidateBundleReport(path)
+		if err != nil {
+			continue
+		}
+		if report.DualManifest || report.Format == item.Format {
+			return report
+		}
+	}
+	if strings.TrimSpace(item.Format) != string(extensionpkg.FormatAgentPlugin) {
+		return nil
+	}
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		return nil
+	}
+	path := extensionpkg.ManagedInstallPath(homePaths, item.Name)
+	report, err := extensionpkg.ValidateBundleReport(path)
+	if err != nil {
+		return nil
+	}
+	return report
 }
 
 func executeExtensionInstallPlan(

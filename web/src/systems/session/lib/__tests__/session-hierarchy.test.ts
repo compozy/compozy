@@ -12,6 +12,7 @@ import {
   childSessionSignalTone,
   collectThreadSessions,
   filterThreadSessions,
+  visibleSessionOrder,
 } from "../session-hierarchy";
 
 function treeSession(
@@ -30,6 +31,7 @@ function treeSession(
     attachable: true,
     archived_at: null,
     available_commands: [],
+    pending_interactions: [],
     ...(options.parent
       ? {
           lineage: {
@@ -37,6 +39,7 @@ function treeSession(
             root_session_id: options.parent,
             spawn_depth: 1,
             auto_stop_on_parent: false,
+            notify_creator: true,
             spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
             permission_policy: {
               tools: [],
@@ -141,16 +144,65 @@ describe("collectThreadSessions", () => {
   });
 });
 
+describe("visibleSessionOrder", () => {
+  it("Should match workspace and all-workspace visible row order [UT-065]", () => {
+    const rootA = treeSession("sess-a");
+    const childA = treeSession("sess-a-child", { parent: "sess-a" });
+    const rootB = { ...treeSession("sess-b"), agent_name: "reviewer" };
+    const base = {
+      collapsedThreadIds: new Set<string>(),
+      collapsedWorkspaceIds: new Set<string>(),
+      workspaceGroups: [],
+    };
+
+    expect(
+      visibleSessionOrder([rootA, childA, rootB], { ...base, scope: "workspace" }).map(
+        session => session.id
+      )
+    ).toEqual(["sess-a", "sess-a-child", "sess-b"]);
+    expect(
+      visibleSessionOrder([rootA, childA, rootB], {
+        ...base,
+        scope: "workspace",
+        collapsedThreadIds: new Set(["sess-a"]),
+      }).map(session => session.id)
+    ).toEqual(["sess-a", "sess-b"]);
+    expect(
+      visibleSessionOrder([], {
+        ...base,
+        scope: "all-workspaces",
+        collapsedWorkspaceIds: new Set(["ws-hidden"]),
+        workspaceGroups: [
+          { workspaceId: "ws-hidden", sessions: [rootA] },
+          { workspaceId: "ws-visible", sessions: [rootB] },
+        ],
+      }).map(session => session.id)
+    ).toEqual(["sess-b"]);
+  });
+});
+
 describe("childSessionSignalTone", () => {
-  it("Should surface the most urgent child state with failed above waiting above running", () => {
+  it("Should rank the needs-you class above runtime health above running", () => {
     const running = treeSession("sess-running", { parent: "p", badge: "running" });
+    const hung = treeSession("sess-hung", { parent: "p", badge: "hung" });
     const waiting = treeSession("sess-waiting", { parent: "p", badge: "waiting-for-auth" });
+    const asking = treeSession("sess-asking", { parent: "p", badge: "waiting-for-input" });
     const failed = treeSession("sess-failed", { parent: "p", badge: "failed" });
     const stopped = treeSession("sess-stopped", { parent: "p", badge: "stopped" });
 
     expect(childSessionSignalTone([stopped])).toBeNull();
     expect(childSessionSignalTone([stopped, running])).toBe("accent");
-    expect(childSessionSignalTone([running, waiting])).toBe("warning");
-    expect(childSessionSignalTone([running, waiting, failed])).toBe("danger");
+    expect(childSessionSignalTone([running, hung])).toBe("warning");
+    expect(childSessionSignalTone([running, hung, waiting])).toBe("danger");
+    expect(childSessionSignalTone([running, asking])).toBe("danger");
+    expect(childSessionSignalTone([running, failed])).toBe("danger");
+  });
+
+  it("Should leave finished-unseen work unsignalled — done is an inbox item, not an escalation", () => {
+    const done = treeSession("sess-done", { parent: "p", badge: "done" });
+    const running = treeSession("sess-running", { parent: "p", badge: "running" });
+
+    expect(childSessionSignalTone([done])).toBeNull();
+    expect(childSessionSignalTone([done, running])).toBe("accent");
   });
 });

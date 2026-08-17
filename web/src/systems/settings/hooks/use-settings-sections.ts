@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  settingsAttentionOptions,
   settingsAutomationOptions,
   settingsApplyRecordsOptions,
   settingsGeneralOptions,
@@ -10,6 +11,7 @@ import {
   settingsObservabilityOptions,
   settingsRolesOptions,
   settingsRolesStatusOptions,
+  settingsShellOptions,
   settingsSkillsOptions,
   settingsUpdateOptions,
 } from "../lib/query-options";
@@ -49,6 +51,14 @@ export function useSettingsAutomation() {
 
 export function useSettingsNetwork() {
   return useQuery(settingsNetworkOptions());
+}
+
+export function useSettingsAttention() {
+  return useQuery(settingsAttentionOptions());
+}
+
+export function useSettingsShell() {
+  return useQuery(settingsShellOptions());
 }
 
 export function useSettingsObservability() {

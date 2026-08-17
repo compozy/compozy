@@ -20,6 +20,7 @@ import {
 import { OsShellContext } from "../../contexts/os-shell-context";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import type { DesktopOverlay } from "../../hooks/use-desktop-overlays";
+import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 import { DesktopMenubar } from "../desktop-menubar";
 import { OsMenuBar } from "../os-menubar";
 import { OsHydrationStatus } from "../os-hydration-status";
@@ -29,6 +30,7 @@ import { DesktopShell } from "./_desktop";
 const meta: Meta<typeof OsMenuBar> = {
   title: "systems/os/components/OsMenuBar",
   component: OsMenuBar,
+  args: { commandShortcutLabel: shortcutLabel("meta+KeyK") },
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -65,10 +67,9 @@ const WORKSPACES: WorkspacePayload[] = [
 const ATTENTION: OsAttentionModel = {
   badges: { sessions: 1, tasks: 1 },
   notificationCount: 2,
-  rows: [],
+  sections: { needsYou: [], finished: [] },
   sessions: [],
-  archivedSessions: [],
-  archivedSessionsTotal: 0,
+  attentionSessionsDisconnected: false,
   sessionsDisconnected: false,
   tasksDisconnected: false,
   loading: false,

@@ -16,6 +16,9 @@ var errSessionListWorkspaceResolution = errors.New("api: session list workspace 
 
 // ListSessions returns one bounded page from the shared public session catalog.
 func (h *BaseHandlers) ListSessions(c *gin.Context) {
+	if !h.requireOperatorSurface(c, "session catalog") {
+		return
+	}
 	query, includeHealth, err := h.parseSessionListQuery(c)
 	if err != nil {
 		status := http.StatusBadRequest
@@ -68,6 +71,14 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
+	attentionOnly, err := parseBoolQuery(c, "attention")
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
+	badges, err := session.ParseBadgeFilters(c.QueryArray("badge"))
+	if err != nil {
+		return session.ListQuery{}, false, fmt.Errorf("%w: %w", session.ErrListQueryInvalid, err)
+	}
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		return session.ListQuery{}, false, err
@@ -93,6 +104,8 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		RootSessionID:   strings.TrimSpace(c.Query("root")),
 		Search:          strings.TrimSpace(c.Query("q")),
 		Resumable:       resumable,
+		AttentionOnly:   attentionOnly,
+		Badges:          badges,
 		Archive:         store.SessionArchiveFilter(strings.TrimSpace(c.Query("archive"))),
 		Sort:            strings.TrimSpace(c.Query("sort")),
 		Cursor:          strings.TrimSpace(c.Query("cursor")),

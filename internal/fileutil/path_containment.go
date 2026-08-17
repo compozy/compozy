@@ -3,14 +3,88 @@ package fileutil
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // ErrPathOutsideRoot identifies an existing path whose resolved target escapes
 // the resolved root.
 var ErrPathOutsideRoot = errors.New("fileutil: resolved path is outside root")
+
+// CanonicalPathWithExistingPrefix resolves symlinks in the deepest existing
+// prefix while preserving any missing suffix components.
+func CanonicalPathWithExistingPrefix(path string) (string, error) {
+	sanitized, err := sanitizePathKey(path)
+	if err != nil {
+		return "", fmt.Errorf("fileutil: sanitize path %q: %w", path, err)
+	}
+	if sanitized == "" {
+		return "", errors.New("fileutil: path is required")
+	}
+	absolute, err := filepath.Abs(filepath.Clean(sanitized))
+	if err != nil {
+		return "", fmt.Errorf("fileutil: make path %q absolute: %w", path, err)
+	}
+	resolved, err := realpathDeepestExisting(absolute)
+	if err != nil {
+		return "", fmt.Errorf("fileutil: resolve path %q: %w", absolute, err)
+	}
+	return resolved, nil
+}
+
+func sanitizePathKey(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", nil
+	}
+	if strings.ContainsRune(trimmed, '\x00') {
+		return "", errors.New("path contains null byte")
+	}
+	decoded := trimmed
+	for {
+		unescaped, err := url.PathUnescape(decoded)
+		if err != nil {
+			return "", fmt.Errorf("decode path escapes: %w", err)
+		}
+		if unescaped == decoded {
+			break
+		}
+		decoded = unescaped
+	}
+	if !utf8.ValidString(decoded) {
+		return "", errors.New("path contains invalid UTF-8")
+	}
+	return norm.NFC.String(decoded), nil
+}
+
+func realpathDeepestExisting(path string) (string, error) {
+	existing := filepath.Clean(path)
+	missing := make([]string, 0, 4)
+	for {
+		resolved, resolveErr := filepath.EvalSymlinks(existing)
+		if resolveErr == nil {
+			for _, component := range slices.Backward(missing) {
+				resolved = filepath.Join(resolved, component)
+			}
+			return filepath.Clean(resolved), nil
+		}
+		if !errors.Is(resolveErr, os.ErrNotExist) {
+			return "", fmt.Errorf("fileutil: resolve path %q: %w", existing, resolveErr)
+		}
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			return "", resolveErr
+		}
+		missing = append(missing, filepath.Base(existing))
+		existing = parent
+	}
+}
 
 // CanonicalExistingDirectory returns the absolute symlink-resolved identity of
 // an existing directory.

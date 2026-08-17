@@ -5,63 +5,70 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
 type sessionInfoRow struct {
-	session              store.SessionInfo
-	name                 sql.NullString
-	worktreeID           sql.NullString
-	speedResolutionJSON  string
-	selectedProvider     string
-	selectedModel        string
-	selectedReasoning    string
-	selectedSpeed        string
-	networkSpecJSON      string
-	networkMode          string
-	networkChannel       sql.NullString
-	networkSource        string
-	sessionType          string
-	parentSessionID      sql.NullString
-	rootSessionID        sql.NullString
-	spawnDepth           int
-	spawnRole            sql.NullString
-	ttlExpiresAt         sql.NullString
-	autoStopOnParent     bool
-	spawnBudgetJSON      string
-	permissionPolicyJSON string
-	archivedAt           sql.NullString
-	acpSessionID         sql.NullString
-	stopReason           sql.NullString
-	stopDetail           sql.NullString
-	failureKind          sql.NullString
-	failureSummary       string
-	crashBundlePath      string
-	subprocessPID        int
-	subprocessStartedAt  sql.NullString
-	lastUpdateAt         sql.NullString
-	stallState           string
-	stallReason          string
-	activityJSON         string
-	attachedTo           string
-	attachExpiresAt      sql.NullString
-	transcriptEpoch      int64
-	soulSnapshotID       sql.NullString
-	soulDigest           string
-	parentSoulDigest     string
-	envID                string
-	envBackend           string
-	envProfile           string
-	envInstance          string
-	envState             string
-	envProviderStateJSON string
-	envLastSyncAt        sql.NullString
-	envLastSyncError     string
-	createdAtRaw         string
-	updatedAtRaw         string
+	session                store.SessionInfo
+	name                   sql.NullString
+	worktreeID             sql.NullString
+	speedResolutionJSON    string
+	selectedProvider       string
+	selectedModel          string
+	selectedReasoning      string
+	selectedSpeed          string
+	networkSpecJSON        string
+	networkMode            string
+	networkChannel         sql.NullString
+	networkSource          string
+	sessionType            string
+	parentSessionID        sql.NullString
+	rootSessionID          sql.NullString
+	spawnDepth             int
+	spawnRole              sql.NullString
+	ttlExpiresAt           sql.NullString
+	autoStopOnParent       bool
+	notifyCreator          bool
+	spawnBudgetJSON        string
+	permissionPolicyJSON   string
+	archivedAt             sql.NullString
+	acpSessionID           sql.NullString
+	stopReason             sql.NullString
+	stopDetail             sql.NullString
+	failureKind            sql.NullString
+	failureSummary         string
+	crashBundlePath        string
+	subprocessPID          int
+	subprocessStartedAt    sql.NullString
+	lastUpdateAt           sql.NullString
+	stallState             string
+	stallReason            string
+	activityJSON           string
+	attachedTo             string
+	attachExpiresAt        sql.NullString
+	transcriptEpoch        int64
+	pendingPermissionCount int
+	pendingClarifyCount    int
+	attentionRevision      int64
+	lastSettledRevision    int64
+	lastSeenRevision       int64
+	lastSeenAt             sql.NullString
+	attentionChangedAt     sql.NullString
+	soulSnapshotID         sql.NullString
+	soulDigest             string
+	parentSoulDigest       string
+	envID                  string
+	envBackend             string
+	envProfile             string
+	envInstance            string
+	envState               string
+	envProviderStateJSON   string
+	envLastSyncAt          sql.NullString
+	envLastSyncError       string
+	createdAtRaw           string
+	updatedAtRaw           string
 }
 
 func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
@@ -113,6 +120,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		row.spawnRole,
 		row.ttlExpiresAt,
 		row.autoStopOnParent,
+		row.notifyCreator,
 		row.spawnBudgetJSON,
 		row.permissionPolicyJSON,
 	)
@@ -221,6 +229,9 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		session.AttachExpiresAt = &attachExpiresAt
 	}
 	session.TranscriptEpoch = row.transcriptEpoch
+	if err := populateSessionAttentionScanParts(session, row); err != nil {
+		return err
+	}
 	if row.archivedAt.Valid && strings.TrimSpace(row.archivedAt.String) != "" {
 		archivedAt, parseErr := store.ParseTimestamp(row.archivedAt.String)
 		if parseErr != nil {
@@ -270,6 +281,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.spawnRole,
 		&row.ttlExpiresAt,
 		&row.autoStopOnParent,
+		&row.notifyCreator,
 		&row.spawnBudgetJSON,
 		&row.permissionPolicyJSON,
 		&row.session.State,
@@ -289,6 +301,13 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.attachedTo,
 		&row.attachExpiresAt,
 		&row.transcriptEpoch,
+		&row.pendingPermissionCount,
+		&row.pendingClarifyCount,
+		&row.attentionRevision,
+		&row.lastSettledRevision,
+		&row.lastSeenRevision,
+		&row.lastSeenAt,
+		&row.attentionChangedAt,
 		&row.soulSnapshotID,
 		&row.soulDigest,
 		&row.parentSoulDigest,
@@ -362,6 +381,7 @@ func scanSessionLineage(
 	spawnRole sql.NullString,
 	ttlExpiresAt sql.NullString,
 	autoStopOnParent bool,
+	notifyCreator bool,
 	spawnBudgetJSON string,
 	permissionPolicyJSON string,
 ) (*store.SessionLineage, error) {
@@ -379,6 +399,7 @@ func scanSessionLineage(
 		SpawnDepth:       spawnDepth,
 		SpawnRole:        sessionNullString(spawnRole),
 		AutoStopOnParent: autoStopOnParent,
+		NotifyCreator:    notifyCreator,
 		SpawnBudget:      budget,
 		PermissionPolicy: policy,
 	}
@@ -394,87 +415,4 @@ func scanSessionLineage(
 		return nil, err
 	}
 	return normalized, nil
-}
-
-func sessionNullString(value sql.NullString) string {
-	if !value.Valid {
-		return ""
-	}
-	return strings.TrimSpace(value.String)
-}
-
-func parseSessionInfoTimestamps(createdAtRaw string, updatedAtRaw string) (time.Time, time.Time, error) {
-	createdAt, err := store.ParseTimestamp(createdAtRaw)
-	if err != nil {
-		return time.Time{}, time.Time{}, err
-	}
-	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return time.Time{}, time.Time{}, err
-	}
-	return createdAt, updatedAt, nil
-}
-
-func scanSessionLiveness(
-	subprocessPID int,
-	subprocessStartedAt sql.NullString,
-	lastUpdateAt sql.NullString,
-	stallState string,
-	stallReason string,
-	activityJSON string,
-) (*store.SessionLivenessMeta, error) {
-	if subprocessPID <= 0 &&
-		(!subprocessStartedAt.Valid || strings.TrimSpace(subprocessStartedAt.String) == "") &&
-		(!lastUpdateAt.Valid || strings.TrimSpace(lastUpdateAt.String) == "") &&
-		strings.TrimSpace(stallState) == "" &&
-		strings.TrimSpace(stallReason) == "" &&
-		strings.TrimSpace(activityJSON) == "" {
-		return nil, nil
-	}
-
-	meta := &store.SessionLivenessMeta{
-		SubprocessPID: subprocessPID,
-		StallState:    strings.TrimSpace(stallState),
-		StallReason:   strings.TrimSpace(stallReason),
-	}
-	if subprocessStartedAt.Valid && strings.TrimSpace(subprocessStartedAt.String) != "" {
-		parsed, err := store.ParseTimestamp(subprocessStartedAt.String)
-		if err != nil {
-			return nil, fmt.Errorf("store: parse session subprocess started at: %w", err)
-		}
-		meta.SubprocessStartedAt = &parsed
-	}
-	if lastUpdateAt.Valid && strings.TrimSpace(lastUpdateAt.String) != "" {
-		parsed, err := store.ParseTimestamp(lastUpdateAt.String)
-		if err != nil {
-			return nil, fmt.Errorf("store: parse session last update at: %w", err)
-		}
-		meta.LastUpdateAt = &parsed
-	}
-	if strings.TrimSpace(activityJSON) != "" {
-		activity, err := parseSessionActivityJSON(activityJSON)
-		if err != nil {
-			return nil, err
-		}
-		meta.Activity = activity
-	}
-	if err := meta.Validate(); err != nil {
-		return nil, err
-	}
-	return meta, nil
-}
-
-func parseSessionActivityJSON(raw string) (*store.SessionActivityMeta, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return nil, nil
-	}
-	var activity store.SessionActivityMeta
-	if err := json.Unmarshal([]byte(trimmed), &activity); err != nil {
-		return nil, fmt.Errorf("store: parse session activity json: %w", err)
-	}
-	if err := activity.Validate(); err != nil {
-		return nil, fmt.Errorf("store: validate session activity json: %w", err)
-	}
-	return store.CloneSessionActivityMeta(&activity), nil
 }

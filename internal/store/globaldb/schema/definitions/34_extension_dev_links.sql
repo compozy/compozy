@@ -4,6 +4,8 @@ CREATE TABLE extension_dev_links (
 		origin_path TEXT NOT NULL,
 		bundle_generation TEXT NOT NULL,
 		linked_at TIMESTAMP NOT NULL,
+		format TEXT NOT NULL DEFAULT 'compozy',
+		ingest_diagnostics_json TEXT NOT NULL DEFAULT '[]',
 		network_requirement_digest TEXT NOT NULL DEFAULT '',
 		network_confirmed_by TEXT,
 		network_confirmed_at TEXT,

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,11 +16,12 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	compozyupdate "github.com/compozy/compozy/internal/update"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Parallel()
-	t.Run("Should mutate validate and inspect a temporary home", func(t *testing.T) {
+	t.Run("Should mutate validate and inspect a temporary home [IT-016]", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newWorkspaceTestDeps(t, &stubClient{})
@@ -141,7 +143,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			"config",
 			"set",
 			"window_manager.shortcuts.window.focus.left",
-			"alt+KeyH",
+			`["alt+KeyH","control+alt+shift+KeyH"]`,
 		); err != nil {
 			t.Fatalf("config set window manager shortcut error = %v", err)
 		}
@@ -152,8 +154,87 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if got := configured.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[1] != 0.75 {
 			t.Fatalf("WindowManager.Snap.RepeatRatios = %#v, want [0.5 0.75 0.25]", got)
 		}
-		if got := configured.WindowManager.Shortcuts["window.focus.left"]; got != "alt+KeyH" {
-			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want alt+KeyH", got)
+		if got, want := configured.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want %q", got, want)
+		}
+		discoveryOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"get",
+			"window_manager",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("config get window_manager error = %v", err)
+		}
+		var discoveryRecord configValueRecord
+		if err := json.Unmarshal([]byte(discoveryOut), &discoveryRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config get window_manager) error = %v", err)
+		}
+		discovery, ok := discoveryRecord.Value.(map[string]any)
+		if !ok || discovery["defaults"] == nil || discovery["effective"] == nil {
+			t.Fatalf("config get window_manager value = %#v, want defaults and effective", discoveryRecord.Value)
+		}
+		if _, _, invalidErr := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"window_manager.shortcuts.window.focus.left",
+			`["alt+KeyH",42]`,
+		); invalidErr == nil {
+			t.Fatal("config set invalid shortcut array error = nil")
+		}
+		unchanged, err := compozyconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(after rejected shortcut array) error = %v", err)
+		}
+		if got, want := unchanged.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("shortcut after atomic rejection = %q, want %q", got, want)
+		}
+
+		for _, mutation := range [][2]string{
+			{"attention.toasts", "false"},
+			{"attention.sound", "false"},
+			{"attention.system", "true"},
+			{"attention.muted_workspaces", `["ws_0123456789abcdef"]`},
+		} {
+			if _, _, err := executeRootCommand(t, deps, "config", "set", mutation[0], mutation[1]); err != nil {
+				t.Fatalf("config set %s error = %v", mutation[0], err)
+			}
+		}
+		configured, err = compozyconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(attention) error = %v", err)
+		}
+		if configured.Attention.Toasts || configured.Attention.Sound || !configured.Attention.System ||
+			!slices.Equal(configured.Attention.MutedWorkspaces, []string{"ws_0123456789abcdef"}) {
+			t.Fatalf("Attention = %#v, want false/false/true with one muted workspace", configured.Attention)
+		}
+
+		for _, mutation := range [][2]string{
+			{"shell.sessions.sort", "attention"},
+			{"shell.sessions.scope", "all-workspaces"},
+		} {
+			if _, _, err := executeRootCommand(t, deps, "config", "set", mutation[0], mutation[1]); err != nil {
+				t.Fatalf("config set %s error = %v", mutation[0], err)
+			}
+		}
+		configured, err = compozyconfig.LoadGlobalConfig(homePaths)
+		if err != nil {
+			t.Fatalf("LoadGlobalConfig(shell) error = %v", err)
+		}
+		if configured.Shell.Sessions.Sort != compozyconfig.ShellSessionSortAttention ||
+			configured.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces {
+			t.Fatalf("Shell = %#v, want attention/all-workspaces", configured.Shell)
 		}
 
 		if _, _, err := executeRootCommand(
@@ -596,6 +677,137 @@ func TestConfigSetWindowManagerUsesDaemonSettingsWhenRunning(t *testing.T) {
 	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
 		record.RestartRequired {
 		t.Fatalf("config set window manager record = %#v, want live/applied=true", record)
+	}
+}
+
+func TestConfigSetAttentionUsesDaemonSettingsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	var captured UpdateSettingsAttentionRequest
+	client := &stubClient{
+		updateSettingsAttentionFn: func(
+			_ context.Context,
+			request UpdateSettingsAttentionRequest,
+		) (SettingsMutationRecord, error) {
+			captured = request
+			return SettingsMutationRecord{
+				Section:          "attention",
+				Scope:            contract.SettingsScopeGlobal,
+				Lifecycle:        contract.SettingsApplyLifecycleLive,
+				ApplyRecordID:    "cfgapp-attention",
+				Applied:          true,
+				ActiveGeneration: 3,
+				ActiveConfigHash: "sha256:attention",
+				NextAction:       contract.SettingsApplyNextActionNone,
+			}, nil
+		},
+	}
+
+	deps := newWorkspaceTestDeps(t, client)
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	out, _, err := executeRootCommand(t, deps, "config", "set", "attention.system", "true", "-o", "json")
+	if err != nil {
+		t.Fatalf("config set attention.system error = %v", err)
+	}
+	if !captured.Config.System || !captured.Config.Toasts || !captured.Config.Sound ||
+		len(captured.Config.MutedWorkspaces) != 0 {
+		t.Fatalf("daemon attention payload = %#v, want complete defaults with system=true", captured.Config)
+	}
+	if captured.Config.MutedWorkspaces == nil {
+		t.Fatal("daemon attention muted_workspaces = nil, want a non-null empty array")
+	}
+	payload, err := json.Marshal(captured.Config)
+	if err != nil {
+		t.Fatalf("json.Marshal(daemon attention payload) error = %v", err)
+	}
+	if !bytes.Contains(payload, []byte(`"muted_workspaces":[]`)) {
+		t.Fatalf("daemon attention payload JSON = %s, want muted_workspaces:[]", payload)
+	}
+
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+	}
+
+	var record configSetRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config set attention) error = %v", err)
+	}
+	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
+		record.RestartRequired {
+		t.Fatalf("config set attention record = %#v, want live/applied=true", record)
+	}
+}
+
+func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	var captured UpdateSettingsShellRequest
+	client := &stubClient{
+		updateSettingsShellFn: func(
+			_ context.Context,
+			request UpdateSettingsShellRequest,
+		) (SettingsMutationRecord, error) {
+			captured = request
+			return SettingsMutationRecord{
+				Section:          "shell",
+				Scope:            contract.SettingsScopeGlobal,
+				Lifecycle:        contract.SettingsApplyLifecycleLive,
+				ApplyRecordID:    "cfgapp-shell",
+				Applied:          true,
+				ActiveGeneration: 4,
+				ActiveConfigHash: "sha256:shell",
+				NextAction:       contract.SettingsApplyNextActionNone,
+			}, nil
+		},
+	}
+
+	deps := newWorkspaceTestDeps(t, client)
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	out, _, err := executeRootCommand(
+		t,
+		deps,
+		"config",
+		"set",
+		"shell.sessions.scope",
+		"all-workspaces",
+		"-o",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("config set shell.sessions.scope error = %v", err)
+	}
+	if captured.Config.Sessions.Sort != contract.SettingsShellSessionSortLastActivity ||
+		captured.Config.Sessions.Scope != contract.SettingsShellSessionScopeAllWorkspaces {
+		t.Fatalf("daemon shell payload = %#v, want last_activity/all-workspaces", captured.Config)
+	}
+
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+	}
+
+	var record configSetRecord
+	if err := json.Unmarshal([]byte(out), &record); err != nil {
+		t.Fatalf("json.Unmarshal(config set shell) error = %v", err)
+	}
+	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
+		record.RestartRequired {
+		t.Fatalf("config set shell record = %#v, want live/applied=true", record)
 	}
 }
 
@@ -1532,7 +1744,7 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			{
 				name:        "Should allow provider command",
 				path:        "providers.claude.command",
-				wantKind:    configSetString,
+				wantKind:    configSetStringOrStringSlice,
 				wantAllowed: true,
 			},
 			{
@@ -1665,7 +1877,7 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			{
 				name:        "Should allow window manager shortcut entries",
 				path:        "window_manager.shortcuts.window.focus.left",
-				wantKind:    configSetString,
+				wantKind:    configSetStringOrStringSlice,
 				wantAllowed: true,
 			},
 			{

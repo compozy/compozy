@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type DescribeSDKInfo struct {
+	Name              string `json:"name"`
+	Version           string `json:"version"`
+	ProtocolVersion   string `json:"protocol_version"`
+	MinCompozyVersion string `json:"min_compozy_version"`
+}
+
 type DescribeSubprocess struct {
 	Command string            `json:"command"`
 	Args    []string          `json:"args,omitempty"`
@@ -156,9 +163,20 @@ type ExtensionToolWorkspaceScope struct {
 }
 
 type ExtensionValidatePayload struct {
-	Manifest     *ExtensionManifestSummary `json:"manifest,omitempty"`
-	Issues       []ValidationIssue         `json:"issues"`
-	ConsentAreas []ConsentArea             `json:"consent_areas"`
+	Status       string                         `json:"status"`
+	Format       string                         `json:"format"`
+	Name         string                         `json:"name,omitempty"`
+	Version      string                         `json:"version,omitempty"`
+	WouldIngest  []ExtensionValidationComponent `json:"would_ingest,omitempty"`
+	Manifest     *ExtensionManifestSummary      `json:"manifest,omitempty"`
+	Issues       []ValidationIssue              `json:"issues"`
+	ConsentAreas []ConsentArea                  `json:"consent_areas,omitempty"`
+}
+
+type ExtensionValidationComponent struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Transport string `json:"transport,omitempty"`
 }
 
 type FailureHealth struct {
@@ -177,30 +195,4 @@ type FireLimitConfig struct {
 
 type ForgeCapabilitiesRequest struct {
 	RemoteURLs []string `json:"remote_urls"`
-}
-
-type ForgeCapabilitiesResponse struct {
-	Served             bool     `json:"served"`
-	Available          bool     `json:"available"`
-	Winner             string   `json:"winner,omitempty"`
-	Provider           string   `json:"provider,omitempty"`
-	ServedRemote       string   `json:"served_remote,omitempty"`
-	RequestNoun        string   `json:"request_noun,omitempty"`
-	OpenActionLabel    string   `json:"open_action_label,omitempty"`
-	ViewActionLabel    string   `json:"view_action_label,omitempty"`
-	SupportsDraft      bool     `json:"supports_draft,omitempty"`
-	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
-	TemplatePaths      []string `json:"template_paths,omitempty"`
-	CredentialSource   string   `json:"credential_source,omitempty"`
-	DefaultBranch      string   `json:"default_branch,omitempty"`
-	Cause              string   `json:"cause,omitempty"`
-}
-
-type ForgePRCreateRequest struct {
-	RemoteURLs []string `json:"remote_urls"`
-	Head       string   `json:"head"`
-	Base       string   `json:"base"`
-	Title      string   `json:"title"`
-	Body       string   `json:"body,omitempty"`
-	Draft      bool     `json:"draft,omitempty"`
 }

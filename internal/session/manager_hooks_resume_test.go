@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,40 +85,93 @@ func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 func TestResumeRejectsPatchedWorkspaceForExistingSession(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
-	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	patchedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
-	if err != nil {
-		t.Fatalf("Resolve(primary workspace) error = %v", err)
-	}
-	patchedWorkspace.ID = "ws-pre-resume-patched"
-	patchedWorkspace.WorkspaceID = patchedWorkspace.ID
-	patchedWorkspace.Name = "pre-resume-patched"
-	h.resolver.upsert(&patchedWorkspace)
+	t.Run("Should reject a workspace mutation before starting the driver", func(t *testing.T) {
+		t.Parallel()
 
-	dispatcher := &spyHookDispatcher{
-		dispatchSessionPreResumeFn: func(
-			_ context.Context,
-			payload hookspkg.SessionPreResumePayload,
-		) (hookspkg.SessionPreResumePayload, error) {
-			payload.WorkspaceID = patchedWorkspace.ID
-			return payload, nil
-		},
-	}
-	h.manager = newManagerWithHarness(t, h, WithHookSet(fullHookSet(dispatcher)))
-	startCallsBeforeResume := len(h.driver.startCalls)
+		h := newHarness(t)
+		session := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		patchedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(primary workspace) error = %v", err)
+		}
+		patchedWorkspace.ID = "ws-pre-resume-patched"
+		patchedWorkspace.WorkspaceID = patchedWorkspace.ID
+		patchedWorkspace.Name = "pre-resume-patched"
+		h.resolver.upsert(&patchedWorkspace)
 
-	_, err = h.manager.Resume(testutil.Context(t), session.ID)
-	if !errors.Is(err, ErrValidation) {
-		t.Fatalf("Resume(workspace mismatch) error = %v, want %v", err, ErrValidation)
-	}
-	if got := len(h.driver.startCalls); got != startCallsBeforeResume {
-		t.Fatalf("driver start calls = %d, want unchanged %d", got, startCallsBeforeResume)
-	}
-	if got := len(h.manager.List()); got != 0 {
-		t.Fatalf("active sessions after rejected resume = %d, want 0", got)
-	}
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreResumeFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPreResumePayload,
+			) (hookspkg.SessionPreResumePayload, error) {
+				payload.WorkspaceID = patchedWorkspace.ID
+				return payload, nil
+			},
+		}
+		h.manager = newManagerWithHarness(t, h, WithHookSet(fullHookSet(dispatcher)))
+		startCallsBeforeResume := len(h.driver.startCalls)
+
+		_, err = h.manager.Resume(testutil.Context(t), session.ID)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Resume(workspace mismatch) error = %v, want %v", err, ErrValidation)
+		}
+		if got := len(h.driver.startCalls); got != startCallsBeforeResume {
+			t.Fatalf("driver start calls = %d, want unchanged %d", got, startCallsBeforeResume)
+		}
+		if got := len(h.manager.List()); got != 0 {
+			t.Fatalf("active sessions after rejected resume = %d, want 0", got)
+		}
+	})
+}
+
+func TestResumeRejectsPatchedSessionTypeForExistingSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve spawned authorization after a type-changing hook", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSession(t, h)
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), child.ID); err != nil {
+			t.Fatalf("Stop(child) error = %v", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
+			t.Fatalf("Stop(parent) error = %v", err)
+		}
+
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreResumeFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPreResumePayload,
+			) (hookspkg.SessionPreResumePayload, error) {
+				payload.SessionType = string(SessionTypeUser)
+				return payload, nil
+			},
+		}
+		h.manager = newManagerWithHarness(t, h, WithHookSet(fullHookSet(dispatcher)))
+		startCallsBeforeResume := len(h.driver.startCalls)
+
+		_, err = h.manager.Resume(testutil.Context(t), child.ID)
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "session type is immutable") {
+			t.Fatalf("Resume(type mutation) error = %v, want immutable type validation", err)
+		}
+		if got := len(h.driver.startCalls); got != startCallsBeforeResume {
+			t.Fatalf("driver start calls = %d, want unchanged %d", got, startCallsBeforeResume)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if got := Type(meta.SessionType); got != SessionTypeSpawned {
+			t.Fatalf("persisted session type = %q, want %q", got, SessionTypeSpawned)
+		}
+	})
 }

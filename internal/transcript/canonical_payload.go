@@ -32,6 +32,7 @@ type canonicalEventPayload struct {
 	Action            string                           `json:"action,omitempty"`
 	Resource          string                           `json:"resource,omitempty"`
 	Decision          string                           `json:"decision,omitempty"`
+	ResolvedBy        string                           `json:"resolved_by,omitempty"`
 	Error             string                           `json:"error,omitempty"`
 	Failure           *store.SessionFailure            `json:"failure,omitempty"`
 	Synthetic         *acp.PromptSyntheticMeta         `json:"synthetic,omitempty"`

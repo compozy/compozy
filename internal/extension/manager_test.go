@@ -1257,58 +1257,68 @@ func TestManagerHelperPathsAndAccessors(t *testing.T) {
 func TestManagerResolveCommandKeepsPathLikeValuesInsideExtensionRoot(t *testing.T) {
 	t.Parallel()
 
-	manager := NewManager(nil)
-	root := t.TempDir()
-	inside := filepath.Join(root, "bin", "tool")
+	t.Run("Should preserve contained and absolute command paths", func(t *testing.T) {
+		t.Parallel()
 
-	got, err := manager.resolveCommand(root, "./bin/tool")
-	if err != nil {
-		t.Fatalf("resolveCommand(relative) error = %v", err)
-	}
-	if got != inside {
-		t.Fatalf("resolveCommand(relative) = %q, want %q", got, inside)
-	}
+		manager := NewManager(nil)
+		root := t.TempDir()
+		inside := filepath.Join(root, "bin", "tool")
+		canonicalRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			t.Fatalf("filepath.EvalSymlinks(root) error = %v", err)
+		}
+		canonicalInside := filepath.Join(canonicalRoot, "bin", "tool")
 
-	got, err = manager.resolveCommand(root, inside)
-	if err != nil {
-		t.Fatalf("resolveCommand(absolute inside) error = %v", err)
-	}
-	if got != inside {
-		t.Fatalf("resolveCommand(absolute inside) = %q, want %q", got, inside)
-	}
+		got, err := manager.resolveCommand(root, "./bin/tool")
+		if err != nil {
+			t.Fatalf("resolveCommand(relative) error = %v", err)
+		}
+		if got != canonicalInside {
+			t.Fatalf("resolveCommand(relative) = %q, want %q", got, canonicalInside)
+		}
 
-	outsideCommand := filepath.Join(t.TempDir(), "tool")
-	got, err = manager.resolveCommand(root, outsideCommand)
-	if err != nil {
-		t.Fatalf("resolveCommand(absolute outside) error = %v", err)
-	}
-	if got != outsideCommand {
-		t.Fatalf("resolveCommand(absolute outside) = %q, want %q", got, outsideCommand)
-	}
+		got, err = manager.resolveCommand(root, inside)
+		if err != nil {
+			t.Fatalf("resolveCommand(absolute inside) error = %v", err)
+		}
+		if got != inside {
+			t.Fatalf("resolveCommand(absolute inside) = %q, want %q", got, inside)
+		}
 
-	got, err = manager.resolveCommand(root, "node")
-	if err != nil {
-		t.Fatalf("resolveCommand(bare) error = %v", err)
-	}
-	if got != "node" {
-		t.Fatalf("resolveCommand(bare) = %q, want %q", got, "node")
-	}
+		outsideCommand := filepath.Join(t.TempDir(), "tool")
+		got, err = manager.resolveCommand(root, outsideCommand)
+		if err != nil {
+			t.Fatalf("resolveCommand(absolute outside) error = %v", err)
+		}
+		if got != outsideCommand {
+			t.Fatalf("resolveCommand(absolute outside) = %q, want %q", got, outsideCommand)
+		}
 
-	if _, err := manager.resolveCommand(root, "../outside/tool"); !errors.Is(err, ErrPathEscapesExtensionRoot) {
-		t.Fatalf("resolveCommand(escape) error = %v, want %v", err, ErrPathEscapesExtensionRoot)
-	}
+		got, err = manager.resolveCommand(root, "node")
+		if err != nil {
+			t.Fatalf("resolveCommand(bare) error = %v", err)
+		}
+		if got != "node" {
+			t.Fatalf("resolveCommand(bare) = %q, want %q", got, "node")
+		}
 
-	if _, err := resolveResourcePath(root, "../skills"); !errors.Is(err, ErrPathEscapesExtensionRoot) {
-		t.Fatalf("resolveResourcePath(escape) error = %v, want %v", err, ErrPathEscapesExtensionRoot)
-	}
+		if _, err := manager.resolveCommand(root, "../outside/tool"); !errors.Is(err, ErrPathEscapesExtensionRoot) {
+			t.Fatalf("resolveCommand(escape) error = %v, want %v", err, ErrPathEscapesExtensionRoot)
+		}
 
-	resourceRoot, err := resolveResourcePath(root, "skills")
-	if err != nil {
-		t.Fatalf("resolveResourcePath(within root) error = %v", err)
-	}
-	if resourceRoot != filepath.Join(root, "skills") {
-		t.Fatalf("resolveResourcePath(within root) = %q, want %q", resourceRoot, filepath.Join(root, "skills"))
-	}
+		if _, err := resolveResourcePath(root, "../skills"); !errors.Is(err, ErrPathEscapesExtensionRoot) {
+			t.Fatalf("resolveResourcePath(escape) error = %v, want %v", err, ErrPathEscapesExtensionRoot)
+		}
+
+		resourceRoot, err := resolveResourcePath(root, "skills")
+		if err != nil {
+			t.Fatalf("resolveResourcePath(within root) error = %v", err)
+		}
+		wantResourceRoot := filepath.Join(canonicalRoot, "skills")
+		if resourceRoot != wantResourceRoot {
+			t.Fatalf("resolveResourcePath(within root) = %q, want %q", resourceRoot, wantResourceRoot)
+		}
+	})
 }
 
 func TestManagerResolveEnvMapUsesSafeBaselineOnly(t *testing.T) {

@@ -244,6 +244,7 @@ describe("marketplace acquisition cache boundaries", () => {
         daemon_running: false,
         digest_matched: true,
         enabled: false,
+        format: "compozy",
         name: "review-pack",
         network_confirmation_required: false,
         restart_backoff_ms: 0,

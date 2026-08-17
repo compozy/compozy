@@ -141,7 +141,7 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 			Overrides: windowmanager.WorkspaceConfig{
 				HistoryLimit: &historyLimit,
 				Snap:         &windowmanager.SnapConfig{RepeatRatios: []float64{0.5, 0.75}},
-				Shortcuts:    map[string]string{"layout.balance": "Meta+Shift+KeyB"},
+				Shortcuts:    map[string]windowmanager.ShortcutBinding{"layout.balance": {"Meta+Shift+KeyB"}},
 			},
 		}
 
@@ -155,14 +155,14 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 		wire.Desktops[0].Groups[0].Root.Children[0].WindowID = new(windowmanager.WindowID)
 		*wire.Overrides.HistoryLimit = 99
 		wire.Overrides.Snap.RepeatRatios[0] = 0.25
-		wire.Overrides.Shortcuts["layout.balance"] = "Alt+KeyB"
+		wire.Overrides.Shortcuts["layout.balance"][0] = "Alt+KeyB"
 		if *document.Desktops[0].FocusOwner != windowID ||
 			document.Desktops[0].Floating[0] != "window:floating" ||
 			document.Desktops[0].Groups[0].Root.Weights[0] != 0.4 ||
 			*document.Desktops[0].Groups[0].Root.Children[0].WindowID != windowID ||
 			*document.Overrides.HistoryLimit != 20 ||
 			document.Overrides.Snap.RepeatRatios[0] != 0.5 ||
-			document.Overrides.Shortcuts["layout.balance"] != "Meta+Shift+KeyB" {
+			document.Overrides.Shortcuts["layout.balance"][0] != "Meta+Shift+KeyB" {
 			t.Fatalf("wire conversion aliases domain layout: %#v", document.Desktops[0])
 		}
 
@@ -171,12 +171,12 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 		domain.Desktops[0].Groups[0].Root.Weights[0] = 0.2
 		*domain.Overrides.HistoryLimit = 8
 		domain.Overrides.Snap.RepeatRatios[0] = 0.1
-		domain.Overrides.Shortcuts["layout.balance"] = "Control+KeyB"
+		domain.Overrides.Shortcuts["layout.balance"][0] = "Control+KeyB"
 		if wire.Desktops[0].Floating[0] != "wire-mutated" ||
 			wire.Desktops[0].Groups[0].Root.Weights[0] != 0.9 ||
 			*wire.Overrides.HistoryLimit != 99 ||
 			wire.Overrides.Snap.RepeatRatios[0] != 0.25 ||
-			wire.Overrides.Shortcuts["layout.balance"] != "Alt+KeyB" {
+			wire.Overrides.Shortcuts["layout.balance"][0] != "Alt+KeyB" {
 			t.Fatalf("domain conversion aliases wire layout: %#v", wire.Desktops[0])
 		}
 	})

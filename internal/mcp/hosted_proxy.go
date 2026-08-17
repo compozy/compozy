@@ -220,7 +220,7 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 		Title:        descriptor.DisplayTitle,
 		Description:  hostedToolDescription(descriptor),
 		InputSchema:  cloneRaw(descriptor.InputSchema),
-		OutputSchema: cloneRaw(descriptor.OutputSchema),
+		OutputSchema: hostedOptionalSchema(descriptor.OutputSchema),
 		Annotations: &sdkmcp.ToolAnnotations{
 			Title:           descriptor.DisplayTitle,
 			ReadOnlyHint:    readOnly,
@@ -229,6 +229,13 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 		},
 		Meta: hostedToolMeta(descriptor),
 	}
+}
+
+func hostedOptionalSchema(schema json.RawMessage) any {
+	if len(schema) == 0 {
+		return nil
+	}
+	return cloneRaw(schema)
 }
 
 func hostedToolFingerprint(tool *sdkmcp.Tool) string {

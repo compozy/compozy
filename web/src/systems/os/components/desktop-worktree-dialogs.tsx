@@ -1,3 +1,5 @@
+import { useWorktrees } from "@/systems/workspace";
+
 import type { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import {
@@ -21,6 +23,10 @@ export function DesktopWorktreeDialogs({
   worktreeDialogs,
   scopeId,
 }: DesktopWorktreeDialogsProps) {
+  const createListing = useWorktrees(model.worktreeCreateWorkspaceId, {
+    enabled: model.worktreeCreateWorkspaceId !== null,
+  });
+
   return (
     <>
       {model.worktreeCreateWorkspaceId ? (
@@ -30,7 +36,7 @@ export function DesktopWorktreeDialogs({
             model.workspaces.find(workspace => workspace.id === model.worktreeCreateWorkspaceId)
               ?.name ?? "workspace"
           }
-          listing={model.worktreesByWorkspace[model.worktreeCreateWorkspaceId]}
+          listing={createListing.data}
           scopeId={scopeId}
           onOpenChange={open =>
             model.setWorktreeCreateWorkspaceId(open ? model.worktreeCreateWorkspaceId : null)

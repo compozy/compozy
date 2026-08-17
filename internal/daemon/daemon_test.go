@@ -1646,6 +1646,84 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 	})
 }
 
+func TestBootExtensionsReconcilesManagedArtifactsBeforeRuntimeStart(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should restore the committed backup and remove orphaned installs", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		homePaths := testHomePaths(t)
+		managedRoot := extensionpkg.ManagedInstallRoot(homePaths)
+		registered := filepath.Join(managedRoot, "reconciled")
+		if err := os.MkdirAll(registered, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", registered, err)
+		}
+		committed := daemonTestExtensionManifest("reconciled", daemonTestExtensionOptions{version: "1.0.0"})
+		manifestPath := filepath.Join(registered, "extension.toml")
+		if err := os.WriteFile(manifestPath, []byte(committed), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", manifestPath, err)
+		}
+		manifest, err := extensionpkg.LoadManifest(registered)
+		if err != nil {
+			t.Fatalf("LoadManifest(committed) error = %v", err)
+		}
+		checksum, err := extensionpkg.ComputeDirectoryChecksum(registered)
+		if err != nil {
+			t.Fatalf("ComputeDirectoryChecksum(committed) error = %v", err)
+		}
+		registry := extensionpkg.NewRegistry(db.DB())
+		if err := registry.Install(manifest, registered, checksum); err != nil {
+			t.Fatalf("Registry.Install() error = %v", err)
+		}
+		backup := registered + ".compozy-backup-1755280000000000000"
+		if err := os.Rename(registered, backup); err != nil {
+			t.Fatalf("os.Rename(backup) error = %v", err)
+		}
+		if err := os.MkdirAll(registered, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(candidate) error = %v", err)
+		}
+		candidate := daemonTestExtensionManifest("reconciled", daemonTestExtensionOptions{version: "9.9.9"})
+		if err := os.WriteFile(manifestPath, []byte(candidate), 0o644); err != nil {
+			t.Fatalf("os.WriteFile(candidate) error = %v", err)
+		}
+		orphan := filepath.Join(managedRoot, "orphan")
+		if err := os.MkdirAll(orphan, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(orphan) error = %v", err)
+		}
+
+		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			contents, readErr := os.ReadFile(manifestPath)
+			if readErr != nil || string(contents) != committed {
+				t.Fatalf("manifest at runtime construction = %q, %v; want committed bytes", contents, readErr)
+			}
+			for _, removed := range []string{backup, orphan} {
+				if _, statErr := os.Lstat(removed); !errors.Is(statErr, os.ErrNotExist) {
+					t.Fatalf("path %q at runtime construction stat error = %v, want removed", removed, statErr)
+				}
+			}
+			return &fakeExtensionRuntime{}
+		}
+		state := &bootState{
+			logger: discardLogger(), registry: db, sessions: &fakeSessionManager{},
+			observer: &fakeObserver{}, hooks: &fakeHookRuntime{},
+		}
+		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootExtensions() error = %v", err)
+		}
+		contents, err := os.ReadFile(manifestPath)
+		if err != nil || string(contents) != committed {
+			t.Fatalf("reconciled manifest = %q, %v; want committed bytes", contents, err)
+		}
+		for _, removed := range []string{backup, orphan} {
+			if _, err := os.Lstat(removed); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("reconciled path %q stat error = %v, want removed", removed, err)
+			}
+		}
+	})
+}
+
 func TestBootExtensionsPreservesSpecCycleDisableEnableState(t *testing.T) {
 	t.Parallel()
 
@@ -3054,6 +3132,79 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		}
 		if !reflect.DeepEqual(failedInstallFields, wantInstallFields) {
 			t.Fatalf("failed install event content = %#v, want %#v", failedInstallFields, wantInstallFields)
+		}
+	})
+
+	t.Run("Should serialize concurrent same-name portable installs by instance key", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		db := openDaemonTestGlobalDB(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		service := newDaemonExtensionService(
+			daemonExtensionServiceDeps{
+				Registry: registry, HomePaths: homePaths, Logger: discardLogger(), Now: time.Now,
+			},
+			withDaemonExtensionMarketplace(
+				compozyconfig.ExtensionsConfig{
+					Trust: compozyconfig.ExtensionsTrustConfig{AllowUnverified: true},
+				},
+				nil,
+			),
+		).(*daemonExtensionService)
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"operator",
+			taskpkg.OriginKindCLI,
+			"concurrent portable install",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		fixtureDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(fixtureDir, "plugin.json"), []byte(`{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "same-name-portable",
+  "version": "1.0.0"
+}`), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(plugin.json) error = %v", err)
+		}
+		req := contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: fixtureDir, AllowUnverified: true,
+		}
+		start := make(chan struct{})
+		results := make(chan error, 2)
+		for range 2 {
+			go func() {
+				<-start
+				_, installErr := service.Install(t.Context(), req, actor)
+				results <- installErr
+			}()
+		}
+		close(start)
+		var succeeded, conflicted int
+		for range 2 {
+			installErr := <-results
+			switch {
+			case installErr == nil:
+				succeeded++
+			case errors.Is(installErr, extensionpkg.ErrExtensionExists):
+				conflicted++
+			default:
+				t.Fatalf("concurrent Install() error = %v, want success or ErrExtensionExists", installErr)
+			}
+		}
+		if succeeded != 1 || conflicted != 1 {
+			t.Fatalf("concurrent results = success:%d conflict:%d, want 1/1", succeeded, conflicted)
+		}
+		infos, err := registry.List()
+		if err != nil {
+			t.Fatalf("registry.List() error = %v", err)
+		}
+		if len(infos) != 1 || infos[0].Name != "same-name-portable" {
+			t.Fatalf("registry.List() = %#v, want one same-name-portable row", infos)
+		}
+		if _, err := os.Stat(extensionpkg.ManagedInstallPath(homePaths, "same-name-portable")); err != nil {
+			t.Fatalf("os.Stat(managed install) error = %v", err)
 		}
 	})
 }
@@ -4956,6 +5107,9 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if capturedDeps.SandboxRegistry == nil {
 		t.Fatal("boot() did not inject the session manager sandbox registry")
 	}
+	if capturedDeps.SpawnWakeNotifier == nil || capturedDeps.SpawnWakeNotifier != d.sessionWakeBridge {
+		t.Fatal("boot() did not inject the daemon-owned session wake bridge")
+	}
 	if capturedDeps.SessionCompaction != cfg.Session.Compaction {
 		t.Fatalf(
 			"session compaction config = %#v, want %#v",
@@ -6555,6 +6709,7 @@ type fakeSessionManager struct {
 	stopCalls                []string
 	deleteCalls              []string
 	repairCalls              []session.RepairOpts
+	pendingRecoveryCalls     []string
 	stopWithCauseCalls       []fakeStopWithCauseCall
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
@@ -6742,6 +6897,13 @@ func (f *fakeSessionManager) List() []*session.Info {
 
 func (f *fakeSessionManager) ListAll(context.Context) ([]*session.Info, error) {
 	return f.List(), nil
+}
+
+func (f *fakeSessionManager) RecoverPendingInteractions(_ context.Context, sessionID string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pendingRecoveryCalls = append(f.pendingRecoveryCalls, sessionID)
+	return 1, nil
 }
 
 func (f *fakeSessionManager) Status(_ context.Context, id string) (*session.Info, error) {
@@ -7135,6 +7297,16 @@ func TestBootSessionRepair(t *testing.T) {
 		if manager.repairCalls[0].SessionID != "sess-crash" || manager.repairCalls[1].SessionID != "sess-error" {
 			t.Fatalf("repair calls = %#v, want crash then error sessions", manager.repairCalls)
 		}
+		if got, want := manager.pendingRecoveryCalls, []string{
+			"sess-crash",
+			"sess-error",
+			"sess-complete",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("pending recovery calls = %#v, want %#v", got, want)
+		}
 	})
 }
 
@@ -7269,8 +7441,11 @@ func (f *fakeSessionManager) PromotePendingInputToSteer(
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
-func (f *fakeSessionManager) CancelPrompt(context.Context, string) error {
-	return nil
+func (f *fakeSessionManager) CancelPrompt(
+	context.Context,
+	string,
+) (session.PromptCancelResult, error) {
+	return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled}, nil
 }
 
 func (f *fakeSessionManager) PromptSynthetic(
@@ -7301,8 +7476,12 @@ func (f *fakeSessionManager) PromptSynthetic(
 	return ch, nil
 }
 
-func (f *fakeSessionManager) ApprovePermission(context.Context, string, acp.ApproveRequest) error {
-	return nil
+func (f *fakeSessionManager) ApprovePermission(
+	context.Context,
+	string,
+	acp.ApproveRequest,
+) (session.ApprovalResult, error) {
+	return session.ApprovalResult{}, nil
 }
 
 func (f *fakeSessionManager) SetNetworkPeerLifecycle(session.NetworkPeerLifecycle) {}
@@ -8026,6 +8205,7 @@ type fakeResourceReconcileDriver struct {
 	runBootCalls int
 	closeCalls   int
 	triggerCalls int
+	waitCalls    int
 	lastKind     resources.ResourceKind
 	lastReason   resources.ReconcileReason
 	triggerErr   error
@@ -8033,15 +8213,23 @@ type fakeResourceReconcileDriver struct {
 	onClose      func()
 }
 
+func (f *fakeResourceReconcileDriver) WaitForIdle(
+	context.Context,
+	resources.ReconcileTicket,
+) error {
+	f.waitCalls++
+	return nil
+}
+
 func (f *fakeResourceReconcileDriver) Trigger(
 	_ context.Context,
 	kind resources.ResourceKind,
 	reason resources.ReconcileReason,
-) error {
+) (resources.ReconcileTicket, error) {
 	f.triggerCalls++
 	f.lastKind = kind
 	f.lastReason = reason
-	return f.triggerErr
+	return resources.ReconcileTicket{}, f.triggerErr
 }
 
 func (f *fakeResourceReconcileDriver) RunBoot(context.Context) error {
@@ -10421,6 +10609,13 @@ func (f *fakeHookRuntime) DispatchSessionHealthUpdateAfter(
 	_ context.Context,
 	payload hookspkg.SessionHealthUpdateAfterPayload,
 ) (hookspkg.SessionHealthUpdateAfterPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionAttentionChanged(
+	_ context.Context,
+	payload hookspkg.SessionAttentionChangedPayload,
+) (hookspkg.SessionAttentionChangedPayload, error) {
 	return payload, nil
 }
 

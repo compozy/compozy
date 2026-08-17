@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,11 +13,150 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/version"
 )
+
+// Invariant: a supported portable root synthesizes a deterministic,
+// resource-only manifest while native precedence and compatibility remain unchanged.
+// Owner: extension manifest loading and synthesis.
+// Canonical suite: extension manifest tests.
+func TestLoadManifestSynthesizesAgentPluginPackages(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should map skills and both MCP transports deterministically", func(t *testing.T) {
+		t.Parallel()
+		root := writeAgentPluginManifestFixture(t)
+		first, err := LoadManifest(root)
+		if err != nil {
+			t.Fatalf("LoadManifest(first) error = %v", err)
+		}
+		second, err := LoadManifest(root)
+		if err != nil {
+			t.Fatalf("LoadManifest(second) error = %v", err)
+		}
+		if !reflect.DeepEqual(first, second) {
+			t.Fatalf("LoadManifest() results differ:\nfirst=%#v\nsecond=%#v", first, second)
+		}
+		if first.Format != FormatAgentPlugin || first.Name != "acme.tools" || first.Version != "1.2.0" {
+			t.Fatalf("LoadManifest() identity = %#v, want agent-plugin acme.tools@1.2.0", first)
+		}
+		if got, want := first.Resources.Skills, []string{
+			filepath.Join("skills", "release", "SKILL.md"),
+			filepath.Join("skills", "review", "SKILL.md"),
+		}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("Skills = %#v, want %#v", got, want)
+		}
+		if err := validateStaticKitResources(context.Background(), root, first); err != nil {
+			t.Fatalf("validateStaticKitResources() error = %v", err)
+		}
+		stdio := first.Resources.MCPServers["local"]
+		canonicalRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			t.Fatalf("filepath.EvalSymlinks(root) error = %v", err)
+		}
+		if stdio.Transport != "stdio" || stdio.Command != "node" ||
+			stdio.CWD != canonicalRoot || len(stdio.Env) == 0 {
+			t.Fatalf("stdio server = %#v, want mapped command and env", stdio)
+		}
+		remote := first.Resources.MCPServers["remote"]
+		if remote.Transport != "http" || remote.URL != "https://example.com/mcp" ||
+			remote.Headers["X-Tenant"] != "acme" {
+			t.Fatalf("remote server = %#v, want mapped http server", remote)
+		}
+		if len(first.Capabilities.Provides) != 0 || len(first.Permissions.Requires) != 0 ||
+			first.Subprocess.Command != "" {
+			t.Fatalf("portable manifest gained runtime authority: %#v", first)
+		}
+	})
+
+	t.Run("Should waive only portable compatibility metadata", func(t *testing.T) {
+		t.Parallel()
+		portable := &Manifest{Format: FormatAgentPlugin, Name: "portable"}
+		if err := portable.Validate(); err != nil {
+			t.Fatalf("portable Validate() error = %v", err)
+		}
+		native := &Manifest{Format: FormatCompozy, Name: "native", Version: "1.0.0"}
+		if err := native.Validate(); err == nil {
+			t.Fatal("native Validate() error = nil, want min_compozy_version requirement")
+		}
+	})
+
+	t.Run("Should keep a selected invalid native manifest from falling back", func(t *testing.T) {
+		t.Parallel()
+		root := writeAgentPluginManifestFixture(t)
+		writeFile(t, filepath.Join(root, manifestTOMLFileName), "[extension\n")
+		manifest, err := LoadManifest(root)
+		if err == nil || manifest != nil {
+			t.Fatalf("LoadManifest() = %#v, %v; want native parse failure", manifest, err)
+		}
+	})
+
+	t.Run("Should keep a valid native manifest authoritative", func(t *testing.T) {
+		t.Parallel()
+		root := writeAgentPluginManifestFixture(t)
+		writeFile(t, filepath.Join(root, manifestTOMLFileName), `[extension]
+name = "native"
+version = "1.0.0"
+min_compozy_version = "0.0.0"
+`)
+		manifest, err := LoadManifest(root)
+		if err != nil {
+			t.Fatalf("LoadManifest() error = %v", err)
+		}
+		if manifest.Format != FormatCompozy || manifest.Name != "native" {
+			t.Fatalf("LoadManifest() = %#v, want native manifest", manifest)
+		}
+	})
+}
+
+// Invariant: component skips retain scope and stable ordering in the canonical diagnostic shape.
+// Owner: extension ingestion diagnostics adapter.
+// Canonical suite: extension manifest tests.
+func TestAgentPluginDiagnosticsPreserveScopeAndOrder(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain diagnostic scope and stable ordering", func(t *testing.T) {
+		t.Parallel()
+		values := []agentplugin.Diagnostic{
+			{Scope: "skill:zeta", Message: "missing description"},
+			{Scope: "mcp:alpha", Message: "sse transport is not supported"},
+			{Scope: "mcp:alpha", Message: "invalid mcp server entry"},
+		}
+		first := AgentPluginDiagnostics("acme.tools", values)
+		second := AgentPluginDiagnostics("acme.tools", values)
+		if !reflect.DeepEqual(first, second) {
+			t.Fatalf("AgentPluginDiagnostics() is not deterministic:\nfirst=%#v\nsecond=%#v", first, second)
+		}
+		if len(first) != 3 {
+			t.Fatalf("diagnostics len = %d, want 3", len(first))
+		}
+		for _, item := range first {
+			if item.Code != "extension_agent_plugin_component_skipped" || item.Severity != "warn" ||
+				item.Category != "extension" {
+				t.Fatalf("diagnostic = %#v, want canonical portable skip", item)
+			}
+			if scope, ok := item.Evidence["scope"].(string); !ok || scope == "" {
+				t.Fatalf("diagnostic evidence = %#v, want scope", item.Evidence)
+			}
+		}
+		if first[0].Message != `mcp server "alpha": invalid mcp server entry` ||
+			first[1].Message != `mcp server "alpha": sse transport is not supported` {
+			t.Fatalf("diagnostic order = %#v, want scope then message", first)
+		}
+	})
+}
+
+func writeAgentPluginManifestFixture(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS(filepath.Join("testdata", "agent-plugin-conformant"))); err != nil {
+		t.Fatalf("CopyFS(agent-plugin-conformant) error = %v", err)
+	}
+	return root
+}
 
 func TestLoadManifest_ParsesTOMLAndJSONEquivalently(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
@@ -1379,6 +1519,7 @@ func duration(value time.Duration) Duration {
 
 func expectedManifest() Manifest {
 	return Manifest{
+		Format:            FormatCompozy,
 		Name:              "pgvector-memory",
 		Version:           "0.2.1",
 		Description:       "PostgreSQL pgvector memory backend for Compozy",

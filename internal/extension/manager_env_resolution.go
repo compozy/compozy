@@ -136,6 +136,9 @@ func (m *Manager) resolveBoundEnvMap(
 		return strings.Compare(left.EnvName, right.EnvName)
 	})
 	for _, binding := range bindings {
+		if strings.TrimSpace(binding.MCPServer) != "" {
+			continue
+		}
 		name := strings.TrimSpace(binding.EnvName)
 		if _, ok := declared[name]; !ok {
 			continue

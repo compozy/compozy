@@ -2,7 +2,6 @@ package contract
 
 import (
 	"fmt"
-	"maps"
 
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -195,7 +194,7 @@ func cloneWindowManagerWorkspaceConfig(config windowmanager.WorkspaceConfig) win
 	cloned.DesktopTransition = cloneWindowManagerPointer(config.DesktopTransition)
 	cloned.Gaps = cloneWindowManagerPointer(config.Gaps)
 	cloned.Bindings = cloneWindowManagerPointer(config.Bindings)
-	cloned.Shortcuts = maps.Clone(config.Shortcuts)
+	cloned.Shortcuts = windowmanager.CloneShortcutMap(config.Shortcuts)
 	if config.Snap != nil {
 		cloned.Snap = cloneWindowManagerPointer(config.Snap)
 		cloned.Snap.RepeatRatios = append([]float64(nil), config.Snap.RepeatRatios...)

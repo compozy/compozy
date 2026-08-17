@@ -40,7 +40,7 @@ const (
 	defaultProtocolVersion     = "1"
 	defaultHealthCheckInterval = 30 * time.Second
 	defaultHealthCheckTimeout  = 5 * time.Second
-	defaultInitializeTimeout   = 5 * time.Second
+	defaultInitializeTimeout   = 15 * time.Second
 	defaultHookTimeout         = 5 * time.Second
 	defaultShutdownTimeout     = 10 * time.Second
 	defaultRestartBackoffMax   = 60 * time.Second
@@ -252,6 +252,7 @@ type Manager struct {
 	lifecycleEventSink    LifecycleEventSink
 	sourceSessions        resources.SourceSessionManager
 	workspaceResolver     workspacepkg.RuntimeResolver
+	homePaths             compozyconfig.HomePaths
 	processRegistry       *toolruntime.Registry
 	logger                *slog.Logger
 	now                   func() time.Time

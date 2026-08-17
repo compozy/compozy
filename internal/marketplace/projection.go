@@ -60,6 +60,9 @@ type ExtensionEntryDetails struct {
 	ArtifactURL  string
 	DigestSHA256 string
 	Repository   string
+	// Format is the curated display marker, never install policy: detection at install time decides
+	// what a package actually is.
+	Format string
 }
 
 type SkillEntryDetails struct {
@@ -119,6 +122,10 @@ func projectExtensionEntry(entry Entry) (EntryDetails, error) {
 	if err := json.Unmarshal(entry.Payload, &value); err != nil {
 		return EntryDetails{}, fmt.Errorf("marketplace: decode extension entry %q: %w", entry.EntryID, err)
 	}
+	format, err := normalizeExtensionFormat(entry.EntryID, value.Format)
+	if err != nil {
+		return EntryDetails{}, fmt.Errorf("marketplace: project extension entry %q: %w", entry.EntryID, err)
+	}
 	return EntryDetails{
 		Author: strings.TrimSpace(value.Author), Source: CatalogSource,
 		Extension: &ExtensionEntryDetails{
@@ -126,6 +133,7 @@ func projectExtensionEntry(entry Entry) (EntryDetails, error) {
 			ArtifactURL:  strings.TrimSpace(value.ArtifactURL),
 			DigestSHA256: strings.ToLower(strings.TrimSpace(value.DigestSHA256)),
 			Repository:   strings.TrimSpace(value.Repository),
+			Format:       format,
 		},
 	}, nil
 }

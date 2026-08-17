@@ -34,7 +34,7 @@ vi.mock("@/systems/workspace", () => ({
   useUserHomeDir: () => "/operator",
   useWorkspace: () => ({ data: undefined, isLoading: false, error: null }),
   useWorktreeCatalogStream: () => "connected",
-  useWorktreeListings: () => ({}),
+  useWorktrees: () => ({ data: undefined }),
 }));
 
 import { useDesktopShellModel } from "../use-desktop-shell-model";

@@ -28,6 +28,7 @@
         "scheduler",
         "network",
         "notifications",
+        "notify",
         "hooks",
         "---Capabilities & Integrations---",
         "marketplace",

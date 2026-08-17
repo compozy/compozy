@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type BridgeDegradation struct {
+	Reason  BridgeDegradationReason `json:"reason"`
+	Message string                  `json:"message,omitempty"`
+}
+
 type BridgeDegradationReason string
 
 type BridgeInstance struct {
@@ -131,8 +136,3 @@ const (
 	CommandFlagTypeInteger CommandFlagType = "integer"
 	CommandFlagTypeNumber  CommandFlagType = "number"
 )
-
-type CompactionMatcher struct {
-	Reason   string `json:"compaction_reason,omitempty"`
-	Strategy string `json:"compaction_strategy,omitempty"`
-}

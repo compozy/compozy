@@ -32,6 +32,7 @@ import {
   SessionRenameDialog,
   useSessionCreateActions,
   useSessionLifecycleActions,
+  useSessionListView,
 } from "@/systems/session";
 import { useSettingsSandboxes } from "@/systems/settings";
 import {
@@ -145,6 +146,9 @@ function DesktopShellScopedBody({
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
   const sessionCreate = useSessionCreateActions();
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
+  // Scope and order are the operator's, persisted by the daemon; the modal
+  // renders them rather than fetching its own.
+  const sessionListView = useSessionListView();
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -165,11 +169,14 @@ function DesktopShellScopedBody({
     overlays,
     pager,
     reducedMotion,
+    shortcutLabels,
     transition,
     winLayer,
+    worktreesByWorkspace,
   } = useDesktopShellBody(model, {
     firstRun,
     onNewSession: openNewSession,
+    sessionListView,
   });
   return (
     <div
@@ -210,7 +217,7 @@ function DesktopShellScopedBody({
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
         attention={attention}
-        worktreesByWorkspace={model.worktreesByWorkspace}
+        worktreesByWorkspace={worktreesByWorkspace}
         userHomeDir={model.userHomeDir}
         worktreeSelection={worktreeSelection}
         onSelectWorktree={(workspaceId, entry) => {
@@ -232,6 +239,7 @@ function DesktopShellScopedBody({
         ))}
         <OsWinLayer
           model={winLayer}
+          paletteShortcutLabel={shortcutLabels.palette}
           reducedMotion={reducedMotion}
           transition={transition}
           onTransitionComplete={onTransitionComplete}
@@ -296,9 +304,10 @@ function DesktopShellScopedBody({
         onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
         dismissalBlocked={sessionLifecycle.deleteDialog.open || sessionLifecycle.renameDialog.open}
         sessions={attention.sessions}
-        archivedSessions={attention.archivedSessions}
-        archivedTotal={attention.archivedSessionsTotal}
         disconnected={attention.sessionsDisconnected}
+        view={sessionListView}
+        currentWorkspaceId={model.runtimeWorkspaceId}
+        onNewSession={openNewSession}
         sessionActions={sessionLifecycle.actions}
       />
       {sessionLifecycle.deleteDialog.session ? (
@@ -330,6 +339,10 @@ function DesktopShellScopedBody({
       <OsWorkspacesOverview
         open={overlays.activeOverlay === "workspaces"}
         onOpenChange={open => overlays.setOverlayOpen("workspaces", open)}
+        shortcutLabels={{
+          picker: shortcutLabels.workspacePicker,
+          globalScope: shortcutLabels.globalScope,
+        }}
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
         scope={model.scope}
@@ -338,7 +351,7 @@ function DesktopShellScopedBody({
         }
         onNewWorkspace={model.openWorkspaceSetup}
         reducedMotion={reducedMotion}
-        worktreesByWorkspace={model.worktreesByWorkspace}
+        worktreesByWorkspace={worktreesByWorkspace}
         userHomeDir={model.userHomeDir}
         selectedWorktreeId={worktreeSelection.selectedWorktreeId}
         onSelectWorktree={(workspaceId, entry) => {

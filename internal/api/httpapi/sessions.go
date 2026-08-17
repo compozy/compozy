@@ -36,23 +36,17 @@ func (h *Handlers) approveSession(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.Sessions.ApprovePermission(c.Request.Context(), sessionID, approve); err != nil {
+	result, err := h.Sessions.ApprovePermission(c.Request.Context(), sessionID, approve)
+	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.SessionApprovalResponse{Status: "approved"})
-}
-
-func (h *Handlers) cancelSessionPrompt(c *gin.Context) {
-	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
-	if !ok {
-		return
-	}
-	if err := h.Sessions.CancelPrompt(c.Request.Context(), sessionID); err != nil {
-		core.RespondError(c, core.StatusForSessionError(err), err, true)
-		return
-	}
-
-	c.Status(http.StatusOK)
+	c.JSON(http.StatusOK, contract.SessionApprovalResponse{
+		Outcome:          result.Outcome,
+		InteractionID:    result.InteractionID,
+		RequestID:        result.RequestID,
+		Decision:         result.Decision,
+		ResolvedDecision: result.ResolvedDecision,
+	})
 }

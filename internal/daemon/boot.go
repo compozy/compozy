@@ -88,6 +88,7 @@ type bootState struct {
 	worktrees              *worktree.Service
 	windowManagerBootState
 	sessions              SessionManager
+	sessionWakeBridge     *sessionWakeBridge
 	hostedMCP             *mcppkg.HostedService
 	providerVault         *vault.Service
 	modelCatalog          *modelCatalogRuntime
@@ -113,6 +114,7 @@ type bootState struct {
 	toolsets              core.ToolsetRegistry
 	toolApprovals         toolspkg.ApprovalTokenIssuer
 	clarify               *clarifyBridge
+	attentionMuteMutator  attentionWorkspaceMuteMutator
 	observer              Observer
 	lifecycleObservers    *sessionLifecycleFanout
 	hookTelemetrySinks    *hookTelemetryFanout
@@ -127,7 +129,9 @@ type bootState struct {
 	heartbeatCatalog      *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog           *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog      *resourceCatalog[compozyconfig.MCPServer]
+	extensionEnvBindings  extensionpkg.EnvBindingStore
 	mcpAuthGeneration     *mcpauth.MutationGeneration
+	mcpRuntimeHealth      *mcppkg.RuntimeHealthRegistry
 	toolProjectionEpoch   *mcppkg.ProjectionEpoch
 	agentProbeConfig      *agentProbeConfigState
 	loopCatalog           *resourceCatalog[looppkg.ResourceSpec]

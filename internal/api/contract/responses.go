@@ -48,7 +48,11 @@ type SendPromptResultResponse struct {
 
 // SessionApprovalResponse wraps the approve-session success payload.
 type SessionApprovalResponse struct {
-	Status string `json:"status"`
+	Outcome          string `json:"outcome"`
+	InteractionID    string `json:"interaction_id,omitempty"`
+	RequestID        string `json:"request_id"`
+	Decision         string `json:"decision"`
+	ResolvedDecision string `json:"resolved_decision,omitempty"`
 }
 
 // AgentsResponse wraps the shared agent list payload.
@@ -386,10 +390,12 @@ type ManagedExtensionUpdatePayload struct {
 
 // ManagedExtensionRemovePayload describes one daemon-owned extension removal.
 type ManagedExtensionRemovePayload struct {
-	Name     string           `json:"name"`
-	Path     string           `json:"path"`
-	Status   string           `json:"status"`
-	Warnings []DiagnosticItem `json:"warnings,omitempty"`
+	Name           string           `json:"name"`
+	Path           string           `json:"path"`
+	DataPath       string           `json:"data_path,omitempty"`
+	QuarantinePath string           `json:"quarantine_path,omitempty"`
+	Status         string           `json:"status"`
+	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
 }
 
 // ResourcesResponse wraps the shared desired-state resource list payload.

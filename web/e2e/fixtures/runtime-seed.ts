@@ -171,6 +171,8 @@ export interface BrowserMarketplaceExtensionEntrySeed extends BrowserMarketplace
   author?: string;
   digest_release_tag?: string;
   digest_sha256?: string;
+  /** Curated display marker; install-time detection stays authoritative. */
+  format?: "compozy" | "agent-plugin";
   install_slug: string;
   repository?: string;
   tier: "official" | "community" | "unverified";
@@ -348,6 +350,7 @@ export interface BrowserAutomationOperatorFlowResult {
 }
 
 export interface BrowserTasksOperatorFlowSeed {
+  referenceTaskScope?: "global" | "workspace";
   sessionAgentName: string;
   timeoutMs?: number;
   workspaceRootDir?: string;
@@ -362,6 +365,7 @@ export interface BrowserTasksOperatorFlowResult {
   runningRunDetail: TaskRunDetailView;
   runningTask: TaskRecord;
   session: SeededSessionPayload;
+  workspace: WorkspacePayload;
 }
 
 export interface BrowserNetworkOperatorFlowSeed {
@@ -1178,6 +1182,7 @@ export async function seedBrowserTasksOperatorFlow(
   // The claim-next call below authenticates as this session; it 401s with
   // `identity_stale` until background-role activation commits. Gate on active.
   const activeSession = await waitForSeedSessionActive(runtime, createdSession.id, timeoutMs);
+  const referenceTaskScope = seed.referenceTaskScope ?? "global";
 
   const referenceTask = await createBrowserTask(runtime, {
     description: "Seeded ready task for list and dashboard coverage.",
@@ -1187,8 +1192,9 @@ export async function seedBrowserTasksOperatorFlow(
       ref: "qa-operator",
     },
     priority: "medium",
-    scope: "global",
+    scope: referenceTaskScope,
     title: browserTasksOperatorFlowScenario.referenceTask.title,
+    ...(referenceTaskScope === "workspace" ? { workspace: sessionWorkspace.id } : {}),
   });
 
   const approvalTask = await createBrowserTask(runtime, {
@@ -1264,7 +1270,8 @@ export async function seedBrowserTasksOperatorFlow(
         "/api/observe/tasks/dashboard"
       );
       const candidate = payload.dashboard;
-      return candidate.totals.tasks_total >= 3 &&
+      const minimumTaskCount = referenceTaskScope === "workspace" ? 2 : 3;
+      return candidate.totals.tasks_total >= minimumTaskCount &&
         candidate.active_runs.items?.some(item => item.run_id === runningRun.id)
         ? candidate
         : null;
@@ -1298,6 +1305,7 @@ export async function seedBrowserTasksOperatorFlow(
     runningRunDetail,
     runningTask,
     session: activeSession,
+    workspace: sessionWorkspace,
   };
 }
 

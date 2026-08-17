@@ -9,6 +9,7 @@ interface ExtensionKitInventoryPanelProps {
   error: Error | null;
   isLoading: boolean;
   onRetry: () => void;
+  showEmptyState?: boolean;
   /**
    * Drop the section chrome and card frame so the panel can nest inside a
    * surface that already frames and labels itself.
@@ -27,6 +28,7 @@ function ExtensionKitInventoryPanel({
   isLoading,
   onRetry,
   bare = false,
+  showEmptyState = true,
 }: ExtensionKitInventoryPanelProps) {
   const groups = groupByKind(items ?? []);
   const total = items?.length ?? 0;
@@ -53,11 +55,11 @@ function ExtensionKitInventoryPanel({
             Retry
           </Button>
         </div>
-      ) : total === 0 ? (
+      ) : total === 0 && showEmptyState ? (
         <p className="px-4 py-3 text-small-body text-muted">
           This extension ships no static kit resources.
         </p>
-      ) : (
+      ) : total === 0 ? null : (
         groups.map(group => (
           <div key={group.kind}>
             <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">

@@ -775,6 +775,7 @@ type fakeDriver struct {
 	approveHook           func(proc *fakeProcess, req acp.ApproveRequest) error
 	stopHook              func(proc *fakeProcess) error
 	startHook             func(opts acp.StartOpts, sequence int) (*fakeProcess, error)
+	startContextHook      func(context.Context, acp.StartOpts, int) (*fakeProcess, error)
 	interruptScopes       []toolruntime.InterruptScope
 	interruptErr          error
 	fallbackOnResume      bool
@@ -1145,9 +1146,12 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 	sequence := len(d.startCalls)
 	var proc *fakeProcess
 	var err error
-	if d.startHook != nil {
+	switch {
+	case d.startContextHook != nil:
+		proc, err = d.startContextHook(ctx, copied, sequence)
+	case d.startHook != nil:
 		proc, err = d.startHook(copied, sequence)
-	} else {
+	default:
 		sessionID := fmt.Sprintf("acp-%d", sequence)
 		if copied.ResumeSessionID != "" {
 			if d.fallbackOnResume {

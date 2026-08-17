@@ -76,79 +76,91 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve retry identity across provenance parent deletion", func(t *testing.T) {
-		fixture := newLoopGoalManagedRuntimeFixture(t, "provenance-retry", nil, withoutInitialGoalBinding())
-		parentID, _ := fixture.createOriginSession(t, "provenance-retry", participation.LocalSpec())
-		request := fixture.bindingRequest("provenance-retry")
+	t.Run("Should preserve a materialized binding lineage after provenance parent deletion", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "provenance-existing", nil, withoutInitialGoalBinding())
+		parentID, _ := fixture.createOriginSession(t, "provenance-existing", participation.LocalSpec())
+		request := fixture.bindingRequest("provenance-existing")
 		request.ProvenanceParentSessionID = parentID
 
-		profile, opts, materialized, err := fixture.runtime.resolveRunOwnedBindingProfile(
-			testutil.Context(t), request, goalpkg.SessionBinding{}, false,
-		)
+		created, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
 		if err != nil {
-			t.Fatalf("resolveEffectiveCreationProfile() error = %v", err)
+			t.Fatalf("BindActionSession(first) error = %v", err)
 		}
-		if materialized != nil {
-			t.Fatalf("materialized worktree = %#v, want nil", materialized)
-		}
-		identity, err := bindingCreationIdentity(profile, opts, request.DesiredSessionID)
-		if err != nil {
-			t.Fatalf("bindingCreationIdentity() error = %v", err)
-		}
-		opts.DesiredSessionID = request.DesiredSessionID
-		opts.CreationProfile = cloneStoreCreationProfile(profile)
-		opts.CreationIdentity = cloneStoreCreationIdentity(identity)
-
-		created, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
-		if err != nil || created.Outcome != session.EnsureCreatedOutcomeCreated {
-			t.Fatalf("EnsureCreated(first) = %#v, %v, want created", created, err)
-		}
-		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, parentID)
+		assertSessionProvenanceParent(t, fixture.manager, created.SessionID, parentID)
 		if err := fixture.manager.Delete(testutil.Context(t), parentID); err != nil {
 			t.Fatalf("Delete(parent) error = %v", err)
 		}
 
-		matched, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
-		if err != nil || matched.Outcome != session.EnsureCreatedOutcomeExistingMatch {
-			t.Fatalf("EnsureCreated(existing after parent deletion) = %#v, %v, want existing-match", matched, err)
-		}
-		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, parentID)
-		spawned, err := fixture.manager.Spawn(testutil.Context(t), session.SpawnOpts{
-			ParentSessionID: request.DesiredSessionID,
-			AgentName:       fixture.agentName,
-			TTL:             time.Minute,
-		})
+		matched, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
 		if err != nil {
-			t.Fatalf("Spawn(Goal after provenance parent deletion) error = %v", err)
+			t.Fatalf("BindActionSession(existing) error = %v", err)
 		}
-		spawnedInfo := spawned.Info()
-		if spawnedInfo.Lineage == nil ||
-			spawnedInfo.Lineage.ParentSessionID != request.DesiredSessionID ||
-			spawnedInfo.Lineage.RootSessionID != request.DesiredSessionID {
-			t.Fatalf("spawned Goal child lineage = %#v, want rebased under live Goal", spawnedInfo.Lineage)
+		if matched.SessionID != created.SessionID || matched.BindingEpoch != created.BindingEpoch {
+			t.Fatalf("existing binding = %#v, want identity %#v", matched, created)
 		}
-		if err := fixture.manager.Delete(testutil.Context(t), spawned.ID); err != nil {
-			t.Fatalf("Delete(spawned Goal child) error = %v", err)
-		}
-
-		if err := fixture.manager.Delete(testutil.Context(t), request.DesiredSessionID); err != nil {
-			t.Fatalf("Delete(child) error = %v", err)
-		}
-		recreated, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
-		if err != nil || recreated.Outcome != session.EnsureCreatedOutcomeCreated {
-			t.Fatalf("EnsureCreated(recreate without parent) = %#v, %v, want created", recreated, err)
-		}
+		assertSessionProvenanceParent(t, fixture.manager, matched.SessionID, parentID)
 		t.Cleanup(func() {
-			if err := fixture.manager.Delete(testutil.Context(t), request.DesiredSessionID); err != nil {
-				t.Errorf("Delete(recreated child) error = %v", err)
+			if err := fixture.manager.Delete(testutil.Context(t), matched.SessionID); err != nil {
+				t.Errorf("Delete(bound session) error = %v", err)
 			}
 		})
-		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, "")
-		retry, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
-		if err != nil || retry.Outcome != session.EnsureCreatedOutcomeExistingMatch {
-			t.Fatalf("EnsureCreated(retry root) = %#v, %v, want existing-match", retry, err)
+	})
+
+	t.Run("Should drop a deleted provenance parent when a managed retry advances", func(t *testing.T) {
+		var failingManager *failFirstEnsureCreatedManager
+		fixture := newLoopGoalManagedRuntimeFixture(
+			t,
+			"provenance-retry",
+			nil,
+			withoutInitialGoalBinding(),
+			withGoalRuntimeSessionManager(func(manager *session.Manager) SessionManager {
+				failingManager = &failFirstEnsureCreatedManager{Manager: manager}
+				return failingManager
+			}),
+		)
+		parentID, _ := fixture.createOriginSession(t, "provenance-retry", participation.LocalSpec())
+		failingManager.beforeFailure = func(ctx context.Context) error {
+			return fixture.manager.Delete(ctx, parentID)
 		}
-		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, "")
+		request := fixture.bindingRequest("provenance-retry")
+		request.ProvenanceParentSessionID = parentID
+
+		failedBinding, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
+		creationErr, creationErrMatched := errors.AsType[*looppkg.ActionSessionCreationError](err)
+		if !creationErrMatched || !creationErr.EffectKnownFalse {
+			t.Fatalf("BindActionSession(first) error = %v, want known-false creation failure", err)
+		}
+		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
+			t.Fatalf("failed session %q was materialized", request.DesiredSessionID)
+		}
+
+		retryRequest := request
+		retryRequest.TargetBindingEpoch = 2
+		retryRequest.BindingAttemptID = "binding-attempt-goal-managed-provenance-retry-2"
+		retryRequest.DesiredSessionID = "sess-goal-managed-provenance-retry-2"
+		if err := fixture.runtime.AdvanceActionSessionRetry(testutil.Context(t), &looppkg.ActionSessionRetryRequest{
+			BindRequest:           retryRequest,
+			FailedBinding:         failedBinding,
+			FailureCode:           creationErr.Code,
+			ExpectedPromptAttempt: 0,
+			RetryWithFreshSession: true,
+		}); err != nil {
+			t.Fatalf("AdvanceActionSessionRetry() error = %v", err)
+		}
+
+		retryBinding, err := fixture.runtime.BindActionSession(testutil.Context(t), retryRequest)
+		if err != nil {
+			t.Fatalf("BindActionSession(retry) error = %v", err)
+		}
+		if retryBinding.BindingEpoch != 2 || retryBinding.SessionID != retryRequest.DesiredSessionID {
+			t.Fatalf("retry binding = %#v, want epoch 2 session %q", retryBinding, retryRequest.DesiredSessionID)
+		}
+		t.Cleanup(func() {
+			if err := fixture.manager.Delete(testutil.Context(t), retryBinding.SessionID); err != nil {
+				t.Errorf("Delete(retry session) error = %v", err)
+			}
+		})
+		assertSessionProvenanceParent(t, fixture.manager, retryBinding.SessionID, "")
 	})
 
 	t.Run("Should reject a runtime triple that diverges from the active pinned profile", func(t *testing.T) {
@@ -986,6 +998,31 @@ type delayedEnsureCreatedManager struct {
 	*session.Manager
 	materialized chan struct{}
 	release      <-chan struct{}
+}
+
+type failFirstEnsureCreatedManager struct {
+	*session.Manager
+	beforeFailure func(context.Context) error
+	failed        atomic.Bool
+}
+
+func (m *failFirstEnsureCreatedManager) EnsureCreated(
+	ctx context.Context,
+	opts session.CreateOpts,
+) (session.EnsureCreatedResult, error) {
+	if m.failed.CompareAndSwap(false, true) {
+		if m.beforeFailure != nil {
+			if err := m.beforeFailure(ctx); err != nil {
+				return session.EnsureCreatedResult{}, err
+			}
+		}
+		return session.EnsureCreatedResult{}, &session.CreationError{
+			Effect: session.EffectKnownFalse,
+			Code:   session.SessionCreationCodeStoreUnavailable,
+			Err:    errors.New("injected known-false creation failure"),
+		}
+	}
+	return m.Manager.EnsureCreated(ctx, opts)
 }
 
 func (m *delayedEnsureCreatedManager) EnsureCreated(

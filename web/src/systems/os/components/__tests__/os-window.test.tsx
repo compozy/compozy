@@ -151,7 +151,15 @@ beforeEach(() => {
   deckOpenNewTab = vi.fn();
   vi.mocked(useOsWindow).mockImplementation(() => model);
   vi.mocked(useDesktop).mockImplementation(selector =>
-    selector({ presentation, windows } as unknown as OsDesktopRuntimeStore)
+    // Window chrome renders the daemon's effective chords, so the fixture has
+    // to carry a keymap for the deck to label anything with one.
+    selector({
+      presentation,
+      windows,
+      windowManagerConfig: {
+        effectiveShortcuts: { "window.tab.new": ["meta+KeyT"], "window.close": ["meta+KeyW"] },
+      },
+    } as unknown as OsDesktopRuntimeStore)
   );
 });
 

@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { CatalogCard } from "@compozy/ui";
 
 import type { MarketplaceKind, MarketplaceListing } from "../types";
+import { ExtensionFormatBadge } from "@/systems/extensions";
 import { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";
 import {
   formatMarketplaceCount,
@@ -86,6 +87,7 @@ function MarketplaceCard({
                   {entry.source}
                 </span>
               ) : null}
+              <ExtensionFormatBadge format={entry.format} />
             </CatalogCard.Meta>
           </div>
         </div>

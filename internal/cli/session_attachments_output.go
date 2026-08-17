@@ -12,7 +12,7 @@ func sessionAttachmentBundle(info SessionAttachmentRecord) outputBundle {
 				{Label: "MIME Type", Value: stringOrDash(info.MIMEType)},
 				{Label: "Bytes", Value: fmt.Sprint(info.Bytes)},
 				{Label: "SHA-256", Value: stringOrDash(info.SHA256)},
-				{Label: "Kind", Value: stringOrDash(info.Kind)},
+				{Label: cliKindValue, Value: stringOrDash(info.Kind)},
 				{Label: "Width", Value: fmt.Sprint(info.Width)},
 				{Label: "Height", Value: fmt.Sprint(info.Height)},
 				{Label: "Created At", Value: stringOrDash(formatTime(info.CreatedAt))},

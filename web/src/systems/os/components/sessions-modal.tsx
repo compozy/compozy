@@ -10,12 +10,13 @@ import {
   Icon,
 } from "@compozy/ui";
 
-import { useOsSessionsModal } from "../hooks/use-os-sessions-modal";
+import { useAttentionJump } from "../hooks/use-attention-jump";
 import {
   type SessionLifecycleActionHandlers,
   SessionList,
   type SessionPayload,
   useSessionSidebarState,
+  type SessionListViewModel,
 } from "@/systems/session";
 
 export interface OsSessionsModalProps {
@@ -23,9 +24,11 @@ export interface OsSessionsModalProps {
   onOpenChange: (open: boolean) => void;
   dismissalBlocked?: boolean;
   sessions: readonly SessionPayload[];
-  archivedSessions: readonly SessionPayload[];
-  archivedTotal?: number;
   disconnected: boolean;
+  /** Breadth, order, and widened workspace groups — owned by the shell, not fetched here. */
+  view: SessionListViewModel;
+  currentWorkspaceId?: string | null;
+  onNewSession: () => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 
@@ -39,12 +42,13 @@ export function OsSessionsModal({
   onOpenChange,
   dismissalBlocked = false,
   sessions,
-  archivedSessions,
-  archivedTotal,
   disconnected,
+  view,
+  currentWorkspaceId,
+  onNewSession,
   sessionActions,
 }: OsSessionsModalProps) {
-  const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
+  const jumpToSession = useAttentionJump();
   const { collapsedThreadIds, toggleThread } = useSessionSidebarState();
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -54,13 +58,10 @@ export function OsSessionsModal({
 
   const selectSession = (session: SessionPayload) => {
     onOpenChange(false);
-    void coordinator.userOpen({
-      app: "session",
-      instanceKey: session.id,
-      route: {
-        pathname: `/agents/${encodeURIComponent(session.agent_name)}/sessions/${encodeURIComponent(session.id)}`,
-        search: {},
-      },
+    jumpToSession({
+      sessionId: session.id,
+      agentName: session.agent_name,
+      workspaceId: session.workspace_id ?? currentWorkspaceId ?? "",
     });
   };
   return (
@@ -76,15 +77,13 @@ export function OsSessionsModal({
           Filter sessions and open one in the current workspace.
         </DialogDescription>
         <SessionList
+          view={view}
           sessions={sessions}
-          archivedSessions={archivedSessions}
-          archivedTotal={archivedTotal}
           disconnected={disconnected}
-          collapsedAgentIds={collapsedAgentIds}
           collapsedThreadIds={collapsedThreadIds}
-          onToggleGroup={agentName => manager.toggleRailGroup(agentName)}
           onToggleThread={toggleThread}
           onSelectSession={selectSession}
+          onNewSession={onNewSession}
           sessionActions={sessionActions}
           testIdPrefix="os-sessions-modal"
           header={visibleCount => (

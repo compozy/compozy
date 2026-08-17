@@ -26,6 +26,12 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   if (agent) normalized.agent = agent;
   if (search) normalized.q = search;
   if (filters.resumable !== undefined) normalized.resumable = filters.resumable;
+  // Attention scoping is server-side too: the daemon owns the needs-you class
+  // and the badge vocabulary. Both are part of the query key, so dropping them
+  // here would also collapse distinct queries onto one cache entry.
+  if (filters.attention !== undefined) normalized.attention = filters.attention;
+  const badge = normalizedText(filters.badge);
+  if (badge) normalized.badge = badge;
   if (filters.archive !== undefined) normalized.archive = filters.archive;
   if (filters.sort !== undefined) normalized.sort = filters.sort;
   if (filters.limit !== undefined) normalized.limit = filters.limit;

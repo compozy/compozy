@@ -122,6 +122,10 @@ func matchSessionHealthUpdateAfter(matcher HookMatcher, payload SessionHealthUpd
 	return matcher.MatchesSession(payload.SessionContext)
 }
 
+func matchSessionAttention(matcher HookMatcher, payload SessionAttentionChangedPayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
 func matchSessionMessagePersisted(matcher HookMatcher, payload SessionMessagePersistedPayload) bool {
 	return matcher.MatchesSession(payload.SessionContext)
 }
@@ -160,6 +164,10 @@ func matchPermissionRequest(matcher HookMatcher, payload PermissionRequestPayloa
 
 func matchPermissionResolution(matcher HookMatcher, payload PermissionResolutionPayload) bool {
 	return matcher.MatchesPermissionResolution(payload)
+}
+
+func matchPermissionDenied(matcher HookMatcher, payload PermissionDeniedPayload) bool {
+	return matcher.MatchesPermissionDenied(payload)
 }
 
 func matchContextCompact(matcher HookMatcher, payload ContextCompactPayload) bool {

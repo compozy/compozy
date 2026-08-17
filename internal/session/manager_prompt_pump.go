@@ -186,6 +186,14 @@ func (m *Manager) finishPromptPump(
 		activity.stop()
 		activity.finish(m.now())
 	}
+	if session != nil {
+		if err := m.settleSessionAttention(lifecycleCtx, session.ID, m.now().UTC()); err != nil {
+			m.sessionLogger(session).Error(
+				"session: persist terminal attention failed",
+				"error", err,
+			)
+		}
+	}
 	if fatalPromptFailure == nil {
 		m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})
 		m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})

@@ -156,6 +156,29 @@ export const marketplaceListings: Record<MarketplaceKind, MarketplaceListing[]> 
       update_available: false,
       version: "0.3.2",
     },
+    /** Curated entry declaring the portable format; the marker is display metadata only. */
+    {
+      author: "@acme",
+      description: "Deploy checks and a tools API server, packaged in the Agent Plugins format.",
+      downloads: 320,
+      entry_id: "acme-tools",
+      format: "agent-plugin",
+      install_slug: "acme/acme.tools",
+      installed: false,
+      kind: "extension",
+      name: "acme.tools",
+      source: "registry",
+      tier: "community",
+      trust: {
+        allow_unverified: true,
+        checksum_verified: false,
+        decision: "allowed_unverified",
+        registry_tier: "community",
+        warnings: [warningUnsigned],
+      },
+      update_available: false,
+      version: "2.1.0",
+    },
   ],
   mcp: [
     {

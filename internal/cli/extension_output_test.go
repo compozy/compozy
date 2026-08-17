@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
 )
 
@@ -267,6 +269,242 @@ func TestExtensionStatusShowsFailureSummary(t *testing.T) {
 	})
 }
 
+func TestExtensionAgentPluginOutputContract(t *testing.T) {
+	t.Parallel()
+
+	report := &extensionpkg.ValidationReport{
+		Status: "valid", Format: string(extensionpkg.FormatAgentPlugin), Name: "acme.tools", Version: "1.2.0",
+		WouldIngest: []contract.ExtensionValidationComponent{
+			{Kind: "skill", Name: "deploy", Detail: "skills/deploy"},
+			{Kind: "mcp_server", Name: "deployment-api", Transport: "streamable-http", Detail: "streamable-http"},
+		},
+		Issues: []contract.ValidationIssue{{
+			Scope: "mcp:legacy-events", Message: "sse transport is not supported",
+			Severity: contract.IssueSeverityWarn,
+		}},
+	}
+	diagnostic := contract.DiagnosticItem{
+		Code:     diagnosticcontract.CodeExtensionAgentPluginComponentSkipped,
+		Severity: contract.SeverityWarn,
+		Message:  "mcp server \"legacy-events\": sse transport is not supported",
+		Evidence: map[string]any{"scope": "mcp:legacy-events", "component": "mcp_server"},
+	}
+	item := ExtensionRecord{
+		Name: "acme.tools", Version: "1.2.0", Type: "resource", Format: string(extensionpkg.FormatAgentPlugin),
+		Source: "user", Diagnostics: []contract.DiagnosticItem{diagnostic},
+	}
+
+	t.Run("Should render install format ingested skipped and portable next step", func(t *testing.T) {
+		t.Parallel()
+
+		human, err := extensionInstallSuccessBundle(item, report).human()
+		if err != nil {
+			t.Fatalf("extensionInstallSuccessBundle().human() error = %v", err)
+		}
+		for _, want := range []string{
+			"✓ install acme.tools", "Format: agent plugin", "Ingested", "skill", "deploy", "skills/deploy",
+			"Skipped", "legacy-events", "sse transport is not supported",
+			"next: compozy extension enable acme.tools", "Format:", "agent plugin",
+		} {
+			if !strings.Contains(human, want) {
+				t.Fatalf("portable install output = %q, want %q", human, want)
+			}
+		}
+		if strings.Index(human, "Ingested") > strings.Index(human, "next:") {
+			t.Fatalf("portable install output orders report after next step: %q", human)
+		}
+	})
+
+	t.Run("Should preserve native install human shape", func(t *testing.T) {
+		t.Parallel()
+
+		native := ExtensionRecord{Name: "native", Version: "1.0.0", Type: "resource", Format: "compozy"}
+		human, err := extensionInstallSuccessBundle(native, nil).human()
+		if err != nil {
+			t.Fatalf("extensionInstallSuccessBundle(native).human() error = %v", err)
+		}
+		want := renderHumanBlocks(
+			"✓ install native",
+			"next: compozy extension status native",
+			extensionHumanDetail(native, false),
+		)
+		if human != want || strings.Contains(human, "Format:") || strings.Contains(human, "Ingested") {
+			t.Fatalf("native install output = %q, want legacy shape %q", human, want)
+		}
+	})
+
+	t.Run("Should render dual manifest note exactly once", func(t *testing.T) {
+		t.Parallel()
+
+		dual := &extensionpkg.ValidationReport{DualManifest: true, Format: string(extensionpkg.FormatCompozy)}
+		human, err := extensionInstallSuccessBundle(
+			ExtensionRecord{Name: "dual-target", Format: string(extensionpkg.FormatCompozy)}, dual,
+		).human()
+		if err != nil {
+			t.Fatalf("extensionInstallSuccessBundle(dual).human() error = %v", err)
+		}
+		note := "note: directory carries both extension.toml and plugin.json; installed as a CompozyOS extension " +
+			"(native manifest wins)"
+		if strings.Count(human, note) != 1 {
+			t.Fatalf("dual install output = %q, want one %q", human, note)
+		}
+	})
+
+	t.Run("Should render install and validate in all four output modes", func(t *testing.T) {
+		t.Parallel()
+
+		bundles := []struct {
+			name   string
+			bundle outputBundle
+		}{
+			{name: "install", bundle: extensionInstallSuccessBundle(item, report)},
+			{name: "validate", bundle: extensionValidationBundle(report)},
+		}
+		for _, test := range bundles {
+			t.Run("Should render "+test.name+" semantically", func(t *testing.T) {
+				t.Parallel()
+
+				for _, format := range []OutputFormat{OutputHuman, OutputJSON, OutputJSONL, OutputToon} {
+					t.Run("Should render "+string(format)+" output", func(t *testing.T) {
+						t.Parallel()
+
+						output, err := renderExtensionOutput(t, test.bundle, format)
+						if err != nil {
+							t.Fatalf("writeCommandOutput(%s) error = %v", format, err)
+						}
+						if strings.TrimSpace(output) == "" {
+							t.Fatalf("writeCommandOutput(%s) = empty", format)
+						}
+					})
+				}
+			})
+		}
+	})
+
+	t.Run("Should render warn and fatal validation verdicts", func(t *testing.T) {
+		t.Parallel()
+
+		validHuman, err := extensionValidationBundle(report).human()
+		if err != nil {
+			t.Fatalf("extensionValidationBundle(valid).human() error = %v", err)
+		}
+		for _, want := range []string{"Status:", "valid", "Format:", "agent plugin", "WARN mcp:legacy-events"} {
+			if !strings.Contains(validHuman, want) {
+				t.Fatalf("portable validation output = %q, want %q", validHuman, want)
+			}
+		}
+		if validationHasErrors(report.Issues) {
+			t.Fatal("validationHasErrors(warn-only) = true, want false")
+		}
+		fatal := &extensionpkg.ValidationReport{
+			Status: "invalid", Format: string(extensionpkg.FormatAgentPlugin),
+			Issues: []contract.ValidationIssue{{
+				Path: "plugin.json", Scope: "plugin.json", Message: "name is invalid",
+				Severity: contract.IssueSeverityError,
+			}},
+		}
+		fatalHuman, err := extensionValidationBundle(fatal).human()
+		if err != nil {
+			t.Fatalf("extensionValidationBundle(fatal).human() error = %v", err)
+		}
+		if !strings.Contains(fatalHuman, "Status:") || !strings.Contains(fatalHuman, "invalid") ||
+			!strings.Contains(fatalHuman, "ERROR plugin.json") || !validationHasErrors(fatal.Issues) {
+			t.Fatalf("fatal portable validation output = %q, want invalid ERROR verdict", fatalHuman)
+		}
+	})
+
+	t.Run("Should summarize recorded degradation", func(t *testing.T) {
+		t.Parallel()
+
+		degraded := item
+		degraded.Enabled = true
+		degraded.DaemonRunning = true
+		degraded.Health = "healthy"
+		if got, want := extensionRuntimeSummary(degraded), "running (1 component skipped)"; got != want {
+			t.Fatalf("extensionRuntimeSummary() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should render ingestion reports for every portable batch update", func(t *testing.T) {
+		t.Parallel()
+
+		secondReport := *report
+		secondReport.Name = "beta.tools"
+		items := []extensionUpdateItem{
+			{Name: "acme.tools", Status: "updated", Path: "/extensions/acme.tools"},
+			{Name: "beta.tools", Status: "updated", Path: "/extensions/beta.tools"},
+		}
+		portable := []extensionPortableUpdateOutput{
+			{Update: items[0], Report: report, DataPath: "/data/acme.tools"},
+			{Update: items[1], Report: &secondReport, DataPath: "/data/beta.tools"},
+		}
+		human, err := extensionUpdatesSuccessBundle(items, portable).human()
+		if err != nil {
+			t.Fatalf("extensionUpdatesSuccessBundle().human() error = %v", err)
+		}
+		for _, want := range []string{
+			"✓ update acme.tools", "✓ update beta.tools", "/data/acme.tools", "/data/beta.tools",
+			"next: compozy extension status acme.tools", "next: compozy extension status beta.tools",
+		} {
+			if !strings.Contains(human, want) {
+				t.Fatalf("portable batch update output = %q, want %q", human, want)
+			}
+		}
+		if strings.Count(human, "Format: agent plugin") != 2 {
+			t.Fatalf("portable batch update output = %q, want two ingestion reports", human)
+		}
+	})
+}
+
+func TestExtensionRemoveOutputReportsDataCleanup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report the install and data paths removed", func(t *testing.T) {
+		t.Parallel()
+
+		human, err := extensionRemoveBundle(extensionRemoveItem{
+			Name: "acme.tools", Path: "/home/alex/.compozy/extensions/acme.tools",
+			DataPath: "/home/alex/.compozy/extension-data/acme.tools", Status: "removed",
+		}).human()
+		if err != nil {
+			t.Fatalf("extensionRemoveBundle().human() error = %v", err)
+		}
+		if strings.Count(human, "removed:") != 2 {
+			t.Fatalf("remove output = %q, want two removed lines", human)
+		}
+		toon, err := extensionRemoveBundle(extensionRemoveItem{
+			Name: "acme.tools", Path: "/home/alex/.compozy/extensions/acme.tools",
+			DataPath: "/home/alex/.compozy/extension-data/acme.tools", Status: "removed",
+		}).toon()
+		if err != nil {
+			t.Fatalf("extensionRemoveBundle().toon() error = %v", err)
+		}
+		if !strings.Contains(toon, "data_path") ||
+			!strings.Contains(toon, "/home/alex/.compozy/extension-data/acme.tools") {
+			t.Fatalf("remove TOON = %q, want data cleanup path", toon)
+		}
+	})
+
+	t.Run("Should report quarantined data as a successful warning", func(t *testing.T) {
+		t.Parallel()
+
+		quarantine := "/home/alex/.compozy/extension-data/acme.tools.removed-1755280000"
+		human, err := extensionRemoveBundle(extensionRemoveItem{
+			Name: "acme.tools", Path: "/home/alex/.compozy/extensions/acme.tools",
+			DataPath: "/home/alex/.compozy/extension-data/acme.tools", QuarantinePath: quarantine, Status: "removed",
+		}).human()
+		if err != nil {
+			t.Fatalf("extensionRemoveBundle(quarantined).human() error = %v", err)
+		}
+		for _, want := range []string{"✓ remove acme.tools", "warning: data directory could not be removed", quarantine,
+			"a fresh install of acme.tools starts empty"} {
+			if !strings.Contains(human, want) {
+				t.Fatalf("quarantined remove output = %q, want %q", human, want)
+			}
+		}
+	})
+}
+
 func TestExtensionSuccessBundlesNameNextStep(t *testing.T) {
 	t.Parallel()
 
@@ -389,7 +627,7 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 		DeclaredEnv:  []string{"API_KEY"},
 		BoundEnvKeys: []string{"API_KEY", "OLD_KEY"},
 		Bindings: []contract.ExtensionSecretBindingPayload{
-			{EnvName: "API_KEY"},
+			{EnvName: "API_KEY", MCPServer: "deployment-api", HeaderName: "X-Deployment-Key"},
 			{EnvName: "OLD_KEY", Stale: true},
 		},
 	}
@@ -419,10 +657,15 @@ func TestExtensionInventoryPreviewAndSecretsOutputParity(t *testing.T) {
 			want:       preview,
 		},
 		{
-			name:       "Should render presence-only secrets",
-			bundle:     extensionSecretsBundle(secrets),
-			wantHuman:  []string{"Extension Secrets", "API_KEY", "OLD_KEY", "Stale Bindings"},
-			wantTOON:   []string{"extension_secrets", "stale_env_keys", "OLD_KEY"},
+			name:   "Should render presence-only secrets",
+			bundle: extensionSecretsBundle(secrets),
+			wantHuman: []string{
+				"Extension Secrets", "API_KEY", "remote-header deployment-api:X-Deployment-Key",
+				"OLD_KEY", "Stale Bindings",
+			},
+			wantTOON: []string{
+				"extension_secrets", "stale_env_keys", "OLD_KEY", "bindings", "deployment-api", "X-Deployment-Key",
+			},
 			newDecoded: func() any { return &ExtensionSecretsRecord{} },
 			want:       secrets,
 		},

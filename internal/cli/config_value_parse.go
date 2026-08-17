@@ -26,30 +26,8 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 			return nil, fmt.Errorf("cli: parse bool value %q: %w", raw, err)
 		}
 		return value, nil
-	case configSetInt:
-		value, err := strconv.Atoi(trimmed)
-		if err != nil {
-			return nil, fmt.Errorf("cli: parse integer value %q: %w", raw, err)
-		}
-		return value, nil
-	case configSetInt64:
-		value, err := strconv.ParseInt(trimmed, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("cli: parse integer value %q: %w", raw, err)
-		}
-		return value, nil
-	case configSetUint64:
-		value, err := strconv.ParseUint(trimmed, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("cli: parse unsigned integer value %q: %w", raw, err)
-		}
-		return value, nil
-	case configSetFloat:
-		value, err := strconv.ParseFloat(trimmed, 64)
-		if err != nil {
-			return nil, fmt.Errorf("cli: parse float value %q: %w", raw, err)
-		}
-		return value, nil
+	case configSetInt, configSetInt64, configSetUint64, configSetFloat:
+		return parseConfigNumericValue(kind, raw, trimmed)
 	case configSetDuration:
 		if _, err := time.ParseDuration(trimmed); err != nil {
 			return nil, fmt.Errorf("cli: parse duration value %q: %w", raw, err)
@@ -76,8 +54,48 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 				raw,
 			)
 		}
+	case configSetStringOrStringSlice:
+		if strings.HasPrefix(trimmed, "[") {
+			var values []string
+			if err := json.Unmarshal([]byte(trimmed), &values); err != nil {
+				return nil, fmt.Errorf("cli: parse string-or-array value %q: %w", raw, err)
+			}
+			return values, nil
+		}
+		return raw, nil
 	default:
 		return nil, fmt.Errorf("cli: unsupported config value kind %d", kind)
+	}
+}
+
+func parseConfigNumericValue(kind configSetValueKind, raw string, trimmed string) (any, error) {
+	switch kind {
+	case configSetInt:
+		value, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("cli: parse integer value %q: %w", raw, err)
+		}
+		return value, nil
+	case configSetInt64:
+		value, err := strconv.ParseInt(trimmed, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("cli: parse integer value %q: %w", raw, err)
+		}
+		return value, nil
+	case configSetUint64:
+		value, err := strconv.ParseUint(trimmed, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("cli: parse unsigned integer value %q: %w", raw, err)
+		}
+		return value, nil
+	case configSetFloat:
+		value, err := strconv.ParseFloat(trimmed, 64)
+		if err != nil {
+			return nil, fmt.Errorf("cli: parse float value %q: %w", raw, err)
+		}
+		return value, nil
+	default:
+		return nil, fmt.Errorf("cli: unsupported numeric config value kind %d", kind)
 	}
 }
 

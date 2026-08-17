@@ -12,6 +12,7 @@ import { WindowManagerBehaviorPicks } from "./layouts/window-manager-behavior-pi
 import { WindowManagerGapEditor } from "./layouts/window-manager-gap-editor";
 import { WindowManagerRatioTrack } from "./layouts/window-manager-ratio-track";
 import { WindowManagerShortcutTable } from "./layouts/window-manager-shortcut-table";
+import { ShortcutPresetCard } from "./layouts/shortcut-preset-card";
 import { WindowManagerSnapMap } from "./layouts/window-manager-snap-map";
 
 interface WindowManagerConfigEditorProps {
@@ -23,7 +24,11 @@ interface WindowManagerConfigEditorProps {
  * route; this composes the sections and nothing else.
  */
 export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorProps) {
-  const recorder = useWindowManagerShortcutRecorder(editor.draft.shortcuts, editor.setShortcuts);
+  const recorder = useWindowManagerShortcutRecorder(
+    editor.draft.shortcuts,
+    editor.draft.shortcutDefaults,
+    editor.setShortcuts
+  );
   const changed = Object.keys(editor.draft.shortcuts).length;
 
   return (
@@ -87,7 +92,16 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
         description="Click a chord to record a new one. Only the ones you change are stored — everything else follows the shipped default."
         title="Shortcuts"
       >
-        <WindowManagerShortcutTable overrides={editor.draft.shortcuts} recorder={recorder} />
+        <ShortcutPresetCard
+          defaults={editor.draft.shortcutDefaults}
+          overrides={editor.draft.shortcuts}
+          onChange={editor.setShortcuts}
+        />
+        <WindowManagerShortcutTable
+          defaults={editor.draft.shortcutDefaults}
+          overrides={editor.draft.shortcuts}
+          recorder={recorder}
+        />
       </SettingsGroup>
 
       <SettingsAdvancedFold data-testid="settings-page-layouts-advanced">

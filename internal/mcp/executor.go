@@ -60,12 +60,23 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	if err != nil {
 		return nil, "", err
 	}
+	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
+	var runtimeHealthErr error
+	defer func() {
+		if runtimeHealthErr != nil {
+			e.runtimeHealth.RecordFailure(healthObservation, runtimeHealthErr)
+			return
+		}
+		e.runtimeHealth.RecordSuccess(healthObservation)
+	}()
 	if err := e.ensureAuthorized(ctx, resolved); err != nil {
+		runtimeHealthErr = err
 		return nil, "", err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, resolved)
 	client, err := e.openClient(ctx, resolved, authorizationHeader)
 	if err != nil {
+		runtimeHealthErr = err
 		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
 	defer func() {
@@ -81,22 +92,13 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	}
 	tools, ttlMs, err := listMCPTools(ctx, client.session)
 	if err != nil {
+		runtimeHealthErr = err
 		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
-	descriptors = make([]toolspkg.MCPToolDescriptor, 0, len(tools))
-	for i := range tools {
-		if tools[i] == nil {
-			return nil, "", toolspkg.NewValidationError(
-				"tools",
-				toolspkg.ReasonSchemaInvalid,
-				"mcp server returned an empty tool descriptor",
-			)
-		}
-		descriptor, err := e.descriptorFromTool(source, resolved.Server, *tools[i])
-		if err != nil {
-			return nil, "", fmt.Errorf("mcp: normalize tool %q: %w", tools[i].Name, err)
-		}
-		descriptors = append(descriptors, descriptor)
+	descriptors, err = e.descriptorsFromTools(source, resolved.Server, tools)
+	if err != nil {
+		runtimeHealthErr = err
+		return nil, "", err
 	}
 	now := time.Now()
 	e.cacheTools(cacheKey, descriptors, ttlMs, now)
@@ -139,12 +141,23 @@ func (e *CallExecutor) CallTool(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
+	var runtimeHealthErr error
+	defer func() {
+		if runtimeHealthErr != nil {
+			e.runtimeHealth.RecordFailure(healthObservation, runtimeHealthErr)
+			return
+		}
+		e.runtimeHealth.RecordSuccess(healthObservation)
+	}()
 	if err := e.ensureAuthorized(ctx, resolved); err != nil {
+		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, resolved)
 	client, err := e.openClient(ctx, resolved, authorizationHeader)
 	if err != nil {
+		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}
 	defer func() {
@@ -159,20 +172,17 @@ func (e *CallExecutor) CallTool(
 		Arguments: arguments,
 	})
 	if err != nil {
+		runtimeHealthErr = err
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}
-	if mcpResult.NeedsInput() {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeUnavailable,
-			req.ToolID,
-			"mcp server requires an unsupported client capability",
-			&UnsupportedCapabilityError{Capability: "input_requests"},
-			toolspkg.ReasonMCPUnreachable,
-		)
+	if err := validateMCPToolResultCapabilities(req.ToolID, mcpResult); err != nil {
+		runtimeHealthErr = err
+		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
 	result, err = toolResultFromMCP(mcpResult)
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		runtimeHealthErr = err
+		return toolspkg.ToolResult{}, runtimeHealthErr
 	}
 	return redactMCPToolResult(result)
 }
@@ -381,6 +391,8 @@ func cloneMCPServer(server compozyconfig.MCPServer) compozyconfig.MCPServer {
 	server.Args = append([]string(nil), server.Args...)
 	server.Env = cloneStringMap(server.Env)
 	server.SecretEnv = cloneStringMap(server.SecretEnv)
+	server.Headers = cloneStringMap(server.Headers)
+	server.SecretHeaders = cloneStringMap(server.SecretHeaders)
 	server.Auth.Scopes = append([]string(nil), server.Auth.Scopes...)
 	return server
 }

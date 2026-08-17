@@ -7,7 +7,10 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-const providerAuthLoginCommandKey = "auth_login_command"
+const (
+	providerAuthLoginCommandKey = "auth_login_command"
+	cliTimeoutKey               = "timeout"
+)
 
 func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error) {
 	joined := strings.Join(path, ".")
@@ -31,6 +34,9 @@ func classifyConfigMutationPath(path []string) (configSetValueKind, bool, error)
 		return configSetBool, false, nil
 	}
 	if isProviderMutationPath(path) {
+		if path[2] == configCommandKey {
+			return configSetStringOrStringSlice, false, nil
+		}
 		return configSetString, isProviderLoginCommandPath(path), nil
 	}
 	if kind, redacted, ok := classifySandboxMutationPath(path); ok {
@@ -123,7 +129,7 @@ func isProviderMutationPath(path []string) bool {
 		path[2] == configModelsKey &&
 		path[3] == configDiscoveryKey {
 		switch path[4] {
-		case configCommandKey, "endpoint", "timeout":
+		case configCommandKey, "endpoint", cliTimeoutKey:
 			return true
 		}
 	}

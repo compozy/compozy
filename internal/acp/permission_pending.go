@@ -121,6 +121,10 @@ func (p *AgentProcess) ResolvePermission(req ApproveRequest) error {
 			return fmt.Errorf("%w: %s", ErrPermissionDecisionUnsupported, decision)
 		}
 	}
+	pending.resolvedBy = strings.TrimSpace(req.ResolvedBy)
+	if pending.resolvedBy == "" {
+		pending.resolvedBy = "operator"
+	}
 	delete(p.pendingPermissions, requestID)
 	p.pendingPermissionMu.Unlock()
 

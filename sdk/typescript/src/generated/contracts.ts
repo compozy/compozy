@@ -184,6 +184,7 @@ export type HookEvent =
   | "spawn.parent_stopped"
   | "spawn.ttl_expired"
   | "spawn.reaped"
+  | "session.attention.changed"
   | "network.thread.opened"
   | "network.direct_room.opened"
   | "network.message.persisted"
@@ -1870,10 +1871,17 @@ export interface ExtensionToolCallResponse {
   result: ToolResult;
 }
 
-export type IssueSeverity = "error" | "warning";
+export interface ExtensionValidationComponent {
+  kind: string;
+  name: string;
+  transport?: string;
+}
+
+export type IssueSeverity = "error" | "warning" | "warn";
 
 export interface ValidationIssue {
   path: string;
+  scope?: string;
   line?: number;
   column?: number;
   field?: string;
@@ -1882,9 +1890,14 @@ export interface ValidationIssue {
 }
 
 export interface ExtensionValidatePayload {
+  status: string;
+  format: string;
+  name?: string;
+  version?: string;
+  would_ingest?: ExtensionValidationComponent[];
   manifest?: ExtensionManifestSummary;
   issues: ValidationIssue[];
-  consent_areas: ConsentArea[];
+  consent_areas?: ConsentArea[];
 }
 
 export interface ForgeCapabilitiesRequest {
@@ -3856,7 +3869,6 @@ export interface PermissionDeniedPayload {
   resource?: string;
   decision?: string;
   decision_class?: string;
-  tool_input?: JSONValue;
   tool_call: PermissionToolCall;
 }
 
@@ -4355,6 +4367,30 @@ export interface SandboxSyncBeforePayload {
   denied?: boolean;
   deny_reason?: string;
 }
+
+export interface SessionAttentionChangedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  worktree_id?: string;
+  acp_session_id?: string;
+  state?: string;
+  soul_snapshot_id?: string;
+  soul_digest?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  from: string;
+  to: string;
+  class: string;
+  at: ISODateTime;
+}
+
+export type SessionAttentionObservationPatch = Record<string, never>;
 
 export interface SessionContext {
   session_id?: string;
@@ -4858,17 +4894,36 @@ export interface SessionStatusGetParams {
   session_id: string;
 }
 
+export type Badge = string;
+
+export interface PendingInteractionPayload {
+  interaction_id: string;
+  kind: string;
+  provider_request_id: string;
+  turn_id?: string;
+  title?: string;
+  choices?: string[];
+  decisions?: string[];
+  status: string;
+  created_at: ISODateTime;
+  resolved_at?: ISODateTime;
+  resolution?: string;
+  resolved_by?: string;
+}
+
 export interface SessionStatusResponse {
   session_id: string;
   workspace_id: string;
   agent_name: string;
   state: SessionHealthState;
+  badge: Badge;
   health: SessionHealthStatus;
   active_prompt: boolean;
   attachable: boolean;
   eligible_for_wake: boolean;
   ineligibility_reason?: SessionHealthIneligibilityReason;
   wake_state?: HeartbeatWakeStatePayload;
+  pending_interactions: PendingInteractionPayload[];
   updated_at: ISODateTime;
 }
 
@@ -6916,6 +6971,7 @@ export interface HookPayloadByEvent {
   "spawn.parent_stopped": SpawnParentStoppedPayload;
   "spawn.ttl_expired": SpawnTTLExpiredPayload;
   "spawn.reaped": SpawnReapedPayload;
+  "session.attention.changed": SessionAttentionChangedPayload;
   "network.thread.opened": NetworkThreadOpenedPayload;
   "network.direct_room.opened": NetworkDirectRoomOpenedPayload;
   "network.message.persisted": NetworkMessagePersistedPayload;
@@ -7019,6 +7075,7 @@ export interface HookPatchByEvent {
   "spawn.parent_stopped": SpawnObservationPatch;
   "spawn.ttl_expired": SpawnObservationPatch;
   "spawn.reaped": SpawnObservationPatch;
+  "session.attention.changed": SessionAttentionObservationPatch;
   "network.thread.opened": NetworkObservationPatch;
   "network.direct_room.opened": NetworkObservationPatch;
   "network.message.persisted": NetworkObservationPatch;

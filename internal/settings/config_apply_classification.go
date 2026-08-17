@@ -84,3 +84,15 @@ func (s *service) classifyWindowManagerRequest(
 	changed := diffWindowManagerSettings(cfg.WindowManager, *req.WindowManager)
 	return lifecycleForChangedPaths(changed, lifecycle.Live)
 }
+
+func (s *service) classifyAttentionRequest(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) lifecycle.Lifecycle {
+	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return lifecycle.Live
+	}
+	changed := diffAttentionSettings(cfg.Attention, *req.Attention)
+	return lifecycleForChangedPaths(changed, lifecycle.Live)
+}

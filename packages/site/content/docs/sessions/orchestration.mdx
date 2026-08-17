@@ -1,0 +1,91 @@
+---
+title: Session Orchestration
+description: Wait for session state and coordinate governed child sessions through CLI, HTTP, UDS, and native tools.
+---
+
+CompozyOS exposes session orchestration through the CLI, matching HTTP/UDS routes, and scoped native
+tools. Use these surfaces to wait on state, spawn bounded children, resolve their interactions, cancel
+one prompt, or stop a session without polling the catalog.
+
+## Wait for state
+
+`compozy session wait` returns when a session reaches any requested state:
+
+```bash
+compozy session wait sess_1234 \
+  --until waiting-for-input,waiting-for-auth,stopped,failed \
+  --timeout 2m \
+  -o json
+```
+
+When `--until` is omitted, the target set is `waiting-for-input`, `waiting-for-auth`, `idle`,
+`stopped`, and `failed`. `done` satisfies `idle`. Explicit targets may also include `done`, `running`,
+`hung`, and `unhealthy`.
+
+The default timeout is 5 minutes. `--unbounded` keeps the CLI waiting through gapless, bounded server
+requests; the daemon never holds an unbounded HTTP/UDS request. Structured outcomes are
+`state-reached`, `timeout`, `session-gone`, `canceled`, and `overflow`.
+
+| Outcome or error    | CLI exit |
+| ------------------- | -------- |
+| State reached       | `0`      |
+| Invalid target      | `65`     |
+| Session unavailable | `69`     |
+| Timeout             | `75`     |
+
+HTTP and UDS use
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/wait` with required `timeout_ms` from 1
+through 1,800,000. A timeout is a normal result; a deleted or replaced session returns `410`.
+
+## Cancel an active prompt
+
+Cancel the prompt without stopping the session:
+
+```bash
+compozy session prompt-cancel sess_1234 -o json
+```
+
+The result is `canceled` with its `turn_id`, or `nothing-in-flight`. Repeating the command is safe and
+uses the same cancellation path as
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel` and the native tool. The CLI
+exits `0` after a cancel and `66` when there was nothing to cancel.
+
+## Governed child feedback
+
+`compozy spawn` creates a child with a required TTL, lineage, capacity limits, and permissions that
+cannot exceed its parent. By default, CompozyOS queues a sanitized synthetic turn on the parent when
+the child stops, fails, or enters a needs-you state. The wake never interrupts an active parent
+prompt.
+
+```bash
+compozy spawn --agent researcher --ttl-seconds 3600
+compozy spawn --agent researcher --ttl-seconds 3600 --no-notify-creator
+```
+
+`notify_creator` defaults to true on HTTP, UDS, and `compozy__session_spawn`. Set it explicitly to
+false to opt out for one child. This default has no `config.toml` key.
+
+## Native orchestration tools
+
+Resolve each live descriptor with `compozy__tool_info` before calling it. All targets are restricted
+to the caller's workspace, and a session cannot target itself.
+
+| Tool                              | Purpose                                                               |
+| --------------------------------- | --------------------------------------------------------------------- |
+| `compozy__session_wait`           | Wait up to 30 minutes for a badge or lifecycle state.                 |
+| `compozy__session_spawn`          | Create a governed child with a required TTL and narrowed permissions. |
+| `compozy__session_stop`           | Stop another session; destructive approval policy applies.            |
+| `compozy__session_approve`        | Resolve another session's pending permission request.                 |
+| `compozy__session_clarify_answer` | Answer another session's pending clarification by choice or text.     |
+| `compozy__session_prompt_cancel`  | Cancel another session's active prompt without stopping the session.  |
+
+Approval and clarification resolution survive daemon restart. A successful orphaned resolution
+returns `resolved-after-restart`; a race may return `already-resolved`, and a full durable input queue
+returns `queue-full` without consuming the pending interaction.
+
+## Related pages
+
+- [Safe Spawn](/docs/autonomy/safe-spawn) covers child constraints and cleanup.
+- [Session Lifecycle](/docs/sessions/lifecycle) covers durable session and runtime state.
+- [Session Wait CLI](/docs/cli/session/wait) lists the generated flags.
+- [Prompt Cancel CLI](/docs/cli/session/prompt-cancel) lists the generated command contract.

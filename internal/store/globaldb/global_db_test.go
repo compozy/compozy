@@ -139,6 +139,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			globalMigrationVersionTable,
 			"workspaces",
 			"sessions",
+			"session_pending_interactions",
 			"event_summaries",
 			"token_stats",
 			"permission_log",
@@ -163,8 +164,42 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"worktree_forge_status",
 			"worktree_exit_ops",
 		)
-		assertTableHasColumns(t, globalDB.db, "sessions", []string{"worktree_id"})
+		assertTableHasColumns(t, globalDB.db, "sessions", []string{
+			"worktree_id",
+			"notify_creator",
+			"pending_permission_count",
+			"pending_clarify_count",
+			"attention_revision",
+			"last_settled_revision",
+			"last_seen_revision",
+			"last_seen_at",
+			"attention_changed_at",
+		})
+		assertTableHasColumns(t, globalDB.db, "session_pending_interactions", []string{
+			"interaction_id",
+			"session_id",
+			"kind",
+			"provider_request_id",
+			"payload_json",
+			"status",
+			"resolution",
+		})
+		assertIndexesPresent(
+			t,
+			globalDB.db,
+			"session_pending_interactions",
+			"idx_session_pending_interactions_session_status",
+			"uq_session_pending_interactions_active_provider_request",
+		)
 		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{"worktree_id"})
+		assertTableHasColumns(t, globalDB.db, "extensions", []string{"format", "ingest_diagnostics_json"})
+		assertTableHasColumns(
+			t,
+			globalDB.db,
+			"extension_dev_links",
+			[]string{"format", "ingest_diagnostics_json"},
+		)
+		assertTableHasColumns(t, globalDB.db, "extension_env_bindings", []string{"mcp_server", "header_name"})
 		for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
 			assertTableHasColumns(t, globalDB.db, table, []string{
 				"network_spec_json",
@@ -1306,6 +1341,8 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"source",
 		"enabled",
 		"manifest_path",
+		"format",
+		"ingest_diagnostics_json",
 		"installed_at",
 		"provides_json",
 		"permissions_json",
@@ -1324,6 +1361,8 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"origin_path",
 		"bundle_generation",
 		"linked_at",
+		"format",
+		"ingest_diagnostics_json",
 		"network_requirement_digest",
 		"network_confirmed_by",
 		"network_confirmed_at",
@@ -1333,6 +1372,8 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"workspace_id",
 		"env_name",
 		"secret_ref",
+		"mcp_server",
+		"header_name",
 		"kind",
 		"created_at",
 		"updated_at",
@@ -1367,6 +1408,8 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"source",
 		"enabled",
 		"manifest_path",
+		"format",
+		"ingest_diagnostics_json",
 		"installed_at",
 		"provides_json",
 		"permissions_json",
@@ -1385,6 +1428,8 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"origin_path",
 		"bundle_generation",
 		"linked_at",
+		"format",
+		"ingest_diagnostics_json",
 		"network_requirement_digest",
 		"network_confirmed_by",
 		"network_confirmed_at",
@@ -1394,6 +1439,8 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"workspace_id",
 		"env_name",
 		"secret_ref",
+		"mcp_server",
+		"header_name",
 		"kind",
 		"created_at",
 		"updated_at",
@@ -2909,6 +2956,13 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"attached_to",
 				"attach_expires_at",
 				"transcript_epoch",
+				"pending_permission_count",
+				"pending_clarify_count",
+				"attention_revision",
+				"last_settled_revision",
+				"last_seen_revision",
+				"last_seen_at",
+				"attention_changed_at",
 				"sandbox_id",
 				"sandbox_backend",
 				"sandbox_profile",
@@ -2928,6 +2982,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"spawn_role",
 				"ttl_expires_at",
 				"auto_stop_on_parent",
+				"notify_creator",
 				"spawn_budget_json",
 				"permission_policy_json",
 				"soul_snapshot_id",

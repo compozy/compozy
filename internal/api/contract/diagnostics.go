@@ -78,6 +78,7 @@ const (
 	CodeExtensionInUse                  = diagnosticcontract.CodeExtensionInUse
 	CodeExtensionNotFound               = diagnosticcontract.CodeExtensionNotFound
 	CodeExtensionRuntimeUnavailable     = diagnosticcontract.CodeExtensionRuntimeUnavailable
+	CodeExtensionMCPServerUnhealthy     = diagnosticcontract.CodeExtensionMCPServerUnhealthy
 	CodeFlagNotApplicable               = diagnosticcontract.CodeFlagNotApplicable
 	CodeForbiddenOperatorAction         = diagnosticcontract.CodeForbiddenOperatorAction
 	CodeForceOpRateLimited              = diagnosticcontract.CodeForceOpRateLimited

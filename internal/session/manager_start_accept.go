@@ -46,9 +46,11 @@ func (m *Manager) acceptSessionStart(
 			return nil, fmt.Errorf("session: prepare creation identity for %q: %w", spec.sessionID, err)
 		}
 	}
-	if err := m.reserveStart(acceptCtx, spec.sessionID, spec.workspace.ID); err != nil {
+	releaseLifecycle, err := m.reserveStartLifecycle(acceptCtx, spec.sessionID, spec.workspace.ID)
+	if err != nil {
 		return nil, fmt.Errorf("session: reserve %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}
+	defer releaseLifecycle()
 	defer func() {
 		if err != nil {
 			m.releaseReservation(spec.sessionID)
@@ -70,6 +72,10 @@ func (m *Manager) acceptSessionStart(
 		}
 		m.finishSessionStartRun(spec.sessionID, run, err)
 	}()
+	if err := m.revalidateSpawnedLineageForStart(acceptCtx, spec); err != nil {
+		cleanupErr := m.cleanupFailedStart(storage.sessionDir, storage.recorder, nil)
+		return nil, errors.Join(err, cleanupErr)
+	}
 
 	session := spec.newStartingSession(runtime.agent, runtime.agentDef, storage, m.now())
 	if err := m.registerStarting(session); err != nil {

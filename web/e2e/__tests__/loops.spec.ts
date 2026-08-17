@@ -8,8 +8,9 @@ import type {
   LoopRunGenerationOutput,
   RunLoopResult,
 } from "@/systems/loops";
-import { openAppWindow } from "../fixtures/os-navigation";
+import { openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { expect, test } from "../fixtures/test";
+import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktree-repo";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const loopLifecycleFixture = path.resolve(
@@ -47,6 +48,13 @@ const loopFeedbackFixture = path.resolve(
   "testdata",
   "loop_generation_feedback_fixture.json"
 );
+
+let loopEnvironmentRepo: WorktreeRepoFixture | null = null;
+
+test.afterEach(async () => {
+  await loopEnvironmentRepo?.cleanup();
+  loopEnvironmentRepo = null;
+});
 
 const loopLifecycleAgent = "loop-lifecycle-agent";
 const loopLifecycleName = "node-lifecycle-e2e";
@@ -584,7 +592,10 @@ test("CompozyOS migration E2E-016: author retry + on_error in the editor, publis
 
   // Select the lane and open the folds the reliability envelope lives in.
   await appPage.getByTestId("loop-editor-node").filter({ hasText: "execute" }).first().click();
-  await appPage.locator("summary", { hasText: "Reliability" }).click();
+  const reliability = appPage.getByRole("button", { name: /^Reliability/ });
+  if ((await reliability.getAttribute("aria-expanded")) !== "true") {
+    await reliability.click();
+  }
 
   // Declare the retry budget and a single absorption mode — route XOR allow_fail.
   await appPage.getByTestId("loop-field-max_attempts").fill("3");
@@ -592,7 +603,10 @@ test("CompozyOS migration E2E-016: author retry + on_error in the editor, publis
   await appPage.getByTestId("loop-field-on_error_allow_fail").click();
 
   // One observational effect on the retry trigger.
-  await appPage.locator("summary", { hasText: "Reactions" }).click();
+  const reactions = appPage.getByRole("button", { name: /^Reactions/ });
+  if ((await reactions.getAttribute("aria-expanded")) !== "true") {
+    await reactions.click();
+  }
   await appPage.getByTestId("loop-field-on_retry-add").click();
   await appPage.getByTestId("loop-field-on_retry-kind-0").fill("lane_retrying");
 
@@ -887,6 +901,10 @@ test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, a
   });
   await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
 
+  const bestLink = appPage.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
+  await expect(bestLink).toHaveAttribute("href", "#loop-generation-1");
+  await bestLink.click();
+
   const bestGeneration = appPage.locator("#loop-generation-1");
   await expect(bestGeneration).toContainText("score 0.70");
   await expect(bestGeneration.getByText("Best", { exact: true })).toBeVisible();
@@ -895,8 +913,6 @@ test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, a
   await expect(restoredGeneration.getByText("Restored from gen 1", { exact: true })).toBeVisible();
   await expect(restoredGeneration).toContainText("score 0.50");
 
-  const bestLink = appPage.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
-  await expect(bestLink).toHaveAttribute("href", "#loop-generation-1");
   await browserArtifacts.captureScreenshot("loop-run-best-on-exhaustion", appPage);
 });
 
@@ -907,14 +923,23 @@ test("operator declares loop and node environments in the builder", async ({
   runtime,
 }) => {
   await completeOnboardingIfPrompted(appPage);
-  const workspace = await runtime.resolveWorkspace(process.cwd());
+  loopEnvironmentRepo = await createWorktreeRepo();
+  const workspace = await runtime.resolveWorkspace(loopEnvironmentRepo.rootDir);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopRuntimeDefinition }),
+  });
   await appPage.reload({ waitUntil: "domcontentloaded" });
+  await switchWorkspace(appPage, workspace.id, workspace.name);
   await openAppWindow(appPage, "Loops", "loops");
 
-  await appPage.getByTestId("loops-configure-open").first().click();
+  await appPage.getByRole("link", { name: `Open ${loopRuntimeName}` }).click();
+  await appPage.getByTestId("loop-detail-overflow").click();
+  await appPage.getByTestId("loop-configure-action").click();
   const section = appPage.locator('[data-slot="loop-worktree-section"]');
   await expect(section).toBeVisible();
-  await expect(section).toHaveAttribute("data-mode", "inherit");
+  await expect(section).toHaveAttribute("data-mode", "__inherit__");
 
   await section.locator('[data-slot="pill-group-item"]').filter({ hasText: "Per-run" }).click();
   await expect(section).toHaveAttribute("data-mode", "per_run");
@@ -923,7 +948,7 @@ test("operator declares loop and node environments in the builder", async ({
   await expect
     .poll(async () => {
       const config = await runtime.requestJSON<{ config: { environment?: { mode: string } } }>(
-        `/api/workspaces/${workspace.id}/loops/${encodeURIComponent("software-delivery")}/config`
+        `${workspacePath}/loops/${encodeURIComponent(loopRuntimeName)}/config`
       );
       return config.config.environment?.mode;
     })
@@ -931,8 +956,9 @@ test("operator declares loop and node environments in the builder", async ({
 
   // The node inspector carries exactly one environment control and no retired
   // working-directory field anywhere.
-  await appPage.getByTestId("loops-editor-open").first().click();
-  await appPage.getByTestId("loop-editor-node").first().click();
+  await appPage.getByTestId("loop-detail-overflow").click();
+  await appPage.getByTestId("loop-edit-action").click();
+  await appPage.getByTestId("loop-editor-node").filter({ hasText: "execute_task" }).first().click();
   await expect(appPage.locator('[data-slot="loop-node-environment-field"]')).toHaveCount(1);
   await expect(appPage.getByTestId("loop-field-cwd")).toHaveCount(0);
 });

@@ -41,6 +41,14 @@ type DaemonClient interface {
 		ctx context.Context,
 		request UpdateSettingsWindowManagerRequest,
 	) (SettingsMutationRecord, error)
+	UpdateSettingsAttention(
+		ctx context.Context,
+		request UpdateSettingsAttentionRequest,
+	) (SettingsMutationRecord, error)
+	UpdateSettingsShell(
+		ctx context.Context,
+		request UpdateSettingsShellRequest,
+	) (SettingsMutationRecord, error)
 	ReloadSettings(ctx context.Context) (SettingsMutationRecord, error)
 	ListSettingsApplyRecords(ctx context.Context, query SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
 	GetOnboardingStatus(ctx context.Context) (contract.OnboardingStatusResponse, error)
@@ -399,6 +407,11 @@ type DaemonClient interface {
 	SchedulerBacklog(ctx context.Context, query SchedulerBacklogQuery) (SchedulerBacklogRecord, error)
 	AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error)
 	AgentContext(ctx context.Context, credentials agentidentity.Credentials) (AgentContextRecord, error)
+	AgentNotify(
+		ctx context.Context,
+		request AgentNotifyRequest,
+		credentials agentidentity.Credentials,
+	) (AgentNotifyRecord, error)
 	AgentSpawn(
 		ctx context.Context,
 		request AgentSpawnRequest,

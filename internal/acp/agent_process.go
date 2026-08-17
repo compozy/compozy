@@ -82,6 +82,7 @@ type pendingPermission struct {
 	turnID             string
 	response           chan permissionDecision
 	supportedDecisions map[permissionDecision]struct{}
+	resolvedBy         string
 }
 
 // Done returns a channel that closes when the subprocess exits.

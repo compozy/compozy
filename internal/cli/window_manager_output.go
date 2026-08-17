@@ -97,7 +97,7 @@ func windowManagerResultBundle(result contract.WindowManagerResult) outputBundle
 		humanTitle:      "Window manager result",
 		toonName:        "window_manager_result",
 		stateLabel:      "Applied",
-		stateField:      "applied",
+		stateField:      cliAppliedKey,
 		revision:        uint64(result.Snapshot.Revision),
 		state:           result.Applied,
 		desktopChanges:  len(result.Changes.DesktopIDs),

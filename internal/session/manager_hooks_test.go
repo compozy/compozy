@@ -8,6 +8,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -136,6 +137,111 @@ func TestCreateRejectsInvalidPreCreateProvenance(t *testing.T) {
 			t.Fatalf("Create(pre-create changed system type) error = %v, want %v", err, ErrValidation)
 		}
 	})
+}
+
+func TestCreateProtectsDaemonOwnedSessionTypeFromPreCreatePatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		requestedType Type
+		patchedType   Type
+		lineage       func(time.Time) *store.SessionLineage
+		spawnLineage  bool
+	}{
+		{
+			name:          "Should reject changing a coordinator into a user session",
+			requestedType: SessionTypeCoordinator,
+			patchedType:   SessionTypeUser,
+			lineage: func(ttl time.Time) *store.SessionLineage {
+				return &store.SessionLineage{
+					SpawnRole:    string(SessionTypeCoordinator),
+					TTLExpiresAt: &ttl,
+					SpawnBudget:  store.SessionSpawnBudget{MaxChildren: 1, MaxDepth: 1},
+				}
+			},
+		},
+		{
+			name:          "Should reject changing a user into a coordinator session",
+			requestedType: SessionTypeUser,
+			patchedType:   SessionTypeCoordinator,
+		},
+		{
+			name:          "Should reject changing a spawned session into a user session",
+			requestedType: SessionTypeSpawned,
+			patchedType:   SessionTypeUser,
+			spawnLineage:  true,
+		},
+		{
+			name:          "Should reject changing a user into a spawned session",
+			requestedType: SessionTypeUser,
+			patchedType:   SessionTypeSpawned,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			patchedType := string(tt.patchedType)
+			hooks := newNativeHookDispatcher(t,
+				[]hookspkg.HookDecl{{
+					Name:         "change-daemon-owned-type",
+					Event:        hookspkg.HookSessionPreCreate,
+					Mode:         hookspkg.HookModeSync,
+					ExecutorKind: hookspkg.HookExecutorNative,
+				}},
+				map[string]hookspkg.Executor{
+					"change-daemon-owned-type": hookspkg.NewTypedNativeExecutor(
+						func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SessionPreCreatePayload) (hookspkg.SessionCreatePatch, error) {
+							if payload.SessionName != "protected-type-target" {
+								return hookspkg.SessionCreatePatch{}, nil
+							}
+							return hookspkg.SessionCreatePatch{SessionType: &patchedType}, nil
+						},
+					),
+				},
+			)
+			h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+			var lineage *store.SessionLineage
+			if tt.lineage != nil {
+				lineage = tt.lineage(time.Now().Add(time.Hour))
+			}
+			if tt.spawnLineage {
+				parent := createSession(t, h)
+				t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+				ttl := time.Now().Add(time.Hour)
+				lineage = &store.SessionLineage{
+					ParentSessionID: parent.ID,
+					RootSessionID:   parent.ID,
+					SpawnDepth:      1,
+					SpawnRole:       "coder",
+					TTLExpiresAt:    &ttl,
+				}
+			}
+			startCallsBeforeCreate := len(h.driver.startCalls)
+
+			_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder",
+				Name:      "protected-type-target",
+				Workspace: h.workspaceID,
+				Type:      tt.requestedType,
+				Lineage:   lineage,
+			})
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf(
+					"Create(type transition %q -> %q) error = %v, want %v",
+					t.requestedType,
+					t.patchedType,
+					err,
+					ErrValidation,
+				)
+			}
+			if got := len(h.driver.startCalls); got != startCallsBeforeCreate {
+				t.Fatalf("driver start calls = %d, want unchanged %d", got, startCallsBeforeCreate)
+			}
+		})
+	}
 }
 
 func TestPostCreateHookFiresAfterSessionActive(t *testing.T) {

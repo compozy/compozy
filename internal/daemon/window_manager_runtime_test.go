@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -237,6 +238,7 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			workspaceID:        fixture.workspace.ID,
 			preparation:        sessionPreparation,
 		}
+		attentionMutator := &recordingAttentionWorkspaceMuteMutator{}
 		state := &bootState{
 			windowManagerBootState: windowManagerBootState{
 				windowManagerStoreResolver: fixture.storeResolver,
@@ -244,9 +246,10 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 				windowManagerRepository:    fixture.repository,
 				windowManager:              fixture.manager,
 			},
-			workspaceResolver: fixture.resolver,
-			deadEntities:      deadEntities,
-			mcpToolProvider:   mcpRetirer,
+			workspaceResolver:    fixture.resolver,
+			deadEntities:         deadEntities,
+			mcpToolProvider:      mcpRetirer,
+			attentionMuteMutator: attentionMutator,
 		}
 		if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
 			t.Fatalf("installWorkspaceRemovalPreparer() error = %v", err)
@@ -293,6 +296,12 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 				sessionPreparation.commits,
 				sessionPreparation.rollbacks,
 			)
+		}
+		if got, want := attentionMutator.calls, []attentionWorkspaceMuteCall{{
+			workspaceID: fixture.workspace.ID,
+			muted:       false,
+		}}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("attention mute calls = %#v, want %#v", got, want)
 		}
 		select {
 		case _, open := <-subscription.Updates():
@@ -479,6 +488,24 @@ func (m *windowManagerRemovalSessionManager) PrepareWorkspaceRemoval(
 type windowManagerSessionRemovalPreparation struct {
 	commits   int
 	rollbacks int
+}
+
+type attentionWorkspaceMuteCall struct {
+	workspaceID string
+	muted       bool
+}
+
+type recordingAttentionWorkspaceMuteMutator struct {
+	calls []attentionWorkspaceMuteCall
+}
+
+func (m *recordingAttentionWorkspaceMuteMutator) SetAttentionWorkspaceMuted(
+	_ context.Context,
+	workspaceID string,
+	muted bool,
+) (bool, error) {
+	m.calls = append(m.calls, attentionWorkspaceMuteCall{workspaceID: workspaceID, muted: muted})
+	return !muted, nil
 }
 
 type windowManagerMCPStateRetirer struct {

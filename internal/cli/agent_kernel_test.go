@@ -59,6 +59,70 @@ func TestMeCommandJSONReturnsValidatedIdentity(t *testing.T) {
 	})
 }
 
+func TestNotifyCommandReturnsDaemonProvableOutcome(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should forward the bounded request under agent identity", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentNotifyFn = func(
+			_ context.Context,
+			request AgentNotifyRequest,
+			credentials agentidentity.Credentials,
+		) (AgentNotifyRecord, error) {
+			assertAgentCredentials(t, credentials)
+			if request.Title != "Deps audit done" || request.Body != "3 findings, 1 high severity" {
+				t.Fatalf("AgentNotify() request = %#v, want bounded title and body", request)
+			}
+			return AgentNotifyRecord{Outcome: "delivered"}, nil
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"notify",
+			"Deps audit done",
+			"--body",
+			"3 findings, 1 high severity",
+		)
+		if err != nil {
+			t.Fatalf("compozy notify error = %v", err)
+		}
+		if got, want := strings.TrimSpace(stdout), "OUTCOME   delivered"; got != want {
+			t.Fatalf("compozy notify output = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should preserve rate-limit details in structured output", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentNotifyFn = func(
+			_ context.Context,
+			_ AgentNotifyRequest,
+			credentials agentidentity.Credentials,
+		) (AgentNotifyRecord, error) {
+			assertAgentCredentials(t, credentials)
+			return AgentNotifyRecord{Outcome: "rate-limited", RetryAfterMS: 875}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "notify", "Again", "-o", "json")
+		if err != nil {
+			t.Fatalf("compozy notify -o json error = %v", err)
+		}
+		var got AgentNotifyRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(compozy notify) error = %v", err)
+		}
+		if got.Outcome != "rate-limited" || got.RetryAfterMS != 875 {
+			t.Fatalf("compozy notify payload = %#v, want rate-limited/875", got)
+		}
+	})
+}
+
 func TestMeContextCommandJSONKeepsStableSectionOrder(t *testing.T) {
 	t.Parallel()
 
@@ -154,6 +218,7 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 					SpawnRole:        request.SpawnRole,
 					TTLExpiresAt:     &ttl,
 					AutoStopOnParent: request.AutoStopOnParent,
+					NotifyCreator:    request.NotifyCreator == nil || *request.NotifyCreator,
 					SpawnBudget: contract.SpawnBudgetPayload{
 						MaxChildren: 5,
 						MaxDepth:    1,
@@ -214,6 +279,7 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			gotRequest.SpawnRole != "worker" ||
 			gotRequest.TTLSeconds != 120 ||
 			!gotRequest.AutoStopOnParent ||
+			gotRequest.NotifyCreator != nil ||
 			gotRequest.IdempotencyKey != "spawn-1" {
 			t.Fatalf("spawn request = %#v, want parsed bounded spawn request", gotRequest)
 		}
@@ -238,6 +304,29 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 		}
 		if output.Session.ID != "sess-child" || output.Lineage.ParentSessionID != "sess-agent" {
 			t.Fatalf("spawn output = %#v, want child session with parent lineage", output)
+		}
+
+		defaultStdout, _, err := executeRootCommand(
+			t, deps, "spawn", "--agent", "coder", "--ttl-seconds", "120",
+		)
+		if err != nil {
+			t.Fatalf("compozy spawn with default wake error = %v", err)
+		}
+		if !strings.Contains(defaultStdout, "Wake") || !strings.Contains(defaultStdout, "on-settle (default)") {
+			t.Fatalf("default spawn output = %q, want effective wake state", defaultStdout)
+		}
+
+		disabledStdout, _, err := executeRootCommand(
+			t, deps, "spawn", "--agent", "coder", "--ttl-seconds", "120", "--no-notify-creator",
+		)
+		if err != nil {
+			t.Fatalf("compozy spawn --no-notify-creator error = %v", err)
+		}
+		if gotRequest.NotifyCreator == nil || *gotRequest.NotifyCreator {
+			t.Fatalf("spawn request = %#v, want explicit notify_creator=false", gotRequest)
+		}
+		if !strings.Contains(disabledStdout, "Wake") || !strings.Contains(disabledStdout, "off") {
+			t.Fatalf("disabled spawn output = %q, want wake off", disabledStdout)
 		}
 	})
 }

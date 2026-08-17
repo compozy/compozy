@@ -125,7 +125,7 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 		}
 	})
 
-	t.Run("Should leave profile unchanged for nil and empty overrides", func(t *testing.T) {
+	t.Run("Should persist concrete root delegation tools for nil and empty overrides", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -168,8 +168,16 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 				if info.Lineage == nil {
 					t.Fatal("session lineage = nil, want root lineage")
 				}
-				if got := info.Lineage.PermissionPolicy.Tools; len(got) != 0 {
-					t.Fatalf("lineage tools = %#v, want unchanged empty session policy", got)
+				wantTools := []string{
+					toolspkg.ToolIDTaskRead.String(),
+					toolspkg.ToolIDTaskUpdate.String(),
+				}
+				if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
+					t.Fatalf("lineage tools = %#v, want concrete delegation policy %#v", got, wantTools)
+				}
+				meta := readMeta(t, sess.MetaPath())
+				if got := meta.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
+					t.Fatalf("persisted lineage tools = %#v, want %#v", got, wantTools)
 				}
 			})
 		}

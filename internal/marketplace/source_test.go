@@ -54,6 +54,60 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		}
 	})
 
+	// UT-051: the feed's `format` marker is a hard cut at the current manifest version — reader,
+	// in-repo feeds, and fixtures moved together, so no pre-cut compatibility behavior exists here.
+	t.Run("Should project the extension format marker at the current manifest version", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			raw        string
+			wantFormat string
+		}{
+			{
+				name:       "portable marker",
+				raw:        extensionDocumentJSON(`,"format":"agent-plugin"`),
+				wantFormat: ExtensionFormatAgentPlugin,
+			},
+			{
+				name:       "explicit native marker",
+				raw:        extensionDocumentJSON(`,"format":"compozy"`),
+				wantFormat: ExtensionFormatCompozy,
+			},
+			{
+				name:       "marker-less entry defaults to the native format",
+				raw:        extensionDocumentJSON(""),
+				wantFormat: ExtensionFormatCompozy,
+			},
+		}
+		for _, tt := range tests {
+			t.Run("Should decode a "+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				document, err := DecodeDocument(KindExtension, []byte(tt.raw))
+				if err != nil {
+					t.Fatalf("DecodeDocument(extension) error = %v", err)
+				}
+				if got, want := document.ManifestVersion, ManifestVersion; got != want {
+					t.Fatalf("DecodeDocument(extension).ManifestVersion = %d, want %d", got, want)
+				}
+				if got, want := len(document.Entries), 1; got != want {
+					t.Fatalf("DecodeDocument(extension) entries = %d, want %d", got, want)
+				}
+				details, err := ProjectEntry(document.Entries[0])
+				if err != nil {
+					t.Fatalf("ProjectEntry() error = %v", err)
+				}
+				if details.Extension == nil {
+					t.Fatalf("ProjectEntry() extension details = nil, want a projection")
+				}
+				if got := details.Extension.Format; got != tt.wantFormat {
+					t.Fatalf("ProjectEntry().Extension.Format = %q, want %q", got, tt.wantFormat)
+				}
+			})
+		}
+	})
+
 	t.Run("Should reject documents outside the v2 schema", func(t *testing.T) {
 		t.Parallel()
 
@@ -131,6 +185,17 @@ func TestDecodeDocumentValidation(t *testing.T) {
 					`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
 					`"tier":"partner"}]}`,
 				wantErr: "unsupported tier",
+			},
+			{
+				name: "extension with unsupported format marker",
+				kind: KindExtension,
+				raw: `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
+					`"entry_id":"extension","name":"Extension","description":"Unknown format",` +
+					`"version":"1.0.0","install_slug":"compozy/extension",` +
+					`"artifact_url":"https://downloads.example.test/extension-v1.0.0.tar.gz",` +
+					`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
+					`"tier":"official","format":"claude-plugin"}]}`,
+				wantErr: "unsupported format",
 			},
 			{
 				name: "skill with invented trust field",
@@ -1151,12 +1216,16 @@ func validMCPDocumentJSON() string {
 }
 
 func validExtensionDocumentJSON() string {
+	return extensionDocumentJSON(`,"format":"agent-plugin"`)
+}
+
+func extensionDocumentJSON(formatField string) string {
 	return `{"manifest_version":2,"generated_at":"2026-07-13T00:00:00Z","entries":[{` +
 		`"entry_id":"bridge-github","name":"GitHub bridge","description":"Connect GitHub events to Compozy",` +
 		`"version":"1.0.0","install_slug":"compozy/bridge-github",` +
 		`"artifact_url":"https://downloads.example.test/bridge-github-v1.0.0.tar.gz",` +
 		`"digest_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",` +
-		`"tier":"official"}]}`
+		`"tier":"official"` + formatField + `}]}`
 }
 
 func validSkillDocumentJSON() string {

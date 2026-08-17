@@ -20,6 +20,7 @@ type SessionManagerDeps struct {
 	HomePaths              compozyconfig.HomePaths
 	Logger                 *slog.Logger
 	Notifier               session.Notifier
+	SpawnWakeNotifier      session.SpawnWakeNotifier
 	Hooks                  session.HookSet
 	PromptAssembler        session.PromptAssembler
 	StartupPromptOverlay   session.StartupPromptOverlay
@@ -42,6 +43,7 @@ type SessionManagerDeps struct {
 	SessionPromptAdmission store.SessionPromptAdmissionStore
 	SessionAttachments     session.AttachmentOpener
 	SessionHealthConfig    compozyconfig.HeartbeatConfig
+	AttentionConfig        compozyconfig.AttentionConfig
 	SessionCatalog         store.SessionCatalog
 	ProcessRegistry        *toolruntime.Registry
 	HostedMCP              session.HostedMCPLauncher
@@ -54,9 +56,10 @@ type SessionManagerDeps struct {
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 	return SessionManagerDeps{
-		HomePaths: d.homePaths,
-		Logger:    state.logger,
-		Notifier:  d.sessionNotifier(state),
+		HomePaths:         d.homePaths,
+		Logger:            state.logger,
+		Notifier:          d.sessionNotifier(state),
+		SpawnWakeNotifier: state.sessionWakeBridge,
 		Hooks: session.HookSet{
 			Session:         state.notifier,
 			Sandbox:         state.notifier,
@@ -68,6 +71,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 			Compaction:      state.notifier,
 			Spawn:           state.notifier,
 			AuthoredContext: state.notifier,
+			Attention:       state.notifier,
 		},
 		PromptAssembler:      state.promptAssembler,
 		StartupPromptOverlay: state.startupOverlay,
@@ -93,6 +97,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SessionPromptAdmission: sessionPromptAdmissionStoreDependency(state.registry),
 		SessionAttachments:     state.sessionAttachments,
 		SessionHealthConfig:    state.cfg.Agents.Heartbeat,
+		AttentionConfig:        state.cfg.Attention,
 		SessionCatalog:         state.registry,
 		ProcessRegistry:        state.processRegistry,
 		HostedMCP:              hostedMCPLauncher(state.hostedMCP),

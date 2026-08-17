@@ -323,6 +323,13 @@ Use `GET/PATCH /api/settings/window-manager` for the typed Settings surface. Edg
 `zoom`, `reserved`, or `none`; any/landscape/portrait profiles are `window_layout` resources.
 Workspace layout documents may carry typed overrides without changing other workspaces.
 
+Shortcut values are one chord string or an array; `""` and `[]` disable an action. Indexed family
+keys accept ranges: `desktop.switch = "control+Digit1..9"` and
+`window.tab.jump = "control+alt+Digit1..8"`. The daemon expands ranges and validates defaults plus
+overrides as one map. `GET /api/settings/window-manager` returns `defaults` and `effective`; use
+`compozy config get window_manager -o json` for the same discovery through the CLI. Writes through
+`config set` accept a scalar or JSON string array and reject the complete mutation on any collision.
+
 `nav_stack_limit` (default 50, range 1..200) caps each window's `nav_stack`; `closed_entry_limit`
 (default 20, range 1..100) caps retained closed entries. Both are write-time caps resolved from the
 effective workspace config when the mutation runs, evicting the oldest value. Lowering a live limit

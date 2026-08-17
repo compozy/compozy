@@ -1,17 +1,19 @@
 -- name: UpsertExtensionEnvBinding :exec
 INSERT INTO extension_env_bindings (
-  extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+  extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
 ) VALUES (
   sqlc.arg(extension_name), sqlc.arg(workspace_id), sqlc.arg(env_name), sqlc.arg(secret_ref),
-  sqlc.arg(kind), sqlc.arg(created_at), sqlc.arg(updated_at)
+  sqlc.arg(mcp_server), sqlc.arg(header_name), sqlc.arg(kind), sqlc.arg(created_at), sqlc.arg(updated_at)
 )
 ON CONFLICT(extension_name, workspace_id, env_name) DO UPDATE SET
   secret_ref = excluded.secret_ref,
+  mcp_server = excluded.mcp_server,
+  header_name = excluded.header_name,
   kind = excluded.kind,
   updated_at = excluded.updated_at;
 
 -- name: ListExtensionEnvBindings :many
-SELECT extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+SELECT extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name, kind, created_at, updated_at
 FROM extension_env_bindings
 WHERE extension_name = sqlc.arg(extension_name)
   AND workspace_id = sqlc.arg(workspace_id)

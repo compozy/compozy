@@ -42,8 +42,8 @@ type sessionManagerStub struct {
 		context.Context, string, string, session.PromotePendingInputOpts,
 	) (session.SendPromptResult, error)
 	cancelQueued      func(context.Context, string, string) (session.SendPromptResult, error)
-	cancelPrompt      func(context.Context, string) error
-	approvePermission func(context.Context, string, acp.ApproveRequest) error
+	cancelPrompt      func(context.Context, string) (session.PromptCancelResult, error)
+	approvePermission func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error)
 }
 
 func (s sessionManagerStub) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -319,16 +319,20 @@ func (s sessionManagerStub) PromotePendingInputToSteer(
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
-func (s sessionManagerStub) CancelPrompt(ctx context.Context, id string) error {
+func (s sessionManagerStub) CancelPrompt(ctx context.Context, id string) (session.PromptCancelResult, error) {
 	if s.cancelPrompt != nil {
 		return s.cancelPrompt(ctx, id)
 	}
-	return session.ErrSessionNotFound
+	return session.PromptCancelResult{}, session.ErrSessionNotFound
 }
 
-func (s sessionManagerStub) ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error {
+func (s sessionManagerStub) ApprovePermission(
+	ctx context.Context,
+	id string,
+	req acp.ApproveRequest,
+) (session.ApprovalResult, error) {
 	if s.approvePermission != nil {
 		return s.approvePermission(ctx, id, req)
 	}
-	return session.ErrSessionNotFound
+	return session.ApprovalResult{}, session.ErrSessionNotFound
 }

@@ -1,0 +1,53 @@
+---
+title: "compozy notify"
+description: "Send the operator a notification"
+---
+
+## compozy notify
+
+Send the operator a notification
+
+```
+compozy notify <title> [flags]
+```
+
+### Examples
+
+```
+  # Notify the operator from the current managed agent session
+  compozy notify "Deps audit done" --body "3 findings, 1 high severity"
+
+  # Inspect the daemon-provable delivery outcome
+  compozy notify "Deps audit done" -o json
+```
+
+### Options
+
+```
+      --body string   Optional notification body
+  -h, --help          help for notify
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy notify <title> -o json
+```

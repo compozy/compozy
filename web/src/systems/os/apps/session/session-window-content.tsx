@@ -123,10 +123,9 @@ export function SessionWindowContent({
         open={sidebar.open}
         sessions={sidebar.sessions}
         disconnected={sidebar.disconnected}
-        collapsedAgentIds={sidebar.collapsedAgentIds}
         collapsedThreadIds={sidebar.collapsedThreadIds}
+        view={sidebar.view}
         currentSessionId={sessionId}
-        onToggleGroup={sidebar.onToggleGroup}
         onToggleThread={sidebar.onToggleThread}
         onSelectSession={sidebar.onSelectSession}
         onNewSession={sidebar.onNewSession}

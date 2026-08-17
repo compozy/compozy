@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   SettingsApiError,
+  getSettingsAttention,
   getSettingsAutomation,
   getSettingsSandbox,
   getSettingsGeneral,
@@ -13,6 +14,7 @@ import {
   getSettingsProvider,
   getSettingsRestartStatus,
   getSettingsRoles,
+  getSettingsShell,
   getSettingsSkills,
   getSettingsUpdate,
   getRolesStatus,
@@ -123,6 +125,26 @@ export function settingsNetworkOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("network"),
     queryFn: ({ signal }) => getSettingsNetwork(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsAttentionOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.section("attention"),
+    queryFn: ({ signal }) => getSettingsAttention(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsShellOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.section("shell"),
+    queryFn: ({ signal }) => getSettingsShell(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

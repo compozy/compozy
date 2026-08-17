@@ -86,6 +86,23 @@ type ClarifyAnswer struct {
 	Fallback bool   `json:"fallback"`
 }
 
+// Resolution returns the operator-visible value represented by a normalized answer.
+func (a ClarifyAnswer) Resolution(question ClarifyQuestion) string {
+	if a.Choice != nil && *a.Choice >= 0 && *a.Choice < len(question.Choices) {
+		return strings.TrimSpace(question.Choices[*a.Choice])
+	}
+	return strings.TrimSpace(a.Text)
+}
+
+// ClarifyAnswerResult reports the canonical outcome of one answer mutation.
+type ClarifyAnswerResult struct {
+	ClarifyAnswer
+	Outcome        string `json:"outcome"`
+	InteractionID  string `json:"interaction_id,omitempty"`
+	RequestID      string `json:"request_id"`
+	ResolvedAnswer string `json:"resolved_answer,omitempty"`
+}
+
 // ClarifyAnswerRequest is the public answer mutation payload.
 type ClarifyAnswerRequest struct {
 	ChoiceIndex *int   `json:"choice_index,omitempty"`
@@ -146,10 +163,11 @@ func (p ClarifyPending) Clone() ClarifyPending {
 
 // ClarifyEvent is the durable session/SSE lifecycle payload.
 type ClarifyEvent struct {
-	Status  ClarifyStatus  `json:"status"`
-	Request ClarifyPending `json:"request"`
-	Answer  *ClarifyAnswer `json:"answer,omitempty"`
-	At      time.Time      `json:"at"`
+	Status     ClarifyStatus  `json:"status"`
+	Request    ClarifyPending `json:"request"`
+	Answer     *ClarifyAnswer `json:"answer,omitempty"`
+	ResolvedBy string         `json:"resolved_by,omitempty"`
+	At         time.Time      `json:"at"`
 }
 
 // Validate ensures lifecycle evidence cannot represent an impossible transition.
@@ -190,5 +208,5 @@ func (e ClarifyEvent) Validate() error {
 type ClarifyBroker interface {
 	Ask(context.Context, Scope, ClarifyQuestion) (ClarifyAnswer, error)
 	Pending(context.Context, Scope) ([]ClarifyPending, error)
-	Answer(context.Context, Scope, string, ClarifyAnswerRequest) (ClarifyAnswer, error)
+	Answer(context.Context, Scope, string, ClarifyAnswerRequest) (ClarifyAnswerResult, error)
 }

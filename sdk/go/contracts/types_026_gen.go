@@ -7,6 +7,75 @@ import (
 	"time"
 )
 
+type TaskSummaryPayload struct {
+	ID                           string                           `json:"id"`
+	Identifier                   string                           `json:"identifier,omitempty"`
+	Scope                        TaskScope                        `json:"scope"`
+	WorkspaceID                  string                           `json:"workspace_id,omitempty"`
+	ParentTaskID                 string                           `json:"parent_task_id,omitempty"`
+	ResolvedNetworkParticipation *Spec                            `json:"resolved_network_participation,omitempty"`
+	Title                        string                           `json:"title"`
+	Priority                     Priority                         `json:"priority,omitempty"`
+	MaxAttempts                  int                              `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady           bool                             `json:"auto_enqueue_on_ready,omitempty"`
+	Status                       Status                           `json:"status"`
+	ApprovalPolicy               ApprovalPolicy                   `json:"approval_policy,omitempty"`
+	ApprovalState                ApprovalState                    `json:"approval_state,omitempty"`
+	Draft                        bool                             `json:"draft,omitempty"`
+	Owner                        *Ownership                       `json:"owner,omitempty"`
+	CurrentRunID                 string                           `json:"current_run_id,omitempty"`
+	LatestEventSeq               int64                            `json:"latest_event_seq"`
+	Paused                       bool                             `json:"paused,omitempty"`
+	PausedBy                     string                           `json:"paused_by,omitempty"`
+	PausedAt                     *time.Time                       `json:"paused_at,omitempty"`
+	PausedReason                 string                           `json:"paused_reason,omitempty"`
+	EffectivePaused              bool                             `json:"effective_paused,omitempty"`
+	PausedByTaskID               string                           `json:"paused_by_task_id,omitempty"`
+	BlockedReasons               []BlockedReason                  `json:"blocked_reasons,omitempty"`
+	NeedsAttention               bool                             `json:"needs_attention,omitempty"`
+	NeedsAttentionReason         string                           `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt             *time.Time                       `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy             *ActorIdentity                   `json:"needs_attention_by,omitempty"`
+	WakeCreator                  bool                             `json:"wake_creator"`
+	CreatedBy                    ActorIdentity                    `json:"created_by"`
+	Origin                       Origin                           `json:"origin"`
+	CreatedAt                    time.Time                        `json:"created_at"`
+	UpdatedAt                    time.Time                        `json:"updated_at"`
+	ClosedAt                     *time.Time                       `json:"closed_at,omitempty"`
+	ChildCount                   int                              `json:"child_count,omitempty"`
+	DependencyCount              int                              `json:"dependency_count,omitempty"`
+	Dependencies                 []TaskDependencyReferencePayload `json:"dependencies,omitempty"`
+	ActiveRun                    *TaskRunSummaryPayload           `json:"active_run,omitempty"`
+	LastActivityAt               *time.Time                       `json:"last_activity_at,omitempty"`
+}
+
+type TaskTargetParams struct {
+	ID string `json:"id"`
+}
+
+type TaskTimelineItem struct {
+	Sequence  int64                  `json:"sequence"`
+	EventID   string                 `json:"event_id"`
+	Task      TaskReferencePayload   `json:"task"`
+	Run       *TaskRunSummaryPayload `json:"run,omitempty"`
+	EventType string                 `json:"event_type"`
+	Actor     ActorIdentity          `json:"actor"`
+	Origin    Origin                 `json:"origin"`
+	Payload   json.RawMessage        `json:"payload,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+}
+
+type TaskTimelineParams struct {
+	ID            string `json:"id"`
+	AfterSequence int64  `json:"after_sequence,omitempty"`
+	Limit         int    `json:"limit,omitempty"`
+}
+
+type TaskTree struct {
+	Root        TaskTreeNodePayload   `json:"root"`
+	Descendants []TaskTreeNodePayload `json:"descendants,omitempty"`
+}
+
 type TaskTreeNodePayload struct {
 	Task           TaskReferencePayload   `json:"task"`
 	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
@@ -242,54 +311,3 @@ type ToolProgress struct {
 }
 
 type ToolProgressPhase string
-
-type ToolResult struct {
-	Content    []ToolContent              `json:"content,omitempty"`
-	Structured json.RawMessage            `json:"structured,omitempty"`
-	Preview    string                     `json:"preview,omitempty"`
-	Artifacts  []ArtifactRef              `json:"artifacts,omitempty"`
-	Metadata   map[string]json.RawMessage `json:"metadata,omitempty"`
-	Redactions []Redaction                `json:"redactions,omitempty"`
-	Truncated  bool                       `json:"truncated"`
-	Bytes      int64                      `json:"bytes"`
-	DurationMS int64                      `json:"duration_ms"`
-}
-
-type ToolResultPatch struct {
-	Deny       bool            `json:"deny,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
-	Title      *string         `json:"title,omitempty"`
-	ToolResult json.RawMessage `json:"tool_result,omitempty"`
-	Error      *string         `json:"error,omitempty"`
-}
-
-type ToolsetID string
-
-type Trigger struct {
-	ID                   string                 `json:"id"`
-	Scope                Scope                  `json:"scope"`
-	Name                 string                 `json:"name"`
-	TargetKind           TargetKind             `json:"target_kind"`
-	AgentName            string                 `json:"agent_name"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	Prompt               string                 `json:"prompt"`
-	Event                string                 `json:"event"`
-	Filter               map[string]string      `json:"filter,omitempty"`
-	LoopTarget           *LoopTarget            `json:"loop_target,omitempty"`
-	Enabled              bool                   `json:"enabled"`
-	Retry                RetryConfig            `json:"retry"`
-	FireLimit            FireLimitConfig        `json:"fire_limit"`
-	Source               JobSource              `json:"source"`
-	WebhookID            string                 `json:"webhook_id,omitempty"`
-	EndpointSlug         string                 `json:"endpoint_slug,omitempty"`
-	WebhookSecretPresent bool                   `json:"webhook_secret_present"`
-	WebhookSecretHash    string                 `json:"webhook_secret_hash,omitempty"`
-	Ingress              *GatewayIngressPayload `json:"ingress,omitempty"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
-}
-
-type TriggerResult struct {
-	Matched int   `json:"matched"`
-	Runs    []Run `json:"runs,omitempty"`
-}

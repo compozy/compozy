@@ -55,7 +55,7 @@ func networkStatusBundle(status NetworkStatusRecord) outputBundle {
 				renderToonObject(networkNetworkKey, fields, values),
 				renderToonArray(
 					"network_kind_metrics",
-					[]string{networkKindKey, networkSentKey, "received", "rejected", "delivered"},
+					[]string{networkKindKey, networkSentKey, "received", "rejected", networkDeliveredKey},
 					networkKindMetricRows(status.KindMetrics),
 				),
 			), nil

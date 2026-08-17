@@ -65,44 +65,44 @@ type BindingsConfig struct {
 
 // Config is the effective global window-manager configuration.
 type Config struct {
-	NewWindowPolicy     NewWindowPolicy     `json:"new_window_policy"`
-	SmallViewportPolicy SmallViewportPolicy `json:"small_viewport_policy"`
-	FocusPolicy         FocusPolicy         `json:"focus_policy"`
-	FocusWrap           bool                `json:"focus_wrap"`
-	FocusFollowsPointer bool                `json:"focus_follows_pointer"`
-	RaiseOnFocus        bool                `json:"raise_on_focus"`
-	DragAwayPolicy      DragAwayPolicy      `json:"drag_away_policy"`
-	GroupMoveModifier   string              `json:"group_move_modifier"`
-	SwapModifier        string              `json:"swap_modifier"`
-	HistoryLimit        int                 `json:"history_limit"`
-	NavStackLimit       int                 `json:"nav_stack_limit"`
-	ClosedEntryLimit    int                 `json:"closed_entry_limit"`
-	DesktopTransition   DesktopTransition   `json:"desktop_transition"`
-	Gaps                GapsConfig          `json:"gaps"`
-	Snap                SnapConfig          `json:"snap"`
-	Bindings            BindingsConfig      `json:"bindings"`
-	Shortcuts           map[string]string   `json:"shortcuts,omitempty"`
+	NewWindowPolicy     NewWindowPolicy            `json:"new_window_policy"`
+	SmallViewportPolicy SmallViewportPolicy        `json:"small_viewport_policy"`
+	FocusPolicy         FocusPolicy                `json:"focus_policy"`
+	FocusWrap           bool                       `json:"focus_wrap"`
+	FocusFollowsPointer bool                       `json:"focus_follows_pointer"`
+	RaiseOnFocus        bool                       `json:"raise_on_focus"`
+	DragAwayPolicy      DragAwayPolicy             `json:"drag_away_policy"`
+	GroupMoveModifier   string                     `json:"group_move_modifier"`
+	SwapModifier        string                     `json:"swap_modifier"`
+	HistoryLimit        int                        `json:"history_limit"`
+	NavStackLimit       int                        `json:"nav_stack_limit"`
+	ClosedEntryLimit    int                        `json:"closed_entry_limit"`
+	DesktopTransition   DesktopTransition          `json:"desktop_transition"`
+	Gaps                GapsConfig                 `json:"gaps"`
+	Snap                SnapConfig                 `json:"snap"`
+	Bindings            BindingsConfig             `json:"bindings"`
+	Shortcuts           map[string]ShortcutBinding `json:"shortcuts,omitempty"`
 }
 
 // WorkspaceConfig contains optional workspace overrides.
 type WorkspaceConfig struct {
-	NewWindowPolicy     *NewWindowPolicy     `json:"new_window_policy,omitempty"`
-	SmallViewportPolicy *SmallViewportPolicy `json:"small_viewport_policy,omitempty"`
-	FocusPolicy         *FocusPolicy         `json:"focus_policy,omitempty"`
-	FocusWrap           *bool                `json:"focus_wrap,omitempty"`
-	FocusFollowsPointer *bool                `json:"focus_follows_pointer,omitempty"`
-	RaiseOnFocus        *bool                `json:"raise_on_focus,omitempty"`
-	DragAwayPolicy      *DragAwayPolicy      `json:"drag_away_policy,omitempty"`
-	GroupMoveModifier   *string              `json:"group_move_modifier,omitempty"`
-	SwapModifier        *string              `json:"swap_modifier,omitempty"`
-	HistoryLimit        *int                 `json:"history_limit,omitempty"`
-	NavStackLimit       *int                 `json:"nav_stack_limit,omitempty"`
-	ClosedEntryLimit    *int                 `json:"closed_entry_limit,omitempty"`
-	DesktopTransition   *DesktopTransition   `json:"desktop_transition,omitempty"`
-	Gaps                *GapsConfig          `json:"gaps,omitempty"`
-	Snap                *SnapConfig          `json:"snap,omitempty"`
-	Bindings            *BindingsConfig      `json:"bindings,omitempty"`
-	Shortcuts           map[string]string    `json:"shortcuts,omitempty"`
+	NewWindowPolicy     *NewWindowPolicy           `json:"new_window_policy,omitempty"`
+	SmallViewportPolicy *SmallViewportPolicy       `json:"small_viewport_policy,omitempty"`
+	FocusPolicy         *FocusPolicy               `json:"focus_policy,omitempty"`
+	FocusWrap           *bool                      `json:"focus_wrap,omitempty"`
+	FocusFollowsPointer *bool                      `json:"focus_follows_pointer,omitempty"`
+	RaiseOnFocus        *bool                      `json:"raise_on_focus,omitempty"`
+	DragAwayPolicy      *DragAwayPolicy            `json:"drag_away_policy,omitempty"`
+	GroupMoveModifier   *string                    `json:"group_move_modifier,omitempty"`
+	SwapModifier        *string                    `json:"swap_modifier,omitempty"`
+	HistoryLimit        *int                       `json:"history_limit,omitempty"`
+	NavStackLimit       *int                       `json:"nav_stack_limit,omitempty"`
+	ClosedEntryLimit    *int                       `json:"closed_entry_limit,omitempty"`
+	DesktopTransition   *DesktopTransition         `json:"desktop_transition,omitempty"`
+	Gaps                *GapsConfig                `json:"gaps,omitempty"`
+	Snap                *SnapConfig                `json:"snap,omitempty"`
+	Bindings            *BindingsConfig            `json:"bindings,omitempty"`
+	Shortcuts           map[string]ShortcutBinding `json:"shortcuts,omitempty"`
 }
 
 // DefaultConfig returns production defaults from the accepted contract.
@@ -127,7 +127,7 @@ func DefaultConfig() Config {
 			RepeatRatios: []float64{0.5, 0.666667, 0.333333},
 		},
 		Bindings:  BindingsConfig{TopCenter: "zoom", BottomCenter: bindingReserved},
-		Shortcuts: map[string]string{},
+		Shortcuts: map[string]ShortcutBinding{},
 	}
 }
 
@@ -235,13 +235,13 @@ func validateBindingsConfig(config Config) error {
 			return fmt.Errorf("binding %q: %w", binding, ErrInvalidCommand)
 		}
 	}
-	_, err := CanonicalShortcuts(config.Shortcuts)
+	_, err := CanonicalShortcutsV2(config.Shortcuts)
 	return err
 }
 
 func canonicalConfig(config Config) (Config, error) {
 	result := cloneConfig(config)
-	shortcuts, err := CanonicalShortcuts(result.Shortcuts)
+	shortcuts, err := CanonicalShortcutsV2(result.Shortcuts)
 	if err != nil {
 		return Config{}, err
 	}
@@ -303,7 +303,7 @@ func effectiveConfig(defaults Config, overrides WorkspaceConfig) (Config, error)
 		result.Bindings = *overrides.Bindings
 	}
 	if overrides.Shortcuts != nil {
-		result.Shortcuts = cloneStringMap(overrides.Shortcuts)
+		result.Shortcuts = CloneShortcutMap(overrides.Shortcuts)
 	}
 	return canonicalConfig(result)
 }

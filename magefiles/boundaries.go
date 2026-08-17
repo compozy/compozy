@@ -223,6 +223,15 @@ func Boundaries() error {
 	}{
 		{importer: "internal/redact", allowed: map[string]struct{}{}},
 		{importer: "internal/extensionprotocol", allowed: map[string]struct{}{}},
+		{importer: "internal/mcppolicy", allowed: map[string]struct{}{}},
+		{
+			importer: "internal/extension/agentplugin",
+			allowed: map[string]struct{}{
+				"github.com/compozy/compozy/internal/fileutil":    {},
+				"github.com/compozy/compozy/internal/frontmatter": {},
+				"github.com/compozy/compozy/internal/mcppolicy":   {},
+			},
+		},
 		{importer: "internal/network/participation", allowed: map[string]struct{}{}},
 		{importer: "internal/workspaceaccess", allowed: map[string]struct{}{}},
 		{

@@ -1301,7 +1301,10 @@ func (m *loopActionBinderSessionManager) PromptWithOpts(
 	return m.Prompt(ctx, "", opts.Message)
 }
 
-func (m *loopActionBinderSessionManager) CancelPrompt(_ context.Context, id string) error {
+func (m *loopActionBinderSessionManager) CancelPrompt(
+	_ context.Context,
+	id string,
+) (session.PromptCancelResult, error) {
 	m.mu.Lock()
 	m.cancelIDs = append(m.cancelIDs, id)
 	released := m.promptReleased
@@ -1309,7 +1312,7 @@ func (m *loopActionBinderSessionManager) CancelPrompt(_ context.Context, id stri
 	if released != nil {
 		m.promptReleaseOnce.Do(func() { close(released) })
 	}
-	return m.cancelErr
+	return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled}, m.cancelErr
 }
 
 func (m *loopActionBinderSessionManager) StopWithCause(
@@ -1468,8 +1471,11 @@ func (m loopPromptResultSessionManager) PromptWithOpts(
 	return m.Prompt(ctx, "", "")
 }
 
-func (m loopPromptResultSessionManager) CancelPrompt(context.Context, string) error {
-	return errors.New("unexpected CancelPrompt call")
+func (m loopPromptResultSessionManager) CancelPrompt(
+	context.Context,
+	string,
+) (session.PromptCancelResult, error) {
+	return session.PromptCancelResult{}, errors.New("unexpected CancelPrompt call")
 }
 
 func (m loopPromptResultSessionManager) StopWithCause(

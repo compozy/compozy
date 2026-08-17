@@ -90,6 +90,8 @@ const (
 	ReasonApprovalTokenReplayed ReasonCode = "approval_token_replayed"
 	// ReasonApprovalSelfDenied reports an attempted self-approval of a human gate.
 	ReasonApprovalSelfDenied ReasonCode = "approval_self_denied"
+	// ReasonSelfTargetDenied reports an attempted action against the caller session.
+	ReasonSelfTargetDenied ReasonCode = "self_target_denied"
 	// ReasonSessionDenied reports session lineage denial.
 	ReasonSessionDenied ReasonCode = "session_denied"
 	// ReasonGoalNotActive reports that no visible or reportable Goal exists for the caller session.
@@ -230,6 +232,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonApprovalTokenMismatch:          {},
 	ReasonApprovalTokenReplayed:          {},
 	ReasonApprovalSelfDenied:             {},
+	ReasonSelfTargetDenied:               {},
 	ReasonSessionDenied:                  {},
 	ReasonGoalNotActive:                  {},
 	ReasonGoalReportConflict:             {},

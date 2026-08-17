@@ -26,6 +26,7 @@ type MockAgentSpec struct {
 	AgentName       string
 	ProviderName    string
 	DiagnosticsPath string
+	Tools           []string
 }
 
 // RegisterMockAgent writes one temporary fixture-backed AGENT.md into the isolated Compozy home.
@@ -304,6 +305,7 @@ func registerMockAgent(
 		AgentName:       spec.AgentName,
 		ProviderName:    providerName,
 		DiagnosticsPath: diagnosticsPath,
+		Tools:           append([]string(nil), spec.Tools...),
 	})
 }
 

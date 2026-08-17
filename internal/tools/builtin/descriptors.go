@@ -35,6 +35,8 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		skillDescriptors(),
 		networkDescriptors(),
 		sessionDescriptors(),
+		sessionAttentionDescriptors(),
+		sessionOrchestrationDescriptors(),
 		authoredContextDescriptors(),
 		workspaceDescriptors(),
 		worktreeDescriptors(),

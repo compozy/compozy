@@ -273,7 +273,8 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			info.Lineage.RootSessionID != parent.ID ||
 			info.Lineage.SpawnDepth != 1 ||
 			info.Lineage.SpawnRole != DefaultSpawnRole ||
-			!info.Lineage.AutoStopOnParent {
+			!info.Lineage.AutoStopOnParent ||
+			!info.Lineage.NotifyCreator {
 			t.Fatalf("child lineage = %#v", info.Lineage)
 		}
 		wantTTL := now.Add(30 * time.Minute)
@@ -284,12 +285,73 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			t.Fatalf("child permission tools = %#v, want narrowed read", got)
 		}
 		meta := readMeta(t, child.MetaPath())
-		if meta.Lineage == nil || meta.Lineage.ParentSessionID != parent.ID {
+		if meta.Lineage == nil || meta.Lineage.ParentSessionID != parent.ID || !meta.Lineage.NotifyCreator {
 			t.Fatalf("persisted lineage = %#v, want parent %q", meta.Lineage, parent.ID)
 		}
 		if len(h.driver.startCalls) < 2 ||
 			!strings.Contains(h.driver.startCalls[len(h.driver.startCalls)-1].SystemPrompt, "Focus only on tests.") {
 			t.Fatalf("child prompt overlay was not appended to start prompt: %#v", h.driver.startCalls)
+		}
+	})
+
+	t.Run("Should preserve an explicit creator notification opt out", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 1,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID:  parent.ID,
+			AgentName:        "coder",
+			TTL:              time.Minute,
+			NotifyCreator:    false,
+			NotifyCreatorSet: true,
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		if child.Info().Lineage == nil || child.Info().Lineage.NotifyCreator {
+			t.Fatalf("child lineage = %#v, want notify_creator=false", child.Info().Lineage)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if meta.Lineage == nil || meta.Lineage.NotifyCreator {
+			t.Fatalf("persisted lineage = %#v, want notify_creator=false", meta.Lineage)
+		}
+	})
+
+	t.Run("Should create distinct children for duplicate spawn requests", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 2,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+		opts := SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+			IdempotencyKey:  "duplicate-spawn",
+		}
+
+		first, err := h.manager.Spawn(testutil.Context(t), opts)
+		if err != nil {
+			t.Fatalf("Spawn(first) error = %v", err)
+		}
+		cleanupSessionStop(t, h, first.ID)
+		second, err := h.manager.Spawn(testutil.Context(t), opts)
+		if err != nil {
+			t.Fatalf("Spawn(second) error = %v", err)
+		}
+		cleanupSessionStop(t, h, second.ID)
+		if first.ID == second.ID {
+			t.Fatalf("duplicate spawn ids = %q, want distinct children", first.ID)
 		}
 	})
 
@@ -935,6 +997,47 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 			info.Lineage.ParentSessionID != goal.ID || info.Lineage.RootSessionID != goal.ID ||
 			info.Lineage.SpawnDepth != 2 {
 			t.Fatalf("spawned child = %#v, want display depth 2 rebased below live system parent", info)
+		}
+	})
+
+	t.Run("Should rebase when the provenance root is deleted after early create validation", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		root := createSession(t, h)
+		goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: root.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(system provenance parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, goal.ID)
+
+		ttl := time.Now().Add(time.Minute)
+		spec, err := h.manager.prepareCreateStart(testutil.Context(t), spawnedCreateOpts(goal.ID, &store.SessionLineage{
+			ParentSessionID: goal.ID,
+			RootSessionID:   root.ID,
+			SpawnDepth:      2,
+			SpawnRole:       "coder",
+			TTLExpiresAt:    &ttl,
+		}))
+		if err != nil {
+			t.Fatalf("prepareCreateStart() error = %v", err)
+		}
+		if err := h.manager.Delete(testutil.Context(t), root.ID); err != nil {
+			t.Fatalf("Delete(provenance root after early validation) error = %v", err)
+		}
+
+		child, err := h.manager.startSession(testutil.Context(t), &spec)
+		if err != nil {
+			t.Fatalf("startSession(after provenance deletion) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		info := child.Info()
+		if info.Lineage == nil || info.Lineage.ParentSessionID != goal.ID ||
+			info.Lineage.RootSessionID != goal.ID {
+			t.Fatalf("spawned child lineage = %#v, want rebased below live system parent", info.Lineage)
 		}
 	})
 

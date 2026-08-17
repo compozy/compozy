@@ -32,6 +32,7 @@ import type {
 import type { GroupFrameEditInput } from "../lib/frame-seams";
 import type { FocusDirection, NormalizedRect } from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
+import { orderedDesktops } from "../lib/desktop-order";
 import { windowManagerLayoutArea } from "../lib/window-manager-layout-area";
 import {
   buildOsDesktopRuntimeView,
@@ -89,9 +90,7 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
 
   switchDesktopDirection(direction: "previous" | "next"): void {
     const active = this.view.activeDesktopId;
-    const ordered = [...this.view.desktops].sort(
-      (left, right) => left.order - right.order || left.id.localeCompare(right.id)
-    );
+    const ordered = orderedDesktops(this.view.desktops);
     const index = ordered.findIndex(desktop => desktop.id === active);
     if (index < 0) return;
     const target = ordered[index + (direction === "next" ? 1 : -1)];
@@ -260,7 +259,6 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
       routeIntents,
       connectionStatus,
       loadError: this.currentLoadError(),
-      railCollapsedAgentIds: this.railCollapsedAgentIds,
       wallpaper: this.wallpaper,
       reduceMotion: this.reduceMotion,
       dockMagnify: this.dockMagnify,
@@ -462,15 +460,6 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
         ...(splitId ? { split_id: splitId } : {}),
       },
     });
-  };
-
-  toggleRailGroup = (agentId: string): void => {
-    const normalized = agentId.trim();
-    if (!normalized) return;
-    this.railCollapsedAgentIds = this.railCollapsedAgentIds.includes(normalized)
-      ? this.railCollapsedAgentIds.filter(id => id !== normalized)
-      : [...this.railCollapsedAgentIds, normalized];
-    this.publish();
   };
 
   setWallpaper = (wallpaper: OsWallpaper): void => {

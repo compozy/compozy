@@ -377,6 +377,80 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 		}
 	})
 
+	// IT-015: the curated marker is display metadata; ingestion decides what a package actually is,
+	// so an installed instance's recorded format overrides whatever the feed claimed.
+	t.Run("Should project the curated format marker and let an installed instance override it", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name            string
+			feedFormat      string
+			installedFormat string
+			installed       bool
+			wantFormat      string
+		}{
+			{name: "portable marker before install", feedFormat: "agent-plugin", wantFormat: "agent-plugin"},
+			{name: "native marker before install", feedFormat: "compozy", wantFormat: "compozy"},
+			{name: "marker-less entry before install", wantFormat: "compozy"},
+			{
+				name:            "installed portable package under a marker-less entry",
+				installed:       true,
+				installedFormat: "agent-plugin",
+				wantFormat:      "agent-plugin",
+			},
+			{
+				name:            "installed native extension under a portable marker",
+				feedFormat:      "agent-plugin",
+				installed:       true,
+				installedFormat: "compozy",
+				wantFormat:      "compozy",
+			},
+		}
+		for _, tt := range tests {
+			t.Run("Should resolve the "+tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+				entry.Payload = marketplaceExtensionPayloadForTest(t, tt.feedFormat)
+				handlerFixture := marketplaceHandlerFixture{
+					extensionInstalledFormat: tt.installedFormat,
+					catalogBrowse: func(
+						_ context.Context,
+						kind marketplacepkg.Kind,
+						_ string,
+						_ int,
+					) (marketplacepkg.BrowseResult, error) {
+						if kind == marketplacepkg.KindExtension {
+							return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}, Total: 1}, nil
+						}
+						return marketplacepkg.BrowseResult{
+							Entries: []marketplacepkg.Entry{marketplaceEntriesForTest()[kind]}, Total: 1,
+						}, nil
+					},
+				}
+				if tt.installed {
+					handlerFixture.extensionCatalogEntryID = entry.EntryID
+				} else {
+					handlerFixture.extensionInstalledSlug = "unrelated/extension"
+				}
+				handlers := marketplaceHandlersForTest(t, handlerFixture)
+				response := marketplaceSearchHTTP(t, handlers)
+				item := response.Kinds[1].Items[0]
+				if item.Installed != tt.installed {
+					t.Fatalf("extension item installed = %t, want %t: %#v", item.Installed, tt.installed, item)
+				}
+				if item.Format != tt.wantFormat {
+					t.Fatalf("extension item format = %q, want %q", item.Format, tt.wantFormat)
+				}
+				for _, other := range append(response.Kinds[0].Items, response.Kinds[2].Items...) {
+					if other.Format != "" {
+						t.Fatalf("%s item format = %q, want no format signal", other.Kind, other.Format)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should not satisfy a stable catalog ID lookup with an unrelated install slug", func(t *testing.T) {
 		t.Parallel()
 
@@ -476,6 +550,30 @@ func TestMarketplaceSearchPreservesKindIsolationAndInstalledTruth(t *testing.T) 
 			t.Fatalf("stale browse = %#v, want marked stale row with redacted diagnostic", browsePayload)
 		}
 	})
+}
+
+func marketplaceSearchHTTP(t *testing.T, handlers *core.BaseHandlers) contract.MarketplaceSearchResponse {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequestWithContext(
+		t.Context(), http.MethodGet, "/api/marketplace/search", http.NoBody,
+	)
+	handlers.SearchMarketplace(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(
+			"GET /api/marketplace/search status = %d, want %d; body=%s",
+			recorder.Code,
+			http.StatusOK,
+			recorder.Body.String(),
+		)
+	}
+	var response contract.MarketplaceSearchResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode GET /api/marketplace/search response error = %v; body=%s", err, recorder.Body.String())
+	}
+	return response
 }
 
 func TestMarketplaceContinuationRejectsChangedProjection(t *testing.T) {
@@ -925,6 +1023,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
 				return []contract.ExtensionPayload{{
 					Name: "local-extension", Version: "1.4.0", Source: "local", Enabled: true,
+					Format: "agent-plugin",
 				}}, nil
 			}},
 			Settings: &stubSettingsService{ListCollectionFn: func(
@@ -954,6 +1053,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			kind       contract.MarketplaceKind
 			entryName  string
 			managePath string
+			format     string
 		}{
 			{
 				name: "skill", path: "/marketplace/skill/local-skill",
@@ -963,7 +1063,7 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			{
 				name: "extension", path: "/marketplace/extension/local-extension",
 				kind: contract.MarketplaceKindExtension, entryName: "local-extension",
-				managePath: "/marketplace/extensions",
+				managePath: "/marketplace/extensions", format: "agent-plugin",
 			},
 			{
 				name: "mcp", path: "/marketplace/mcp/local-mcp",
@@ -989,8 +1089,9 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 					t.Fatalf("json.Unmarshal() error = %v", err)
 				}
 				if payload.Entry.Kind != test.kind || payload.Entry.Name != test.entryName ||
-					!payload.Entry.Installed || payload.Entry.ManagePath != test.managePath {
-					t.Fatalf("installed detail = %#v, want kind/name/installed/manage path", payload.Entry)
+					!payload.Entry.Installed || payload.Entry.ManagePath != test.managePath ||
+					payload.Entry.Format != test.format {
+					t.Fatalf("installed detail = %#v, want kind/name/installed/manage path/format", payload.Entry)
 				}
 			})
 		}
@@ -1354,18 +1455,19 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 }
 
 type marketplaceHandlerFixture struct {
-	catalogBrowse           func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
-	catalogRefresh          func(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
-	remoteSearch            func(context.Context, string, int) ([]registrypkg.Listing, error)
-	remoteInfo              func(context.Context, string) (*registrypkg.Detail, error)
-	catalogDetail           func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
-	settingsList            func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
-	skillCatalogVersion     string
-	installedSkillVersion   string
-	extensionTier           string
-	extensionCatalogEntryID string
-	extensionInstalledSlug  string
-	extensionTrust          func(
+	catalogBrowse            func(context.Context, marketplacepkg.Kind, string, int) (marketplacepkg.BrowseResult, error)
+	catalogRefresh           func(context.Context, ...marketplacepkg.Kind) (marketplacepkg.RefreshReport, error)
+	remoteSearch             func(context.Context, string, int) ([]registrypkg.Listing, error)
+	remoteInfo               func(context.Context, string) (*registrypkg.Detail, error)
+	catalogDetail            func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error)
+	settingsList             func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
+	skillCatalogVersion      string
+	installedSkillVersion    string
+	extensionTier            string
+	extensionCatalogEntryID  string
+	extensionInstalledSlug   string
+	extensionInstalledFormat string
+	extensionTrust           func(
 		context.Context,
 		extensionpkg.MarketplaceTrustEvidence,
 	) (contract.ExtensionTrustReportPayload, error)
@@ -1440,7 +1542,7 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 		Settings:           &stubSettingsService{ListCollectionFn: settingsList},
 		Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
 			return []contract.ExtensionPayload{{
-				Name: "extension", Version: "1.0.0",
+				Name: "extension", Version: "1.0.0", Format: fixture.extensionInstalledFormat,
 				Provenance: &contract.ExtensionProvenancePayload{
 					Slug: installedSlug, CatalogEntryID: fixture.extensionCatalogEntryID,
 				},
@@ -1454,6 +1556,29 @@ func marketplaceHandlersForTest(t *testing.T, fixture marketplaceHandlerFixture)
 		Config:    config,
 		Logger:    testutil.DiscardLogger(),
 	})
+}
+
+// marketplaceExtensionPayloadForTest rebuilds the curated extension payload with an optional format
+// marker, matching what the feed reader stores after a strict decode.
+func marketplaceExtensionPayloadForTest(t *testing.T, format string) json.RawMessage {
+	t.Helper()
+	payload := map[string]string{
+		"entry_id":      "extension-entry",
+		"name":          "Extension",
+		"description":   "Extension",
+		"version":       "1.2.0",
+		"install_slug":  "acme/extension",
+		"artifact_url":  "https://downloads.example.test/extension-v1.2.0.tar.gz",
+		"digest_sha256": strings.Repeat("a", 64),
+	}
+	if format != "" {
+		payload["format"] = format
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(extension marketplace payload) error = %v", err)
+	}
+	return encoded
 }
 
 func marketplaceEntriesForTest() map[marketplacepkg.Kind]marketplacepkg.Entry {

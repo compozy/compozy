@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+type CoordinatorPreSpawnPayload struct {
+	Event                        HookEvent `json:"event"`
+	Timestamp                    time.Time `json:"timestamp"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	Workspace                    string    `json:"workspace,omitempty"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
+	TaskID                       string    `json:"task_id,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
+	Provider                     string    `json:"provider,omitempty"`
+	Model                        string    `json:"model,omitempty"`
+	Reason                       string    `json:"reason,omitempty"`
+	Denied                       bool      `json:"denied,omitempty"`
+	DenyReason                   string    `json:"deny_reason,omitempty"`
+}
+
 type CoordinatorSpawnPatch struct {
 	Deny       bool    `json:"deny,omitempty"`
 	DenyReason string  `json:"deny_reason,omitempty"`
@@ -183,11 +201,4 @@ type DescribeResources struct {
 	Agents     []string `json:"agents,omitempty"`
 	Automation []string `json:"automation,omitempty"`
 	Layouts    []string `json:"layouts,omitempty"`
-}
-
-type DescribeSDKInfo struct {
-	Name              string `json:"name"`
-	Version           string `json:"version"`
-	ProtocolVersion   string `json:"protocol_version"`
-	MinCompozyVersion string `json:"min_compozy_version"`
 }

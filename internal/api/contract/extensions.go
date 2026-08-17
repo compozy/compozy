@@ -79,15 +79,18 @@ type EnableExtensionRequest struct {
 	ConfirmNetworkDigest string `json:"confirm_network_digest,omitempty"`
 }
 
-// ExtensionSecretInput is one write-only value or existing Vault binding.
-type ExtensionSecretInput struct {
-	Value    *string `json:"value,omitempty"`
-	VaultRef *string `json:"vault_ref,omitempty"`
+// ExtensionSecretBindingInput is one write-only value or existing Vault binding.
+type ExtensionSecretBindingInput struct {
+	EnvName    string  `json:"env_name"`
+	Value      *string `json:"value,omitempty"`
+	VaultRef   *string `json:"vault_ref,omitempty"`
+	MCPServer  string  `json:"mcp_server,omitempty"`
+	HeaderName string  `json:"header_name,omitempty"`
 }
 
 // SetExtensionSecretsRequest updates one or more declared environment bindings.
 type SetExtensionSecretsRequest struct {
-	Secrets map[string]ExtensionSecretInput `json:"secrets"`
+	Bindings []ExtensionSecretBindingInput `json:"bindings"`
 }
 
 // ExtensionSecretsPayload exposes binding presence without refs or values.
@@ -99,8 +102,10 @@ type ExtensionSecretsPayload struct {
 
 // ExtensionSecretBindingPayload reports one bound key without exposing its Vault ref or value.
 type ExtensionSecretBindingPayload struct {
-	EnvName string `json:"env_name"`
-	Stale   bool   `json:"stale"`
+	EnvName    string `json:"env_name"`
+	Stale      bool   `json:"stale"`
+	MCPServer  string `json:"mcp_server,omitempty"`
+	HeaderName string `json:"header_name,omitempty"`
 }
 
 // ExtensionLogPayload is one redacted per-instance stderr record.
@@ -146,6 +151,7 @@ type ExtensionPayload struct {
 	WorkspaceID                 string                       `json:"workspace_id,omitempty"`
 	Version                     string                       `json:"version"`
 	Type                        string                       `json:"type"`
+	Format                      string                       `json:"format"`
 	Source                      string                       `json:"source"`
 	Enabled                     bool                         `json:"enabled"`
 	State                       string                       `json:"state"`
@@ -194,9 +200,11 @@ type ExtensionKitItemPayload struct {
 
 // ExtensionInventoryPayload is the shipped/live union for one extension.
 type ExtensionInventoryPayload struct {
-	Extension string                    `json:"extension"`
-	Enabled   bool                      `json:"enabled"`
-	Items     []ExtensionKitItemPayload `json:"items"`
+	Extension   string                    `json:"extension"`
+	Format      string                    `json:"format"`
+	Enabled     bool                      `json:"enabled"`
+	Items       []ExtensionKitItemPayload `json:"items"`
+	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`
 }
 
 // ExtensionKitChange identifies how enable reconciliation will mutate one resource.

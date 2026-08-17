@@ -159,6 +159,12 @@ func clonePermissionResolutionPayload(payload PermissionResolutionPayload) Permi
 	return payload
 }
 
+func clonePermissionDeniedPayload(payload PermissionDeniedPayload) PermissionDeniedPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	payload.ToolCall = clonePermissionToolCall(payload.ToolCall)
+	return payload
+}
+
 func cloneContextCompactPayload(payload ContextCompactPayload) ContextCompactPayload {
 	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ContextBlocks = cloneContextBlocks(payload.ContextBlocks)

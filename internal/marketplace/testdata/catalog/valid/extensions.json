@@ -10,7 +10,8 @@
             "install_slug": "compozy/fixture-extension",
             "artifact_url": "https://downloads.example.test/fixture-extension-v1.0.0.tar.gz",
             "digest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-            "tier": "official"
+            "tier": "official",
+            "format": "agent-plugin"
         }
     ]
 }

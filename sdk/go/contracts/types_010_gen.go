@@ -2,10 +2,35 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+type HeartbeatStatusRequest struct {
+	WorkspaceID             string `json:"workspace_id,omitempty"`
+	AgentName               string `json:"agent_name"`
+	SessionID               string `json:"session_id,omitempty"`
+	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
+	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
+}
+
+type HeartbeatStatusResponse struct {
+	AgentName        string                             `json:"agent_name"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	WakeState        *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
+	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
+	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
+	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
+}
 
 type HeartbeatTimeWindowPayload struct {
 	Timezone string `json:"timezone"`
@@ -159,30 +184,3 @@ type InboundEdit struct {
 }
 
 type InboundEditOperation string
-
-type InboundEventFamily string
-
-type InboundMessageEnvelope struct {
-	BridgeInstanceID  string                  `json:"bridge_instance_id"`
-	Scope             BridgeScope             `json:"scope"`
-	WorkspaceID       string                  `json:"workspace_id,omitempty"`
-	PeerID            string                  `json:"peer_id,omitempty"`
-	ThreadID          string                  `json:"thread_id,omitempty"`
-	GroupID           string                  `json:"group_id,omitempty"`
-	PlatformMessageID string                  `json:"platform_message_id,omitempty"`
-	ReceivedAt        time.Time               `json:"received_at"`
-	Sender            MessageSender           `json:"sender"`
-	Content           MessageContent          `json:"content,omitzero"`
-	Attachments       []MessageAttachment     `json:"attachments,omitempty"`
-	EventFamily       InboundEventFamily      `json:"event_family"`
-	Command           *InboundCommand         `json:"command,omitempty"`
-	Action            *InboundAction          `json:"action,omitempty"`
-	Reaction          *InboundReaction        `json:"reaction,omitempty"`
-	Edit              *InboundEdit            `json:"edit,omitempty"`
-	ReplyToText       string                  `json:"reply_to_text,omitempty"`
-	ReplyToAuthorID   string                  `json:"reply_to_author_id,omitempty"`
-	ReplyToAuthorName string                  `json:"reply_to_author_name,omitempty"`
-	Conversation      *NetworkConversationRef `json:"conversation,omitempty"`
-	ProviderMetadata  json.RawMessage         `json:"provider_metadata,omitempty"`
-	IdempotencyKey    string                  `json:"idempotency_key"`
-}

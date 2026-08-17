@@ -71,6 +71,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	}
 
 	state.deps.Settings = service
+	state.attentionMuteMutator = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
 	state.deps.SettingsUpdate = settingsUpdateController{manager: updateManager}
 	return nil

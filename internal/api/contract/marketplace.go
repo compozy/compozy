@@ -36,6 +36,7 @@ type MarketplaceListingPayload struct {
 	Source           string                       `json:"source"`
 	Transport        string                       `json:"transport,omitempty"`
 	Tier             string                       `json:"tier,omitempty"`
+	Format           string                       `json:"format,omitempty"`
 	PublishedAt      *time.Time                   `json:"published_at,omitempty"`
 	UpdatedAt        *time.Time                   `json:"updated_at,omitempty"`
 	Installed        bool                         `json:"installed"`

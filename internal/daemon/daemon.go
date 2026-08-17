@@ -148,7 +148,7 @@ type networkBindableSessionManager interface {
 		message string,
 		meta ...acp.PromptNetworkMeta,
 	) (<-chan acp.AgentEvent, error)
-	CancelPrompt(ctx context.Context, sessionID string) error
+	CancelPrompt(ctx context.Context, sessionID string) (session.PromptCancelResult, error)
 	IsPrompting(sessionID string) bool
 	SetNetworkPeerLifecycle(session.NetworkPeerLifecycle)
 	SetTurnEndNotifier(session.TurnEndNotifier)
@@ -212,6 +212,7 @@ type extensionDevRuntime interface {
 
 type extensionManagerDeps struct {
 	Registry               *extensionpkg.Registry
+	HomePaths              compozyconfig.HomePaths
 	Extensions             compozyconfig.ExtensionsConfig
 	Sessions               SessionManager
 	Clarify                toolspkg.ClarifyBroker

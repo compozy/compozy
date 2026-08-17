@@ -399,6 +399,10 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.PATCH("/network", privileged, handlers.UpdateSettingsNetwork)
 	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
 	settings.PATCH("/window-manager", privileged, handlers.UpdateSettingsWindowManager)
+	settings.GET("/attention", handlers.GetSettingsAttention)
+	settings.PATCH("/attention", privileged, handlers.UpdateSettingsAttention)
+	settings.GET("/shell", handlers.GetSettingsShell)
+	settings.PATCH("/shell", privileged, handlers.UpdateSettingsShell)
 
 	observability := settings.Group("/observability")
 	observability.GET("", handlers.GetSettingsObservability)

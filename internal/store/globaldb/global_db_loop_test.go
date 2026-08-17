@@ -1798,6 +1798,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		onExceeded := dsl.BudgetExceededEscalate
 		workerModel := "stored-worker"
 		judgeModel := "stored-judge"
+		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
 
 		err := globalDB.UpsertLoopConfig(ctx, "ws-1", "delivery", looppkg.LoopConfig{
 			HumanGateEnabled:  &humanGate,
@@ -1814,6 +1815,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 				Worker: looppkg.RuntimeSpec{Model: workerModel},
 				Judge:  looppkg.RuntimeSpec{Model: judgeModel},
 			},
+			Environment: &environment,
 		})
 		if err != nil {
 			t.Fatalf("UpsertLoopConfig() error = %v", err)
@@ -1843,6 +1845,9 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		}
 		if got.RuntimeDefaults.Judge.Model != "stored-judge" {
 			t.Fatalf("RuntimeDefaults.Judge.Model = %#v, want stored-judge", got.RuntimeDefaults.Judge)
+		}
+		if got.Environment == nil || got.Environment.Mode != dsl.EnvironmentPerRun {
+			t.Fatalf("Environment = %#v, want per_run", got.Environment)
 		}
 		_, err = globalDB.GetLoopConfig(ctx, "ws-2", "delivery")
 		if !errors.Is(err, looppkg.ErrConfigNotFound) {

@@ -3,7 +3,13 @@ import type { UIMessage as AIUIMessage } from "ai";
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type SessionsResponse = OperationResponse<"listSessions", 200>;
-export type SessionCatalogEventPayload = OperationResponse<"streamSessionCatalog", 200>;
+type SessionCatalogStreamPayload = OperationResponse<"streamSessionCatalog", 200>;
+export type SessionCatalogEventPayload = Extract<SessionCatalogStreamPayload, { kind: string }>;
+export type SessionAttentionEventPayload = Extract<SessionCatalogStreamPayload, { from: string }>;
+export type OperatorNotificationEventPayload = Extract<
+  SessionCatalogStreamPayload,
+  { notification_id: string }
+>;
 export type SessionsQuery = OperationQuery<"listSessions">;
 export type SessionListFilters = Omit<SessionsQuery, "cursor">;
 export type SessionPayload = SessionsResponse["sessions"][number];
@@ -44,6 +50,12 @@ export type SessionStreamResponse = OperationResponse<"streamSession", 200>;
 export type TranscriptSnapshotPayload = NonNullable<SessionStreamResponse["transcript_snapshot"]>;
 export type TranscriptDeltaPayload = NonNullable<SessionStreamResponse["transcript_delta"]>;
 export type SessionBadge = SessionPayload["badge"];
+/** Sanitized pending question / permission projection embedded on session payloads. */
+export type SessionPendingInteraction = SessionPayload["pending_interactions"][number];
+/** Exact cross-workspace attention counts — the only count source for badge and title. */
+export type SessionAttentionSummary = OperationResponse<"getSessionAttentionSummary", 200>;
+export type SessionPresenceRequest = OperationRequestBody<"updateSessionPresence">;
+export type SessionPresenceLease = OperationResponse<"updateSessionPresence", 200>;
 export type SessionAttachResponse = OperationResponse<"attachSession", 200>;
 export type SessionRecapResponse = OperationResponse<"getSessionRecap", 200>;
 export type SessionRecapPayload = SessionRecapResponse["recap"];

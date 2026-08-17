@@ -151,6 +151,7 @@ func loopConfigFromGenerated(row sqlcgen.GetLoopConfigRow) (looppkg.LoopConfig, 
 		budgetOnExceeded: row.BudgetOnExceeded, noProgressWindow: row.NoProgressWindow,
 		fanOutWidth: row.FanOutWidth, gateMaxRevisions: row.GateMaxRevisions,
 		runtimeDefaultsJSON: row.RuntimeDefaultsJson, runtimeRulesJSON: row.RuntimeRulesJson,
+		environmentJSON: row.EnvironmentJson,
 	}.toConfig()
 }
 
@@ -174,6 +175,8 @@ func loopConfigPatchParams(
 		RuntimeDefaultsJson:  insert.RuntimeDefaultsJson,
 		PatchRuntimeRules:    loopPatchStringFlag(patch.RuntimeRules),
 		RuntimeRulesJson:     insert.RuntimeRulesJson,
+		PatchEnvironment:     loopPatchStringFlag(patch.Environment),
+		EnvironmentJson:      insert.EnvironmentJson,
 		WorkspaceID:          insert.WorkspaceID, LoopName: insert.LoopName,
 	}
 }

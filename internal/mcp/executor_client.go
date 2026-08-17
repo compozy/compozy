@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,9 +50,13 @@ func (e *CallExecutor) openClient(
 		}
 		return &managedMCPClient{session: session, cleanup: launch.cleanup}, nil
 	case compozyconfig.MCPServerTransportHTTP:
+		httpClient, err := e.httpClientWithAuthorization(ctx, resolved, authorizationHeader)
+		if err != nil {
+			return nil, err
+		}
 		session, err := e.connectClient(ctx, &mcpsdk.StreamableClientTransport{
 			Endpoint:             strings.TrimSpace(server.URL),
-			HTTPClient:           e.httpClientWithAuthorization(resolved, authorizationHeader),
+			HTTPClient:           httpClient,
 			DisableStandaloneSSE: true,
 			MaxRetries:           -1,
 		})
@@ -116,21 +121,78 @@ func joinMCPClientCleanup(err error, client *managedMCPClient) error {
 }
 
 func (e *CallExecutor) httpClientWithAuthorization(
+	ctx context.Context,
 	resolved ResolvedServer,
 	authorizationHeader string,
-) *http.Client {
+) (*http.Client, error) {
 	client := e.httpClientForServer(resolved)
-	if resolved.Server.Auth.Enabled() {
-		client.CheckRedirect = func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-	}
 	transport := client.Transport
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	client.Transport = authorizationRoundTripper{next: transport, header: authorizationHeader}
-	return client
+	headers, err := e.resolveMCPRequestHeaders(ctx, resolved.Server)
+	if err != nil {
+		return nil, err
+	}
+	configureMCPRedirectPolicy(client, resolved.Server.Auth.Enabled(), authorizationHeader != "" || len(headers) > 0)
+	client.Transport = authorizationRoundTripper{
+		next: transport, header: authorizationHeader, headers: headers,
+	}
+	return client, nil
+}
+
+func configureMCPRedirectPolicy(client *http.Client, authEnabled bool, carriesCredentials bool) {
+	previous := client.CheckRedirect
+	client.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+		if authEnabled {
+			return http.ErrUseLastResponse
+		}
+		if carriesCredentials && len(via) > 0 && !sameHTTPOrigin(via[0].URL, request.URL) {
+			return http.ErrUseLastResponse
+		}
+		if previous != nil {
+			return previous(request, via)
+		}
+		if len(via) >= 10 {
+			return errors.New("mcp: stopped after 10 redirects")
+		}
+		return nil
+	}
+}
+
+func sameHTTPOrigin(left *url.URL, right *url.URL) bool {
+	if left == nil || right == nil {
+		return false
+	}
+	return strings.EqualFold(left.Scheme, right.Scheme) && strings.EqualFold(left.Host, right.Host)
+}
+
+func (e *CallExecutor) resolveMCPRequestHeaders(
+	ctx context.Context,
+	server compozyconfig.MCPServer,
+) (http.Header, error) {
+	headers := make(http.Header, len(server.Headers)+len(server.SecretHeaders))
+	for name, value := range server.Headers {
+		headers.Set(name, value)
+	}
+	names := make([]string, 0, len(server.SecretHeaders))
+	for name := range server.SecretHeaders {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		value, err := e.resolveSecretRef(ctx, server.SecretHeaders[name])
+		if err != nil {
+			return nil, fmt.Errorf(
+				"mcp: resolve secret header %s for server %q: %w",
+				name,
+				server.Name,
+				err,
+			)
+		}
+		headers.Set(name, value)
+	}
+	return headers, nil
 }
 
 func (e *CallExecutor) httpClientForServer(resolved ResolvedServer) *http.Client {
@@ -141,12 +203,19 @@ func (e *CallExecutor) httpClientForServer(resolved ResolvedServer) *http.Client
 }
 
 type authorizationRoundTripper struct {
-	next   http.RoundTripper
-	header string
+	next    http.RoundTripper
+	header  string
+	headers http.Header
 }
 
 func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	cloned := request.Clone(request.Context())
+	for name, values := range t.headers {
+		cloned.Header.Del(name)
+		for _, value := range values {
+			cloned.Header.Add(name, value)
+		}
+	}
 	if t.header != "" {
 		cloned.Header.Set("Authorization", t.header)
 	}
@@ -251,6 +320,9 @@ func (e *CallExecutor) newMCPStdioLaunch(
 	server compozyconfig.MCPServer,
 	target mcpauth.Target,
 ) (mcpStdioLaunch, error) {
+	if err := e.prepareMCPDataDir(server); err != nil {
+		return mcpStdioLaunch{}, err
+	}
 	env, err := e.mcpServerEnv(ctx, server)
 	if err != nil {
 		return mcpStdioLaunch{}, err
@@ -270,6 +342,7 @@ func (e *CallExecutor) newMCPStdioLaunch(
 		"UV_CACHE_DIR="+filepath.Join(home, "uv-cache"),
 	)
 	command := mcpStdioCommandWithExactEnv(ctx, strings.TrimSpace(server.Command), env, trimStrings(server.Args))
+	command.Dir = strings.TrimSpace(server.CWD)
 	return mcpStdioLaunch{command: command, cleanup: cleanup}, nil
 }
 

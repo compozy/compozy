@@ -29,6 +29,7 @@ type AgentFixture struct {
 	Model           string                       `json:"model,omitempty"`
 	ReasoningEffort string                       `json:"reasoning_effort,omitempty"`
 	Permissions     string                       `json:"permissions,omitempty"`
+	Tools           []string                     `json:"tools,omitempty"`
 	Prompt          string                       `json:"prompt,omitempty"`
 	LoadSession     *bool                        `json:"load_session,omitempty"`
 	ConfigOptions   []SessionConfigOptionFixture `json:"config_options,omitempty"`

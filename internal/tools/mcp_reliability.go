@@ -67,7 +67,9 @@ func (p *MCPProvider) listSourceDescriptors(ctx context.Context, source SourceRe
 
 	discovered, err := p.exec.ListTools(ctx, source)
 	if err != nil {
-		if contextError := contextErrFromError("", err); contextError != nil {
+		// Abort aggregate discovery only when its caller stopped. A timeout or cancellation
+		// from one executor is a source failure and must not hide healthy MCP servers.
+		if contextError := contextErrFromError("", ctx.Err()); contextError != nil {
 			return nil, contextError
 		}
 		if tracked && p.reliability != nil {

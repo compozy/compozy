@@ -74,6 +74,10 @@ func cliExitCodeForError(err error) int {
 	}](err); ok {
 		return apiErr.cliExitCode()
 	}
+	if item, ok := diagnosticspkg.ItemFromError(err); ok &&
+		strings.HasPrefix(strings.TrimSpace(item.Code), extensionAgentPluginDiagnosticPrefix) {
+		return 1
+	}
 	code := agentidentity.ExitCodeForError(err)
 	if code == agentidentity.ExitUnavailable {
 		if _, ok := diagnosticspkg.ItemFromError(err); ok {

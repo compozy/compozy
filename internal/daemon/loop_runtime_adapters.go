@@ -25,7 +25,7 @@ type loopPromptSessionManager interface {
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
 	Status(ctx context.Context, id string) (*session.Info, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
-	CancelPrompt(ctx context.Context, id string) error
+	CancelPrompt(ctx context.Context, id string) (session.PromptCancelResult, error)
 }
 
 type loopJudgeSessionManager interface {
@@ -35,7 +35,7 @@ type loopJudgeSessionManager interface {
 }
 
 type loopCancellationSessionManager interface {
-	CancelPrompt(context.Context, string) error
+	CancelPrompt(context.Context, string) (session.PromptCancelResult, error)
 	StopWithCause(context.Context, string, session.StopCause, string) error
 }
 
@@ -46,7 +46,7 @@ type loopCancellationSessionController struct {
 var _ looppkg.CancellationSessionController = loopCancellationSessionController{}
 
 func (c loopCancellationSessionController) CancelLoopSession(ctx context.Context, id, _ string) error {
-	err := c.sessions.CancelPrompt(ctx, id)
+	_, err := c.sessions.CancelPrompt(ctx, id)
 	if errors.Is(err, session.ErrSessionNotFound) {
 		return nil
 	}

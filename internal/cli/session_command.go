@@ -10,6 +10,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 
 	cmd.AddCommand(newSessionCreateCommand(deps))
 	cmd.AddCommand(newSessionListCommand(deps))
+	cmd.AddCommand(newSessionInteractionsCommand(deps))
 	cmd.AddCommand(newSessionStopCommand(deps))
 	cmd.AddCommand(newSessionRenameCommand(deps))
 	cmd.AddCommand(newSessionArchiveCommand(deps))
@@ -28,6 +29,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionApproveCommand(deps))
 	cmd.AddCommand(newSessionClarifyCommand(deps))
 	cmd.AddCommand(newSessionWaitCommand(deps))
+	cmd.AddCommand(newSessionPromptCancelCommand(deps))
 	cmd.AddCommand(newSessionPromptCommand(deps))
 	cmd.AddCommand(newSessionInputCommand(deps))
 	cmd.AddCommand(newSessionAttachmentsCommand(deps))

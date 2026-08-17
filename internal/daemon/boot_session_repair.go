@@ -42,6 +42,9 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		state.logger.Warn("daemon: boot session repair skipped session list", "error", err)
 		return nil
 	}
+	if err := recoverBootPendingInteractions(ctx, state, infos); err != nil {
+		return err
+	}
 
 	for _, info := range infos {
 		if err := ctx.Err(); err != nil {
@@ -82,29 +85,71 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 			"error_issues", errorIssues,
 		)
 	}
-	if recoverer, ok := state.sessions.(sessionHealthRecoverer); ok {
-		result, recoveryErr := recoverer.RecoverSessionHealth(ctx)
-		if recoveryErr != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return fmt.Errorf("daemon: session health recovery canceled: %w", ctxErr)
-			}
-			state.logger.Warn("daemon: session health recovery failed", "error", recoveryErr)
-			return nil
+	return recoverBootSessionHealth(ctx, state)
+}
+
+func recoverBootPendingInteractions(ctx context.Context, state *bootState, infos []*session.Info) error {
+	recoverer, ok := state.sessions.(sessionPendingInteractionRecoverer)
+	if !ok {
+		return nil
+	}
+	for _, info := range infos {
+		if info == nil || strings.TrimSpace(info.ID) == "" || info.State == session.StateActive {
+			continue
 		}
-		if result.RefreshedActive > 0 || result.Recomputed > 0 || result.MarkedStale > 0 {
+		recovered, err := recoverer.RecoverPendingInteractions(ctx, info.ID)
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return fmt.Errorf("daemon: pending interaction recovery canceled: %w", ctxErr)
+			}
+			state.logger.Warn(
+				"daemon: pending interaction recovery failed",
+				"session_id", info.ID,
+				"error", err,
+			)
+			continue
+		}
+		if recovered > 0 {
 			state.logger.Info(
-				"daemon: session health recovery complete",
-				"refreshed_active", result.RefreshedActive,
-				"recomputed", result.Recomputed,
-				"marked_stale", result.MarkedStale,
+				"daemon: pending interaction recovery complete",
+				"session_id", info.ID,
+				"orphaned", recovered,
 			)
 		}
 	}
 	return nil
 }
 
+func recoverBootSessionHealth(ctx context.Context, state *bootState) error {
+	recoverer, ok := state.sessions.(sessionHealthRecoverer)
+	if !ok {
+		return nil
+	}
+	result, err := recoverer.RecoverSessionHealth(ctx)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("daemon: session health recovery canceled: %w", ctxErr)
+		}
+		state.logger.Warn("daemon: session health recovery failed", "error", err)
+		return nil
+	}
+	if result.RefreshedActive > 0 || result.Recomputed > 0 || result.MarkedStale > 0 {
+		state.logger.Info(
+			"daemon: session health recovery complete",
+			"refreshed_active", result.RefreshedActive,
+			"recomputed", result.Recomputed,
+			"marked_stale", result.MarkedStale,
+		)
+	}
+	return nil
+}
+
 type sessionHealthRecoverer interface {
 	RecoverSessionHealth(ctx context.Context) (session.HealthRecoveryResult, error)
+}
+
+type sessionPendingInteractionRecoverer interface {
+	RecoverPendingInteractions(ctx context.Context, sessionID string) (int, error)
 }
 
 func bootShouldRepairSession(info *session.Info) bool {

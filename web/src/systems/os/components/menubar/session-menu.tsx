@@ -13,6 +13,7 @@ export interface SessionMenuProps {
   onNewSession: () => void;
   onNewAgent: () => void;
   onOpenSessions: () => void;
+  newSessionShortcutLabel?: string;
 }
 
 /** Session menu: create work, or reach the global sessions catalog. */
@@ -22,6 +23,7 @@ export function SessionMenu({
   onNewSession,
   onNewAgent,
   onOpenSessions,
+  newSessionShortcutLabel,
 }: SessionMenuProps) {
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
@@ -29,7 +31,9 @@ export function SessionMenu({
       <MenubarContent align="start" data-testid="os-menu-session">
         <MenubarItem data-testid="os-menu-new-session" onClick={onNewSession}>
           New session
-          <MenubarShortcut>⌘N</MenubarShortcut>
+          {newSessionShortcutLabel ? (
+            <MenubarShortcut>{newSessionShortcutLabel}</MenubarShortcut>
+          ) : null}
         </MenubarItem>
         <MenubarItem data-testid="os-menu-new-agent" onClick={onNewAgent}>
           New agent…

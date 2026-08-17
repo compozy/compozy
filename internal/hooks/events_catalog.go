@@ -7,6 +7,7 @@ var allHookEvents, hookEventSpecs = buildHookEventCatalog()
 func buildHookEventCatalog() ([]HookEvent, map[HookEvent]hookEventDefinition) {
 	definitions := make([]hookEventDefinition, 0, len(baseHookEventDefinitions)+32)
 	definitions = append(definitions, baseHookEventDefinitions...)
+	definitions = append(definitions, sessionAttentionHookEventDefinitions()...)
 	definitions = append(definitions, networkHookEventDefinitions()...)
 	definitions = append(definitions, windowManagerHookEventDefinitions()...)
 	definitions = append(definitions, worktreeHookEventDefinitions()...)

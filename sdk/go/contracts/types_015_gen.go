@@ -2,10 +2,34 @@
 
 package contracts
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+type NetworkThreadMessagesResponse struct {
+	Messages []NetworkConversationMessagePayload `json:"messages"`
+	Page     CursorPagePayload                   `json:"page"`
+}
+
+type NetworkThreadOpenedPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
+}
 
 type NetworkThreadSummaryPayload struct {
 	WorkspaceID        string                          `json:"workspace_id,omitempty"`
@@ -227,32 +251,4 @@ type ParticipationStatus struct {
 type PayloadBase struct {
 	Event     HookEvent `json:"event"`
 	Timestamp time.Time `json:"timestamp"`
-}
-
-type PermissionDeniedPatch struct{}
-
-type PermissionDeniedPayload struct {
-	Event          HookEvent          `json:"event"`
-	Timestamp      time.Time          `json:"timestamp"`
-	SessionID      string             `json:"session_id,omitempty"`
-	SessionName    string             `json:"session_name,omitempty"`
-	SessionType    string             `json:"session_type,omitempty"`
-	AgentName      string             `json:"agent_name,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	WorktreeID     string             `json:"worktree_id,omitempty"`
-	ACPSessionID   string             `json:"acp_session_id,omitempty"`
-	State          string             `json:"state,omitempty"`
-	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string             `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	TurnID         string             `json:"turn_id,omitempty"`
-	RequestID      string             `json:"request_id,omitempty"`
-	Action         string             `json:"action,omitempty"`
-	Resource       string             `json:"resource,omitempty"`
-	Decision       string             `json:"decision,omitempty"`
-	DecisionClass  string             `json:"decision_class,omitempty"`
-	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
-	ToolCall       PermissionToolCall `json:"tool_call"`
 }

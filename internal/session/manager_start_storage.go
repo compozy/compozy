@@ -98,6 +98,12 @@ func (m *Manager) normalizeCreateLineage(
 	if err := validateCreateLineageParentType(normalizedType, hasParent, systemProvenance); err != nil {
 		return nil, err
 	}
+	if normalizedType == SessionTypeSpawned {
+		normalized, err = m.prepareSpawnedLineageReferences(ctx, normalized)
+		if err != nil {
+			return nil, fmt.Errorf("session: validate lineage references for %q: %w", sessionID, err)
+		}
+	}
 
 	requiresTTL := normalizedType == SessionTypeSpawned || normalizedType == SessionTypeCoordinator
 	if requiresTTL && normalized.TTLExpiresAt == nil {
@@ -116,7 +122,7 @@ func (m *Manager) normalizeCreateLineage(
 			normalized.SpawnBudget.TTLSeconds = ttlSeconds
 		}
 	}
-	if !systemProvenance {
+	if !systemProvenance && normalizedType != SessionTypeSpawned {
 		if err := m.validateCreateLineageReferences(ctx, normalized); err != nil {
 			return nil, fmt.Errorf("session: validate lineage references for %q: %w", sessionID, err)
 		}

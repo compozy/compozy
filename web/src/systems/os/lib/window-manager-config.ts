@@ -1,4 +1,5 @@
 import type { WindowManagerConfig, WindowManagerWorkspaceConfig } from "./window-manager-types";
+import { effectiveShortcutMap } from "./window-manager-shortcuts";
 
 /** Deterministic global + workspace merge mirroring the daemon's effective config. */
 export function effectiveWindowManagerConfig(
@@ -25,9 +26,10 @@ export function effectiveWindowManagerConfig(
       repeatRatios: [...(workspace.snap?.repeatRatios ?? global.snap.repeatRatios)],
     },
     bindings: { ...(workspace.bindings ?? global.bindings) },
-    shortcuts: {
-      ...global.shortcuts,
-      ...workspace.shortcuts,
-    },
+    shortcuts: { ...global.shortcuts, ...workspace.shortcuts },
+    shortcutDefaults: global.shortcutDefaults,
+    effectiveShortcuts: workspace.shortcuts
+      ? effectiveShortcutMap(global.effectiveShortcuts, workspace.shortcuts)
+      : global.effectiveShortcuts,
   };
 }

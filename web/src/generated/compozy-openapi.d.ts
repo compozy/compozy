@@ -123,6 +123,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent/notify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Notify live operator clients from the calling agent */
+    post: operations["notifyOperator"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent/soul": {
     parameters: {
       query?: never;
@@ -2825,6 +2842,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/attention-summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get exact session attention counts */
+    get: operations["getSessionAttentionSummary"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/catalog-stream": {
     parameters: {
       query?: never;
@@ -2925,6 +2959,24 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  "/api/settings/attention": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the operator attention settings section */
+    get: operations["getSettingsAttention"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the operator attention settings section */
+    patch: operations["updateSettingsAttention"];
     trace?: never;
   };
   "/api/settings/automation": {
@@ -3312,6 +3364,24 @@ export interface paths {
     options?: never;
     head?: never;
     patch?: never;
+    trace?: never;
+  };
+  "/api/settings/shell": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the operator shell settings section */
+    get: operations["getSettingsShell"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the operator shell settings section */
+    patch: operations["updateSettingsShell"];
     trace?: never;
   };
   "/api/settings/skills": {
@@ -5692,6 +5762,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pending session interactions */
+    get: operations["listSessionInteractions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/presence": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Update operator session presence */
+    post: operations["updateSessionPresence"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt": {
     parameters: {
       query?: never;
@@ -5703,6 +5807,23 @@ export interface paths {
     put?: never;
     /** Send, queue, interrupt, or steer a session prompt */
     post: operations["sendSessionPrompt"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel the active session prompt */
+    post: operations["cancelSessionPrompt"];
     delete?: never;
     options?: never;
     head?: never;
@@ -5994,6 +6115,23 @@ export interface paths {
     get: operations["getSessionUsage"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/wait": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Wait for a session state */
+    post: operations["waitForSession"];
     delete?: never;
     options?: never;
     head?: never;
@@ -6413,18 +6551,20 @@ export interface components {
       version: string;
     };
     ExtensionValidatePayload: {
-      consent_areas: {
+      consent_areas?: {
         access: string;
         area: string;
       }[];
+      format: string;
       issues: {
         column?: number;
         field?: string;
         line?: number;
         message: string;
         path: string;
+        scope?: string;
         /** @enum {string} */
-        severity: "error" | "warning";
+        severity: "error" | "warning" | "warn";
       }[];
       manifest?: {
         description?: string;
@@ -6434,9 +6574,17 @@ export interface components {
         provides: string[];
         version: string;
       } | null;
+      name?: string;
+      status: string;
+      version?: string;
+      would_ingest?: {
+        kind: string;
+        name: string;
+        transport?: string;
+      }[];
     };
     /** @enum {string} */
-    IssueSeverity: "error" | "warning";
+    IssueSeverity: "error" | "warning" | "warn";
     LoopGraph: {
       edges: ({
         from: string;
@@ -6702,8 +6850,9 @@ export interface components {
       line?: number;
       message: string;
       path: string;
+      scope?: string;
       /** @enum {string} */
-      severity: "error" | "warning";
+      severity: "error" | "warning" | "warn";
     };
     WindowManagerArrangeLayoutPayload: {
       /** @enum {string} */
@@ -7542,7 +7691,7 @@ export interface components {
         new_window_policy?: string | null;
         raise_on_focus?: boolean | null;
         shortcuts?: {
-          [key: string]: string;
+          [key: string]: string[] | string;
         };
         small_viewport_policy?: string | null;
         snap?: {
@@ -7751,7 +7900,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string;
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -7922,7 +8071,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string;
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8199,7 +8348,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string;
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8380,7 +8529,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string;
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8584,7 +8733,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string;
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8758,7 +8907,7 @@ export interface components {
         new_window_policy?: string | null;
         raise_on_focus?: boolean | null;
         shortcuts?: {
-          [key: string]: string;
+          [key: string]: string[] | string;
         };
         small_viewport_policy?: string | null;
         snap?: {
@@ -8943,7 +9092,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string;
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -10151,6 +10300,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -11482,6 +11632,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -11628,6 +11779,188 @@ export interface operations {
       };
       /** @description Caller session not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  notifyOperator: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          body?: string;
+          title: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Notification outcome */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            outcome: string;
+            /** Format: int64 */
+            retry_after_ms?: number;
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid notification */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -12230,6 +12563,7 @@ export interface operations {
           idempotency_key?: string;
           model?: string;
           name?: string;
+          notify_creator?: boolean | null;
           permissions: {
             mcp_servers: string[];
             network_channels: string[];
@@ -12260,6 +12594,7 @@ export interface operations {
             spawn: {
               lineage: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -12322,6 +12657,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -12368,6 +12705,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -12391,6 +12729,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -30332,6 +30686,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -30341,6 +30696,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -30583,6 +30939,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -30592,6 +30949,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -30782,33 +31140,83 @@ export interface operations {
           };
         };
       };
-      /** @description Extension trust decision required */
+      /** @description Extension trust decision or package validation failure */
       422: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+          "application/json":
+            | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                agents?: string[];
+                code: string;
+                current_digest?: string;
+                declared_env?: string[];
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                env_name?: string;
+                error: string;
+              }
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+                issues: {
+                  column?: number;
+                  field?: string;
+                  line?: number;
+                  message: string;
+                  path: string;
+                  scope?: string;
+                  /** @enum {string} */
+                  severity: "error" | "warning" | "warn";
+                }[];
               };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
         };
       };
       /** @description Internal server error */
@@ -31035,6 +31443,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -31044,6 +31453,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -31310,6 +31720,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -31319,6 +31730,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -31838,8 +32250,10 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
+              data_path?: string;
               name: string;
               path: string;
+              quarantine_path?: string;
               status: string;
               warnings?: {
                 category: string;
@@ -32048,6 +32462,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -32057,6 +32472,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -32357,6 +32773,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -32366,6 +32783,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -32665,8 +33083,23 @@ export interface operations {
         };
         content: {
           "application/json": {
+            diagnostics?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            }[];
             enabled: boolean;
             extension: string;
+            format: string;
             items: {
               id: string;
               kind: string;
@@ -33203,6 +33636,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -33212,6 +33646,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -33487,6 +33922,8 @@ export interface operations {
           "application/json": {
             bindings: {
               env_name: string;
+              header_name?: string;
+              mcp_server?: string;
               stale: boolean;
             }[];
             bound_env_keys: string[];
@@ -33571,12 +34008,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          secrets: {
-            [key: string]: {
-              value?: string | null;
-              vault_ref?: string | null;
-            };
-          };
+          bindings: {
+            env_name: string;
+            header_name?: string;
+            mcp_server?: string;
+            value?: string | null;
+            vault_ref?: string | null;
+          }[];
         };
       };
     };
@@ -33590,6 +34028,8 @@ export interface operations {
           "application/json": {
             bindings: {
               env_name: string;
+              header_name?: string;
+              mcp_server?: string;
               stale: boolean;
             }[];
             bound_env_keys: string[];
@@ -35993,6 +36433,7 @@ export interface operations {
           | "spawn.parent_stopped"
           | "spawn.ttl_expired"
           | "spawn.reaped"
+          | "session.attention.changed"
           | "network.thread.opened"
           | "network.direct_room.opened"
           | "network.message.persisted"
@@ -36751,6 +37192,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -36925,6 +37367,7 @@ export interface operations {
               description: string;
               downloads?: number | null;
               entry_id: string;
+              format?: string;
               install_slug?: string;
               installed: boolean;
               installed_name?: string;
@@ -37122,6 +37565,7 @@ export interface operations {
               description: string;
               downloads?: number | null;
               entry_id: string;
+              format?: string;
               install_slug?: string;
               installed: boolean;
               installed_name?: string;
@@ -41632,6 +42076,8 @@ export interface operations {
                 | "automation"
                 | "network"
                 | "window-manager"
+                | "attention"
+                | "shell"
                 | "observability"
                 | "hooks-extensions"
                 | "providers"
@@ -50504,10 +50950,14 @@ export interface operations {
         q?: string;
         /** @description Only list sessions eligible for explicit attach */
         resumable?: boolean;
+        /** @description Only list sessions in the needs-you attention class */
+        attention?: boolean;
+        /** @description Filter by comma-separated exact session badges */
+        badge?: string;
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
-        sort?: "recent" | "last_activity";
+        sort?: "recent" | "last_activity" | "attention";
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
         /** @description Sessions per page (1-100) */
@@ -50564,6 +51014,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -50610,6 +51062,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -50633,6 +51086,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -51056,6 +51525,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -51102,6 +51573,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -51125,6 +51597,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -51425,6 +51913,121 @@ export interface operations {
       };
     };
   };
+  getSessionAttentionSummary: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            by_workspace: {
+              finished: number;
+              needs_you: number;
+              workspace_id: string;
+            }[];
+            finished: number;
+            needs_you: number;
+          };
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session attention is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   streamSessionCatalog: {
     parameters: {
       query?: never;
@@ -51440,11 +52043,30 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "text/event-stream": {
-            kind: string;
-            session_id: string;
-            workspace_id: string;
-          };
+          "text/event-stream":
+            | {
+                kind: string;
+                session_id: string;
+                workspace_id: string;
+              }
+            | {
+                /** Format: date-time */
+                at: string;
+                class: string;
+                from: string;
+                session_id: string;
+                to: string;
+                workspace_id: string;
+              }
+            | {
+                /** Format: date-time */
+                at: string;
+                body: string;
+                notification_id: string;
+                session_id: string;
+                title: string;
+                workspace_id: string;
+              };
         };
       };
       /** @description Internal server error */
@@ -51561,6 +52183,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -51607,6 +52231,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -51630,6 +52255,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -52242,6 +52883,292 @@ export interface operations {
       };
     };
   };
+  getSettingsAttention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: "global"[];
+            config: {
+              muted_workspaces: string[];
+              sound: boolean;
+              system: boolean;
+              toasts: boolean;
+            };
+            /** @enum {string} */
+            scope: "global";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSettingsAttention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            muted_workspaces: string[];
+            sound: boolean;
+            system: boolean;
+            toasts: boolean;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
+            applied: boolean;
+            apply_record_id: string;
+            /** @enum {string} */
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope?: "global" | "workspace" | "agent";
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
+            skipped?: boolean;
+            skipped_reason?: string;
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getSettingsAutomation: {
     parameters: {
       query?: never;
@@ -52296,6 +53223,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -52408,6 +53337,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -52637,6 +53568,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -52771,6 +53704,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -53015,6 +53950,7 @@ export interface operations {
                   | "spawn.parent_stopped"
                   | "spawn.ttl_expired"
                   | "spawn.reaped"
+                  | "session.attention.changed"
                   | "network.thread.opened"
                   | "network.direct_room.opened"
                   | "network.message.persisted"
@@ -53312,6 +54248,7 @@ export interface operations {
                   | "spawn.parent_stopped"
                   | "spawn.ttl_expired"
                   | "spawn.reaped"
+                  | "session.attention.changed"
                   | "network.thread.opened"
                   | "network.direct_room.opened"
                   | "network.message.persisted"
@@ -53460,6 +54397,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
             transport_parity: {
@@ -53602,6 +54541,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -53840,6 +54781,7 @@ export interface operations {
               | "spawn.parent_stopped"
               | "spawn.ttl_expired"
               | "spawn.reaped"
+              | "session.attention.changed"
               | "network.thread.opened"
               | "network.direct_room.opened"
               | "network.message.persisted"
@@ -53980,6 +54922,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -54183,6 +55127,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -54585,6 +55531,8 @@ export interface operations {
                 | "automation"
                 | "network"
                 | "window-manager"
+                | "attention"
+                | "shell"
                 | "observability"
                 | "hooks-extensions"
                 | "providers"
@@ -55025,6 +55973,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -55264,6 +56214,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -56363,6 +57315,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -56587,6 +57541,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -56800,6 +57756,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -56932,6 +57890,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -57129,6 +58089,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -57244,6 +58206,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -58227,6 +59191,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -58430,6 +59396,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -58601,6 +59569,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -58819,6 +59789,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -59002,6 +59974,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -59520,6 +60494,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -59723,6 +60699,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -59775,6 +60753,296 @@ export interface operations {
       };
       /** @description Sandbox not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSettingsShell: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: "global"[];
+            config: {
+              sessions: {
+                /** @enum {string} */
+                scope: "workspace" | "all-workspaces";
+                /** @enum {string} */
+                sort: "last_activity" | "attention";
+              };
+            };
+            /** @enum {string} */
+            scope: "global";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions";
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSettingsShell: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          config: {
+            sessions: {
+              /** @enum {string} */
+              scope: "workspace" | "all-workspaces";
+              /** @enum {string} */
+              sort: "last_activity" | "attention";
+            };
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
+            applied: boolean;
+            apply_record_id: string;
+            /** @enum {string} */
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope?: "global" | "workspace" | "agent";
+            /** @enum {string} */
+            section?:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions"
+              | "providers"
+              | "mcp-servers"
+              | "sandboxes"
+              | "hooks";
+            skipped?: boolean;
+            skipped_reason?: string;
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -59923,6 +61191,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
             workspace_id?: string;
@@ -60132,6 +61402,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -60469,7 +61741,7 @@ export interface operations {
               new_window_policy: "floating" | "beside_focus";
               raise_on_focus: boolean;
               shortcuts: {
-                [key: string]: string;
+                [key: string]: string[] | string;
               };
               /** @enum {string} */
               small_viewport_policy: "stack" | "reject";
@@ -60482,6 +61754,12 @@ export interface operations {
               /** @enum {string} */
               swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
             };
+            defaults: {
+              [key: string]: string[] | string;
+            };
+            effective: {
+              [key: string]: string[] | string;
+            };
             /** @enum {string} */
             scope: "global";
             /** @enum {string} */
@@ -60493,6 +61771,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions";
           };
@@ -60571,7 +61851,7 @@ export interface operations {
             new_window_policy: "floating" | "beside_focus";
             raise_on_focus: boolean;
             shortcuts: {
-              [key: string]: string;
+              [key: string]: string[] | string;
             };
             /** @enum {string} */
             small_viewport_policy: "stack" | "reject";
@@ -60640,6 +61920,8 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "attention"
+              | "shell"
               | "observability"
               | "hooks-extensions"
               | "providers"
@@ -89191,6 +90473,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -89237,6 +90521,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -89260,6 +90545,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -91090,6 +92391,7 @@ export interface operations {
           | "spawn.parent_stopped"
           | "spawn.ttl_expired"
           | "spawn.reaped"
+          | "session.attention.changed"
           | "network.thread.opened"
           | "network.direct_room.opened"
           | "network.message.persisted"
@@ -104957,6 +106259,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -105003,6 +106307,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -105026,6 +106331,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -105400,6 +106721,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -105446,6 +106769,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -105469,6 +106793,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -105852,6 +107192,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -105898,6 +107240,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -105921,6 +107264,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -109237,6 +110596,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -109283,6 +110644,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -109306,6 +110668,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -109660,6 +111038,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -109706,6 +111086,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -109729,6 +111110,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -110030,7 +111427,11 @@ export interface operations {
         };
         content: {
           "application/json": {
-            status: string;
+            decision: string;
+            interaction_id?: string;
+            outcome: string;
+            request_id: string;
+            resolved_decision?: string;
           };
         };
       };
@@ -110176,6 +111577,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -110222,6 +111625,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -110245,6 +111649,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -110585,6 +112005,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -110631,6 +112053,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -110654,6 +112077,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -111762,6 +113201,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -111808,6 +113249,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -111831,6 +113273,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -113221,6 +114679,412 @@ export interface operations {
       };
     };
   };
+  listSessionInteractions: {
+    parameters: {
+      query?: {
+        /** @description Filter by interaction status */
+        status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            interactions: {
+              choices?: string[];
+              /** Format: date-time */
+              created_at: string;
+              decisions?: string[];
+              interaction_id: string;
+              kind: string;
+              provider_request_id: string;
+              resolution?: string;
+              /** Format: date-time */
+              resolved_at?: string | null;
+              resolved_by?: string;
+              status: string;
+              title?: string;
+              turn_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid interaction status */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session attention is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSessionPresence: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          lease_id?: string;
+          visible: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Presence lease acquired */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            lease_id: string;
+          };
+        };
+      };
+      /** @description Presence lease renewed or released */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid presence request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session or lease not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Presence lease ownership mismatch */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session attention is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   sendSessionPrompt: {
     parameters: {
       query?: never;
@@ -114299,6 +116163,93 @@ export interface operations {
       };
       /** @description New-work admission is unavailable while the daemon is draining */
       503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  cancelSessionPrompt: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Cancellation result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            outcome: string;
+            session_id: string;
+            turn_id?: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -115427,6 +117378,8 @@ export interface operations {
                 attach_expires_at?: string | null;
                 attachable: boolean;
                 attached_to?: string;
+                /** Format: date-time */
+                attention_changed_at?: string | null;
                 available_commands: {
                   description: string;
                   input?: {
@@ -115473,6 +117426,7 @@ export interface operations {
                 id: string;
                 lineage?: {
                   auto_stop_on_parent: boolean;
+                  notify_creator: boolean;
                   parent_session_id?: string;
                   permission_policy: {
                     mcp_servers: string[];
@@ -115496,6 +117450,22 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                pending_interactions: {
+                  choices?: string[];
+                  /** Format: date-time */
+                  created_at: string;
+                  decisions?: string[];
+                  interaction_id: string;
+                  kind: string;
+                  provider_request_id: string;
+                  resolution?: string;
+                  /** Format: date-time */
+                  resolved_at?: string | null;
+                  resolved_by?: string;
+                  status: string;
+                  title?: string;
+                  turn_id?: string;
+                }[];
                 resolved_network_participation?:
                   | (
                       | {
@@ -115971,6 +117941,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -116017,6 +117989,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -116040,6 +118013,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -116409,6 +118398,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -116455,6 +118446,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -116478,6 +118470,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -116805,6 +118813,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -116851,6 +118861,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -116874,6 +118885,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -117437,6 +119464,7 @@ export interface operations {
             active_prompt: boolean;
             agent_name: string;
             attachable: boolean;
+            badge: string;
             eligible_for_wake: boolean;
             /** @enum {string} */
             health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
@@ -117449,6 +119477,22 @@ export interface operations {
               | "session_health_hung"
               | "session_health_dead"
               | "session_health_unknown";
+            pending_interactions: {
+              choices?: string[];
+              /** Format: date-time */
+              created_at: string;
+              decisions?: string[];
+              interaction_id: string;
+              kind: string;
+              provider_request_id: string;
+              resolution?: string;
+              /** Format: date-time */
+              resolved_at?: string | null;
+              resolved_by?: string;
+              status: string;
+              title?: string;
+              turn_id?: string;
+            }[];
             session_id: string;
             /** @enum {string} */
             state: "idle" | "prompting" | "stopped" | "detached";
@@ -119577,6 +121621,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -119623,6 +121669,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -119646,6 +121693,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -119989,6 +122052,256 @@ export interface operations {
       };
     };
   };
+  waitForSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: int64 */
+          epoch?: number;
+          resume_id?: string;
+          /** Format: int64 */
+          timeout_ms: number;
+          until?: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description Wait completed or timed out */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            outcome: string;
+            resume_id?: string;
+            /** Format: int64 */
+            revision: number;
+            session_id: string;
+            state?: string;
+            until?: string[];
+            /** Format: int64 */
+            waited_ms: number;
+          };
+        };
+      };
+      /** @description Malformed wait request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Wait limit reached or registration in use */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session gone or wait registration expired */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid wait request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session wait is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   forkSessionToWorktree: {
     parameters: {
       query?: never;
@@ -120053,6 +122366,8 @@ export interface operations {
               attach_expires_at?: string | null;
               attachable: boolean;
               attached_to?: string;
+              /** Format: date-time */
+              attention_changed_at?: string | null;
               available_commands: {
                 description: string;
                 input?: {
@@ -120099,6 +122414,7 @@ export interface operations {
               id: string;
               lineage?: {
                 auto_stop_on_parent: boolean;
+                notify_creator: boolean;
                 parent_session_id?: string;
                 permission_policy: {
                   mcp_servers: string[];
@@ -120122,6 +122438,22 @@ export interface operations {
                 ttl_expires_at?: string | null;
               } | null;
               name?: string;
+              pending_interactions: {
+                choices?: string[];
+                /** Format: date-time */
+                created_at: string;
+                decisions?: string[];
+                interaction_id: string;
+                kind: string;
+                provider_request_id: string;
+                resolution?: string;
+                /** Format: date-time */
+                resolved_at?: string | null;
+                resolved_by?: string;
+                status: string;
+                title?: string;
+                turn_id?: string;
+              }[];
               resolved_network_participation?:
                 | (
                     | {
@@ -121112,7 +123444,7 @@ export interface operations {
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
-                [key: string]: string;
+                [key: string]: string[] | string;
               };
               small_viewport_policy?: string | null;
               snap?: {
@@ -121969,7 +124301,7 @@ export interface operations {
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
-                  [key: string]: string;
+                  [key: string]: string[] | string;
                 };
                 small_viewport_policy?: string | null;
                 snap?: {
@@ -122321,7 +124653,7 @@ export interface operations {
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
-                [key: string]: string;
+                [key: string]: string[] | string;
               };
               small_viewport_policy?: string | null;
               snap?: {
@@ -122590,7 +124922,7 @@ export interface operations {
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
-                [key: string]: string;
+                [key: string]: string[] | string;
               };
               small_viewport_policy?: string | null;
               snap?: {
@@ -122800,7 +125132,7 @@ export interface operations {
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
-                  [key: string]: string;
+                  [key: string]: string[] | string;
                 };
                 small_viewport_policy?: string | null;
                 snap?: {
@@ -124103,7 +126435,7 @@ export interface operations {
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
-                [key: string]: string;
+                [key: string]: string[] | string;
               };
               small_viewport_policy?: string | null;
               snap?: {
@@ -124551,7 +126883,7 @@ export interface operations {
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
-                  [key: string]: string;
+                  [key: string]: string[] | string;
                 };
                 small_viewport_policy?: string | null;
                 snap?: {
@@ -124925,7 +127257,7 @@ export interface operations {
                     new_window_policy?: string | null;
                     raise_on_focus?: boolean | null;
                     shortcuts?: {
-                      [key: string]: string;
+                      [key: string]: string[] | string;
                     };
                     small_viewport_policy?: string | null;
                     snap?: {

@@ -90,7 +90,8 @@ func TestExtensionKitResourcePublicationLifecycle(t *testing.T) {
 			actor: extensionKitSyncActor(), registry: registry,
 			runtime: func() extensionRuntime { return runtime }, logger: discardLogger(),
 			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return driver.Trigger(ctx, kind, reason)
+				_, err := driver.Trigger(ctx, kind, reason)
+				return err
 			},
 		}
 

@@ -154,6 +154,9 @@ func (s *service) populateSectionEnvelope(
 	cfg *compozyconfig.Config,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) error {
+	if populateSimpleSectionEnvelope(envelope, cfg) {
+		return nil
+	}
 	switch envelope.Section {
 	case SectionGeneral:
 		envelope.Scope = ScopeGlobal
@@ -169,10 +172,6 @@ func (s *service) populateSectionEnvelope(
 			return err
 		}
 		envelope.Memory = &section
-	case SectionRoles:
-		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
-		section := RolesSection{Config: compozyconfig.CloneRolesConfig(&cfg.Roles)}
-		envelope.Roles = &section
 	case SectionSkills:
 		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeAgent}
 		section, err := s.buildSkillsSection(
@@ -200,14 +199,6 @@ func (s *service) populateSectionEnvelope(
 			return err
 		}
 		envelope.Network = &section
-	case SectionGateway:
-		envelope.Scope = ScopeGlobal
-		section := GatewaySection{Config: cfg.Gateway}
-		envelope.Gateway = &section
-	case SectionWindowManager:
-		envelope.Scope = ScopeGlobal
-		section := buildWindowManagerSection(cfg)
-		envelope.WindowManager = &section
 	case SectionObservability:
 		envelope.Scope = ScopeGlobal
 		section, err := s.buildObservabilitySection(ctx, cfg)
@@ -226,6 +217,34 @@ func (s *service) populateSectionEnvelope(
 		return notFoundError(fmt.Errorf("settings: unknown section %q", envelope.Section))
 	}
 	return nil
+}
+
+func populateSimpleSectionEnvelope(envelope *SectionEnvelope, cfg *compozyconfig.Config) bool {
+	switch envelope.Section {
+	case SectionRoles:
+		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
+		section := RolesSection{Config: compozyconfig.CloneRolesConfig(&cfg.Roles)}
+		envelope.Roles = &section
+	case SectionGateway:
+		envelope.Scope = ScopeGlobal
+		section := GatewaySection{Config: cfg.Gateway}
+		envelope.Gateway = &section
+	case SectionWindowManager:
+		envelope.Scope = ScopeGlobal
+		section := buildWindowManagerSection(cfg)
+		envelope.WindowManager = &section
+	case SectionAttention:
+		envelope.Scope = ScopeGlobal
+		section := buildAttentionSection(cfg)
+		envelope.Attention = &section
+	case SectionShell:
+		envelope.Scope = ScopeGlobal
+		section := buildShellSection(cfg)
+		envelope.Shell = &section
+	default:
+		return false
+	}
+	return true
 }
 
 func (s *service) finalizeSectionUpdate(

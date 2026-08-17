@@ -1,10 +1,10 @@
 package settings
 
 import (
-	"maps"
 	"reflect"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 const windowManagerConfigRoot = "window_manager"
@@ -121,14 +121,14 @@ func applyWindowManagerSettings(
 		return editor.Delete(shortcutsPath)
 	}
 	values := make(map[string]any, len(settings.Shortcuts))
-	for command, chord := range settings.Shortcuts {
-		values[command] = chord
+	for command, binding := range settings.Shortcuts {
+		values[command] = append([]string(nil), binding...)
 	}
 	return editor.SetTable(shortcutsPath, values)
 }
 
 func cloneWindowManagerConfig(cfg compozyconfig.WindowManagerConfig) compozyconfig.WindowManagerConfig {
 	cfg.Snap.RepeatRatios = append([]float64(nil), cfg.Snap.RepeatRatios...)
-	cfg.Shortcuts = maps.Clone(cfg.Shortcuts)
+	cfg.Shortcuts = windowmanager.CloneShortcutMap(cfg.Shortcuts)
 	return cfg
 }

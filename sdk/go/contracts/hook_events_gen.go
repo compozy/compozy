@@ -81,6 +81,7 @@ const (
 	HookEventSpawnParentStopped             HookEvent = "spawn.parent_stopped"
 	HookEventSpawnTtlExpired                HookEvent = "spawn.ttl_expired"
 	HookEventSpawnReaped                    HookEvent = "spawn.reaped"
+	HookEventSessionAttentionChanged        HookEvent = "session.attention.changed"
 	HookEventNetworkThreadOpened            HookEvent = "network.thread.opened"
 	HookEventNetworkDirectRoomOpened        HookEvent = "network.direct_room.opened"
 	HookEventNetworkMessagePersisted        HookEvent = "network.message.persisted"

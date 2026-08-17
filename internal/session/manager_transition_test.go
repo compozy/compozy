@@ -13,13 +13,281 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 var errRecordingCatalogMissingSession = errors.New("recording catalog missing session")
 
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should atomically resolve an orphaned permission and preserve the first winner", func(t *testing.T) {
+		t.Parallel()
+
+		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindPermission,
+			store.PendingInteractionPayload{Decisions: []string{"allow-once", "reject-once"}},
+		)
+		ctx := WithActingSession(testutil.Context(t), "sess-creator")
+		result, err := restarted.ApprovePermission(ctx, sessionID, acp.ApproveRequest{
+			RequestID: "request-orphan",
+			Decision:  "allow-once",
+		})
+		if err != nil {
+			t.Fatalf("ApprovePermission(orphan) error = %v", err)
+		}
+		if result.Outcome != store.PendingInteractionOutcomeResolvedAfterRestart ||
+			result.ResolvedDecision != "allow-once" {
+			t.Fatalf("ApprovePermission(orphan) = %#v", result)
+		}
+		assertOrphanResolutionQueue(t, catalog, sessionID, "Response: allow-once")
+		resolved, err := catalog.ListPendingInteractions(
+			ctx,
+			sessionID,
+			[]string{store.PendingInteractionStatusResolved},
+		)
+		if err != nil {
+			t.Fatalf("ListPendingInteractions() error = %v", err)
+		}
+		if len(resolved) != 1 || resolved[0].ResolvedBy != "agent_session:sess-creator" {
+			t.Fatalf("resolved interaction = %#v, want acting session", resolved)
+		}
+
+		duplicate, err := restarted.ApprovePermission(ctx, sessionID, acp.ApproveRequest{
+			RequestID: "request-orphan",
+			Decision:  "reject-once",
+		})
+		if err != nil {
+			t.Fatalf("ApprovePermission(duplicate) error = %v", err)
+		}
+		if duplicate.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
+			duplicate.ResolvedDecision != "allow-once" {
+			t.Fatalf("ApprovePermission(duplicate) = %#v", duplicate)
+		}
+		assertOrphanResolutionQueue(t, catalog, sessionID, "Response: allow-once")
+	})
+
+	t.Run("Should report the durable winner when live permission resolution races", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatalf("Shutdown(initial manager) error = %v", err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+
+		createdAt := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
+		if _, err := catalog.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+			InteractionID:     "interaction-race",
+			SessionID:         target.ID,
+			Kind:              store.PendingInteractionKindPermission,
+			ProviderRequestID: "request-race",
+			TurnID:            "turn-race",
+			Title:             "Allow the command?",
+			Payload:           store.PendingInteractionPayload{Decisions: []string{"allow-once", "reject-once"}},
+			CreatedAt:         createdAt,
+		}); err != nil {
+			t.Fatalf("CreatePendingInteraction() error = %v", err)
+		}
+		h.driver.approveHook = func(*fakeProcess, acp.ApproveRequest) error {
+			if _, err := catalog.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
+				InteractionID: "interaction-race",
+				Status:        store.PendingInteractionStatusResolved,
+				Resolution:    "reject-once",
+				ResolvedBy:    "operator:competing-client",
+				At:            createdAt.Add(time.Second),
+			}); err != nil {
+				return err
+			}
+			return acp.ErrPendingPermissionConflict
+		}
+
+		result, err := h.manager.ApprovePermission(ctx, target.ID, acp.ApproveRequest{
+			RequestID: "request-race",
+			Decision:  "allow-once",
+		})
+		if err != nil {
+			t.Fatalf("ApprovePermission(race) error = %v", err)
+		}
+		if result.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
+			result.ResolvedDecision != "reject-once" {
+			t.Fatalf("ApprovePermission(race) = %#v, want durable winner", result)
+		}
+	})
+
+	t.Run("Should atomically resolve an orphaned clarification with its validated choice", func(t *testing.T) {
+		t.Parallel()
+
+		h, restarted, catalog, sessionID := newOrphanResolutionHarness(
+			t,
+			store.PendingInteractionKindClarify,
+			store.PendingInteractionPayload{Choices: []string{"Fast", "Safe"}},
+		)
+		ctx := WithActingSession(testutil.Context(t), "sess-creator")
+		choice := 1
+		result, err := restarted.ResolveOrphanedClarification(
+			ctx,
+			toolspkg.Scope{
+				WorkspaceID: h.workspaceID,
+				SessionID:   sessionID,
+				AgentName:   "coder",
+				Operator:    true,
+			},
+			"request-orphan",
+			toolspkg.ClarifyAnswerRequest{ChoiceIndex: &choice},
+		)
+		if err != nil {
+			t.Fatalf("ResolveOrphanedClarification() error = %v", err)
+		}
+		if result.Outcome != store.PendingInteractionOutcomeResolvedAfterRestart ||
+			result.Choice == nil || *result.Choice != choice || result.ResolvedAnswer != "Safe" {
+			t.Fatalf("ResolveOrphanedClarification() = %#v", result)
+		}
+		assertOrphanResolutionQueue(t, catalog, sessionID, "Response: Safe")
+		resolved, err := catalog.ListPendingInteractions(
+			ctx,
+			sessionID,
+			[]string{store.PendingInteractionStatusResolved},
+		)
+		if err != nil {
+			t.Fatalf("ListPendingInteractions() error = %v", err)
+		}
+		if len(resolved) != 1 || resolved[0].ResolvedBy != "agent_session:sess-creator" {
+			t.Fatalf("resolved interaction = %#v, want acting session", resolved)
+		}
+
+		other := 0
+		duplicate, err := restarted.ResolveOrphanedClarification(
+			ctx,
+			toolspkg.Scope{
+				WorkspaceID: h.workspaceID,
+				SessionID:   sessionID,
+				AgentName:   "coder",
+				Operator:    true,
+			},
+			"request-orphan",
+			toolspkg.ClarifyAnswerRequest{ChoiceIndex: &other},
+		)
+		if err != nil {
+			t.Fatalf("ResolveOrphanedClarification(duplicate) error = %v", err)
+		}
+		if duplicate.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
+			duplicate.Choice == nil || *duplicate.Choice != choice || duplicate.ResolvedAnswer != "Safe" {
+			t.Fatalf("ResolveOrphanedClarification(duplicate) = %#v", duplicate)
+		}
+	})
+
+	t.Run("Should hydrate durable attention badges in a fresh manager", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		h := newHarness(t)
+		cleanupTestManager(t, h.manager)
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		baseAt := time.Date(2026, 8, 15, 19, 0, 0, 0, time.UTC)
+		register := func(id string) {
+			t.Helper()
+			if err := catalog.RegisterSession(ctx, store.SessionInfo{
+				ID: id, Name: id, AgentName: "coder", WorkspaceID: h.workspaceID,
+				SessionType: string(SessionTypeUser), State: string(StateActive),
+				RuntimeStatus: store.SessionRuntimeReady, CreatedAt: baseAt, UpdatedAt: baseAt,
+			}); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", id, err)
+			}
+		}
+		for index, testCase := range []struct {
+			id    string
+			kind  string
+			badge Badge
+		}{
+			{id: "sess-restart-permission", kind: store.PendingInteractionKindPermission, badge: BadgeWaitingForAuth},
+			{id: "sess-restart-clarify", kind: store.PendingInteractionKindClarify, badge: BadgeWaitingForInput},
+		} {
+			register(testCase.id)
+			if _, err := catalog.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+				InteractionID: "interaction-" + testCase.id, SessionID: testCase.id,
+				Kind: testCase.kind, ProviderRequestID: "request-" + testCase.id,
+				Title: "Restart interaction", CreatedAt: baseAt.Add(time.Duration(index+1) * time.Second),
+			}); err != nil {
+				t.Fatalf("CreatePendingInteraction(%q) error = %v", testCase.id, err)
+			}
+		}
+		register("sess-restart-done")
+		if _, err := catalog.MarkSessionSettled(
+			ctx,
+			"sess-restart-done",
+			false,
+			baseAt.Add(3*time.Second),
+		); err != nil {
+			t.Fatalf("MarkSessionSettled(done) error = %v", err)
+		}
+
+		restarted := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, restarted)
+		for _, testCase := range []struct {
+			id    string
+			badge Badge
+		}{
+			{id: "sess-restart-permission", badge: BadgeWaitingForAuth},
+			{id: "sess-restart-clarify", badge: BadgeWaitingForInput},
+			{id: "sess-restart-done", badge: BadgeDone},
+		} {
+			target := &Session{ID: testCase.id, State: StateActive}
+			if err := restarted.hydrateSessionAttention(ctx, target); err != nil {
+				t.Fatalf("hydrateSessionAttention(%q) error = %v", testCase.id, err)
+			}
+			if got := BadgeForInfo(target.Info()); got != testCase.badge {
+				t.Fatalf("BadgeForInfo(%q) = %q, want %q", testCase.id, got, testCase.badge)
+			}
+		}
+		for _, transition := range []store.PendingInteractionTransition{
+			{
+				InteractionID: "interaction-sess-restart-permission",
+				Status:        store.PendingInteractionStatusResolved,
+				Resolution:    "allow-once",
+				ResolvedBy:    "operator:test",
+				At:            baseAt.Add(4 * time.Second),
+			},
+			{
+				InteractionID: "interaction-sess-restart-clarify",
+				Status:        store.PendingInteractionStatusTimedOut,
+				At:            baseAt.Add(4 * time.Second),
+			},
+		} {
+			if _, err := catalog.TransitionPendingInteraction(ctx, transition); err != nil {
+				t.Fatalf("TransitionPendingInteraction(%q) error = %v", transition.InteractionID, err)
+			}
+			targetID := strings.TrimPrefix(transition.InteractionID, "interaction-")
+			target := &Session{ID: targetID, State: StateActive}
+			if err := restarted.hydrateSessionAttention(ctx, target); err != nil {
+				t.Fatalf("hydrateSessionAttention(%q after clear) error = %v", targetID, err)
+			}
+			if got := BadgeForInfo(target.Info()); got != BadgeIdle {
+				t.Fatalf("BadgeForInfo(%q after clear) = %q, want %q", targetID, got, BadgeIdle)
+			}
+		}
+
+		if _, err := catalog.MarkSessionSeen(ctx, "sess-restart-done", baseAt.Add(5*time.Second)); err != nil {
+			t.Fatalf("MarkSessionSeen() error = %v", err)
+		}
+		seen := &Session{ID: "sess-restart-done", State: StateActive}
+		if err := restarted.hydrateSessionAttention(ctx, seen); err != nil {
+			t.Fatalf("hydrateSessionAttention(seen) error = %v", err)
+		}
+		if got := BadgeForInfo(seen.Info()); got != BadgeIdle {
+			t.Fatalf("BadgeForInfo(seen restart) = %q, want %q", got, BadgeIdle)
+		}
+	})
 
 	t.Run("Should keep memory meta and catalog consistent on stopping transition", func(t *testing.T) {
 		t.Parallel()
@@ -50,6 +318,11 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 		if stoppingCatalog.State != string(StateStopping) {
 			t.Fatalf("catalog state after request stop = %q, want %q", stoppingCatalog.State, StateStopping)
+		}
+		stoppingAttention := stoppingCatalog.AttentionSnapshot()
+		if stoppingAttention.AttentionRevision != 1 || stoppingAttention.AttentionChangedAt == nil ||
+			!stoppingAttention.AttentionChangedAt.Equal(stoppingCatalog.UpdatedAt) {
+			t.Fatalf("catalog attention after request stop = %#v, want revision 1 at updated_at", stoppingCatalog)
 		}
 		if stoppingCatalog.Provider != stoppingMeta.Provider || stoppingCatalog.Model != stoppingMeta.Model ||
 			stoppingCatalog.ReasoningEffort != stoppingMeta.ReasoningEffort || stoppingCatalog.Speed != stoppingMeta.Speed ||
@@ -151,6 +424,10 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 		if stoppedCatalog.State != string(StateStopped) {
 			t.Fatalf("catalog state after stop = %q, want %q", stoppedCatalog.State, StateStopped)
+		}
+		stoppedAttention := stoppedCatalog.AttentionSnapshot()
+		if stoppedAttention.AttentionRevision == 0 || stoppedAttention.AttentionChangedAt == nil {
+			t.Fatalf("catalog attention after stop = %#v, want durable lifecycle edge", stoppedCatalog)
 		}
 	})
 
@@ -664,6 +941,69 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	})
 }
 
+func newOrphanResolutionHarness(
+	t *testing.T,
+	kind string,
+	payload store.PendingInteractionPayload,
+) (*harness, *Manager, *globaldb.GlobalDB, string) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	h := newHarness(t)
+	cleanupTestManager(t, h.manager)
+	target := createSession(t, h)
+	if err := h.manager.Stop(ctx, target.ID); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	catalog := openManagerInputQueueStore(t)
+	registerManagerInputQueueWorkspace(t, catalog, h)
+	registerManagerInputQueueSession(t, catalog, h, target)
+	if _, err := catalog.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+		InteractionID:     "interaction-orphan",
+		SessionID:         target.ID,
+		Kind:              kind,
+		ProviderRequestID: "request-orphan",
+		TurnID:            "turn-orphan",
+		Title:             "Which path?",
+		Payload:           payload,
+		CreatedAt:         time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("CreatePendingInteraction() error = %v", err)
+	}
+	restarted := newManagerWithHarness(
+		t,
+		h,
+		WithSessionCatalog(catalog),
+		WithSessionInputQueueStore(catalog),
+	)
+	cleanupTestManager(t, restarted)
+	orphaned, err := restarted.RecoverPendingInteractions(ctx, target.ID)
+	if err != nil {
+		t.Fatalf("RecoverPendingInteractions() error = %v", err)
+	}
+	if orphaned != 1 {
+		t.Fatalf("RecoverPendingInteractions() = %d, want 1", orphaned)
+	}
+	return h, restarted, catalog, target.ID
+}
+
+func assertOrphanResolutionQueue(
+	t *testing.T,
+	queueStore store.SessionInputQueueStore,
+	sessionID string,
+	wantText string,
+) {
+	t.Helper()
+
+	entries, err := queueStore.ListPendingSessionInputs(testutil.Context(t), sessionID)
+	if err != nil {
+		t.Fatalf("ListPendingSessionInputs() error = %v", err)
+	}
+	if len(entries) != 1 || !strings.Contains(entries[0].Text, wantText) {
+		t.Fatalf("queued orphan resolution = %#v, want one entry containing %q", entries, wantText)
+	}
+}
+
 type recordingSessionCatalog struct {
 	mu              sync.Mutex
 	sessions        map[string]store.SessionInfo
@@ -733,6 +1073,13 @@ func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update s
 	}
 	if update.FailureSet {
 		current.Failure = store.CloneSessionFailure(update.Failure)
+	}
+	if update.AttentionTransition {
+		attention := current.AttentionSnapshot()
+		attention.AttentionRevision++
+		changedAt := update.UpdatedAt.UTC()
+		attention.AttentionChangedAt = &changedAt
+		current.Attention = &attention
 	}
 	current.Liveness = store.CloneSessionLivenessMeta(update.Liveness)
 	current.Sandbox = cloneSessionSandboxMeta(update.Sandbox)

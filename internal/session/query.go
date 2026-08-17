@@ -41,40 +41,9 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 		return nil, fmt.Errorf("session: read sessions directory %q: %w", m.homePaths.SessionsDir, err)
 	}
 
-	infos := make([]*Info, 0, len(entries)+len(activeByID))
-	seen := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
-		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("session: list sessions canceled: %w", err)
-		}
-		if !entry.IsDir() {
-			continue
-		}
-
-		id := strings.TrimSpace(entry.Name())
-		if id == "" || strings.HasPrefix(id, sessionDeleteTombstonePrefix) {
-			continue
-		}
-
-		meta, err := m.readMetaWithContext(ctx, id)
-		if err != nil {
-			if errors.Is(err, ErrSessionNotFound) {
-				continue
-			}
-			m.logger.Warn("session: skip unreadable session metadata", "session_id", id, "error", err)
-			if info, ok := activeByID[id]; ok && info != nil {
-				infos = append(infos, info)
-				seen[id] = struct{}{}
-			}
-			continue
-		}
-
-		info := m.sessionInfoFromMeta(ctx, meta)
-		if activeInfo, ok := activeByID[id]; ok && activeInfo != nil {
-			info = activeInfo
-		}
-		infos = append(infos, info)
-		seen[id] = struct{}{}
+	infos, seen, err := m.mergePersistedSessionInfos(ctx, entries, activeByID)
+	if err != nil {
+		return nil, err
 	}
 
 	for id, info := range activeByID {
@@ -85,6 +54,48 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 	}
 
 	return sortSessionInfos(infos), nil
+}
+
+func (m *Manager) mergePersistedSessionInfos(
+	ctx context.Context,
+	entries []os.DirEntry,
+	activeByID map[string]*Info,
+) ([]*Info, map[string]struct{}, error) {
+	infos := make([]*Info, 0, len(entries)+len(activeByID))
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, fmt.Errorf("session: list sessions canceled: %w", err)
+		}
+		if !entry.IsDir() {
+			continue
+		}
+		id := strings.TrimSpace(entry.Name())
+		if id == "" || strings.HasPrefix(id, sessionDeleteTombstonePrefix) {
+			continue
+		}
+		meta, err := m.readMetaWithContext(ctx, id)
+		if err != nil {
+			if errors.Is(err, ErrSessionNotFound) {
+				continue
+			}
+			m.logger.Warn("session: skip unreadable session metadata", "session_id", id, "error", err)
+			if info := activeByID[id]; info != nil {
+				infos = append(infos, info)
+				seen[id] = struct{}{}
+			}
+			continue
+		}
+		info := m.sessionInfoFromMeta(ctx, meta)
+		if activeInfo := activeByID[id]; activeInfo != nil {
+			info = activeInfo
+		} else if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
+			return nil, nil, err
+		}
+		infos = append(infos, info)
+		seen[id] = struct{}{}
+	}
+	return infos, seen, nil
 }
 
 // Status returns the current session status from memory or on-disk metadata.
@@ -112,6 +123,9 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 		}
 	}
 	info := m.sessionInfoFromMeta(ctx, meta)
+	if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
+		return nil, err
+	}
 	if err := m.populateArchiveMetadata(ctx, info); err != nil {
 		return nil, err
 	}

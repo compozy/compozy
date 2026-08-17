@@ -53,17 +53,22 @@ pre-operation control points, CompozyOS returns the event-specific denial error 
 
 ## Session Events
 
-| Event                 | Sync | Payload                    | Patch                    | Fires when                                    |
-| --------------------- | ---- | -------------------------- | ------------------------ | --------------------------------------------- |
-| `session.pre_create`  | yes  | `SessionPreCreatePayload`  | `SessionCreatePatch`     | Before CompozyOS creates a session record.    |
-| `session.post_create` | yes  | `SessionPostCreatePayload` | `SessionPostCreatePatch` | After CompozyOS creates a session record.     |
-| `session.pre_resume`  | yes  | `SessionPreResumePayload`  | `SessionPreResumePatch`  | Before CompozyOS resumes an existing session. |
-| `session.post_resume` | yes  | `SessionPostResumePayload` | `SessionPostResumePatch` | After CompozyOS resumes an existing session.  |
-| `session.pre_stop`    | yes  | `SessionPreStopPayload`    | `SessionPreStopPatch`    | Before CompozyOS stops a session.             |
-| `session.post_stop`   | yes  | `SessionPostStopPayload`   | `SessionPostStopPatch`   | After CompozyOS stops a session.              |
+| Event                       | Sync       | Payload                          | Patch                              | Fires when                                             |
+| --------------------------- | ---------- | -------------------------------- | ---------------------------------- | ------------------------------------------------------ |
+| `session.pre_create`        | yes        | `SessionPreCreatePayload`        | `SessionCreatePatch`               | Before CompozyOS creates a session record.             |
+| `session.post_create`       | yes        | `SessionPostCreatePayload`       | `SessionPostCreatePatch`           | After CompozyOS creates a session record.              |
+| `session.pre_resume`        | yes        | `SessionPreResumePayload`        | `SessionPreResumePatch`            | Before CompozyOS resumes an existing session.          |
+| `session.post_resume`       | yes        | `SessionPostResumePayload`       | `SessionPostResumePatch`           | After CompozyOS resumes an existing session.           |
+| `session.pre_stop`          | yes        | `SessionPreStopPayload`          | `SessionPreStopPatch`              | Before CompozyOS stops a session.                      |
+| `session.post_stop`         | yes        | `SessionPostStopPayload`         | `SessionPostStopPatch`             | After CompozyOS stops a session.                       |
+| `session.attention.changed` | async only | `SessionAttentionChangedPayload` | `SessionAttentionObservationPatch` | After a canonical session-attention edge is committed. |
 
 Session lifecycle patches can set `session_name`, `session_type`, `agent_name`, `workspace_id`,
-or `workspace`. Pre-create, pre-resume, and pre-stop hooks can also deny the operation.
+or `workspace`. `session.pre_create` cannot change a session into or out of the daemon-owned
+`coordinator` and `spawned` types. After creation, hooks cannot change the session type or workspace
+identity. Pre-create, pre-resume, and pre-stop hooks can also deny the operation.
+`session.attention.changed` is observation-only and carries `from`, `to`, `class`, and `at`; hook
+failure does not change the committed session state.
 
 ## Input And Prompt Events
 
@@ -225,7 +230,8 @@ fields on post events stop the hook chain but do not undo an already completed t
 
 `permission.request` patches can set `decision`, `decision_class`, and `reason`, or deny the
 request. CompozyOS rejects escalation patches that try to turn a blocked, denied, or rejected decision
-into an allow decision; those hook runs are recorded as `rejected`.
+into an allow decision; those hook runs are recorded as `rejected`. Request and resolved payloads
+include `tool_input`; denied payloads omit it so rejected input is not exposed to async hooks.
 
 ## Context Events
 

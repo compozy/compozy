@@ -2,10 +2,45 @@ package session
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 )
+
+func (s *Session) beginExclusivePromptSetupForRequest(
+	req promptRequest,
+	cancel context.CancelFunc,
+) (*AgentProcess, error) {
+	if s == nil {
+		return nil, errors.New("session: session is required")
+	}
+
+	turnID := strings.TrimSpace(req.turnID)
+	turnSource := normalizeTurnSource(req.turnSource)
+	if turnID == "" || turnSource == "" || cancel == nil {
+		return nil, errors.New("session: prompt setup ownership is incomplete")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	proc, err := s.beginExclusivePromptSetupLocked()
+	if err != nil {
+		return nil, err
+	}
+	s.currentTurnID = turnID
+	s.currentTurnSource = turnSource
+	s.currentPromptMessage = strings.TrimSpace(req.authoredMessage)
+	s.currentPromptMeta = req.meta.Normalize()
+	s.currentSkillInvocations = cloneSkillInvocations(req.skillInvocations)
+	s.currentPromptCancel = cancel
+	s.currentPromptCancelTurn = ""
+	s.promptCancelRequested = false
+	if s.currentPromptDone == nil {
+		s.currentPromptDone = make(chan struct{})
+	}
+	return proc, nil
+}
 
 // CurrentTurnSource reports the provenance of the currently active prompt turn.
 func (s *Session) CurrentTurnSource() TurnSource {
@@ -140,6 +175,7 @@ func (s *Session) setCurrentPromptCancel(cancel context.CancelFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentPromptCancel = cancel
+	s.promptCancelRequested = false
 }
 
 func (s *Session) cancelCurrentPrompt() bool {
@@ -162,21 +198,38 @@ func (s *Session) requestCurrentPromptCancellation() (
 	*AgentProcess,
 	context.CancelFunc,
 	bool,
+	bool,
 ) {
 	if s == nil {
-		return "", nil, nil, false
+		return "", nil, nil, false, false
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.promptSetupCount == 0 && s.currentTurnSource == "" && s.currentTurnID == "" {
-		return "", nil, nil, false
+		return "", nil, nil, false, false
 	}
 	turnID := strings.TrimSpace(s.currentTurnID)
+	if s.promptCancelRequested {
+		return turnID, s.process, nil, true, true
+	}
+	s.promptCancelRequested = true
 	if turnID != "" {
 		s.currentPromptCancelTurn = turnID
 	}
-	return turnID, s.process, s.currentPromptCancel, true
+	return turnID, s.process, s.currentPromptCancel, true, false
+}
+
+func (s *Session) retryCurrentPromptCancellation(turnID string) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if strings.TrimSpace(turnID) == strings.TrimSpace(s.currentTurnID) {
+		s.promptCancelRequested = false
+	}
 }
 
 func (s *Session) promptCancellationRequested(turnID string) bool {
@@ -270,4 +323,5 @@ func (s *Session) clearCurrentPromptCancel() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.currentPromptCancel = nil
+	s.promptCancelRequested = false
 }

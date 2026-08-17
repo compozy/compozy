@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/vault"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -263,6 +264,38 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				}
 				if got, want := envelope.WindowManager.Config.Bindings.TopCenter, "zoom"; got != want {
 					t.Fatalf("WindowManager top-center binding = %q, want %q", got, want)
+				}
+			},
+		},
+		{
+			name:  SectionAttention,
+			label: "Should build the attention section",
+			assert: func(t *testing.T, envelope SectionEnvelope) {
+				t.Helper()
+				if envelope.Attention == nil {
+					t.Fatal("Attention section = nil")
+				}
+				if !envelope.Attention.Config.Toasts || !envelope.Attention.Config.Sound {
+					t.Fatalf("Attention defaults = %#v, want toasts and sound enabled", envelope.Attention.Config)
+				}
+				if envelope.Attention.Config.System {
+					t.Fatal("Attention system = true, want false")
+				}
+			},
+		},
+		{
+			name:  SectionShell,
+			label: "Should build the shell section",
+			assert: func(t *testing.T, envelope SectionEnvelope) {
+				t.Helper()
+				if envelope.Shell == nil {
+					t.Fatal("Shell section = nil")
+				}
+				if got, want := envelope.Shell.Config.Sessions.Sort, compozyconfig.ShellSessionSortLastActivity; got != want {
+					t.Fatalf("Shell session sort = %q, want %q", got, want)
+				}
+				if got, want := envelope.Shell.Config.Sessions.Scope, compozyconfig.ShellSessionScopeWorkspace; got != want {
+					t.Fatalf("Shell session scope = %q, want %q", got, want)
 				}
 			},
 		},
@@ -618,6 +651,144 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		}
 		if got, want := validationError.Path, "window_manager.history_limit"; got != want {
 			t.Fatalf("UpdateSection(invalid window-manager) validation path = %q, want %q", got, want)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+}
+
+func TestUpdateSectionAttention(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should round-trip the complete validated global config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		desired := compozyconfig.AttentionConfig{
+			Toasts:          false,
+			Sound:           false,
+			System:          true,
+			MutedWorkspaces: []string{"ws_0123456789abcdef"},
+		}
+
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionAttention},
+			Attention:      &desired,
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(attention) error = %v", err)
+		}
+		if got, want := result.Behavior, MutationBehaviorAppliedNow; got != want {
+			t.Fatalf("attention behavior = %q, want %q", got, want)
+		}
+		if !result.Applied || result.RestartRequired {
+			t.Fatalf("attention result = %#v, want live applied mutation", result)
+		}
+		if got, want := result.WriteTarget, WriteTargetGlobalConfig; got != want {
+			t.Fatalf("attention write target = %q, want %q", got, want)
+		}
+
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(updated attention) error = %v", err)
+		}
+		if !reflect.DeepEqual(loaded.Attention, desired) {
+			t.Fatalf("loaded Attention = %#v, want %#v", loaded.Attention, desired)
+		}
+	})
+
+	t.Run("Should leave config unchanged when validation fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		before := readFile(t, homePaths.ConfigFile)
+		service := testService(t, homePaths, Dependencies{})
+		invalid := compozyconfig.AttentionConfig{MutedWorkspaces: []string{"not-a-workspace"}}
+
+		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionAttention},
+			Attention:      &invalid,
+		})
+		if err == nil {
+			t.Fatal("UpdateSection(invalid attention) error = nil, want validation error")
+		}
+
+		validationError, matched := errors.AsType[compozyconfig.ValidationError](err)
+		if !matched {
+			t.Fatalf("UpdateSection(invalid attention) error = %T %v, want config.ValidationError", err, err)
+		}
+		if got, want := validationError.Path, "attention.muted_workspaces"; got != want {
+			t.Fatalf("UpdateSection(invalid attention) validation path = %q, want %q", got, want)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+}
+
+func TestUpdateSectionShell(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should round-trip the complete validated global shell config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		desired := compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
+			Sort:  compozyconfig.ShellSessionSortAttention,
+			Scope: compozyconfig.ShellSessionScopeAllWorkspaces,
+		}}
+
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionShell},
+			Shell:          &desired,
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(shell) error = %v", err)
+		}
+		if result.Behavior != MutationBehaviorAppliedNow || !result.Applied || result.RestartRequired {
+			t.Fatalf("shell result = %#v, want live applied mutation", result)
+		}
+
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(updated shell) error = %v", err)
+		}
+		if !reflect.DeepEqual(loaded.Shell, desired) {
+			t.Fatalf("loaded Shell = %#v, want %#v", loaded.Shell, desired)
+		}
+	})
+
+	t.Run("Should leave config unchanged when a shell preference is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		before := readFile(t, homePaths.ConfigFile)
+		service := testService(t, homePaths, Dependencies{})
+		invalid := compozyconfig.ShellConfig{Sessions: compozyconfig.ShellSessionsConfig{
+			Sort: "priority", Scope: compozyconfig.ShellSessionScopeWorkspace,
+		}}
+
+		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionShell},
+			Shell:          &invalid,
+		})
+		validationErr, matched := errors.AsType[compozyconfig.ValidationError](err)
+		if !matched {
+			t.Fatalf("UpdateSection(invalid shell) error = %T %v, want config.ValidationError", err, err)
+		}
+		if got, want := validationErr.Path, "shell.sessions.sort"; got != want {
+			t.Fatalf("shell validation path = %q, want %q", got, want)
 		}
 		if after := readFile(t, homePaths.ConfigFile); after != before {
 			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
@@ -5456,9 +5627,9 @@ func testWindowManagerConfig() compozyconfig.WindowManagerConfig {
 			TopCenter:    "none",
 			BottomCenter: "zoom",
 		},
-		Shortcuts: map[string]string{
-			"desktop.switch.next": "Meta+ArrowRight",
-			"window.focus.left":   "Alt+ArrowLeft",
+		Shortcuts: map[string]windowmanager.ShortcutBinding{
+			"desktop.switch.next": {"Meta+ArrowRight"},
+			"window.focus.left":   {"Alt+ArrowLeft"},
 		},
 	}
 }

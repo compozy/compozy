@@ -17,9 +17,13 @@ func normalizeMCPServers(src map[string]MCPServerConfig) map[string]MCPServerCon
 		server := src[name]
 		dst[trimmedName] = MCPServerConfig{
 			Command:   strings.TrimSpace(server.Command),
+			CWD:       strings.TrimSpace(server.CWD),
 			Args:      normalizeStrings(server.Args),
 			Env:       normalizeStringMap(server.Env),
 			SecretEnv: normalizeStringMap(server.SecretEnv),
+			Transport: strings.TrimSpace(server.Transport),
+			URL:       strings.TrimSpace(server.URL),
+			Headers:   normalizeStringMap(server.Headers),
 		}
 	}
 	if len(dst) == 0 {

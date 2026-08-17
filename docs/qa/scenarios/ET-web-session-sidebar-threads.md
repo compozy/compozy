@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-14
 expected: A session window's topbar shows a List-icon sessions toggle before the goal action; the sidebar starts closed (transcript full-bleed) and opens as a 264px left rail hosting the shared sessions list (filter, Recent ⇄ All panes, agent groups). Sessions whose lineage.parent_session_id is loaded nest under their root behind a hairline connector; the parent row carries a count toggle that folds the thread, and a collapsed thread with a failed/waiting/running child shows a danger/warning/accent signal dot. The current session row carries an accent left bar. Clicking another session switches this window to it in place (URL follows, one history entry); if that session already has its own window, that window is focused instead and no duplicate opens. The footer New session action opens the create flow. Open preference and per-thread collapse persist across reloads (localStorage compozy:session:sidebar:v1).
 entry_points: web session window topbar (session-sidebar-toggle, List icon); SessionSidebar; sessions modal (shared threads); localStorage key compozy:session:sidebar:v1
-qa_status: blocked-verify
+qa_status: pass
 bug_ids: compozy/compozy#416
-fix_status: pending
-retest_status:
-fix_commits:
-evidence:
-last_report: docs/qa/reports/2026-08-16-loop-goal-origin-session-lineage.md
+fix_status: fixed
+retest_status: pass
+fix_commits: ea021855; 49601716
+evidence: docs/qa/evidence/2026-08-17-pr-420-review/structured-walk.md; docs/qa/evidence/2026-08-17-pr-420-review/teardown.json
+last_report: docs/qa/reports/2026-08-17-pr-420-review.md
 overlaps: ET-web-sessions-catalog-modal; ET-web-session-thread-full-bleed; ET-web-session-inspector-toggle
 ---
 
@@ -30,3 +30,7 @@ docs/design/opendesign/session/session-sidebar.html. Flag only — walk in the n
 2026-08-06 operator adjustment: the window-level sidebar toggle now uses Lucide List. The dock keeps its own Sessions icon; the topbar control now describes the list it reveals without implying a terminal. Re-verified live with the sidebar open: the List glyph rendered while `aria-pressed` and the accessible label remained truthful.
 
 2026-08-16 issue #416 impact: Loop Goal system sessions now receive informational lineage from the session that started the Loop. Reset for an isolated re-walk that proves the Goal nests under a loaded origin, becomes a visible root when the origin is absent, and keeps neutral child-session copy without changing safe-spawn governance.
+
+2026-08-17 isolated completion walk: the real Sessions list rendered a missing-origin Goal as a
+root and its later spawned child beneath the thread connector. The count toggle reported one child
+and remained expanded in the accessibility tree. Verdict: pass.

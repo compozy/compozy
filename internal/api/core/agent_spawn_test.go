@@ -32,6 +32,10 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	}
 	manager.spawnFn = func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
 		got = opts
+		notifyCreator := opts.NotifyCreator
+		if !opts.NotifyCreatorSet {
+			notifyCreator = true
+		}
 		ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
 		return &session.Session{
 			ID:                   "sess-child",
@@ -51,6 +55,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 				SpawnRole:        opts.SpawnRole,
 				TTLExpiresAt:     &ttl,
 				AutoStopOnParent: opts.AutoStopOnParent,
+				NotifyCreator:    notifyCreator,
 				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1, TTLSeconds: 60},
 				PermissionPolicy: opts.PermissionPolicy,
 			},
@@ -96,6 +101,8 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		got.SpawnRole != "worker" ||
 		got.TTL != time.Minute ||
 		!got.AutoStopOnParent ||
+		got.NotifyCreator ||
+		got.NotifyCreatorSet ||
 		got.IdempotencyKey != "spawn-1" {
 		t.Fatalf("spawn opts = %#v, want mapped request with auto_stop default", got)
 	}
@@ -109,9 +116,34 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	}
 	if response.Spawn.Session.ID != "sess-child" ||
 		response.Spawn.Lineage.ParentSessionID != "sess-parent" ||
+		!response.Spawn.Lineage.NotifyCreator ||
 		len(response.Spawn.Permissions.Tools) != 1 ||
 		response.Spawn.Permissions.Tools[0] != "read" {
 		t.Fatalf("spawn response = %#v, want child projection with permissions", response.Spawn)
+	}
+
+	body = []byte(`{
+		"agent_name":"coder",
+		"spawn_role":"worker",
+		"ttl_seconds":60,
+		"notify_creator":false,
+		"permissions":{"tools":["read"],"skills":["go"]}
+	}`)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/agent/spawn",
+		bytes.NewReader(body),
+	)
+	req.Header.Set(agentidentity.HeaderSessionID, "sess-parent")
+	req.Header.Set(agentidentity.HeaderAgent, "coder")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("explicit opt-out status = %d body=%s, want 201", rec.Code, rec.Body.String())
+	}
+	if got.NotifyCreator || !got.NotifyCreatorSet {
+		t.Fatalf("spawn opts = %#v, want explicit notify_creator=false", got)
 	}
 }
 

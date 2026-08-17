@@ -26,17 +26,19 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 }
 
 type extensionInfoRow struct {
-	info               ExtensionInfo
-	sourceText         string
-	installedAtText    string
-	providesRaw        string
-	permissionsRaw     string
-	registrySlug       sql.NullString
-	registryName       sql.NullString
-	remoteVersion      sql.NullString
-	provenanceRaw      string
-	networkConfirmedBy sql.NullString
-	networkConfirmedAt sql.NullString
+	info                 ExtensionInfo
+	sourceText           string
+	formatText           string
+	ingestDiagnosticsRaw string
+	installedAtText      string
+	providesRaw          string
+	permissionsRaw       string
+	registrySlug         sql.NullString
+	registryName         sql.NullString
+	remoteVersion        sql.NullString
+	provenanceRaw        string
+	networkConfirmedBy   sql.NullString
+	networkConfirmedAt   sql.NullString
 }
 
 func (r *extensionInfoRow) scan(scanner interface{ Scan(dest ...any) error }) error {
@@ -46,6 +48,8 @@ func (r *extensionInfoRow) scan(scanner interface{ Scan(dest ...any) error }) er
 		&r.sourceText,
 		&r.info.Enabled,
 		&r.info.ManifestPath,
+		&r.formatText,
+		&r.ingestDiagnosticsRaw,
 		&r.installedAtText,
 		&r.providesRaw,
 		&r.permissionsRaw,
@@ -66,6 +70,10 @@ func (r *extensionInfoRow) decode() error {
 		return err
 	}
 	r.info.Source = source
+	r.info.Format = normalizeExtensionFormat(ExtensionFormat(strings.TrimSpace(r.formatText)))
+	if err := decodeRegistryJSONArray(r.ingestDiagnosticsRaw, &r.info.IngestDiagnostics); err != nil {
+		return fmt.Errorf("extension: decode ingest diagnostics for %q: %w", r.info.Name, err)
+	}
 
 	r.info.InstalledAt, err = store.ParseTimestamp(r.installedAtText)
 	if err != nil {

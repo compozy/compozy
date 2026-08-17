@@ -16,10 +16,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
@@ -139,6 +143,18 @@ func remoteExtensionArchiveFiles(name string, version string) map[string]string 
 	}
 }
 
+func portableExtensionArchiveFiles(name string, version string) map[string]string {
+	return map[string]string{
+		filepath.Join(name, "plugin.json"): fmt.Sprintf(
+			`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":%q,"version":%q,"description":"Portable marketplace integration fixture"}`,
+			name,
+			version,
+		),
+		filepath.Join(name, "mcp.json"):                           `{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"legacy-events":{"type":"sse","url":"https://events.example.test/sse"}}}`,
+		filepath.Join(name, "skills", "deploy-check", "SKILL.md"): "---\nname: deploy-check\ndescription: Check a deployment before release.\n---\n\n# Deploy check\n",
+	}
+}
+
 func extensionArchive(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 
@@ -227,6 +243,173 @@ func TestExtensionInstallCommandIntegrationCreatesManagedInstallAndRegistryRecor
 			t.Fatalf("installed source = %v, want marketplace", info.Source)
 		}
 	})
+}
+
+func TestExtensionMarketplacePortableInstallParityIntegration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should detect a marker-less portable source identically through web and CLI installs", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			name    = "portable-marketplace-ext"
+			version = "1.2.0"
+		)
+		env := newExtensionRegistryTestEnv(
+			t,
+			extensionRegistryTestOptions{allowUnverified: true},
+			&extensionRegistrySourceStub{
+				name: "github",
+				infoFunc: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
+					return &registrypkg.Detail{Listing: registrypkg.Listing{
+						Slug: slug, Name: name, Version: version, Source: "github",
+					}}, nil
+				},
+				downloadFunc: func(_ context.Context, slug string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
+					return newExtensionDownloadResult(
+						t,
+						slug,
+						version,
+						portableExtensionArchiveFiles(name, version),
+					), nil
+				},
+			},
+		)
+
+		request := contract.InstallExtensionRequest{
+			Source:          contract.InstallExtensionSourceGitHub,
+			Ref:             "acme/portable-marketplace-ext",
+			AllowUnverified: true,
+		}
+		webInstalled := installExtensionOverLoopback(t, env.homePaths, request)
+		assertPortableMarketplaceInstall(t, webInstalled)
+
+		client, err := NewClient(LocalClientTarget(env.homePaths.DaemonSocket))
+		if err != nil {
+			t.Fatalf("NewClient(portable marketplace parity) error = %v", err)
+		}
+		if _, err := client.RemoveExtension(t.Context(), name); err != nil {
+			t.Fatalf("RemoveExtension(before CLI parity install) error = %v", err)
+		}
+
+		stdout, stderr, err := executeRootCommand(
+			t,
+			env.deps,
+			"extension",
+			"install",
+			"github:acme/portable-marketplace-ext",
+			"--allow-unverified",
+			"--yes",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("CLI portable marketplace install error = %v; stderr=%s", err, stderr)
+		}
+		var cliInstalled ExtensionRecord
+		if err := json.Unmarshal([]byte(stdout), &cliInstalled); err != nil {
+			t.Fatalf("json.Unmarshal(CLI portable marketplace install) error = %v; stdout=%s", err, stdout)
+		}
+		assertPortableMarketplaceInstall(t, cliInstalled)
+
+		if !reflect.DeepEqual(portableInstallParityView(webInstalled), portableInstallParityView(cliInstalled)) {
+			t.Fatalf(
+				"portable install payload mismatch: web=%#v CLI=%#v",
+				portableInstallParityView(webInstalled),
+				portableInstallParityView(cliInstalled),
+			)
+		}
+	})
+}
+
+func installExtensionOverLoopback(
+	t *testing.T,
+	homePaths compozyconfig.HomePaths,
+	request contract.InstallExtensionRequest,
+) contract.ExtensionPayload {
+	t.Helper()
+
+	info, err := compozydaemon.ReadInfo(homePaths.DaemonInfo)
+	if err != nil {
+		t.Fatalf("ReadInfo(portable marketplace parity) error = %v", err)
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("json.Marshal(portable marketplace install request) error = %v", err)
+	}
+	httpRequest, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodPost,
+		fmt.Sprintf("http://127.0.0.1:%d/api/extensions", info.Port),
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext(portable marketplace install) error = %v", err)
+	}
+	httpRequest.Header.Set("Content-Type", "application/json")
+	response, err := (&http.Client{Timeout: 10 * time.Second}).Do(httpRequest)
+	if err != nil {
+		t.Fatalf("web portable marketplace install request error = %v", err)
+	}
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			t.Errorf("close web portable marketplace install response error = %v", err)
+		}
+	}()
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read web portable marketplace install response error = %v", err)
+	}
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf(
+			"web portable marketplace install status = %d, want %d; body=%s",
+			response.StatusCode,
+			http.StatusCreated,
+			responseBody,
+		)
+	}
+	var payload struct {
+		Extension contract.ExtensionPayload `json:"extension"`
+	}
+	if err := json.Unmarshal(responseBody, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(web portable marketplace install) error = %v; body=%s", err, responseBody)
+	}
+	return payload.Extension
+}
+
+func assertPortableMarketplaceInstall(t *testing.T, payload contract.ExtensionPayload) {
+	t.Helper()
+	if payload.Format != "agent-plugin" || payload.Name != "portable-marketplace-ext" {
+		t.Fatalf("portable marketplace install = %#v, want detected agent-plugin payload", payload)
+	}
+	for _, diagnostic := range payload.Diagnostics {
+		if diagnostic.Code == diagnosticcontract.CodeExtensionAgentPluginComponentSkipped {
+			return
+		}
+	}
+	t.Fatalf("portable marketplace diagnostics = %#v, want recorded component skip", payload.Diagnostics)
+}
+
+type portableInstallView struct {
+	Name         string
+	Version      string
+	Type         string
+	Format       string
+	Source       string
+	Enabled      bool
+	State        string
+	Capabilities []string
+	Permissions  []string
+	RequiresEnv  []string
+	Diagnostics  []contract.DiagnosticItem
+}
+
+func portableInstallParityView(payload contract.ExtensionPayload) portableInstallView {
+	return portableInstallView{
+		Name: payload.Name, Version: payload.Version, Type: payload.Type, Format: payload.Format,
+		Source: payload.Source, Enabled: payload.Enabled, State: payload.State,
+		Capabilities: payload.Capabilities, Permissions: payload.Permissions,
+		RequiresEnv: payload.RequiresEnv, Diagnostics: payload.Diagnostics,
+	}
 }
 
 func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {

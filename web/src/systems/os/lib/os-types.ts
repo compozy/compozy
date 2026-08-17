@@ -138,7 +138,6 @@ export interface OsDesktopRuntimeStore {
   windows: Readonly<Record<string, OsWindow>>;
   activeDesktopId: DesktopId | null;
   focusedId: string | null;
-  railCollapsedAgentIds: readonly string[];
   wallpaper: OsWallpaper;
   reduceMotion: boolean;
   dockMagnify: boolean;
@@ -206,7 +205,6 @@ export interface WindowManagerController extends OsDesktopRuntime {
   pinWindow(windowId: string, pinned: boolean): WindowManagerCommandOutcome;
   reopenWindow(): WindowManagerCommandOutcome;
   closeWindowScoped(windowId: string, scope: OsCloseScope): Promise<boolean>;
-  toggleRailGroup(agentId: string): void;
   setWallpaper(wallpaper: OsWallpaper): void;
   setDockMagnify(on: boolean): void;
   setReduceMotion(on: boolean): void;

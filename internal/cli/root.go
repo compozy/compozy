@@ -175,7 +175,8 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newUpdateCommand(deps), newUninstallCommand(deps), newStatusCommand(deps), newObserveCommand(deps),
 		newDoctorCommand(deps), newDrainCommand(deps), newUndrainCommand(deps), newOnboardingCommand(deps),
 		newDaemonCommand(deps), newNetworkCommand(deps), newMeCommand(deps), newSpawnCommand(deps),
-		newChannelCommand(deps), newSessionCommand(deps), newProviderCommand(deps), newBridgeCommand(deps),
+		newChannelCommand(deps), newNotifyCommand(deps), newSessionCommand(deps), newProviderCommand(deps),
+		newBridgeCommand(deps),
 		newGatewayCommand(deps), newPairCommand(deps), newDeviceCommand(deps), newConnectCommand(deps),
 		newNotificationsCommand(deps), newMarketplaceCommand(deps), newWorkspaceCommand(deps), newDesktopCommand(deps),
 		newWorktreeCommand(deps),
@@ -278,6 +279,12 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 		extensionOperationErrorPayload() contract.ExtensionOperationErrorPayload
 	}](err); ok {
 		return marshalExtensionOperationExecutionError(args, extensionErr.extensionOperationErrorPayload())
+	}
+	if validationErr, ok := errors.AsType[interface {
+		error
+		extensionValidationErrorPayload() contract.ExtensionValidationErrorPayload
+	}](err); ok {
+		return marshalExtensionValidationExecutionError(args, validationErr.extensionValidationErrorPayload())
 	}
 	if windowManagerErr, ok := errors.AsType[interface {
 		error

@@ -91,6 +91,8 @@ describe("useExtensionInventory", () => {
       ["otel-bridge", true],
       ["slack-notify", false],
       ["dep-kit-ops", false],
+      ["acme.tools", false],
+      ["legacy-notes", false],
     ]);
     expect(result.current.data[0]?.listing?.description).toBe("Export session spans.");
     expect(mocks.useMarketplaceKind).not.toHaveBeenCalled();
@@ -131,6 +133,8 @@ describe("useExtensionInventory", () => {
       ["otel-bridge", true],
       ["slack-notify", false],
       ["dep-kit-ops", false],
+      ["acme.tools", false],
+      ["legacy-notes", false],
     ]);
     expect(result.current.data.every(item => item.listing === null)).toBe(true);
   });

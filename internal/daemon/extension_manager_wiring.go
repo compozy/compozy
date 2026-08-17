@@ -52,6 +52,7 @@ func buildExtensionManagerOptions(
 ) []extensionpkg.Option {
 	opts := []extensionpkg.Option{
 		extensionpkg.WithCapabilityChecker(capChecker),
+		extensionpkg.WithHomePaths(deps.HomePaths),
 		extensionpkg.WithLogger(deps.Logger),
 		extensionpkg.WithSourceSessionManager(sourceSessions),
 		extensionpkg.WithWorkspaceResolver(deps.WorkspaceResolver),

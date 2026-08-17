@@ -33,6 +33,67 @@ type extensionSecretTestWriter struct {
 	err       error
 }
 
+func TestParseExtensionRemoteHeader(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		input      string
+		wantServer string
+		wantHeader string
+		wantError  string
+	}{
+		{name: "Should leave an omitted mapping empty", input: ""},
+		{
+			name: "Should parse and trim one mapping", input: " deployment-api : X-Deployment-Key ",
+			wantServer: "deployment-api", wantHeader: "X-Deployment-Key",
+		},
+		{
+			name: "Should allow operator-owned authorization without OAuth", input: "deployment-api:Authorization",
+			wantServer: "deployment-api", wantHeader: "Authorization",
+		},
+		{name: "Should reject a missing separator", input: "deployment-api", wantError: "<server>:<header>"},
+		{name: "Should reject an empty server", input: ":X-Key", wantError: "server is required"},
+		{name: "Should reject an empty header", input: "deployment-api:", wantError: "header is required"},
+		{name: "Should reject an invalid server name", input: "bad/server:X-Key", wantError: "--remote-header server"},
+		{
+			name: "Should reject an invalid header name", input: "deployment-api:Bad Header",
+			wantError: "--remote-header header",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server, header, err := parseExtensionRemoteHeader(testCase.input)
+			if testCase.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), testCase.wantError) {
+					t.Fatalf(
+						"parseExtensionRemoteHeader(%q) error = %v, want %q",
+						testCase.input,
+						err,
+						testCase.wantError,
+					)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseExtensionRemoteHeader(%q) error = %v", testCase.input, err)
+			}
+			if server != testCase.wantServer || header != testCase.wantHeader {
+				t.Fatalf(
+					"parseExtensionRemoteHeader(%q) = %q/%q, want %q/%q",
+					testCase.input,
+					server,
+					header,
+					testCase.wantServer,
+					testCase.wantHeader,
+				)
+			}
+		})
+	}
+}
+
 // Invariant: every embedded extension scaffold is discoverable from `extension init --help`.
 // Owning layer: CLI extension authoring command.
 // Canonical suite: no existing extension-init help suite owns this product contract.
@@ -48,6 +109,58 @@ func TestExtensionInitHelpListsEveryScaffoldTemplate(t *testing.T) {
 			t.Fatalf("extension init --help omitted template %q", template)
 		}
 	}
+}
+
+func TestExtensionValidatePortableExitContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep warn-only portable validation successful and daemonless", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join("..", "extension", "testdata", "agent-plugin-conformant")
+		stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "validate", path)
+		if err != nil {
+			t.Fatalf("executeRootCommand(extension validate portable) error = %v", err)
+		}
+		for _, want := range []string{"Status:", "valid", "Format:", "agent plugin", "WARN"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("portable validate output = %q, want %q", stdout, want)
+			}
+		}
+	})
+
+	t.Run("Should print a fatal portable report before returning exit failure", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		manifest := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"Bad--Name"}`
+		if err := os.WriteFile(filepath.Join(root, "plugin.json"), []byte(manifest), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(plugin.json) error = %v", err)
+		}
+		stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "validate", root)
+		if err == nil || !strings.Contains(err.Error(), "extension bundle validation failed") {
+			t.Fatalf("executeRootCommand(extension validate fatal) error = %v, want validation failure", err)
+		}
+		for _, want := range []string{"Status:", "invalid", "Format:", "agent plugin", "ERROR plugin.json"} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("fatal portable validate output = %q, want %q", stdout, want)
+			}
+		}
+	})
+
+	t.Run("Should preserve native human validation output", func(t *testing.T) {
+		t.Parallel()
+
+		path := writeExtensionFixture(t, "native-validation", extensionFixtureOptions{})
+		stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "validate", path)
+		if err != nil {
+			t.Fatalf("executeRootCommand(extension validate native) error = %v", err)
+		}
+		if !strings.Contains(stdout, "Extension bundle validation") || !strings.Contains(stdout, "Consent:") ||
+			strings.Contains(stdout, "Format:") || strings.Contains(stdout, "Would ingest") {
+			t.Fatalf("native validate output changed shape: %q", stdout)
+		}
+	})
 }
 
 func TestExtensionLogsCursorRequiresItsStreamEpoch(t *testing.T) {
@@ -936,9 +1049,9 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	}
 	if !strings.Contains(
 		toon,
-		"extension{name,version,type,source,enabled,state,daemon_running,"+
+		"extension{name,version,type,format,source,enabled,state,daemon_running,"+
 			"pid,uptime_seconds,health,last_error,capabilities,permissions,requires_env,missing_env,"+
-			"consecutive_failures,restart_backoff_ms,summary}:",
+			"consecutive_failures,restart_backoff_ms,summary,diagnostics}:",
 	) {
 		t.Fatalf("toon output = %q, want extension TOON object", toon)
 	}

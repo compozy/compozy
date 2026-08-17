@@ -226,6 +226,13 @@ export const routeStoryRegistry = [
   },
   {
     system: "settings",
+    routePath: "/settings/attention",
+    storybookPath: "/settings/attention",
+    title: "systems/settings/routes/SettingsAttention",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/observability",
     storybookPath: "/settings/observability",
     title: "systems/settings/routes/SettingsObservability",

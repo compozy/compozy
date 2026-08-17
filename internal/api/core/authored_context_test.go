@@ -437,6 +437,9 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 				if got, want := payload["agent_name"], "deleted-agent"; got != want {
 					t.Fatalf("agent_name = %#v, want %q", got, want)
 				}
+				if got, want := payload["badge"], string(session.BadgeWaitingForInput); got != want {
+					t.Fatalf("badge = %#v, want %q", got, want)
+				}
 				if _, ok := payload["wake_state"]; ok {
 					t.Fatalf("wake_state = %#v, want omitted", payload["wake_state"])
 				}
@@ -501,9 +504,11 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 						return nil, err
 					}
 					return &session.Info{
-						ID:          id,
-						WorkspaceID: "ws-registry",
-						AgentName:   "deleted-agent",
+						ID:                  id,
+						WorkspaceID:         "ws-registry",
+						AgentName:           "deleted-agent",
+						State:               session.StateActive,
+						PendingClarifyCount: 1,
 					}, nil
 				},
 			}

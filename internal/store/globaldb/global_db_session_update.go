@@ -41,6 +41,14 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 		return "", nil, err
 	}
 	assignments, args = appendSessionSandboxAssignments(assignments, args, update)
+	if update.AttentionTransition {
+		assignments = append(
+			assignments,
+			"attention_revision = attention_revision + 1",
+			"attention_changed_at = ?",
+		)
+		args = append(args, store.FormatTimestamp(updatedAt))
+	}
 
 	if strings.TrimSpace(update.State) == globalDBSessionStateStopped {
 		assignments = append(assignments, "attached_to = ''", "attach_expires_at = NULL")

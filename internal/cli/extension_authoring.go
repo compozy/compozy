@@ -85,7 +85,7 @@ func newExtensionBuildCommand(deps commandDeps) *cobra.Command {
 		nil,
 		"Build command argv; repeat or use a comma-separated value",
 	)
-	command.Flags().DurationVar(&timeout, "timeout", 60*time.Second, "Describe-mode timeout")
+	command.Flags().DurationVar(&timeout, cliTimeoutKey, 60*time.Second, "Describe-mode timeout")
 	return command
 }
 
@@ -209,6 +209,20 @@ func extensionBuildBundle(result *extensionpkg.BuildResult) outputBundle {
 }
 
 func extensionValidationBundle(report *extensionpkg.ValidationReport) outputBundle {
+	if strings.TrimSpace(report.Format) == string(extensionpkg.FormatAgentPlugin) {
+		return outputBundle{
+			jsonValue: report,
+			jsonl: func(cmd *cobra.Command) error {
+				return writeJSONLine(cmd, report)
+			},
+			human: func() (string, error) {
+				return extensionPortableValidationHuman(report), nil
+			},
+			toon: func() (string, error) {
+				return extensionPortableValidationToon(report)
+			},
+		}
+	}
 	status := configValidKey
 	if validationHasErrors(report.Issues) {
 		status = configInvalidKey
@@ -219,7 +233,7 @@ func extensionValidationBundle(report *extensionpkg.ValidationReport) outputBund
 	}
 	rows := []keyValue{
 		{Label: automationStatusValue, Value: status},
-		{Label: "Issues", Value: strconv.Itoa(len(report.Issues))},
+		{Label: cliIssuesValue, Value: strconv.Itoa(len(report.Issues))},
 		{Label: "Consent", Value: strings.Join(consent, ", ")},
 	}
 	for _, issue := range report.Issues {
@@ -240,9 +254,45 @@ func extensionValidationBundle(report *extensionpkg.ValidationReport) outputBund
 		"Extension bundle validation",
 		rows,
 		"extension_validate",
-		[]string{automationStatusKey, "issues", "consent_areas"},
+		[]string{automationStatusKey, cliIssuesKey, "consent_areas"},
 		[]string{status, strconv.Itoa(len(report.Issues)), strings.Join(consent, ",")},
 	)
+}
+
+func extensionPortableValidationHuman(report *extensionpkg.ValidationReport) string {
+	packageName := strings.TrimSpace(report.Name + " " + report.Version)
+	rows := []keyValue{
+		{Label: automationStatusValue, Value: stringOrDash(report.Status)},
+		{Label: cliFormatValue, Value: extensionFormatLabel(report.Format)},
+	}
+	if packageName != "" {
+		rows = append(rows, keyValue{Label: "Package", Value: packageName})
+	}
+	rows = append(rows, keyValue{Label: cliIssuesValue, Value: strconv.Itoa(len(report.Issues))})
+	blocks := []string{renderHumanSection("Extension bundle validation", rows)}
+	if len(report.WouldIngest) > 0 {
+		rows := make([][]string, 0, len(report.WouldIngest))
+		for _, item := range report.WouldIngest {
+			rows = append(rows, []string{item.Kind, item.Name, item.Transport, item.Detail})
+		}
+		blocks = append(
+			blocks,
+			renderHumanTable("Would ingest", []string{cliKindValue, cliNameValue, "Transport", cliDetailValue}, rows),
+		)
+	}
+	for _, issue := range report.Issues {
+		scope := strings.TrimSpace(issue.Scope)
+		if scope == "" {
+			scope = strings.TrimSpace(issue.Path)
+		}
+		blocks = append(blocks, fmt.Sprintf(
+			"%s %s:  %s",
+			strings.ToUpper(string(issue.Severity)),
+			scope,
+			strings.TrimSpace(issue.Message),
+		))
+	}
+	return renderHumanBlocks(blocks...)
 }
 
 func singleExtensionAuthoringBundle(

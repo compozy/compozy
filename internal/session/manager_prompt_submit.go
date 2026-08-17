@@ -18,16 +18,24 @@ func (m *Manager) reservePromptSlot(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.validateReservedRuntimeModel(session, proc, runtime); err != nil {
-		session.finishPromptSetup()
-		return nil, err
-	}
-	proc, err = m.ensurePromptRuntime(ctx, session, runtime, proc)
+	proc, err = m.prepareReservedPromptSlot(ctx, session, runtime, proc)
 	if err != nil {
 		session.finishPromptSetup()
 		return nil, err
 	}
 	return proc, nil
+}
+
+func (m *Manager) prepareReservedPromptSlot(
+	ctx context.Context,
+	session *Session,
+	runtime *RuntimeSelection,
+	proc *AgentProcess,
+) (*AgentProcess, error) {
+	if err := m.validateReservedRuntimeModel(session, proc, runtime); err != nil {
+		return nil, err
+	}
+	return m.ensurePromptRuntime(ctx, session, runtime, proc)
 }
 
 func commitPromptDispatch(ctx context.Context, commit func(context.Context) error) error {
@@ -42,20 +50,94 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
-	proc, err := m.reservePromptSlot(ctx, session, req.runtime)
+	if req.deliveryCtx == nil {
+		req.deliveryCtx = ctx
+	}
+	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, false)
+	proc, err := session.beginExclusivePromptSetupForRequest(req, cancelPromptExecution)
 	if err != nil {
+		cancelPromptExecution()
 		return nil, err
 	}
 	slotReserved := true
+	stateOwned := true
 	defer func() {
 		if slotReserved {
 			session.finishPromptSetup()
 		}
+		if stateOwned {
+			cancelPromptExecution()
+			clearPromptState(session, req.turnID)
+		}
 	}()
+	proc, err = m.prepareReservedPromptSlot(promptExecutionCtx, session, req.runtime, proc)
+	if err != nil {
+		return nil, err
+	}
+	resolvedAttachments, err := m.preparePromptRequestAttachments(promptExecutionCtx, session, proc, req)
+	if err != nil {
+		return nil, err
+	}
+	if req.releaseSlotBeforeHooks {
+		session.finishPromptSetup()
+		slotReserved = false
+		clearPromptState(session, req.turnID)
+		stateOwned = false
+	}
+	message, err := m.preparePromptRequestMessage(promptExecutionCtx, session, &req)
+	if err != nil {
+		return nil, err
+	}
+	if !slotReserved {
+		proc, err = session.beginExclusivePromptSetupForRequest(req, cancelPromptExecution)
+		if err != nil {
+			return nil, err
+		}
+		slotReserved = true
+		stateOwned = true
+		proc, err = m.prepareReservedPromptSlot(promptExecutionCtx, session, req.runtime, proc)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		session.setCurrentSkillInvocations(req.skillInvocations)
+	}
+	dispatchMessage, err := m.promptDispatchMessage(promptExecutionCtx, session, message)
+	if err != nil {
+		return nil, err
+	}
+	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
+	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
+		return nil, err
+	}
+	events, err := m.submitPromptInReservedSlot(
+		promptExecutionCtx,
+		session,
+		proc,
+		req,
+		message,
+		dispatchMessage,
+		resolvedAttachments,
+		turnState,
+		cancelPromptExecution,
+	)
+	if err != nil {
+		return nil, err
+	}
+	stateOwned = false
+	return events, nil
+}
+
+func (m *Manager) preparePromptRequestAttachments(
+	ctx context.Context,
+	session *Session,
+	proc *AgentProcess,
+	req promptRequest,
+) ([]acp.PromptAttachment, error) {
 	if err := validatePromptAttachmentCaps(req.attachments, proc.CapsSnapshot()); err != nil {
 		return nil, err
 	}
-	resolvedAttachments, err := m.resolvePromptAttachments(
+	attachments, err := m.resolvePromptAttachments(
 		ctx,
 		session.WorkspaceID,
 		session.ID,
@@ -68,10 +150,14 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err := commitPromptDispatch(ctx, req.commitDispatch); err != nil {
 		return nil, err
 	}
-	if req.releaseSlotBeforeHooks {
-		session.finishPromptSetup()
-		slotReserved = false
-	}
+	return attachments, nil
+}
+
+func (m *Manager) preparePromptRequestMessage(
+	ctx context.Context,
+	session *Session,
+	req *promptRequest,
+) (string, error) {
 	message, err := m.dispatchInputPreSubmit(
 		ctx,
 		session,
@@ -81,42 +167,10 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		req.attachments,
 	)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	req.skillInvocations = commandpkg.ReconcileInvocations(message, req.skillInvocations)
-	if !slotReserved {
-		proc, err = m.reservePromptSlot(ctx, session, req.runtime)
-		if err != nil {
-			return nil, err
-		}
-		slotReserved = true
-	}
-	releasePromptState := claimPromptState(session, req)
-	stateOwned := true
-	defer func() {
-		if stateOwned {
-			releasePromptState()
-		}
-	}()
-	dispatchMessage, err := m.promptDispatchMessage(ctx, session, message)
-	if err != nil {
-		return nil, err
-	}
-	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
-	if err := m.dispatchTurnStart(ctx, turnState); err != nil {
-		return nil, err
-	}
-	stateOwned = false
-	return m.submitPromptInReservedSlot(
-		ctx,
-		session,
-		proc,
-		req,
-		message,
-		dispatchMessage,
-		resolvedAttachments,
-		turnState,
-	)
+	return message, nil
 }
 
 func (m *Manager) submitPromptInReservedSlot(
@@ -128,24 +182,8 @@ func (m *Manager) submitPromptInReservedSlot(
 	dispatchMessage string,
 	attachments []acp.PromptAttachment,
 	turnState *promptTurnDispatchState,
+	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
-	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, turnState.managed != nil)
-	session.setCurrentPromptCancel(cancelPromptExecution)
-	clearTurnSource := true
-	defer func() {
-		if clearTurnSource {
-			cancelPromptExecution()
-			session.clearPromptCancellation(req.turnID)
-			session.clearCurrentTurnID()
-			session.clearCurrentTurnSource()
-			session.clearCurrentPromptMessage()
-			session.clearCurrentPromptMeta()
-			session.clearCurrentSkillInvocations()
-			session.clearCurrentPromptCancel()
-			session.finishCurrentPromptCompletion()
-		}
-	}()
-
 	req.message = message
 	if err := m.recordPromptInputEvent(ctx, session, &req); err != nil {
 		return nil, err
@@ -156,9 +194,9 @@ func (m *Manager) submitPromptInReservedSlot(
 		return nil, err
 	}
 	supervision := supervisionForSession(session, m.supervision)
-	activity := newPromptActivitySupervisor(promptExecutionCtx, m, session, turnState, supervision)
+	activity := newPromptActivitySupervisor(ctx, m, session, turnState, supervision)
 	activity.start()
-	source, err := m.driver.Prompt(promptExecutionCtx, proc, acp.PromptRequest{
+	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{
 		TurnID:                    req.turnID,
 		Message:                   dispatchMessage,
 		Attachments:               attachments,
@@ -183,15 +221,10 @@ func (m *Manager) submitPromptInReservedSlot(
 	}
 	m.consumeResumeReplay(session.ID, replayBlock)
 
-	clearTurnSource = false
 	lifecycleCtx := m.fallbackLifecycleContext()
-	deliveryCtx := req.deliveryCtx
-	if deliveryCtx == nil {
-		deliveryCtx = ctx
-	}
 	return m.startPromptPump(
 		lifecycleCtx,
-		deliveryCtx,
+		req.deliveryCtx,
 		session,
 		turnState,
 		source,

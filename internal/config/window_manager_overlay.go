@@ -2,7 +2,8 @@ package config
 
 import (
 	"fmt"
-	"maps"
+
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // ApplyWindowManagerOverlayFile applies only the optional [window_manager]
@@ -26,6 +27,6 @@ func ApplyWindowManagerOverlayFile(
 func cloneWindowManagerConfig(source WindowManagerConfig) WindowManagerConfig {
 	cloned := source
 	cloned.Snap.RepeatRatios = append([]float64(nil), source.Snap.RepeatRatios...)
-	cloned.Shortcuts = maps.Clone(source.Shortcuts)
+	cloned.Shortcuts = windowmanager.CloneShortcutMap(source.Shortcuts)
 	return cloned
 }

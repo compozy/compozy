@@ -428,6 +428,8 @@ export function windowManagerSettingsConfigToWire(config: WindowManagerConfig) {
     group_move_modifier: config.groupMoveModifier,
     swap_modifier: config.swapModifier,
     history_limit: config.historyLimit,
+    nav_stack_limit: config.navStackLimit,
+    closed_entry_limit: config.closedEntryLimit,
     desktop_transition: config.desktopTransition,
     gaps: config.gaps,
     snap: {

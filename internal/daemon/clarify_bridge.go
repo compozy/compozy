@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/google/uuid"
 )
@@ -18,6 +19,15 @@ const clarifyObservabilityTimeout = 2 * time.Second
 
 type clarifyEventPublisher interface {
 	PublishClarifyEvent(context.Context, toolspkg.ClarifyEvent) error
+}
+
+type clarifyOrphanResolver interface {
+	ResolveOrphanedClarification(
+		context.Context,
+		toolspkg.Scope,
+		string,
+		toolspkg.ClarifyAnswerRequest,
+	) (toolspkg.ClarifyAnswerResult, error)
 }
 
 type clarifyBridge struct {
@@ -207,26 +217,26 @@ func (b *clarifyBridge) Answer(
 	scope toolspkg.Scope,
 	requestID string,
 	request toolspkg.ClarifyAnswerRequest,
-) (toolspkg.ClarifyAnswer, error) {
+) (toolspkg.ClarifyAnswerResult, error) {
 	if ctx == nil {
-		return toolspkg.ClarifyAnswer{}, errors.New("daemon: clarification context is required")
+		return toolspkg.ClarifyAnswerResult{}, errors.New("daemon: clarification context is required")
 	}
 	normalized, err := normalizeClarifyLookupScope(scope)
 	if err != nil {
-		return toolspkg.ClarifyAnswer{}, err
+		return toolspkg.ClarifyAnswerResult{}, err
 	}
 	target := strings.TrimSpace(requestID)
 	if target == "" {
-		return toolspkg.ClarifyAnswer{}, errors.New("daemon: clarification request ID is required")
+		return toolspkg.ClarifyAnswerResult{}, errors.New("daemon: clarification request ID is required")
 	}
 	b.mu.Lock()
 	handle := b.pending[normalized.SessionID]
 	b.mu.Unlock()
 	if handle == nil {
-		return toolspkg.ClarifyAnswer{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, target)
+		return b.resolveOrphaned(ctx, normalized, target, request)
 	}
 	if err := waitForClarifyPublication(ctx, handle); err != nil {
-		return toolspkg.ClarifyAnswer{}, err
+		return toolspkg.ClarifyAnswerResult{}, err
 	}
 	handle.completionMu.Lock()
 	if handle.terminal ||
@@ -234,7 +244,7 @@ func (b *clarifyBridge) Answer(
 		handle.pending.RequestID != target ||
 		!clarifyScopeMatches(normalized, handle.pending) {
 		handle.completionMu.Unlock()
-		return toolspkg.ClarifyAnswer{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, target)
+		return b.resolveOrphaned(ctx, normalized, target, request)
 	}
 	question := toolspkg.ClarifyQuestion{
 		Question: handle.pending.Question,
@@ -243,12 +253,30 @@ func (b *clarifyBridge) Answer(
 	handle.completionMu.Unlock()
 	answer, err := request.Normalize(question)
 	if err != nil {
-		return toolspkg.ClarifyAnswer{}, err
+		return toolspkg.ClarifyAnswerResult{}, err
 	}
 	if err := b.completeExplicit(ctx, handle, answer); err != nil {
-		return toolspkg.ClarifyAnswer{}, err
+		return toolspkg.ClarifyAnswerResult{}, err
 	}
-	return answer, nil
+	return toolspkg.ClarifyAnswerResult{
+		ClarifyAnswer:  answer,
+		Outcome:        store.PendingInteractionOutcomeAnswered,
+		RequestID:      target,
+		ResolvedAnswer: answer.Resolution(question),
+	}, nil
+}
+
+func (b *clarifyBridge) resolveOrphaned(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	requestID string,
+	request toolspkg.ClarifyAnswerRequest,
+) (toolspkg.ClarifyAnswerResult, error) {
+	resolver, ok := b.publisher.(clarifyOrphanResolver)
+	if !ok {
+		return toolspkg.ClarifyAnswerResult{}, fmt.Errorf("%w: %s", toolspkg.ErrClarifyNotFound, requestID)
+	}
+	return resolver.ResolveOrphanedClarification(ctx, scope, requestID, request)
 }
 
 func waitForClarifyPublication(ctx context.Context, handle *clarifyHandle) error {

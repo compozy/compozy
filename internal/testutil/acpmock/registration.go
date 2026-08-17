@@ -19,6 +19,7 @@ type RegisterOptions struct {
 	ProviderName    string
 	DriverPath      string
 	DiagnosticsPath string
+	Tools           []string
 }
 
 // ProviderName is the auth-free local provider used by fixture-backed ACP mocks.
@@ -79,7 +80,7 @@ func Register(homePaths compozyconfig.HomePaths, opts RegisterOptions) (Registra
 		return Registration{}, fmt.Errorf("acpmock: create agent directory %q: %w", filepath.Dir(agentDefPath), err)
 	}
 
-	content := renderAgentDef(runtimeAgentName, fixture.agent, command, providerName)
+	content := renderAgentDef(runtimeAgentName, fixture.agent, command, providerName, opts.Tools)
 	if err := os.WriteFile(agentDefPath, []byte(content), 0o600); err != nil {
 		return Registration{}, fmt.Errorf("acpmock: write agent definition %q: %w", agentDefPath, err)
 	}
@@ -186,7 +187,7 @@ func BuildCommand(driverPath string, fixturePath string, fixtureAgent string, di
 	return shellquote.Join(argv...)
 }
 
-func renderAgentDef(name string, agent AgentFixture, command string, providerName string) string {
+func renderAgentDef(name string, agent AgentFixture, command string, providerName string, tools []string) string {
 	prompt := strings.TrimSpace(agent.Prompt)
 	if prompt == "" {
 		prompt = "You are " + name + "."
@@ -205,6 +206,21 @@ func renderAgentDef(name string, agent AgentFixture, command string, providerNam
 	}
 	if permissions := strings.TrimSpace(agent.Permissions); permissions != "" {
 		builder.WriteString("permissions: " + permissions + "\n")
+	}
+	allTools := make([]string, 0, len(agent.Tools)+len(tools))
+	allTools = append(allTools, agent.Tools...)
+	allTools = append(allTools, tools...)
+	wroteTools := false
+	for _, tool := range allTools {
+		tool = strings.TrimSpace(tool)
+		if tool == "" {
+			continue
+		}
+		if !wroteTools {
+			builder.WriteString("tools:\n")
+			wroteTools = true
+		}
+		builder.WriteString("  - " + yamlSingleQuote(tool) + "\n")
 	}
 	builder.WriteString("---\n\n")
 	builder.WriteString(prompt)

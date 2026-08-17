@@ -87,6 +87,7 @@ type SessionInfo struct {
 	AttachedTo       string
 	AttachExpiresAt  *time.Time
 	TranscriptEpoch  int64
+	Attention        *SessionAttention
 	ArchivedAt       *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -260,6 +261,7 @@ type SessionStateUpdate struct {
 	StopDetail               string
 	FailureSet               bool
 	Failure                  *SessionFailure
+	AttentionTransition      bool
 	Liveness                 *SessionLivenessMeta
 	Sandbox                  *SessionSandboxMeta
 	UpdatedAt                time.Time

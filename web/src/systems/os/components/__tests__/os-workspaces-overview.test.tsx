@@ -465,9 +465,7 @@ describe("OsWorkspacesOverview", () => {
     const user = userEvent.setup();
     const callbacks = renderOverview({ scope: "global" });
 
-    expect(screen.getByTestId("os-workspaces-notice")).toHaveTextContent(
-      "Global scope is on — picking a workspace turns it off."
-    );
+    expect(screen.queryByText(/Global scope is on/)).not.toBeInTheDocument();
     await user.keyboard("{Enter}");
     expect(callbacks.onSelectWorkspace).toHaveBeenCalledExactlyOnceWith(COMPOZY.id);
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
@@ -612,8 +610,6 @@ describe("OsWorkspacesOverview", () => {
     expect(caption()).toHaveTextContent("Global");
     expect(caption()).toHaveTextContent("visible to every workspace");
     expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent("0 workspaces");
-    // The empty state has no strip hints to promise — and no notice line.
-    expect(screen.queryByTestId("os-workspaces-notice")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("os-workspaces-new"));
     expect(callbacks.onNewWorkspace).toHaveBeenCalledTimes(1);

@@ -1,11 +1,24 @@
 // Suite: OS attention data readiness
-// Invariant: either session catalog query failing leaves attention disconnected instead of implying no sessions,
-// and attention authority stays workspace-wide while the sessions modal follows the focused window's worktree scope.
+// Invariant: attention rows read cross-workspace and unscoped so no workspace or
+// worktree can hide a blocked session, while the sessions modal follows the
+// focused window's worktree scope; session counts come from the daemon summary
+// and vanish when it is stale rather than reporting a page total.
 // Owning layer: OS attention query adapter. Canonical suite: this hook test.
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/systems/session/hooks/use-sessions", () => ({ useSessions: vi.fn() }));
+// The list preference decides the order the modal query asks for; its own
+// round-trip is covered where it lives.
+vi.mock("@/systems/session/hooks/use-session-list-preferences", () => ({
+  useSessionListPreferences: vi.fn(() => ({
+    sort: "last_activity",
+    scope: "workspace",
+    setSort: vi.fn(),
+    setScope: vi.fn(),
+    loading: false,
+  })),
+}));
 vi.mock("@/systems/tasks/lib/workspace-scope", () => ({
   taskScopeForActiveWorkspace: vi.fn(),
 }));
@@ -25,8 +38,20 @@ vi.mock("../use-worktree-scope", () => ({ useFocusedWorktreeScopeId: vi.fn(() =>
 vi.mock("@/systems/loops", () => ({
   useLoopNodeExists: vi.fn(() => false),
 }));
+// The summary and policy hooks own their own suites; this one is about how the
+// shell composes them against the scoped modal queries.
+vi.mock("../use-attention-summary", () => ({ useAttentionSummary: vi.fn() }));
+vi.mock("../use-attention-policy", () => ({
+  useAttentionPolicy: vi.fn(() => ({
+    toasts: true,
+    sound: true,
+    system: false,
+    mutedWorkspaceIds: new Set<string>(),
+  })),
+}));
 
 import { useLoopNodeExists } from "@/systems/loops";
+import { useAttentionSummary } from "../use-attention-summary";
 import { useOsAttention } from "../use-os-attention";
 import { useSessions, type SessionPayload } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
@@ -57,24 +82,42 @@ function sessionsQuery({
   return { data, isError, isLoading, total: data?.length ?? 0 } as ReturnType<typeof useSessions>;
 }
 
-/** `badge` is what marks a session as needing attention (see isWaitingSession). */
+/** `badge` is what puts a session in the needs-you class (see session-badge.ts). */
 function waitingSession(id: string): SessionPayload {
   return {
     id,
     agent_name: "atlas",
+    runtime: {
+      status: "ready",
+      transition: "initial_bind",
+      effective: { provider: "claude" },
+      selection_revision: 0,
+    },
     badge: "waiting-for-auth",
     workspace_id: workspace.id,
-  } as SessionPayload;
+    workspace_path: workspace.root_dir,
+    state: "active",
+    attachable: true,
+    available_commands: [],
+    pending_interactions: [],
+    archived_at: null,
+    created_at: "2026-08-04T12:00:00Z",
+    updated_at: "2026-08-04T12:00:00Z",
+  };
 }
 
-/** Call order in the hook: attention (unscoped), modal (scoped), archived (scoped). */
-const ATTENTION_CALL = 0;
-const MODAL_CALL = 1;
-const ARCHIVED_CALL = 2;
+/** Call order in the hook: needs-you rows, finished rows, modal (scoped). */
+const NEEDS_YOU_CALL = 0;
+const FINISHED_CALL = 1;
+const MODAL_CALL = 2;
 
 function filtersForCall(call: number): Record<string, unknown> {
   const options = vi.mocked(useSessions).mock.calls[call]?.[1];
   return (options?.filters ?? {}) as Record<string, unknown>;
+}
+
+function workspaceForCall(call: number): string | null | undefined {
+  return vi.mocked(useSessions).mock.calls[call]?.[0];
 }
 
 describe("useOsAttention", () => {
@@ -83,6 +126,7 @@ describe("useOsAttention", () => {
     vi.mocked(useActiveWorkspace).mockReturnValue({
       scope: "workspace",
       activeWorkspaceId: "ws_alpha",
+      workspaces: [workspace],
     } as never);
     vi.mocked(useScopedWorktreeFilter).mockReturnValue({ worktreeId: undefined, resolved: true });
     vi.mocked(taskScopeForActiveWorkspace).mockReturnValue({} as never);
@@ -92,40 +136,68 @@ describe("useOsAttention", () => {
       isLoading: false,
     } as never);
     vi.mocked(useTasks).mockReturnValue({ data: [], isError: false, isLoading: false } as never);
+    vi.mocked(useAttentionSummary).mockReturnValue({
+      summary: { needsYou: 0, finished: 0 },
+      stale: false,
+      loading: false,
+    });
   });
 
-  it("Should mark attention disconnected when the archived catalog query fails", () => {
+  it("Should read the archive only through the modal catalog leg", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({}));
+
+    renderHook(() => useOsAttention(workspace, "live", true));
+
+    expect(filtersForCall(MODAL_CALL).archive).toBe("only");
+    // The archive is a window's content, never an attention signal.
+    expect(filtersForCall(NEEDS_YOU_CALL).archive).toBeUndefined();
+    expect(filtersForCall(FINISHED_CALL).archive).toBeUndefined();
+  });
+
+  it("Should leave the modal catalog on active sessions when the archive is off", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({}));
+
+    renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(filtersForCall(MODAL_CALL).archive).toBeUndefined();
+  });
+
+  it("Should isolate attention-row failures from the sessions modal catalog", () => {
     vi.mocked(useSessions)
+      .mockReturnValueOnce(sessionsQuery({ data: undefined, isError: true }))
       .mockReturnValueOnce(sessionsQuery({}))
       .mockReturnValueOnce(sessionsQuery({}))
-      .mockReturnValueOnce(sessionsQuery({ data: undefined, isError: true }));
+      .mockReturnValueOnce(sessionsQuery({}));
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
-    expect(result.current.sessionsDisconnected).toBe(true);
-    expect(result.current.archivedSessions).toEqual([]);
+    expect(result.current.attentionSessionsDisconnected).toBe(true);
+    expect(result.current.sessionsDisconnected).toBe(false);
   });
 
-  it("Should keep attention badges workspace-wide while the modal follows the worktree scope", () => {
+  it("Should read attention rows cross-workspace and unscoped while the modal follows the worktree", () => {
     vi.mocked(useScopedWorktreeFilter).mockReturnValue({
       worktreeId: "wt_payments",
       resolved: true,
     });
-    const attentionSessions = [waitingSession("sess_other_worktree")];
     vi.mocked(useSessions)
-      .mockReturnValueOnce(sessionsQuery({ data: attentionSessions }))
+      .mockReturnValueOnce(sessionsQuery({ data: [waitingSession("sess_other_worktree")] }))
+      .mockReturnValueOnce(sessionsQuery({ data: [] }))
       .mockReturnValueOnce(sessionsQuery({ data: [] }))
       .mockReturnValueOnce(sessionsQuery({ data: [] }));
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
-    // The attention query must not carry the scope, or a waiting session in
-    // another worktree would stop raising a notification.
-    expect(filtersForCall(ATTENTION_CALL).worktree).toBeUndefined();
+    // Attention rows must carry neither a workspace nor a worktree, or a blocked
+    // session elsewhere would stop raising a row.
+    expect(workspaceForCall(NEEDS_YOU_CALL)).toBeNull();
+    expect(workspaceForCall(FINISHED_CALL)).toBeNull();
+    expect(filtersForCall(NEEDS_YOU_CALL).worktree).toBeUndefined();
+    expect(filtersForCall(NEEDS_YOU_CALL).attention).toBe(true);
+    expect(filtersForCall(FINISHED_CALL).badge).toBe("done");
+    expect(workspaceForCall(MODAL_CALL)).toBe(workspace.id);
     expect(filtersForCall(MODAL_CALL).worktree).toBe("wt_payments");
-    expect(filtersForCall(ARCHIVED_CALL).worktree).toBe("wt_payments");
-    // Badges see the unscoped page; the modal list sees the scoped one.
-    expect(result.current.notificationCount).toBeGreaterThan(0);
+    expect(result.current.sections.needsYou.map(row => row.id)).toEqual(["sess_other_worktree"]);
     expect(result.current.sessions).toEqual([]);
   });
 
@@ -133,30 +205,39 @@ describe("useOsAttention", () => {
     vi.mocked(useScopedWorktreeFilter).mockReturnValue({ worktreeId: undefined, resolved: true });
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
 
-    renderHook(() => useOsAttention(workspace, "live"));
+    renderHook(() => useOsAttention(workspace, "live", false));
 
     // A missing or unavailable selection sends no filter at all rather than an
     // empty one, so the list matches the fallback notice.
     expect(filtersForCall(MODAL_CALL)).not.toHaveProperty("worktree", expect.anything());
     expect(filtersForCall(MODAL_CALL).worktree).toBeUndefined();
-    expect(filtersForCall(ARCHIVED_CALL).worktree).toBeUndefined();
   });
 
-  it("Should not let a scoped page make attention badges look fresh", () => {
-    vi.mocked(useScopedWorktreeFilter).mockReturnValue({
-      worktreeId: "wt_payments",
-      resolved: true,
+  it("Should count sessions from the summary, not from the rows that happened to load", () => {
+    vi.mocked(useAttentionSummary).mockReturnValue({
+      summary: { needsYou: 137, finished: 4 },
+      stale: false,
+      loading: false,
     });
-    vi.mocked(useSessions)
-      // Attention query failed; the scoped modal queries succeeded.
-      .mockReturnValueOnce(sessionsQuery({ data: undefined, isError: true }))
-      .mockReturnValueOnce(sessionsQuery({ data: [] }))
-      .mockReturnValueOnce(sessionsQuery({ data: [] }));
+    vi.mocked(useSessions).mockReturnValue(
+      sessionsQuery({ data: [waitingSession("sess_page_1")] })
+    );
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
-    // A stale attention query hides the count rather than reporting zero from
-    // the scoped page that happened to load.
+    expect(result.current.badges.sessions).toBe(137);
+  });
+
+  it("Should hide the count when the summary is stale rather than report a page total", () => {
+    vi.mocked(useAttentionSummary).mockReturnValue({
+      summary: { needsYou: 3, finished: 0 },
+      stale: true,
+      loading: false,
+    });
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [waitingSession("sess_stale")] }));
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
     expect(result.current.badges.sessions).toBeUndefined();
   });
 
@@ -164,9 +245,9 @@ describe("useOsAttention", () => {
     vi.mocked(useLoopNodeExists).mockImplementation((_workspaceId, state) => state === "waiting");
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
 
-    const { result } = renderHook(() => useOsAttention(workspace, "live"));
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
-    expect(result.current.rows).toEqual([
+    expect(result.current.sections.needsYou).toEqual([
       {
         kind: "loop-node",
         id: "waiting",

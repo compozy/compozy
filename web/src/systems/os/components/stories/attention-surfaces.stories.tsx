@@ -1,9 +1,13 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { fn } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
-import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
+import type {
+  SessionLifecycleActionHandlers,
+  SessionListViewModel,
+  SessionPayload,
+} from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { OsShellContext } from "../../contexts/os-shell-context";
@@ -37,6 +41,7 @@ function session(
     attachable: true,
     archived_at: null,
     available_commands: [],
+    pending_interactions: [],
     created_at: "2026-07-20T12:00:00Z",
     updated_at: "2026-07-20T12:01:00Z",
   };
@@ -52,13 +57,6 @@ const CATALOG: SessionPayload[] = [
   session("session-7", "Provider contract review", "infra", "idle"),
 ];
 
-const ARCHIVED_CATALOG: SessionPayload[] = [
-  {
-    ...session("session-archived", "Prior launch audit", "infra", "stopped"),
-    archived_at: "2026-08-04T12:00:00Z",
-  },
-];
-
 const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
   pendingAction: null,
   pendingSessionId: null,
@@ -67,6 +65,19 @@ const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
   onRename: fn(),
   onStop: fn(),
   onUnarchive: fn(),
+};
+
+const SESSION_LIST_VIEW: SessionListViewModel = {
+  scope: "workspace",
+  sort: "last_activity",
+  archived: false,
+  saving: false,
+  setScope: fn(),
+  setSort: fn(),
+  setArchived: fn(),
+  workspaceGroups: [],
+  collapsedWorkspaceIds: new Set<string>(),
+  toggleWorkspace: fn(),
 };
 
 const WORKSPACE: WorkspacePayload = {
@@ -81,42 +92,65 @@ const WORKSPACE: WorkspacePayload = {
 const ATTENTION: OsAttentionModel = {
   badges: { sessions: 1, tasks: 1 },
   notificationCount: 2,
-  rows: [
-    {
-      kind: "session",
-      id: "session-2",
-      title: "Marketplace empty states",
-      agentName: "webgen",
-    },
-    {
-      kind: "task",
-      id: "task-42",
-      title: "Approve runtime contract",
-      identifier: "CompozyOS-42",
-    },
-    {
-      kind: "loop-node",
-      id: "waiting",
-      title: "Loop nodes waiting on you",
-      state: "waiting",
-    },
-    {
-      kind: "loop-node",
-      id: "attention",
-      title: "Loop nodes needing attention",
-      state: "attention",
-    },
-  ],
+  sections: {
+    needsYou: [
+      {
+        kind: "session",
+        id: "session-2",
+        title: "Marketplace empty states",
+        agentName: "webgen",
+        workspaceId: "workspace-1",
+        workspaceLabel: "compozy",
+        badge: "waiting-for-input",
+        reason: "Which empty state copy should ship?",
+        changedAt: "2026-07-20T12:04:00Z",
+        muted: false,
+        stale: false,
+      },
+      {
+        kind: "task",
+        id: "task-42",
+        title: "Approve runtime contract",
+        identifier: "CompozyOS-42",
+      },
+      {
+        kind: "loop-node",
+        id: "waiting",
+        title: "Loop nodes waiting on you",
+        state: "waiting",
+      },
+      {
+        kind: "loop-node",
+        id: "attention",
+        title: "Loop nodes needing attention",
+        state: "attention",
+      },
+    ],
+    finished: [
+      {
+        kind: "session",
+        id: "session-9",
+        title: "Release notes draft",
+        agentName: "hermes",
+        workspaceId: "workspace-2",
+        workspaceLabel: "infra",
+        badge: "done",
+        reason: "done",
+        changedAt: "2026-07-20T11:38:00Z",
+        muted: false,
+        stale: false,
+      },
+    ],
+  },
   sessions: CATALOG,
-  archivedSessions: ARCHIVED_CATALOG,
-  archivedSessionsTotal: ARCHIVED_CATALOG.length,
+  attentionSessionsDisconnected: false,
   sessionsDisconnected: false,
   tasksDisconnected: false,
   loading: false,
 };
 
-function SessionsModalFixture({ collapsedAgent }: { collapsedAgent?: string }) {
-  const [shell] = useState(() => createStoryShell({ collapsedAgent }));
+function SessionsModalFixture() {
+  const [shell] = useState(() => createStoryShell());
   const dockItems = buildDeskItems({
     open: ["sessions"],
     badges: { sessions: 1, tasks: 1 },
@@ -128,9 +162,9 @@ function SessionsModalFixture({ collapsedAgent }: { collapsedAgent?: string }) {
           open
           onOpenChange={fn()}
           sessions={CATALOG}
-          archivedSessions={ARCHIVED_CATALOG}
-          archivedTotal={ARCHIVED_CATALOG.length}
           disconnected={false}
+          view={SESSION_LIST_VIEW}
+          onNewSession={fn()}
           sessionActions={SESSION_ACTIONS}
         />
         <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} />
@@ -185,36 +219,17 @@ const meta: Meta<typeof OsSessionsModal> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Modal recent view with the runtime's raw status vocabulary and six-row recent limit. */
-export const SessionsRecent: Story = {
+/** Modal workspace view with the runtime's raw status vocabulary. */
+export const SessionsWorkspace: Story = {
   args: {
     open: true,
     onOpenChange: fn(),
     sessions: CATALOG,
-    archivedSessions: ARCHIVED_CATALOG,
-    archivedTotal: ARCHIVED_CATALOG.length,
     disconnected: false,
+    onNewSession: fn(),
     sessionActions: SESSION_ACTIONS,
   },
   render: () => <SessionsModalFixture />,
-};
-
-/** Grouped catalog with the webgen agent persisted as collapsed. */
-export const SessionsGrouped: Story = {
-  args: {
-    open: true,
-    onOpenChange: fn(),
-    sessions: CATALOG,
-    archivedSessions: ARCHIVED_CATALOG,
-    archivedTotal: ARCHIVED_CATALOG.length,
-    disconnected: false,
-    sessionActions: SESSION_ACTIONS,
-  },
-  render: () => <SessionsModalFixture collapsedAgent="webgen" />,
-  play: async ({ canvasElement }) => {
-    const body = canvasElement.ownerDocument.body;
-    await userEvent.click(within(body).getByRole("button", { name: "Show all sessions" }));
-  },
 };
 
 /** Open attention bell with one waiting session and one task awaiting approval. */
@@ -223,9 +238,8 @@ export const BellPopulated: Story = {
     open: true,
     onOpenChange: fn(),
     sessions: CATALOG,
-    archivedSessions: ARCHIVED_CATALOG,
-    archivedTotal: ARCHIVED_CATALOG.length,
     disconnected: false,
+    onNewSession: fn(),
     sessionActions: SESSION_ACTIONS,
   },
   render: () => <BellFixture />,
@@ -237,9 +251,8 @@ export const DockBadges: Story = {
     open: true,
     onOpenChange: fn(),
     sessions: CATALOG,
-    archivedSessions: ARCHIVED_CATALOG,
-    archivedTotal: ARCHIVED_CATALOG.length,
     disconnected: false,
+    onNewSession: fn(),
     sessionActions: SESSION_ACTIONS,
   },
   render: () => (

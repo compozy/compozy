@@ -4,6 +4,32 @@ package contracts
 
 import "time"
 
+type ForgeCapabilitiesResponse struct {
+	Served             bool     `json:"served"`
+	Available          bool     `json:"available"`
+	Winner             string   `json:"winner,omitempty"`
+	Provider           string   `json:"provider,omitempty"`
+	ServedRemote       string   `json:"served_remote,omitempty"`
+	RequestNoun        string   `json:"request_noun,omitempty"`
+	OpenActionLabel    string   `json:"open_action_label,omitempty"`
+	ViewActionLabel    string   `json:"view_action_label,omitempty"`
+	SupportsDraft      bool     `json:"supports_draft,omitempty"`
+	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
+	TemplatePaths      []string `json:"template_paths,omitempty"`
+	CredentialSource   string   `json:"credential_source,omitempty"`
+	DefaultBranch      string   `json:"default_branch,omitempty"`
+	Cause              string   `json:"cause,omitempty"`
+}
+
+type ForgePRCreateRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Head       string   `json:"head"`
+	Base       string   `json:"base"`
+	Title      string   `json:"title"`
+	Body       string   `json:"body,omitempty"`
+	Draft      bool     `json:"draft,omitempty"`
+}
+
 type ForgePRCreateResponse struct {
 	Status string `json:"status"`
 	Number int    `json:"number,omitempty"`
@@ -181,32 +207,4 @@ type HeartbeatRollbackRequest struct {
 	TargetDigest   string `json:"target_digest,omitempty"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type HeartbeatStatusRequest struct {
-	WorkspaceID             string `json:"workspace_id,omitempty"`
-	AgentName               string `json:"agent_name"`
-	SessionID               string `json:"session_id,omitempty"`
-	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
-	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
-}
-
-type HeartbeatStatusResponse struct {
-	AgentName        string                             `json:"agent_name"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	Summary          string                             `json:"summary,omitempty"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	WakeState        *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
-	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
 }

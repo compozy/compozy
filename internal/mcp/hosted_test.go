@@ -372,6 +372,62 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retain the bootstrap projection until its generation advances", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		required := hostedToolView("mcp__local__echo_environment")
+		registry := &hostedRegistryStub{
+			bootstrapViews: []tools.ToolView{required},
+			bootstrapSet:   true,
+		}
+		var generation atomic.Uint64
+		generation.Store(1)
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) {
+				return fmt.Sprint(generation.Load()), true
+			},
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-bootstrap-generation", peer)
+		if got, want := hostedToolIDs(bind.Tools), []string{required.Descriptor.ID.String()}; !slices.Equal(got, want) {
+			t.Fatalf("Bind() tools = %#v, want bootstrap tools %#v", got, want)
+		}
+
+		projection, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(stable generation) error = %v", err)
+		}
+		if got, want := hostedToolIDs(
+			projection.Tools,
+		), []string{
+			required.Descriptor.ID.String(),
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("Projection(stable generation) tools = %#v, want bootstrap tools %#v", got, want)
+		}
+		if got := registry.listCallCount(); got != 0 {
+			t.Fatalf("registry List calls = %d, want 0 while bootstrap generation is stable", got)
+		}
+
+		generation.Add(1)
+		changed, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(changed generation) error = %v", err)
+		}
+		if got := hostedToolIDs(changed.Tools); len(got) != 0 {
+			t.Fatalf("Projection(changed generation) tools = %#v, want authoritative empty projection", got)
+		}
+		if got, want := registry.listCallCount(), 1; got != want {
+			t.Fatalf("registry List calls = %d, want %d after generation advance", got, want)
+		}
+	})
+
 	t.Run("Should rebuild a hosted projection when descriptors change after source expiry", func(t *testing.T) {
 		t.Parallel()
 
@@ -422,7 +478,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		if got, want := hostedToolIDs(projection.Tools), []string{"compozy__beta"}; !slices.Equal(got, want) {
 			t.Fatalf("Projection(beta) tools = %#v, want %#v", got, want)
 		}
-		if got, want := registry.listCallCount(), baselineCalls+2; got != want {
+		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
 			t.Fatalf("registry List calls = %d, want %d after descriptor generation changed", got, want)
 		}
 	})
@@ -456,7 +512,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Projection(second) error = %v", err)
 		}
-		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
+		if got, want := registry.listCallCount(), baselineCalls; got != want {
 			t.Fatalf("registry List calls = %d, want %d for unchanged generation", got, want)
 		}
 
@@ -486,7 +542,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		if got, want := hostedToolIDs(changed.Tools), []string{"compozy__beta"}; !slices.Equal(got, want) {
 			t.Fatalf("changed projection tools = %#v, want %#v", got, want)
 		}
-		if got, want := registry.listCallCount(), baselineCalls+2; got != want {
+		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
 			t.Fatalf("registry List calls = %d, want %d after generation advance", got, want)
 		}
 	})
@@ -507,6 +563,8 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 			releaseListOnce.Do(func() { close(releaseList) })
 		})
 		var gateGeneration atomic.Bool
+		var generation atomic.Uint64
+		generation.Store(1)
 		registry := &hostedRegistryStub{
 			views: []tools.ToolView{hostedToolView("compozy__alpha")},
 		}
@@ -522,7 +580,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 					case <-ctx.Done():
 					}
 				}
-				return "1", true
+				return fmt.Sprint(generation.Load()), true
 			},
 		)
 		peer := hostedTestPeer(executable)
@@ -530,6 +588,7 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		baselineCalls := registry.listCallCount()
 		registry.listStarted = listStarted
 		registry.releaseList = releaseList
+		generation.Add(1)
 		gateGeneration.Store(true)
 
 		type projectionResult struct {

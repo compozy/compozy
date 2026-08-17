@@ -42,6 +42,12 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	if result.Section == SectionWindowManager {
 		return s.recordWindowManagerSectionApply(ctx, result)
 	}
+	if result.Section == SectionAttention {
+		return s.recordAttentionSectionApply(ctx, result)
+	}
+	if result.Section == SectionShell {
+		return s.recordShellSectionApply(ctx, result)
+	}
 	return s.recordMutationApply(ctx, result)
 }
 
