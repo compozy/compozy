@@ -8,11 +8,11 @@ expected: The root and site migration guides normalize to identical canonical co
 entry_points: MIGRATION_GUIDE.md; packages/site/content/docs/migration/**; make migration-guide-check; scripts/verify-migration-guide-parity.sh; legacy-surface disposition ledger
 qa_status: pass
 bug_ids:
-fix_status:
-retest_status: pass
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/beta-candidate/migration-guide-check.txt; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/beta-candidate/deferred-migrator.txt
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: LP-loop-input-defaults; LP-loop-run-deep-link
 ---
 

@@ -1,9 +1,6 @@
 package config
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -478,7 +475,14 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_git_range:",
 		"release_initial:",
 		"github.com/compozy/releasepr@v0.0.28",
-		"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}",
+		"name: Synchronize explicit release web assets",
+		`go run "${mage_module}" webAssetsCheck`,
+		`go run "${mage_module}" releaseWebAssetsSync`,
+		`target_branch="${RELEASE_REF_INPUT#refs/heads/}"`,
+		`git show-ref --verify --quiet "${target_remote_ref}"`,
+		`git add go.mod go.sum`,
+		`git push origin "HEAD:refs/heads/${target_branch}"`,
+		`echo "ref=$(git rev-parse HEAD)"`,
 		"go run \"${PR_RELEASE_MODULE}\" plan",
 		"if [[ \"${GITHUB_EVENT_NAME}\" == \"workflow_dispatch\" ]]",
 		"allow_existing_tag_args+=(--allow-existing-tag)",
@@ -498,6 +502,7 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}",
 		"RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}",
 		"RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}",
+		"COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}",
 		"GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}",
 		"GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}",
 		"NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}",
@@ -539,6 +544,25 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	if got := strings.Count(workflow, `render-and-validate-release-body.sh`); got != 3 {
 		t.Fatalf("release body render/validation reference count = %d, want staging plus two invocations", got)
 	}
+	if got := strings.Count(workflow, `name: Synchronize explicit release web assets`); got != 1 {
+		t.Fatalf("explicit web assets synchronization count = %d, want 1", got)
+	}
+
+	t.Run("Should expose dedicated and fallback web assets publication authority", func(t *testing.T) {
+		t.Parallel()
+
+		releasePlan := workflowJobSection(t, workflow, "release-plan", "release")
+		start := strings.Index(releasePlan, "      - name: Synchronize explicit release web assets\n")
+		end := strings.Index(releasePlan, "      - name: Resolve release identity\n")
+		if start < 0 || end <= start {
+			t.Fatalf("explicit web assets synchronization section bounds = %d/%d, want ordered markers", start, end)
+		}
+		syncStep := releasePlan[start:end]
+		assertContainsText(t, "dedicated web assets token", syncStep,
+			"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}")
+		assertContainsText(t, "fallback release token", syncStep,
+			"RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}")
+	})
 
 	t.Run("Should derive the next beta from immutable Git and npm versions", func(t *testing.T) {
 		t.Parallel()
@@ -683,94 +707,84 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
 	gitignore := readTextFile(t, root, ".gitignore")
-	repairWorkflow := readTextFile(t, root, filepath.Join(".github", "workflows", "desktop-feed-repair.yml"))
-	cargoManifest := readTextFile(t, root, filepath.Join("desktop", "src-tauri", "Cargo.toml"))
-	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
+	goreleaserData, err := os.ReadFile(filepath.Join(root, ".goreleaser.yml"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(.goreleaser.yml) error = %v", err)
+	}
+	goreleaser := parseYAMLMap(t, goreleaserData, ".goreleaser.yml")
 	release := mapAt(t, goreleaser, "release")
+	checksum := mapAt(t, goreleaser, "checksum")
 
-	t.Run("Should publish package managers only after public installation succeeds", func(t *testing.T) {
+	t.Run("Should keep desktop artifacts in the signed draft before public installation", func(t *testing.T) {
 		t.Parallel()
 
 		if got, ok := release["draft"].(bool); !ok || !got {
 			t.Fatalf("release.draft = %#v, want true", release["draft"])
 		}
-		publishFeed := strings.Index(workflow, "scripts/publish-desktop-release.sh")
-		stageDraft := strings.Index(workflow, "name: Stage GitHub draft without publishing npm")
-		publishDraft := strings.Index(workflow, "- name: Publish GitHub release before downstream package managers")
-		publicInstall := strings.Index(workflow, "  cli-public-install-smoke:")
-		publishNPM := strings.Index(workflow, "- name: Publish verified CLI package")
-		verifyPublished := strings.Index(workflow, "- name: Verify published channel policy")
-		if publishFeed == -1 || stageDraft == -1 || publishDraft == -1 || publicInstall == -1 ||
-			publishNPM == -1 || verifyPublished == -1 || !strings.Contains(workflow, "-F draft=false") {
-			t.Fatal("release workflow is missing staged, public-install, or package publication phases")
-		}
-		if stageDraft > publishFeed || publishFeed > publishDraft || publishDraft > publicInstall ||
-			publicInstall > publishNPM {
-			t.Fatal("release workflow must publish GitHub and prove a public install before npm publication")
-		}
-		assertContainsText(t, "GoReleaser npm custody", workflow, `GORELEASER_PUBLISH_NPM: "false"`)
-		assertContainsText(t, "public CLI installation", workflow, "smoke-public-cli-package.sh")
-		assertContainsText(
-			t,
-			"public CLI recovery scheduling",
-			workflow,
-			"always() &&\n      needs.release-plan.result == 'success' &&\n      needs.release.result == 'success' &&\n      needs.desktop-finalize.result == 'success'",
-		)
-		assertContainsText(
-			t,
-			"npm recovery scheduling",
-			workflow,
-			"always() &&\n      needs.release-plan.result == 'success' &&\n      needs.release.result == 'success' &&\n      needs.cli-public-install-smoke.result == 'success'",
-		)
-		assertContainsText(t, "isolated npm preparation", workflow, "name: Prepare npm CLI package without publication")
-		assertContainsText(t, "isolated npm config", workflow, `render_goreleaser_config ".release-dist/npm"`)
-		assertContainsText(t, "isolated npm preparation", workflow, "--config=${{ runner.temp }}/.goreleaser-npm.yml")
-		assertContainsText(t, "isolated npm artifact", workflow, ".release-dist/npm/npm/@compozy/cli/*")
-		assertContainsText(t, "isolated release staging ignore", gitignore, ".release-dist/")
-		assertContainsText(t, "older release ref staging ignore", workflow, `printf '/.release-dist/\n'`)
-		assertContainsText(t, "isolated release staging check", workflow, "name: Validate isolated release directories")
-		assertContainsText(
-			t,
-			"isolated GitHub preparation",
-			workflow,
-			"name: Prepare GitHub artifacts without npm publisher",
-		)
-		assertContainsText(t, "isolated GitHub config", workflow, `render_goreleaser_config ".release-dist/github"`)
-		assertContainsText(
-			t,
-			"isolated GitHub preparation",
-			workflow,
-			"--config=${{ runner.temp }}/.goreleaser-github.yml",
-		)
-		assertNotContainsText(t, "GoReleaser prepare CLI", workflow, "release --clean --prepare\n            --dist=")
-		assertContainsText(t, "GoReleaser staged publication", workflow, "args: publish --dist=.release-dist/github")
-		assertNotContainsText(t, "GoReleaser staged publication", workflow, "publish --config")
-		assertContainsText(t, "GoReleaser CLI contract", workflow, "name: Validate production GoReleaser commands")
-
-		githubPreparationStart := strings.Index(workflow, "name: Prepare GitHub artifacts without npm publisher")
-		githubPreparationEnd := strings.Index(workflow, "name: Stage GitHub draft without publishing npm")
-		githubPreparation := workflow[githubPreparationStart:githubPreparationEnd]
-		assertContainsText(t, "isolated GitHub preparation", githubPreparation, `GORELEASER_PUBLISH_NPM: "false"`)
-		if got := strings.Count(workflow, `GORELEASER_PUBLISH_NPM: "false"`); got != 1 {
-			t.Fatalf("deferred npm switch count = %d, want exactly one GitHub preparation context", got)
-		}
-
-		finalizer := workflow[publishDraft:verifyPublished]
+		releaseJob := workflowJobSection(t, workflow, "release", "desktop-compatibility")
 		for _, required := range []string{
-			`gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100"`,
-			`select(.tag_name == $tag)`,
-			`if [[ "${matching_count}" != "1" ]]; then`,
-			`release_id="$(jq -r '.[0].id' <<<"$matching_releases")"`,
-			`release_draft="$(jq -r '.[0].draft' <<<"$matching_releases")"`,
-			`if [[ "${release_draft}" == "true" ]]; then`,
-			`elif [[ "${release_draft}" == "false" ]]; then`,
-			`"repos/${GITHUB_REPOSITORY}/releases/${release_id}"`,
+			"needs: [release-plan, desktop-compatibility, desktop-build, desktop-smoke]",
+			"name: Download exact desktop release inventory",
+			"name: Produce and validate desktop compatibility assets",
+			"cp \".artifacts/desktop-build/${artifact}\" \".artifacts/desktop/${artifact}\"",
+			"name: Stage GitHub draft without publishing npm",
+			"GORELEASER_PUBLISH_NPM: \"false\"",
 		} {
-			assertContainsText(t, "GitHub draft finalizer", finalizer, required)
+			assertContainsText(t, "release job custody graph", releaseJob, required)
 		}
-		assertNotContainsText(t, "GitHub draft finalizer", finalizer, `releases/tags/${RELEASE_TAG}`)
-		if got := strings.Count(finalizer, "-F draft=false"); got != 1 {
-			t.Fatalf("GitHub draft publication count = %d, want exactly one finalizer", got)
+		publisherJob := workflowJobSection(t, workflow, "desktop-publish", "desktop-smoke")
+		assertContainsText(
+			t,
+			"desktop publisher dependencies",
+			publisherJob,
+			"needs: [release-plan, release, desktop-build, desktop-finalize]",
+		)
+		finalizerJob := workflowJobSection(t, workflow, "desktop-finalize", "cli-public-install-smoke")
+		assertContainsText(
+			t,
+			"desktop finalizer dependencies",
+			finalizerJob,
+			"needs: [release-plan, release]",
+		)
+		assertContainsText(
+			t,
+			"GitHub finalizer",
+			finalizerJob,
+			"name: Publish GitHub release before downstream package managers",
+		)
+		assertContainsText(t, "GitHub finalizer", finalizerJob, "-F draft=false")
+		cliSmokeJob := workflowJobSection(t, workflow, "cli-public-install-smoke", "npm-publish")
+		assertContainsText(
+			t,
+			"public CLI smoke",
+			cliSmokeJob,
+			"needs: [release-plan, release, desktop-finalize, desktop-publish]",
+		)
+		assertContainsText(t, "public CLI smoke", cliSmokeJob, "smoke-public-cli-package.sh")
+		npmPublishJob := workflowJobSection(t, workflow, "npm-publish", "")
+		assertContainsText(t, "npm publisher", npmPublishJob, "name: Publish verified CLI package")
+		assertContainsText(t, "isolated release staging ignore", gitignore, ".release-dist/")
+		assertEqualString(t, "checksum.algorithm", stringAt(t, checksum, "algorithm"), "sha256")
+
+		checksumFiles := sliceAt(t, checksum, "extra_files")
+		if len(checksumFiles) != 7 {
+			t.Fatalf("checksum.extra_files length = %d, want seven desktop compatibility inputs", len(checksumFiles))
+		}
+		releaseFiles := sliceAt(t, release, "extra_files")
+		if len(releaseFiles) != 8 {
+			t.Fatalf("release.extra_files length = %d, want installer plus seven desktop inputs", len(releaseFiles))
+		}
+		for _, required := range []string{
+			"./.artifacts/desktop/CompozyOS-*-mac-arm64.dmg",
+			"./.artifacts/desktop/CompozyOS-*-mac-arm64.zip",
+			"./.artifacts/desktop/CompozyOS-*-mac-x64.dmg",
+			"./.artifacts/desktop/CompozyOS-*-mac-x64.zip",
+			"./.artifacts/desktop/CompozyOS-*-linux-x64.AppImage",
+			"./.artifacts/desktop/CompozyOS-*-linux-x64.deb",
+			"./.artifacts/desktop/compat.json",
+		} {
+			assertExtraFileGlob(t, "checksum.extra_files", checksumFiles, required)
+			assertReleaseExtraFile(t, releaseFiles, required, "")
 		}
 	})
 
@@ -784,20 +798,21 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		if err := os.MkdirAll(binDir, 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(bin) error = %v", err)
 		}
-
-		packageJSON := fmt.Sprintf(
-			`{"name":"@compozy/cli","version":%q,"bin":{"compozy":"bin/compozy"}}`,
+		packageJSON := fmt.Sprintf(`{
+  "name": "@compozy/cli",
+  "version": %q,
+  "bin": { "compozy": "bin/compozy" }
+}
+`,
 			releaseVersion,
 		)
 		if err := os.WriteFile(filepath.Join(packageRoot, "package.json"), []byte(packageJSON), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(package.json) error = %v", err)
 		}
-
 		fixtureCLI := `#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >"${FAKE_COMPOZY_CALLS:?}"
 if [[ "$#" != "1" || "$1" != "version" ]]; then
-  printf 'error: unknown command: %s\n' "$*" >&2
   exit 1
 fi
 printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
@@ -805,7 +820,6 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 		if err := os.WriteFile(filepath.Join(binDir, "compozy"), []byte(fixtureCLI), 0o755); err != nil {
 			t.Fatalf("os.WriteFile(compozy fixture) error = %v", err)
 		}
-
 		callsPath := filepath.Join(fixtureRoot, "calls.txt")
 		cmd := exec.CommandContext(
 			t.Context(),
@@ -825,7 +839,6 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			t.Fatalf("smoke-public-cli-package.sh error = %v, output = %s", err, output)
 		}
 		assertContainsText(t, "public CLI package smoke", string(output), "public CLI package smoke: PASS")
-
 		calls, err := os.ReadFile(callsPath)
 		if err != nil {
 			t.Fatalf("os.ReadFile(calls) error = %v", err)
@@ -835,223 +848,129 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 		}
 	})
 
-	t.Run("Should pin the shipping-platform matrix and Tauri v1 contract", func(t *testing.T) {
+	t.Run("Should build the exact Electron shipping matrix", func(t *testing.T) {
 		t.Parallel()
 
-		for _, snippet := range []string{
-			"fail-fast: false",
-			"matrix: &desktop-release-matrix",
-			"matrix: *desktop-release-matrix",
-			"runner: macos-15",
-			"target: universal-apple-darwin",
-			"runner: ubuntu-22.04",
-			"target: x86_64-unknown-linux-gnu",
-			"uses: tauri-apps/tauri-action@v1",
-			"releaseDraft: true",
-			"uploadUpdaterJson: false",
-			"uploadWorkflowArtifacts: true",
-			"libwebkit2gtk-4.1-dev",
-			"xdg-utils",
-		} {
-			assertContainsText(t, "desktop release workflow", workflow, snippet)
-		}
-		// Windows is paused until Trusted Signing is restored.
-		assertNotContainsText(t, "desktop release workflow", workflow, "runner: windows-latest")
-		if got := strings.Count(workflow, "uses: tauri-apps/tauri-action@v1"); got != 2 {
-			t.Fatalf("tauri-action step count = %d, want dry-run and production matrix steps", got)
-		}
-	})
-
-	t.Run("Should bundle the shipping matrix without publishing on release PRs", func(t *testing.T) {
-		t.Parallel()
-
-		start := strings.Index(workflow, "  desktop-dry-run:")
-		end := strings.Index(workflow, "  desktop-dry-run-smoke:")
-		if start == -1 || end == -1 || start >= end {
-			t.Fatal("release workflow is missing the desktop dry-run job before the nightly lane")
-		}
-		dryRun := workflow[start:end]
 		for _, required := range []string{
-			"name: Dry-Run Desktop ${{ matrix.name }}",
+			"name: Resolve Desktop Compatibility",
+			"needs: [release-plan, desktop-compatibility]",
+			"COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}",
 			"matrix: &desktop-release-matrix",
+			"id: macos-arm64",
 			"runner: macos-15",
-			"target: universal-apple-darwin",
-			"bundles: app,dmg",
+			"arch: arm64",
+			"id: macos-x64",
+			"runner: macos-15-intel",
+			"arch: x64",
+			"id: linux",
 			"runner: ubuntu-22.04",
-			"target: x86_64-unknown-linux-gnu",
-			"bundles: appimage,deb",
-			"uses: tauri-apps/tauri-action@v1",
-			"uploadUpdaterJson: false",
-			"uploadWorkflowArtifacts: false",
-			"COMPOZY_RELEASE_CHANNEL: beta",
-			"scripts/normalize-desktop-artifacts.sh",
-			"uses: actions/upload-artifact@v7",
+			"bun run --cwd desktop electron-builder",
+			"--publish never",
+			"release:collect",
 		} {
-			assertContainsText(t, "desktop release dry-run", dryRun, required)
+			assertContainsText(t, "Electron release matrix", workflow, required)
 		}
+		if got := strings.Count(workflow, "bun run --cwd desktop electron-builder"); got != 2 {
+			t.Fatalf("electron-builder invocation count = %d, want dry-run and production", got)
+		}
+		productionBuild := workflowJobSection(t, workflow, "desktop-build", "desktop-publish")
+		assertContainsText(t, "production Electron builder", productionBuild, "bun run --cwd desktop electron-builder")
+		assertNotContainsText(t, "unlocked Electron builder", workflow, "bunx")
+		assertContainsText(t, "production Electron publish suppression", productionBuild, "--publish never")
 		for _, forbidden := range []string{
-			"tagName:",
-			"releaseName:",
-			"releaseDraft:",
-			"GITHUB_TOKEN:",
-			"APPLE_CERTIFICATE:",
-			"APPLE_ID:",
+			"runner: windows-latest",
 		} {
-			assertNotContainsText(t, "desktop release dry-run", dryRun, forbidden)
-		}
-
-		smokeEnd := strings.Index(workflow, "  e2e-nightly:")
-		if smokeEnd == -1 || end >= smokeEnd {
-			t.Fatal("release workflow is missing the cross-job desktop dry-run smoke")
-		}
-		smoke := workflow[end:smokeEnd]
-		for _, required := range []string{
-			"needs: desktop-dry-run",
-			"actions/download-artifact@v8",
-			"scripts/read-canonical-runtime-version.sh",
-			"scripts/smoke-desktop-release-artifact.sh",
-			"desktop-dry-run-smoke-${{ matrix.id }}-diagnostics",
-		} {
-			assertContainsText(t, "desktop dry-run smoke", smoke, required)
+			assertNotContainsText(t, "Electron release workflow", workflow, forbidden)
 		}
 	})
 
-	t.Run("Should stage workflow tools before the production desktop smoke", func(t *testing.T) {
+	t.Run("Should fail closed on signing and prove macOS provenance", func(t *testing.T) {
 		t.Parallel()
 
-		start := strings.Index(workflow, "  desktop-smoke:")
-		end := strings.Index(workflow, "  desktop-finalize:")
+		start := strings.Index(workflow, "  desktop-build:")
+		end := strings.Index(workflow, "  desktop-publish:")
 		if start == -1 || end == -1 || start >= end {
-			t.Fatal("release workflow is missing the production desktop smoke job")
+			t.Fatal("release workflow is missing the production desktop build")
 		}
-		smoke := workflow[start:end]
-		loadTools := strings.Index(smoke, "- *load-release-workflow-tools")
-		invokeSmoke := strings.Index(smoke, `bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh"`)
-		if loadTools == -1 || invokeSmoke == -1 {
-			t.Fatal("production desktop smoke must load and invoke workflow-version tools")
-		}
-		if loadTools > invokeSmoke {
-			t.Fatal("production desktop smoke must load workflow-version tools before invoking them")
-		}
-	})
-
-	t.Run("Should repair only the exact signed beta feed from main", func(t *testing.T) {
-		t.Parallel()
-
-		for _, required := range []string{
-			"workflow_dispatch:",
-			"expected_version:",
-			"if: github.ref != 'refs/heads/main'",
-			"R2_ACCESS_KEY_ID",
-			"R2_SECRET_ACCESS_KEY",
-			"TAURI_SIGNING_PRIVATE_KEY",
-			"TAURI_SIGNING_PUBLIC_KEY",
-			"COMPOZY_FEED_REPAIR_ID",
-			"scripts/repair-desktop-feed.sh",
-		} {
-			assertContainsText(t, "desktop feed repair workflow", repairWorkflow, required)
-		}
-		assertNotContainsText(t, "desktop feed repair workflow", repairWorkflow, "stable")
-	})
-
-	t.Run("Should assert signing material before bundling with current platform APIs", func(t *testing.T) {
-		t.Parallel()
-
-		preflight := strings.Index(workflow, "- name: Assert signing material before build")
-		bundle := strings.Index(workflow, "- name: Build signed desktop bundle")
+		build := workflow[start:end]
+		preflight := strings.Index(build, "name: Assert and stage macOS signing material")
+		bundle := strings.Index(build, "name: Build signed desktop bundle")
 		if preflight == -1 || bundle == -1 || preflight > bundle {
-			t.Fatal("desktop signing preflight must run before the Tauri build")
+			t.Fatal("macOS signing preflight must run before electron-builder")
 		}
-		for _, snippet := range []string{
-			"APPLE_ID: ${{ secrets.APPLE_ID }}",
-			"APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}",
-			"APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}",
-			"xcrun notarytool submit",
-			"xcrun stapler staple",
+		for _, required := range []string{
+			"CSC_LINK_VALUE",
+			"CSC_KEY_PASSWORD_VALUE",
+			"APPLE_ID_VALUE: ${{ secrets.APPLE_ID }}",
+			"APPLE_APP_SPECIFIC_PASSWORD_VALUE: ${{ secrets.APPLE_PASSWORD }}",
+			"APPLE_TEAM_ID_VALUE: ${{ secrets.APPLE_TEAM_ID }}",
+			"printf 'APPLE_ID=%s\\n'",
+			"printf 'APPLE_APP_SPECIFIC_PASSWORD=%s\\n'",
+			"printf 'APPLE_TEAM_ID=%s\\n'",
+			"codesign --verify --deep --strict",
+			"spctl --assess --type execute",
+			"release:finalize-mac",
+			`".artifacts/builder/latest-mac.yml"`,
+			"release:verify-mac-zip",
+			"--notarize ${{ matrix.platform == 'mac' }}",
 		} {
-			assertContainsText(t, "desktop release workflow", workflow, snippet)
+			assertContainsText(t, "macOS provenance lane", build, required)
 		}
-		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_API_ISSUER")
-		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_API_KEY")
+		assertNotContainsText(t, "platform-scoped notarization", build, "--notarize true")
 	})
 
-	t.Run("Should verify the signed runtime manifest with the desktop consumer before publication", func(t *testing.T) {
+	t.Run("Should smoke every package before staging the draft", func(t *testing.T) {
 		t.Parallel()
 
-		signManifest := strings.Index(workflow, "scripts/sign-runtime-manifest.sh")
-		verifyManifest := strings.Index(workflow, "--bin compozy-runtime-manifest-check")
-		publishFeed := strings.Index(workflow, "scripts/publish-desktop-release.sh")
-		if signManifest == -1 || verifyManifest == -1 || publishFeed == -1 {
-			t.Fatal(
-				"desktop release workflow is missing candidate manifest signing, " +
-					"consumer verification, or publication",
-			)
-		}
-		if signManifest > verifyManifest || verifyManifest > publishFeed {
-			t.Fatal("desktop release workflow must verify signed candidate manifest bytes before publication")
-		}
-		verification := workflow[signManifest:publishFeed]
 		for _, required := range []string{
-			"--features runtime-manifest-check",
-			"TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}",
-			".artifacts/feed/runtime.json.minisig",
-			`"${RELEASE_VERSION}"`,
-			"darwin-aarch64",
-			"darwin-x86_64",
-			"linux-x86_64",
+			"needs: [release-plan, desktop-build]",
+			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-arm64.dmg",
+			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-x64.dmg",
+			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-linux-x64.AppImage",
+			"bash \"${RUNNER_TEMP}/smoke-desktop-release-artifact.sh\"",
+			"\"${RELEASE_VERSION}\"",
+			"desktop-release-smoke-${{ matrix.id }}-diagnostics",
 		} {
-			assertContainsText(t, "runtime manifest consumer verification", verification, required)
+			assertContainsText(t, "packaged Electron smoke", workflow, required)
 		}
+	})
+
+	t.Run("Should advance the channel only after public asset verification", func(t *testing.T) {
+		t.Parallel()
+
+		start := strings.Index(workflow, "  desktop-publish:")
+		end := strings.Index(workflow, "  desktop-smoke:")
+		if start == -1 || end == -1 || start >= end {
+			t.Fatal("release workflow is missing the desktop channel publisher")
+		}
+		publisher := workflow[start:end]
 		for _, required := range []string{
-			"runtime-manifest-check = []",
-			`required-features = ["runtime-manifest-check"]`,
+			"needs: [release-plan, release, desktop-build, desktop-finalize]",
+			"group: desktop-channel-${{ needs.release-plan.outputs.release_channel }}",
+			"cancel-in-progress: false",
+			"name: Download signed compatibility catalog",
+			"--pattern checksums.txt",
+			"--pattern compat.json",
+			"release:prepare-channel",
+			"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}",
+			"go run ./cmd/compozy-desktop-release publish",
+			"-o json",
+			"--operation-id \"desktop-release-${RELEASE_VERSION}-publish\"",
+			".operation == \"publish\"",
+			".audit_commit == .channel_ref_after",
+			".verified_inventory | length == 7",
+			"already_completed",
 		} {
-			assertContainsText(t, "desktop Cargo manifest", cargoManifest, required)
+			assertContainsText(t, "channel authority lane", publisher, required)
 		}
+		assertNotContainsText(t, "stable operation identity", publisher, "GITHUB_RUN_ATTEMPT")
 	})
 }
 
-func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
+func TestDesktopReleaseSupportScripts(t *testing.T) {
 	t.Parallel()
 
 	root := findRepoRootForReleaseConfigTest(t)
-
-	t.Run("Should reject a noncanonical live runtime feed before desktop startup", func(t *testing.T) {
-		t.Parallel()
-
-		manifest := filepath.Join(t.TempDir(), "runtime.json")
-		legacy := `{"schema_version":1,"version":"0.3.0-beta.13","platforms":{},"schema_heads":{}}`
-		if err := os.WriteFile(manifest, []byte(legacy), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(legacy runtime manifest) error = %v", err)
-		}
-		run := func() ([]byte, error) {
-			cmd := exec.CommandContext(
-				t.Context(),
-				"bash",
-				filepath.Join(root, "scripts", "read-canonical-runtime-version.sh"),
-				"file://"+manifest,
-			)
-			cmd.Dir = root
-			return cmd.CombinedOutput()
-		}
-		output, err := run()
-		if err == nil {
-			t.Fatalf("noncanonical runtime manifest unexpectedly passed: %s", output)
-		}
-		assertContainsText(t, "runtime manifest preflight", string(output), "is not canonical JSON")
-
-		canonical := `{"platforms":{},"schema_heads":{},"schema_version":1,"version":"0.3.0-beta.13"}`
-		if err := os.WriteFile(manifest, []byte(canonical), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(canonical runtime manifest) error = %v", err)
-		}
-		output, err = run()
-		if err != nil {
-			t.Fatalf("canonical runtime manifest error = %v, output = %s", err, output)
-		}
-		if got, want := strings.TrimSpace(string(output)), "0.3.0-beta.13"; got != want {
-			t.Fatalf("runtime version = %q, want %q", got, want)
-		}
-	})
 
 	t.Run("Should restore the AppImage executable bit after artifact transfer", func(t *testing.T) {
 		t.Parallel()
@@ -1123,357 +1042,7 @@ func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
 			"recorded start time does not match",
 		)
 	})
-
-	t.Run("Should fail before build when signing material is absent", func(t *testing.T) {
-		t.Parallel()
-
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "assert-desktop-signing-material.sh"),
-			"linux",
-		)
-		cmd.Dir = root
-		cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("signing preflight unexpectedly succeeded: %s", output)
-		}
-		assertContainsText(t, "signing preflight", string(output), "TAURI_SIGNING_PRIVATE_KEY is missing")
-	})
-
-	t.Run("Should refuse stable publication before touching credentials", func(t *testing.T) {
-		t.Parallel()
-
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "publish-desktop-release.sh"),
-			"desktop", "runtime", "feed", "stable", "0.4.0", "bucket", "https://example.r2.cloudflarestorage.com",
-		)
-		cmd.Dir = root
-		cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("stable desktop publication unexpectedly succeeded: %s", output)
-		}
-		assertContainsText(t, "stable guard", string(output), "stable remains reserved")
-	})
-
-	t.Run("Should refuse stable feed repair before touching credentials", func(t *testing.T) {
-		t.Parallel()
-
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "repair-desktop-feed.sh"),
-			"stable", "0.3.0", "bucket", "https://example.r2.cloudflarestorage.com",
-		)
-		cmd.Dir = root
-		cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("stable desktop feed repair unexpectedly succeeded: %s", output)
-		}
-		assertContainsText(t, "stable feed repair guard", string(output), "stable remains reserved")
-	})
-
-	t.Run("Should reject an unsafe feed recovery id before touching credentials", func(t *testing.T) {
-		t.Parallel()
-
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "repair-desktop-feed.sh"),
-			"beta", "0.3.0-beta.13", "bucket", "https://example.r2.cloudflarestorage.com",
-		)
-		cmd.Dir = root
-		cmd.Env = []string{
-			"PATH=" + os.Getenv("PATH"),
-			"COMPOZY_FEED_REPAIR_ID=../../unsafe",
-		}
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("unsafe desktop feed recovery id unexpectedly succeeded: %s", output)
-		}
-		assertContainsText(t, "feed recovery id guard", string(output), "recovery id contains unsafe characters")
-	})
-
-	t.Run("Should restore the live feed when a repair upload fails", func(t *testing.T) {
-		t.Parallel()
-
-		fixtureRoot := t.TempDir()
-		stateDir := filepath.Join(fixtureRoot, "r2")
-		liveDir := filepath.Join(stateDir, "desktop", "beta")
-		binDir := filepath.Join(fixtureRoot, "bin")
-		if err := os.MkdirAll(liveDir, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(live feed) error = %v", err)
-		}
-		if err := os.MkdirAll(binDir, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(bin) error = %v", err)
-		}
-		originals := map[string]string{
-			"latest.json":          `{"version":"0.3.0-beta.13","platforms":{}}`,
-			"runtime.json":         `{"schema_version":1,"version":"0.3.0-beta.13","platforms":{},"schema_heads":{}}`,
-			"runtime.json.minisig": "fixture-signature",
-		}
-		for name, contents := range originals {
-			if err := os.WriteFile(filepath.Join(liveDir, name), []byte(contents), 0o600); err != nil {
-				t.Fatalf("os.WriteFile(%s) error = %v", name, err)
-			}
-		}
-
-		curlStub := `#!/usr/bin/env bash
-set -euo pipefail
-output=
-url=
-while (($#)); do
-  case "$1" in
-    --output) output="$2"; shift 2 ;;
-    http*) url="$1"; shift ;;
-    *) shift ;;
-  esac
-done
-cp "${FAKE_R2_STATE}/desktop/beta/${url##*/}" "${output}"
-`
-		awsStub := `#!/usr/bin/env bash
-set -euo pipefail
-[[ "$1" == "s3" && "$2" == "cp" ]]
-source_path="$3"
-destination="$4"
-map_path() {
-  local value="$1"
-  if [[ "${value}" == s3://fixture-bucket/* ]]; then
-    printf '%s/%s\n' "${FAKE_R2_STATE}" "${value#s3://fixture-bucket/}"
-    return
-  fi
-  printf '%s\n' "${value}"
 }
-mapped_source="$(map_path "${source_path}")"
-mapped_destination="$(map_path "${destination}")"
-if [[ "${destination}" == "s3://fixture-bucket/desktop/beta/runtime.json.minisig" \
-  && ! -f "${FAKE_AWS_FAILURE_MARKER}" ]]; then
-  : >"${FAKE_AWS_FAILURE_MARKER}"
-  exit 42
-fi
-mkdir -p "$(dirname "${mapped_destination}")"
-cp "${mapped_source}" "${mapped_destination}"
-`
-		bunxStub := `#!/usr/bin/env bash
-set -euo pipefail
-manifest="${!#}"
-printf 'Zml4dHVyZS1zaWduYXR1cmU=' >"${manifest}.sig"
-`
-		for _, nameAndContents := range []struct {
-			name     string
-			contents string
-		}{
-			{name: "curl", contents: curlStub},
-			{name: "aws", contents: awsStub},
-			{name: "bunx", contents: bunxStub},
-			{name: "minisign", contents: "#!/bin/sh\nexit 0\n"},
-		} {
-			if err := os.WriteFile(
-				filepath.Join(binDir, nameAndContents.name),
-				[]byte(nameAndContents.contents),
-				0o755,
-			); err != nil {
-				t.Fatalf("os.WriteFile(%s stub) error = %v", nameAndContents.name, err)
-			}
-		}
-
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "repair-desktop-feed.sh"),
-			"beta",
-			"0.3.0-beta.13",
-			"fixture-bucket",
-			"https://fixture.r2.cloudflarestorage.com",
-		)
-		cmd.Dir = root
-		cmd.Env = append(
-			os.Environ(),
-			"AWS_ACCESS_KEY_ID=fixture",
-			"AWS_SECRET_ACCESS_KEY=fixture",
-			"TAURI_SIGNING_PRIVATE_KEY=fixture",
-			"TAURI_SIGNING_PRIVATE_KEY_PASSWORD=fixture",
-			"TAURI_SIGNING_PUBLIC_KEY=Zml4dHVyZQ==",
-			"FAKE_R2_STATE="+stateDir,
-			"FAKE_AWS_FAILURE_MARKER="+filepath.Join(fixtureRoot, "aws-failed"),
-			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		)
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("partial repair unexpectedly succeeded: %s", output)
-		}
-		assertContainsText(t, "feed repair rollback", string(output), "restored the original live feed")
-		for name, want := range originals {
-			contents, readErr := os.ReadFile(filepath.Join(liveDir, name))
-			if readErr != nil {
-				t.Fatalf("os.ReadFile(restored %s) error = %v", name, readErr)
-			}
-			if got := string(contents); got != want {
-				t.Fatalf("restored %s = %q, want %q", name, got, want)
-			}
-		}
-	})
-
-	t.Run("Should refuse update key generation in CI", func(t *testing.T) {
-		t.Parallel()
-
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "generate-desktop-update-key.sh"),
-			filepath.Join(t.TempDir(), "update.key"),
-		)
-		cmd.Dir = root
-		cmd.Env = []string{
-			"PATH=" + os.Getenv("PATH"),
-			"CI=true",
-			"TAURI_SIGNING_PRIVATE_KEY_PASSWORD=not-used",
-		}
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("CI key generation unexpectedly succeeded: %s", output)
-		}
-		assertContainsText(t, "key generation guard", string(output), "must never be generated in CI")
-	})
-
-	t.Run("Should create an update signing key with owner-only permissions", func(t *testing.T) {
-		t.Parallel()
-
-		binDir := t.TempDir()
-		bunxStub := "#!/bin/sh\nfor argument do output=\"${argument}\"; done\nprintf private-key >\"${output}\"\n"
-		if err := os.WriteFile(filepath.Join(binDir, "bunx"), []byte(bunxStub), 0o755); err != nil {
-			t.Fatalf("os.WriteFile(bunx stub) error = %v", err)
-		}
-		outputPath := filepath.Join(t.TempDir(), "update.key")
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "generate-desktop-update-key.sh"),
-			outputPath,
-		)
-		cmd.Dir = root
-		cmd.Env = []string{
-			"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
-			"TAURI_SIGNING_PRIVATE_KEY_PASSWORD=fixture",
-		}
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("generate update key error = %v; output=%s", err, output)
-		}
-		info, err := os.Stat(outputPath)
-		if err != nil {
-			t.Fatalf("os.Stat(update key) error = %v", err)
-		}
-		if got := info.Mode().Perm(); got != 0o600 {
-			t.Fatalf("update key mode = %04o, want 0600", got)
-		}
-	})
-
-	t.Run("Should require exact runtime payload bytes from the signed manifest", func(t *testing.T) {
-		t.Parallel()
-
-		payloadDir := t.TempDir()
-		payload := []byte("runtime-payload")
-		payloadName := "compozy_darwin_arm64.tar.gz"
-		payloadPath := filepath.Join(payloadDir, payloadName)
-		if err := os.WriteFile(payloadPath, payload, 0o600); err != nil {
-			t.Fatalf("os.WriteFile(runtime payload) error = %v", err)
-		}
-		digest := sha256.Sum256(payload)
-		manifest := map[string]any{
-			"platforms": map[string]any{
-				"darwin-aarch64": map[string]any{
-					"url":    "https://releases.compozy.com/desktop/v/runtime/0.4.0-beta.2/" + payloadName,
-					"size":   len(payload),
-					"sha256": hex.EncodeToString(digest[:]),
-				},
-			},
-		}
-		manifestBytes, err := json.Marshal(manifest)
-		if err != nil {
-			t.Fatalf("json.Marshal(runtime manifest) error = %v", err)
-		}
-		manifestPath := filepath.Join(t.TempDir(), "runtime.json")
-		if err := os.WriteFile(manifestPath, manifestBytes, 0o600); err != nil {
-			t.Fatalf("os.WriteFile(runtime manifest) error = %v", err)
-		}
-		assertScript := filepath.Join(root, "scripts", "assert-runtime-manifest-payloads.sh")
-		run := func() ([]byte, error) {
-			cmd := exec.CommandContext(t.Context(), "bash", assertScript, manifestPath, payloadDir, "0.4.0-beta.2")
-			cmd.Dir = root
-			return cmd.CombinedOutput()
-		}
-		if output, err := run(); err != nil {
-			t.Fatalf("valid runtime payload verification error = %v; output=%s", err, output)
-		}
-		if err := os.WriteFile(filepath.Join(payloadDir, "unexpected.txt"), []byte("extra"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(extra payload) error = %v", err)
-		}
-		output, err := run()
-		if err == nil {
-			t.Fatalf("runtime verification accepted an extra payload: %s", output)
-		}
-		assertContainsText(t, "runtime inventory", string(output), "unexpected runtime payload")
-		if err := os.Remove(filepath.Join(payloadDir, "unexpected.txt")); err != nil {
-			t.Fatalf("os.Remove(extra payload) error = %v", err)
-		}
-		if err := os.WriteFile(payloadPath, []byte("runtime-payloae"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(corrupt payload) error = %v", err)
-		}
-		output, err = run()
-		if err == nil {
-			t.Fatalf("runtime verification accepted a digest mismatch: %s", output)
-		}
-		assertContainsText(t, "runtime digest", string(output), "SHA-256 does not match")
-		if err := os.Remove(payloadPath); err != nil {
-			t.Fatalf("os.Remove(runtime payload) error = %v", err)
-		}
-		output, err = run()
-		if err == nil {
-			t.Fatalf("runtime verification accepted a missing payload: %s", output)
-		}
-		assertContainsText(t, "runtime inventory", string(output), "declared runtime payload is missing")
-	})
-
-	t.Run("Should fail artifact normalization when discovery fails after a match", func(t *testing.T) {
-		t.Parallel()
-
-		binDir := t.TempDir()
-		findStub := "#!/bin/sh\nprintf '%s\\0' \"${EMITTED_MATCH}\"\nexit 7\n"
-		if err := os.WriteFile(filepath.Join(binDir, "find"), []byte(findStub), 0o755); err != nil {
-			t.Fatalf("os.WriteFile(find stub) error = %v", err)
-		}
-		bundleRoot := t.TempDir()
-		match := filepath.Join(bundleRoot, "bundle", "macos", "CompozyOS.app.tar.gz")
-		if err := os.MkdirAll(filepath.Dir(match), 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(bundle) error = %v", err)
-		}
-		if err := os.WriteFile(match, []byte("fixture"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(bundle) error = %v", err)
-		}
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "normalize-desktop-artifacts.sh"),
-			"macos", "0.4.0-beta.2", bundleRoot, t.TempDir(),
-		)
-		cmd.Dir = root
-		cmd.Env = []string{
-			"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
-			"EMITTED_MATCH=" + match,
-		}
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("normalization accepted a failed discovery: %s", output)
-		}
-		assertContainsText(t, "normalization discovery", string(output), "failed to enumerate")
-	})
-}
-
 func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {
 	t.Parallel()
 
@@ -2176,11 +1745,38 @@ func readYAMLMap(t *testing.T, root string, rel string) map[string]any {
 	if err != nil {
 		t.Fatalf("os.ReadFile(%s) error = %v", rel, err)
 	}
+	return parseYAMLMap(t, data, rel)
+}
+
+func parseYAMLMap(t *testing.T, data []byte, label string) map[string]any {
+	t.Helper()
+
 	var cfg map[string]any
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("yaml.Unmarshal(%s) error = %v", rel, err)
+		t.Fatalf("yaml.Unmarshal(%s) error = %v", label, err)
 	}
 	return cfg
+}
+
+func workflowJobSection(t *testing.T, workflow string, job string, nextJob string) string {
+	t.Helper()
+
+	startMarker := "\n  " + job + ":\n"
+	start := strings.Index(workflow, startMarker)
+	if start == -1 {
+		t.Fatalf("release workflow job %q missing", job)
+	}
+	start++
+	if nextJob == "" {
+		return workflow[start:]
+	}
+
+	endMarker := "\n  " + nextJob + ":\n"
+	endOffset := strings.Index(workflow[start:], endMarker)
+	if endOffset == -1 {
+		t.Fatalf("release workflow job %q missing after %q", nextJob, job)
+	}
+	return workflow[start : start+endOffset]
 }
 
 func mapAt(t *testing.T, src map[string]any, key string) map[string]any {
@@ -2362,10 +1958,30 @@ func assertReleaseExtraFile(t *testing.T, extraFiles []any, glob string, nameTem
 
 	for _, entry := range extraFiles {
 		extraFile := asMap(t, entry, "release.extra_files[]")
-		if stringAt(t, extraFile, "glob") == glob &&
-			stringAt(t, extraFile, "name_template") == nameTemplate {
+		if stringAt(t, extraFile, "glob") != glob {
+			continue
+		}
+		if nameTemplate == "" {
+			if _, hasNameTemplate := extraFile["name_template"]; !hasNameTemplate {
+				return
+			}
+			continue
+		}
+		if stringAt(t, extraFile, "name_template") == nameTemplate {
 			return
 		}
 	}
 	t.Fatalf("release.extra_files = %#v, want glob %q with name_template %q", extraFiles, glob, nameTemplate)
+}
+
+func assertExtraFileGlob(t *testing.T, label string, extraFiles []any, glob string) {
+	t.Helper()
+
+	for _, entry := range extraFiles {
+		extraFile := asMap(t, entry, label+"[]")
+		if stringAt(t, extraFile, "glob") == glob {
+			return
+		}
+	}
+	t.Fatalf("%s = %#v, want glob %q", label, extraFiles, glob)
 }

@@ -6,6 +6,9 @@ import {
   SettingsApiError,
   type SettingsGeneralSection,
   type SettingsUpdateGeneralRequest,
+  type SettingsUpdateTarget,
+  useApplySettingsUpdate,
+  useCancelSettingsUpdate,
   useReloadSettings,
   useSettingsApplyRecords,
   useSettingsGeneral,
@@ -38,9 +41,15 @@ function applyResultLabel(result: {
   return `Saved · active generation ${result.active_generation}`;
 }
 
+function updateActionError(error: unknown): string | null {
+  return error instanceof Error ? error.message : null;
+}
+
 export function useSettingsGeneralPage() {
   const query = useSettingsGeneral();
   const update = useSettingsUpdate();
+  const updateApply = useApplySettingsUpdate();
+  const updateCancel = useCancelSettingsUpdate();
   const applyRecords = useSettingsApplyRecords({ limit: 8 });
   const mutation = useUpdateSettingsGeneral();
   const reload = useReloadSettings();
@@ -134,6 +143,18 @@ export function useSettingsGeneralPage() {
     handleRetry,
     restart: page.restart,
     update,
+    // Apply/cancel only acknowledge acquisition. `result` carries the daemon's
+    // own answer (`accepted` or `blocked` with its holder) so the surface can
+    // report it verbatim; terminal truth still comes from the `update` read.
+    updateActions: {
+      apply: (target: SettingsUpdateTarget) => updateApply.mutate({ target }),
+      cancel: () => updateCancel.mutate(),
+      pendingTarget: updateApply.isPending ? (updateApply.variables?.target ?? null) : null,
+      isCanceling: updateCancel.isPending,
+      result: updateApply.data ?? null,
+      cancelResult: updateCancel.data ?? null,
+      error: updateActionError(updateApply.error) ?? updateActionError(updateCancel.error),
+    },
     applyRecords,
     handleReload,
     isReloading: reload.isPending,

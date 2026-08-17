@@ -149846,57 +149846,268 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "available": {
-                      "type": "boolean"
-                    },
-                    "checked_at": {
-                      "format": "date-time",
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "current_version": {
-                      "type": "string"
-                    },
-                    "install_method": {
-                      "type": "string"
-                    },
-                    "last_error": {
-                      "type": "string"
-                    },
-                    "latest_version": {
-                      "type": "string"
-                    },
-                    "managed": {
-                      "type": "boolean"
-                    },
-                    "recommendation": {
-                      "type": "string"
-                    },
-                    "release_url": {
-                      "type": "string"
-                    },
-                    "status": {
+                    "aggregate": {
                       "enum": [
-                        "current",
+                        "up-to-date",
                         "available",
+                        "accepted",
+                        "applying",
+                        "staged",
                         "updated",
-                        "deferred",
+                        "blocked",
                         "unsupported",
-                        "failed"
+                        "failed",
+                        "canceled"
                       ],
                       "type": "string"
                     },
-                    "supported": {
-                      "type": "boolean"
+                    "app": {
+                      "nullable": true,
+                      "properties": {
+                        "attempt_id": {
+                          "type": "string"
+                        },
+                        "current_version": {
+                          "type": "string"
+                        },
+                        "last_error": {
+                          "type": "string"
+                        },
+                        "latest_version": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "release_url": {
+                          "type": "string"
+                        },
+                        "running": {
+                          "type": "boolean"
+                        },
+                        "status": {
+                          "enum": [
+                            "up-to-date",
+                            "available",
+                            "accepted",
+                            "applying",
+                            "staged",
+                            "updated",
+                            "blocked",
+                            "unsupported",
+                            "failed",
+                            "canceled"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "attempt_id",
+                        "current_version",
+                        "last_error",
+                        "latest_version",
+                        "message",
+                        "release_url",
+                        "running",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "operation": {
+                      "nullable": true,
+                      "properties": {
+                        "active_target": {
+                          "enum": [
+                            "runtime",
+                            "app"
+                          ],
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "holder": {
+                          "nullable": true,
+                          "properties": {
+                            "executor_generation": {
+                              "type": "string"
+                            },
+                            "lease_expires_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "pid": {
+                              "type": "integer"
+                            },
+                            "pid_start_time": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "surface": {
+                              "enum": [
+                                "cli",
+                                "daemon",
+                                "web",
+                                "shell"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "executor_generation",
+                            "lease_expires_at",
+                            "pid",
+                            "pid_start_time",
+                            "surface"
+                          ],
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "last_error": {
+                          "type": "string"
+                        },
+                        "percent": {
+                          "type": "integer"
+                        },
+                        "phase": {
+                          "enum": [
+                            "pending",
+                            "downloading",
+                            "verifying",
+                            "swapping",
+                            "restarting",
+                            "health-checking",
+                            "finalized",
+                            "rolled-back",
+                            "failed",
+                            "staged",
+                            "applying",
+                            "installer-handoff",
+                            "restarted",
+                            "verified"
+                          ],
+                          "type": "string"
+                        },
+                        "revision": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "started_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "targets": {
+                          "items": {
+                            "enum": [
+                              "runtime",
+                              "app"
+                            ],
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "waiting": {
+                          "enum": [
+                            "",
+                            "waiting-for-app"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "holder",
+                        "id",
+                        "last_error",
+                        "percent",
+                        "phase",
+                        "revision",
+                        "started_at",
+                        "targets",
+                        "waiting"
+                      ],
+                      "type": "object"
+                    },
+                    "runtime": {
+                      "properties": {
+                        "current_version": {
+                          "type": "string"
+                        },
+                        "daemon_restarted": {
+                          "type": "boolean"
+                        },
+                        "install_method": {
+                          "enum": [
+                            "direct-binary",
+                            "homebrew",
+                            "npm",
+                            "apt",
+                            "dnf",
+                            "rpm",
+                            "scoop",
+                            "go-install",
+                            "desktop-app",
+                            "unknown"
+                          ],
+                          "type": "string"
+                        },
+                        "last_error": {
+                          "type": "string"
+                        },
+                        "latest_version": {
+                          "type": "string"
+                        },
+                        "managed": {
+                          "type": "boolean"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "recommendation": {
+                          "type": "string"
+                        },
+                        "release_url": {
+                          "type": "string"
+                        },
+                        "restored_version": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "enum": [
+                            "up-to-date",
+                            "available",
+                            "accepted",
+                            "applying",
+                            "staged",
+                            "updated",
+                            "blocked",
+                            "unsupported",
+                            "failed",
+                            "canceled"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "current_version",
+                        "daemon_restarted",
+                        "install_method",
+                        "last_error",
+                        "latest_version",
+                        "managed",
+                        "message",
+                        "recommendation",
+                        "release_url",
+                        "restored_version",
+                        "status"
+                      ],
+                      "type": "object"
                     }
                   },
                   "required": [
-                    "available",
-                    "current_version",
-                    "install_method",
-                    "managed",
-                    "status",
-                    "supported"
+                    "aggregate",
+                    "app",
+                    "operation",
+                    "runtime"
                   ],
                   "type": "object"
                 }
@@ -150052,6 +150263,717 @@
           }
         },
         "summary": "Read the current CompozyOS software update status",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/update/apply": {
+      "post": {
+        "operationId": "applySettingsUpdate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "target": {
+                    "enum": [
+                      "runtime",
+                      "app"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "target"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "holder": {
+                      "nullable": true,
+                      "properties": {
+                        "executor_generation": {
+                          "type": "string"
+                        },
+                        "lease_expires_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "pid": {
+                          "type": "integer"
+                        },
+                        "pid_start_time": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "surface": {
+                          "enum": [
+                            "cli",
+                            "daemon",
+                            "web",
+                            "shell"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "executor_generation",
+                        "lease_expires_at",
+                        "pid",
+                        "pid_start_time",
+                        "surface"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "operation_id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "accepted",
+                        "blocked",
+                        "failed"
+                      ],
+                      "type": "string"
+                    },
+                    "target": {
+                      "enum": [
+                        "runtime",
+                        "app"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "status",
+                    "target"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Accepted, blocked, or acquisition-time failure"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid update target"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Update surface unavailable"
+          }
+        },
+        "summary": "Durably acquire an asynchronous software update operation",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/update/cancel": {
+      "post": {
+        "operationId": "cancelSettingsUpdate",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "holder": {
+                      "nullable": true,
+                      "properties": {
+                        "executor_generation": {
+                          "type": "string"
+                        },
+                        "lease_expires_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "pid": {
+                          "type": "integer"
+                        },
+                        "pid_start_time": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "surface": {
+                          "enum": [
+                            "cli",
+                            "daemon",
+                            "web",
+                            "shell"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "executor_generation",
+                        "lease_expires_at",
+                        "pid",
+                        "pid_start_time",
+                        "surface"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "operation_id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "up-to-date",
+                        "available",
+                        "accepted",
+                        "applying",
+                        "staged",
+                        "updated",
+                        "blocked",
+                        "unsupported",
+                        "failed",
+                        "canceled"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Canceled or declined with current holder"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Update surface unavailable"
+          }
+        },
+        "summary": "Cancel and archive a dormant software update operation",
         "tags": [
           "settings"
         ],
@@ -156000,6 +156922,9 @@
                         "http_port": {
                           "type": "integer"
                         },
+                        "min_app_version": {
+                          "type": "string"
+                        },
                         "network": {
                           "nullable": true,
                           "properties": {
@@ -156173,6 +157098,7 @@
                         "active_sessions",
                         "http_host",
                         "http_port",
+                        "min_app_version",
                         "pid",
                         "schema_streams",
                         "socket",

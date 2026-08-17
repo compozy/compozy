@@ -7,7 +7,8 @@ release_version=${3:?release version is required}
 runtime_version=${4:?current channel runtime version is required}
 
 smoke_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
-smoke_root=$(mktemp -d "${smoke_parent}/compozyqa-desktop-smoke.XXXXXX")
+# Keep COMPOZY_HOME short enough for macOS sockaddr_un after /var resolves to /private/var.
+smoke_root=$(mktemp -d "${smoke_parent}/compozyds.XXXXXX")
 smoke_home="${smoke_root}/home/runtime"
 qa_output="${smoke_root}/qa-artifacts"
 qa_root="${qa_output}/qa"
@@ -16,14 +17,28 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(git -C "${GITHUB_WORKSPACE:-$(pwd)}" rev-parse --show-toplevel)
 bash "${script_dir}/prepare-desktop-smoke-artifact.sh" "${platform}" "${artifact}"
 mkdir -p "${smoke_home}" "${qa_root}/pids"
+smoke_home=$(cd "${smoke_home}" && pwd -P)
+http_port=$(python3 -c 'import socket; listener = socket.socket(); listener.bind(("127.0.0.1", 0)); print(listener.getsockname()[1]); listener.close()')
+uds_path="${smoke_home}/compozyd.sock"
+{
+  printf '[http]\n'
+  printf 'host = "127.0.0.1"\n'
+  printf 'port = %s\n\n' "${http_port}"
+  printf '[daemon]\n'
+  printf 'socket = "%s"\n' "${uds_path}"
+} >"${smoke_home}/config.toml"
 jq -n \
   --arg qa_output "${qa_output}" \
   --arg compozy_home "${smoke_home}" \
+  --arg http_port "${http_port}" \
+  --arg uds_path "${uds_path}" \
   '{
     qa_output_path: $qa_output,
     env: {
       QA_OUTPUT_PATH: $qa_output,
-      COMPOZY_HOME: $compozy_home
+      COMPOZY_HOME: $compozy_home,
+      COMPOZY_HTTP_PORT: $http_port,
+      COMPOZY_UDS_PATH: $uds_path
     }
   }' >"${manifest_path}"
 teardown_command=(
@@ -150,7 +165,7 @@ case "${platform}" in
     mount_path=$(mktemp -d "${smoke_parent}/compozy-desktop-smoke-mount.XXXXXX")
     hdiutil attach -nobrowse -readonly -mountpoint "${mount_path}" "${artifact}" >/dev/null
     app_path=$(find "${mount_path}" -maxdepth 1 -type d -name '*.app' -print -quit)
-    app_binary="${app_path}/Contents/MacOS/compozyos-desktop"
+    app_binary="${app_path}/Contents/MacOS/CompozyOS"
     ;;
   linux)
     app_binary=${artifact}

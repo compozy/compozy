@@ -8,11 +8,11 @@ expected: The hosted installer, `npm install -g @compozy/cli@beta`, and the pinn
 entry_points: README Installation; compozy.com install section; compozy.com/docs/getting-started/installation; npm registry; Go module proxy
 qa_status: blocked-decision
 bug_ids: BUG-20260814-go-install-replace-directives
-fix_status: partial
-retest_status: blocked-decision
+fix_status: deferred
+retest_status: 
 fix_commits: 107890a0; 614fe6e6; c38ba0fa
-evidence: https://github.com/compozy/compozy/actions/runs/31817112935/job/94858119676; https://github.com/compozy/compozy/actions/runs/31817112935/job/94858119710; https://github.com/compozy/compozy/releases/tag/v0.3.0-beta.16
-last_report: docs/qa/reports/2026-08-13-release-pipeline-recovery.md
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: REL-beta-installer-provenance; REL-beta-self-update
 ---
 

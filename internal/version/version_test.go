@@ -10,8 +10,8 @@ func TestCurrentReturnsDefaults(t *testing.T) {
 		t.Parallel()
 
 		info := Current()
-		if info.Version == "" || info.Commit == "" || info.BuildDate == "" {
-			t.Fatalf("Current() = %#v, want non-empty fields", info)
+		if info.Version == "" || info.Commit == "" || info.BuildDate == "" || info.MinAppVersion != "0.0.0" {
+			t.Fatalf("Current() = %#v, want non-empty identity and min app 0.0.0", info)
 		}
 	})
 }
@@ -21,13 +21,14 @@ func TestInfoStringIncludesBuildMetadata(t *testing.T) {
 		t.Parallel()
 
 		info := Info{
-			Version:   "1.2.3",
-			Commit:    "abc123",
-			BuildDate: "2026-04-03T00:00:00Z",
+			Version:       "1.2.3",
+			Commit:        "abc123",
+			BuildDate:     "2026-04-03T00:00:00Z",
+			MinAppVersion: "1.1.0",
 		}
 
 		got := info.String()
-		if got != "1.2.3 (abc123, 2026-04-03T00:00:00Z)" {
+		if got != "1.2.3 (abc123, 2026-04-03T00:00:00Z, min app 1.1.0)" {
 			t.Fatalf("Info.String() = %q", got)
 		}
 	})

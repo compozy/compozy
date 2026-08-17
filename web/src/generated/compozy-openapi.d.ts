@@ -3419,6 +3419,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/update/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Durably acquire an asynchronous software update operation */
+    post: operations["applySettingsUpdate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/update/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel and archive a dormant software update operation */
+    post: operations["cancelSettingsUpdate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/window-manager": {
     parameters: {
       query?: never;
@@ -61617,19 +61651,407 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available: boolean;
-            /** Format: date-time */
-            checked_at?: string | null;
-            current_version: string;
-            install_method: string;
-            last_error?: string;
-            latest_version?: string;
-            managed: boolean;
-            recommendation?: string;
-            release_url?: string;
             /** @enum {string} */
-            status: "current" | "available" | "updated" | "deferred" | "unsupported" | "failed";
-            supported: boolean;
+            aggregate:
+              | "up-to-date"
+              | "available"
+              | "accepted"
+              | "applying"
+              | "staged"
+              | "updated"
+              | "blocked"
+              | "unsupported"
+              | "failed"
+              | "canceled";
+            app: {
+              attempt_id: string;
+              current_version: string;
+              last_error: string;
+              latest_version: string;
+              message: string;
+              release_url: string;
+              running: boolean;
+              /** @enum {string} */
+              status:
+                | "up-to-date"
+                | "available"
+                | "accepted"
+                | "applying"
+                | "staged"
+                | "updated"
+                | "blocked"
+                | "unsupported"
+                | "failed"
+                | "canceled";
+            } | null;
+            operation: {
+              /** @enum {string|null} */
+              active_target?: "runtime" | "app" | null;
+              holder: {
+                executor_generation: string;
+                /** Format: date-time */
+                lease_expires_at: string;
+                pid: number;
+                /** Format: date-time */
+                pid_start_time: string;
+                /** @enum {string} */
+                surface: "cli" | "daemon" | "web" | "shell";
+              } | null;
+              id: string;
+              last_error: string;
+              percent: number;
+              /** @enum {string} */
+              phase:
+                | "pending"
+                | "downloading"
+                | "verifying"
+                | "swapping"
+                | "restarting"
+                | "health-checking"
+                | "finalized"
+                | "rolled-back"
+                | "failed"
+                | "staged"
+                | "applying"
+                | "installer-handoff"
+                | "restarted"
+                | "verified";
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              started_at: string;
+              targets: ("runtime" | "app")[];
+              /** @enum {string} */
+              waiting: "" | "waiting-for-app";
+            } | null;
+            runtime: {
+              current_version: string;
+              daemon_restarted: boolean;
+              /** @enum {string} */
+              install_method:
+                | "direct-binary"
+                | "homebrew"
+                | "npm"
+                | "apt"
+                | "dnf"
+                | "rpm"
+                | "scoop"
+                | "go-install"
+                | "desktop-app"
+                | "unknown";
+              last_error: string;
+              latest_version: string;
+              managed: boolean;
+              message: string;
+              recommendation: string;
+              release_url: string;
+              restored_version: string;
+              /** @enum {string} */
+              status:
+                | "up-to-date"
+                | "available"
+                | "accepted"
+                | "applying"
+                | "staged"
+                | "updated"
+                | "blocked"
+                | "unsupported"
+                | "failed"
+                | "canceled";
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Update surface unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  applySettingsUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          target: "runtime" | "app";
+        };
+      };
+    };
+    responses: {
+      /** @description Accepted, blocked, or acquisition-time failure */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            holder?: {
+              executor_generation: string;
+              /** Format: date-time */
+              lease_expires_at: string;
+              pid: number;
+              /** Format: date-time */
+              pid_start_time: string;
+              /** @enum {string} */
+              surface: "cli" | "daemon" | "web" | "shell";
+            } | null;
+            message: string;
+            operation_id?: string;
+            /** @enum {string} */
+            status: "accepted" | "blocked" | "failed";
+            /** @enum {string} */
+            target: "runtime" | "app";
+          };
+        };
+      };
+      /** @description Invalid update target */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Update surface unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  cancelSettingsUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Canceled or declined with current holder */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            holder?: {
+              executor_generation: string;
+              /** Format: date-time */
+              lease_expires_at: string;
+              pid: number;
+              /** Format: date-time */
+              pid_start_time: string;
+              /** @enum {string} */
+              surface: "cli" | "daemon" | "web" | "shell";
+            } | null;
+            message: string;
+            operation_id?: string;
+            /** @enum {string} */
+            status:
+              | "up-to-date"
+              | "available"
+              | "accepted"
+              | "applying"
+              | "staged"
+              | "updated"
+              | "blocked"
+              | "unsupported"
+              | "failed"
+              | "canceled";
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -63939,6 +64361,7 @@ export interface operations {
               } | null;
               http_host: string;
               http_port: number;
+              min_app_version: string;
               network?: {
                 channels: number;
                 /** Format: int64 */

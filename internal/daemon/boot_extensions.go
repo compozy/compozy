@@ -26,7 +26,7 @@ func (d *Daemon) newBootExtensionService(
 	if store, ok := any(state.registry).(extensionpkg.EnvBindingLifecycleStore); ok {
 		envBindings = store
 	}
-	return newDaemonExtensionService(daemonExtensionServiceDeps{
+	return newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:     extRegistry,
 		Runtime:      manager,
 		HookBindings: state.hookBindings,

@@ -1,8 +1,9 @@
 # J-desktop-agent-headless: Operate the desktop surface from a terminal with no human at the screen
 
-An agent drives the desktop capability entirely through `compozy app` structured verbs: install
-truth, launch/focus, transitional states, updates, recovery, and diagnostics — deterministic,
-machine-readable, schema-valid, with no UI observation.
+An agent drives the desktop capability through structured CLI and settings transports: `compozy app`
+owns app state, launch, retry, and diagnostics; `compozy update` exclusively owns runtime and
+app updates; HTTP and UDS expose the same update truth. Every result is deterministic,
+machine-readable, schema-valid, and observable without the UI.
 
 ```mermaid
 flowchart TD
@@ -12,13 +13,18 @@ flowchart TD
     D --> E[Status during provisioning or updating reports the transitional state verbatim]
     E --> F[Status attached: running:true + runtime attach fields, schema-valid]
     F --> G[compozy app open /settings focuses the window and navigates]
-    G --> H[compozy app update --check reports availability from the feed]
-    H --> I{Apply target}
-    I -->|--apply app| J[Consent semantics walk deterministically, restart, new version in status]
-    I -->|--apply runtime on app-owned home| K[Quiesce, apply, reconnect - headless]
-    K -->|post-migration boot failure| L[status reports runtime_state recovery_required with typed error, diagnose returns a redacted report and consent-gated local export]
-    L --> M[Applying the fixed newer signed build clears the state]
-    J --> N[Kill the app process]
+    G --> G1[compozy app retry is accepted only from a recoverable state]
+    G1 --> H[compozy update --check and settings GET report both targets from one release]
+    H --> I[compozy update applies runtime first, then updates or stages the app]
+    I --> J{App running?}
+    J -->|yes| K[Consent semantics walk deterministically, restart, new version in status]
+    J -->|no| P[App update stays staged for the next launch]
+    H -->|dormant operation exists| Q[compozy update --cancel frees the update channel]
+    K -->|post-swap health failure| L[update operation restores the previous runtime and records rolled-back with the typed failure]
+    L --> M[Status confirms the restored runtime is healthy; retry uses a newly verified candidate]
+    K --> N[Kill the app process]
+    P --> N
+    Q --> N
     M --> N
     N --> O[True end: status running:false, every state seen was truthful and deterministic]
     H -.->|socket absent or unresponsive| X1[Abandon: app_not_running / app_control_unavailable named deterministically - the agent stops cleanly, no ambiguous retry]
@@ -31,7 +37,7 @@ journey:
   value_statement: "The desktop capability is not UI-only: an agent can install-check, launch, inspect, update, and diagnose it with deterministic structured output end to end."
   personas: [Ada]
   entry_points:
-    - url: "compozy app status | open [path] | update --check/--apply | diagnose (-o json)"
+    - url: "compozy app status | open [path] | retry | diagnose; compozy update [--check|--cancel] (-o json); settings update HTTP and UDS routes"
       origin: direct
   actions:
     - step: 1
@@ -44,11 +50,11 @@ journey:
       verb: "Navigate via `compozy app open /settings`"
       expected_observable: "Existing window focuses and shows the target; invalid targets return `invalid_target_path`"
     - step: 4
-      verb: "Drive app and runtime updates headlessly"
-      expected_observable: "`update --check` reports availability; `--apply app` and `--apply runtime` walk consent + quiesce semantics deterministically"
+      verb: "Drive app and runtime updates headlessly across CLI, HTTP, and UDS"
+      expected_observable: "Every read agrees; apply is runtime-first; a closed app stages; `--cancel` releases only a dormant operation"
     - step: 5
       verb: "Probe failure vocabulary"
-      expected_observable: "`app_not_installed`, `app_not_running`, `app_control_unavailable`, and `recovery_required` are named, typed, and stable"
+      expected_observable: "`app_not_installed`, `app_not_running`, and `app_control_unavailable` are named, typed, and stable; a failed runtime health check is reported separately as update outcome `rolled-back`"
   goal:
     observable: "Full desktop lifecycle driven and observed from a terminal alone"
     side_effects: [app-launched, update-applied, diagnostic-report-returned]
@@ -59,5 +65,5 @@ journey:
     - at_step: 4
       how: "The control socket is absent or unresponsive mid-operation."
       resume: "The deterministic error names the condition; a later retry against a healthy app proceeds with no residue from the aborted attempt."
-  crosses: [cli-app-verbs, control-socket, app-state-schema, update-feeds, quiesce-contract, platform-registration]
+  crosses: [cli-app-verbs, control-socket, app-state-schema, github-release-channel, quiesce-contract, platform-registration]
 ```

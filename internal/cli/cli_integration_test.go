@@ -3977,9 +3977,10 @@ type integrationDaemon struct {
 }
 
 type integrationDaemonProcess struct {
-	pid    int
-	done   <-chan struct{}
-	waitCh <-chan error
+	pid       int
+	done      <-chan struct{}
+	waitCh    <-chan error
+	terminate context.CancelFunc
 }
 
 func (d *integrationDaemon) extensionMarketplaceLoader() extensionpkg.MarketplaceSourceLoader {
@@ -4658,6 +4659,13 @@ func (p *integrationDaemonProcess) Wait() error {
 	return <-p.waitCh
 }
 
+func (p *integrationDaemonProcess) Terminate() error {
+	if p.terminate != nil {
+		p.terminate()
+	}
+	return nil
+}
+
 func (d *integrationDaemon) spawnDetached() (daemonProcess, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -4687,7 +4695,7 @@ func (d *integrationDaemon) spawnDetached() (daemonProcess, error) {
 		close(done)
 	}()
 
-	return &integrationDaemonProcess{pid: d.pid, done: done, waitCh: waitCh}, nil
+	return &integrationDaemonProcess{pid: d.pid, done: done, waitCh: waitCh, terminate: cancel}, nil
 }
 
 func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {

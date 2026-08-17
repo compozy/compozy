@@ -1,0 +1,243 @@
+package update
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+)
+
+const OperationSchemaVersion = 1
+
+const (
+	operationOutcomeCanceled   = "canceled"
+	operationOutcomeFailed     = "failed"
+	operationOutcomeRolledBack = "rolled-back"
+	operationOutcomeStaged     = "staged"
+	operationOutcomeStarted    = "started"
+	operationOutcomeUpdated    = "updated"
+	operationOutcomeWaiting    = "waiting"
+)
+
+// Target identifies one install track in a host-global update operation.
+type Target string
+
+const (
+	TargetRuntime Target = "runtime"
+	TargetApp     Target = "app"
+)
+
+// Actor identifies the public surface that requested a transition.
+type Actor string
+
+const (
+	ActorCLI    Actor = "cli"
+	ActorDaemon Actor = "daemon"
+	ActorWeb    Actor = "web"
+	ActorShell  Actor = "shell"
+)
+
+// WaitingState identifies an operation that is durable but has no live holder.
+type WaitingState string
+
+const (
+	WaitingNone   WaitingState = ""
+	WaitingForApp WaitingState = "waiting-for-app"
+)
+
+// OperationPhase is the closed union of runtime and app journal phases.
+type OperationPhase string
+
+const (
+	PhasePending          OperationPhase = "pending"
+	PhaseDownloading      OperationPhase = "downloading"
+	PhaseVerifying        OperationPhase = "verifying"
+	PhaseSwapping         OperationPhase = "swapping"
+	PhaseRestarting       OperationPhase = "restarting"
+	PhaseHealthChecking   OperationPhase = "health-checking"
+	PhaseFinalized        OperationPhase = "finalized"
+	PhaseRolledBack       OperationPhase = "rolled-back"
+	PhaseFailed           OperationPhase = "failed"
+	PhaseStaged           OperationPhase = "staged"
+	PhaseApplying         OperationPhase = "applying"
+	PhaseInstallerHandoff OperationPhase = "installer-handoff"
+	PhaseRestarted        OperationPhase = "restarted"
+	PhaseVerified         OperationPhase = "verified"
+)
+
+// Holder is the fenced lease for the sole active executor.
+type Holder struct {
+	PID                int       `json:"pid"`
+	PIDStartTime       time.Time `json:"pid_start_time"`
+	Surface            Actor     `json:"surface"`
+	ExecutorGeneration string    `json:"executor_generation"`
+	LeaseExpiresAt     time.Time `json:"lease_expires_at"`
+}
+
+// ArtifactIdentity binds an update step to one verified release artifact.
+type ArtifactIdentity struct {
+	FromVersion string `json:"from_version"`
+	ToVersion   string `json:"to_version"`
+	ReleaseTag  string `json:"release_tag"`
+	Asset       string `json:"asset"`
+	Digest      string `json:"digest"`
+}
+
+// RuntimeOperationState journals the runtime track.
+type RuntimeOperationState struct {
+	ArtifactIdentity
+	InstallMethod   InstallMethod  `json:"install_method"`
+	BackupPath      string         `json:"backup_path,omitempty"`
+	Phase           OperationPhase `json:"phase"`
+	DaemonRestarted bool           `json:"daemon_restarted"`
+}
+
+// AppOperationState journals the desktop app track.
+type AppOperationState struct {
+	ArtifactIdentity
+	AttemptID           string         `json:"attempt_id"`
+	Phase               OperationPhase `json:"phase"`
+	DigestVerified      bool           `json:"digest_verified"`
+	ConsecutiveFailures int            `json:"consecutive_failures"`
+	WatchdogDeadline    time.Time      `json:"watchdog_deadline,omitzero"`
+}
+
+// Operation is the sole durable mutation journal for one CompozyOS home.
+type Operation struct {
+	SchemaVersion int                    `json:"schema_version"`
+	ID            string                 `json:"operation_id"`
+	RequestedBy   Actor                  `json:"requested_by"`
+	Revision      int64                  `json:"revision"`
+	Targets       []Target               `json:"targets"`
+	ActiveTarget  Target                 `json:"active_target,omitempty"`
+	Percent       int                    `json:"percent"`
+	Runtime       *RuntimeOperationState `json:"runtime,omitempty"`
+	App           *AppOperationState     `json:"app,omitempty"`
+	Holder        *Holder                `json:"holder"`
+	Waiting       WaitingState           `json:"waiting"`
+	Deadline      time.Time              `json:"deadline"`
+	StartedAt     time.Time              `json:"started_at"`
+	UpdatedAt     time.Time              `json:"updated_at"`
+	LastError     string                 `json:"last_error,omitempty"`
+	Outcome       string                 `json:"outcome,omitempty"`
+}
+
+// OperationRequest contains release identities already verified at acquisition.
+type OperationRequest struct {
+	RequestedBy Actor
+	Targets     []Target
+	Runtime     *RuntimeOperationState
+	App         *AppOperationState
+	Holder      Holder
+	Deadline    time.Time
+}
+
+func (t Target) valid() bool { return t == TargetRuntime || t == TargetApp }
+
+func (a Actor) valid() bool {
+	return a == ActorCLI || a == ActorDaemon || a == ActorWeb || a == ActorShell
+}
+
+func (p OperationPhase) validFor(target Target) bool {
+	_, ok := allowedPhaseTransitions[target][p]
+	return ok
+}
+
+func validateOperation(operation *Operation) error {
+	if operation == nil {
+		return errors.New("update: operation is required")
+	}
+	if operation.SchemaVersion != OperationSchemaVersion {
+		return fmt.Errorf("update: unsupported operation schema version %d", operation.SchemaVersion)
+	}
+	if strings.TrimSpace(operation.ID) == "" || !operation.RequestedBy.valid() || operation.Revision < 1 {
+		return errors.New("update: operation identity is invalid")
+	}
+	if err := validateTargets(operation.Targets); err != nil {
+		return err
+	}
+	if operation.Runtime != nil && !operation.Runtime.Phase.validFor(TargetRuntime) {
+		return fmt.Errorf("update: invalid runtime phase %q", operation.Runtime.Phase)
+	}
+	if operation.App != nil && !operation.App.Phase.validFor(TargetApp) {
+		return fmt.Errorf("update: invalid app phase %q", operation.App.Phase)
+	}
+	if err := validateOperationTargetState(operation); err != nil {
+		return err
+	}
+	if err := validateOperationHolder(operation); err != nil {
+		return err
+	}
+	if operation.Waiting != WaitingNone && operation.Waiting != WaitingForApp {
+		return fmt.Errorf("update: invalid waiting state %q", operation.Waiting)
+	}
+	if operation.Percent < -1 || operation.Percent > 100 {
+		return fmt.Errorf("update: percent %d is outside -1..100", operation.Percent)
+	}
+	return nil
+}
+
+func validateOperationTargetState(operation *Operation) error {
+	targets := make(map[Target]struct{}, len(operation.Targets))
+	for _, target := range operation.Targets {
+		targets[target] = struct{}{}
+	}
+	_, hasRuntime := targets[TargetRuntime]
+	_, hasApp := targets[TargetApp]
+	if hasRuntime != (operation.Runtime != nil) || hasApp != (operation.App != nil) {
+		return errors.New("update: operation target state does not match its target list")
+	}
+	if operation.ActiveTarget != "" {
+		if _, ok := targets[operation.ActiveTarget]; !ok {
+			return errors.New("update: active target is not part of the operation")
+		}
+	}
+	if operation.Waiting == WaitingForApp {
+		if operation.ActiveTarget != "" || operation.Holder != nil || operation.App == nil ||
+			operation.App.Phase != PhaseStaged || !runtimeAllowsApp(operation.Runtime) {
+			return errors.New("update: waiting-for-app state is inconsistent")
+		}
+	}
+	if operation.Holder != nil && operation.ActiveTarget == "" {
+		return errors.New("update: a held operation requires an active target")
+	}
+	if operation.App != nil && operation.App.Phase == PhaseVerified && !operation.App.DigestVerified {
+		return errors.New("update: verified app phase requires a verified artifact digest")
+	}
+	return nil
+}
+
+func validateOperationHolder(operation *Operation) error {
+	if operation.Holder == nil {
+		return nil
+	}
+	holder := operation.Holder
+	if holder.PID <= 0 || holder.PIDStartTime.IsZero() || !holder.Surface.valid() ||
+		strings.TrimSpace(holder.ExecutorGeneration) == "" || holder.LeaseExpiresAt.IsZero() {
+		return errors.New("update: operation holder is invalid")
+	}
+	if operation.Waiting != WaitingNone {
+		return errors.New("update: a waiting operation cannot have a holder")
+	}
+	return nil
+}
+
+func validateTargets(targets []Target) error {
+	if len(targets) == 0 || len(targets) > 2 {
+		return errors.New("update: one or two targets are required")
+	}
+	seen := make(map[Target]struct{}, len(targets))
+	for index, target := range targets {
+		if !target.valid() {
+			return fmt.Errorf("update: invalid target %q", target)
+		}
+		if _, ok := seen[target]; ok {
+			return fmt.Errorf("update: duplicate target %q", target)
+		}
+		seen[target] = struct{}{}
+		if target == TargetRuntime && index != 0 {
+			return errors.New("update: runtime must be the first target")
+		}
+	}
+	return nil
+}

@@ -1,5 +1,7 @@
 export { SettingsApiError, normalizeOptionalText } from "./settings-api-error";
 export {
+  applySettingsUpdate,
+  cancelSettingsUpdate,
   createSettingsNotificationPreset,
   deleteSettingsNotificationPreset,
   getSettingsAttention,

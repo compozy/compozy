@@ -32,6 +32,18 @@ export {
   settingsRolesSectionFixture,
   settingsRolesSectionWithFallbackFixture,
 } from "./roles-fixtures";
+export {
+  settingsUpdateAppAvailableFixture,
+  settingsUpdateApplyingFixture,
+  settingsUpdateBlockedFixture,
+  settingsUpdateBothAvailableFixture,
+  settingsUpdateManagedFixture,
+  settingsUpdateNoAppFixture,
+  settingsUpdateRolledBackFixture,
+  settingsUpdateRuntimeAvailableFixture,
+  settingsUpdateStagedFixture,
+  settingsUpdateStatusFixture,
+} from "./settings-update-fixture";
 export { handlers } from "./handlers";
 export {
   settingsWindowManagerDesktopIds,

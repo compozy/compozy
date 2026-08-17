@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -24,6 +24,7 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	memorypkg "github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/procutil"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -565,7 +566,11 @@ func newSettingsMCPTestServer() *mcp.Server {
 }
 
 type stubSettingsUpdateManager struct {
-	checkFn func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
+	snapshotFn func(context.Context) (compozyupdate.MultiState, error)
+	checkAllFn func(context.Context, compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error)
+	planFn     func(context.Context, compozyupdate.Actor, []compozyupdate.Target, compozyupdate.Holder) (compozyupdate.OperationRequest, error)
+	acquireFn  func(context.Context, compozyupdate.OperationRequest) (*compozyupdate.Operation, error)
+	store      *compozyupdate.OperationStore
 }
 
 type settingsUpdateRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -574,14 +579,62 @@ func (f settingsUpdateRoundTripFunc) RoundTrip(request *http.Request) (*http.Res
 	return f(request)
 }
 
-func (s stubSettingsUpdateManager) Check(
+func (s stubSettingsUpdateManager) Snapshot(ctx context.Context) (compozyupdate.MultiState, error) {
+	if s.snapshotFn != nil {
+		return s.snapshotFn(ctx)
+	}
+	return compozyupdate.MultiState{}, errors.New("unexpected Snapshot call")
+}
+
+func (s stubSettingsUpdateManager) CheckAll(
 	ctx context.Context,
 	opts compozyupdate.CheckOptions,
-) (compozyupdate.State, *compozyupdate.Release, error) {
-	if s.checkFn != nil {
-		return s.checkFn(ctx, opts)
+) (compozyupdate.MultiState, *compozyupdate.Release, error) {
+	if s.checkAllFn != nil {
+		return s.checkAllFn(ctx, opts)
 	}
-	return compozyupdate.State{}, nil, nil
+	return compozyupdate.MultiState{}, nil, errors.New("unexpected CheckAll call")
+}
+
+func (s stubSettingsUpdateManager) PlanOperation(
+	ctx context.Context,
+	actor compozyupdate.Actor,
+	targets []compozyupdate.Target,
+	holder compozyupdate.Holder,
+) (compozyupdate.OperationRequest, error) {
+	if s.planFn != nil {
+		return s.planFn(ctx, actor, targets, holder)
+	}
+	return compozyupdate.OperationRequest{}, errors.New("unexpected PlanOperation call")
+}
+
+func (s stubSettingsUpdateManager) AcquireOperation(
+	ctx context.Context,
+	request compozyupdate.OperationRequest,
+) (*compozyupdate.Operation, error) {
+	if s.acquireFn != nil {
+		return s.acquireFn(ctx, request)
+	}
+	if s.store != nil {
+		return s.store.Acquire(ctx, request)
+	}
+	return nil, errors.New("unexpected AcquireOperation call")
+}
+
+func (s stubSettingsUpdateManager) OperationStore() *compozyupdate.OperationStore { return s.store }
+
+func daemonSettingsUpdateStateFixture() compozyupdate.MultiState {
+	return compozyupdate.MultiState{
+		Aggregate: compozyupdate.StatusAvailable,
+		Runtime: compozyupdate.RuntimeTrackState{
+			Status:         compozyupdate.StatusAvailable,
+			InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
+			CurrentVersion: "v1.0.0", LatestVersion: "v1.1.0",
+			Recommendation: "Run compozy update.",
+			ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
+			LastError:      "cached upstream failure",
+		},
+	}
 }
 
 func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
@@ -604,13 +657,14 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 		if err := os.WriteFile(binaryPath, binary, 0o700); err != nil {
 			t.Fatalf("WriteFile(runtime binary) error = %v", err)
 		}
-		digest := sha256.Sum256(binary)
-		marker := fmt.Sprintf(
-			`{"installed_by":"desktop-app","binary_sha256":"%x"}`,
-			digest,
-		)
-		if err := os.WriteFile(filepath.Join(binDir, ".desktop-provenance.json"), []byte(marker), 0o600); err != nil {
-			t.Fatalf("WriteFile(desktop provenance) error = %v", err)
+		if err := compozyupdate.WriteDesktopProvenance(
+			homePaths,
+			binaryPath,
+			compozyupdate.DesktopProvenanceMetadata{
+				AppVersion: "1.0.0", Channel: "beta", RuntimeVersion: "1.0.0",
+			},
+		); err != nil {
+			t.Fatalf("WriteDesktopProvenance() error = %v", err)
 		}
 		releasePayload := `{
 			"tag_name":"v1.1.0",
@@ -633,7 +687,7 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 			},
 		)
 		releaseClient := &http.Client{Transport: releaseTransport}
-		manager, err := compozyupdate.NewManager(compozyupdate.Config{
+		manager, err := compozyupdate.NewManager(&compozyupdate.Config{
 			HomePaths:       homePaths,
 			CurrentVersion:  "v1.0.0",
 			ExecutablePath:  func() (string, error) { return binaryPath, nil },
@@ -669,39 +723,21 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("Unmarshal(settings update response) error = %v", err)
 		}
-		if payload.InstallMethod != string(compozyupdate.InstallMethodDesktopApp) ||
-			!payload.Managed ||
-			payload.Recommendation != "Update via the CompozyOS desktop app." {
-			t.Fatalf("settings update response = %#v, want managed desktop app", payload)
+		if payload.Runtime.InstallMethod != contract.SettingsUpdateInstallDesktopApp ||
+			payload.Runtime.Managed ||
+			payload.Runtime.Recommendation != "Run `compozy update`." {
+			t.Fatalf("settings update response = %#v, want self-applying desktop runtime", payload)
 		}
 	})
 
 	t.Run("Should translate the cached update snapshot from the shared manager", func(t *testing.T) {
 		t.Parallel()
 
-		checkedAt := time.Date(2026, 5, 3, 19, 0, 0, 0, time.UTC)
+		want := daemonSettingsUpdateStateFixture()
 		controller := settingsUpdateController{
 			manager: stubSettingsUpdateManager{
-				checkFn: func(_ context.Context, opts compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
-					if opts.ForceRefresh {
-						t.Fatal("CheckOptions.ForceRefresh = true, want false")
-					}
-					if !opts.AllowCachedOnFailure {
-						t.Fatal("CheckOptions.AllowCachedOnFailure = false, want true")
-					}
-					return compozyupdate.State{
-						Supported:      true,
-						Managed:        false,
-						InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
-						CurrentVersion: "v1.0.0",
-						LatestVersion:  "v1.1.0",
-						Available:      true,
-						Status:         compozyupdate.StatusAvailable,
-						Recommendation: "Run compozy update.",
-						ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
-						CheckedAt:      &checkedAt,
-						LastError:      "cached upstream failure",
-					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
+				snapshotFn: func(context.Context) (compozyupdate.MultiState, error) {
+					return daemonSettingsUpdateStateFixture(), nil
 				},
 			},
 		}
@@ -711,19 +747,6 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 			t.Fatalf("GetUpdate() error = %v", err)
 		}
 
-		want := core.SettingsUpdateStatus{
-			Supported:      true,
-			Managed:        false,
-			InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
-			CurrentVersion: "v1.0.0",
-			LatestVersion:  "v1.1.0",
-			Available:      true,
-			Status:         string(compozyupdate.StatusAvailable),
-			Recommendation: "Run compozy update.",
-			ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
-			CheckedAt:      &checkedAt,
-			LastError:      "cached upstream failure",
-		}
 		if got != want {
 			t.Fatalf("GetUpdate() = %#v, want %#v", got, want)
 		}
@@ -744,8 +767,8 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 		wantErr := errors.New("upstream unavailable")
 		controller := settingsUpdateController{
 			manager: stubSettingsUpdateManager{
-				checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
-					return compozyupdate.State{}, nil, wantErr
+				snapshotFn: func(context.Context) (compozyupdate.MultiState, error) {
+					return compozyupdate.MultiState{}, wantErr
 				},
 			},
 		}
@@ -755,4 +778,466 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 			t.Fatalf("GetUpdate() error = %v, want %v", err, wantErr)
 		}
 	})
+}
+
+func TestSettingsUpdateControllerMutations(t *testing.T) {
+	t.Run("Should derive holder identity from daemon composition seams", func(t *testing.T) {
+		t.Parallel()
+
+		const pid = 4242
+		startedAt := time.Date(2026, time.August, 16, 10, 0, 0, 0, time.UTC)
+		now := startedAt.Add(time.Hour)
+		daemon := &Daemon{
+			pid: func() int { return pid },
+			processStartedAt: func(gotPID int) (time.Time, error) {
+				if gotPID != pid {
+					t.Fatalf("processStartedAt PID = %d, want %d", gotPID, pid)
+				}
+				return startedAt, nil
+			},
+			now: func() time.Time { return now },
+		}
+
+		holder, err := newDaemonUpdateHolder(daemon, compozyupdate.ActorDaemon)
+		if err != nil {
+			t.Fatalf("newDaemonUpdateHolder() error = %v", err)
+		}
+		if holder.PID != pid || !holder.PIDStartTime.Equal(startedAt) ||
+			holder.Surface != compozyupdate.ActorDaemon || holder.ExecutorGeneration == "" ||
+			!holder.LeaseExpiresAt.Equal(now.Add(2*time.Minute)) {
+			t.Fatalf("newDaemonUpdateHolder() = %#v, want injected identity and lease", holder)
+		}
+	})
+
+	t.Run("Should persist before spawning and report acceptance", func(t *testing.T) {
+		t.Parallel()
+
+		store := newDaemonSettingsOperationStore(t)
+		spawned := false
+		manager := stubSettingsUpdateManager{
+			store: store,
+			planFn: func(
+				_ context.Context,
+				actor compozyupdate.Actor,
+				targets []compozyupdate.Target,
+				holder compozyupdate.Holder,
+			) (compozyupdate.OperationRequest, error) {
+				if actor != compozyupdate.ActorWeb || len(targets) != 1 || targets[0] != compozyupdate.TargetRuntime {
+					t.Fatalf("PlanOperation() actor/targets = %q/%v", actor, targets)
+				}
+				return daemonSettingsOperationRequest(holder, targets), nil
+			},
+		}
+		controller := settingsUpdateController{
+			manager: manager,
+			holder: func(compozyupdate.Actor) (compozyupdate.Holder, error) {
+				return daemonSettingsHolder(t), nil
+			},
+			spawn: func(ctx context.Context, operation *compozyupdate.Operation) error {
+				persisted, err := store.Read(ctx)
+				if err != nil {
+					return err
+				}
+				if persisted == nil || persisted.ID != operation.ID {
+					return errors.New("operation was not persisted before spawn")
+				}
+				spawned = true
+				return nil
+			},
+		}
+
+		requestCtx, cancelRequest := context.WithCancel(t.Context())
+		defer cancelRequest()
+		controller.spawn = func(ctx context.Context, operation *compozyupdate.Operation) error {
+			cancelRequest()
+			if ctx.Err() != nil {
+				return errors.New("spawn inherited request cancellation")
+			}
+			persisted, err := store.Read(ctx)
+			if err != nil {
+				return err
+			}
+			if persisted == nil || persisted.ID != operation.ID {
+				return errors.New("operation was not persisted before spawn")
+			}
+			spawned = true
+			return nil
+		}
+		result, err := controller.ApplyUpdate(requestCtx, compozyupdate.TargetRuntime)
+		if err != nil {
+			t.Fatalf("ApplyUpdate() error = %v", err)
+		}
+		if result.Status != compozyupdate.ApplyStatusAccepted || result.OperationID == "" || !spawned {
+			t.Fatalf("ApplyUpdate() = %#v spawned=%t, want durable acceptance", result, spawned)
+		}
+	})
+
+	t.Run("Should keep accepted truth when detached launch failure is journaled", func(t *testing.T) {
+		t.Parallel()
+
+		store := newDaemonSettingsOperationStore(t)
+		manager := stubSettingsUpdateManager{
+			store: store,
+			planFn: func(
+				_ context.Context,
+				_ compozyupdate.Actor,
+				targets []compozyupdate.Target,
+				holder compozyupdate.Holder,
+			) (compozyupdate.OperationRequest, error) {
+				return daemonSettingsOperationRequest(holder, targets), nil
+			},
+		}
+		controller := settingsUpdateController{
+			manager: manager,
+			holder: func(compozyupdate.Actor) (compozyupdate.Holder, error) {
+				return daemonSettingsHolder(t), nil
+			},
+			spawn: func(context.Context, *compozyupdate.Operation) error {
+				return errors.New("detached launch failed")
+			},
+		}
+		result, err := controller.ApplyUpdate(t.Context(), compozyupdate.TargetRuntime)
+		if err != nil {
+			t.Fatalf("ApplyUpdate() error = %v", err)
+		}
+		if result.Status != compozyupdate.ApplyStatusAccepted || result.OperationID == "" {
+			t.Fatalf("ApplyUpdate() = %#v, want accepted durable operation", result)
+		}
+		archived, err := store.ReadArchived(t.Context(), result.OperationID)
+		if err != nil {
+			t.Fatalf("ReadArchived() error = %v", err)
+		}
+		if archived == nil || archived.Runtime == nil || archived.Runtime.Phase != compozyupdate.PhaseFailed ||
+			!strings.Contains(archived.LastError, "detached launch failed") {
+			t.Fatalf("archived operation = %#v, want journaled launch failure", archived)
+		}
+	})
+
+	for _, shellRunning := range []bool{false, true} {
+		name := "Should stage an accepted app update while the shell is closed"
+		if shellRunning {
+			name = "Should stage an accepted app update while the shell is running"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newDaemonSettingsOperationStore(t)
+			manager := stubSettingsUpdateManager{
+				store: store,
+				planFn: func(
+					_ context.Context,
+					actor compozyupdate.Actor,
+					targets []compozyupdate.Target,
+					holder compozyupdate.Holder,
+				) (compozyupdate.OperationRequest, error) {
+					if actor != compozyupdate.ActorWeb ||
+						!slices.Equal(targets, []compozyupdate.Target{compozyupdate.TargetApp}) {
+						t.Fatalf("PlanOperation() actor/targets = %q/%v", actor, targets)
+					}
+					return daemonSettingsOperationRequest(holder, targets), nil
+				},
+			}
+			controller := settingsUpdateController{
+				manager: manager,
+				holder: func(compozyupdate.Actor) (compozyupdate.Holder, error) {
+					return daemonSettingsHolder(t), nil
+				},
+				spawn: func(ctx context.Context, operation *compozyupdate.Operation) error {
+					staged, err := store.Transition(
+						ctx,
+						operation.ID,
+						operation.Holder.ExecutorGeneration,
+						operation.Revision,
+						compozyupdate.Transition{
+							Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
+							Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100,
+						},
+					)
+					if err != nil {
+						return err
+					}
+					_, err = store.Transition(ctx, staged.ID, staged.Holder.ExecutorGeneration, staged.Revision,
+						compozyupdate.Transition{
+							Kind: compozyupdate.TransitionWaitForApp, Actor: compozyupdate.ActorDaemon,
+							Target: compozyupdate.TargetApp, Percent: -1,
+						})
+					return err
+				},
+			}
+
+			result, err := controller.ApplyUpdate(t.Context(), compozyupdate.TargetApp)
+			if err != nil {
+				t.Fatalf("ApplyUpdate() error = %v", err)
+			}
+			if result.Status != compozyupdate.ApplyStatusAccepted || result.OperationID == "" {
+				t.Fatalf("ApplyUpdate() = %#v, want accepted app operation", result)
+			}
+
+			operation, err := store.Read(t.Context())
+			if err != nil {
+				t.Fatalf("Read() error = %v", err)
+			}
+			app := &compozyupdate.AppTrackState{Running: shellRunning, Status: compozyupdate.StatusAvailable}
+			projection := compozyupdate.ProjectMultiState(compozyupdate.State{}, app, operation)
+			if operation == nil || operation.App == nil || operation.App.Phase != compozyupdate.PhaseStaged ||
+				operation.Waiting != compozyupdate.WaitingForApp || projection.App.Status != compozyupdate.StatusStaged {
+				t.Fatalf("operation/projection = %#v/%#v, want dormant staged app", operation, projection.App)
+			}
+		})
+	}
+
+	t.Run("Should return the existing holder when acquisition is blocked", func(t *testing.T) {
+		t.Parallel()
+
+		store := newDaemonSettingsOperationStore(t)
+		request := daemonSettingsOperationRequest(
+			daemonSettingsHolder(t),
+			[]compozyupdate.Target{compozyupdate.TargetRuntime},
+		)
+		active, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Acquire(seed) error = %v", err)
+		}
+		controller := settingsUpdateController{
+			manager: stubSettingsUpdateManager{
+				store: store,
+				planFn: func(context.Context, compozyupdate.Actor, []compozyupdate.Target, compozyupdate.Holder) (compozyupdate.OperationRequest, error) {
+					second := request
+					second.Holder.ExecutorGeneration = "generation-2"
+					return second, nil
+				},
+			},
+			holder: func(compozyupdate.Actor) (compozyupdate.Holder, error) {
+				return daemonSettingsHolder(t), nil
+			},
+			spawn: func(context.Context, *compozyupdate.Operation) error {
+				t.Fatal("spawn called for blocked operation")
+				return nil
+			},
+		}
+
+		result, err := controller.ApplyUpdate(t.Context(), compozyupdate.TargetRuntime)
+		if err != nil {
+			t.Fatalf("ApplyUpdate() error = %v", err)
+		}
+		if result.Status != compozyupdate.ApplyStatusBlocked || result.OperationID != active.ID ||
+			result.Holder == nil {
+			t.Fatalf("ApplyUpdate() = %#v, want blocked holder", result)
+		}
+	})
+}
+
+func TestBackgroundUpdateRuntimeHonorsDaemonOwnedAppConfig(t *testing.T) {
+	t.Run("Should disable both-track checks while keeping recovery active", func(t *testing.T) {
+		t.Parallel()
+
+		var checkCalls atomic.Int32
+		recovered := make(chan struct{}, 1)
+		runtime, err := newBackgroundUpdateRuntime(
+			stubSettingsUpdateManager{
+				checkAllFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error) {
+					checkCalls.Add(1)
+					return compozyupdate.MultiState{}, nil, nil
+				},
+			},
+			compozyconfig.AppConfig{UpdateCheck: false, UpdateCheckInterval: 15 * time.Minute},
+			testutil.DiscardLogger(),
+			func(context.Context) error {
+				recovered <- struct{}{}
+				return nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("newBackgroundUpdateRuntime() error = %v", err)
+		}
+		if err := runtime.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.Shutdown(context.Background()); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+		select {
+		case <-recovered:
+		case <-time.After(time.Second):
+			t.Fatal("background recovery did not run")
+		}
+		if got := checkCalls.Load(); got != 0 {
+			t.Fatalf("CheckAll() calls = %d, want zero when update_check=false", got)
+		}
+	})
+
+	t.Run("Should perform one shared runtime and app check on startup", func(t *testing.T) {
+		t.Parallel()
+
+		checked := make(chan struct{}, 1)
+		runtime, err := newBackgroundUpdateRuntime(
+			stubSettingsUpdateManager{
+				checkAllFn: func(_ context.Context, opts compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error) {
+					if !opts.ForceRefresh || !opts.AllowCachedOnFailure {
+						t.Fatalf("background CheckOptions = %#v", opts)
+					}
+					checked <- struct{}{}
+					return compozyupdate.MultiState{}, nil, nil
+				},
+			},
+			compozyconfig.AppConfig{UpdateCheck: true, UpdateCheckInterval: 15 * time.Minute},
+			testutil.DiscardLogger(),
+			func(context.Context) error { return nil },
+		)
+		if err != nil {
+			t.Fatalf("newBackgroundUpdateRuntime() error = %v", err)
+		}
+		if err := runtime.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.Shutdown(context.Background()); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+		select {
+		case <-checked:
+		case <-time.After(time.Second):
+			t.Fatal("background check did not run")
+		}
+	})
+
+	t.Run("Should fail an expired pre-swap operation without relaunching it", func(t *testing.T) {
+		t.Parallel()
+
+		store := newDaemonSettingsOperationStore(t)
+		executor := daemonSettingsHolder(t)
+		holder := daemonSettingsHolder(t)
+		holder.PID = 99_999_999
+		holder.LeaseExpiresAt = time.Now().UTC().Add(-time.Minute)
+		request := daemonSettingsOperationRequest(holder, []compozyupdate.Target{compozyupdate.TargetRuntime})
+		request.Deadline = time.Now().UTC().Add(-time.Minute)
+		operation, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Acquire() error = %v", err)
+		}
+		daemon := &Daemon{
+			now:              func() time.Time { return time.Now().UTC() },
+			pid:              func() int { return executor.PID },
+			processStartedAt: func(int) (time.Time, error) { return executor.PIDStartTime, nil },
+			executable:       func() (string, error) { return "/bin/false", nil },
+			startDetached: func(context.Context, detachedStartRequest) (restartProcess, error) {
+				t.Fatal("expired pre-swap operation launched a coordinator")
+				return nil, nil
+			},
+		}
+		manager := stubSettingsUpdateManager{store: store}
+		if err := recoverDaemonUpdateOperation(t.Context(), daemon, manager); err != nil {
+			t.Fatalf("recoverDaemonUpdateOperation() error = %v", err)
+		}
+		archived, err := store.ReadArchived(t.Context(), operation.ID)
+		if err != nil {
+			t.Fatalf("ReadArchived() error = %v", err)
+		}
+		if archived == nil || archived.Runtime == nil || archived.Runtime.Phase != compozyupdate.PhaseFailed ||
+			!strings.Contains(archived.LastError, "deadline expired") {
+			t.Fatalf("archived operation = %#v, want deadline failure", archived)
+		}
+	})
+
+	t.Run("Should relaunch a pending app coordinator after its holder dies", func(t *testing.T) {
+		t.Parallel()
+
+		store := newDaemonSettingsOperationStore(t)
+		executor := daemonSettingsHolder(t)
+		holder := daemonSettingsHolder(t)
+		holder.PID = 99_999_999
+		holder.LeaseExpiresAt = time.Now().UTC().Add(-time.Minute)
+		operation, err := store.Acquire(
+			t.Context(),
+			daemonSettingsOperationRequest(holder, []compozyupdate.Target{compozyupdate.TargetApp}),
+		)
+		if err != nil {
+			t.Fatalf("Acquire() error = %v", err)
+		}
+		launched := make(chan detachedStartRequest, 1)
+		daemon := &Daemon{
+			now:              func() time.Time { return time.Now().UTC() },
+			pid:              func() int { return executor.PID },
+			processStartedAt: func(int) (time.Time, error) { return executor.PIDStartTime, nil },
+			executable:       func() (string, error) { return "/bin/compozy", nil },
+			startDetached: func(_ context.Context, request detachedStartRequest) (restartProcess, error) {
+				launched <- request
+				return restartProcessStub{pid: 4242}, nil
+			},
+		}
+		manager := stubSettingsUpdateManager{store: store}
+		if err := recoverDaemonUpdateOperation(t.Context(), daemon, manager); err != nil {
+			t.Fatalf("recoverDaemonUpdateOperation() error = %v", err)
+		}
+		select {
+		case request := <-launched:
+			if request.binary != "/bin/compozy" || !slices.Contains(request.args, operation.ID) {
+				t.Fatalf("detached coordinator request = %#v, want recovered app operation", request)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("pending app coordinator was not relaunched")
+		}
+		recovered, err := store.Read(t.Context())
+		if err != nil {
+			t.Fatalf("Read() error = %v", err)
+		}
+		if recovered == nil || recovered.App == nil || recovered.App.Phase != compozyupdate.PhasePending ||
+			recovered.Holder == nil || recovered.Holder.ExecutorGeneration == operation.Holder.ExecutorGeneration {
+			t.Fatalf("recovered operation = %#v, want pending app with a new holder", recovered)
+		}
+	})
+}
+
+func newDaemonSettingsOperationStore(t *testing.T) *compozyupdate.OperationStore {
+	t.Helper()
+	store, err := compozyupdate.NewOperationStore(compozyconfig.HomePaths{HomeDir: t.TempDir()}, nil)
+	if err != nil {
+		t.Fatalf("NewOperationStore() error = %v", err)
+	}
+	return store
+}
+
+func daemonSettingsHolder(t *testing.T) compozyupdate.Holder {
+	t.Helper()
+	now := time.Now().UTC()
+	startedAt, err := procutil.StartedAt(os.Getpid())
+	if err != nil {
+		t.Fatalf("procutil.StartedAt() error = %v", err)
+	}
+	return compozyupdate.Holder{
+		PID: os.Getpid(), PIDStartTime: startedAt, Surface: compozyupdate.ActorDaemon,
+		ExecutorGeneration: "generation-1", LeaseExpiresAt: now.Add(time.Hour),
+	}
+}
+
+func daemonSettingsOperationRequest(
+	holder compozyupdate.Holder,
+	targets []compozyupdate.Target,
+) compozyupdate.OperationRequest {
+	now := time.Now().UTC()
+	request := compozyupdate.OperationRequest{
+		RequestedBy: compozyupdate.ActorWeb, Targets: targets, Holder: holder, Deadline: now.Add(time.Hour),
+	}
+	if slices.Contains(targets, compozyupdate.TargetRuntime) {
+		request.Runtime = &compozyupdate.RuntimeOperationState{
+			ArtifactIdentity: compozyupdate.ArtifactIdentity{
+				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+				Asset: "runtime.tar.gz", Digest: "sha256:runtime",
+			},
+			InstallMethod: compozyupdate.InstallMethodDirectBinary, Phase: compozyupdate.PhasePending,
+		}
+	}
+	if slices.Contains(targets, compozyupdate.TargetApp) {
+		request.App = &compozyupdate.AppOperationState{
+			ArtifactIdentity: compozyupdate.ArtifactIdentity{
+				FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
+				Asset: "desktop-app.zip", Digest: "sha256:app",
+			},
+			AttemptID: "attempt-1", Phase: compozyupdate.PhasePending,
+		}
+	}
+	return request
 }

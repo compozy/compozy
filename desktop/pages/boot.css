@@ -1,0 +1,212 @@
+@import "./boot-tokens.css";
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  min-block-size: 100%;
+  margin: 0;
+}
+body {
+  background: var(--canvas);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-weight: 400;
+  letter-spacing: -0.006em;
+}
+::selection {
+  background: rgb(232 87 42 / 35%);
+  color: var(--strong);
+}
+
+.boot {
+  display: grid;
+  align-content: start;
+  gap: 22px;
+  min-block-size: 100dvh;
+  max-block-size: 100dvh;
+  overflow-y: auto;
+  padding: 24px;
+}
+.boot__identity {
+  margin: 0;
+  color: var(--strong);
+  font-size: 0.9375rem;
+  font-weight: 510;
+  line-height: 1.375rem;
+}
+.boot__state {
+  inline-size: min(100%, 320px);
+}
+.boot__heading {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+}
+.boot__mark {
+  flex: none;
+  inline-size: 7px;
+  block-size: 7px;
+  margin-block-start: 7px;
+  border-radius: 3px;
+  background: var(--info);
+}
+.boot h1 {
+  max-inline-size: 52ch;
+  margin: 0;
+  color: var(--strong);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.028em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+.boot__detail,
+.boot__result {
+  max-inline-size: 52ch;
+  margin: 7px 0 0;
+  font-size: 0.78125rem;
+  line-height: 1.125rem;
+  overflow-wrap: anywhere;
+}
+.boot__detail {
+  color: var(--muted);
+}
+.boot__progress {
+  display: grid;
+  gap: 7px;
+  margin-block-start: 18px;
+}
+.boot__progress p {
+  margin: 0;
+  font-size: 0.78125rem;
+  line-height: 1.125rem;
+}
+.boot__progress-label {
+  font-weight: 510;
+}
+.boot__progress-attempt {
+  color: var(--muted);
+}
+.boot__progress[data-stage="ready"] .boot__progress-label {
+  color: var(--success);
+}
+.boot__progress-bar {
+  inline-size: 100%;
+  block-size: 7px;
+  accent-color: var(--action);
+  border: 0;
+  border-radius: 3px;
+}
+.boot__controls,
+.boot__diagnostic-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block-start: 18px;
+}
+.boot__control {
+  min-block-size: 36px;
+  border: 0;
+  border-radius: 5px;
+  padding-inline: 12px;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78125rem;
+  font-weight: 510;
+  transition: background-color 100ms cubic-bezier(0.2, 0, 0, 1);
+}
+.boot__control:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.boot__control:focus-visible,
+.boot__technical summary:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 50%);
+  outline-offset: 2px;
+}
+.boot__control--primary {
+  background: var(--action);
+  color: #17110f;
+}
+.boot__control--primary:hover:not(:disabled) {
+  background: var(--action-hover);
+}
+.boot__control:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.boot__result {
+  color: var(--muted);
+}
+.boot__result[data-level="success"] {
+  color: var(--success);
+}
+.boot__result[data-level="error"] {
+  color: var(--danger);
+}
+.boot__technical {
+  margin-block-start: 18px;
+  border-block: 1px solid var(--line);
+}
+.boot__technical summary {
+  min-block-size: 36px;
+  padding-block: 7px;
+  cursor: pointer;
+  font-size: 0.78125rem;
+  font-weight: 510;
+}
+.boot__technical-content {
+  display: grid;
+  gap: 18px;
+  padding-block: 18px;
+  border-block-start: 1px solid var(--line);
+}
+.boot__diagnostics {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+.boot__diagnostics div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+}
+.boot__diagnostics dt {
+  color: var(--muted);
+  font-size: 0.78125rem;
+}
+.boot__diagnostics dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.65625rem;
+  overflow-wrap: anywhere;
+}
+:root[data-state="provisioning"] .boot__mark,
+:root[data-state="starting"] .boot__mark,
+:root[data-state="attaching"] .boot__mark,
+:root[data-state="updating"] .boot__mark {
+  background: var(--action);
+}
+:root[data-state="product"] .boot__mark {
+  background: var(--success);
+}
+:root[data-state="disconnected"] .boot__mark,
+:root[data-state="skew"] .boot__mark {
+  background: var(--warning);
+}
+:root[data-state="error"] .boot__mark {
+  background: var(--danger);
+}
+[hidden] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}

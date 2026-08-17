@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -17,7 +18,7 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 5, 3, 21, 0, 0, 0, time.UTC)
 		var requests atomic.Int32
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSLinux,
 			RuntimeArch: runtimeArchAMD64,
 			Now: func() time.Time {
@@ -66,7 +67,7 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 5, 3, 21, 30, 0, 0, time.UTC)
 		var requests atomic.Int32
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSLinux,
 			RuntimeArch: runtimeArchAMD64,
 			Now: func() time.Time {
@@ -91,6 +92,7 @@ func TestManagerCheck(t *testing.T) {
 							Name:               checksumsBundleAssetName,
 							BrowserDownloadURL: "https://downloads.example/checksums.txt.sigstore.json",
 						},
+						{Name: compatibilityAssetName, BrowserDownloadURL: "https://downloads.example/compat.json"},
 					},
 				}), nil
 			}),
@@ -120,7 +122,7 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 5, 3, 22, 0, 0, 0, time.UTC)
 		var requests atomic.Int32
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			Now: func() time.Time {
 				return now
 			},
@@ -177,7 +179,7 @@ func TestManagerCheck(t *testing.T) {
 			t.Parallel()
 
 			now := time.Date(2026, 5, 3, 23, 0, 0, 0, time.UTC)
-			manager, _ := newManagerWithExecutable(t, Config{
+			manager, _ := newManagerWithExecutable(t, &Config{
 				Now: func() time.Time {
 					return now
 				},
@@ -220,7 +222,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should refuse self-update for dev builds", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			CurrentVersion: "dev",
 		})
 
@@ -241,7 +243,7 @@ func TestManagerCheck(t *testing.T) {
 		t.Parallel()
 
 		var requests atomic.Int32
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			CurrentVersion: "25bd6116",
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -272,7 +274,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should reject prerelease metadata from the latest-release endpoint", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
 					return jsonHTTPResponse(t, http.StatusOK, githubReleaseResponse{
@@ -297,7 +299,7 @@ func TestManagerCheck(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 7, 27, 9, 0, 0, 0, time.UTC)
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			CurrentVersion: "v0.3.0-beta.1",
 			Now:            func() time.Time { return now },
 			HTTPClient: &http.Client{
@@ -357,7 +359,7 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should mark Windows direct-binary installs as manual-only", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSWindows,
 			RuntimeArch: runtimeArchAMD64,
 		})
@@ -381,17 +383,12 @@ func TestManagerCheck(t *testing.T) {
 	t.Run("Should defer managed npm and go-install updates with package-specific guidance", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{})
+		manager, _ := newManagerWithExecutable(t, &Config{})
 		tests := []struct {
 			name   string
 			method InstallMethod
 			want   string
 		}{
-			{
-				name:   "Should route desktop-owned installs through the app",
-				method: InstallMethodDesktopApp,
-				want:   "Update via the CompozyOS desktop app.",
-			},
 			{
 				name:   "Should recommend npm global update for npm installs",
 				method: InstallMethodNPM,
@@ -413,7 +410,7 @@ func TestManagerCheck(t *testing.T) {
 					&Release{Version: "v1.1.0"},
 					nil,
 				)
-				if state.Status != StatusDeferred || !state.Managed {
+				if state.Status != StatusAvailable || !state.Managed {
 					t.Fatalf("state = %#v, want deferred managed update", state)
 				}
 				if !strings.Contains(state.Recommendation, tc.want) {
@@ -423,10 +420,25 @@ func TestManagerCheck(t *testing.T) {
 		}
 	})
 
+	t.Run("Should self-apply a desktop-owned runtime", func(t *testing.T) {
+		t.Parallel()
+
+		manager, _ := newManagerWithExecutable(t, &Config{})
+		state := manager.composeState(
+			installInfo{Method: string(InstallMethodDesktopApp)},
+			&Release{Version: "v1.1.0"},
+			nil,
+		)
+		if !state.Supported || state.Managed || state.Status != StatusAvailable ||
+			state.Recommendation != "Run `compozy update`." {
+			t.Fatalf("desktop state = %#v, want supported self-apply", state)
+		}
+	})
+
 	t.Run("Should keep beta recommendations on beta-capable distribution paths", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{CurrentVersion: "v0.3.0-beta.1"})
+		manager, _ := newManagerWithExecutable(t, &Config{CurrentVersion: "v0.3.0-beta.1"})
 		tests := []struct {
 			name      string
 			method    InstallMethod
@@ -460,7 +472,7 @@ func TestManagerCheck(t *testing.T) {
 					&Release{Version: "v0.3.0-beta.2"},
 					nil,
 				)
-				if state.Status != StatusDeferred || !state.Managed {
+				if state.Status != StatusAvailable || !state.Managed {
 					t.Fatalf("state = %#v, want deferred managed beta update", state)
 				}
 				if !strings.Contains(state.Recommendation, tc.want) {
@@ -470,6 +482,152 @@ func TestManagerCheck(t *testing.T) {
 					t.Fatalf("state.Recommendation = %q, must not contain %q", state.Recommendation, tc.forbidden)
 				}
 			})
+		}
+	})
+
+	t.Run("Should suppress automatic app checks after an archived installer failure", func(t *testing.T) {
+		t.Parallel()
+
+		archived := &Operation{
+			LastError: "installer exited before relaunch",
+			App: &AppOperationState{
+				ArtifactIdentity:    ArtifactIdentity{ToVersion: "v1.2.0"},
+				AttemptID:           "attempt-2",
+				Phase:               PhaseFailed,
+				ConsecutiveFailures: 2,
+			},
+		}
+		background := &AppTrackState{
+			Status: StatusAvailable, CurrentVersion: "v1.1.0", LatestVersion: "v1.2.0",
+		}
+		applyArchivedAppFailure(background, archived, false)
+		if background.Status != StatusFailed || background.AttemptID != "attempt-2" ||
+			background.LastError != archived.LastError || !strings.Contains(background.Message, "paused") {
+			t.Fatalf("background app state = %#v, want archived failure suppression", background)
+		}
+
+		manual := &AppTrackState{
+			Status: StatusAvailable, CurrentVersion: "v1.1.0", LatestVersion: "v1.2.0",
+		}
+		applyArchivedAppFailure(manual, archived, true)
+		if manual.Status != StatusAvailable || manual.AttemptID != "" || manual.LastError != "" {
+			t.Fatalf("manual app state = %#v, want recovery to remain available", manual)
+		}
+
+		updated := &AppTrackState{
+			Status: StatusUpToDate, CurrentVersion: "v1.2.0", LatestVersion: "v1.2.0",
+		}
+		applyArchivedAppFailure(updated, archived, false)
+		if updated.Status != StatusUpToDate || updated.AttemptID != "" || updated.LastError != "" {
+			t.Fatalf("updated app state = %#v, want stale failure ignored", updated)
+		}
+		if got := consecutiveAppFailures("v1.1.0", archived); got != 2 {
+			t.Fatalf("consecutiveAppFailures(old version) = %d, want 2", got)
+		}
+		if got := consecutiveAppFailures("v1.2.0", archived); got != 0 {
+			t.Fatalf("consecutiveAppFailures(updated version) = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should select only the platform-supported desktop updater asset", func(t *testing.T) {
+		t.Parallel()
+
+		release := &Release{
+			Version: "v1.2.0",
+			Assets: []ReleaseAsset{
+				{Name: "CompozyOS-1.2.0-mac-arm64-debug.zip"},
+				{Name: "CompozyOS-1.2.0-mac-arm64.dmg"},
+				{Name: "CompozyOS-1.2.0-mac-arm64.zip"},
+				{Name: "CompozyOS-1.2.0-linux-x64.AppImage"},
+			},
+		}
+		mac, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSDarwin, RuntimeArch: runtimeArchARM64})
+		macAsset, err := mac.resolveAppReleaseAsset(release)
+		if err != nil {
+			t.Fatalf("resolveAppReleaseAsset(macOS) error = %v", err)
+		}
+		if macAsset.Name != "CompozyOS-1.2.0-mac-arm64.zip" {
+			t.Fatalf("resolveAppReleaseAsset(macOS) = %q, want zip", macAsset.Name)
+		}
+
+		linux, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchAMD64})
+		linuxAsset, err := linux.resolveAppReleaseAsset(release)
+		if err != nil {
+			t.Fatalf("resolveAppReleaseAsset(Linux) error = %v", err)
+		}
+		if linuxAsset.Name != "CompozyOS-1.2.0-linux-x64.AppImage" {
+			t.Fatalf("resolveAppReleaseAsset(Linux) = %q, want AppImage", linuxAsset.Name)
+		}
+
+		linuxARM, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchARM64})
+		if _, err := linuxARM.resolveAppReleaseAsset(release); err == nil ||
+			!strings.Contains(err.Error(), "unsupported on linux/arm64") {
+			t.Fatalf("resolveAppReleaseAsset(Linux ARM) error = %v, want unsupported", err)
+		}
+
+		windows, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSWindows, RuntimeArch: runtimeArchAMD64})
+		if _, err := windows.resolveAppReleaseAsset(release); err == nil {
+			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
+		}
+	})
+
+	t.Run("Should omit the runtime payload from app-only planning downloads", func(t *testing.T) {
+		t.Parallel()
+
+		var requested []string
+		manager, _ := newManagerWithExecutable(t, &Config{
+			RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchAMD64,
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				requested = append(requested, request.URL.String())
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader("verified support artifact")),
+				}, nil
+			})},
+		})
+		release := &Release{Version: "v1.2.0", Assets: []ReleaseAsset{
+			{Name: checksumsAssetName, DownloadURL: "https://downloads.example/checksums"},
+			{Name: checksumsBundleAssetName, DownloadURL: "https://downloads.example/bundle"},
+			{Name: compatibilityAssetName, DownloadURL: "https://downloads.example/compatibility"},
+			{Name: "CompozyOS-1.2.0-linux-x64.AppImage", DownloadURL: "https://downloads.example/app"},
+		}}
+		assets, err := manager.resolvePlanReleaseAssets(release, false)
+		if err != nil {
+			t.Fatalf("resolvePlanReleaseAssets(app-only) error = %v", err)
+		}
+		if assets.archive.Name != "" {
+			t.Fatalf("app-only archive = %#v, want omitted", assets.archive)
+		}
+		if _, err := manager.downloadReleaseArtifacts(t.Context(), t.TempDir(), assets); err != nil {
+			t.Fatalf("downloadReleaseArtifacts(app-only) error = %v", err)
+		}
+		if len(requested) != 3 {
+			t.Fatalf("app-only download requests = %v, want three support artifacts", requested)
+		}
+		for _, requestURL := range requested {
+			if requestURL == "https://downloads.example/app" {
+				t.Fatalf("app-only planning downloaded install payload: %s", requestURL)
+			}
+		}
+	})
+
+	t.Run("Should reject invalid planner identity before network work", func(t *testing.T) {
+		t.Parallel()
+
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, &Config{
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return nil, errors.New("unexpected network request")
+			})},
+		})
+		_, err := manager.PlanOperation(t.Context(), Actor("invalid"), []Target{TargetRuntime}, Holder{})
+		if err == nil || !strings.Contains(err.Error(), "invalid requester") {
+			t.Fatalf("PlanOperation(invalid identity) error = %v, want requester refusal", err)
+		}
+		if got := requests.Load(); got != 0 {
+			t.Fatalf("planner network requests = %d, want zero", got)
 		}
 	})
 }
@@ -485,7 +643,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 			reader:   strings.NewReader(strings.Repeat("x", int(maxUpdateResponseDrainBytes)+1)),
 			closeErr: closeErr,
 		}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 					return &http.Response{
@@ -525,7 +683,7 @@ func TestManagerFetchGitHubJSONCleanup(t *testing.T) {
 			reader:   iotest.ErrReader(drainErr),
 			closeErr: closeErr,
 		}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 					return &http.Response{

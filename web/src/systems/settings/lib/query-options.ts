@@ -41,6 +41,12 @@ const MCP_AUTH_STATUS_POLL_INTERVAL = 1_000;
 const APPLY_RECORDS_STALE_TIME = 5_000;
 const APPLY_RECORDS_REFETCH_INTERVAL = 30_000;
 const RESTART_POLL_INTERVAL = 2_000;
+/**
+ * Cadence while an Update Operation is live. Apply is asynchronous and truthful:
+ * the endpoint only acknowledges acquisition, so terminal truth (staged phases,
+ * rollback, failure) arrives exclusively through this read.
+ */
+const UPDATE_OPERATION_POLL_INTERVAL = 2_000;
 const SETTINGS_QUERY_RETRY_LIMIT = 2;
 
 export function shouldRetrySettingsQuery(failureCount: number, error: Error): boolean {
@@ -66,7 +72,10 @@ export function settingsUpdateOptions() {
     queryKey: settingsKeys.updateStatus(),
     queryFn: ({ signal }) => getSettingsUpdate(signal),
     staleTime: SECTION_STALE_TIME,
-    refetchInterval: SECTION_REFETCH_INTERVAL,
+    // At rest this is a section read; a live operation makes it the progress
+    // feed, so it tightens to 2s until the operation clears.
+    refetchInterval: query =>
+      query.state.data?.operation ? UPDATE_OPERATION_POLL_INTERVAL : SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
   });
 }
@@ -288,4 +297,5 @@ export const SETTINGS_QUERY_INTERVALS = {
   applyRecordsStaleTime: APPLY_RECORDS_STALE_TIME,
   applyRecordsRefetchInterval: APPLY_RECORDS_REFETCH_INTERVAL,
   restartPollInterval: RESTART_POLL_INTERVAL,
+  updateOperationPollInterval: UPDATE_OPERATION_POLL_INTERVAL,
 } as const;

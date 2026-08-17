@@ -944,6 +944,7 @@ test("operator declares loop and node environments in the builder", async ({
   await section.locator('[data-slot="pill-group-item"]').filter({ hasText: "Per-run" }).click();
   await expect(section).toHaveAttribute("data-mode", "per_run");
   await appPage.getByTestId("loop-configure-save").click();
+  await expect(appPage.getByTestId("loop-configure-dialog")).not.toBeVisible({ timeout: 30_000 });
 
   await expect
     .poll(async () => {

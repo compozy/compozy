@@ -103,7 +103,7 @@ func renderTaskInspectHuman(record *TaskInspectRecord) (string, error) {
 		blocks,
 		renderHumanTable(
 			"Diagnostics",
-			[]string{cliCodeValue, cliSeverityValue, "Message", cliCommandValue},
+			[]string{cliCodeValue, cliSeverityValue, lifecycleMessageValue, cliCommandValue},
 			taskInspectDiagnosticRows(record.Diagnostics),
 		),
 		renderHumanTable(

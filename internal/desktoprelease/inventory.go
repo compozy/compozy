@@ -2,30 +2,24 @@ package desktoprelease
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"slices"
 )
 
 func DesktopArtifactNames(version string) []string {
-	updater := desktopUpdaterArtifactNames(version)
-	app := updater[platformDarwinAArch64]
-	linux := updater[platformLinuxX8664]
 	return []string{
-		app,
-		app + ".sig",
-		"CompozyOS_" + version + "_universal.dmg",
-		linux,
-		linux + ".sig",
-		"CompozyOS_" + version + "_amd64.deb",
-	}
-}
-
-func RuntimeArtifactNames() map[string]string {
-	return map[string]string{
-		platformDarwinAArch64: "compozy_darwin_arm64.tar.gz",
-		platformDarwinX8664:   "compozy_darwin_x86_64.tar.gz",
-		platformLinuxX8664:    "compozy_linux_x86_64.tar.gz",
+		"CompozyOS-" + version + "-mac-arm64.dmg",
+		"CompozyOS-" + version + "-mac-arm64.zip",
+		"CompozyOS-" + version + "-mac-x64.dmg",
+		"CompozyOS-" + version + "-mac-x64.zip",
+		"CompozyOS-" + version + "-linux-x64.AppImage",
+		"CompozyOS-" + version + "-linux-x64.deb",
 	}
 }
 
@@ -60,34 +54,50 @@ func AssertExactDesktopInventory(ctx context.Context, dir, version string) error
 	return nil
 }
 
-func AssertRuntimeInventory(ctx context.Context, dir string) error {
+func InspectDesktopInventory(ctx context.Context, dir, version string) ([]Artifact, error) {
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("desktop release: runtime inventory canceled: %w", err)
+		return nil, fmt.Errorf("desktop release: inventory canceled: %w", err)
 	}
-	artifacts := RuntimeArtifactNames()
-	expected := make([]string, 0, len(artifacts))
-	for _, name := range artifacts {
-		expected = append(expected, name)
+	if err := ValidateVersion(version); err != nil {
+		return nil, err
 	}
-	slices.Sort(expected)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return fmt.Errorf("desktop release: read runtime artifact directory: %w", err)
-	}
-	actual := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		info, err := entry.Info()
+	names := DesktopArtifactNames(version)
+	slices.Sort(names)
+	artifacts := make([]Artifact, 0, len(names))
+	for _, name := range names {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("desktop release: inventory canceled: %w", err)
+		}
+		artifact, err := inspectArtifact(filepath.Join(dir, name))
 		if err != nil {
-			return fmt.Errorf("desktop release: inspect runtime artifact %q: %w", entry.Name(), err)
+			return nil, err
 		}
-		if !info.Mode().IsRegular() || info.Size() == 0 {
-			return fmt.Errorf("desktop release: runtime artifact %q is not a non-empty file", entry.Name())
-		}
-		actual = append(actual, entry.Name())
+		artifacts = append(artifacts, artifact)
 	}
-	slices.Sort(actual)
-	if !slices.Equal(actual, expected) {
-		return fmt.Errorf("desktop release: runtime artifact inventory = %v, want %v", actual, expected)
+	return artifacts, nil
+}
+
+func inspectArtifact(path string) (Artifact, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return Artifact{}, fmt.Errorf("desktop release: open artifact %q: %w", filepath.Base(path), err)
 	}
-	return nil
+	digest := sha256.New()
+	size, copyErr := io.Copy(digest, file)
+	closeErr := file.Close()
+	var hashErr error
+	if copyErr != nil {
+		hashErr = fmt.Errorf("desktop release: hash artifact %q: %w", filepath.Base(path), copyErr)
+	}
+	var cleanupErr error
+	if closeErr != nil {
+		cleanupErr = fmt.Errorf("desktop release: close artifact %q: %w", filepath.Base(path), closeErr)
+	}
+	if err := errors.Join(hashErr, cleanupErr); err != nil {
+		return Artifact{}, err
+	}
+	if size <= 0 {
+		return Artifact{}, fmt.Errorf("desktop release: artifact %q is empty", filepath.Base(path))
+	}
+	return Artifact{Name: filepath.Base(path), SHA256: hex.EncodeToString(digest.Sum(nil)), Size: size}, nil
 }

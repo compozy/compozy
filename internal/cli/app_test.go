@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
 func TestAppStatusReportsCanonicalState(t *testing.T) {
@@ -60,7 +62,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"app_version":       "9.9.9-stale",
@@ -112,6 +114,130 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		}
 	})
 
+	t.Run("Should overlay the durable operation onto the schema v2 update block", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := appTestHome(t)
+		store, err := compozyupdate.NewOperationStore(homePaths, nil)
+		if err != nil {
+			t.Fatalf("NewOperationStore() error = %v", err)
+		}
+		operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{compozyupdate.TargetApp})
+		staged, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			operation.Holder.ExecutorGeneration,
+			operation.Revision,
+			compozyupdate.Transition{
+				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI,
+				Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100,
+			},
+		)
+		if err != nil {
+			t.Fatalf("Transition(staged) error = %v", err)
+		}
+		_, err = store.Transition(t.Context(), staged.ID, staged.Holder.ExecutorGeneration, staged.Revision,
+			compozyupdate.Transition{
+				Kind: compozyupdate.TransitionWaitForApp, Actor: compozyupdate.ActorCLI,
+				Target: compozyupdate.TargetApp, Percent: -1,
+			})
+		if err != nil {
+			t.Fatalf("Transition(waiting) error = %v", err)
+		}
+		deps := appTestDeps(homePaths)
+		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
+			return appInstallation{Installed: true, Version: "v1.0.0"}, nil
+		}
+		report, err := resolveAppStatus(t.Context(), deps, homePaths)
+		if err != nil {
+			t.Fatalf("resolveAppStatus() error = %v", err)
+		}
+		if report.Update.OperationID != operation.ID || report.Update.AppState != "staged" ||
+			report.Update.AppAvailable != "v1.1.0" || report.Update.Percent == nil || *report.Update.Percent != -1 {
+			t.Fatalf("app update projection = %#v, want dormant staged operation", report.Update)
+		}
+	})
+
+	t.Run("Should project representative live update phases through the shared mapper", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name        string
+			target      compozyupdate.Target
+			phase       compozyupdate.OperationPhase
+			percent     int
+			wantState   string
+			wantUIPhase string
+		}{
+			{
+				name: "Should project accepted runtime work", target: compozyupdate.TargetRuntime,
+				phase: compozyupdate.PhasePending, percent: -1, wantState: string(compozyupdate.StatusAccepted),
+			},
+			{
+				name: "Should project downloading runtime work", target: compozyupdate.TargetRuntime,
+				phase: compozyupdate.PhaseDownloading, percent: 25,
+				wantState: "applying", wantUIPhase: string(compozyupdate.UIPhaseDownload),
+			},
+			{
+				name: "Should project accepted app work", target: compozyupdate.TargetApp,
+				phase: compozyupdate.PhasePending, percent: -1, wantState: string(compozyupdate.StatusAccepted),
+			},
+			{
+				name: "Should project applying app work", target: compozyupdate.TargetApp,
+				phase: compozyupdate.PhaseApplying, percent: 25,
+				wantState: "applying", wantUIPhase: string(compozyupdate.UIPhaseDownload),
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				homePaths := appTestHome(t)
+				store, err := compozyupdate.NewOperationStore(homePaths, nil)
+				if err != nil {
+					t.Fatalf("NewOperationStore() error = %v", err)
+				}
+				operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{test.target})
+				if test.phase != compozyupdate.PhasePending {
+					phases := []compozyupdate.OperationPhase{test.phase}
+					if test.target == compozyupdate.TargetApp && test.phase == compozyupdate.PhaseApplying {
+						phases = []compozyupdate.OperationPhase{compozyupdate.PhaseStaged, test.phase}
+					}
+					for _, phase := range phases {
+						operation, err = store.Transition(
+							t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+							compozyupdate.Transition{
+								Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI,
+								Target: test.target, Phase: phase, Percent: test.percent,
+							},
+						)
+						if err != nil {
+							t.Fatalf("Transition(%s) error = %v", phase, err)
+						}
+					}
+				}
+				report := AppStatusReport{Update: AppUpdateState{
+					AppState: appIdleState, RuntimeState: appIdleState,
+				}}
+				if err := overlayAppUpdateOperation(t.Context(), homePaths, &report); err != nil {
+					t.Fatalf("overlayAppUpdateOperation() error = %v", err)
+				}
+				gotState := report.Update.RuntimeState
+				if test.target == compozyupdate.TargetApp {
+					gotState = report.Update.AppState
+				}
+				if gotState != test.wantState || report.Update.Phase != test.wantUIPhase ||
+					report.Update.Percent == nil || *report.Update.Percent != test.percent {
+					t.Fatalf(
+						"update projection = %#v, want state=%q phase=%q percent=%d",
+						report.Update,
+						test.wantState,
+						test.wantUIPhase,
+						test.percent,
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should preserve every nonterminal state shape written by Rust", func(t *testing.T) {
 		t.Parallel()
 		states := []struct {
@@ -135,7 +261,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 				t.Parallel()
 				homePaths := appTestHome(t)
 				record := map[string]any{
-					"schema_version":    1,
+					"schema_version":    2,
 					"pid":               4242,
 					"started_at":        "2026-08-10T03:00:00Z",
 					"state":             state.name,
@@ -165,7 +291,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "attaching",
@@ -190,7 +316,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 2,
+			"schema_version": 3,
 			"pid":            4242,
 			"started_at":     "2026-08-10T03:00:00Z",
 			"state":          "starting",
@@ -484,7 +610,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 1,
+			"schema_version": 2,
 			"pid":            4242,
 			"started_at":     "2026-08-10T03:00:00Z",
 			"state":          "error",
@@ -542,7 +668,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 			"safe_message": "token=raw-secret",
 		}
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 1,
+			"schema_version": 2,
 			"pid":            4242,
 			"started_at":     "2026-08-10T03:00:00Z",
 			"state":          "error",
@@ -662,7 +788,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 			t.Fatalf("Chmod(default bundle directory) error = %v", err)
 		}
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -693,7 +819,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		}
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -729,7 +855,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -783,7 +909,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -826,7 +952,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version":    1,
+			"schema_version":    2,
 			"pid":               4242,
 			"started_at":        "2026-08-10T03:00:00Z",
 			"state":             "resolving",
@@ -970,7 +1096,7 @@ func TestAppOpenUsesValidatedProductTargets(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 2,
+			"schema_version": 3,
 			"pid":            4242,
 			"started_at":     "2026-08-10T03:00:00Z",
 			"state":          "product",
@@ -998,10 +1124,98 @@ func TestAppOpenUsesValidatedProductTargets(t *testing.T) {
 func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep long control deadlines for retry and diagnostics", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			name   string
+			method string
+		}{
+			{name: "Should extend retry", method: appRetryMethod},
+			{name: "Should extend diagnostics export", method: appExportDiagnosticsMethod},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				if got := appControlTimeoutForMethod(test.method); got != appControlLongTimeout {
+					t.Fatalf("appControlTimeoutForMethod(%q) = %s, want %s", test.method, got, appControlLongTimeout)
+				}
+			})
+		}
+	})
+
 	t.Run("Should report app_not_running when the socket is absent", func(t *testing.T) {
 		t.Parallel()
-		_, err := callAppControl(t.Context(), filepath.Join(t.TempDir(), "app.sock"), "update.check", nil)
+		_, err := callAppControl(t.Context(), filepath.Join(t.TempDir(), "app.sock"), "retry", nil)
 		assertAppCommandError(t, err, appNotRunningCode)
+	})
+
+	t.Run("Should authenticate the request with the current control token", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == platformWindows {
+			t.Skip("Unix control sockets are not available on Windows")
+		}
+		directory, err := os.MkdirTemp("/tmp", "ca-")
+		if err != nil {
+			t.Fatalf("MkdirTemp(app control) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if removeErr := os.RemoveAll(directory); removeErr != nil {
+				t.Errorf("RemoveAll(app control directory) error = %v", removeErr)
+			}
+		})
+		socketPath := filepath.Join(directory, "app.sock")
+		if err := os.WriteFile(filepath.Join(directory, "app.token"), []byte("token-current\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(app token) error = %v", err)
+		}
+		var listenConfig net.ListenConfig
+		listener, err := listenConfig.Listen(t.Context(), "unix", socketPath)
+		if err != nil {
+			t.Fatalf("Listen(app socket) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := listener.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+				t.Errorf("Close(app listener) error = %v", closeErr)
+			}
+		})
+		requests := make(chan appControlRequest, 1)
+		serverErrors := make(chan error, 1)
+		go func() {
+			connection, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				serverErrors <- acceptErr
+				return
+			}
+			var request appControlRequest
+			if decodeErr := json.NewDecoder(connection).Decode(&request); decodeErr != nil {
+				serverErrors <- errors.Join(decodeErr, connection.Close())
+				return
+			}
+			requests <- request
+			response := appControlResponse{
+				SchemaVersion: appControlSchemaVersion,
+				ID:            request.ID,
+				Result:        json.RawMessage(`{"ok":true}`),
+			}
+			if encodeErr := json.NewEncoder(connection).Encode(response); encodeErr != nil {
+				serverErrors <- errors.Join(encodeErr, connection.Close())
+				return
+			}
+			serverErrors <- connection.Close()
+		}()
+
+		result, err := callAppControl(t.Context(), socketPath, "diagnose", map[string]any{})
+		if err != nil {
+			t.Fatalf("callAppControl() error = %v", err)
+		}
+		request := <-requests
+		if request.Token != "token-current" || request.Method != "diagnose" {
+			t.Fatalf("control request = %#v, want current token and diagnose method", request)
+		}
+		if result == nil {
+			t.Fatal("callAppControl() result = nil, want success body")
+		}
+		if serverErr := <-serverErrors; serverErr != nil {
+			t.Fatalf("app control server error = %v", serverErr)
+		}
 	})
 
 	t.Run("Should report app_control_unavailable when the socket is present but unresponsive", func(t *testing.T) {
@@ -1010,26 +1224,17 @@ func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 		if err := os.WriteFile(socketPath, []byte("stale"), 0o600); err != nil {
 			t.Fatalf("WriteFile(socket) error = %v", err)
 		}
-		_, err := callAppControl(t.Context(), socketPath, "update.apply", map[string]string{"target": "runtime"})
+		_, err := callAppControl(t.Context(), socketPath, "navigate", map[string]string{"path": "/"})
 		assertAppCommandError(t, err, appControlUnavailableCode)
 	})
 
-	t.Run("Should surface an absent socket through app update apply", func(t *testing.T) {
+	t.Run("Should reject the removed app update command", func(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
-		deps := appTestDeps(homePaths)
-		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
-			return appInstallation{Installed: true, Version: "0.3.0"}, nil
+		_, err := executeAppTestCommand(t, appTestDeps(homePaths), "app", "update", "--check")
+		if err == nil || !strings.Contains(err.Error(), `unknown command "update"`) {
+			t.Fatalf("app update error = %v, want unknown command", err)
 		}
-		deps.callAppControl = callAppControl
-		_, err := executeAppTestCommand(t, deps, "app", "update", "--apply", "runtime", "-o", "json")
-		assertAppCommandError(t, err, appNotRunningCode)
-		assertStructuredAppError(
-			t,
-			[]string{"app", "update", "--apply", "runtime", "-o", "json"},
-			err,
-			appNotRunningCode,
-		)
 	})
 }
 

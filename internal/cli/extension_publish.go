@@ -72,7 +72,7 @@ func extensionPublishBundle(result *extensionpkg.PublishResult) outputBundle {
 		result,
 		"Extension release published",
 		[]keyValue{
-			{Label: "Release", Value: stringOrDash(result.ReleaseURL)},
+			{Label: cliReleaseValue, Value: stringOrDash(result.ReleaseURL)},
 			{Label: "Asset", Value: stringOrDash(result.AssetURL)},
 			{Label: "SHA-256", Value: result.DigestSHA256},
 		},

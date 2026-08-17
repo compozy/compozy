@@ -124,7 +124,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			jobs:     slices.Clone(ext.AutomationJobs),
 			triggers: slices.Clone(ext.AutomationTriggers),
 		}
-		service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry:  extensionpkg.NewRegistry(db.DB()),
 			Runtime:   runtime,
 			HomePaths: testHomePaths(t),
@@ -248,7 +248,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 			SpecJSON: writerSpec,
 			Owner:    resources.ResourceOwner{Kind: resources.ResourceOwnerKind("operator"), ID: "operator"},
 		}}}
-		service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry:  extensionpkg.NewRegistry(db.DB()),
 			Runtime:   runtime,
 			HomePaths: testHomePaths(t),
@@ -429,7 +429,7 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		automation := inventoryAutomationPreviewer{
 			jobs: slices.Clone(ext.AutomationJobs), triggers: slices.Clone(ext.AutomationTriggers),
 		}
-		service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+		service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry: extensionpkg.NewRegistry(db.DB()), Runtime: &inventoryExtensionRuntime{ext: ext},
 			HomePaths: testHomePaths(t), Logger: discardLogger(), Now: time.Now,
 		},

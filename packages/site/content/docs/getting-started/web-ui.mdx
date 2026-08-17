@@ -64,6 +64,10 @@ Use the web UI when you want to scan the session catalog and transcript visually
 HTTP/SSE, UDS, or native tools for an operation whose exact contract is not exposed by the current
 browser surface.
 
+CompozyOS develops and verifies this UI against Chromium, the same browser engine embedded in the
+desktop app. Other browsers are best-effort: they can use the daemon-served UI, but release
+verification does not promise identical rendering or behavior there.
+
 The daemon remains the authority in either case. Closing the browser or its event stream detaches
 that viewer; it does not cancel an accepted prompt.
 

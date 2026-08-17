@@ -6,13 +6,13 @@ persona: Théo
 journey: J-desktop-link-driven
 expected: Activating a CompozyOS link with the app closed launches the app, runs any needed provision/start states, and renders the linked view once ready — the destination is never dropped, and exactly one navigation fires.
 entry_points: compozyos://open/<product-path> with the app not running
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/cold-start-settings.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt
-last_report: docs/qa/reports/2026-08-10-desktop-coderabbit-remediation.md
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps:
 ---
 

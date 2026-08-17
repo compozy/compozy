@@ -1,0 +1,495 @@
+package update
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+)
+
+// TransitionKind identifies one journal mutation.
+type TransitionKind string
+
+const (
+	TransitionPhase        TransitionKind = "phase"
+	TransitionProgress     TransitionKind = "progress"
+	TransitionWaitForApp   TransitionKind = "wait-for-app"
+	TransitionAcquireLease TransitionKind = "acquire-lease"
+	TransitionRenewLease   TransitionKind = "renew-lease"
+	TransitionRecover      TransitionKind = "recover"
+	TransitionCancel       TransitionKind = "cancel"
+	TransitionVerifyApp    TransitionKind = "verify-app-artifact"
+)
+
+// Transition is the declarative input to the sole operation mutation API.
+type Transition struct {
+	Kind                 TransitionKind
+	Actor                Actor
+	Target               Target
+	Phase                OperationPhase
+	Percent              int
+	Holder               *Holder
+	BackupPath           string
+	LastError            string
+	Outcome              string
+	AppWatchdogDeadline  *time.Time
+	IncrementAppFailures bool
+	ResetAppFailures     bool
+}
+
+// Transition applies one fenced compare-and-swap mutation to the live journal.
+func (s *OperationStore) Transition(
+	ctx context.Context,
+	operationID string,
+	executorGeneration string,
+	expectedRevision int64,
+	transition Transition,
+) (*Operation, error) {
+	if strings.TrimSpace(operationID) == "" || expectedRevision < 1 {
+		return nil, errors.New("update: operation id and expected revision are required")
+	}
+	if !transition.Actor.valid() {
+		return nil, fmt.Errorf("update: invalid transition actor %q", transition.Actor)
+	}
+
+	var result *Operation
+	err := s.withLock(ctx, func() error {
+		var transitionErr error
+		result, transitionErr = s.transitionLocked(
+			ctx,
+			operationID,
+			executorGeneration,
+			expectedRevision,
+			transition,
+		)
+		return transitionErr
+	})
+	return result, err
+}
+
+func (s *OperationStore) transitionLocked(
+	ctx context.Context,
+	operationID string,
+	executorGeneration string,
+	expectedRevision int64,
+	transition Transition,
+) (*Operation, error) {
+	operation, err := s.readUnlocked()
+	if err != nil {
+		return nil, err
+	}
+	if operation == nil || operation.ID != operationID {
+		return nil, ErrOperationNotFound
+	}
+	if operation.Revision != expectedRevision {
+		return nil, fmt.Errorf("%w: have %d, expected %d", ErrOperationConflict, operation.Revision, expectedRevision)
+	}
+	now := s.now()
+	if err := validateExecutorFence(operation, executorGeneration, transition, now, s.holderLive); err != nil {
+		s.emitCancelDeclined(ctx, operation, transition)
+		return nil, err
+	}
+
+	updated := cloneOperation(operation)
+	if err := applyTransition(updated, transition, now); err != nil {
+		return nil, err
+	}
+	updated.Revision++
+	updated.UpdatedAt = now
+	if err := validateOperation(updated); err != nil {
+		return nil, err
+	}
+	if err := s.persistTransition(updated); err != nil {
+		return nil, err
+	}
+	if err := s.emitTransitionEvents(ctx, operation, updated, transition); err != nil {
+		return nil, err
+	}
+	return cloneOperation(updated), nil
+}
+
+func (s *OperationStore) emitCancelDeclined(ctx context.Context, operation *Operation, transition Transition) {
+	if transition.Kind != TransitionCancel {
+		return
+	}
+	s.events.EmitUpdateEvent(ctx, eventFromOperation(
+		EventOperationCancelDeclined,
+		operation,
+		operation.ActiveTarget,
+		transition.Actor,
+		"declined",
+		s.now(),
+	))
+}
+
+func (s *OperationStore) persistTransition(operation *Operation) error {
+	if isTerminalOperation(operation) {
+		return s.archiveAndRemoveUnlocked(operation)
+	}
+	return s.replaceUnlocked(operation)
+}
+
+func (s *OperationStore) emitTransitionEvents(
+	ctx context.Context,
+	previous *Operation,
+	updated *Operation,
+	transition Transition,
+) error {
+	if transition.Kind == TransitionRecover && previous.Holder != nil &&
+		!s.holderLive(previous.Holder, updated.UpdatedAt) {
+		s.events.EmitUpdateEvent(ctx, eventFromOperation(
+			EventLeaseExpired,
+			previous,
+			previous.ActiveTarget,
+			transition.Actor,
+			"expired",
+			updated.UpdatedAt,
+		))
+	}
+	eventName, err := eventNameForTransition(transition, updated)
+	if err != nil {
+		return err
+	}
+	s.events.EmitUpdateEvent(ctx, eventFromOperation(
+		eventName,
+		updated,
+		transition.Target,
+		transition.Actor,
+		transitionOutcome(transition),
+		updated.UpdatedAt,
+	))
+	return nil
+}
+
+// Fence proves that a caller still owns the exact revision immediately before an irreversible side effect.
+func (s *OperationStore) Fence(
+	ctx context.Context,
+	operationID string,
+	executorGeneration string,
+	expectedRevision int64,
+) error {
+	return s.withLock(ctx, func() error {
+		operation, err := s.readUnlocked()
+		if err != nil {
+			return err
+		}
+		if operation == nil || operation.ID != operationID {
+			return ErrOperationNotFound
+		}
+		if operation.Revision != expectedRevision {
+			return ErrOperationConflict
+		}
+		if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) ||
+			!s.holderLive(operation.Holder, s.now()) {
+			return ErrExecutorFenced
+		}
+		return nil
+	})
+}
+
+func validateExecutorFence(
+	operation *Operation,
+	executorGeneration string,
+	transition Transition,
+	now time.Time,
+	holderLive func(*Holder, time.Time) bool,
+) error {
+	if transition.Kind == TransitionAcquireLease || transition.Kind == TransitionRecover {
+		if operation.Holder == nil || !holderLive(operation.Holder, now) {
+			return nil
+		}
+		return ErrExecutorFenced
+	}
+	if transition.Kind == TransitionCancel {
+		if !cancelAllowedForPhase(operation) {
+			return ErrOperationNotCancelable
+		}
+		if operation.Holder == nil || !holderLive(operation.Holder, now) {
+			return nil
+		}
+		return ErrOperationNotCancelable
+	}
+	if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) ||
+		!holderLive(operation.Holder, now) {
+		return ErrExecutorFenced
+	}
+	return nil
+}
+
+func cancelAllowedForPhase(operation *Operation) bool {
+	if operation == nil {
+		return false
+	}
+	switch operation.ActiveTarget {
+	case TargetRuntime:
+		return operation.Runtime != nil && slices.Contains(
+			[]OperationPhase{PhasePending, PhaseDownloading, PhaseVerifying},
+			operation.Runtime.Phase,
+		)
+	case TargetApp:
+		return operation.App != nil && slices.Contains(
+			[]OperationPhase{PhasePending, PhaseStaged},
+			operation.App.Phase,
+		)
+	case "":
+		return operation.Waiting == WaitingForApp && operation.App != nil && operation.App.Phase == PhaseStaged
+	default:
+		return false
+	}
+}
+
+func applyTransition(operation *Operation, transition Transition, now time.Time) error {
+	if transition.Outcome == operationOutcomeCanceled && transition.Kind != TransitionCancel {
+		return errors.New("update: only a cancel transition may set the canceled outcome")
+	}
+	if err := applyTransitionKind(operation, transition, now); err != nil {
+		return err
+	}
+	if transition.BackupPath != "" && operation.Runtime != nil {
+		operation.Runtime.BackupPath = strings.TrimSpace(transition.BackupPath)
+	}
+	if transition.LastError != "" {
+		operation.LastError = strings.TrimSpace(transition.LastError)
+	}
+	if transition.Outcome != "" {
+		operation.Outcome = strings.TrimSpace(transition.Outcome)
+	}
+	return applyAppTransitionMetadata(operation, transition)
+}
+
+func applyTransitionKind(operation *Operation, transition Transition, now time.Time) error {
+	switch transition.Kind {
+	case TransitionPhase:
+		return applyPhaseTransition(operation, transition)
+	case TransitionProgress:
+		return applyProgressTransition(operation, transition)
+	case TransitionWaitForApp:
+		return applyWaitForAppTransition(operation)
+	case TransitionAcquireLease, TransitionRecover:
+		return applyLeaseTransition(operation, transition)
+	case TransitionRenewLease:
+		return applyRenewLeaseTransition(operation, transition, now)
+	case TransitionCancel:
+		operation.Holder = nil
+		operation.Waiting = WaitingNone
+		operation.Outcome = operationOutcomeCanceled
+		operation.LastError = ""
+		return nil
+	case TransitionVerifyApp:
+		if transition.Target != TargetApp || operation.App == nil ||
+			operation.ActiveTarget != TargetApp {
+			return errors.New("update: app artifact verification requires the active app target")
+		}
+		operation.App.DigestVerified = true
+		return nil
+	default:
+		return fmt.Errorf("update: invalid transition kind %q", transition.Kind)
+	}
+}
+
+func applyProgressTransition(operation *Operation, transition Transition) error {
+	if transition.Target != operation.ActiveTarget || transition.Percent < 0 || transition.Percent > 100 {
+		return errors.New("update: invalid progress transition")
+	}
+	operation.Percent = transition.Percent
+	return nil
+}
+
+func applyWaitForAppTransition(operation *Operation) error {
+	if operation.App == nil || operation.App.Phase != PhaseStaged || !runtimeAllowsApp(operation.Runtime) {
+		return errors.New("update: operation cannot wait for the app in its current phase")
+	}
+	operation.ActiveTarget = ""
+	operation.Percent = -1
+	operation.Holder = nil
+	operation.Waiting = WaitingForApp
+	return nil
+}
+
+func applyLeaseTransition(operation *Operation, transition Transition) error {
+	if transition.Holder == nil {
+		return errors.New("update: lease transition requires a holder")
+	}
+	operation.Holder = cloneHolder(transition.Holder)
+	operation.Waiting = WaitingNone
+	if transition.Target.valid() {
+		operation.ActiveTarget = transition.Target
+	}
+	return nil
+}
+
+func applyRenewLeaseTransition(operation *Operation, transition Transition, now time.Time) error {
+	if transition.Holder == nil || operation.Holder == nil ||
+		transition.Holder.ExecutorGeneration != operation.Holder.ExecutorGeneration ||
+		!transition.Holder.LeaseExpiresAt.After(now) {
+		return errors.New("update: invalid lease renewal")
+	}
+	operation.Holder = cloneHolder(transition.Holder)
+	return nil
+}
+
+func applyAppTransitionMetadata(operation *Operation, transition Transition) error {
+	changesAppMetadata := transition.AppWatchdogDeadline != nil || transition.IncrementAppFailures ||
+		transition.ResetAppFailures
+	if !changesAppMetadata {
+		return nil
+	}
+	if transition.Target != TargetApp || operation.App == nil {
+		return errors.New("update: app transition metadata requires the app target")
+	}
+	if transition.IncrementAppFailures && transition.ResetAppFailures {
+		return errors.New("update: app failures cannot be incremented and reset together")
+	}
+	if transition.AppWatchdogDeadline != nil {
+		operation.App.WatchdogDeadline = transition.AppWatchdogDeadline.UTC()
+	}
+	if transition.IncrementAppFailures {
+		operation.App.ConsecutiveFailures++
+	}
+	if transition.ResetAppFailures {
+		operation.App.ConsecutiveFailures = 0
+	}
+	return nil
+}
+
+func applyPhaseTransition(operation *Operation, transition Transition) error {
+	if transition.Target != operation.ActiveTarget || !transition.Phase.validFor(transition.Target) {
+		return errors.New("update: phase transition does not match the active target")
+	}
+	current := phaseForTarget(operation, transition.Target)
+	if !allowedPhaseTransition(transition.Target, current, transition.Phase) {
+		return fmt.Errorf("update: phase transition %s -> %s is not allowed", current, transition.Phase)
+	}
+	if transition.Target == TargetApp && transition.Phase == PhaseVerified &&
+		(operation.App == nil || !operation.App.DigestVerified) {
+		return errors.New("update: app artifact digest must be verified before the verified phase")
+	}
+	setPhaseForTarget(operation, transition.Target, transition.Phase)
+	if transition.Target == TargetRuntime && transition.Phase == PhaseHealthChecking && operation.Runtime != nil {
+		operation.Runtime.DaemonRestarted = true
+	}
+	if transition.Target == TargetRuntime && transition.Phase == PhaseFinalized && operation.App != nil {
+		operation.ActiveTarget = TargetApp
+	}
+	operation.Percent = transition.Percent
+	if operation.Percent < -1 || operation.Percent > 100 {
+		return errors.New("update: transition percent is outside -1..100")
+	}
+	return nil
+}
+
+func allowedPhaseTransition(target Target, current OperationPhase, next OperationPhase) bool {
+	return slices.Contains(allowedPhaseTransitions[target][current], next)
+}
+
+var allowedPhaseTransitions = map[Target]map[OperationPhase][]OperationPhase{
+	TargetRuntime: {
+		PhasePending:        {PhaseDownloading, PhaseFailed},
+		PhaseDownloading:    {PhaseDownloading, PhaseVerifying, PhaseFailed},
+		PhaseVerifying:      {PhaseDownloading, PhaseVerifying, PhaseSwapping, PhaseFailed},
+		PhaseSwapping:       {PhaseDownloading, PhaseRestarting, PhaseRolledBack, PhaseFailed},
+		PhaseRestarting:     {PhaseHealthChecking, PhaseRolledBack, PhaseFailed},
+		PhaseHealthChecking: {PhaseFinalized, PhaseRolledBack, PhaseFailed},
+		PhaseFinalized:      nil,
+		PhaseRolledBack:     nil,
+		PhaseFailed:         nil,
+	},
+	TargetApp: {
+		PhasePending:          {PhaseStaged, PhaseFailed},
+		PhaseStaged:           {PhaseApplying, PhaseFailed},
+		PhaseApplying:         {PhaseInstallerHandoff, PhaseFailed},
+		PhaseInstallerHandoff: {PhaseRestarted, PhaseFailed},
+		PhaseRestarted:        {PhaseVerified, PhaseFailed},
+		PhaseVerified:         nil,
+		PhaseFailed:           nil,
+	},
+}
+
+func phaseForTarget(operation *Operation, target Target) OperationPhase {
+	if target == TargetRuntime && operation.Runtime != nil {
+		return operation.Runtime.Phase
+	}
+	if target == TargetApp && operation.App != nil {
+		return operation.App.Phase
+	}
+	return ""
+}
+
+func setPhaseForTarget(operation *Operation, target Target, phase OperationPhase) {
+	if target == TargetRuntime && operation.Runtime != nil {
+		operation.Runtime.Phase = phase
+	}
+	if target == TargetApp && operation.App != nil {
+		operation.App.Phase = phase
+	}
+}
+
+func canResumeOperation(
+	operation *Operation,
+	targets []Target,
+	now time.Time,
+	holderLive func(*Holder, time.Time) bool,
+) bool {
+	if !slices.Equal(operation.Targets, targets) {
+		return false
+	}
+	return operation.Waiting == WaitingForApp && operation.Holder == nil ||
+		operation.Holder != nil && !holderLive(operation.Holder, now)
+}
+
+func (s *OperationStore) resumeUnlocked(
+	ctx context.Context,
+	operation *Operation,
+	request OperationRequest,
+	result **Operation,
+) error {
+	resumed := cloneOperation(operation)
+	resumed.Revision++
+	resumed.RequestedBy = request.RequestedBy
+	resumed.Holder = cloneHolder(&request.Holder)
+	resumed.Waiting = WaitingNone
+	resumed.UpdatedAt = s.now()
+	if resumed.ActiveTarget == "" {
+		resumed.ActiveTarget = nextIncompleteTarget(resumed)
+	}
+	if err := s.replaceUnlocked(resumed); err != nil {
+		return err
+	}
+	s.events.EmitUpdateEvent(
+		ctx,
+		eventFromOperation(
+			EventOperationResumed, resumed, resumed.ActiveTarget, request.RequestedBy, "resumed", resumed.UpdatedAt,
+		),
+	)
+	*result = cloneOperation(resumed)
+	return nil
+}
+
+func nextIncompleteTarget(operation *Operation) Target {
+	if operation.Runtime != nil && !runtimeAllowsApp(operation.Runtime) {
+		return TargetRuntime
+	}
+	if operation.App != nil && operation.App.Phase != PhaseVerified && operation.App.Phase != PhaseFailed {
+		return TargetApp
+	}
+	return ""
+}
+
+func runtimeAllowsApp(runtime *RuntimeOperationState) bool {
+	return runtime == nil || runtime.Phase == PhaseFinalized
+}
+
+func isTerminalOperation(operation *Operation) bool {
+	if operation.Outcome == operationOutcomeCanceled {
+		return true
+	}
+	if operation.Runtime != nil &&
+		(operation.Runtime.Phase == PhaseRolledBack || operation.Runtime.Phase == PhaseFailed) {
+		return true
+	}
+	runtimeTerminal := operation.Runtime == nil || operation.Runtime.Phase == PhaseFinalized
+	appTerminal := operation.App == nil || operation.App.Phase == PhaseVerified || operation.App.Phase == PhaseFailed
+	return runtimeTerminal && appTerminal
+}

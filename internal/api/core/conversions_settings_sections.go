@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
 // SettingsSectionResponseFromEnvelope converts one settings section envelope into the shared response payload.
@@ -350,19 +351,100 @@ func SettingsRestartActionStatusFromOperation(operation SettingsRestartOperation
 }
 
 // SettingsUpdateResponseFromStatus converts the daemon-owned update snapshot into the transport payload.
-func SettingsUpdateResponseFromStatus(status SettingsUpdateStatus) contract.SettingsUpdateResponse {
-	return contract.SettingsUpdateResponse{
-		Supported:      status.Supported,
-		Managed:        status.Managed,
-		InstallMethod:  strings.TrimSpace(status.InstallMethod),
-		CurrentVersion: strings.TrimSpace(status.CurrentVersion),
-		LatestVersion:  strings.TrimSpace(status.LatestVersion),
-		Available:      status.Available,
-		Status:         contract.SettingsUpdateStatusKind(strings.TrimSpace(status.Status)),
-		Recommendation: strings.TrimSpace(status.Recommendation),
-		ReleaseURL:     strings.TrimSpace(status.ReleaseURL),
-		CheckedAt:      cloneTimePointer(status.CheckedAt),
-		LastError:      strings.TrimSpace(status.LastError),
+func SettingsUpdateResponseFromStatus(status compozyupdate.MultiState) contract.SettingsUpdateResponse {
+	response := contract.SettingsUpdateResponse{
+		Aggregate: contract.SettingsUpdateStatusKind(status.Aggregate),
+		Runtime: contract.SettingsUpdateRuntimePayload{
+			Status:          contract.SettingsUpdateStatusKind(status.Runtime.Status),
+			InstallMethod:   settingsUpdateInstallMethodPayload(status.Runtime.InstallMethod),
+			Managed:         status.Runtime.Managed,
+			CurrentVersion:  strings.TrimSpace(status.Runtime.CurrentVersion),
+			LatestVersion:   strings.TrimSpace(status.Runtime.LatestVersion),
+			ReleaseURL:      strings.TrimSpace(status.Runtime.ReleaseURL),
+			Recommendation:  strings.TrimSpace(status.Runtime.Recommendation),
+			RestoredVersion: strings.TrimSpace(status.Runtime.RestoredVersion),
+			DaemonRestarted: status.Runtime.DaemonRestarted,
+			Message:         strings.TrimSpace(status.Runtime.Message),
+			LastError:       strings.TrimSpace(status.Runtime.LastError),
+		},
+	}
+	if status.Operation != nil {
+		response.Operation = settingsUpdateOperationPayload(status.Operation)
+	}
+	if status.App != nil {
+		response.App = &contract.SettingsUpdateAppPayload{
+			Status:         contract.SettingsUpdateStatusKind(status.App.Status),
+			Running:        status.App.Running,
+			CurrentVersion: strings.TrimSpace(status.App.CurrentVersion),
+			LatestVersion:  strings.TrimSpace(status.App.LatestVersion),
+			ReleaseURL:     strings.TrimSpace(status.App.ReleaseURL),
+			AttemptID:      strings.TrimSpace(status.App.AttemptID),
+			LastError:      strings.TrimSpace(status.App.LastError),
+			Message:        strings.TrimSpace(status.App.Message),
+		}
+	}
+	return response
+}
+
+func settingsUpdateInstallMethodPayload(raw string) contract.SettingsUpdateInstallMethod {
+	method := contract.SettingsUpdateInstallMethod(strings.TrimSpace(raw))
+	if method == "" {
+		return contract.SettingsUpdateInstallUnknown
+	}
+	return method
+}
+
+func settingsUpdateOperationPayload(operation *compozyupdate.OperationView) *contract.SettingsUpdateOperationPayload {
+	payload := &contract.SettingsUpdateOperationPayload{
+		ID:        operation.ID,
+		Revision:  operation.Revision,
+		Targets:   make([]contract.SettingsUpdateTarget, 0, len(operation.Targets)),
+		Phase:     contract.SettingsUpdatePhase(operation.Phase),
+		Percent:   operation.Percent,
+		Waiting:   contract.SettingsUpdateWaitingState(operation.Waiting),
+		StartedAt: operation.StartedAt,
+		LastError: operation.LastError,
+	}
+	for _, target := range operation.Targets {
+		payload.Targets = append(payload.Targets, contract.SettingsUpdateTarget(target))
+	}
+	if operation.ActiveTarget != "" {
+		activeTarget := contract.SettingsUpdateTarget(operation.ActiveTarget)
+		payload.ActiveTarget = &activeTarget
+	}
+	payload.Holder = settingsUpdateHolderPayload(operation.Holder)
+	return payload
+}
+
+func settingsUpdateHolderPayload(holder *compozyupdate.Holder) *contract.SettingsUpdateHolderPayload {
+	if holder == nil {
+		return nil
+	}
+	return &contract.SettingsUpdateHolderPayload{
+		PID:                holder.PID,
+		PIDStartTime:       holder.PIDStartTime,
+		Surface:            contract.SettingsUpdateActor(holder.Surface),
+		ExecutorGeneration: holder.ExecutorGeneration,
+		LeaseExpiresAt:     holder.LeaseExpiresAt,
+	}
+}
+
+func SettingsUpdateApplyResponseFromResult(result SettingsUpdateApply) contract.SettingsUpdateApplyResponse {
+	return contract.SettingsUpdateApplyResponse{
+		Target:      contract.SettingsUpdateTarget(result.Target),
+		Status:      contract.SettingsUpdateApplyStatus(result.Status),
+		OperationID: strings.TrimSpace(result.OperationID),
+		Message:     strings.TrimSpace(result.Message),
+		Holder:      settingsUpdateHolderPayload(result.Holder),
+	}
+}
+
+func SettingsUpdateCancelResponseFromResult(result SettingsUpdateCancel) contract.SettingsUpdateCancelResponse {
+	return contract.SettingsUpdateCancelResponse{
+		Status:      contract.SettingsUpdateStatusKind(result.Status),
+		OperationID: strings.TrimSpace(result.OperationID),
+		Message:     strings.TrimSpace(result.Message),
+		Holder:      settingsUpdateHolderPayload(result.Holder),
 	}
 }
 

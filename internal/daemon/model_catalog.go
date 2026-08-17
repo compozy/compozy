@@ -341,7 +341,7 @@ func (d *Daemon) modelCatalogSources(
 		modelcatalog.NewConfigSource(state.cfg.Providers),
 		modelsDev,
 	}
-	liveSources, err := modelcatalog.NewLiveProviderSources(modelcatalog.LiveProviderSourcesConfig{
+	liveSources, err := modelcatalog.NewLiveProviderSources(&modelcatalog.LiveProviderSourcesConfig{
 		Providers:      state.cfg.Providers,
 		HomePaths:      d.homePaths,
 		BaseEnv:        os.Environ(),

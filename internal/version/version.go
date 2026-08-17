@@ -5,18 +5,20 @@ import "sync"
 
 // Values set at build time via -ldflags.
 var (
-	Version    = "dev"
-	Commit     = "unknown"
-	BuildDate  = "unknown"
-	mu         sync.RWMutex
-	overrideMu sync.Mutex
+	Version       = "dev"
+	Commit        = "unknown"
+	BuildDate     = "unknown"
+	MinAppVersion = "0.0.0"
+	mu            sync.RWMutex
+	overrideMu    sync.Mutex
 )
 
 // Info describes the current build metadata.
 type Info struct {
-	Version   string
-	Commit    string
-	BuildDate string
+	Version       string
+	Commit        string
+	BuildDate     string
+	MinAppVersion string
 }
 
 // Current returns the active build metadata snapshot.
@@ -25,9 +27,10 @@ func Current() Info {
 	defer mu.RUnlock()
 
 	return Info{
-		Version:   Version,
-		Commit:    Commit,
-		BuildDate: BuildDate,
+		Version:       Version,
+		Commit:        Commit,
+		BuildDate:     BuildDate,
+		MinAppVersion: MinAppVersion,
 	}
 }
 
@@ -50,5 +53,5 @@ func OverrideVersionForTesting(current string) func() {
 
 // String returns a readable single-line build summary.
 func (i Info) String() string {
-	return i.Version + " (" + i.Commit + ", " + i.BuildDate + ")"
+	return i.Version + " (" + i.Commit + ", " + i.BuildDate + ", min app " + i.MinAppVersion + ")"
 }

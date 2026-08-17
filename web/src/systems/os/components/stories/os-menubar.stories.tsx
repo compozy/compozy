@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
+import type { SettingsUpdateStatus } from "@/systems/settings";
+import { settingsUpdateIndicatorAvailable } from "@/systems/settings";
+import {
+  settingsUpdateApplyingFixture,
+  settingsUpdateBothAvailableFixture,
+  settingsUpdateStatusFixture,
+} from "@/systems/settings/mocks";
 import type {
   ActiveWorktreeSelection,
   WorkspacePayload,
@@ -84,6 +91,7 @@ function MenubarFixture({
   toggleLocked,
   worktreeSelection,
   listing = MENUBAR_WORKTREE_LISTING,
+  updateAvailable = false,
 }: {
   overlay?: DesktopOverlay | null;
   live?: boolean;
@@ -93,6 +101,7 @@ function MenubarFixture({
   toggleLocked?: boolean;
   worktreeSelection?: ActiveWorktreeSelection;
   listing?: WorktreesResponse;
+  updateAvailable?: boolean;
 }) {
   const [shell] = useState(() => (live ? createLiveStoryShell() : createStoryShell()));
   const [active, setActive] = useState<DesktopOverlay | null>(overlay);
@@ -119,6 +128,7 @@ function MenubarFixture({
               setActive(current => (open ? id : current === id ? null : current))
             }
             attention={ATTENTION}
+            updateAvailable={updateAvailable}
             worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
             userHomeDir="/Users/ada"
             worktreeSelection={worktreeSelection}
@@ -318,3 +328,49 @@ export const DegradedSync: Story = {
     </DesktopShell>
   ),
 };
+
+/** Menubar update indicator (S2): one story per state the daemon can report. */
+function updateIndicatorStory(snapshot: SettingsUpdateStatus): Story {
+  return {
+    args: { workspace: { name: "compozy", monogram: "CO" } },
+    render: () => <MenubarFixture updateAvailable={settingsUpdateIndicatorAvailable(snapshot)} />,
+  };
+}
+
+function FocusUpdateIndicatorSetup() {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-testid='os-menubar-update']")?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return null;
+}
+
+/**
+ * An update is offered: a filled accent control joins the trailing cluster
+ * before the approvals bell. No count, no dropdown — detail lives in Settings.
+ */
+export const UpdateIndicatorAvailable: Story = updateIndicatorStory(
+  settingsUpdateBothAvailableFixture
+);
+
+/** Keyboard focus exposes the indicator's visible focus treatment. */
+export const UpdateIndicatorFocused: Story = {
+  ...updateIndicatorStory(settingsUpdateBothAvailableFixture),
+  render: () => (
+    <>
+      <MenubarFixture updateAvailable />
+      <FocusUpdateIndicatorSetup />
+    </>
+  ),
+};
+
+/** The calm default: nothing is offered, so the indicator is absent from the DOM. */
+export const UpdateIndicatorHidden: Story = updateIndicatorStory(settingsUpdateStatusFixture);
+
+/**
+ * An operation is live. The offer is over, so the indicator disappears and stays
+ * gone through applying, staged, and failed — progress belongs to Settings alone.
+ */
+export const UpdateIndicatorSuppressed: Story = updateIndicatorStory(settingsUpdateApplyingFixture);

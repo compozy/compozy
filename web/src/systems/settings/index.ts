@@ -71,6 +71,15 @@ export type {
   SettingsSource,
   SettingsSourceKind,
   SettingsUpdateStatus,
+  SettingsUpdateAppTrack,
+  SettingsUpdateApplyRequest,
+  SettingsUpdateApplyResult,
+  SettingsUpdateCancelResult,
+  SettingsUpdateHolder,
+  SettingsUpdateOperation,
+  SettingsUpdateRuntimeTrack,
+  SettingsUpdateStatusKind,
+  SettingsUpdateTarget,
   SettingsCreateNotificationPresetRequest,
   SettingsNotificationPresetCollection,
   SettingsNotificationPresetEntry,
@@ -177,6 +186,8 @@ export {
   getSettingsRestartStatus,
   getSettingsSkills,
   getSettingsUpdate,
+  applySettingsUpdate,
+  cancelSettingsUpdate,
   listSettingsApplyRecords,
   listSettingsSandboxes,
   listSettingsHooks,
@@ -319,6 +330,7 @@ export {
   ModalSettingsFieldRow,
   SettingsFieldRow,
   SettingsGroup,
+  SettingsUpdateTrackRow,
   SettingsNumberInput,
   SettingsPageFrame,
   SettingsProvChip,
@@ -407,6 +419,10 @@ export {
   useUpdateSettingsRoles,
   useUpdateSettingsSkills,
 } from "./hooks/use-settings-mutations";
+export {
+  useApplySettingsUpdate,
+  useCancelSettingsUpdate,
+} from "./hooks/use-settings-update-mutations";
 
 // Hooks -- restart
 export { useSettingsPage } from "./hooks/use-settings-page";
@@ -415,6 +431,23 @@ export { useSettingsRolesPage } from "./hooks/use-settings-roles-page";
 export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
 export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
 export type { SettingsSaveBarState } from "./lib/save-state";
+export {
+  settingsUpdateIndicatorAvailable,
+  settingsUpdateStatusLabel,
+  settingsUpdateStatusTone,
+  settingsUpdateTracks,
+  settingsUpdateVersionTransition,
+  settingsUpdateView,
+  type SettingsUpdateProgress,
+  type SettingsUpdateTrackView,
+  type SettingsUpdateView,
+} from "./lib/update-presentation";
+export {
+  UPDATE_UI_PHASES,
+  updatePhasePercent,
+  updateUiPhase,
+  type UpdateUiPhase,
+} from "./lib/update-phase-map";
 export { buildRolesViewModel, type RoleViewModel } from "./lib/roles-view-model";
 export { ROLE_ORDER, type RoleRuntimeValue } from "./lib/roles-config";
 export type { RolesDisclosure } from "./hooks/use-roles-disclosure";

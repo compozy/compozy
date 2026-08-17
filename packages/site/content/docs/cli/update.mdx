@@ -1,17 +1,11 @@
 ---
 title: "compozy update"
-description: "Check for and apply updates on the active CompozyOS release channel"
+description: "Check for and apply CompozyOS runtime and app updates"
 ---
 
 ## compozy update
 
-Check for and apply updates on the active CompozyOS release channel
-
-### Synopsis
-
-Check GitHub Releases for the latest CompozyOS build on the active release channel and apply it when
-this install supports self-update. Managed installs return the exact package-manager upgrade path
-instead of mutating files directly.
+Check for and apply CompozyOS runtime and app updates
 
 ```
 compozy update [flags]
@@ -22,14 +16,16 @@ compozy update [flags]
 ```
 compozy update
   compozy update --check
+  compozy update --cancel
   compozy update -o json
 ```
 
 ### Options
 
 ```
-      --check   Check for a newer release on the active channel without changing files
-  -h, --help    help for update
+      --cancel   Cancel a dormant update operation
+      --check    Check without changing files
+  -h, --help     help for update
 ```
 
 ### Options inherited from parent commands

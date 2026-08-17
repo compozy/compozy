@@ -6,6 +6,7 @@
         "packages/ui",
         "packages/site",
         "web",
+        "desktop",
         "sdk/typescript",
         "sdk/examples/prompt-enhancer"
     ],
@@ -25,6 +26,7 @@
         "test": "turbo run test",
         "test:cold": "turbo run test --force",
         "test:e2e": "make test-e2e",
+        "test:e2e:desktop": "make test-e2e-desktop",
         "test:e2e:nightly": "make test-e2e-nightly",
         "test:e2e:runtime": "make test-e2e-runtime",
         "test:e2e:web": "make test-e2e-web",

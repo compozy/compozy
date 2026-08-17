@@ -4,346 +4,327 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	goruntime "runtime"
+	"slices"
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/spf13/cobra"
 )
 
 const (
-	updateManagedValue      = "Managed"
-	updateMessageValue      = "Message"
-	updateStatusValue       = "Status"
-	updateCurrentVersionKey = "current_version"
-	updateLatestVersionKey  = "latest_version"
-	updateManagedKey        = "managed"
-	updateMessageKey        = "message"
-	updateStatusKey         = "status"
-	updateUpdateKey         = "update"
-)
-
-const (
+	updateUpdateKey               = "update"
+	updateOutcomeCanceled         = "canceled"
+	updateOutcomeFailed           = "failed"
+	updateReleaseField            = "release"
+	updateMessageLabel            = "Message"
 	defaultSettingsRestartTimeout = 45 * time.Second
 	restartStatusReady            = "ready"
 	restartStatusFailed           = "failed"
 )
 
 type updateManager interface {
-	Check(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
-	ApplyRelease(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error)
-	Restore(compozyupdate.AppliedBinary) error
-	Finalize(compozyupdate.AppliedBinary) error
+	compozyupdate.CoordinatorManager
+	CheckAll(context.Context, compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error)
+	PlanOperation(
+		context.Context,
+		compozyupdate.Actor,
+		[]compozyupdate.Target,
+		compozyupdate.Holder,
+	) (compozyupdate.OperationRequest, error)
+	AcquireOperation(context.Context, compozyupdate.OperationRequest) (*compozyupdate.Operation, error)
+	OperationStore() *compozyupdate.OperationStore
 }
 
 type updateRecord struct {
-	Status          string `json:"status"`
-	InstallMethod   string `json:"install_method"`
-	Managed         bool   `json:"managed"`
-	CurrentVersion  string `json:"current_version"`
-	LatestVersion   string `json:"latest_version,omitempty"`
-	ReleaseURL      string `json:"release_url,omitempty"`
-	Recommendation  string `json:"recommendation,omitempty"`
-	DaemonRestarted bool   `json:"daemon_restarted"`
-	Message         string `json:"message"`
+	Status    compozyupdate.Status            `json:"status"`
+	Runtime   compozyupdate.RuntimeTrackState `json:"runtime"`
+	App       *compozyupdate.AppTrackState    `json:"app,omitempty"`
+	Operation *compozyupdate.OperationView    `json:"operation,omitempty"`
+}
+
+type updateCancelRecord struct {
+	Status      compozyupdate.Status  `json:"status"`
+	OperationID string                `json:"operation_id,omitempty"`
+	Message     string                `json:"message"`
+	Holder      *compozyupdate.Holder `json:"holder,omitempty"`
 }
 
 func newUpdateCommand(deps commandDeps) *cobra.Command {
 	var checkOnly bool
+	var cancel bool
 
 	cmd := &cobra.Command{
 		Use:   updateUpdateKey,
-		Short: "Check for and apply updates on the active CompozyOS release channel",
-		Long: strings.TrimSpace(`
-Check GitHub Releases for the latest CompozyOS build on the active release channel and apply it when
-this install supports self-update. Managed installs return the exact package-manager upgrade path
-instead of mutating files directly.
-		`),
+		Short: "Check for and apply CompozyOS runtime and app updates",
 		Example: strings.TrimSpace(`
   compozy update
   compozy update --check
+  compozy update --cancel
   compozy update -o json
 		`),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runUpdateCommand(cmd, deps, checkOnly)
+			if checkOnly && cancel {
+				return errors.New("cli: --check and --cancel cannot be combined")
+			}
+			return runUpdateCommand(cmd, deps, checkOnly, cancel)
 		},
 	}
-
-	cmd.Flags().BoolVar(
-		&checkOnly,
-		"check",
-		false,
-		"Check for a newer release on the active channel without changing files",
-	)
+	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check without changing files")
+	cmd.Flags().BoolVar(&cancel, "cancel", false, "Cancel a dormant update operation")
 	return cmd
 }
 
-func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool) error {
-	manager, err := resolveUpdateManager(deps)
+func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, cancel bool) error {
+	manager, homePaths, err := resolveUpdateManager(deps)
 	if err != nil {
 		return err
 	}
+	if cancel {
+		return cancelUpdateOperation(cmd, manager)
+	}
 
-	state, release, err := manager.Check(cmd.Context(), compozyupdate.CheckOptions{
-		ForceRefresh:         true,
-		AllowCachedOnFailure: false,
+	state, _, checkErr := manager.CheckAll(cmd.Context(), compozyupdate.CheckOptions{
+		ForceRefresh: true,
 	})
 	record := updateRecordFromState(state)
-	if err != nil {
-		return writeUpdateFailure(cmd, record, err)
+	if checkErr != nil {
+		return writeUpdateFailure(cmd, failedUpdateRecord(record, checkErr), checkErr)
 	}
-	if checkOnly || state.Status != compozyupdate.StatusAvailable {
+	targets := applicableUpdateTargets(state)
+	if checkOnly || len(targets) == 0 {
 		return writeCommandOutput(cmd, updateBundle(record))
 	}
 
-	return applyAvailableUpdate(cmd, deps, manager, release, record)
-}
-
-func resolveUpdateManager(deps commandDeps) (updateManager, error) {
-	homePaths, err := deps.resolveHome()
+	holder, err := newUpdateHolder(compozyupdate.ActorCLI, deps.now())
 	if err != nil {
-		return nil, err
+		return writeUpdateFailure(cmd, failedUpdateRecord(record, err, targets...), err)
 	}
-	if deps.newUpdateManager == nil {
-		return nil, errors.New("cli: update manager factory is required")
-	}
-	return deps.newUpdateManager(homePaths)
-}
-
-func applyAvailableUpdate(
-	cmd *cobra.Command,
-	deps commandDeps,
-	manager updateManager,
-	release *compozyupdate.Release,
-	record updateRecord,
-) error {
-	runtime, running, err := resolveUpdateRuntime(deps)
+	request, err := manager.PlanOperation(cmd.Context(), compozyupdate.ActorCLI, targets, holder)
 	if err != nil {
-		return err
+		return writeUpdateFailure(cmd, failedUpdateRecord(record, err, targets...), err)
 	}
-
-	applied, err := manager.ApplyRelease(cmd.Context(), release)
+	operation, err := manager.AcquireOperation(cmd.Context(), request)
 	if err != nil {
-		record.Status = string(compozyupdate.StatusFailed)
-		record.Message = err.Error()
-		var artifactSizeErr *compozyupdate.ArtifactSizeError
-		if errors.As(err, &artifactSizeErr) {
-			record.Recommendation = compozyupdate.ManualDirectBinaryRecommendation(
-				record.ReleaseURL,
-				goruntime.GOOS,
-			)
+		var blocked *compozyupdate.BlockedError
+		if errors.As(err, &blocked) {
+			record = blockedUpdateRecord(record, &blocked.Operation, targets...)
 		}
 		return writeUpdateFailure(cmd, record, err)
 	}
-	if !running {
-		return finishLocalUpdate(cmd, manager, applied, release, record)
-	}
-	return restartDaemonAfterUpdate(cmd, deps, manager, runtime, applied, release, record)
-}
 
-func resolveUpdateRuntime(deps commandDeps) (*runtimeContext, bool, error) {
-	runtime, err := loadRuntimeContext(deps)
+	runtime := newCLIUpdateRuntime(deps, homePaths)
+	coordinator, err := compozyupdate.NewCoordinator(compozyupdate.CoordinatorConfig{
+		Store: manager.OperationStore(), ReleaseManager: manager, BinaryManager: manager, Runtime: runtime,
+	})
 	if err != nil {
-		return nil, false, err
+		return failAcquiredUpdate(cmd, manager, operation, record, err)
 	}
-	_, running, err := daemonInfo(runtime.HomePaths, deps)
-	if err != nil {
-		return nil, false, err
+	runErr := coordinator.Run(cmd.Context(), operation.ID, operation.Holder.ExecutorGeneration)
+	var archived *compozyupdate.Operation
+	var appRunErr error
+	if runErr == nil && request.App != nil && record.App != nil && record.App.Running {
+		archived, appRunErr = waitForAppUpdateCompletion(
+			cmd.Context(), deps, manager.OperationStore(), operation.ID, request.Deadline,
+		)
 	}
-	return runtime, running, nil
-}
-
-func finishLocalUpdate(
-	cmd *cobra.Command,
-	manager updateManager,
-	applied compozyupdate.AppliedBinary,
-	release *compozyupdate.Release,
-	record updateRecord,
-) error {
-	if err := manager.Finalize(applied); err != nil {
-		record.Status = string(compozyupdate.StatusFailed)
-		record.Message = err.Error()
-		return writeUpdateFailure(cmd, record, err)
+	record, runErr = finalizeUpdateRecord(record, request, runErr, archived, appRunErr)
+	if runErr != nil {
+		return writeUpdateFailure(cmd, record, runErr)
 	}
-	record.Status = string(compozyupdate.StatusUpdated)
-	record.CurrentVersion = strings.TrimSpace(release.Version)
-	record.Recommendation = ""
-	record.Message = "Updated CompozyOS to " + strings.TrimSpace(release.Version) + "."
 	return writeCommandOutput(cmd, updateBundle(record))
 }
 
-func restartDaemonAfterUpdate(
-	cmd *cobra.Command,
-	deps commandDeps,
-	manager updateManager,
-	runtime *runtimeContext,
-	applied compozyupdate.AppliedBinary,
-	release *compozyupdate.Release,
-	record updateRecord,
-) error {
-	client, err := clientFromDeps(deps)
+func resolveUpdateManager(deps commandDeps) (updateManager, compozyconfig.HomePaths, error) {
+	homePaths, err := deps.resolveHome()
 	if err != nil {
-		return failAppliedUpdate(
-			cmd,
-			manager,
-			applied,
-			deps,
-			runtime,
-			record,
-			"Updated the binary on disk, but failed to prepare daemon restart.",
-			err,
-			false,
-		)
+		return nil, compozyconfig.HomePaths{}, err
 	}
-
-	restartAction, err := client.TriggerSettingsRestart(cmd.Context())
-	if err != nil {
-		return failAppliedUpdate(
-			cmd,
-			manager,
-			applied,
-			deps,
-			runtime,
-			record,
-			"Updated the binary on disk, but failed to trigger daemon restart.",
-			err,
-			false,
-		)
+	if deps.newUpdateManager == nil {
+		return nil, compozyconfig.HomePaths{}, errors.New("cli: update manager factory is required")
 	}
-
-	restartStatus, err := waitForSettingsRestart(cmd.Context(), deps, client, restartAction.OperationID)
-	if err != nil {
-		return failAppliedUpdate(
-			cmd,
-			manager,
-			applied,
-			deps,
-			runtime,
-			record,
-			"Updated the binary on disk, but the daemon restart did not complete successfully.",
-			err,
-			true,
-		)
-	}
-	if strings.TrimSpace(string(restartStatus.Status)) != restartStatusReady {
-		restartErr := fmt.Errorf("cli: daemon restart finished in unexpected state %q", restartStatus.Status)
-		return failAppliedUpdate(
-			cmd,
-			manager,
-			applied,
-			deps,
-			runtime,
-			record,
-			"Updated the binary on disk, but the daemon restart did not become ready.",
-			restartErr,
-			true,
-		)
-	}
-
-	if err := manager.Finalize(applied); err != nil {
-		record.Status = string(compozyupdate.StatusFailed)
-		record.Message = err.Error()
-		return writeUpdateFailure(cmd, record, err)
-	}
-	record.Status = string(compozyupdate.StatusUpdated)
-	record.CurrentVersion = strings.TrimSpace(release.Version)
-	record.Recommendation = ""
-	record.DaemonRestarted = true
-	record.Message = "Updated CompozyOS to " + strings.TrimSpace(release.Version) + " and restarted the daemon."
-	return writeCommandOutput(cmd, updateBundle(record))
+	manager, err := deps.newUpdateManager(homePaths)
+	return manager, homePaths, err
 }
 
-func failAppliedUpdate(
+func applicableUpdateTargets(state compozyupdate.MultiState) []compozyupdate.Target {
+	targets := make([]compozyupdate.Target, 0, 2)
+	if state.Runtime.Status == compozyupdate.StatusAvailable && !state.Runtime.Managed {
+		targets = append(targets, compozyupdate.TargetRuntime)
+	}
+	if state.App != nil && state.App.Status == compozyupdate.StatusAvailable {
+		targets = append(targets, compozyupdate.TargetApp)
+	}
+	return targets
+}
+
+func failAcquiredUpdate(
 	cmd *cobra.Command,
 	manager updateManager,
-	applied compozyupdate.AppliedBinary,
-	deps commandDeps,
-	runtime *runtimeContext,
+	operation *compozyupdate.Operation,
 	record updateRecord,
-	prefix string,
 	cause error,
-	attemptRecoveryStart bool,
 ) error {
-	rollbackErr := rollbackAppliedUpdate(
-		cmd.Context(),
-		manager,
-		applied,
-		deps,
-		runtime,
-		attemptRecoveryStart,
+	targets := []compozyupdate.Target(nil)
+	if operation != nil && operation.Holder != nil {
+		targets = append(targets, operation.ActiveTarget)
+		_, transitionErr := manager.OperationStore().Transition(
+			cmd.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+			compozyupdate.Transition{
+				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI,
+				Target: operation.ActiveTarget, Phase: compozyupdate.PhaseFailed,
+				Percent: -1, LastError: cause.Error(), Outcome: updateOutcomeFailed,
+			},
+		)
+		cause = errors.Join(cause, transitionErr)
+	}
+	return writeUpdateFailure(
+		cmd,
+		failedUpdateRecord(record, cause, targets...),
+		cause,
 	)
-	record.Status = string(compozyupdate.StatusFailed)
-	record.Message = combineUpdateErrors(prefix, cause, rollbackErr)
-	return writeUpdateFailure(cmd, record, errors.Join(cause, rollbackErr))
 }
 
-func updateRecordFromState(state compozyupdate.State) updateRecord {
-	return updateRecord{
-		Status:         strings.TrimSpace(string(state.Status)),
-		InstallMethod:  strings.TrimSpace(state.InstallMethod),
-		Managed:        state.Managed,
-		CurrentVersion: strings.TrimSpace(state.CurrentVersion),
-		LatestVersion:  strings.TrimSpace(state.LatestVersion),
-		ReleaseURL:     strings.TrimSpace(state.ReleaseURL),
-		Recommendation: strings.TrimSpace(state.Recommendation),
-		Message:        strings.TrimSpace(state.Message),
+func cancelUpdateOperation(cmd *cobra.Command, manager updateManager) error {
+	operation, err := manager.OperationStore().Read(cmd.Context())
+	if err != nil {
+		return err
 	}
+	if operation == nil {
+		return writeCommandOutput(cmd, updateCancelBundle(updateCancelRecord{
+			Status: compozyupdate.StatusCanceled, Message: "No update operation is active.",
+		}))
+	}
+	canceled, err := manager.OperationStore().Transition(
+		cmd.Context(), operation.ID, "", operation.Revision,
+		compozyupdate.Transition{
+			Kind: compozyupdate.TransitionCancel, Actor: compozyupdate.ActorCLI,
+			Target: operation.ActiveTarget, Percent: -1, Outcome: updateOutcomeCanceled,
+		},
+	)
+	if errors.Is(err, compozyupdate.ErrOperationNotCancelable) || errors.Is(err, compozyupdate.ErrExecutorFenced) {
+		record := updateCancelRecord{
+			Status: compozyupdate.StatusBlocked, OperationID: operation.ID, Holder: operation.Holder,
+			Message: liveExecutorCancelMessage(operation),
+		}
+		return writeUpdateCancelFailure(cmd, record, err)
+	}
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, updateCancelBundle(updateCancelRecord{
+		Status: compozyupdate.StatusCanceled, OperationID: canceled.ID,
+		Message: "Canceled dormant update operation; the update channel is free.",
+	}))
+}
+
+func liveExecutorCancelMessage(operation *compozyupdate.Operation) string {
+	if operation == nil || operation.Holder == nil {
+		return "The update operation has a live executor and was not canceled."
+	}
+	return fmt.Sprintf(
+		"Operation %s has a live executor (pid %d via %s). Not canceled.",
+		operation.ID,
+		operation.Holder.PID,
+		operation.Holder.Surface,
+	)
 }
 
 func updateBundle(record updateRecord) outputBundle {
-	rows := []keyValue{
-		{Label: updateStatusValue, Value: stringOrDash(record.Status)},
-		{Label: "Install Method", Value: stringOrDash(record.InstallMethod)},
-		{Label: updateManagedValue, Value: fmt.Sprintf("%t", record.Managed)},
-		{Label: "Current Version", Value: stringOrDash(record.CurrentVersion)},
-		{Label: "Latest Version", Value: stringOrDash(record.LatestVersion)},
-		{Label: "Release", Value: stringOrDash(record.ReleaseURL)},
-		{Label: updateMessageValue, Value: stringOrDash(record.Message)},
-		{Label: "Daemon Restarted", Value: fmt.Sprintf("%t", record.DaemonRestarted)},
-	}
-	if record.Recommendation != "" {
-		rows = append(rows, keyValue{Label: "Recommendation", Value: record.Recommendation})
-	}
-
 	return outputBundle{
 		jsonValue: record,
+		jsonl:     func(cmd *cobra.Command) error { return writeJSONLine(cmd, record) },
 		human: func() (string, error) {
+			rows := []keyValue{
+				{Label: automationStatusValue, Value: string(record.Status)},
+				{
+					Label: "Runtime",
+					Value: updateTrackSummary(
+						record.Runtime.CurrentVersion,
+						record.Runtime.LatestVersion,
+						record.Runtime.InstallMethod,
+					),
+				},
+			}
+			if record.App != nil {
+				rows = append(
+					rows,
+					keyValue{
+						Label: "App",
+						Value: updateTrackSummary(
+							record.App.CurrentVersion,
+							record.App.LatestVersion,
+							appRunningLabel(record.App.Running),
+						),
+					},
+				)
+			}
+			if record.Runtime.ReleaseURL != "" {
+				rows = append(rows, keyValue{Label: cliReleaseValue, Value: record.Runtime.ReleaseURL})
+			}
 			return renderHumanSection("Update", rows), nil
 		},
 		toon: func() (string, error) {
-			order := []string{
-				updateStatusKey,
-				"install_method",
-				updateManagedKey,
-				updateCurrentVersionKey,
-				updateLatestVersionKey,
-				"release_url",
-				"daemon_restarted",
-				updateMessageKey,
-			}
+			fields := []string{automationStatusKey, loopRuntimeKey, updateReleaseField}
 			values := []string{
-				record.Status,
-				record.InstallMethod,
-				fmt.Sprintf("%t", record.Managed),
-				record.CurrentVersion,
-				record.LatestVersion,
-				record.ReleaseURL,
-				fmt.Sprintf("%t", record.DaemonRestarted),
-				record.Message,
+				string(record.Status),
+				updateTrackSummary(
+					record.Runtime.CurrentVersion,
+					record.Runtime.LatestVersion,
+					record.Runtime.InstallMethod,
+				),
+				record.Runtime.ReleaseURL,
 			}
-			if record.Recommendation != "" {
-				order = append(order, "recommendation")
-				values = append(values, record.Recommendation)
+			if record.App != nil {
+				fields = slices.Insert(fields, 2, "app")
+				values = slices.Insert(values, 2, updateTrackSummary(
+					record.App.CurrentVersion,
+					record.App.LatestVersion,
+					appRunningLabel(record.App.Running),
+				))
 			}
-			return renderToonObject(
-				updateUpdateKey,
-				order,
-				values,
-			), nil
+			return renderToonObject(updateUpdateKey, fields, values), nil
 		},
 	}
+}
+
+func updateCancelBundle(record updateCancelRecord) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		jsonl:     func(cmd *cobra.Command) error { return writeJSONLine(cmd, record) },
+		human: func() (string, error) {
+			return renderHumanSection("Update", []keyValue{
+				{Label: automationStatusValue, Value: string(record.Status)},
+				{Label: "Operation", Value: stringOrDash(record.OperationID)},
+				{Label: updateMessageLabel, Value: record.Message},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(updateUpdateKey, []string{automationStatusKey, "operation_id", "message"}, []string{
+				string(record.Status), record.OperationID, record.Message,
+			}), nil
+		},
+	}
+}
+
+func updateTrackSummary(current string, latest string, suffix string) string {
+	value := stringOrDash(current)
+	if latest != "" && latest != current {
+		value += " → " + latest
+	}
+	if suffix != "" {
+		value += " (" + suffix + ")"
+	}
+	return value
+}
+
+func appRunningLabel(running bool) string {
+	if running {
+		return daemonRunningStatus
+	}
+	return "closed"
 }
 
 func writeUpdateFailure(cmd *cobra.Command, record updateRecord, cause error) error {
@@ -351,7 +332,14 @@ func writeUpdateFailure(cmd *cobra.Command, record updateRecord, cause error) er
 		return writeErr
 	}
 	if cause == nil {
-		return errors.New(strings.TrimSpace(record.Message))
+		return errors.New(record.Runtime.Message)
+	}
+	return cause
+}
+
+func writeUpdateCancelFailure(cmd *cobra.Command, record updateCancelRecord, cause error) error {
+	if writeErr := writeCommandOutput(cmd, updateCancelBundle(record)); writeErr != nil {
+		return writeErr
 	}
 	return cause
 }
@@ -405,38 +393,4 @@ func settingsRestartTimeout(deps commandDeps) time.Duration {
 		}
 	}
 	return timeout
-}
-
-func rollbackAppliedUpdate(
-	ctx context.Context,
-	manager updateManager,
-	applied compozyupdate.AppliedBinary,
-	deps commandDeps,
-	runtime *runtimeContext,
-	attemptRecoveryStart bool,
-) error {
-	var combined error
-	if err := manager.Restore(applied); err != nil {
-		combined = errors.Join(combined, err)
-	}
-	if !attemptRecoveryStart || runtime == nil {
-		return combined
-	}
-	if _, running, err := daemonInfo(runtime.HomePaths, deps); err == nil && !running {
-		if _, startErr := runDaemonDetached(ctx, deps); startErr != nil {
-			combined = errors.Join(combined, startErr)
-		}
-	}
-	return combined
-}
-
-func combineUpdateErrors(prefix string, primary error, secondary error) string {
-	parts := []string{strings.TrimSpace(prefix)}
-	if primary != nil {
-		parts = append(parts, strings.TrimSpace(primary.Error()))
-	}
-	if secondary != nil {
-		parts = append(parts, strings.TrimSpace(secondary.Error()))
-	}
-	return strings.Join(parts, " ")
 }

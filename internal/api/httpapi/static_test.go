@@ -23,6 +23,18 @@ func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
 	if !strings.Contains(rootResp.Body.String(), `<div id="app"></div>`) {
 		t.Fatalf("GET / body = %q, want SPA shell", rootResp.Body.String())
 	}
+	const expectedContentSecurityPolicy = "default-src 'self'; script-src 'self'; " +
+		"style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; " +
+		"connect-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; " +
+		"object-src 'none'; base-uri 'self'; form-action 'self'"
+	if got := rootResp.Header().Get("Content-Security-Policy"); got != expectedContentSecurityPolicy {
+		t.Fatalf("GET / Content-Security-Policy = %q, want exact production policy", got)
+	}
+	for _, forbidden := range []string{"script-src 'self' 'unsafe-inline'", "'unsafe-eval'"} {
+		if strings.Contains(rootResp.Header().Get("Content-Security-Policy"), forbidden) {
+			t.Fatalf("GET / Content-Security-Policy contains forbidden source %q", forbidden)
+		}
+	}
 
 	deepLinkResp := performRequest(t, engine, http.MethodGet, "/session/sess-001", nil)
 	if deepLinkResp.Code != http.StatusOK {

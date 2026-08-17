@@ -1,4 +1,4 @@
 {
     "title": "Daemon",
-    "pages": ["index", "start", "stop"]
+    "pages": ["index", "bootstrap", "start", "stop"]
 }

@@ -34,6 +34,8 @@ export {
 export type { SettingActionRowProps, SettingLinkRowProps, SettingRowProps } from "./setting-row";
 export { SettingsGroup } from "./settings-group";
 export type { SettingsGroupProps } from "./settings-group";
+export { SettingsUpdateTrackRow } from "./settings-update-track-row";
+export type { SettingsUpdateTrackRowProps } from "./settings-update-track-row";
 export { SettingsChoiceGroup } from "./settings-choice-group";
 export type { SettingsChoiceGroupProps, SettingsChoiceOption } from "./settings-choice-group";
 export { SettingsTile, SettingsTiles } from "./settings-tiles";

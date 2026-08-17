@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Menubar · Update indicator · Electron shell · CompozyOS</title>
+<link rel="stylesheet" href="electron-shell.css">
+<!--
+  electron-shell-menubar-update · S2 — the OS-menubar update indicator.
+  Spec: .compozy/tasks/electron-shell/_uiux.md S2 · task_02.md VC-12..VC-15
+        · story US-029 (AC-1/AC-2/AC-4, EC-4) · ADR-006.
+  Provenance:
+    production        — web/src/systems/os/components/os-menubar.tsx (44px glass bar,
+                        28px rounded-md controls, trailing cluster status → bell →
+                        ⌘K chip → settings) + os-hydration-status.tsx (the nearest
+                        shipped truthful-status glyph) + the official Logo symbol
+                        geometry from packages/ui
+    authorized delta  — one new control in the trailing cluster, rendered only while
+                        the daemon reports an available update on either track;
+                        activation navigates to Settings → General → Updates
+    daemon truth      — visibility is bound to GET /api/settings/update: available on
+                        runtime or app → shown; anything else, including a live
+                        operation, staged or failed → not rendered at all
+  Shell chrome uses the tokenized glass + blur carve-out (DESIGN.md §5). Window-body
+  content on these boards stays flat.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head">
+    <a class="w2-back" href="index.html" aria-label="Back to set">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+    </a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Electron shell</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Menubar · Update indicator</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm btn--ghost" href="electron-shell-settings-updates.html">Settings · Updates →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ S2 · THE CONTROL ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">S2</span><h2 class="lab-sec__t">The indicator — one control, one meaning</h2>
+        <span class="lab-sec__gist">28px · accent fill · rounded-full · no count, no pulse, no menu</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>The bar's one accent target</b>The indicator keeps the 28px hit of the bell and settings cog, then steps off their ghost chrome: <code>rounded-full</code>, filled with the Button default pair (<code>--color-accent</code> / <code>--color-accent-ink</code>), a 16px Lucide glyph at the 1.75 stroke. Orange appears only while an update is waiting, so the fill is the action, not decoration.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <div class="zoom">
+              <div class="zoom__cell">
+                <div class="zoom__frame">
+                  <span class="mb-icon mb-update" role="img" aria-label="Update available">
+                    <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>
+                  </span>
+                </div>
+                <span class="zoom__label">rest</span>
+              </div>
+              <div class="zoom__cell">
+                <div class="zoom__frame">
+                  <span class="mb-icon mb-update" style="background:var(--accent-hover)" role="img" aria-label="Update available">
+                    <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>
+                  </span>
+                </div>
+                <span class="zoom__label">hover</span>
+              </div>
+              <div class="zoom__cell">
+                <div class="zoom__frame">
+                  <span class="mb-icon mb-update is-focused" role="img" aria-label="Update available">
+                    <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>
+                  </span>
+                </div>
+                <span class="zoom__label">focus-visible</span>
+              </div>
+              <div class="zoom__cell">
+                <div class="zoom__frame" style="color:var(--faint);font-family:var(--font-mono);font-size:9px;letter-spacing:.06em">none</div>
+                <span class="zoom__label">no update</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Why an arrow and not a dot</b>A 6px dot floating in chrome is easy to miss and says nothing on its own; an upward arrow-in-circle says "there is a newer version" through shape as well as colour, which keeps colour from being the only channel. The glyph is also the only place in the bar where signal ink appears, so it needs to survive a glance without a badge, a count, or a pulse.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>property</th><th>value</th><th>source</th></tr></thead>
+              <tbody>
+                <tr><td>control</td><td>28px circle, <span class="mono">rounded-full</span></td><td class="ex">Button size=icon + size-7</td></tr>
+                <tr><td>glyph</td><td>Lucide <span class="mono">circle-arrow-up</span>, 16px, stroke 1.75</td><td class="ex">Icon size="lg" · DESIGN.md §8</td></tr>
+                <tr><td>fill</td><td><span class="mono">--color-accent</span> / <span class="mono">--color-accent-ink</span></td><td class="ex">Button variant=default</td></tr>
+                <tr><td>hover</td><td><span class="mono">--color-accent-hover</span>; ink unchanged</td><td class="ex">Button default hover</td></tr>
+                <tr><td>focus</td><td><span class="mono">--shadow-focus-ring</span> — 2px, 50% white</td><td class="ex">tokens.css focus contract</td></tr>
+                <tr><td>motion</td><td>colour/background only, <span class="mono">--duration-base</span></td><td class="ex">no pulse, no entrance</td></tr>
+                <tr><td>name</td><td class="ex">Update available</td><td class="ex">aria-label + title</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Placement</b>Last in the trailing cluster before the settings cog — adjacent to the surface it opens, and the position that displaces the fewest persistent controls when it appears. Order becomes: status → bell → ⌘K → <b>update</b> → settings.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>slot</th><th>control</th><th>present</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>system status (sync paused, …)</td><td>only while degraded</td></tr>
+                <tr><td>2</td><td>approvals bell</td><td>always</td></tr>
+                <tr><td>3</td><td>⌘K palette chip</td><td>always</td></tr>
+                <tr><td>4</td><td><b>update indicator</b></td><td>only while an update is available</td></tr>
+                <tr><td>5</td><td>settings cog</td><td>always</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-12 · HIDDEN ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-12</span><h2 class="lab-sec__t">Hidden — nothing available</h2>
+        <span class="lab-sec__gist">the bar almost always looks like this</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Absent from the DOM</b>Not <code>display:none</code>, not <code>visibility:hidden</code>, not an empty 28px slot holding space. When the daemon reports no available update on either track, the control is simply not rendered — the cluster closes up and the bar returns to its resting monochrome (US-029.AC-2).</div>
+        <div class="spec__demo">
+          <div class="stage stage--desk">
+            <header class="menubar">
+              <div class="mb-side">
+                <span class="mb-logo" aria-label="CompozyOS">
+                  <svg viewBox="0 0 355 355" aria-hidden="true">
+                    <rect width="355" height="355" rx="64" fill="#E8572A"/>
+                    <path fill="#231F20" d="M249.48 146.41C232.84 146.41 219.35 159.91 219.35 176.55C219.35 193.19 232.84 206.69 249.48 206.69C266.13 206.69 279.62 193.19 279.62 176.55C279.62 159.91 266.13 146.41 249.48 146.41ZM249.48 190.50C241.78 190.50 235.54 184.25 235.54 176.55C235.54 168.85 241.78 162.60 249.48 162.60C257.18 162.60 263.43 168.85 263.43 176.55C263.43 184.25 257.18 190.50 249.48 190.50Z"/>
+                    <path fill="#231F20" d="M105.28 146.41C88.63 146.41 75.14 159.91 75.14 176.55C75.14 193.19 88.63 206.69 105.28 206.69C121.92 206.69 135.41 193.19 135.41 176.55C135.41 159.91 121.92 146.41 105.28 146.41ZM105.28 190.50C97.57 190.50 91.33 184.25 91.33 176.55C91.33 168.85 97.57 162.60 105.28 162.60C112.98 162.60 119.22 168.85 119.22 176.55C119.22 184.25 112.98 190.50 105.28 190.50Z"/>
+                    <path fill="#231F20" d="M282.15 194.81C282.01 194.67 281.88 194.54 281.74 194.40L280.77 193.45C277.86 198.81 273.61 203.34 268.48 206.59C283.84 223.81 283.27 250.23 266.75 266.75C249.63 283.87 221.88 283.87 204.76 266.75L193.35 255.34L181.78 267.12L196.33 281.40C220.35 304.99 258.95 304.63 282.53 280.61C305.99 256.72 305.77 218.43 282.15 194.81Z"/>
+                    <path fill="#231F20" d="M232.03 145.59L192.82 107.09L180.95 118.96L219.49 157.49C222.62 152.56 226.93 148.47 232.03 145.59V145.59Z"/>
+                    <path fill="#231F20" d="M232.31 207.68C227.28 204.9 222.99 200.93 219.83 196.15L149.23 266.75C132.12 283.87 104.36 283.87 87.24 266.75C70.62 250.13 70.14 223.49 85.79 206.28C81.17 203.24 77.30 199.16 74.52 194.36L72.59 196.33C49.14 220.22 49.36 258.51 72.98 282.14C73.11 282.27 73.25 282.41 73.39 282.54C97.41 306.13 136.01 305.77 159.59 281.75L232.31 207.68L232.31 207.68Z"/>
+                    <path fill="#231F20" d="M85.30 147.15C70.16 129.93 70.80 103.68 87.24 87.24C104.36 70.12 132.12 70.12 149.23 87.24L160.65 98.65L172.21 86.87L157.67 72.59C133.64 49.00 95.04 49.36 71.46 73.38C48.01 97.27 48.23 135.56 71.85 159.18C71.98 159.32 72.12 159.45 72.26 159.59L73.44 160.75C76.17 155.26 80.27 150.57 85.31 147.15H85.30Z"/>
+                    <path fill="#231F20" d="M134.62 196.61C131.32 201.43 126.87 205.39 121.66 208.10L161.17 246.90L173.04 235.03L134.62 196.61Z"/>
+                    <path fill="#231F20" d="M281.40 157.67C304.86 133.78 304.64 95.48 281.02 71.86C280.88 71.72 280.75 71.59 280.61 71.46C256.58 47.87 217.99 48.23 194.40 72.24L122.52 145.47C127.54 148.26 131.82 152.24 134.97 157.02L204.76 87.24C221.88 70.12 249.63 70.12 266.75 87.24C283.09 103.58 283.82 129.60 268.97 146.82C273.61 149.87 277.50 153.98 280.28 158.81L281.41 157.67H281.40Z"/>
+                  </svg>
+                </span>
+                <span class="mb-ws">
+                  <span class="mb-ws__avatar">CO</span>
+                  <span class="mb-ws__name">compozy</span>
+                  <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                </span>
+                <nav class="mb-menus" aria-label="App menus">
+                  <span class="mb-menu">Session</span>
+                  <span class="mb-menu">Go</span>
+                  <span class="mb-menu">Window</span>
+                  <span class="mb-menu">Help</span>
+                </nav>
+              </div>
+              <div class="mb-trail">
+                <span class="mb-icon" aria-label="Approvals">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+                </span>
+                <span class="mb-chip">⌘K</span>
+                <span class="mb-icon" aria-label="Settings">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </span>
+              </div>
+            </header>
+            <div style="padding:26px 22px 0;display:flex;justify-content:center">
+              <section class="win" style="width:min(560px,100%)">
+                <header class="win-head">
+                  <div class="win-controls"><span class="wc"></span><span class="wc"></span><span class="wc"></span></div>
+                  <span class="win-title">Sessions</span>
+                </header>
+                <div class="win-body" style="height:96px"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-13 · AVAILABLE ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-13</span><h2 class="lab-sec__t">Available — one or both tracks</h2>
+        <span class="lab-sec__gist">one visual state · detail belongs to S1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Not a summary</b>Runtime only, app only, or both render the same control: no count, no "2", no dropdown, no hover card. The bar's job is to say that something is waiting; which track, which versions, and what to do about it are the section's job. Activation navigates there.</div>
+        <div class="spec__demo">
+          <div class="stage stage--desk">
+            <header class="menubar">
+              <div class="mb-side">
+                <span class="mb-logo" aria-label="CompozyOS">
+                  <svg viewBox="0 0 355 355" aria-hidden="true">
+                    <rect width="355" height="355" rx="64" fill="#E8572A"/>
+                    <path fill="#231F20" d="M249.48 146.41C232.84 146.41 219.35 159.91 219.35 176.55C219.35 193.19 232.84 206.69 249.48 206.69C266.13 206.69 279.62 193.19 279.62 176.55C279.62 159.91 266.13 146.41 249.48 146.41ZM249.48 190.50C241.78 190.50 235.54 184.25 235.54 176.55C235.54 168.85 241.78 162.60 249.48 162.60C257.18 162.60 263.43 168.85 263.43 176.55C263.43 184.25 257.18 190.50 249.48 190.50Z"/>
+                    <path fill="#231F20" d="M105.28 146.41C88.63 146.41 75.14 159.91 75.14 176.55C75.14 193.19 88.63 206.69 105.28 206.69C121.92 206.69 135.41 193.19 135.41 176.55C135.41 159.91 121.92 146.41 105.28 146.41ZM105.28 190.50C97.57 190.50 91.33 184.25 91.33 176.55C91.33 168.85 97.57 162.60 105.28 162.60C112.98 162.60 119.22 168.85 119.22 176.55C119.22 184.25 112.98 190.50 105.28 190.50Z"/>
+                    <path fill="#231F20" d="M282.15 194.81C282.01 194.67 281.88 194.54 281.74 194.40L280.77 193.45C277.86 198.81 273.61 203.34 268.48 206.59C283.84 223.81 283.27 250.23 266.75 266.75C249.63 283.87 221.88 283.87 204.76 266.75L193.35 255.34L181.78 267.12L196.33 281.40C220.35 304.99 258.95 304.63 282.53 280.61C305.99 256.72 305.77 218.43 282.15 194.81Z"/>
+                    <path fill="#231F20" d="M232.03 145.59L192.82 107.09L180.95 118.96L219.49 157.49C222.62 152.56 226.93 148.47 232.03 145.59V145.59Z"/>
+                    <path fill="#231F20" d="M232.31 207.68C227.28 204.9 222.99 200.93 219.83 196.15L149.23 266.75C132.12 283.87 104.36 283.87 87.24 266.75C70.62 250.13 70.14 223.49 85.79 206.28C81.17 203.24 77.30 199.16 74.52 194.36L72.59 196.33C49.14 220.22 49.36 258.51 72.98 282.14C73.11 282.27 73.25 282.41 73.39 282.54C97.41 306.13 136.01 305.77 159.59 281.75L232.31 207.68L232.31 207.68Z"/>
+                    <path fill="#231F20" d="M85.30 147.15C70.16 129.93 70.80 103.68 87.24 87.24C104.36 70.12 132.12 70.12 149.23 87.24L160.65 98.65L172.21 86.87L157.67 72.59C133.64 49.00 95.04 49.36 71.46 73.38C48.01 97.27 48.23 135.56 71.85 159.18C71.98 159.32 72.12 159.45 72.26 159.59L73.44 160.75C76.17 155.26 80.27 150.57 85.31 147.15H85.30Z"/>
+                    <path fill="#231F20" d="M134.62 196.61C131.32 201.43 126.87 205.39 121.66 208.10L161.17 246.90L173.04 235.03L134.62 196.61Z"/>
+                    <path fill="#231F20" d="M281.40 157.67C304.86 133.78 304.64 95.48 281.02 71.86C280.88 71.72 280.75 71.59 280.61 71.46C256.58 47.87 217.99 48.23 194.40 72.24L122.52 145.47C127.54 148.26 131.82 152.24 134.97 157.02L204.76 87.24C221.88 70.12 249.63 70.12 266.75 87.24C283.09 103.58 283.82 129.60 268.97 146.82C273.61 149.87 277.50 153.98 280.28 158.81L281.41 157.67H281.40Z"/>
+                  </svg>
+                </span>
+                <span class="mb-ws">
+                  <span class="mb-ws__avatar">CO</span>
+                  <span class="mb-ws__name">compozy</span>
+                  <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                </span>
+                <nav class="mb-menus" aria-label="App menus">
+                  <span class="mb-menu">Session</span>
+                  <span class="mb-menu">Go</span>
+                  <span class="mb-menu">Window</span>
+                  <span class="mb-menu">Help</span>
+                </nav>
+              </div>
+              <div class="mb-trail">
+                <span class="mb-icon" aria-label="Approvals">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+                </span>
+                <span class="mb-chip">⌘K</span>
+                <a class="mb-icon mb-update" href="electron-shell-settings-updates.html" title="Update available" aria-label="Update available">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>
+                </a>
+                <span class="mb-icon" aria-label="Settings">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </span>
+              </div>
+            </header>
+            <div style="padding:26px 22px 0;display:flex;justify-content:center">
+              <section class="win" style="width:min(560px,100%)">
+                <header class="win-head">
+                  <div class="win-controls"><span class="wc"></span><span class="wc"></span><span class="wc"></span></div>
+                  <span class="win-title">Sessions</span>
+                </header>
+                <div class="win-body" style="height:96px"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-14 · FOCUS-VISIBLE ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-14</span><h2 class="lab-sec__t">Focus-visible — keyboard</h2>
+        <span class="lab-sec__gist">shipped 2px ring · Enter or Space navigates</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Reachable, then useful</b>The control joins the natural tab order between the ⌘K chip and the settings cog. Focus paints the shipped ring (<code>--shadow-focus-ring</code>: 2px at 50% white, ≥3:1 on the glass) — the ink does not change, so focus and state stay separate signals. Enter or Space lands on Settings → General with the Updates section in view (US-029.AC-4).</div>
+        <div class="spec__demo">
+          <div class="stage stage--desk">
+            <header class="menubar">
+              <div class="mb-side">
+                <span class="mb-logo" aria-label="CompozyOS">
+                  <svg viewBox="0 0 355 355" aria-hidden="true">
+                    <rect width="355" height="355" rx="64" fill="#E8572A"/>
+                    <path fill="#231F20" d="M249.48 146.41C232.84 146.41 219.35 159.91 219.35 176.55C219.35 193.19 232.84 206.69 249.48 206.69C266.13 206.69 279.62 193.19 279.62 176.55C279.62 159.91 266.13 146.41 249.48 146.41ZM249.48 190.50C241.78 190.50 235.54 184.25 235.54 176.55C235.54 168.85 241.78 162.60 249.48 162.60C257.18 162.60 263.43 168.85 263.43 176.55C263.43 184.25 257.18 190.50 249.48 190.50Z"/>
+                    <path fill="#231F20" d="M105.28 146.41C88.63 146.41 75.14 159.91 75.14 176.55C75.14 193.19 88.63 206.69 105.28 206.69C121.92 206.69 135.41 193.19 135.41 176.55C135.41 159.91 121.92 146.41 105.28 146.41ZM105.28 190.50C97.57 190.50 91.33 184.25 91.33 176.55C91.33 168.85 97.57 162.60 105.28 162.60C112.98 162.60 119.22 168.85 119.22 176.55C119.22 184.25 112.98 190.50 105.28 190.50Z"/>
+                    <path fill="#231F20" d="M282.15 194.81C282.01 194.67 281.88 194.54 281.74 194.40L280.77 193.45C277.86 198.81 273.61 203.34 268.48 206.59C283.84 223.81 283.27 250.23 266.75 266.75C249.63 283.87 221.88 283.87 204.76 266.75L193.35 255.34L181.78 267.12L196.33 281.40C220.35 304.99 258.95 304.63 282.53 280.61C305.99 256.72 305.77 218.43 282.15 194.81Z"/>
+                    <path fill="#231F20" d="M232.03 145.59L192.82 107.09L180.95 118.96L219.49 157.49C222.62 152.56 226.93 148.47 232.03 145.59V145.59Z"/>
+                    <path fill="#231F20" d="M232.31 207.68C227.28 204.9 222.99 200.93 219.83 196.15L149.23 266.75C132.12 283.87 104.36 283.87 87.24 266.75C70.62 250.13 70.14 223.49 85.79 206.28C81.17 203.24 77.30 199.16 74.52 194.36L72.59 196.33C49.14 220.22 49.36 258.51 72.98 282.14C73.11 282.27 73.25 282.41 73.39 282.54C97.41 306.13 136.01 305.77 159.59 281.75L232.31 207.68L232.31 207.68Z"/>
+                    <path fill="#231F20" d="M85.30 147.15C70.16 129.93 70.80 103.68 87.24 87.24C104.36 70.12 132.12 70.12 149.23 87.24L160.65 98.65L172.21 86.87L157.67 72.59C133.64 49.00 95.04 49.36 71.46 73.38C48.01 97.27 48.23 135.56 71.85 159.18C71.98 159.32 72.12 159.45 72.26 159.59L73.44 160.75C76.17 155.26 80.27 150.57 85.31 147.15H85.30Z"/>
+                    <path fill="#231F20" d="M134.62 196.61C131.32 201.43 126.87 205.39 121.66 208.10L161.17 246.90L173.04 235.03L134.62 196.61Z"/>
+                    <path fill="#231F20" d="M281.40 157.67C304.86 133.78 304.64 95.48 281.02 71.86C280.88 71.72 280.75 71.59 280.61 71.46C256.58 47.87 217.99 48.23 194.40 72.24L122.52 145.47C127.54 148.26 131.82 152.24 134.97 157.02L204.76 87.24C221.88 70.12 249.63 70.12 266.75 87.24C283.09 103.58 283.82 129.60 268.97 146.82C273.61 149.87 277.50 153.98 280.28 158.81L281.41 157.67H281.40Z"/>
+                  </svg>
+                </span>
+                <span class="mb-ws">
+                  <span class="mb-ws__avatar">CO</span>
+                  <span class="mb-ws__name">compozy</span>
+                  <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                </span>
+                <nav class="mb-menus" aria-label="App menus">
+                  <span class="mb-menu">Session</span>
+                  <span class="mb-menu">Go</span>
+                  <span class="mb-menu">Window</span>
+                  <span class="mb-menu">Help</span>
+                </nav>
+              </div>
+              <div class="mb-trail">
+                <span class="mb-icon" aria-label="Approvals">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+                </span>
+                <span class="mb-chip">⌘K</span>
+                <a class="mb-icon mb-update is-focused" href="electron-shell-settings-updates.html" title="Update available" aria-label="Update available">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>
+                </a>
+                <span class="mb-icon" aria-label="Settings">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </span>
+              </div>
+            </header>
+            <div style="padding:26px 22px 0;display:flex;justify-content:center">
+              <section class="win" style="width:min(560px,100%)">
+                <header class="win-head">
+                  <div class="win-controls"><span class="wc"></span><span class="wc"></span><span class="wc"></span></div>
+                  <span class="win-title">Sessions</span>
+                </header>
+                <div class="win-body" style="height:96px"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-15 · SUPPRESSED ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-15</span><h2 class="lab-sec__t">Suppressed — an update operation is live</h2>
+        <span class="lab-sec__gist">applying · staged · failed → the bar says nothing</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The offer is over</b>Once an operation exists the indicator has nothing left to offer, so it disappears the moment apply is accepted and stays gone through applying, staged, and failed (US-029.EC-4). Progress and errors live only in the section — the menubar never grows a progress ring, a percentage, or an error badge. Identical DOM to VC-12: no element at all.</div>
+        <div class="spec__demo">
+          <div class="stage stage--desk">
+            <header class="menubar">
+              <div class="mb-side">
+                <span class="mb-logo" aria-label="CompozyOS">
+                  <svg viewBox="0 0 355 355" aria-hidden="true">
+                    <rect width="355" height="355" rx="64" fill="#E8572A"/>
+                    <path fill="#231F20" d="M249.48 146.41C232.84 146.41 219.35 159.91 219.35 176.55C219.35 193.19 232.84 206.69 249.48 206.69C266.13 206.69 279.62 193.19 279.62 176.55C279.62 159.91 266.13 146.41 249.48 146.41ZM249.48 190.50C241.78 190.50 235.54 184.25 235.54 176.55C235.54 168.85 241.78 162.60 249.48 162.60C257.18 162.60 263.43 168.85 263.43 176.55C263.43 184.25 257.18 190.50 249.48 190.50Z"/>
+                    <path fill="#231F20" d="M105.28 146.41C88.63 146.41 75.14 159.91 75.14 176.55C75.14 193.19 88.63 206.69 105.28 206.69C121.92 206.69 135.41 193.19 135.41 176.55C135.41 159.91 121.92 146.41 105.28 146.41ZM105.28 190.50C97.57 190.50 91.33 184.25 91.33 176.55C91.33 168.85 97.57 162.60 105.28 162.60C112.98 162.60 119.22 168.85 119.22 176.55C119.22 184.25 112.98 190.50 105.28 190.50Z"/>
+                    <path fill="#231F20" d="M282.15 194.81C282.01 194.67 281.88 194.54 281.74 194.40L280.77 193.45C277.86 198.81 273.61 203.34 268.48 206.59C283.84 223.81 283.27 250.23 266.75 266.75C249.63 283.87 221.88 283.87 204.76 266.75L193.35 255.34L181.78 267.12L196.33 281.40C220.35 304.99 258.95 304.63 282.53 280.61C305.99 256.72 305.77 218.43 282.15 194.81Z"/>
+                    <path fill="#231F20" d="M232.03 145.59L192.82 107.09L180.95 118.96L219.49 157.49C222.62 152.56 226.93 148.47 232.03 145.59V145.59Z"/>
+                    <path fill="#231F20" d="M232.31 207.68C227.28 204.9 222.99 200.93 219.83 196.15L149.23 266.75C132.12 283.87 104.36 283.87 87.24 266.75C70.62 250.13 70.14 223.49 85.79 206.28C81.17 203.24 77.30 199.16 74.52 194.36L72.59 196.33C49.14 220.22 49.36 258.51 72.98 282.14C73.11 282.27 73.25 282.41 73.39 282.54C97.41 306.13 136.01 305.77 159.59 281.75L232.31 207.68L232.31 207.68Z"/>
+                    <path fill="#231F20" d="M85.30 147.15C70.16 129.93 70.80 103.68 87.24 87.24C104.36 70.12 132.12 70.12 149.23 87.24L160.65 98.65L172.21 86.87L157.67 72.59C133.64 49.00 95.04 49.36 71.46 73.38C48.01 97.27 48.23 135.56 71.85 159.18C71.98 159.32 72.12 159.45 72.26 159.59L73.44 160.75C76.17 155.26 80.27 150.57 85.31 147.15H85.30Z"/>
+                    <path fill="#231F20" d="M134.62 196.61C131.32 201.43 126.87 205.39 121.66 208.10L161.17 246.90L173.04 235.03L134.62 196.61Z"/>
+                    <path fill="#231F20" d="M281.40 157.67C304.86 133.78 304.64 95.48 281.02 71.86C280.88 71.72 280.75 71.59 280.61 71.46C256.58 47.87 217.99 48.23 194.40 72.24L122.52 145.47C127.54 148.26 131.82 152.24 134.97 157.02L204.76 87.24C221.88 70.12 249.63 70.12 266.75 87.24C283.09 103.58 283.82 129.60 268.97 146.82C273.61 149.87 277.50 153.98 280.28 158.81L281.41 157.67H281.40Z"/>
+                  </svg>
+                </span>
+                <span class="mb-ws">
+                  <span class="mb-ws__avatar">CO</span>
+                  <span class="mb-ws__name">compozy</span>
+                  <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                </span>
+                <nav class="mb-menus" aria-label="App menus">
+                  <span class="mb-menu">Session</span>
+                  <span class="mb-menu">Go</span>
+                  <span class="mb-menu">Window</span>
+                  <span class="mb-menu">Help</span>
+                </nav>
+              </div>
+              <div class="mb-trail">
+                <span class="mb-icon" aria-label="Approvals">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+                </span>
+                <span class="mb-chip">⌘K</span>
+                <span class="mb-icon" aria-label="Settings">
+                  <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </span>
+              </div>
+            </header>
+            <div style="padding:26px 22px 0;display:flex;justify-content:center">
+              <section class="win" style="width:min(560px,100%)">
+                <header class="win-head">
+                  <div class="win-controls"><span class="wc"></span><span class="wc"></span><span class="wc"></span></div>
+                  <span class="win-title">Settings</span>
+                </header>
+                <div class="win-body" style="padding:16px 18px">
+                  <div class="panelbox">
+                    <div class="srow">
+                      <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                      <div class="srow__ctl">
+                        <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                        <span class="phase">
+                          <svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" role="status" aria-label="Applying"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                          <span class="phase__name">install</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MAP · VISIBILITY CONTRACT ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">MAP</span><h2 class="lab-sec__t">Visibility contract</h2>
+        <span class="lab-sec__gist">one predicate, computed from the same payload as S1</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Shown only when an offer exists</b>The predicate is narrow on purpose: an available update on either track, and no live operation. Everything else — including states that clearly need attention, like <code>failed</code> — belongs to the section, because the menubar cannot say what to do about them.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>daemon state</th><th>indicator</th><th>why</th></tr></thead>
+              <tbody>
+                <tr><td>both up-to-date</td><td class="ex">not rendered</td><td>nothing to offer</td></tr>
+                <tr><td>runtime available</td><td class="ex">rendered</td><td>an offer exists</td></tr>
+                <tr><td>app available</td><td class="ex">rendered</td><td>an offer exists</td></tr>
+                <tr><td>both available</td><td class="ex">rendered — same control</td><td>the bar never counts</td></tr>
+                <tr><td>available + managed runtime</td><td class="ex">rendered</td><td>the section holds the command to run</td></tr>
+                <tr><td>operation live (applying)</td><td class="ex">not rendered</td><td>already acted on</td></tr>
+                <tr><td>app staged</td><td class="ex">not rendered</td><td>already acted on</td></tr>
+                <tr><td>failed</td><td class="ex">not rendered</td><td>recovery is a section decision</td></tr>
+                <tr><td>blocked</td><td class="ex">not rendered</td><td>an operation exists</td></tr>
+                <tr><td>refresh failed</td><td class="ex">last known verdict</td><td>never invents an offer from a failed read</td></tr>
+                <tr><td>checking (first load)</td><td class="ex">not rendered</td><td>unknown renders as nothing</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>What it never grows</b>Calm defaults are the whole point of putting this in the chrome: it is allowed to exist only because it is silent, singular, and rare.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>never</th><th>instead</th></tr></thead>
+              <tbody>
+                <tr><td>count badge</td><td>one control, whether one track or both</td></tr>
+                <tr><td>dropdown or hover card</td><td>activation navigates to the section</td></tr>
+                <tr><td>pulse or entrance animation</td><td>it appears on a poll, silently</td></tr>
+                <tr><td>progress or percentage</td><td>progress lives in S1 only</td></tr>
+                <tr><td>error badge</td><td>failures live in S1 only</td></tr>
+                <tr><td>dismiss or snooze</td><td>the daemon's state is the only thing that clears it</td></tr>
+                <tr><td>accent ink</td><td>info — accent stays the single action colour elsewhere</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Same in a browser</b>The SPA has no desktop awareness: the indicator is rendered from the daemon payload, so a plain browser tab pointed at the same daemon shows the same bar with the same control — including on a host with no desktop app, where only the runtime track can ever produce the offer (US-029.AC-3).</div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span class="mb-icon mb-update" role="img" aria-label="Update available">
+              <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>
+            </span>
+            <span style="font-size:11.5px;color:var(--subtle)">One component, one payload, zero user-agent branching — no bridge, no <code class="mono">isDesktop</code>, no shell detection.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+</body>
+</html>

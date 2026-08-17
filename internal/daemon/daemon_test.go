@@ -366,6 +366,20 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("daemon.json exists after RemoveInfo(): stat error = %v, want os.ErrNotExist", err)
 	}
+
+	t.Run("Should reject an oversized daemon discovery record", func(t *testing.T) {
+		t.Parallel()
+
+		oversizedPath := filepath.Join(t.TempDir(), "daemon.json")
+		if err := os.WriteFile(oversizedPath, bytes.Repeat([]byte("x"), daemonInfoMaxBytes+1), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(oversized daemon info) error = %v", err)
+		}
+
+		_, err := ReadInfo(oversizedPath)
+		if err == nil || !strings.Contains(err.Error(), "exceeds 65536 bytes") {
+			t.Fatalf("ReadInfo(oversized daemon info) error = %v, want bounded-record error", err)
+		}
+	})
 }
 
 func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
@@ -2422,15 +2436,44 @@ func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {
 func TestNewDaemonExtensionServiceHandlesNilRegistryAndDefaults(t *testing.T) {
 	t.Parallel()
 
-	if svc := newDaemonExtensionService(daemonExtensionServiceDeps{}); svc != nil {
-		t.Fatalf("newDaemonExtensionService(nil) = %#v, want nil", svc)
-	}
+	t.Run("Should reject nil dependencies", func(t *testing.T) {
+		t.Parallel()
 
-	db := openDaemonTestGlobalDB(t)
-	registry := extensionpkg.NewRegistry(db.DB())
-	if svc := newDaemonExtensionService(daemonExtensionServiceDeps{Registry: registry}); svc == nil {
-		t.Fatal("newDaemonExtensionService(defaults) = nil, want service")
-	}
+		if svc := newDaemonExtensionService(nil); svc != nil {
+			t.Fatalf("newDaemonExtensionService(nil) = %#v, want nil", svc)
+		}
+	})
+
+	t.Run("Should reject a nil registry", func(t *testing.T) {
+		t.Parallel()
+
+		if svc := newDaemonExtensionService(&daemonExtensionServiceDeps{}); svc != nil {
+			t.Fatalf("newDaemonExtensionService(empty) = %#v, want nil", svc)
+		}
+	})
+
+	t.Run("Should apply defaults without mutating caller dependencies", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		deps := &daemonExtensionServiceDeps{Registry: registry}
+		svc, ok := newDaemonExtensionService(deps).(*daemonExtensionService)
+		if !ok || svc == nil {
+			t.Fatal("newDaemonExtensionService(defaults) did not return daemon service")
+		}
+		if deps.Logger != nil || deps.Now != nil || deps.Getenv != nil {
+			t.Fatalf("caller dependencies mutated = %#v", deps)
+		}
+		if svc.logger == nil || svc.now == nil || svc.getenv == nil {
+			t.Fatalf(
+				"service defaults present = logger:%t now:%t getenv:%t, want all true",
+				svc.logger != nil,
+				svc.now != nil,
+				svc.getenv != nil,
+			)
+		}
+	})
 }
 
 func TestBootExtensionsLogsStartFailureAndKeepsPartialRuntime(t *testing.T) {
@@ -2950,7 +2993,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		syncs := 0
 		fixedNow := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry: registry,
 				Runtime:  manager,
 				HookBindings: fakeHookBindingPublisher(func(context.Context) error {
@@ -3162,7 +3205,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		db := openDaemonTestGlobalDB(t)
 		registry := extensionpkg.NewRegistry(db.DB())
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry: registry, HomePaths: homePaths, Logger: discardLogger(), Now: time.Now,
 			},
 			withDaemonExtensionMarketplace(
@@ -3331,7 +3374,7 @@ func newDaemonDistributionInstallService(
 	db := openDaemonTestGlobalDB(t)
 	registry := extensionpkg.NewRegistry(db.DB())
 	service, ok := newDaemonExtensionService(
-		daemonExtensionServiceDeps{
+		&daemonExtensionServiceDeps{
 			Registry:  registry,
 			HomePaths: homePaths,
 			Logger:    discardLogger(),
@@ -3545,7 +3588,7 @@ func TestDaemonExtensionServiceRollsBackFailedEnableReload(t *testing.T) {
 		})
 
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry: registry,
 				Runtime:  manager,
 				HookBindings: fakeHookBindingPublisher(func(context.Context) error {

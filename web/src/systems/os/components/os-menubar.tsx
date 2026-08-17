@@ -33,6 +33,11 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   notifications?: number;
   /** Non-interactive system status rendered in the trailing cluster, before the bell. */
   status?: React.ReactNode;
+  /**
+   * Interactive update offer, rendered before the approvals bell.
+   * Separate from `status` because that slot is non-interactive by contract.
+   */
+  updateIndicator?: React.ReactNode;
   onCommandClick?: () => void;
   onSettingsClick?: () => void;
   /** Live daemon binding for the command-palette chip. */
@@ -51,8 +56,13 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
 }
 
-const INTERACTIVE =
-  "transition-colors duration-base hover:bg-btn-default-fill hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none";
+const WINDOW_DRAG = "[app-region:drag]";
+const WINDOW_NO_DRAG = "[app-region:no-drag]";
+const INTERACTIVE = [
+  WINDOW_NO_DRAG,
+  "transition-colors duration-base hover:bg-btn-default-fill hover:text-fg-strong",
+  "focus-visible:shadow-focus-ring focus-visible:outline-none",
+].join(" ");
 
 interface ControlProps extends Omit<React.ComponentProps<"button">, "onClick" | "children"> {
   onClick?: () => void;
@@ -127,6 +137,7 @@ export function OsMenuBar({
   menus,
   notifications,
   status,
+  updateIndicator,
   onCommandClick,
   onSettingsClick,
   commandShortcutLabel,
@@ -182,72 +193,87 @@ export function OsMenuBar({
       data-slot="os-menubar"
       aria-label="System bar"
       className={cn(
-        "flex h-menubar shrink-0 items-center justify-between border-b border-line bg-shell-glass px-2.5 backdrop-blur-shell",
+        "flex h-menubar shrink-0 items-center justify-between border-b border-line bg-shell-glass backdrop-blur-shell select-none",
+        WINDOW_DRAG,
         className
       )}
       {...props}
     >
-      <div className="flex min-w-0 items-center gap-1">
-        <div data-slot="os-menubar-identity" className="flex items-center gap-1">
-          {wrapMenus ? (
-            <Menubar aria-label="System menu" className="gap-1">
-              {logoControl}
+      <div
+        data-slot="os-menubar-safe-area"
+        className={cn(
+          "flex h-full min-w-0 items-center justify-between px-2.5",
+          WINDOW_DRAG,
+          "ml-[env(titlebar-area-x,0px)] w-[env(titlebar-area-width,100%)]"
+        )}
+      >
+        <div className={cn("flex min-w-0 items-center gap-1", WINDOW_NO_DRAG)}>
+          <div data-slot="os-menubar-identity" className="flex items-center gap-1">
+            {wrapMenus ? (
+              <Menubar aria-label="System menu" className={cn("gap-1", WINDOW_NO_DRAG)}>
+                {logoControl}
+              </Menubar>
+            ) : (
+              logoControl
+            )}
+            {scopeControl}
+            {wrapMenus ? (
+              <Menubar aria-label="Workspace" className={cn("gap-1", WINDOW_NO_DRAG)}>
+                {workspaceControl}
+              </Menubar>
+            ) : (
+              workspaceControl
+            )}
+          </div>
+          {menus ? (
+            <Menubar
+              data-slot="os-menubar-menus"
+              aria-label="App menus"
+              className={cn("gap-1", WINDOW_NO_DRAG)}
+            >
+              {menus}
             </Menubar>
-          ) : (
-            logoControl
-          )}
-          {scopeControl}
-          {wrapMenus ? (
-            <Menubar aria-label="Workspace" className="gap-1">
-              {workspaceControl}
-            </Menubar>
-          ) : (
-            workspaceControl
-          )}
+          ) : null}
         </div>
-        {menus ? (
-          <Menubar data-slot="os-menubar-menus" aria-label="App menus" className="gap-1">
-            {menus}
-          </Menubar>
-        ) : null}
-      </div>
 
-      <div className="flex items-center gap-2">
-        {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
-            not a menu item, and nesting it there breaks the menu's semantics. */}
-        {scopeNotice}
-        {status}
-        <Control
-          data-slot="os-menubar-bell"
-          // The badge count reaches assistive tech through the label — the
-          // visible badge alone would be stripped by a bare "Approvals" name.
-          aria-label={notifications ? `Approvals, ${notifications} waiting` : "Approvals"}
-          aria-haspopup={wrapBellTrigger ? "true" : undefined}
-          className="relative grid size-7 place-items-center rounded-md text-muted"
-          wrap={wrapBellTrigger}
-        >
-          <Icon as={Bell} size="lg" />
-          {notifications ? <NotificationBadge count={notifications} /> : null}
-        </Control>
-        {commandShortcutLabel ? (
+        <div className={cn("flex items-center gap-2", WINDOW_NO_DRAG)}>
+          {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
+              not a menu item, and nesting it there breaks the menu's semantics. */}
+          {scopeNotice}
+          {status}
+          {updateIndicator}
           <Control
-            data-slot="os-menubar-command"
-            title="Command palette"
-            className="flex h-menubar-chip items-center rounded-md border border-line px-2.5 font-mono text-eyebrow text-muted"
-            onClick={onCommandClick}
+            data-slot="os-menubar-bell"
+            // The badge count reaches assistive tech through the label — the
+            // visible badge alone would be stripped by a bare "Approvals" name.
+            aria-label={notifications ? `Approvals, ${notifications} waiting` : "Approvals"}
+            aria-haspopup={wrapBellTrigger ? "true" : undefined}
+            className="relative grid size-7 place-items-center rounded-md text-muted"
+            wrap={wrapBellTrigger}
           >
-            {commandShortcutLabel}
+            <Icon as={Bell} size="lg" />
+            {notifications ? <NotificationBadge count={notifications} /> : null}
           </Control>
-        ) : null}
-        <Control
-          data-slot="os-menubar-settings"
-          aria-label="Settings"
-          title="Settings"
-          className="grid size-7 place-items-center rounded-md text-muted"
-          onClick={onSettingsClick}
-        >
-          <Icon as={Settings} size="lg" />
-        </Control>
+          {commandShortcutLabel ? (
+            <Control
+              data-slot="os-menubar-command"
+              title="Command palette"
+              className="flex h-menubar-chip items-center rounded-md border border-line px-2.5 font-mono text-eyebrow text-muted"
+              onClick={onCommandClick}
+            >
+              {commandShortcutLabel}
+            </Control>
+          ) : null}
+          <Control
+            data-slot="os-menubar-settings"
+            aria-label="Settings"
+            title="Settings"
+            className="grid size-7 place-items-center rounded-md text-muted"
+            onClick={onSettingsClick}
+          >
+            <Icon as={Settings} size="lg" />
+          </Control>
+        </div>
       </div>
     </header>
   );

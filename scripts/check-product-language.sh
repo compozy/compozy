@@ -33,8 +33,7 @@ else
     internal/agentidentity
     internal/store/migration_refusal.go
     internal/update
-    desktop/src-tauri/pages
-    desktop/src-tauri/tauri.conf.json
+    desktop/pages
     .github/actions
     .github/workflows
     .goreleaser.yml

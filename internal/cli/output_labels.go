@@ -23,6 +23,7 @@ const (
 	cliNameValue      = "Name"
 	cliRuntimeValue   = "Runtime"
 	cliReasonValue    = "Reason"
+	cliReleaseValue   = "Release"
 	cliRuntimeKey     = "runtime"
 	cliInstalledValue = "Installed"
 	cliSchemaVersion  = "schema_version"

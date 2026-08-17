@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -133,7 +134,7 @@ func TestDetectInstallMethods(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				manager := testManager(t, tc.cfg)
+				manager := testManager(t, &tc.cfg)
 				info, err := manager.detectInstall(t.Context())
 				if err != nil {
 					t.Fatalf("detectInstall() error = %v", err)
@@ -162,15 +163,29 @@ func runDesktopProvenanceCases(t *testing.T) {
 		{
 			name: "Should detect matching desktop app provenance",
 			marker: func(digest string) []byte {
-				return []byte(`{"installed_by":"desktop-app","binary_sha256":"` + digest + `"}`)
+				return fmt.Appendf(
+					nil,
+					`{"installed_by":"desktop-app","binary_sha256":"%s","app_version":"1.0.0-beta.1","channel":"beta","runtime_version":"1.0.0-beta.1"}`,
+					digest,
+				)
 			},
 			wantMethod:  InstallMethodDesktopApp,
-			wantManaged: true,
+			wantManaged: false,
+		},
+		{
+			name: "Should fall through when desktop provenance metadata is incomplete",
+			marker: func(digest string) []byte {
+				return []byte(`{"installed_by":"desktop-app","binary_sha256":"` + digest + `"}`)
+			},
+			wantMethod: InstallMethodDirectBinary,
 		},
 		{
 			name: "Should fall through when desktop provenance hash mismatches",
 			marker: func(string) []byte {
-				return []byte(`{"installed_by":"desktop-app","binary_sha256":"deadbeef"}`)
+				return []byte(
+					`{"installed_by":"desktop-app","binary_sha256":"deadbeef",` +
+						`"app_version":"1.0.0-beta.1","channel":"beta","runtime_version":"1.0.0-beta.1"}`,
+				)
 			},
 			wantMethod: InstallMethodDirectBinary,
 		},
@@ -203,7 +218,7 @@ func runDesktopProvenanceCases(t *testing.T) {
 			if err := os.WriteFile(markerPath, tc.marker(hex.EncodeToString(digest[:])), 0o600); err != nil {
 				t.Fatalf("WriteFile(marker) error = %v", err)
 			}
-			manager := testManager(t, Config{
+			manager := testManager(t, &Config{
 				HomePaths:      homePaths,
 				RuntimeOS:      runtimeOSLinux,
 				ExecutablePath: func() (string, error) { return binaryPath, nil },

@@ -41,11 +41,22 @@ func AssertStrictlyGreater(candidate, live string) error {
 	return nil
 }
 
-func AssertDefaultComparator(source string) error {
-	for _, forbidden := range []string{"allowDowngrades", "version_comparator"} {
-		if strings.Contains(source, forbidden) {
-			return fmt.Errorf("desktop release: custom updater comparator %q is forbidden", forbidden)
-		}
+func AssertCompatibleWithPrevious(minAppVersion, previousAppVersion string) error {
+	if err := ValidateVersion(minAppVersion); err != nil {
+		return fmt.Errorf("desktop release: min_app_version: %w", err)
+	}
+	if previousAppVersion == "" {
+		return nil
+	}
+	if err := ValidateVersion(previousAppVersion); err != nil {
+		return fmt.Errorf("desktop release: previous app version: %w", err)
+	}
+	if semver.Compare("v"+minAppVersion, "v"+previousAppVersion) > 0 {
+		return fmt.Errorf(
+			"desktop release: min_app_version %s exceeds previous channel app version %s",
+			minAppVersion,
+			previousAppVersion,
+		)
 	}
 	return nil
 }

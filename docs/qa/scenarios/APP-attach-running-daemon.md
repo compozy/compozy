@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: With a healthy runtime and an active session, the app shows the identical workspace/session state the browser tab shows (same origin, same local UI state), no second daemon appears, the existing process is never terminated, and side-by-side actions reflect live in both surfaces.
 entry_points: dock/launcher icon with a running daemon; browser tab open side by side
-qa_status: blocked-verify
+qa_status: pass
 bug_ids: BUG-20260810-desktop-runtime-stalls
 fix_status: fixed
-retest_status: blocked-verify
+retest_status: pass
 fix_commits: b415f24b; b3aa3d27; bd610cfa; 02b55a46
-evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-attached.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/quit-runtime-survives.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt; /Users/pedronauck/dev/qa-labs/compozy-desktop-startup-diagnostics-20260811-200336-439901-lab/qa-artifacts/qa/runtime-cli-walk.md
-last_report: docs/qa/reports/2026-08-11-desktop-startup-diagnostics.md
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps:
 ---
 
@@ -21,9 +21,9 @@ squatter; EC-3 unhealthy), US-020 (browser coexistence AC-1/AC-2, EC-1 different
 mixed). Test IDs: E2E-003, E2E-018; IT-001, IT-004, IT-026, IT-027, IT-028; UT-013–UT-023,
 UT-089–UT-091.
 
-Per-OS evidence (N-004): all three OSes capture process-table before/after app open (no spawn),
+Per-OS evidence: macOS and Linux capture process-table before/after app open (no spawn),
 same-origin proof (session + local UI state parity with the tab), and the live two-way sync walk
-(E2E-018). macOS via scripted-manual smoke; Windows/Linux via tauri-driver plus manual sync check.
+(E2E-011). Both use Playwright `_electron` plus the recorded manual sync check.
 Isolated-home labs only: the lab manifest's `COMPOZY_HOME` must be the one resolved — never the
 operator default home.
 

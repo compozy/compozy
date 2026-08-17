@@ -30,6 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -443,16 +444,39 @@ func (s *stubSettingsRestartController) RequestRestart(
 }
 
 type stubSettingsUpdateController struct {
-	GetFn    func(context.Context) (core.SettingsUpdateStatus, error)
-	GetCalls int
+	GetFn       func(context.Context) (compozyupdate.MultiState, error)
+	ApplyFn     func(context.Context, compozyupdate.Target) (core.SettingsUpdateApply, error)
+	CancelFn    func(context.Context) (core.SettingsUpdateCancel, error)
+	GetCalls    int
+	ApplyCalls  int
+	CancelCalls int
 }
 
-func (s *stubSettingsUpdateController) GetUpdate(ctx context.Context) (core.SettingsUpdateStatus, error) {
+func (s *stubSettingsUpdateController) GetUpdate(ctx context.Context) (compozyupdate.MultiState, error) {
 	s.GetCalls++
 	if s.GetFn != nil {
 		return s.GetFn(ctx)
 	}
-	return core.SettingsUpdateStatus{}, nil
+	return compozyupdate.MultiState{}, nil
+}
+
+func (s *stubSettingsUpdateController) ApplyUpdate(
+	ctx context.Context,
+	target compozyupdate.Target,
+) (core.SettingsUpdateApply, error) {
+	s.ApplyCalls++
+	if s.ApplyFn != nil {
+		return s.ApplyFn(ctx, target)
+	}
+	return core.SettingsUpdateApply{}, nil
+}
+
+func (s *stubSettingsUpdateController) CancelUpdate(ctx context.Context) (core.SettingsUpdateCancel, error) {
+	s.CancelCalls++
+	if s.CancelFn != nil {
+		return s.CancelFn(ctx)
+	}
+	return core.SettingsUpdateCancel{}, nil
 }
 
 func (s *stubSettingsRestartController) GetRestartOperation(
@@ -538,6 +562,8 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.POST("/reload", handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/update", handlers.GetSettingsUpdate)
+	settings.POST("/update/apply", handlers.ApplySettingsUpdate)
+	settings.POST("/update/cancel", handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
@@ -1113,19 +1139,18 @@ func TestGetSettingsUpdateReturnsCurrentSnapshot(t *testing.T) {
 		t.Parallel()
 
 		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
-		fixture.Update.GetFn = func(context.Context) (core.SettingsUpdateStatus, error) {
-			checkedAt := time.Date(2026, 5, 3, 19, 0, 0, 0, time.UTC)
-			return core.SettingsUpdateStatus{
-				Supported:      true,
-				Managed:        false,
-				InstallMethod:  "direct-binary",
-				CurrentVersion: "v1.0.0",
-				LatestVersion:  "v1.1.0",
-				Available:      true,
-				Status:         "available",
-				Recommendation: "Run `compozy update`.",
-				ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
-				CheckedAt:      &checkedAt,
+		fixture.Update.GetFn = func(context.Context) (compozyupdate.MultiState, error) {
+			return compozyupdate.MultiState{
+				Aggregate: compozyupdate.StatusAvailable,
+				Runtime: compozyupdate.RuntimeTrackState{
+					Status:         compozyupdate.StatusAvailable,
+					InstallMethod:  "direct-binary",
+					CurrentVersion: "v1.0.0",
+					LatestVersion:  "v1.1.0",
+					Recommendation: "Run `compozy update`.",
+					ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
+					Message:        "CompozyOS runtime v1.1.0 is available.",
+				},
 			}, nil
 		}
 
@@ -1138,11 +1163,135 @@ func TestGetSettingsUpdateReturnsCurrentSnapshot(t *testing.T) {
 		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(update response) error = %v", err)
 		}
-		if payload.Status != contract.SettingsUpdateStatusAvailable || payload.InstallMethod != "direct-binary" {
+		if payload.Aggregate != contract.SettingsUpdateStatusAvailable ||
+			payload.Runtime.InstallMethod != "direct-binary" {
 			t.Fatalf("update payload = %#v, want available direct-binary", payload)
 		}
 		if fixture.Update.GetCalls != 1 {
 			t.Fatalf("GetCalls = %d, want 1", fixture.Update.GetCalls)
+		}
+	})
+
+	t.Run("Should publish unknown when the install method is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+		fixture.Update.GetFn = func(context.Context) (compozyupdate.MultiState, error) {
+			return compozyupdate.MultiState{
+				Aggregate: compozyupdate.StatusUpToDate,
+				Runtime: compozyupdate.RuntimeTrackState{
+					Status: compozyupdate.StatusUpToDate,
+				},
+			}, nil
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/update", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("GET /api/settings/update status = %d, want 200", resp.Code)
+		}
+
+		var payload contract.SettingsUpdateResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(update response) error = %v", err)
+		}
+		if payload.Runtime.InstallMethod != contract.SettingsUpdateInstallUnknown {
+			t.Fatalf(
+				"payload.Runtime.InstallMethod = %q, want %q",
+				payload.Runtime.InstallMethod,
+				contract.SettingsUpdateInstallUnknown,
+			)
+		}
+	})
+}
+
+func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
+	t.Run("Should return an accepted runtime operation", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+		fixture.Update.ApplyFn = func(_ context.Context, target compozyupdate.Target) (core.SettingsUpdateApply, error) {
+			if target != compozyupdate.TargetRuntime {
+				t.Fatalf("ApplyUpdate() target = %q, want runtime", target)
+			}
+			return core.SettingsUpdateApply{
+				Target: target, Status: compozyupdate.ApplyStatusAccepted,
+				OperationID: "operation-1", Message: "Update accepted.",
+			}, nil
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/api/settings/update/apply",
+			[]byte(`{"target":"runtime"}`),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("POST apply status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		var payload contract.SettingsUpdateApplyResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(apply response) error = %v", err)
+		}
+		if payload.Status != contract.SettingsUpdateApplyAccepted ||
+			payload.Target != contract.SettingsUpdateTargetRuntime ||
+			payload.OperationID != "operation-1" ||
+			fixture.Update.ApplyCalls != 1 {
+			t.Fatalf("apply response = %#v calls=%d, want accepted runtime", payload, fixture.Update.ApplyCalls)
+		}
+	})
+
+	t.Run("Should reject an unknown target before invoking the controller", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/api/settings/update/apply",
+			[]byte(`{"target":"everything"}`),
+		)
+		if resp.Code != http.StatusBadRequest || fixture.Update.ApplyCalls != 0 {
+			t.Fatalf(
+				"POST invalid apply status=%d calls=%d body=%s",
+				resp.Code,
+				fixture.Update.ApplyCalls,
+				resp.Body.String(),
+			)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error response) error = %v", err)
+		}
+		if payload.Error != "settings: update target must be runtime or app" {
+			t.Fatalf("invalid target error = %#v, want stable validation message", payload)
+		}
+	})
+
+	t.Run("Should return a blocked cancel with its live holder", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+		fixture.Update.CancelFn = func(context.Context) (core.SettingsUpdateCancel, error) {
+			return core.SettingsUpdateCancel{
+				Status: compozyupdate.StatusBlocked, OperationID: "operation-2",
+				Message: "The update operation has a live executor and was not canceled.",
+				Holder:  &compozyupdate.Holder{PID: 4242, Surface: compozyupdate.ActorCLI},
+			}, nil
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/api/settings/update/cancel", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("POST cancel status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		var payload contract.SettingsUpdateCancelResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(cancel response) error = %v", err)
+		}
+		if payload.Status != contract.SettingsUpdateStatusBlocked || payload.OperationID != "operation-2" ||
+			payload.Holder == nil || payload.Holder.PID != 4242 || fixture.Update.CancelCalls != 1 {
+			t.Fatalf("cancel response = %#v calls=%d, want blocked holder", payload, fixture.Update.CancelCalls)
 		}
 	})
 }
@@ -3811,26 +3960,55 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 
 	httpFixture := newSettingsHandlerFixture(t, "httpapi", serviceFactory(), restartFactory())
 	udsFixture := newSettingsHandlerFixture(t, "udsapi", serviceFactory(), restartFactory())
-
-	for _, path := range []string{
-		"/api/settings/observability",
-		"/api/settings/actions/restart",
-		"/api/settings/actions/restart/op-shared",
-	} {
-		var body []byte
-		method := http.MethodGet
-		if path == "/api/settings/actions/restart" {
-			method = http.MethodPost
-			body = []byte(`{}`)
+	for _, fixture := range []*settingsHandlerFixture{&httpFixture, &udsFixture} {
+		fixture.Update.GetFn = func(context.Context) (compozyupdate.MultiState, error) {
+			return compozyupdate.MultiState{
+				Aggregate: compozyupdate.StatusAvailable,
+				Runtime: compozyupdate.RuntimeTrackState{
+					Status: compozyupdate.StatusAvailable, CurrentVersion: "v1.0.0", LatestVersion: "v1.1.0",
+				},
+			}, nil
 		}
+		fixture.Update.ApplyFn = func(
+			_ context.Context,
+			target compozyupdate.Target,
+		) (core.SettingsUpdateApply, error) {
+			return core.SettingsUpdateApply{
+				Target: target, Status: compozyupdate.ApplyStatusAccepted,
+				OperationID: "update-op", Message: "Update accepted.",
+			}, nil
+		}
+		fixture.Update.CancelFn = func(context.Context) (core.SettingsUpdateCancel, error) {
+			return core.SettingsUpdateCancel{
+				Status: compozyupdate.StatusCanceled, OperationID: "update-op", Message: "Canceled.",
+			}, nil
+		}
+	}
 
-		httpResp := performRequest(t, httpFixture.Engine, method, path, body)
-		udsResp := performRequest(t, udsFixture.Engine, method, path, body)
+	for _, request := range []struct {
+		method string
+		path   string
+		body   []byte
+	}{
+		{method: http.MethodGet, path: "/api/settings/observability"},
+		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
+		{method: http.MethodGet, path: "/api/settings/actions/restart/op-shared"},
+		{method: http.MethodGet, path: "/api/settings/update"},
+		{method: http.MethodPost, path: "/api/settings/update/apply", body: []byte(`{"target":"runtime"}`)},
+		{method: http.MethodPost, path: "/api/settings/update/cancel", body: []byte(`{}`)},
+	} {
+		httpResp := performRequest(t, httpFixture.Engine, request.method, request.path, request.body)
+		udsResp := performRequest(t, udsFixture.Engine, request.method, request.path, request.body)
 		if httpResp.Code != udsResp.Code {
-			t.Fatalf("%s status mismatch: http=%d uds=%d", path, httpResp.Code, udsResp.Code)
+			t.Fatalf("%s status mismatch: http=%d uds=%d", request.path, httpResp.Code, udsResp.Code)
 		}
 		if httpResp.Body.String() != udsResp.Body.String() {
-			t.Fatalf("%s body mismatch:\nhttp=%s\nuds=%s", path, httpResp.Body.String(), udsResp.Body.String())
+			t.Fatalf(
+				"%s body mismatch:\nhttp=%s\nuds=%s",
+				request.path,
+				httpResp.Body.String(),
+				udsResp.Body.String(),
+			)
 		}
 	}
 

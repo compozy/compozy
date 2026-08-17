@@ -205,7 +205,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				ExtensionName: "boot-failure", WorkspaceID: "workspace-native", OriginPath: nativeOriginCanary,
 			},
 		}
-		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry:  extRegistry,
 			Runtime:   runtime,
 			HomePaths: deps.HomePaths,
@@ -585,7 +585,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
 			),
 		}}
-		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry:  extRegistry,
 			Runtime:   runtime,
 			HomePaths: deps.HomePaths,
@@ -658,7 +658,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 				`{"install_slug":"acme/tool-ext","repository":"https://github.com/acme/tool-ext"}`,
 			),
 		}}
-		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry:  extRegistry,
 			Runtime:   runtime,
 			HomePaths: deps.HomePaths,

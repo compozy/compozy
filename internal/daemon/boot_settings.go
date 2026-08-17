@@ -62,7 +62,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		}
 	}
 
-	updateManager, err := newSettingsUpdateManager(d)
+	updateManager, err := newSettingsUpdateManager(d, state.logger)
 	if err != nil {
 		return fmt.Errorf("daemon: create settings update manager: %w", err)
 	}
@@ -73,6 +73,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	state.deps.Settings = service
 	state.attentionMuteMutator = service
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
-	state.deps.SettingsUpdate = settingsUpdateController{manager: updateManager}
+	state.deps.SettingsUpdate = newSettingsUpdateController(d, updateManager)
+	state.updateManager = updateManager
 	return nil
 }

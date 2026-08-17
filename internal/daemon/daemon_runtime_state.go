@@ -49,6 +49,7 @@ type daemonRuntimeState struct {
 	observer               Observer
 	resourceReconcile      resources.ReconcileDriver
 	supportBundles         supportBundleShutdowner
+	backgroundUpdates      *backgroundUpdateRuntime
 	agentCatalog           *resourceCatalog[compozyconfig.AgentDef]
 	soulCatalog            *resourceCatalog[soul.ResourceSpec]
 	heartbeatCatalog       *resourceCatalog[heartbeat.ResourceSpec]

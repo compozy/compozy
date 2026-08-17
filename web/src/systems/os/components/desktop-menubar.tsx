@@ -10,6 +10,7 @@ import { useDesktop } from "../hooks/use-desktop";
 import { OsHydrationStatus } from "./os-hydration-status";
 import { OsMenuBar } from "./os-menubar";
 import { AttentionBell } from "./attention-bell";
+import { MenubarUpdateIndicator } from "./menubar/menubar-update-indicator";
 import { CompozyMenu } from "./menubar/compozy-menu";
 import { GoMenu } from "./menubar/go-menu";
 import { HelpMenu } from "./menubar/help-menu";
@@ -54,6 +55,8 @@ export interface DesktopMenubarProps {
   activeOverlay: DesktopOverlay | null;
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void;
   attention: OsAttentionModel;
+  /** Whether either update track currently offers an install. */
+  updateAvailable: boolean;
   /** Same worktree query the switcher reads; omitted, the menu stays flat. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
   userHomeDir?: string;
@@ -94,6 +97,7 @@ export function DesktopMenubar({
   activeOverlay,
   onOverlayOpenChange,
   attention,
+  updateAvailable,
   worktreesByWorkspace,
   userHomeDir,
   worktreeSelection,
@@ -187,6 +191,9 @@ export function DesktopMenubar({
       }
       // No workspace means no layout stream — there is nothing to be out of sync with.
       status={<OsHydrationStatus hydration={hydration} />}
+      updateIndicator={
+        <MenubarUpdateIndicator available={updateAvailable} onActivate={actions.openUpdates} />
+      }
       notifications={attention.notificationCount}
       onCommandClick={onOpenPalette}
       onSettingsClick={actions.openSettings}

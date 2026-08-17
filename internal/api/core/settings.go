@@ -23,7 +23,6 @@ const (
 var (
 	errSettingsServiceUnavailable = errors.New("settings service is not configured")
 	errSettingsRestartUnavailable = errors.New("settings restart controller is not configured")
-	errSettingsUpdateUnavailable  = errors.New("settings update controller is not configured")
 )
 
 // SettingsLogTailEventPayload is the shared SSE payload for daemon log tailing.
@@ -223,22 +222,6 @@ func (h *BaseHandlers) UpdateSettingsObservability(c *gin.Context) {
 // GetSettingsHooksExtensions returns the hooks and extensions settings section.
 func (h *BaseHandlers) GetSettingsHooksExtensions(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionHooksExtensions)
-}
-
-// GetSettingsUpdate returns the current software update status snapshot.
-func (h *BaseHandlers) GetSettingsUpdate(c *gin.Context) {
-	if h.SettingsUpdate == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
-		return
-	}
-
-	status, err := h.SettingsUpdate.GetUpdate(c.Request.Context())
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, SettingsUpdateResponseFromStatus(status))
 }
 
 // UpdateSettingsHooksExtensions persists the hooks and extensions settings section.

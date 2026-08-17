@@ -6,13 +6,13 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: `https://compozy.com/install.sh` serves a script pinned to the latest published release tag, downloads the `compozy` archive and checksum bundle from `compozy/compozy`, uses only compatible local Cosign v3 or the pinned Cosign v3.1.3 verifier, verifies the release workflow identity and archive checksum without provenance fallback, and installs the matching binary. Each GitHub release also carries an `install.sh` asset pinned to its own tag.
 entry_points: https://compozy.com/install.sh; latest GitHub release; checksums.txt; checksums.txt.sigstore.json
-qa_status: pass
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-release-cosign-v3-20260807-170358-478309-lab/qa-artifacts/qa/evidence/installer-live-beta5.txt; /Users/pedronauck/dev/qa-labs/compozy-release-cosign-v3-20260807-170358-478309-lab/qa-artifacts/qa/evidence/cosign-real-bundles.txt
-last_report: docs/qa/reports/2026-08-07-release-cosign-v3.md
+qa_status: blocked-decision
+bug_ids: BUG-20260817-signed-macos-x64-digest-drift; BUG-20260817-macos-finalized-dmg-integrity-stale; BUG-20260817-desktop-smoke-local-isolation
+fix_status: fixed
+retest_status: pending
+fix_commits: 1a0b52d; bd5ecef; 560cd17
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: REL-beta-install-paths
 ---
 

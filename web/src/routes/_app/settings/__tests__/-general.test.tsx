@@ -1,7 +1,24 @@
 import { fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { createElement, type ReactNode, type SetStateAction } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type {
+  SettingsUpdateApplyResult,
+  SettingsUpdateCancelResult,
+  SettingsUpdateStatus,
+} from "@/systems/settings";
+import {
+  settingsUpdateApplyingFixture,
+  settingsUpdateBlockedFixture,
+  settingsUpdateBothAvailableFixture,
+  settingsUpdateManagedFixture,
+  settingsUpdateNoAppFixture,
+  settingsUpdateRolledBackFixture,
+  settingsUpdateStagedFixture,
+  settingsUpdateStatusFixture,
+} from "@/systems/settings/mocks/settings-update-fixture";
 
 type Envelope = typeof envelope;
 type Mutation = {
@@ -24,18 +41,16 @@ type RestartBanner = {
   dismiss: ReturnType<typeof vi.fn>;
 };
 
-type UpdateStatus = {
-  supported: boolean;
-  managed: boolean;
-  install_method: string;
-  current_version: string;
-  latest_version?: string;
-  available: boolean;
-  status: string;
-  recommendation?: string;
-  release_url?: string;
-  checked_at?: string | null;
-  last_error?: string;
+type UpdateStatus = SettingsUpdateStatus;
+
+type UpdateActions = {
+  apply: ReturnType<typeof vi.fn>;
+  cancel: ReturnType<typeof vi.fn>;
+  pendingTarget: "runtime" | "app" | null;
+  isCanceling: boolean;
+  result: SettingsUpdateApplyResult | null;
+  cancelResult: SettingsUpdateCancelResult | null;
+  error: string | null;
 };
 
 type ApplyRecordsQuery = {
@@ -121,6 +136,7 @@ let pageState: {
     error: Error | null;
     refetch: ReturnType<typeof vi.fn>;
   };
+  updateActions: UpdateActions;
   applyRecords: ApplyRecordsQuery;
   handleReload: ReturnType<typeof vi.fn>;
   isReloading: boolean;
@@ -198,23 +214,21 @@ beforeEach(() => {
     handleSave: vi.fn(),
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
     update: {
-      data: {
-        supported: true,
-        managed: false,
-        install_method: "direct-binary",
-        current_version: "v1.0.0",
-        latest_version: "v1.1.0",
-        available: true,
-        status: "available",
-        recommendation: "Run `compozy update`.",
-        release_url: "https://github.com/compozy/compozy/releases/tag/v1.1.0",
-        checked_at: "2026-05-03T19:00:00Z",
-      },
+      data: settingsUpdateBothAvailableFixture,
       isLoading: false,
       isError: false,
       isFetching: false,
       error: null,
       refetch: vi.fn(),
+    },
+    updateActions: {
+      apply: vi.fn(),
+      cancel: vi.fn(),
+      pendingTarget: null,
+      isCanceling: false,
+      result: null,
+      cancelResult: null,
+      error: null,
     },
     applyRecords: {
       data: {
@@ -280,12 +294,6 @@ describe("GeneralSettingsPage", () => {
     );
     expect(screen.getByTestId("settings-page-general-permissions-group")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Allow everything/ })).toBeChecked();
-    expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent(
-      "available"
-    );
-    expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
-      "Run `compozy update`."
-    );
     fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
     expect(screen.getByText("Config file")).toBeInTheDocument();
     expect(screen.getByText("~/.compozy/config.toml")).toBeInTheDocument();
@@ -343,35 +351,6 @@ describe("GeneralSettingsPage", () => {
     expect(pageState.setDraft).toHaveBeenCalledTimes(1);
     expect(nextDraft.redact.enabled).toBe(false);
     expect(nextDraft.daemon).toEqual(envelope.config.daemon);
-  });
-
-  it("renders manual guidance and the last refresh error for unsupported update snapshots", () => {
-    pageState.update.data = {
-      supported: false,
-      managed: false,
-      install_method: "direct-binary",
-      current_version: "v1.0.0",
-      latest_version: "v1.1.0",
-      available: true,
-      status: "unsupported",
-      recommendation:
-        "Download the latest CompozyOS Windows release archive and replace `compozy.exe` manually.",
-      release_url: "https://github.com/compozy/compozy/releases/tag/v1.1.0",
-      checked_at: "2026-05-03T19:00:00Z",
-      last_error: "cached refresh failed",
-    };
-
-    render(<GeneralSettingsPage />);
-
-    expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent(
-      /unsupported/i
-    );
-    expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
-      "replace `compozy.exe` manually"
-    );
-    expect(screen.getByTestId("settings-page-general-update-last-error")).toHaveTextContent(
-      "cached refresh failed"
-    );
   });
 
   it("surfaces transport errors and retries the update query when refresh fails", () => {
@@ -433,5 +412,223 @@ describe("GeneralSettingsPage", () => {
     expect(screen.getByTestId("settings-page-general-save-message")).toHaveTextContent(
       "restart required"
     );
+  });
+});
+
+// UT-040..UT-048 — the Updates section renders the daemon's two-track projection
+// and nothing else. Which snapshots produce which track model is owned by
+// systems/settings/lib/__tests__/update-presentation.test.ts; these assert what
+// reaches the DOM, especially where an affordance must be absent rather than
+// disabled (SD-007).
+describe("GeneralSettingsPage — Updates section", () => {
+  const track = (target: "runtime" | "app") =>
+    screen.getByTestId(`settings-page-general-update-track-${target}`);
+  const apply = (target: "runtime" | "app") =>
+    screen.queryByTestId(`settings-page-general-update-apply-${target}`);
+
+  it("UT-040: Should render both tracks with their own versions, status, and release link", () => {
+    render(<GeneralSettingsPage />);
+
+    expect(track("runtime")).toHaveTextContent("0.5.0");
+    expect(track("runtime")).toHaveTextContent("0.5.1");
+    expect(within(track("runtime")).getByText("Update available")).toBeInTheDocument();
+    expect(track("app")).toHaveTextContent("0.5.0");
+    expect(within(track("app")).getByText("Update available")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-general-update-release-runtime")).toHaveAttribute(
+      "href",
+      "https://github.com/compozy/compozy/releases/tag/v0.5.1"
+    );
+    expect(screen.getByTestId("settings-page-general-update-release-app")).toBeInTheDocument();
+  });
+
+  it("UT-041: Should render a single-track section when the host has no desktop app", () => {
+    pageState.update.data = settingsUpdateNoAppFixture;
+    render(<GeneralSettingsPage />);
+
+    expect(track("runtime")).toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page-general-update-track-app")).toBeNull();
+  });
+
+  it("UT-042: Should show a managed runtime's command verbatim with no apply control in the DOM", () => {
+    pageState.update.data = settingsUpdateManagedFixture;
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-update-recommendation")).toHaveTextContent(
+      "brew upgrade compozy"
+    );
+    expect(track("runtime")).toHaveTextContent(
+      "CompozyOS 0.5.1 is available. Upgrade with your package manager."
+    );
+    // Absent, not disabled — a dimmed button would still claim the capability.
+    expect(apply("runtime")).toBeNull();
+  });
+
+  it("UT-043: Should apply the clicked track and then render the daemon's staged phase", () => {
+    const { rerender } = render(<GeneralSettingsPage />);
+
+    fireEvent.click(screen.getByTestId("settings-page-general-update-apply-runtime"));
+    expect(pageState.updateActions.apply).toHaveBeenCalledWith("runtime");
+
+    // Progress is not optimistic: it appears only once the polled read reports it.
+    pageState.update.data = settingsUpdateApplyingFixture;
+    rerender(<GeneralSettingsPage />);
+
+    const progress = screen.getByTestId("settings-page-general-update-progress-runtime");
+    expect(progress).toHaveTextContent("install · 62%");
+    expect(progress).toHaveAttribute("role", "status");
+    expect(progress).toHaveAttribute("aria-live", "polite");
+    expect(apply("runtime")).toBeNull();
+  });
+
+  it("UT-044: Should report a staged app with the daemon's next-launch message and a cancel action", () => {
+    pageState.update.data = settingsUpdateStagedFixture;
+    render(<GeneralSettingsPage />);
+
+    expect(track("app")).toHaveTextContent("CompozyOS app update staged; applies on next launch.");
+    expect(within(track("app")).getByText("Staged")).toBeInTheDocument();
+    expect(track("runtime")).toHaveTextContent(
+      "Updated CompozyOS runtime to 0.5.1 and restarted the daemon."
+    );
+
+    fireEvent.click(screen.getByTestId("settings-page-general-update-cancel"));
+    expect(pageState.updateActions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("UT-045: Should fall back to the checking view when the daemon goes away mid-apply, then show reconnected truth", () => {
+    pageState.update = {
+      data: null,
+      isError: false,
+      isLoading: true,
+      isFetching: true,
+      error: null,
+      refetch: vi.fn(),
+    };
+    const { rerender } = render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-update-status")).toHaveTextContent("Checking");
+
+    pageState.update = {
+      data: settingsUpdateStatusFixture,
+      isError: false,
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    rerender(<GeneralSettingsPage />);
+
+    expect(within(track("runtime")).getByText("Up to date")).toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page-general-update-status")).toBeNull();
+  });
+
+  it("UT-046: Should keep the last known tracks and offer one retry when the refresh fails", () => {
+    pageState.update = {
+      data: settingsUpdateBothAvailableFixture,
+      isError: true,
+      isLoading: false,
+      isFetching: false,
+      error: new Error("daemon unreachable"),
+      refetch: vi.fn(),
+    };
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-updates")).toHaveTextContent(
+      "Showing the last known status. Refresh failed: daemon unreachable"
+    );
+    expect(screen.getByText("Refresh failed")).toBeInTheDocument();
+    // The rows keep their last truth rather than restating the failure per track.
+    expect(track("runtime")).toHaveTextContent("0.5.1");
+    expect(apply("runtime")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("settings-page-general-update-retry"));
+    expect(pageState.update.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("UT-047: Should surface a blocked apply with its holder and claim no success", () => {
+    pageState.update.data = settingsUpdateBlockedFixture;
+    pageState.updateActions.result = {
+      target: "runtime",
+      status: "blocked",
+      message: "A runtime update is already in progress. Retry after it completes.",
+      holder: {
+        pid: 4242,
+        pid_start_time: "2026-08-20T14:02:10Z",
+        surface: "cli",
+        executor_generation: "gen-1",
+        lease_expires_at: "2026-08-20T14:07:11Z",
+      },
+    };
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-update-blocked")).toHaveTextContent(
+      "cli · PID 4242"
+    );
+    expect(within(track("runtime")).getByText("Blocked")).toBeInTheDocument();
+    expect(screen.queryByText("Updated")).toBeNull();
+    expect(apply("runtime")).toBeNull();
+  });
+
+  it("UT-048: Should keep the apply action tab-reachable and Enter-activatable", async () => {
+    const user = userEvent.setup();
+    pageState.update.data = settingsUpdateNoAppFixture;
+    render(<GeneralSettingsPage />);
+
+    const applyButton = screen.getByTestId("settings-page-general-update-apply-runtime");
+    screen.getByTestId("settings-page-general-update-release-runtime").focus();
+    await user.tab({ shift: true });
+    expect(applyButton).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    expect(pageState.updateActions.apply).toHaveBeenCalledWith("runtime");
+  });
+
+  it("Should acknowledge a canceled dormant update", () => {
+    pageState.update.data = settingsUpdateStagedFixture;
+    pageState.updateActions.cancelResult = {
+      status: "canceled",
+      operation_id: "op-7f3a2c",
+      message: "Canceled dormant update operation; the update channel is free.",
+      holder: null,
+    };
+    render(<GeneralSettingsPage />);
+
+    const result = screen.getByTestId("settings-page-general-update-cancel-result");
+    expect(result).toHaveTextContent("Update canceled");
+    expect(result).toHaveTextContent("the update channel is free");
+    expect(result).toHaveTextContent("Canceled");
+  });
+
+  it("Should explain a declined cancellation with the active holder", () => {
+    pageState.update.data = settingsUpdateStagedFixture;
+    pageState.updateActions.cancelResult = {
+      status: "blocked",
+      operation_id: "op-7f3a2c",
+      message: "The update operation became active before cancellation.",
+      holder: {
+        pid: 5150,
+        pid_start_time: "2026-08-20T14:02:10Z",
+        surface: "daemon",
+        executor_generation: "gen-2",
+        lease_expires_at: "2026-08-20T14:07:11Z",
+      },
+    };
+    render(<GeneralSettingsPage />);
+
+    const result = screen.getByTestId("settings-page-general-update-cancel-result");
+    expect(result).toHaveTextContent("Cancel declined");
+    expect(result).toHaveTextContent("became active before cancellation");
+    expect(result).toHaveTextContent("daemon · PID 5150");
+  });
+
+  it("Should report rollback truth as the restored version plus the daemon's error", () => {
+    pageState.update.data = settingsUpdateRolledBackFixture;
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-update-rollback")).toHaveTextContent("0.5.0");
+    expect(screen.getByTestId("settings-page-general-update-last-error")).toHaveTextContent(
+      "health check failed after swap"
+    );
+    // The lease is free again, so the offer returns.
+    expect(apply("runtime")).toBeInTheDocument();
   });
 });

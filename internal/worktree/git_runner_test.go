@@ -220,12 +220,12 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		parent := []string{
 			"HOME=/operator", "PATH=/bin", "GIT_CONFIG_GLOBAL=/operator/.gitconfig",
 			"GIT_DIR=/tmp/admin", "GIT_WORK_TREE=/tmp/tree", "GIT_INDEX_FILE=/tmp/index",
-			"GIT_TERMINAL_PROMPT=1", "GCM_INTERACTIVE=always",
+			"GIT_OPTIONAL_LOCKS=1", "GIT_TERMINAL_PROMPT=1", "GCM_INTERACTIVE=always",
 		}
 		got := gitEnvironment(parent)
 		want := []string{
 			"HOME=/operator", "PATH=/bin", "GIT_CONFIG_GLOBAL=/operator/.gitconfig",
-			"GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never",
+			"GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never",
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("gitEnvironment() = %#v, want %#v", got, want)

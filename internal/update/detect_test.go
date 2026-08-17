@@ -17,7 +17,7 @@ func TestDetectInstallUsesManagedEnvironmentOverride(t *testing.T) {
 	t.Run("Should prefer the managed environment override", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testManager(t, Config{
+		manager := testManager(t, &Config{
 			Getenv: func(key string) string {
 				if key == ManagedEnvName {
 					return "homebrew"
@@ -41,7 +41,7 @@ func TestDetectInstallUsesManagedEnvironmentOverride(t *testing.T) {
 	t.Run("Should normalize npm managed environment aliases", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testManager(t, Config{
+		manager := testManager(t, &Config{
 			Getenv: func(key string) string {
 				if key == ManagedEnvName {
 					return "nodejs"
@@ -68,7 +68,7 @@ func TestDetectInstallRecognizesGoInstallPaths(t *testing.T) {
 		t.Parallel()
 
 		goPath := filepath.Join(t.TempDir(), "gopath")
-		manager := testManager(t, Config{
+		manager := testManager(t, &Config{
 			ExecutablePath: func() (string, error) {
 				return filepath.Join(goPath, "bin", "compozy"), nil
 			},
@@ -101,7 +101,7 @@ func TestDetectInstallFallsBackToDirectBinary(t *testing.T) {
 	t.Run("Should fall back to direct-binary when no managed install matches", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testManager(t, Config{
+		manager := testManager(t, &Config{
 			ExecutablePath: func() (string, error) {
 				return "/usr/local/bin/compozy", nil
 			},
@@ -125,7 +125,7 @@ func TestDetectInstallMemoizesLinuxPackageDetection(t *testing.T) {
 		t.Parallel()
 
 		var runCalls int
-		manager := testManager(t, Config{
+		manager := testManager(t, &Config{
 			RuntimeOS: runtimeOSLinux,
 			ExecutablePath: func() (string, error) {
 				return managedPathUsrBin, nil
@@ -166,7 +166,7 @@ func TestDetectInstallMemoizesLinuxPackageDetection(t *testing.T) {
 
 		var runCalls int
 		var cancelFirst context.CancelFunc
-		manager := testManager(t, Config{
+		manager := testManager(t, &Config{
 			RuntimeOS: runtimeOSLinux,
 			ExecutablePath: func() (string, error) {
 				return managedPathUsrBin, nil
@@ -211,7 +211,7 @@ func TestDetectInstallMemoizesLinuxPackageDetection(t *testing.T) {
 			var runCalls atomic.Int64
 			probeStarted := make(chan struct{})
 			releaseProbe := make(chan struct{})
-			manager := testManager(t, Config{
+			manager := testManager(t, &Config{
 				RuntimeOS: runtimeOSLinux,
 				ExecutablePath: func() (string, error) {
 					return managedPathUsrBin, nil
@@ -274,7 +274,7 @@ func TestDetectInstallMemoizesLinuxPackageDetection(t *testing.T) {
 			var runCalls atomic.Int64
 			probeStarted := make(chan struct{})
 			releaseProbe := make(chan struct{})
-			manager := testManager(t, Config{
+			manager := testManager(t, &Config{
 				RuntimeOS: runtimeOSLinux,
 				ExecutablePath: func() (string, error) {
 					return managedPathUsrBin, nil
@@ -342,7 +342,7 @@ func TestDetectInstallMemoizesLinuxPackageDetection(t *testing.T) {
 			firstProbeStarted := make(chan struct{})
 			releaseFirstProbe := make(chan struct{})
 			retryProbeStarted := make(chan struct{})
-			manager := testManager(t, Config{
+			manager := testManager(t, &Config{
 				RuntimeOS: runtimeOSLinux,
 				ExecutablePath: func() (string, error) {
 					return managedPathUsrBin, nil
@@ -417,7 +417,7 @@ type installDetectionTestResult struct {
 	err  error
 }
 
-func testManager(t *testing.T, cfg Config) *Manager {
+func testManager(t *testing.T, cfg *Config) *Manager {
 	t.Helper()
 
 	homePaths := cfg.HomePaths

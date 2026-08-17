@@ -8,6 +8,7 @@ import type {
   SettingsRestartStatus,
   SettingsRestartStatusName,
   SettingsSectionName,
+  SettingsUpdateStatus,
 } from "@/systems/settings";
 
 type RestartOverrides = {
@@ -78,6 +79,27 @@ export function StorybookRestartPhaseSetup({
     section,
     status,
   ]);
+
+  return null;
+}
+
+/** Keeps a last-known update snapshot visible while the refresh query fails. */
+export function StorybookSettingsUpdateRefreshErrorSetup({
+  snapshot,
+}: {
+  snapshot: SettingsUpdateStatus;
+}) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    queryClient.setQueryData(settingsKeys.updateStatus(), snapshot);
+    const refetch = window.setTimeout(() => {
+      void queryClient
+        .refetchQueries({ exact: true, queryKey: settingsKeys.updateStatus() })
+        .catch(() => undefined);
+    }, 250);
+    return () => window.clearTimeout(refetch);
+  }, [queryClient, snapshot]);
 
   return null;
 }

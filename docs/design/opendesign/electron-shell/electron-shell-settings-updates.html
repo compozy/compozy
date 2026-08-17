@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Settings · Updates · Electron shell · CompozyOS</title>
+<link rel="stylesheet" href="electron-shell.css">
+<!--
+  electron-shell-settings-updates · S1 — Settings → General → Updates, two tracks.
+  Spec: .compozy/tasks/electron-shell/_uiux.md S1 · task_02.md VC-01..VC-11
+        · stories US-015 / US-016 / US-017 / US-018 / US-029 · ADR-006 / ADR-009.
+  Provenance:
+    production        — web/src/routes/_app/settings/-general-update-section.tsx
+                        (single-track section, updatePill map, retry / release-link /
+                        recommendation / last-error rows) + SettingRow · SettingValue ·
+                        SettingsGroup from web/src/systems/settings
+    authorized delta  — the section presents BOTH daemon tracks (runtime + app) with a
+                        per-track apply affordance and the live Update Operation view;
+                        the app row exists exactly when the daemon reports an `app`
+                        object; the apply affordance is ABSENT (never disabled) for a
+                        managed runtime, for an absent app track, and while an
+                        operation is live
+    daemon truth      — every value comes from GET /api/settings/update
+                        {aggregate, operation|null, runtime, app|null}; message strings
+                        are echoed verbatim from the same fields the CLI prints (_dx.md)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head">
+    <a class="w2-back" href="index.html" aria-label="Back to set">
+      <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+    </a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Electron shell</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Settings · Updates</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm btn--ghost" href="electron-shell-menubar-update.html">Menubar indicator →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ S1 · ANATOMY ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">S1</span><h2 class="lab-sec__t">The section — two tracks, one grammar</h2>
+        <span class="lab-sec__gist">daemon truth per row · one apply per track</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>One row per track</b>The Updates group keeps its home in the General page (768px form column). A <b>Runtime</b> row is always present — the daemon is the runtime. An <b>App</b> row is present exactly when the payload carries an <code>app</code> object. Follow-up rows (upgrade command, last error) sit directly under the track that owns them and name that track.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Update available</span>
+                    <button class="btn btn--sm btn--neutral" type="button">Update runtime</button>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Lane order is fixed</b>Left: the track noun, and — only when the daemon message carries truth the lanes cannot — one consequence sentence. Right, in this order: version, state, action, release notes. A row never grows a second pill and never grows a second action.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>lane</th><th>renders</th><th>source field</th></tr></thead>
+              <tbody>
+                <tr><td>label</td><td>Runtime · App — the CLI's own nouns (<code>compozy update --check</code>)</td><td class="ex">track identity</td></tr>
+                <tr><td>description</td><td>the daemon message, verbatim — conditional (see MAP)</td><td class="ex">runtime.message · app.message</td></tr>
+                <tr><td>version</td><td><span class="mono">0.5.1</span> at rest · <span class="mono">0.5.0 → 0.5.1</span> when a target exists</td><td class="ex">current_version · latest_version</td></tr>
+                <tr><td>state</td><td>one Pill — or, while this track is applying, Spinner + phase</td><td class="ex">status · operation.phase</td></tr>
+                <tr><td>action</td><td>one Button, or nothing at all</td><td class="ex">managed · app!=null · operation</td></tr>
+                <tr><td>release</td><td>ghost icon link, only when the track reports a URL</td><td class="ex">release_url</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-01 · CHECKING ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-01</span><h2 class="lab-sec__t">Checking</h2>
+        <span class="lab-sec__gist">runtime row only · track membership not yet known</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Only what is known</b>The runtime row is structural — it never moves. The app row cannot render yet because the payload has not said whether an app exists; guessing it would be an invented state. Spinner is the shipped <code>Spinner</code> at <code>text-info</code>; there is no description under the label.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                  <div class="srow__ctl">
+                    <svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" role="status" aria-label="Loading"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    <span class="svalue">Checking…</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+          <div class="absent">
+            <span class="absent__tag">not rendered</span>
+            <span><b>App</b> — membership is unknown until the payload lands. No placeholder, no skeleton row. Annotation only: it sits outside the demo because it has no counterpart in the implementation.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-02 · UP TO DATE, BOTH TRACKS ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-02</span><h2 class="lab-sec__t">Up to date — both tracks</h2>
+        <span class="lab-sec__gist">the calm default · two rows, no prose</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Silence is the state</b>Version plus a success pill is the entire truth; the daemon's up-to-date message would only restate it, so no description renders. This is what the section looks like almost always — and it is what the menubar's absence corresponds to.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-03 · AVAILABLE, RUNTIME ONLY ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-03</span><h2 class="lab-sec__t">Update available — runtime only</h2>
+        <span class="lab-sec__gist">one action, on the track that has one</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Verb plus object</b><code>Update runtime</code> — never "Update", never "Install now". The button is the neutral filled action, not the accent one: two tracks can offer an update at the same time and neither outranks the other, so the section keeps no accent target (DESIGN.md §10, accent overload).</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Update available</span>
+                    <button class="btn btn--sm btn--neutral" type="button">Update runtime</button>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-04 · AVAILABLE, BOTH TRACKS ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-04</span><h2 class="lab-sec__t">Update available — both tracks</h2>
+        <span class="lab-sec__gist">two actions · no "update everything"</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One target per request</b>The apply endpoint takes a single target and the home allows one operation at a time, so there is no combined action — a single "Update all" button would either lie about what it does or block itself. Applying one track hides the other's action while the operation is live (VC-07).</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Update available</span>
+                    <button class="btn btn--sm btn--neutral" type="button">Update runtime</button>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Update available</span>
+                    <button class="btn btn--sm btn--neutral" type="button">Update app</button>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-05 · MANAGED RUNTIME ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-05</span><h2 class="lab-sec__t">Managed runtime — recommendation, no affordance</h2>
+        <span class="lab-sec__gist">no button element at all · the command is the action</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Absent, not disabled</b>A package-managed install is not ours to mutate, so no <code>&lt;button&gt;</code> is rendered for that track — not a dimmed one, not a tooltip'd one (US-029.EC-1, SD-007). The daemon message is the consequence sentence that explains the gap, and the exact command gets its own row in the daemon's own words.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Runtime</div>
+                    <div class="srow__desc">CompozyOS 0.5.1 is available. Upgrade with your package manager.</div>
+                  </div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Update available</span>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Upgrade command</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">brew upgrade compozy</span>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Why not a "Managed" pill</b>The pill lane reports the update <i>status</i>, and the status here is <code>available</code>. Managedness is already carried three ways — the missing button, the message, and the command row — so a second chip would be decoration and would push the row past one-pill-per-row. Neutral tone stays reserved for <code>unsupported</code>.</div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="pill" data-tone="info">Update available</span>
+            <span class="pill" data-tone="neutral">Unsupported</span>
+            <span class="svalue" style="color:var(--subtle);font-size:11.5px">← <code class="mono">unsupported</code> is the only neutral state in this section: a platform or install format the updater cannot act on.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-06 · NO APP INSTALLED ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-06</span><h2 class="lab-sec__t">No app installed — single track</h2>
+        <span class="lab-sec__gist">the app row does not exist in the DOM</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Absence, not a stub</b>The payload omits <code>app</code> entirely on a host with no desktop app, and so does the section: no row, no "Not installed" value, no empty state (US-029.EC-3). A browser-only operator on a headless host sees exactly this — one runtime row that behaves the same as it does inside the app.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Update available</span>
+                    <button class="btn btn--sm btn--neutral" type="button">Update runtime</button>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+          <div class="absent">
+            <span class="absent__tag">not rendered</span>
+            <span><b>App</b> — the payload carries no <code>app</code> object on this host, so the panelbox ends after the runtime row. Annotation only: it sits outside the demo because it has no counterpart in the implementation.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-07 · APPLYING ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-07</span><h2 class="lab-sec__t">Applying — runtime, staged phases</h2>
+        <span class="lab-sec__gist">the daemon's phase word, verbatim · percent only when measured</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The phase is the state</b>While a track is applying, the pill lane becomes Spinner + the operation's phase in mono. No second status chip, no progress bar — the section renders the six named phases the runtime reports and nothing it does not. The other track's action disappears while an operation is live: the home is single-flight, and the payload says so.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="phase">
+                      <svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" role="status" aria-label="Applying"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      <span class="phase__name">download</span>
+                      <span class="phase__sep">·</span>
+                      <span class="phase__pct">62%</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Update available</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Phase ladder</b>Exactly these six words, lowercase, from the runtime's phase→UI mapping. Percent renders only when the daemon measures one; <code>percent = -1</code> means unmeasurable, and the phase stands alone rather than showing a fake <span class="mono">0%</span>. A CLI- or app-initiated operation renders identically here — one operation, one truth, whichever surface started it.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>phase</th><th>renders as</th><th>what the runtime is doing</th></tr></thead>
+              <tbody>
+                <tr><td>download</td><td><span class="phase"><svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="phase__name">download</span><span class="phase__sep">·</span><span class="phase__pct">62%</span></span></td><td>fetching the release asset — the one phase with measured progress</td></tr>
+                <tr><td>verify</td><td><span class="phase"><svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="phase__name">verify</span></span></td><td>signature and digest against the operation's recorded identity</td></tr>
+                <tr><td>install</td><td><span class="phase"><svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="phase__name">install</span></span></td><td>swapping the runtime binary, or handing the app to its installer</td></tr>
+                <tr><td>start</td><td><span class="phase"><svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="phase__name">start</span></span></td><td>restarting on the new version</td></tr>
+                <tr><td>ready-check</td><td><span class="phase"><svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="phase__name">ready-check</span></span></td><td>health verification — failing here is what rolls back in VC-10</td></tr>
+                <tr><td>ready</td><td><span class="phase"><svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="phase__name">ready</span></span></td><td>last live phase; the next poll carries the terminal per-track status</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>No cancel on a live executor</b>Cancel is only honoured for a <i>dormant</i> operation — a staged app waiting for its next launch, or a holder whose process died. A live apply would refuse it, so the section renders no cancel control here (SD-007). The one place cancel is real is VC-08. During the runtime's <code>start</code> phase the daemon itself restarts: the section reports that honestly as checking, then resolves.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>while</th><th>section renders</th></tr></thead>
+              <tbody>
+                <tr><td>operation live</td><td>the active track's phase; every apply affordance in the section is absent</td></tr>
+                <tr><td>daemon restarting</td><td>the checking state (VC-01), then the post-update truth — never a stale "applying"</td></tr>
+                <tr><td>polling</td><td>the settings cadence at rest, 2s while <code>operation</code> is non-null</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-08 · APP STAGED ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-08</span><h2 class="lab-sec__t">App staged — applies on next launch</h2>
+        <span class="lab-sec__gist">the one state where cancel is real</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Two different successes</b>The runtime finished, so it reads <code>Updated</code> and keeps the daemon-restart sentence — that is truth the version alone does not carry. The app is staged: info tone, and the next-launch consequence in the daemon's own words. The operation is dormant and joinable, which is exactly when <code>Cancel staged update</code> is honoured.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Runtime</div>
+                    <div class="srow__desc">Updated CompozyOS runtime to 0.5.1 and restarted the daemon.</div>
+                  </div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Updated</span>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">App</div>
+                    <div class="srow__desc">CompozyOS app update staged; applies on next launch.</div>
+                  </div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Staged</span>
+                    <button class="btn btn--sm btn--ghost" type="button">Cancel staged update</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-09 · BLOCKED ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-09</span><h2 class="lab-sec__t">Blocked — the holder is named</h2>
+        <span class="lab-sec__gist">warning · no retry button, because waiting is the retry</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Who has it, and what to do</b>Another surface took the lease between the last poll and the click. The daemon's refusal message names the holder and says when to try again, so the row shows it verbatim and drops the action. The section polls every 2s while an operation exists, so the row heals itself — a "Retry" button here would just re-issue a refusal.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Runtime</div>
+                    <div class="srow__desc">A runtime update is already in progress (holder pid 4242). Retry after it completes.</div>
+                  </div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="warning">Blocked</span>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-10 · FAILED + ROLLBACK ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-10</span><h2 class="lab-sec__t">Failed — restored version and last error</h2>
+        <span class="lab-sec__gist">the running version is the restored one · retry stays available</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>What is running, and why</b>The version lane shows what actually runs now — the restored build — and still names the target that failed. The daemon's message states the restore in its own words; the raw failure gets its own track-named row so the sentence under the label stays readable. The operation is terminal and the lease is free, so <code>Update runtime</code> comes back.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Runtime</div>
+                    <div class="srow__desc">Runtime update to 0.5.1 failed; restored 0.5.0 and restarted the daemon.</div>
+                  </div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="danger">Update failed</span>
+                    <button class="btn btn--sm btn--neutral" type="button">Update runtime</button>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Runtime last error</div>
+                    <div class="srow__desc srow__desc--danger">ready-check failed on 0.5.1: daemon did not report healthy within 60s</div>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VC-11 · REFRESH ERROR ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">VC-11</span><h2 class="lab-sec__t">Refresh failed — last known, plus retry</h2>
+        <span class="lab-sec__gist">section-level failure · track rows keep their last truth</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Failure belongs to the fetch, not the tracks</b>A refresh failure is one event for the whole section, so it lives once — in the group header, next to the title — instead of stamping a danger pill on both rows. The rows keep showing their last known state, labelled as such in one sentence. Apply stays available: the daemon revalidates at acquisition, so pressing it surfaces a real answer instead of a guess.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head">
+                <div>
+                  <h2 class="sgroup__title">Updates</h2>
+                  <p class="sgroup__desc">Showing the last known status. Could not reach the daemon.</p>
+                </div>
+                <div class="sgroup__action">
+                  <span class="pill" data-tone="danger">Refresh failed</span>
+                  <button class="btn btn--sm btn--ghost" type="button">
+                    <svg class="ic ic--sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                    Retry
+                  </button>
+                </div>
+              </header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">Runtime</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.0 <span class="ver__arrow">→</span> <span class="ver__to">0.5.1</span></span>
+                    <span class="pill" data-tone="info">Update available</span>
+                    <button class="btn btn--sm btn--neutral" type="button">Update runtime</button>
+                    <a class="btn btn--sm btn--ghost btn--icon" href="#" aria-label="Open release notes">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" style="color:var(--subtle)" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+                    </a>
+                  </div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main"><div class="srow__label">App</div></div>
+                  <div class="srow__ctl">
+                    <span class="svalue svalue--mono">0.5.1</span>
+                    <span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>No snapshot yet</b>When the first fetch fails there is nothing last-known to show. The section keeps today's shape: one runtime row carrying the failure sentence, a danger pill, and retry — never an invented version.</div>
+        <div class="spec__demo">
+          <div class="demo"><div class="demo__col">
+            <section class="sgroup">
+              <header class="sgroup__head"><div><h2 class="sgroup__title">Updates</h2></div></header>
+              <div class="panelbox">
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Runtime</div>
+                    <div class="srow__desc">Could not reach the daemon.</div>
+                  </div>
+                  <div class="srow__ctl">
+                    <span class="pill" data-tone="danger">Check failed</span>
+                    <button class="btn btn--sm btn--ghost" type="button">
+                      <svg class="ic ic--sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                      Retry
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MAP · CONTRACT TABLES ============ -->
+    <section class="lab-sec">
+      <div class="lab-sec__head"><span class="lab-sec__num">MAP</span><h2 class="lab-sec__t">Contract tables</h2>
+        <span class="lab-sec__gist">tone · label · description · affordance</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Status → tone + label</b>One dictionary, both tracks. Signal colour marks live state only: at rest the section shows success or nothing. The state word is always present, so colour is never the only channel (WCAG 1.4.1).</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>status</th><th>pill</th><th>tone</th><th>tracks</th></tr></thead>
+              <tbody>
+                <tr><td>up-to-date</td><td><span class="pill" data-tone="success"><span class="pill__dot"></span>Up to date</span></td><td class="ex">success + dot</td><td>runtime · app</td></tr>
+                <tr><td>updated</td><td><span class="pill" data-tone="success"><span class="pill__dot"></span>Updated</span></td><td class="ex">success + dot</td><td>runtime · app</td></tr>
+                <tr><td>available</td><td><span class="pill" data-tone="info">Update available</span></td><td class="ex">info</td><td>runtime · app</td></tr>
+                <tr><td>staged</td><td><span class="pill" data-tone="info">Staged</span></td><td class="ex">info</td><td>app only</td></tr>
+                <tr><td>applying</td><td><span class="phase"><svg class="ic spinner" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="phase__name">install</span></span></td><td class="ex">no pill — Spinner + phase</td><td>runtime · app</td></tr>
+                <tr><td>blocked</td><td><span class="pill" data-tone="warning">Blocked</span></td><td class="ex">warning</td><td>runtime · app</td></tr>
+                <tr><td>failed</td><td><span class="pill" data-tone="danger">Update failed</span></td><td class="ex">danger</td><td>runtime · app</td></tr>
+                <tr><td>unsupported</td><td><span class="pill" data-tone="neutral">Unsupported</span></td><td class="ex">neutral</td><td>app only</td></tr>
+                <tr><td>refresh failed</td><td><span class="pill" data-tone="danger">Refresh failed</span></td><td class="ex">danger — group header</td><td>section-level</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>When the description renders</b>The row shows the daemon's <code>message</code> verbatim only when it carries truth the version and pill cannot. Otherwise the row stays silent — a sentence that restates its own label is the section's most likely slop.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>state</th><th>description</th><th>because</th></tr></thead>
+              <tbody>
+                <tr><td>up-to-date</td><td class="ex">—</td><td>version + pill already say it</td></tr>
+                <tr><td>available</td><td class="ex">—</td><td><span class="mono">0.5.0 → 0.5.1</span> already says it</td></tr>
+                <tr><td>available (managed)</td><td class="ex">message</td><td>explains the missing action</td></tr>
+                <tr><td>updated</td><td class="ex">message</td><td>names the daemon restart</td></tr>
+                <tr><td>staged</td><td class="ex">message</td><td>names the next-launch condition</td></tr>
+                <tr><td>blocked</td><td class="ex">message</td><td>names the holder and the wait</td></tr>
+                <tr><td>failed</td><td class="ex">message</td><td>names the restored version</td></tr>
+                <tr><td>applying</td><td class="ex">—</td><td>the phase is the state</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Affordance truth</b>Every control in the section is present only when the runtime will honour it. "Absent" means no element — never a disabled one, never a tooltip explaining why it cannot be pressed.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>control</th><th>renders when</th><th>absent when</th></tr></thead>
+              <tbody>
+                <tr><td>Update runtime</td><td>runtime is <code>available</code> or <code>failed</code>, not managed, no live operation</td><td>managed · operation live · applying</td></tr>
+                <tr><td>Update app</td><td>app track exists and is <code>available</code> or <code>failed</code>, no live operation</td><td>no app object · operation live</td></tr>
+                <tr><td>Cancel staged update</td><td>the operation is dormant — staged app or dead holder</td><td>live executor holds the lease</td></tr>
+                <tr><td>Retry</td><td>a refresh failed</td><td>the fetch is healthy</td></tr>
+                <tr><td>Release notes</td><td>that track reports a <code>release_url</code></td><td>no URL in the payload</td></tr>
+                <tr><td>App row</td><td>the payload carries an <code>app</code> object</td><td>headless host · payload not yet loaded</td></tr>
+                <tr><td>Upgrade command row</td><td>the runtime is managed and reports a recommendation</td><td>self-appliable installs</td></tr>
+                <tr><td>Last error row</td><td>that track reports a <code>last_error</code></td><td>no recorded error</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Keyboard &amp; a11y floor</b>Rows are static content with one control each; every control is a real button or link in the natural tab order of the settings page. Focus is the shipped 2px ring (<code>--shadow-focus-ring</code>), never a colour change. The spinner carries <code>role="status"</code>, and the phase word is text — assistive tech hears the phase, not a spinner alone.</div>
+        <div class="spec__demo">
+          <div class="plain">
+            <table class="spec-table">
+              <thead><tr><th>element</th><th>name</th><th>notes</th></tr></thead>
+              <tbody>
+                <tr><td>apply button</td><td class="ex">Update runtime / Update app</td><td>verb + object; 22px control in a 54px row</td></tr>
+                <tr><td>cancel button</td><td class="ex">Cancel staged update</td><td>ghost; names what it cancels</td></tr>
+                <tr><td>release link</td><td class="ex">Open release notes</td><td>icon-only → aria-label carries the name</td></tr>
+                <tr><td>retry button</td><td class="ex">Retry</td><td>sits with the failure it retries</td></tr>
+                <tr><td>progress</td><td class="ex">role="status" + phase text</td><td>polite; percent is tabular mono</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+</body>
+</html>

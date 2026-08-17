@@ -5,6 +5,7 @@ import (
 
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"net/http"
 	"os"
@@ -15,39 +16,19 @@ import (
 	"time"
 )
 
+var _ CoordinatorManager = (*Manager)(nil)
+
 // NewManager binds the update flow to the current CompozyOS runtime.
-func NewManager(cfg Config) (*Manager, error) {
-	executablePath := cfg.ExecutablePath
-	if executablePath == nil {
-		executablePath = os.Executable
+func NewManager(cfg *Config) (*Manager, error) {
+	if cfg == nil {
+		return nil, errors.New("update: manager config is required")
 	}
-	resolveSymlinks := cfg.ResolveSymlinks
-	if resolveSymlinks == nil {
-		resolveSymlinks = filepath.EvalSymlinks
-	}
-	getenv := cfg.Getenv
-	if getenv == nil {
-		getenv = os.Getenv
-	}
-	now := cfg.Now
-	if now == nil {
-		now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-	httpClient := cfg.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-	lookPath := cfg.LookPath
-	if lookPath == nil {
-		lookPath = exec.LookPath
-	}
-	runCommand := cfg.RunCommand
-	if runCommand == nil {
-		runCommand = defaultRunCommand
-	}
-	resolvedExecutable, artifactPolicy, err := resolveManagerInputs(cfg, executablePath, resolveSymlinks)
+	dependencies := managerDependenciesFor(cfg)
+	resolvedExecutable, artifactPolicy, err := resolveManagerInputs(
+		cfg,
+		dependencies.executablePath,
+		dependencies.resolveSymlinks,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -65,13 +46,13 @@ func NewManager(cfg Config) (*Manager, error) {
 		homePaths:      cfg.HomePaths,
 		currentVersion: strings.TrimSpace(cfg.CurrentVersion),
 		executablePath: resolvedExecutable,
-		getenv:         getenv,
-		now:            now,
-		httpClient:     httpClient,
+		getenv:         dependencies.getenv,
+		now:            dependencies.now,
+		httpClient:     dependencies.httpClient,
 		runtimeOS:      strings.TrimSpace(cfg.RuntimeOS),
 		runtimeArch:    strings.TrimSpace(cfg.RuntimeArch),
-		lookPath:       lookPath,
-		runCommand:     runCommand,
+		lookPath:       dependencies.lookPath,
+		runCommand:     dependencies.runCommand,
 		binaryApplier:  cfg.BinaryApplier,
 		artifactPolicy: artifactPolicy,
 		releaseTrack:   releaseTrack,
@@ -93,11 +74,64 @@ func NewManager(cfg Config) (*Manager, error) {
 	if strings.TrimSpace(manager.homePaths.HomeDir) == "" {
 		return nil, errors.New("update: CompozyOS home directory is required")
 	}
+	operationEvents := cfg.OperationEvents
+	if operationEvents == nil {
+		operationEvents = NewSlogOperationEventEmitter(slog.Default())
+	}
+	operationStore, err := NewOperationStore(manager.homePaths, operationEvents)
+	if err != nil {
+		return nil, err
+	}
+	manager.operationStore = operationStore
 	return manager, nil
 }
 
+type managerDependencies struct {
+	executablePath  func() (string, error)
+	resolveSymlinks func(string) (string, error)
+	getenv          func(string) string
+	now             func() time.Time
+	httpClient      *http.Client
+	lookPath        func(string) (string, error)
+	runCommand      func(context.Context, string, ...string) (string, error)
+}
+
+func managerDependenciesFor(cfg *Config) managerDependencies {
+	dependencies := managerDependencies{
+		executablePath:  cfg.ExecutablePath,
+		resolveSymlinks: cfg.ResolveSymlinks,
+		getenv:          cfg.Getenv,
+		now:             cfg.Now,
+		httpClient:      cfg.HTTPClient,
+		lookPath:        cfg.LookPath,
+		runCommand:      cfg.RunCommand,
+	}
+	if dependencies.executablePath == nil {
+		dependencies.executablePath = os.Executable
+	}
+	if dependencies.resolveSymlinks == nil {
+		dependencies.resolveSymlinks = filepath.EvalSymlinks
+	}
+	if dependencies.getenv == nil {
+		dependencies.getenv = os.Getenv
+	}
+	if dependencies.now == nil {
+		dependencies.now = func() time.Time { return time.Now().UTC() }
+	}
+	if dependencies.httpClient == nil {
+		dependencies.httpClient = &http.Client{Timeout: defaultHTTPTimeout}
+	}
+	if dependencies.lookPath == nil {
+		dependencies.lookPath = exec.LookPath
+	}
+	if dependencies.runCommand == nil {
+		dependencies.runCommand = defaultRunCommand
+	}
+	return dependencies
+}
+
 func resolveManagerInputs(
-	cfg Config,
+	cfg *Config,
 	executablePath func() (string, error),
 	resolveSymlinks func(string) (string, error),
 ) (string, ArtifactPolicy, error) {
@@ -187,87 +221,43 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 	return m.composeState(install, latest, checkedAt), latest, nil
 }
 
-// ApplyRelease downloads, verifies, extracts, and swaps in the supplied release.
-func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (applied AppliedBinary, err error) {
-	if release == nil {
-		return AppliedBinary{}, errors.New("update: release metadata is required")
-	}
-
-	assets, err := m.resolveReleaseAssets(release)
-	if err != nil {
-		return AppliedBinary{}, err
-	}
-	currentInfo, err := os.Stat(m.executablePath)
-	if err != nil {
-		return AppliedBinary{}, fmt.Errorf("update: stat current executable %q: %w", m.executablePath, err)
-	}
-
-	tmpDir, err := os.MkdirTemp("", "compozy-update-*")
-	if err != nil {
-		return AppliedBinary{}, fmt.Errorf("update: create temp directory: %w", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tmpDir); removeErr != nil {
-			err = errors.Join(err, fmt.Errorf("update: remove temp directory %q: %w", tmpDir, removeErr))
-		}
-	}()
-
-	downloaded, err := m.downloadReleaseArtifacts(ctx, tmpDir, assets)
-	if err != nil {
-		return AppliedBinary{}, err
-	}
-	if err := m.verifyReleaseArtifacts(ctx, downloaded, assets.archive.Name); err != nil {
-		return AppliedBinary{}, err
-	}
-
-	binaryPath, binaryMode, err := extractBinaryFromTarGz(
-		downloaded.archivePath,
-		tmpDir,
-		m.archiveBinaryName(),
-		m.artifactPolicy,
-	)
-	if err != nil {
-		return AppliedBinary{}, err
-	}
-	binaryMode = executableBinaryMode(binaryMode, currentInfo.Mode().Perm())
-
-	backupPath := siblingBackupPath(m.executablePath, m.now().UTC())
-	if err := m.binaryApplier.ApplyBinary(binaryPath, m.executablePath, backupPath, binaryMode); err != nil {
-		return AppliedBinary{}, err
-	}
-
-	return AppliedBinary{
-		TargetPath: m.executablePath,
-		BackupPath: backupPath,
-		Version:    strings.TrimSpace(release.Version),
-	}, nil
-}
+// RuntimeTargetPath returns the concrete executable path owned by this manager.
+func (m *Manager) RuntimeTargetPath() string { return m.executablePath }
 
 type releaseAssets struct {
 	archive   ReleaseAsset
 	checksums ReleaseAsset
 	bundle    ReleaseAsset
+	compat    ReleaseAsset
 }
 
 type downloadedReleaseArtifacts struct {
-	archivePath   string
-	checksumsPath string
-	bundlePath    string
+	archivePath       string
+	checksumsPath     string
+	bundlePath        string
+	compatibilityPath string
 }
 
 func (m *Manager) resolveReleaseAssets(release *Release) (releaseAssets, error) {
-	archiveName, err := archiveAssetName(m.runtimeOS, m.runtimeArch)
-	if err != nil {
-		return releaseAssets{}, err
-	}
+	return m.resolvePlanReleaseAssets(release, true)
+}
 
-	archiveAsset, ok := release.findAsset(archiveName)
-	if !ok {
-		return releaseAssets{}, fmt.Errorf(
-			"update: release %q does not publish %s",
-			release.Version,
-			archiveName,
-		)
+func (m *Manager) resolvePlanReleaseAssets(release *Release, includeRuntime bool) (releaseAssets, error) {
+	var archiveAsset ReleaseAsset
+	if includeRuntime {
+		archiveName, err := archiveAssetName(m.runtimeOS, m.runtimeArch)
+		if err != nil {
+			return releaseAssets{}, err
+		}
+		var ok bool
+		archiveAsset, ok = release.findAsset(archiveName)
+		if !ok {
+			return releaseAssets{}, fmt.Errorf(
+				"update: release %q does not publish %s",
+				release.Version,
+				archiveName,
+			)
+		}
 	}
 	checksumsAsset, ok := release.findAsset(checksumsAssetName)
 	if !ok {
@@ -285,11 +275,20 @@ func (m *Manager) resolveReleaseAssets(release *Release) (releaseAssets, error) 
 			checksumsBundleAssetName,
 		)
 	}
+	compatibilityAsset, ok := release.findAsset(compatibilityAssetName)
+	if !ok {
+		return releaseAssets{}, fmt.Errorf(
+			"update: release %q is missing %s",
+			release.Version,
+			compatibilityAssetName,
+		)
+	}
 
 	return releaseAssets{
 		archive:   archiveAsset,
 		checksums: checksumsAsset,
 		bundle:    bundleAsset,
+		compat:    compatibilityAsset,
 	}, nil
 }
 
@@ -299,25 +298,36 @@ func (m *Manager) downloadReleaseArtifacts(
 	assets releaseAssets,
 ) (downloadedReleaseArtifacts, error) {
 	downloaded := downloadedReleaseArtifacts{
-		archivePath:   filepath.Join(tmpDir, assets.archive.Name),
-		checksumsPath: filepath.Join(tmpDir, assets.checksums.Name),
-		bundlePath:    filepath.Join(tmpDir, assets.bundle.Name),
+		checksumsPath:     filepath.Join(tmpDir, assets.checksums.Name),
+		bundlePath:        filepath.Join(tmpDir, assets.bundle.Name),
+		compatibilityPath: filepath.Join(tmpDir, assets.compat.Name),
 	}
 
+	if assets.archive.Name != "" {
+		downloaded.archivePath = filepath.Join(tmpDir, assets.archive.Name)
+		if err := m.downloadFile(
+			ctx,
+			assets.archive.DownloadURL,
+			downloaded.archivePath,
+			m.artifactPolicy.MaxArchiveBytes,
+		); err != nil {
+			var downloadErr *downloadSizeError
+			if errors.As(err, &downloadErr) {
+				return downloadedReleaseArtifacts{}, &ArtifactSizeError{
+					Kind:  ArtifactKindArchive,
+					Size:  downloadErr.Size,
+					Limit: downloadErr.Limit,
+				}
+			}
+			return downloadedReleaseArtifacts{}, err
+		}
+	}
 	if err := m.downloadFile(
 		ctx,
-		assets.archive.DownloadURL,
-		downloaded.archivePath,
-		m.artifactPolicy.MaxArchiveBytes,
+		assets.compat.DownloadURL,
+		downloaded.compatibilityPath,
+		maxCompatibilityBytes,
 	); err != nil {
-		var downloadErr *downloadSizeError
-		if errors.As(err, &downloadErr) {
-			return downloadedReleaseArtifacts{}, &ArtifactSizeError{
-				Kind:  ArtifactKindArchive,
-				Size:  downloadErr.Size,
-				Limit: downloadErr.Limit,
-			}
-		}
 		return downloadedReleaseArtifacts{}, err
 	}
 	if err := m.downloadFile(
@@ -349,9 +359,18 @@ func (m *Manager) verifyReleaseArtifacts(
 		return err
 	}
 
-	expectedChecksum, err := checksumForAsset(downloaded.checksumsPath, archiveName)
+	if archiveName != "" {
+		expectedChecksum, err := checksumForAsset(downloaded.checksumsPath, archiveName)
+		if err != nil {
+			return err
+		}
+		if err := verifySHA256(downloaded.archivePath, expectedChecksum); err != nil {
+			return err
+		}
+	}
+	expectedCompatibilityChecksum, err := checksumForAsset(downloaded.checksumsPath, compatibilityAssetName)
 	if err != nil {
 		return err
 	}
-	return verifySHA256(downloaded.archivePath, expectedChecksum)
+	return verifySHA256(downloaded.compatibilityPath, expectedCompatibilityChecksum)
 }

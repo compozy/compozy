@@ -146,6 +146,8 @@ type bootState struct {
 	bridges               *bridgeRuntime
 	notificationPresets   *presetspkg.Service
 	supportBundles        supportBundleShutdowner
+	updateManager         settingsUpdateManager
+	backgroundUpdates     *backgroundUpdateRuntime
 	httpServer            Server
 	udsServer             Server
 	skillsCancel          context.CancelFunc
@@ -190,6 +192,9 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 		return err
 	}
 	if err := d.markRestartReadyIfRequested(state.info); err != nil {
+		return err
+	}
+	if err := d.startBackgroundUpdates(ctx, state, cleanup); err != nil {
 		return err
 	}
 

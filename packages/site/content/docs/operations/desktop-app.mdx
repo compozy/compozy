@@ -1,29 +1,25 @@
 ---
 title: Desktop app operations
-description: Diagnose desktop launch failures, inspect platform logs, and recover app or runtime updates safely.
+description: Diagnose Electron launch failures and recover app or runtime updates without changing runtime data.
 ---
 
-Start with the structured status and diagnostic report:
+Start with structured state:
 
 ```bash
 compozy app status -o json
 compozy app diagnose -o json
 ```
 
-`compozy app diagnose` returns the redacted `DiagnosticReport` for the current boot. If the desktop
-app is not running and its control socket is absent, it uses the latest persisted report instead, so
-diagnosing a recorded failed desktop start does not require a healthy daemon. A present but
-unresponsive control socket returns its control error. The report carries boot ID and phase, app and
-runtime versions, runtime ownership, a safe error, and any previous crash. It excludes raw paths,
-log contents, and secrets.
+`compozy app diagnose` reads the current boot through the app control socket. When the app is not
+running, it reads the latest persisted report instead, so a failed start does not require a healthy
+daemon. A present but unresponsive socket returns its control error.
 
 ## Copy or export startup diagnostics
 
-In the boot window, select **Load diagnostics**. Expand **Technical details** only when you need the
-redacted report. **Copy diagnostics** copies it locally. **Export diagnostics** creates a local
-archive only after that explicit action; it never uploads the archive or deletes data.
+In the boot window, select **Load diagnostics**. **Copy diagnostics** copies the redacted report.
+**Export diagnostics** creates a local archive only after that explicit action and uploads nothing.
 
-From a terminal, request the same report or create an archive:
+From a terminal:
 
 ```bash
 compozy app diagnose -o json
@@ -31,94 +27,66 @@ compozy app diagnose --bundle --yes -o json
 compozy app diagnose --bundle --yes --bundle-output ./desktop-diagnostics.tar.gz -o json
 ```
 
-`--yes` is required because archive creation writes a local file. By default, the archive is saved
-under `$COMPOZY_HOME/support-bundles/`; `--bundle-output` selects a new file path ending in `.gz`.
-The command refuses an existing file or symbolic link. The archive contains `manifest.json` with
-the redacted report and may include bounded, redacted tails from the current boot's `desktop.log`
-and `desktop-bootstrap.jsonl`. It never includes `compozy.log`, raw log content, databases,
-configuration, credentials, sessions, or transcripts. This startup diagnostic archive is not a
-daemon support bundle, so it also works when the daemon did not start. It is never uploaded
-automatically.
+`--yes` confirms the local write. The command refuses an existing output file or symbolic link.
+The archive contains `manifest.json` and may include bounded, redacted tails from the current
+boot's `desktop.log` and `desktop-bootstrap.jsonl`. It excludes `compozy.log`, raw logs,
+databases, configuration, credentials, sessions, and transcripts.
 
 ## Log paths
 
-The app writes logs under the active `COMPOZY_HOME`. These are the default paths:
+Both supported desktop platforms use the active `COMPOZY_HOME`:
 
-| Platform | App log                       | Runtime log                   |
-| -------- | ----------------------------- | ----------------------------- |
-| macOS    | `~/.compozy/logs/desktop.log` | `~/.compozy/logs/compozy.log` |
-| Linux    | `~/.compozy/logs/desktop.log` | `~/.compozy/logs/compozy.log` |
+| Platform | App log                          | Runtime log                      |
+| -------- | -------------------------------- | -------------------------------- |
+| macOS    | `$COMPOZY_HOME/logs/desktop.log` | `$COMPOZY_HOME/logs/compozy.log` |
+| Linux    | `$COMPOZY_HOME/logs/desktop.log` | `$COMPOZY_HOME/logs/compozy.log` |
 
-If `COMPOZY_HOME` is set, replace `~/.compozy` with that path. Both logs remain under its `logs`
-directory regardless of which surface started the runtime.
+The default home is `~/.compozy`.
 
 ## Linux launch failures
 
-Install a WebKitGTK runtime supported by your distribution before retrying. On Ubuntu and Debian,
-AppImage mounts also require `libfuse2` (`libfuse2t64` on distributions that use the time64 package
-name). When FUSE is unavailable, launch the AppImage with:
+Install the package for your x64 Linux system. For an AppImage, FUSE 2 may be required; Ubuntu and
+Debian provide `libfuse2`, with `libfuse2t64` on distributions using the time64 package name.
+When FUSE mounting is unavailable:
 
 ```bash
-./CompozyOS.AppImage --appimage-extract-and-run
+./CompozyOS-<version>-linux-x64.AppImage --appimage-extract-and-run
 ```
 
-For NVIDIA rendering failures, enable DRM kernel mode setting first (`nvidia_drm.modeset=1`) and
-reboot. If the window is still blank, try the remaining workarounds in order and stop when the app
-opens:
-
-```bash
-__NV_DISABLE_EXPLICIT_SYNC=1 ./CompozyOS.AppImage
-WEBKIT_DISABLE_DMABUF_RENDERER=1 ./CompozyOS.AppImage
-WEBKIT_DISABLE_COMPOSITING_MODE=1 ./CompozyOS.AppImage
-```
-
-These environment settings affect only that launch. Do not add both to a global shell profile.
+If Electron exits before the product window opens, inspect `desktop.log`, verify the downloaded
+artifact against the release checksum, and reinstall the current package. Do not add graphics
+environment overrides to a global shell profile.
 
 ## Recover an app update
 
-If the app cannot complete its self-update, download the current installer for your platform from
-the GitHub release page and install it over the existing app. The runtime home and session data are
-outside the application bundle and remain in place.
-
-After reinstalling, run:
+If app apply fails, download the current package for your architecture from the GitHub release and
+install it over the existing app. The runtime home and session data live outside the application
+bundle.
 
 ```bash
 compozy app status -o json
-compozy app update --check -o json
+compozy update --check -o json
 ```
 
 ## Recover a runtime update
 
-When status reports `recovery_required`:
+When an update operation reports `failed`:
 
-1. Run `compozy app diagnose -o json` and save its recovery code and report.
-2. Follow the diagnostic action. Do not delete the active runtime, staging directory, or any
-   CompozyOS home data.
-3. Run `compozy app retry` only after resolving the reported cause.
-4. Confirm that `compozy app status -o json` reports a healthy runtime and no recovery state.
+1. Save the reported error code from `compozy app diagnose -o json`.
+2. Follow the reported action without deleting the active runtime, staging directory, or home data.
+3. Run `compozy app retry` after resolving the cause.
+4. Confirm healthy state with `compozy app status -o json`.
 
-For an operator-managed runtime, use the update command reported by diagnostics. The desktop app
-never replaces a Homebrew, npm, Go, Linux package, or other externally managed installation.
+For an operator-managed runtime, use the package-manager command in the update result. The app never
+replaces a Homebrew, npm, Go, Linux package, or other externally managed install.
 
-The app may repair only disposable desktop metadata and a runtime process it has verified as
-desktop-owned. It does not terminate operator-managed processes and never resets `compozy.db`,
-`config.toml`, credentials, sessions, or the full CompozyOS home.
+## Recover the desktop channel
 
-## Roll forward after an interrupted release
+A release operator repairs a bad desktop channel through the GitHub-backed channel authority, not
+by editing a manifest in place. See [Desktop release operations](/docs/operations/desktop-release).
 
-Prefer a newer signed release over hand-editing runtime markers:
+## Local security boundary
 
-1. Keep the failed staging files for diagnosis.
-2. Install the next signed desktop release over the existing app.
-3. Let the new app validate the existing runtime and recovery record.
-4. Apply the offered runtime update, then confirm healthy status.
-
-If no newer signed release is available, export diagnostics locally and include the archive only
-when you choose to send it to support. CompozyOS does not send it for you.
-
-## Local and remote security boundary
-
-The desktop app inherits the daemon's loopback-only local posture: it connects to the daemon on the
-same machine and does not create a second public listener. Remote access is a separate trust boundary
-and must use the authenticated [Gateway](/docs/gateway/security). Do not expose the local daemon port
-directly to a network.
+The desktop app loads the daemon-served product from the same machine and creates no second public
+listener. Remote access is a separate trust boundary and must use the authenticated
+[Gateway](/docs/gateway/security). Do not expose the local daemon port directly to a network.

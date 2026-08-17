@@ -1,6 +1,7 @@
 package update
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,16 +13,116 @@ import (
 	"testing"
 	"testing/iotest"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	goselfupdate "github.com/creativeprojects/go-selfupdate/update"
 )
 
 func TestManagerApplyRelease(t *testing.T) {
+	t.Run("Should rewrite desktop provenance to the replacement binary identity", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		binaryPath := filepath.Join(homePaths.BinDir, compozyBinaryName)
+		if err := os.MkdirAll(homePaths.BinDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(bin) error = %v", err)
+		}
+		if err := os.WriteFile(binaryPath, []byte("replacement-runtime"), 0o700); err != nil {
+			t.Fatalf("WriteFile(binary) error = %v", err)
+		}
+		metadata := DesktopProvenanceMetadata{
+			AppVersion: "1.0.0-beta.1", Channel: "beta", RuntimeVersion: "1.0.0-beta.1",
+		}
+		if err := rewriteDesktopProvenance(homePaths, binaryPath, metadata); err != nil {
+			t.Fatalf("rewriteDesktopProvenance() error = %v", err)
+		}
+		if !isDesktopAppInstall(homePaths.HomeDir, binaryPath, runtimeOSLinux) {
+			t.Fatal("isDesktopAppInstall() = false after provenance rewrite")
+		}
+		marker, err := readDesktopProvenance(homePaths.DesktopProvenanceFile)
+		if err != nil {
+			t.Fatalf("readDesktopProvenance() error = %v", err)
+		}
+		if marker.AppVersion != metadata.AppVersion || marker.Channel != metadata.Channel ||
+			marker.RuntimeVersion != metadata.RuntimeVersion {
+			t.Fatalf("desktop provenance = %#v, want metadata %#v", marker, metadata)
+		}
+	})
+
+	t.Run("Should advance desktop runtime provenance after a verified self-update", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		executablePath := filepath.Join(homePaths.BinDir, compozyBinaryName)
+		if err := os.MkdirAll(homePaths.BinDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(bin) error = %v", err)
+		}
+		if err := os.WriteFile(executablePath, []byte("current-runtime"), 0o700); err != nil {
+			t.Fatalf("WriteFile(runtime) error = %v", err)
+		}
+		metadata := DesktopProvenanceMetadata{
+			AppVersion: "1.0.0-beta.1", Channel: "beta", RuntimeVersion: "v1.0.0",
+		}
+		if err := rewriteDesktopProvenance(homePaths, executablePath, metadata); err != nil {
+			t.Fatalf("rewriteDesktopProvenance() error = %v", err)
+		}
+		manager, err := NewManager(&Config{
+			HomePaths:       homePaths,
+			CurrentVersion:  "v1.0.0",
+			ExecutablePath:  func() (string, error) { return executablePath, nil },
+			ResolveSymlinks: func(path string) (string, error) { return path, nil },
+			RuntimeOS:       runtimeOSLinux,
+			RuntimeArch:     runtimeArchAMD64,
+			BundleVerifier:  &stubBundleVerifier{},
+		})
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		archiveBody := createTarGzBinary(t, "compozy", []byte("replacement-runtime"), 0o755)
+		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
+			archiveBody: archiveBody,
+			bundleBody:  []byte(`{"mediaType":"application/vnd.dev.sigstore.bundle+json;version=0.3"}`),
+		})
+		defer server.Close()
+		manager.httpClient = server.Client()
+
+		applied, err := manager.ApplyRelease(t.Context(), release)
+		if err != nil {
+			t.Fatalf("ApplyRelease() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Finalize(applied); err != nil {
+				t.Errorf("Finalize() error = %v", err)
+			}
+		})
+		marker, err := readDesktopProvenance(homePaths.DesktopProvenanceFile)
+		if err != nil {
+			t.Fatalf("readDesktopProvenance() error = %v", err)
+		}
+		if marker.AppVersion != metadata.AppVersion || marker.Channel != metadata.Channel ||
+			marker.RuntimeVersion != "v1.1.0" {
+			t.Fatalf("updated desktop provenance = %#v, want app/channel preserved and runtime v1.1.0", marker)
+		}
+		if applied.PreviousVersion != "v1.0.0" || !isDesktopAppInstall(
+			homePaths.HomeDir,
+			executablePath,
+			runtimeOSLinux,
+		) {
+			t.Fatalf("applied desktop runtime = %#v, want prior version and matching provenance", applied)
+		}
+	})
+
 	t.Run("Should apply a verified archive and preserve rollback metadata", func(t *testing.T) {
 		t.Parallel()
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, executablePath := newManagerWithExecutable(t, Config{
+		manager, executablePath := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -65,7 +166,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, executablePath := newManagerWithExecutable(t, Config{
+		manager, executablePath := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -94,7 +195,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -134,7 +235,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -168,7 +269,7 @@ func TestManagerApplyRelease(t *testing.T) {
 	t.Run("Should reject releases that do not publish the checksum bundle", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSLinux,
 			RuntimeArch: runtimeArchAMD64,
 		})
@@ -199,7 +300,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{err: errors.New("invalid bundle")}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -231,7 +332,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -268,7 +369,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -300,7 +401,7 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		verifier := &stubBundleVerifier{}
 		applier := &recordingBinaryApplier{}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:      runtimeOSLinux,
 			RuntimeArch:    runtimeArchAMD64,
 			BundleVerifier: verifier,
@@ -339,7 +440,7 @@ func TestManagerDownloadFile(t *testing.T) {
 			reader:   strings.NewReader(strings.Repeat("x", int(maxUpdateResponseDrainBytes)+1)),
 			closeErr: closeErr,
 		}
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			HTTPClient: &http.Client{
 				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 					return &http.Response{
@@ -381,7 +482,7 @@ func TestManagerDownloadFile(t *testing.T) {
 	t.Run("Should reject chunked downloads that exceed the limit", func(t *testing.T) {
 		t.Parallel()
 
-		manager, _ := newManagerWithExecutable(t, Config{
+		manager, _ := newManagerWithExecutable(t, &Config{
 			RuntimeOS:   runtimeOSLinux,
 			RuntimeArch: runtimeArchAMD64,
 		})
@@ -543,13 +644,11 @@ func TestSelfBinaryApplierCleanup(t *testing.T) {
 }
 
 func TestManagerRestore(t *testing.T) {
-	t.Parallel()
-
 	t.Run("Should restore backup executable mode when target mode is broken", func(t *testing.T) {
 		t.Parallel()
 
 		applier := &recordingBinaryApplier{}
-		manager, executablePath := newManagerWithExecutable(t, Config{
+		manager, executablePath := newManagerWithExecutable(t, &Config{
 			RuntimeOS:     runtimeOSLinux,
 			RuntimeArch:   runtimeArchAMD64,
 			BinaryApplier: applier,
@@ -573,10 +672,71 @@ func TestManagerRestore(t *testing.T) {
 			t.Fatalf("binary restore = %#v, want backup %q target %q mode 0755", applier, backupPath, executablePath)
 		}
 	})
+
+	t.Run("Should restore desktop provenance from the journaled install method", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		executablePath := filepath.Join(homePaths.BinDir, compozyBinaryName)
+		if err := os.MkdirAll(homePaths.BinDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(bin) error = %v", err)
+		}
+		if err := os.WriteFile(executablePath, []byte("replacement-binary"), 0o700); err != nil {
+			t.Fatalf("WriteFile(replacement) error = %v", err)
+		}
+		metadata := DesktopProvenanceMetadata{
+			AppVersion: "1.1.0-beta.1", Channel: "beta", RuntimeVersion: "1.1.0-beta.1",
+		}
+		if err := rewriteDesktopProvenance(homePaths, executablePath, metadata); err != nil {
+			t.Fatalf("rewriteDesktopProvenance(replacement) error = %v", err)
+		}
+		backupPath := filepath.Join(homePaths.BinDir, ".compozy.backup")
+		if err := os.WriteFile(backupPath, []byte("original-binary"), 0o700); err != nil {
+			t.Fatalf("WriteFile(backup) error = %v", err)
+		}
+		manager, err := NewManager(&Config{
+			HomePaths:      homePaths,
+			CurrentVersion: "v1.1.0",
+			ExecutablePath: func() (string, error) { return executablePath, nil },
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
+		})
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		if err := manager.Restore(AppliedBinary{
+			TargetPath: executablePath, BackupPath: backupPath, PreviousVersion: "1.0.0-beta.1",
+			InstallMethod: InstallMethodDesktopApp,
+		}); err != nil {
+			t.Fatalf("Restore() error = %v", err)
+		}
+		if !isDesktopAppInstall(homePaths.HomeDir, executablePath, runtimeOSLinux) {
+			t.Fatal("isDesktopAppInstall() = false after desktop rollback")
+		}
+		contents, err := os.ReadFile(executablePath)
+		if err != nil {
+			t.Fatalf("ReadFile(restored) error = %v", err)
+		}
+		if string(contents) != "original-binary" {
+			t.Fatalf("restored contents = %q, want original-binary", contents)
+		}
+		marker, err := readDesktopProvenance(homePaths.DesktopProvenanceFile)
+		if err != nil {
+			t.Fatalf("readDesktopProvenance() error = %v", err)
+		}
+		if marker.AppVersion != metadata.AppVersion || marker.Channel != metadata.Channel ||
+			marker.RuntimeVersion != "1.0.0-beta.1" {
+			t.Fatalf("restored desktop provenance = %#v, want app/channel preserved and prior runtime", marker)
+		}
+	})
 }
 
 type assetFixture struct {
 	archiveBody          []byte
+	compatibilityBody    []byte
 	checksumsBody        []byte
 	bundleBody           []byte
 	archiveStatus        int
@@ -596,8 +756,26 @@ func newReleaseFixtureServer(
 	}
 
 	checksumsBody := fixture.checksumsBody
+	compatibilityBody := fixture.compatibilityBody
+	if len(compatibilityBody) == 0 {
+		compatibilityBody = []byte(`{"runtime_version":"v1.1.0","min_app_version":"v1.0.0"}`)
+	}
 	if len(checksumsBody) == 0 {
-		checksumsBody = fmt.Appendf(nil, "%s  %s\n", sha256Hex(fixture.archiveBody), archiveName)
+		checksumsBody = fmt.Appendf(
+			nil,
+			"%s  %s\n%s  %s\n",
+			sha256Hex(fixture.archiveBody),
+			archiveName,
+			sha256Hex(compatibilityBody),
+			compatibilityAssetName,
+		)
+	} else if !bytes.Contains(checksumsBody, []byte(compatibilityAssetName)) {
+		checksumsBody = fmt.Appendf(
+			checksumsBody,
+			"%s  %s\n",
+			sha256Hex(compatibilityBody),
+			compatibilityAssetName,
+		)
 	}
 
 	server := newReleaseAssetServer(t, map[string]assetResponse{
@@ -612,6 +790,9 @@ func newReleaseFixtureServer(
 		"/checksums.txt.sigstore.json": {
 			body: fixture.bundleBody,
 		},
+		"/compat.json": {
+			body: compatibilityBody,
+		},
 	})
 
 	release := &Release{
@@ -621,6 +802,7 @@ func newReleaseFixtureServer(
 			{Name: archiveName, DownloadURL: server.URL + "/archive"},
 			{Name: checksumsAssetName, DownloadURL: server.URL + "/checksums.txt"},
 			{Name: checksumsBundleAssetName, DownloadURL: server.URL + "/checksums.txt.sigstore.json"},
+			{Name: compatibilityAssetName, DownloadURL: server.URL + "/compat.json"},
 		},
 	}
 	return release, archiveName, server

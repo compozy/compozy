@@ -36,6 +36,8 @@ const (
 	GatewayDirName = "gateway"
 	// GatewayCredentialsDirName is the private gateway credential directory.
 	GatewayCredentialsDirName = "credentials"
+	// BinDirName is the directory for runtime binaries managed by CompozyOS.
+	BinDirName = "bin"
 	// DatabaseName is the global database filename.
 	DatabaseName = "compozy.db"
 	// DaemonSocketName is the daemon UDS filename.
@@ -50,6 +52,16 @@ const (
 	LogFileName = "compozy.log"
 	// NetworkAuditFileName is the append-only network audit filename.
 	NetworkAuditFileName = "network.audit"
+	// AppStateFileName is the desktop shell state filename.
+	AppStateFileName = "app.json"
+	// UpdateOperationFileName is the live host update journal filename.
+	UpdateOperationFileName = "update-operation.json"
+	// UpdateOperationLockName is the stable lock guarding the update journal.
+	UpdateOperationLockName = "update-operation.lock"
+	// UpdateHistoryFileName is the terminal update audit filename.
+	UpdateHistoryFileName = "update-history.jsonl"
+	// DesktopProvenanceFileName records ownership of the bundled runtime.
+	DesktopProvenanceFileName = ".desktop-provenance.json"
 	// AgentDefinitionFileName is the canonical file name for persisted agent definitions.
 	AgentDefinitionFileName = "AGENT.md"
 	agentDefName            = AgentDefinitionFileName
@@ -71,8 +83,14 @@ type HomePaths struct {
 	GatewayDir            string
 	GatewayCredentialsDir string
 	ExtensionDataRoot     string
+	BinDir                string
 	LogFile               string
 	NetworkAuditFile      string
+	AppStateFile          string
+	UpdateOperationFile   string
+	UpdateOperationLock   string
+	UpdateHistoryFile     string
+	DesktopProvenanceFile string
 	DatabaseFile          string
 	DaemonSocket          string
 	DaemonLock            string
@@ -217,8 +235,14 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		GatewayDir:            filepath.Join(root, GatewayDirName),
 		GatewayCredentialsDir: filepath.Join(root, GatewayDirName, GatewayCredentialsDirName),
 		ExtensionDataRoot:     filepath.Join(root, ExtensionDataDirName),
+		BinDir:                filepath.Join(root, BinDirName),
 		LogFile:               filepath.Join(root, LogsDirName, LogFileName),
 		NetworkAuditFile:      filepath.Join(root, LogsDirName, NetworkAuditFileName),
+		AppStateFile:          filepath.Join(root, AppStateFileName),
+		UpdateOperationFile:   filepath.Join(root, UpdateOperationFileName),
+		UpdateOperationLock:   filepath.Join(root, UpdateOperationLockName),
+		UpdateHistoryFile:     filepath.Join(root, LogsDirName, UpdateHistoryFileName),
+		DesktopProvenanceFile: filepath.Join(root, BinDirName, DesktopProvenanceFileName),
 		DatabaseFile:          filepath.Join(root, DatabaseName),
 		DaemonSocket:          filepath.Join(root, DaemonSocketName),
 		DaemonLock:            filepath.Join(root, DaemonLockName),
@@ -242,6 +266,7 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.GatewayDir,
 		paths.GatewayCredentialsDir,
 		paths.ExtensionDataRoot,
+		paths.BinDir,
 	} {
 		if strings.TrimSpace(dir) == "" {
 			return errors.New("config: home path is required")

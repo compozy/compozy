@@ -8,6 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  dialogShellClass,
   Field,
   FieldDescription,
   FieldLabel,
@@ -56,8 +57,9 @@ export function TaskFanOutDialog({
   return (
     <Dialog onOpenChange={state.handleOpenChange} open={open}>
       <DialogContent
-        className="gap-0 p-0 text-fg sm:max-w-2xl"
+        className={`grid-rows-[auto_minmax(0,1fr)] text-fg ${dialogShellClass("md", { fill: true })}`}
         data-testid="tasks-fan-out-runs-dialog"
+        unframed
       >
         <DialogHeader className="border-b border-line px-5 py-4">
           <DialogTitle>Fan out task runs</DialogTitle>
@@ -66,8 +68,11 @@ export function TaskFanOutDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={state.handleSubmit}>
-          <div className="space-y-5 p-5">
+        <form
+          className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto_auto]"
+          onSubmit={state.handleSubmit}
+        >
+          <div className="min-h-0 space-y-5 overflow-y-auto p-5">
             {state.formError ? (
               <Alert data-testid="tasks-fan-out-runs-error" variant="danger">
                 <AlertDescription>{state.formError}</AlertDescription>

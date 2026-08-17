@@ -29,6 +29,9 @@ import type {
   SettingsUpdateNetworkRequest,
   SettingsUpdateNotificationPresetRequest,
   SettingsUpdateObservabilityRequest,
+  SettingsUpdateApplyRequest,
+  SettingsUpdateApplyResult,
+  SettingsUpdateCancelResult,
   SettingsUpdateShellRequest,
   SettingsUpdateSkillsFilter,
   SettingsUpdateSkillsRequest,
@@ -92,6 +95,43 @@ export async function getSettingsUpdate(signal?: AbortSignal): Promise<SettingsU
     );
   }
   return requireResponseData(data, response, "Failed to load update status");
+}
+
+/**
+ * Requests an apply for one track. The daemon answers `accepted` + operation id
+ * after durable acquisition, or a deterministic `blocked` naming the holder — it
+ * never returns a terminal verdict it cannot yet know. Terminal truth arrives
+ * through `getSettingsUpdate`, so callers must not treat a 200 as success.
+ */
+export async function applySettingsUpdate(
+  body: SettingsUpdateApplyRequest,
+  signal?: AbortSignal
+): Promise<SettingsUpdateApplyResult> {
+  const { data, error, response } = await apiClient.POST("/api/settings/update/apply", {
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to start the update", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to start the update");
+}
+
+/** Cancels a dormant operation only; a live executor lease declines with its holder. */
+export async function cancelSettingsUpdate(
+  signal?: AbortSignal
+): Promise<SettingsUpdateCancelResult> {
+  const { data, error, response } = await apiClient.POST("/api/settings/update/cancel", { signal });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to cancel the update", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to cancel the update");
 }
 
 export async function getSettingsMemory(signal?: AbortSignal): Promise<SettingsMemorySection> {

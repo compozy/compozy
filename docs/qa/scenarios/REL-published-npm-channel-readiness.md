@@ -11,8 +11,8 @@ bug_ids: BUG-20260807-npm-dist-tag-readiness
 fix_status: fixed
 retest_status: pass
 fix_commits: a46b424e; c38ba0fa
-evidence: https://github.com/compozy/compozy/actions/runs/31817112935/job/94858267424
-last_report: docs/qa/reports/2026-08-13-release-pipeline-recovery.md
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: REL-beta-install-paths
 ---
 

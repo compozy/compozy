@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -36,6 +37,30 @@ func (m *Manager) fetchLatestRelease(ctx context.Context) (*Release, error) {
 		return m.fetchLatestBetaRelease(ctx)
 	}
 	return m.fetchLatestStableRelease(ctx)
+}
+
+// ResolveReleaseByTag fetches the immutable release identity recorded by an operation.
+func (m *Manager) ResolveReleaseByTag(ctx context.Context, tag string) (*Release, error) {
+	cleanTag := strings.TrimSpace(tag)
+	if cleanTag == "" {
+		return nil, errors.New("update: release tag is required")
+	}
+	endpoint := "https://api.github.com/repos/" + githubRepositorySlug + "/releases/tags/" + url.PathEscape(cleanTag)
+	var payload githubReleaseResponse
+	if err := m.fetchGitHubJSON(ctx, endpoint, &payload); err != nil {
+		return nil, err
+	}
+	if payload.Draft {
+		return nil, fmt.Errorf("update: release %q is a draft", cleanTag)
+	}
+	release, err := releaseFromGitHubResponse(payload)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(release.Version) != cleanTag {
+		return nil, fmt.Errorf("update: release tag mismatch: got %q, want %q", release.Version, cleanTag)
+	}
+	return release, nil
 }
 
 func (m *Manager) fetchLatestStableRelease(ctx context.Context) (*Release, error) {

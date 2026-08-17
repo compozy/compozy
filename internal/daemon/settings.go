@@ -19,8 +19,6 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network"
 	settingspkg "github.com/compozy/compozy/internal/settings"
-	compozyupdate "github.com/compozy/compozy/internal/update"
-	"github.com/compozy/compozy/internal/version"
 )
 
 type settingsRuntimeSurface struct {
@@ -388,52 +386,4 @@ func settingsRestartOperationFromDaemon(operation RestartOperation) core.Setting
 		UpdatedAt:          operation.UpdatedAt,
 		CompletedAt:        operation.CompletedAt,
 	}
-}
-
-type settingsUpdateController struct {
-	manager settingsUpdateManager
-}
-
-var _ core.SettingsUpdateController = settingsUpdateController{}
-
-type settingsUpdateManager interface {
-	Check(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
-}
-
-func (c settingsUpdateController) GetUpdate(ctx context.Context) (core.SettingsUpdateStatus, error) {
-	if c.manager == nil {
-		return core.SettingsUpdateStatus{}, errors.New("daemon: settings update manager is required")
-	}
-
-	state, _, err := c.manager.Check(ctx, compozyupdate.CheckOptions{AllowCachedOnFailure: true})
-	if err != nil && strings.TrimSpace(state.Message) == "" && strings.TrimSpace(state.LastError) == "" {
-		return core.SettingsUpdateStatus{}, err
-	}
-
-	return core.SettingsUpdateStatus{
-		Supported:      state.Supported,
-		Managed:        state.Managed,
-		InstallMethod:  strings.TrimSpace(state.InstallMethod),
-		CurrentVersion: strings.TrimSpace(state.CurrentVersion),
-		LatestVersion:  strings.TrimSpace(state.LatestVersion),
-		Available:      state.Available,
-		Status:         strings.TrimSpace(string(state.Status)),
-		Recommendation: strings.TrimSpace(state.Recommendation),
-		ReleaseURL:     strings.TrimSpace(state.ReleaseURL),
-		CheckedAt:      state.CheckedAt,
-		LastError:      strings.TrimSpace(state.LastError),
-	}, nil
-}
-
-func newSettingsUpdateManager(d *Daemon) (*compozyupdate.Manager, error) {
-	if d == nil {
-		return nil, errors.New("daemon: settings update daemon is required")
-	}
-
-	return compozyupdate.NewManager(compozyupdate.Config{
-		HomePaths:      d.homePaths,
-		CurrentVersion: version.Current().Version,
-		ExecutablePath: d.executable,
-		Getenv:         os.Getenv,
-	})
 }

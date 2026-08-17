@@ -8,13 +8,14 @@ when the runtime dies, and quitting never stops the runtime or in-flight agent w
 flowchart TD
     A[Entry: dock or launcher click] --> B{Runtime state for the active home?}
     B -->|healthy and running| C[Attach - zero writes, zero spawns]
-    B -->|installed but stopped| D[Start with visible bounded progress]
+    B -->|installed but stopped| D[Start with visible bounded non-interactive progress]
     B -->|version skew| E[Guided incompatibility state naming both versions + action]
     B -->|foreign process on the address| F[Conflict named - foreign content never rendered]
     B -->|running but unhealthy| G[Honest degraded state, retry in place]
     C --> H[Product UI: same workspaces, sessions, and local UI state as the browser tab]
     D --> H
-    H --> Z[Use standard page-zoom shortcuts when the product needs scaling]
+    H --> N[Use the operating system window controls inside the product menubar]
+    N --> Z[Use standard page-zoom shortcuts when the product needs scaling]
     Z --> I[Work: act in app and browser side by side - both reflect live]
     I --> J{Runtime dies mid-use?}
     J -->|kill -9| K[Disconnected state within the interval + reconnect and restart-runtime affordances]
@@ -41,17 +42,20 @@ journey:
       expected_observable: "Attach only — same product state as the browser, no second daemon in the process table"
     - step: 2
       verb: "Open the app with the runtime installed but stopped"
-      expected_observable: "Visible starting progress, then the product UI; no dead white screen"
+      expected_observable: "Visible non-interactive starting progress, then the product UI; no dead white screen or update offer in the boot window"
     - step: 3
+      verb: "Use the native close, minimize, and zoom or maximize controls"
+      expected_observable: "The controls follow the operating system convention inside the product menubar, never overlap Compozy controls, and keep native window behavior"
+    - step: 4
       verb: "Scale the product with standard page-zoom shortcuts"
       expected_observable: "Command or Control plus, minus, and zero change or reset the whole product scale without triggering Compozy's single-window Zoom action"
-    - step: 4
+    - step: 5
       verb: "Work with app and browser tab side by side"
       expected_observable: "Actions in one surface appear live in the other"
-    - step: 5
+    - step: 6
       verb: "Kill the daemon under the app, then restart it"
       expected_observable: "Disconnected state within a perceivable interval; reconnect returns to the product without app restart"
-    - step: 6
+    - step: 7
       verb: "Quit the app"
       expected_observable: "Window closes; `compozy status` still healthy; the active session survives"
   goal:
@@ -64,5 +68,5 @@ journey:
     - at_step: 4
       how: "The user walks away from the disconnected state."
       resume: "After an external fix, retry from the same screen succeeds without restarting the app."
-  crosses: [daemon-discovery, identity-probe, supervisor, browser-surface, window-geometry, quit-contract]
+  crosses: [daemon-discovery, identity-probe, supervisor, browser-surface, native-window-chrome, window-geometry, quit-contract]
 ```

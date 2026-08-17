@@ -17,11 +17,19 @@ import {
 import { createWorktreeRepo } from "../fixtures/worktree-repo";
 import {
   osShellSelectors,
+  sessionLifecycleSelectors,
   sessionWorkspaceSwitchSelectors,
+  settingsOperatorSelectors,
   tasksOperatorSelectors,
 } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import {
+  settingsUpdateApplyingFixture,
+  settingsUpdateBothAvailableFixture,
+  settingsUpdateRolledBackFixture,
+  settingsUpdateStatusFixture,
+} from "@/systems/settings/mocks/settings-update-fixture";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleAgent = "os-shell-agent";
@@ -207,6 +215,14 @@ test("E2E-001: fresh boot renders the empty desktop without opening a window", a
 
   await expect(appPage.getByRole("navigation", { name: "Dock" })).toBeVisible();
   await expect(appPage.getByRole("banner", { name: "System bar" })).toBeVisible();
+  expect(
+    await appPage.evaluate(() => {
+      const overlay = Reflect.get(navigator, "windowControlsOverlay") as
+        | { visible: boolean }
+        | undefined;
+      return overlay?.visible ?? false;
+    })
+  ).toBe(false);
   await expect(appPage.getByTestId("os-desk-hint")).toContainText("⌘K");
   await expect(appPage.locator('[data-testid^="os-window-"]')).toHaveCount(0);
   await expect(appPage.getByRole("button", { name: "Desktop 1 of 1: Desktop 1" })).toHaveAttribute(
@@ -1752,7 +1768,9 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
   await expect(sessionWindow(appPage, session.id)).toHaveCount(0);
   await expect(appPage.getByText("cross-workspace-session", { exact: true })).toHaveCount(0);
 
-  // Only the owner projection resolved the miss: no foreign-workspace read, no session payload.
+  // Only the owner projection resolves the session miss. The shell may refresh B's
+  // workspace-scoped worktree listing for the authorized global workspace switcher,
+  // but no foreign session or other workspace payload is read before confirmation.
   expect(new Set(apiRequests.filter(pathname => pathname.includes(session.id)))).toEqual(
     new Set([
       `/api/workspaces/${workspace.id}/sessions/${session.id}`,
@@ -1760,8 +1778,10 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
     ])
   );
   expect(
-    apiRequests.filter(pathname => pathname.startsWith(`/api/workspaces/${secondWorkspace.id}/`))
-  ).toEqual([]);
+    new Set(
+      apiRequests.filter(pathname => pathname.startsWith(`/api/workspaces/${secondWorkspace.id}/`))
+    )
+  ).toEqual(new Set([`/api/workspaces/${secondWorkspace.id}/worktrees`]));
 
   // Cancel keeps A active with its arrangement intact and falls back to today's not-found.
   await confirmSwitch.cancel.click();
@@ -3766,4 +3786,115 @@ test("operator sees one nested worktree tree across all three workspace-listing 
   } finally {
     await repo.cleanup();
   }
+});
+
+/**
+ * E2E-021 — the menubar indicator's whole lifecycle in a plain browser: absent by
+ * default, present only while an update is genuinely offered, absent again the
+ * moment an operation takes the channel, and it lands the operator on the Updates
+ * section (US-029 AC-2, EC-4). The update projection describes the host install,
+ * which the harness has no real feed for, so each shape is served at the API
+ * boundary; every assertion is on what the SPA renders from it.
+ */
+test("E2E-021: the menubar update indicator appears only while an update is offered and opens the Updates section", async ({
+  appPage,
+  runtime,
+}) => {
+  await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
+
+  let updatePayload: unknown = settingsUpdateStatusFixture;
+  await appPage.route("**/api/settings/update", async route => {
+    await route.fulfill({ json: updatePayload });
+  });
+
+  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("os-desktop")).toBeVisible({ timeout: 20_000 });
+
+  const indicator = appPage.getByTestId("os-menubar-update");
+
+  // Up to date: absent from the DOM, not hidden with CSS.
+  await expect(indicator).toHaveCount(0);
+
+  // Offered: the indicator appears, with no count and no dropdown.
+  updatePayload = settingsUpdateBothAvailableFixture;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(indicator).toBeVisible({ timeout: 20_000 });
+  await expect(indicator).not.toHaveAttribute("aria-haspopup", "true");
+
+  // Applying: progress belongs to Settings, so the menubar goes quiet again.
+  updatePayload = settingsUpdateApplyingFixture;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(indicator).toHaveCount(0, { timeout: 20_000 });
+
+  // Failed: still no menubar error surface.
+  updatePayload = settingsUpdateRolledBackFixture;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(indicator).toHaveCount(0, { timeout: 20_000 });
+
+  // Offered again: activation lands on the Updates section.
+  updatePayload = settingsUpdateBothAvailableFixture;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(indicator).toBeVisible({ timeout: 20_000 });
+  await indicator.click();
+
+  const settingsWin = appWindow(appPage, "settings");
+  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
+  await expect(settingsOperatorSelectors(settingsWin).general.updates).toBeVisible({
+    timeout: 20_000,
+  });
+});
+
+/**
+ * E2E-022 — the same journey with no pointer at all: the indicator is reachable by
+ * keyboard, activates on Enter, and the apply affordance is reachable and
+ * activatable in the Settings tab order (US-029 AC-4).
+ */
+test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, and applies without a pointer", async ({
+  appPage,
+  runtime,
+}) => {
+  await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
+
+  const applyTargets: string[] = [];
+  await appPage.route("**/api/settings/update", async route => {
+    await route.fulfill({ json: settingsUpdateBothAvailableFixture });
+  });
+  await appPage.route("**/api/settings/update/apply", async route => {
+    const body = route.request().postDataJSON() as { target: string };
+    applyTargets.push(body.target);
+    await route.fulfill({
+      json: {
+        target: body.target,
+        status: "accepted",
+        operation_id: "op-e2e-keyboard",
+        message: "Started the runtime update.",
+        holder: null,
+      },
+    });
+  });
+
+  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("os-desktop")).toBeVisible({ timeout: 20_000 });
+
+  const indicator = appPage.getByTestId("os-menubar-update");
+  await expect(indicator).toBeVisible({ timeout: 20_000 });
+
+  // Focus without a pointer, then activate with the keyboard.
+  await indicator.focus();
+  await expect(indicator).toBeFocused();
+  await appPage.keyboard.press("Enter");
+
+  const settingsWin = appWindow(appPage, "settings");
+  await expect(settingsWin).toBeVisible({ timeout: 20_000 });
+  const settingsUI = settingsOperatorSelectors(settingsWin);
+  await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
+
+  // The apply affordance is a real button in the tab order, activatable by keyboard.
+  const apply = settingsUI.general.updateApply("runtime");
+  await expect(apply).toBeVisible();
+  await apply.focus();
+  await expect(apply).toBeFocused();
+  await appPage.keyboard.press("Enter");
+  await expect.poll(() => applyTargets).toEqual(["runtime"]);
 });

@@ -1,0 +1,204 @@
+package update
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+)
+
+// ApplyStep reports the next journal phase immediately before its work begins.
+type ApplyStep struct {
+	Phase         OperationPhase
+	Percent       int
+	BackupPath    string
+	Compatibility *Compatibility
+}
+
+// ApplyObserver journals and fences one apply step before the manager performs it.
+type ApplyObserver func(context.Context, ApplyStep) error
+
+// ApplyRelease downloads, verifies, extracts, and swaps in the supplied release.
+func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (AppliedBinary, error) {
+	return m.applyRelease(ctx, release, nil)
+}
+
+// ApplyReleaseObserved exposes real apply boundaries to the operation coordinator.
+func (m *Manager) ApplyReleaseObserved(
+	ctx context.Context,
+	release *Release,
+	observer ApplyObserver,
+) (AppliedBinary, error) {
+	if observer == nil {
+		return AppliedBinary{}, errors.New("update: apply observer is required")
+	}
+	return m.applyRelease(ctx, release, observer)
+}
+
+func (m *Manager) applyRelease(
+	ctx context.Context,
+	release *Release,
+	observer ApplyObserver,
+) (_ AppliedBinary, returnErr error) {
+	if release == nil {
+		return AppliedBinary{}, errors.New("update: release metadata is required")
+	}
+	comparison, err := compareVersions(m.currentVersion, release.Version)
+	if err != nil {
+		return AppliedBinary{}, fmt.Errorf("update: compare release before apply: %w", err)
+	}
+	if comparison >= 0 {
+		return AppliedBinary{}, fmt.Errorf(
+			"update: release %q is not newer than running version %q",
+			strings.TrimSpace(release.Version),
+			strings.TrimSpace(m.currentVersion),
+		)
+	}
+	install, err := m.detectInstall(ctx)
+	if err != nil {
+		return AppliedBinary{}, err
+	}
+	desktopMetadata, err := m.desktopProvenanceMetadata(install)
+	if err != nil {
+		return AppliedBinary{}, err
+	}
+	assets, err := m.resolveReleaseAssets(release)
+	if err != nil {
+		return AppliedBinary{}, err
+	}
+	currentInfo, err := os.Stat(m.executablePath)
+	if err != nil {
+		return AppliedBinary{}, fmt.Errorf("update: stat current executable %q: %w", m.executablePath, err)
+	}
+
+	tempDir, err := os.MkdirTemp("", "compozy-update-*")
+	if err != nil {
+		return AppliedBinary{}, fmt.Errorf("update: create temp directory: %w", err)
+	}
+	defer func() {
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			returnErr = errors.Join(
+				returnErr,
+				fmt.Errorf("update: remove temp directory %q: %w", tempDir, removeErr),
+			)
+		}
+	}()
+
+	binaryPath, binaryMode, compatibility, err := m.prepareReleaseBinary(
+		ctx,
+		tempDir,
+		assets,
+		release.Version,
+		observer,
+	)
+	if err != nil {
+		return AppliedBinary{}, err
+	}
+	binaryMode = executableBinaryMode(binaryMode, currentInfo.Mode().Perm())
+	backupPath := siblingBackupPath(m.executablePath, m.now().UTC())
+	if err := notifyApplyObserver(ctx, observer, ApplyStep{
+		Phase: PhaseSwapping, Percent: -1, BackupPath: backupPath, Compatibility: &compatibility,
+	}); err != nil {
+		return AppliedBinary{}, err
+	}
+	if err := m.binaryApplier.ApplyBinary(binaryPath, m.executablePath, backupPath, binaryMode); err != nil {
+		return AppliedBinary{}, err
+	}
+	if err := m.rewriteAppliedDesktopProvenance(
+		install,
+		desktopMetadata,
+		strings.TrimSpace(release.Version),
+		backupPath,
+		currentInfo.Mode().Perm(),
+	); err != nil {
+		return AppliedBinary{}, err
+	}
+	return m.appliedBinary(release, backupPath, install), nil
+}
+
+func (m *Manager) appliedBinary(release *Release, backupPath string, install installInfo) AppliedBinary {
+	return AppliedBinary{
+		TargetPath:      m.executablePath,
+		BackupPath:      backupPath,
+		Version:         strings.TrimSpace(release.Version),
+		PreviousVersion: strings.TrimSpace(m.currentVersion),
+		InstallMethod:   InstallMethod(install.Method),
+	}
+}
+
+func (m *Manager) prepareReleaseBinary(
+	ctx context.Context,
+	tempDir string,
+	assets releaseAssets,
+	releaseVersion string,
+	observer ApplyObserver,
+) (string, os.FileMode, Compatibility, error) {
+	if err := notifyApplyObserver(ctx, observer, ApplyStep{Phase: PhaseDownloading, Percent: 0}); err != nil {
+		return "", 0, Compatibility{}, err
+	}
+	downloaded, err := m.downloadReleaseArtifacts(ctx, tempDir, assets)
+	if err != nil {
+		return "", 0, Compatibility{}, err
+	}
+	if err := notifyApplyObserver(ctx, observer, ApplyStep{Phase: PhaseVerifying, Percent: -1}); err != nil {
+		return "", 0, Compatibility{}, err
+	}
+	if err := m.verifyReleaseArtifacts(ctx, downloaded, assets.archive.Name); err != nil {
+		return "", 0, Compatibility{}, err
+	}
+	compatibility, err := readCompatibility(downloaded.compatibilityPath)
+	if err != nil {
+		return "", 0, Compatibility{}, err
+	}
+	if err := validateCompatibilityRelease(compatibility, releaseVersion); err != nil {
+		return "", 0, Compatibility{}, err
+	}
+	binaryPath, binaryMode, err := extractBinaryFromTarGz(
+		downloaded.archivePath,
+		tempDir,
+		m.archiveBinaryName(),
+		m.artifactPolicy,
+	)
+	return binaryPath, binaryMode, compatibility, err
+}
+
+func (m *Manager) rewriteAppliedDesktopProvenance(
+	install installInfo,
+	metadata DesktopProvenanceMetadata,
+	runtimeVersion string,
+	backupPath string,
+	currentMode os.FileMode,
+) error {
+	if install.Method != string(InstallMethodDesktopApp) {
+		return nil
+	}
+	replacementMetadata := metadata
+	replacementMetadata.RuntimeVersion = runtimeVersion
+	if err := rewriteDesktopProvenance(m.homePaths, m.executablePath, replacementMetadata); err != nil {
+		restoreErr := m.binaryApplier.RestoreBinary(backupPath, m.executablePath, currentMode)
+		if restoreErr == nil {
+			restoreErr = rewriteDesktopProvenance(m.homePaths, m.executablePath, metadata)
+		}
+		return errors.Join(err, restoreErr)
+	}
+	return nil
+}
+
+func (m *Manager) desktopProvenanceMetadata(install installInfo) (DesktopProvenanceMetadata, error) {
+	if install.Method != string(InstallMethodDesktopApp) {
+		return DesktopProvenanceMetadata{}, nil
+	}
+	marker, err := readDesktopProvenance(desktopProvenancePath(m.homePaths, m.executablePath))
+	if err != nil {
+		return DesktopProvenanceMetadata{}, err
+	}
+	return marker.metadata(), nil
+}
+
+func notifyApplyObserver(ctx context.Context, observer ApplyObserver, step ApplyStep) error {
+	if observer == nil {
+		return nil
+	}
+	return observer(ctx, step)
+}

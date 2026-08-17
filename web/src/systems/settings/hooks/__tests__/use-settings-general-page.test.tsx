@@ -21,6 +21,8 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
   getSettingsGeneral: vi.fn(),
   listSettingsApplyRecords: vi.fn(),
   getSettingsUpdate: vi.fn(),
+  applySettingsUpdate: vi.fn(),
+  cancelSettingsUpdate: vi.fn(),
   reloadSettings: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   getSettingsRestartStatus: vi.fn(),
@@ -31,6 +33,8 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
 }));
 
 import {
+  applySettingsUpdate,
+  cancelSettingsUpdate,
   getSettingsGeneral,
   listSettingsApplyRecords,
   getSettingsUpdate,
@@ -38,6 +42,10 @@ import {
   updateSettingsGeneral,
 } from "@/systems/settings/adapters/settings-api";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
+import {
+  settingsUpdateBothAvailableFixture,
+  settingsUpdateStagedFixture,
+} from "@/systems/settings/mocks/settings-update-fixture";
 
 import { useSettingsGeneralPage } from "../use-settings-general-page";
 import type { SettingsGeneralSection } from "@/systems/settings";
@@ -102,18 +110,7 @@ beforeEach(() => {
     next_action: "none",
     restart_required: false,
   });
-  vi.mocked(getSettingsUpdate).mockResolvedValue({
-    supported: true,
-    managed: false,
-    install_method: "direct-binary",
-    current_version: "v1.0.0",
-    latest_version: "v1.1.0",
-    available: true,
-    status: "available",
-    recommendation: "Run `compozy update`.",
-    release_url: "https://github.com/compozy/compozy/releases/tag/v1.1.0",
-    checked_at: "2026-05-03T19:00:00Z",
-  });
+  vi.mocked(getSettingsUpdate).mockResolvedValue(settingsUpdateBothAvailableFixture);
 });
 
 afterEach(() => {
@@ -186,6 +183,85 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => {
       expect(result.current.draft).toEqual(envelope.config);
       expect(result.current.isDirty).toBe(false);
+    });
+  });
+
+  it("Should send the requested track to the apply endpoint and expose the daemon's answer", async () => {
+    vi.mocked(applySettingsUpdate).mockResolvedValue({
+      target: "runtime",
+      status: "accepted",
+      operation_id: "op-7f3a2c",
+      message: "Started the runtime update.",
+      holder: null,
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.update.data).toBeTruthy());
+
+    act(() => {
+      result.current.updateActions.apply("runtime");
+    });
+
+    await waitFor(() => {
+      expect(applySettingsUpdate).toHaveBeenCalledWith({ target: "runtime" });
+      expect(result.current.updateActions.result).toMatchObject({
+        status: "accepted",
+        operation_id: "op-7f3a2c",
+      });
+    });
+  });
+
+  it("Should keep a blocked apply answer verbatim instead of reporting success", async () => {
+    vi.mocked(applySettingsUpdate).mockResolvedValue({
+      target: "runtime",
+      status: "blocked",
+      message:
+        "A runtime update is already in progress (holder pid 4242). Retry after it completes.",
+      holder: {
+        pid: 4242,
+        pid_start_time: "2026-08-20T14:02:10Z",
+        surface: "cli",
+        executor_generation: "gen-1",
+        lease_expires_at: "2026-08-20T14:07:11Z",
+      },
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.update.data).toBeTruthy());
+
+    act(() => {
+      result.current.updateActions.apply("runtime");
+    });
+
+    await waitFor(() => {
+      expect(result.current.updateActions.result).toMatchObject({ status: "blocked" });
+    });
+    expect(result.current.updateActions.result?.message).toContain("holder pid 4242");
+    expect(result.current.updateActions.error).toBeNull();
+  });
+
+  it("Should cancel a dormant operation and expose the archived outcome", async () => {
+    vi.mocked(getSettingsUpdate).mockResolvedValue(settingsUpdateStagedFixture);
+    vi.mocked(cancelSettingsUpdate).mockResolvedValue({
+      status: "canceled",
+      operation_id: "op-7f3a2c",
+      message: "Canceled dormant update operation; the update channel is free.",
+      holder: null,
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.update.data?.operation).toBeTruthy());
+
+    act(() => {
+      result.current.updateActions.cancel();
+    });
+
+    await waitFor(() => {
+      expect(cancelSettingsUpdate).toHaveBeenCalledTimes(1);
+      expect(result.current.updateActions.cancelResult).toMatchObject({ status: "canceled" });
     });
   });
 });

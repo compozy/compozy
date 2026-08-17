@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const daemonStateStarted = "started"
+
 const (
 	sshInstallRequiredCode = "gateway_ssh_install_required"
 	sshVersionMismatchCode = "gateway_ssh_version_mismatch"
@@ -110,7 +112,7 @@ func runResolvedSSHConnection(
 	}
 	daemonState := "reused"
 	if resolution.started() {
-		daemonState = "started"
+		daemonState = daemonStateStarted
 	}
 	record := sshConnectionRecord{
 		Profile:    gatewayProfileFromConfig(profile, ""),

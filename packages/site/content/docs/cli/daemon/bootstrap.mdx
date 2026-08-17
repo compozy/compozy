@@ -1,0 +1,46 @@
+---
+title: "compozy daemon bootstrap"
+description: "Resolve, provision, and start the desktop runtime"
+---
+
+## compozy daemon bootstrap
+
+Resolve, provision, and start the desktop runtime
+
+```
+compozy daemon bootstrap [flags]
+```
+
+### Options
+
+```
+      --app-version string       Desktop app version for compatibility checks
+      --bundle-path string       Bundled runtime payload path
+      --channel string           Desktop app release channel (default "development")
+  -h, --help                     help for bootstrap
+      --minimum-runtime string   Minimum compatible runtime version (default ">=0.0.0")
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy daemon bootstrap -o json
+```

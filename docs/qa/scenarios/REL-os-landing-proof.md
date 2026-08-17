@@ -6,13 +6,13 @@ persona: Cora
 journey: J-evaluate-compozy-beta
 expected: The locked hero pair, static shell capture, six ordered sections, and sourced proof make the product claim understandable without a generic dashboard or unsupported competitor assertion.
 entry_points: Local site render (canonical origin declaration: https://compozy.com)
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: docs/qa/evidence/2026-07-29-os-shell-bento/desktop.png; docs/qa/evidence/2026-07-29-os-shell-bento/mobile.png
-last_report: docs/qa/reports/2026-07-29-os-shell-bento.md
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: ET-compozy-public-brand-navigation; REL-beta-install-paths
 ---
 

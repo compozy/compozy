@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Electron shell · web update surface · CompozyOS design</title>
+<link rel="stylesheet" href="electron-shell.css">
+<!--
+  electron-shell-index · set map — the web half of the desktop shell migration.
+  Spec: .compozy/tasks/electron-shell/_uiux.md (S1 · S2) · task_02.md (VC-01..VC-15).
+  Provenance: map page only; tokens mirrored from packages/ui/src/tokens.css.
+-->
+<style>
+  .idx{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  .idx h1{font-size:20px;font-weight:var(--weight-semibold);letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;max-width:66ch;font-size:13px;line-height:1.6;color:var(--muted)}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{padding-bottom:10px;font-size:var(--text-eyebrow);font-weight:var(--weight-semibold);
+    letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--subtle)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);
+    border-radius:var(--radius-lg);background:var(--canvas-soft);
+    transition:border-color var(--dur) var(--ease),background-color var(--dur) var(--ease)}
+  .card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:var(--weight-medium);color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .card__vc{font-family:var(--font-mono);font-size:9.5px;letter-spacing:var(--tracking-mono);color:var(--subtle)}
+  .foot{margin-top:40px;max-width:70ch;padding-top:16px;border-top:1px solid var(--line);
+    font-size:11.5px;line-height:1.6;color:var(--faint)}
+  .foot a{color:var(--muted);text-decoration:underline}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.idx{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="idx">
+  <h1>Electron shell · the web update surface</h1>
+  <p class="lede">The two surfaces ADR-006 moves into the product UI: update state for both tracks — runtime and app — lives in Settings, and a filled accent menubar indicator points at it. Everything on these boards is a projection of <code>GET /api/settings/update</code>; the SPA gains no desktop awareness, so a plain browser pointed at the same daemon renders exactly what the app does. Surfaces and states come from <code>.compozy/tasks/electron-shell/_uiux.md</code>; the section labels are the Visual Contract ids in <code>task_02.md</code>.</p>
+
+  <div class="grp">
+    <div class="grp__t">Boards</div>
+    <div class="cards">
+      <a class="card" href="electron-shell-settings-updates.html">
+        <span class="card__top"><span class="card__name">Settings · Updates</span><span class="card__file">electron-shell-settings-updates.html</span></span>
+        <span class="card__vc">S1 · VC-01 … VC-11</span>
+        <span class="card__sub">The two-track section: checking, up to date, available on one or both tracks, managed runtime with no apply affordance, headless single-track, live phase progress, staged app, blocked with the holder named, failure with the restored version, and refresh failure over the last-known snapshot. Closes with the tone, description, and affordance tables.</span>
+      </a>
+      <a class="card" href="electron-shell-menubar-update.html">
+        <span class="card__top"><span class="card__name">Menubar · Update indicator</span><span class="card__file">electron-shell-menubar-update.html</span></span>
+        <span class="card__vc">S2 · VC-12 … VC-15</span>
+        <span class="card__sub">One control in the trailing cluster, on the real menubar composite: hidden when nothing is available, one visual state when something is, the keyboard focus ring, and suppression while an operation is live. Closes with the visibility predicate and the list of things it never grows.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="grp__t">Locked decisions</div>
+    <div class="cards">
+      <a class="card" href="electron-shell-settings-updates.html#" style="cursor:default">
+        <span class="card__top"><span class="card__name">Absent, never disabled</span></span>
+        <span class="card__sub">A managed runtime, an absent app track, and a live operation all remove the apply control from the DOM. No dimmed buttons, no tooltips explaining why a control cannot be pressed, no rows that exist only to say a thing is missing.</span>
+      </a>
+      <a class="card" href="electron-shell-settings-updates.html#" style="cursor:default">
+        <span class="card__top"><span class="card__name">The daemon writes the sentences</span></span>
+        <span class="card__sub">Row descriptions echo the payload's <code>message</code> verbatim — the same strings the CLI prints — and only when they carry truth the version and pill cannot. Up-to-date and available rows stay silent rather than restate themselves.</span>
+      </a>
+      <a class="card" href="electron-shell-settings-updates.html#" style="cursor:default">
+        <span class="card__top"><span class="card__name">Six phase words, no bar</span></span>
+        <span class="card__sub">Applying renders Spinner plus the phase in mono: <code>download · 62%</code>, <code>verify</code>, <code>install</code>, <code>start</code>, <code>ready-check</code>, <code>ready</code>. Percent appears only where the runtime measures one, so an unmeasurable phase never shows a fabricated zero.</span>
+      </a>
+      <a class="card" href="electron-shell-menubar-update.html#" style="cursor:default">
+        <span class="card__top"><span class="card__name">The bar offers, the section decides</span></span>
+        <span class="card__sub">The indicator exists only while an update is on offer. It carries no count and no menu, and it disappears the moment an operation starts — progress, blocking, and failure are the section's to explain.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens mirrored verbatim from <span class="mono">packages/ui/src/tokens.css</span>; grammar from the generated <span class="mono">DESIGN.md</span> (§2 signal palette, §3 type, §4 layout, §5 depth and the OS-shell chrome carve-out, §8 icons). Language follows <span class="mono">COPY.md</span>. These boards are self-contained: one local stylesheet, inline Lucide geometry, no imported production CSS and no network assets. Component identity, host chrome, and every value stay with production — the implementation composes <span class="mono">Pill</span>, <span class="mono">Button</span>, <span class="mono">Spinner</span>, <span class="mono">Icon</span> and the shipped <span class="mono">SettingRow</span> family, and adds no new primitive. Versions, pids, and error text are illustrative; runtime truth owns the values. Iterate on these files; do not regenerate them.</p>
+</div>
+</body>
+</html>

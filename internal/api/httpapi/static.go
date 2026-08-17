@@ -17,6 +17,10 @@ import (
 
 const webDistDirEnvVar = "COMPOZY_WEB_DIST_DIR"
 
+const productionContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; " +
+	"frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+
 type staticSourceFS struct {
 	fs     fs.FS
 	source string
@@ -136,6 +140,7 @@ func (h *Handlers) serveAsset(c *gin.Context, asset string) {
 			h.Logger.Debug("httpapi: close static asset failed", "asset", cleanAsset, "error", err)
 		}
 	}()
+	c.Header("Content-Security-Policy", productionContentSecurityPolicy)
 
 	if seeker, ok := file.(io.ReadSeeker); ok {
 		http.ServeContent(c.Writer, c.Request, path.Base(asset), h.StartedAt, seeker)

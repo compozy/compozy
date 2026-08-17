@@ -1,50 +1,46 @@
 ---
 title: Desktop app
-description: Start CompozyOS from the desktop, attach to an existing runtime, and understand app-owned updates and recovery.
+description: Start CompozyOS from the desktop, attach to the local runtime, and manage app and runtime updates.
 ---
 
-The desktop app is the primary interactive way to run CompozyOS. It uses the same local daemon,
-configuration, workspaces, and session history as the `compozy` command.
+The desktop app and the `compozy` command use the same local daemon, configuration, workspaces,
+and session history.
 
 ## First run
 
-The app resolves the runtime in this order:
+Every packaged app includes the matching CompozyOS runtime. First run does not need a network
+connection to install it.
 
-1. Attach to a healthy daemon already running on this machine.
-2. Start an installed runtime when no healthy daemon is available.
-3. Download, verify, install, and start an app-owned runtime when neither path is available.
+The app follows one boot ladder:
 
-On a clean machine, a shipped desktop release completes the last step itself. The boot window stays
-open while it resolves, provisions, starts, or attaches. If a download or verification fails, the
-failed phase stays visible. Select **Retry operation** after fixing the cause. The app resumes from
-safe local state and never treats a partial download as an installed runtime.
+1. Attach to a healthy daemon already running in the current `COMPOZY_HOME`.
+2. Start the runtime already installed at `$COMPOZY_HOME/bin/compozy`.
+3. If that file is absent, verify the bundled runtime, copy it into the home, and start it.
+
+The boot window reports the active phase. Runtime start retries use bounded backoff; a terminal
+failure leaves **Retry operation**, **Open logs**, **Load diagnostics**, and **Quit** available.
+The app never executes a bundled runtime that fails its embedded integrity check.
 
 ## Develop locally
 
-A source checkout does not provision from the production release feed. Start the complete local
-stack from the repository root:
+From the repository root:
 
 ```bash
 make desktop-dev
 ```
 
-This builds the web app, starts the development daemon, waits for it to become ready, and opens the
-desktop shell. Running the Tauri binary by itself reports this command instead of imitating a
-packaged first run.
+This builds the web app, starts the development daemon, waits for readiness, and opens Electron.
+A source checkout does not imitate the packaged runtime bundle.
 
 ## Startup diagnostics
 
-If startup cannot complete, the boot window remains available. Select **Load diagnostics** to read
-the safe report for that boot. **Technical details** is collapsed by default and contains only the
-redacted boot ID, phase, versions, ownership, current safe error, and any previous crash. It never
-shows raw log contents or filesystem paths.
+Select **Load diagnostics** in the boot window, then expand **Technical details**. The report includes
+the boot ID and phase, app and runtime versions, runtime ownership, a safe error, and the previous
+crash marker. It excludes raw paths, log contents, and secrets.
 
-Use **Copy diagnostics** to copy that report locally. Use **Export diagnostics** to create a local
-diagnostic archive. Export happens only after that explicit click; CompozyOS never uploads the
-report or archive, and it never deletes your runtime, configuration, credentials, sessions, or
-other data as part of diagnostics.
-
-The same report is available from a terminal, including when the daemon is not healthy:
+Use **Copy diagnostics** for the redacted report or **Export diagnostics** for a local archive.
+Export requires your action, uploads nothing, and never deletes runtime data. The same operations
+are available without a healthy daemon:
 
 ```bash
 compozy app diagnose -o json
@@ -52,22 +48,17 @@ compozy app diagnose --bundle --yes -o json
 compozy app diagnose --bundle --yes --bundle-output ./desktop-diagnostics.tar.gz -o json
 ```
 
-`--yes` confirms local archive creation. Without `--bundle-output`, the archive is written under
-`$COMPOZY_HOME/support-bundles/`. It contains `manifest.json` with the redacted report and may
-include bounded, redacted tails from the current boot only: `desktop.log` and
-`desktop-bootstrap.jsonl`. It never includes `compozy.log`, raw logs, databases, configuration,
-credentials, sessions, or transcripts. It is separate from the daemon-owned
+Without `--bundle-output`, the archive is written under `$COMPOZY_HOME/support-bundles/`.
+It contains `manifest.json` and may contain bounded, redacted tails from `desktop.log` and
+`desktop-bootstrap.jsonl`. It is separate from the daemon-owned
 [support bundle](/docs/operations/support-bundles).
 
 ## Runtime ownership
 
-Attaching does not transfer ownership. Quitting the app never stops the runtime, including a runtime
-the app started or provisioned. Use the runtime's own control surface when you intend to stop it.
+Attaching does not transfer ownership. Quitting the app never stops the daemon, including one the
+app started. Use the runtime control surface when you intend to stop it.
 
-Ownership controls binary updates instead: the app can update a runtime it provisioned and can still
-prove it owns. It never replaces an operator-managed or inconclusively owned runtime.
-
-You can inspect the same state from a terminal:
+Inspect or open the app from a terminal:
 
 ```bash
 compozy app status -o json
@@ -75,43 +66,51 @@ compozy app open
 compozy app open /workspaces
 ```
 
+The preserved `compozy app` verbs are `open`, `status`, `retry`, and `diagnose`.
+
 ## Updates
 
-App and runtime updates are separate:
-
-- **App update:** the desktop app asks for consent before applying the update and restarting.
-- **App-owned runtime update:** the app verifies and installs the runtime, then restarts the process it owns.
-- **Operator-managed runtime:** the app reports the detected install method and the exact update command. It does not replace that binary.
-
-Check or apply updates from a terminal:
+`compozy update` is the single host update command:
 
 ```bash
-compozy app update --check -o json
-compozy app update --apply app
-compozy app update --apply runtime
+compozy update --check -o json
+compozy update -o json
+compozy update --cancel -o json
 ```
 
-## Recovery required
+An update checks the runtime and, when installed, the app. Apply runs runtime first. A running app
+then installs its verified artifact; a closed app is staged for the next launch. Cancel succeeds
+only while the operation has no live executor lease.
 
-`recovery_required` means the app could not prove that an interrupted update completed or rolled
-back safely. The app will not start another update operation while this state is active.
+On Linux, automatic app-track installation is available only for the AppImage. A `.deb` install
+must be updated by downloading and installing the current `.deb` package over the existing app.
 
-Open diagnostics, follow the reported recovery action, then retry:
+The same host-global operation is available through `GET /api/settings/update`,
+`POST /api/settings/update/apply`, and `POST /api/settings/update/cancel` over HTTP and UDS.
+Status can report `available`, `applying`, `staged`, `blocked`, `failed`, `updated`, or
+`up-to-date`; app status also carries the operation ID, phase, and progress when present.
+
+For a managed runtime, CompozyOS returns the exact package-manager command and does not replace the
+binary.
+
+## Recover
+
+If an update operation reports `failed`, read diagnostics before starting another mutation:
 
 ```bash
 compozy app diagnose -o json
 compozy app retry
+compozy app status -o json
 ```
 
-Automatic repair is narrowly limited. A retry can repair only disposable desktop metadata and a
-runtime process that the app can prove it owns. It never stops an operator-managed process and
-never resets or removes data-bearing state. If ownership is not proven, use the operator update
-command reported by diagnostics instead.
+Retry is limited to disposable desktop metadata and a runtime process proven to be app-owned. It
+never stops an operator-managed process or resets `config.toml`, databases, credentials, sessions,
+or the CompozyOS home.
 
-For platform log paths and manual recovery, see
+For log locations and manual recovery, see
 [Desktop app operations](/docs/operations/desktop-app).
 
 ## Next step
 
-Continue to [Quick Start](/docs/getting-started/quick-start) to create a real session, or open the
-same runtime in the [Web UI](/docs/getting-started/web-ui).
+Continue to [Quick Start](/docs/getting-started/quick-start), or open the same runtime in the
+[Web UI](/docs/getting-started/web-ui).

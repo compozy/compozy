@@ -159,7 +159,9 @@ func roleBundle(role RoleRecord) outputBundle {
 				),
 				renderHumanTable("Provenance", []string{cliFieldValue, "Source"}, roleProvenanceRows(role)),
 				renderHumanTable(
-					"Diagnostics", []string{"Code", "Message", authoredContextAgentValue}, roleDiagnosticRows(role),
+					"Diagnostics",
+					[]string{"Code", lifecycleMessageValue, authoredContextAgentValue},
+					roleDiagnosticRows(role),
 				),
 			), nil
 		},

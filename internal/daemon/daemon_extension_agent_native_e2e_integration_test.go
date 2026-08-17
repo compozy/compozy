@@ -58,7 +58,7 @@ func testDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.
 		}
 	})
 
-	service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  extensionRegistry,
 		Runtime:   manager,
 		HomePaths: deps.HomePaths,

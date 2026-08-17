@@ -153,7 +153,7 @@ type LiveProviderSourcesConfig struct {
 }
 
 // NewLiveProviderSources creates provider_live sources for known provider adapters.
-func NewLiveProviderSources(cfg LiveProviderSourcesConfig) ([]Source, error) {
+func NewLiveProviderSources(cfg *LiveProviderSourcesConfig) ([]Source, error) {
 	providers := compozyconfig.BuiltinProviders()
 	maps.Copy(providers, cfg.Providers)
 	providerIDs := make([]string, 0, len(providers))
@@ -178,7 +178,7 @@ func NewLiveProviderSources(cfg LiveProviderSourcesConfig) ([]Source, error) {
 func NewLiveProviderSource(
 	providerID string,
 	provider compozyconfig.ProviderConfig,
-	cfg LiveProviderSourcesConfig,
+	cfg *LiveProviderSourcesConfig,
 ) (*LiveProviderSource, error) {
 	trimmedProviderID := strings.TrimSpace(providerID)
 	adapter, ok := liveProviderAdapters[trimmedProviderID]
@@ -291,7 +291,7 @@ func (s *LiveProviderSource) CloneWithProvider(
 	}
 	next := compozyconfig.CloneProviderConfig(provider)
 	changed := liveDiscoveryConfigChanged(s.providerSnapshot(), next)
-	clone, err := NewLiveProviderSource(s.providerID, next, LiveProviderSourcesConfig{
+	clone, err := NewLiveProviderSource(s.providerID, next, &LiveProviderSourcesConfig{
 		HomePaths:       s.homePaths,
 		BaseEnv:         s.baseEnv,
 		SecretResolver:  s.secretResolver,

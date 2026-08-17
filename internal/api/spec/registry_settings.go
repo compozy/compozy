@@ -2,12 +2,16 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+const settingsUpdateUnavailableDescription = "Update surface unavailable"
+
 func registrySettingsOperations() []OperationSpec {
 	return []OperationSpec{
 		listSettingsApplyRecordsOperationSpec(),
 		reloadSettingsOperationSpec(),
 		getSettingsRestartStatusOperationSpec(),
 		getSettingsUpdateOperationSpec(),
+		applySettingsUpdateOperationSpec(),
+		cancelSettingsUpdateOperationSpec(),
 		triggerSettingsRestartOperationSpec(),
 		getSettingsAutomationOperationSpec(),
 		updateSettingsAutomationOperationSpec(),
@@ -92,7 +96,51 @@ func getSettingsUpdateOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsUpdateResponse{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Update surface unavailable", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func applySettingsUpdateOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/settings/update/apply",
+		OperationID: "applySettingsUpdate",
+		Summary:     "Durably acquire an asynchronous software update operation",
+		Tags:        []string{specSettingsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.SettingsUpdateApplyRequest{},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Accepted, blocked, or acquisition-time failure",
+				Body:        contract.SettingsUpdateApplyResponse{},
+			},
+			{Status: 400, Description: "Invalid update target", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func cancelSettingsUpdateOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/settings/update/cancel",
+		OperationID: "cancelSettingsUpdate",
+		Summary:     "Cancel and archive a dormant software update operation",
+		Tags:        []string{specSettingsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Canceled or declined with current holder",
+				Body:        contract.SettingsUpdateCancelResponse{},
+			},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }

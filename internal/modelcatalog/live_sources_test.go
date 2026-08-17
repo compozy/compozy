@@ -35,7 +35,7 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 		provider := boundSecretProvider("OPENAI_API_KEY", "env:OPENAI_API_KEY")
 		provider.Models.Discovery.Endpoint = server.URL
-		source := newLiveSourceForTest(t, "codex", provider, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "codex", provider, &LiveProviderSourcesConfig{
 			BaseEnv:        []string{"PATH=/bin", "OPENAI_API_KEY=ambient-secret"},
 			SecretResolver: mapSecretResolver{"env:OPENAI_API_KEY": "sk-codex-test"},
 		})
@@ -81,7 +81,7 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 		provider := boundSecretProvider("ANTHROPIC_API_KEY", "env:ANTHROPIC_API_KEY")
 		provider.Models.Discovery.Endpoint = server.URL
-		source := newLiveSourceForTest(t, "claude", provider, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "claude", provider, &LiveProviderSourcesConfig{
 			BaseEnv:        []string{"PATH=/bin"},
 			SecretResolver: mapSecretResolver{"env:ANTHROPIC_API_KEY": "sk-ant-test"},
 		})
@@ -108,7 +108,7 @@ func TestLiveProviderSources(t *testing.T) {
 			t.Parallel()
 
 			store := newMemoryStore()
-			source := newLiveSourceForTest(t, "claude", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
+			source := newLiveSourceForTest(t, "claude", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
 				BaseEnv: []string{"PATH=/bin", "ANTHROPIC_API_KEY=ambient-secret"},
 			})
 			service := newTestService(t, store, []Source{source})
@@ -141,7 +141,7 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 		openRouter := boundSecretProvider("OPENROUTER_API_KEY", "env:OPENROUTER_API_KEY")
 		openRouter.Models.Discovery.Endpoint = openRouterServer.URL
-		routerRows, err := newLiveSourceForTest(t, "openrouter", openRouter, LiveProviderSourcesConfig{
+		routerRows, err := newLiveSourceForTest(t, "openrouter", openRouter, &LiveProviderSourcesConfig{
 			BaseEnv:        []string{"PATH=/bin"},
 			SecretResolver: mapSecretResolver{"env:OPENROUTER_API_KEY": "sk-router"},
 		}).ListModels(testutil.Context(t), ListOptions{ProviderID: "openrouter", Now: testTime(0)})
@@ -163,7 +163,7 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 		vercel := compozyconfig.ProviderConfig{}
 		vercel.Models.Discovery.Endpoint = vercelServer.URL
-		vercelRows, err := newLiveSourceForTest(t, "vercel-ai-gateway", vercel, LiveProviderSourcesConfig{
+		vercelRows, err := newLiveSourceForTest(t, "vercel-ai-gateway", vercel, &LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
 		}).ListModels(testutil.Context(t), ListOptions{ProviderID: "vercel-ai-gateway", Now: testTime(0)})
 		if err != nil {
@@ -198,7 +198,7 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 		provider := boundSecretProvider("GEMINI_API_KEY", "env:GEMINI_API_KEY")
 		provider.Models.Discovery.Endpoint = server.URL
-		rows, err := newLiveSourceForTest(t, "gemini", provider, LiveProviderSourcesConfig{
+		rows, err := newLiveSourceForTest(t, "gemini", provider, &LiveProviderSourcesConfig{
 			BaseEnv:        []string{"PATH=/bin"},
 			SecretResolver: mapSecretResolver{"env:GEMINI_API_KEY": "gemini-key"},
 		}).ListModels(testutil.Context(t), ListOptions{ProviderID: "gemini", Now: testTime(0)})
@@ -225,7 +225,7 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Endpoint = server.URL
-		rows, err := newLiveSourceForTest(t, "ollama", provider, LiveProviderSourcesConfig{
+		rows, err := newLiveSourceForTest(t, "ollama", provider, &LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
 		}).ListModels(testutil.Context(t), ListOptions{ProviderID: "ollama", Now: testTime(0)})
 		if err != nil {
@@ -250,7 +250,7 @@ func TestLiveProviderSources(t *testing.T) {
 			},
 		}}}
 		provider := compozyconfig.ProviderConfig{HomePolicy: compozyconfig.ProviderHomePolicyOperator}
-		source := newLiveSourceForTest(t, "cursor", provider, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{
 			BaseEnv:        []string{"PATH=/bin", "HOME=/Users/operator"},
 			CursorACPProbe: probe,
 		})
@@ -289,7 +289,7 @@ func TestLiveProviderSources(t *testing.T) {
 		probe := &fakeCursorACPModelProbe{options: []acp.SessionConfigOption{{
 			ID: "model", Kind: acp.SessionConfigOptionKindSelect,
 		}}}
-		source := newLiveSourceForTest(t, "cursor", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "cursor", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
 			BaseEnv:        []string{"PATH=/bin"},
 			CursorACPProbe: probe,
 		})
@@ -305,7 +305,7 @@ func TestLiveProviderSources(t *testing.T) {
 
 		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Endpoint = "https://models.example.test/cursor"
-		source := newLiveSourceForTest(t, "cursor", provider, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
 		})
 
@@ -329,7 +329,7 @@ func TestLiveProviderSources(t *testing.T) {
 			EnvPolicy:  compozyconfig.ProviderEnvPolicyIsolated,
 			HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
 		}
-		source := newLiveSourceForTest(t, "opencode", provider, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "opencode", provider, &LiveProviderSourcesConfig{
 			HomePaths:       homePaths,
 			BaseEnv:         []string{"PATH=/bin", "HOME=/Users/operator", "OPENAI_API_KEY=ambient-secret"},
 			CommandExecutor: executor,
@@ -369,7 +369,7 @@ func TestLiveProviderSources(t *testing.T) {
 			result: DiscoveryCommandResult{Stderr: "api_key=opencode-secret missing"},
 			err:    errors.New("exec: opencode not found"),
 		}
-		source := newLiveSourceForTest(t, "opencode", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "opencode", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
 			BaseEnv:         []string{"PATH=/bin"},
 			CommandExecutor: executor,
 		})
@@ -395,7 +395,7 @@ func TestLiveProviderSources(t *testing.T) {
 	t.Run("Should fail closed for OpenClaw without configured discovery path", func(t *testing.T) {
 		t.Parallel()
 
-		source := newLiveSourceForTest(t, "openclaw", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "openclaw", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
 		})
 		store := newMemoryStore()
@@ -425,7 +425,7 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Command = "hermes models --json"
-		disabledSource := newLiveSourceForTest(t, "hermes", provider, LiveProviderSourcesConfig{
+		disabledSource := newLiveSourceForTest(t, "hermes", provider, &LiveProviderSourcesConfig{
 			BaseEnv:         []string{"PATH=/bin"},
 			CommandExecutor: executor,
 		})
@@ -451,7 +451,7 @@ func TestLiveProviderSources(t *testing.T) {
 
 		enabled := true
 		provider.Models.Discovery.Enabled = &enabled
-		enabledSource := newLiveSourceForTest(t, "hermes", provider, LiveProviderSourcesConfig{
+		enabledSource := newLiveSourceForTest(t, "hermes", provider, &LiveProviderSourcesConfig{
 			BaseEnv:         []string{"PATH=/bin"},
 			CommandExecutor: executor,
 		})
@@ -477,7 +477,7 @@ func TestLiveProviderSources(t *testing.T) {
 		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Enabled = &enabled
 		provider.Models.Discovery.Endpoint = server.URL
-		rows, err := newLiveSourceForTest(t, "pi", provider, LiveProviderSourcesConfig{
+		rows, err := newLiveSourceForTest(t, "pi", provider, &LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
 		}).ListModels(testutil.Context(t), ListOptions{ProviderID: "pi", Now: testTime(0)})
 		if err != nil {
@@ -495,7 +495,7 @@ func TestLiveProviderSources(t *testing.T) {
 		provider := compozyconfig.ProviderConfig{}
 		provider.Models.Discovery.Endpoint = "https://models.example.test/discovery"
 		provider.Models.Discovery.Timeout = "20ms"
-		source := newLiveSourceForTest(t, "vercel-ai-gateway", provider, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "vercel-ai-gateway", provider, &LiveProviderSourcesConfig{
 			BaseEnv: []string{"PATH=/bin"},
 			HTTPClient: &http.Client{
 				Timeout: time.Second,
@@ -676,7 +676,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 	t.Run("Should register core live provider sources", func(t *testing.T) {
 		t.Parallel()
 
-		sources, err := NewLiveProviderSources(LiveProviderSourcesConfig{
+		sources, err := NewLiveProviderSources(&LiveProviderSourcesConfig{
 			Providers: map[string]compozyconfig.ProviderConfig{
 				"ollama": {Command: "ollama serve"},
 				"openai": {
@@ -745,7 +745,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 
 		provider := boundSecretProvider("OPENAI_API_KEY", "env:OPENAI_API_KEY")
 		provider.BaseURL = "https://api.openai.test/v1"
-		source := newLiveSourceForTest(t, "openai", provider, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "openai", provider, &LiveProviderSourcesConfig{
 			BaseEnv:        []string{"PATH=/bin"},
 			SecretResolver: mapSecretResolver{"env:OPENAI_API_KEY": "sk-test"},
 		})
@@ -773,7 +773,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 			ID:     "gpt-test",
 			Hidden: &hidden,
 		}}
-		source := newLiveSourceForTest(t, "openai", provider, LiveProviderSourcesConfig{
+		source := newLiveSourceForTest(t, "openai", provider, &LiveProviderSourcesConfig{
 			BaseEnv:        []string{"PATH=/bin"},
 			SecretResolver: mapSecretResolver{"env:OPENAI_API_KEY": "sk-test"},
 		})
@@ -934,7 +934,7 @@ func newLiveSourceForTest(
 	t *testing.T,
 	providerID string,
 	provider compozyconfig.ProviderConfig,
-	cfg LiveProviderSourcesConfig,
+	cfg *LiveProviderSourcesConfig,
 ) *LiveProviderSource {
 	t.Helper()
 

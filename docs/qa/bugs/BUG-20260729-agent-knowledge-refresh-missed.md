@@ -1,6 +1,6 @@
 # BUG-20260729-agent-knowledge-refresh-missed: Active worker misses a changed workspace knowledge signal
 
-- **Status:** verified
+- **Status:** open
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Priya; Bruno; Mateo Rivera
@@ -69,3 +69,13 @@ The Data Scientist received three runtime turns after the event-volume knowledge
 - **Prompt fidelity:** exactly one user message and one synthetic reentry; no second operator prompt.
 - **Evidence:** `/home/pedronauck/dev/qa-labs/compozy-knowledge-refresh-on-wake-20260803-025914-822792-lab/qa-artifacts/qa/knowledge-refresh-evidence.json`
 - **Result:** Verified. The narrow behavior passes; the same lab's generic release-grade auditor remains blocked by wider actor/channel/API/Web/artifact minimums and the intentionally deferred final gate, so this report makes no release-ready claim.
+
+## Regressed — 2026-08-16
+
+- **Report:** `docs/qa/reports/2026-08-16-electron-shell.md`
+- **Lab:** `/Users/pedronauck/dev/qa-labs/compozy-consumer-saas-growth-20260816-103738-647344-lab`
+- **Trigger:** the isolated workspace knowledge file changed `first_save` from `7,812` to `0` at 2026-08-16T10:58:48Z.
+- **Expected:** the active Data Scientist reports the anomaly to `data-watch` within five minutes and keeps the experiment blocked until tracking is confirmed.
+- **Actual:** the session had no wake or knowledge refresh after 2026-08-16T10:52:00Z. Its fresh recap at 2026-08-16T11:09:54Z still contained only the pre-trigger knowledge and no anomaly response.
+- **Evidence:** `qa-artifacts/qa/disruption-silent-event-drop-session-recap.json` and journey probe `silent_event_drop-6` in the lab above.
+- **Result:** Reopened. The launch remained held for independent telemetry reasons, but the runtime missed the changed zero-volume signal and failed the five-minute recovery contract.

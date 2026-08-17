@@ -2,18 +2,14 @@ package update
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"os"
 	"os/exec"
 
 	"strings"
 	"time"
 )
-
-const desktopAppUpdateRecommendation = "Update via the CompozyOS desktop app."
 
 // Restore rolls back an applied binary swap using the preserved sibling backup.
 func (m *Manager) Restore(applied AppliedBinary) error {
@@ -24,11 +20,32 @@ func (m *Manager) Restore(applied AppliedBinary) error {
 	if err != nil {
 		return fmt.Errorf("update: stat backup executable %q: %w", applied.BackupPath, err)
 	}
-	return m.binaryApplier.RestoreBinary(
+	var metadata DesktopProvenanceMetadata
+	var metadataErr error
+	if applied.InstallMethod == InstallMethodDesktopApp {
+		marker, readErr := readDesktopProvenance(desktopProvenancePath(m.homePaths, applied.TargetPath))
+		if readErr != nil {
+			metadataErr = readErr
+		} else {
+			metadata = marker.metadata()
+			metadata.RuntimeVersion = strings.TrimSpace(applied.PreviousVersion)
+			_, metadataErr = normalizeDesktopProvenanceMetadata(metadata)
+		}
+	}
+	if err := m.binaryApplier.RestoreBinary(
 		applied.BackupPath,
 		applied.TargetPath,
 		executableBinaryMode(backupInfo.Mode().Perm(), 0),
-	)
+	); err != nil {
+		return errors.Join(metadataErr, err)
+	}
+	if applied.InstallMethod == InstallMethodDesktopApp {
+		if metadataErr != nil {
+			return metadataErr
+		}
+		return rewriteDesktopProvenance(m.homePaths, applied.TargetPath, metadata)
+	}
+	return nil
 }
 
 // Finalize removes the preserved sibling backup after the full update flow succeeds.
@@ -80,17 +97,18 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 	state.Available = comparison < 0
 	supportedPlatform := supportsDirectBinarySelfUpdate(m.runtimeOS, m.runtimeArch)
 	state.Supported = !state.Managed &&
-		state.InstallMethod == string(InstallMethodDirectBinary) &&
+		(state.InstallMethod == string(InstallMethodDirectBinary) ||
+			state.InstallMethod == string(InstallMethodDesktopApp)) &&
 		supportedPlatform
 
 	switch {
 	case state.Managed && state.Available:
-		state.Status = StatusDeferred
+		state.Status = StatusAvailable
 		state.Message = "A newer CompozyOS release is available through its managing install surface; " +
 			"no local update was performed."
 		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case state.Managed:
-		state.Status = StatusCurrent
+		state.Status = StatusUpToDate
 		state.Message = "CompozyOS is already current on its release channel. " +
 			"Managed installs stay on their owning update surface."
 		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
@@ -108,7 +126,7 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 		state.Message = "A newer CompozyOS release is available on the active channel."
 		state.Recommendation = "Run `compozy update`."
 	default:
-		state.Status = StatusCurrent
+		state.Status = StatusUpToDate
 		state.Message = "CompozyOS is already current on its release channel."
 	}
 
@@ -141,8 +159,6 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 	}
 	if m.releaseTrack == releaseTrackBeta {
 		switch installMethod {
-		case string(InstallMethodDesktopApp):
-			return desktopAppUpdateRecommendation
 		case string(InstallMethodNPM):
 			return "Use `npm install -g @compozy/cli@beta`."
 		case string(InstallMethodGoInstall):
@@ -155,8 +171,6 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 	}
 
 	switch installMethod {
-	case string(InstallMethodDesktopApp):
-		return desktopAppUpdateRecommendation
 	case string(InstallMethodHomebrew):
 		return "Use `brew upgrade compozy/compozy/compozy`."
 	case string(InstallMethodNPM):

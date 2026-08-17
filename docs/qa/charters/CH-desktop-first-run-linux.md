@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-desktop-first-run-linux
-  mission: "As Lea on a clean Linux lab home, prove package install → guided provisioning → working product with honest failure branches, scripted via tauri-driver on WebKitGTK."
+  mission: "As Lea on a clean Linux lab home, prove package install → bundled offline provisioning → working product with honest failure branches through Playwright _electron."
   mode: scenario-based
   platform: linux
   persona:
@@ -27,10 +27,10 @@ charter:
     must_try:
       - "E2E-001: package install → open → staged provisioning → product UI → quit → relaunch direct; one daemon, `compozy status` healthy."
       - "E2E-002: offline first run → honest retry state → network back → same-screen retry completes; also walk one named-path failure (unwritable $COMPOZY_HOME/bin) and confirm retry after the fix."
-      - "E2E-011: WebKitGTK launch frame-capture (no white flash); SIGSTOP the daemon → bounded loading → honest error state with diagnostics; note any WebKitGTK-specific remediation the support runbook must carry."
+      - "E2E-011: compare the daemon-served product in plain Chrome and the packaged Electron Chromium renderer; state, navigation, and recovery must match. Separately capture the packaged launch frame (no white flash), then SIGSTOP the daemon and record the bounded handoff to the diagnostic error state."
       - "E2E-020: reinstall N over N-1 → single `.desktop` entry; E2E-016: About shows CompozyOS + beta + version, no stable selector."
     must_avoid:
-      - "No forced actionability bypasses in the tauri-driver script."
+      - "No forced actionability bypasses in the Playwright _electron test."
       - "Never run against the operator's default home or ports; never leave the lab daemon alive past teardown."
 ```
 

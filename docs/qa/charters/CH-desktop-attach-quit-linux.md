@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-desktop-attach-quit-linux
-  mission: "As Dora on Linux (WebKitGTK), prove attach-untouched, start-when-stopped, honest crash degradation, and the quit-never-stops-runtime contract, scripted via tauri-driver with manual fault injection."
+  mission: "As Dora on Linux, prove through Playwright _electron that attach stays untouched, a stopped runtime starts, crashes degrade honestly, and quit never stops the runtime."
   mode: scenario-based
   platform: linux
   persona:
