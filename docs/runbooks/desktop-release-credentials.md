@@ -4,9 +4,10 @@ The desktop release workflow is the only place that may use production publicati
 
 ## Credential inventory
 
-- `RELEASE_TOKEN`: GitHub release asset and `channel-beta` authority.
-- `COMPOZY_WEB_ASSETS_TOKEN`: web-assets module publication authority for an explicit release whose
-  source branch has a stale deterministic Web build pin.
+- `RELEASE_TOKEN`: GitHub release asset and `channel-beta` authority; it is also the fallback
+  web-assets publication authority when the dedicated token is unavailable.
+- `COMPOZY_WEB_ASSETS_TOKEN`: preferred web-assets module publication authority for an explicit
+  release whose source branch has a stale deterministic Web build pin.
 - `APPLE_CERTIFICATE` and `APPLE_CERTIFICATE_PASSWORD`: macOS signing identity.
 - `APPLE_API_KEY`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER`: Apple notarization authority.
 - GitHub Actions OIDC: keyless Sigstore identity for signed compatibility catalogs; there is no exported private key to back up.

@@ -475,7 +475,6 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_git_range:",
 		"release_initial:",
 		"github.com/compozy/releasepr@v0.0.28",
-		"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}",
 		"name: Synchronize explicit release web assets",
 		`go run "${mage_module}" webAssetsCheck`,
 		`go run "${mage_module}" releaseWebAssetsSync`,
@@ -548,6 +547,22 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	if got := strings.Count(workflow, `name: Synchronize explicit release web assets`); got != 1 {
 		t.Fatalf("explicit web assets synchronization count = %d, want 1", got)
 	}
+
+	t.Run("Should expose dedicated and fallback web assets publication authority", func(t *testing.T) {
+		t.Parallel()
+
+		releasePlan := workflowJobSection(t, workflow, "release-plan", "release")
+		start := strings.Index(releasePlan, "      - name: Synchronize explicit release web assets\n")
+		end := strings.Index(releasePlan, "      - name: Resolve release identity\n")
+		if start < 0 || end <= start {
+			t.Fatalf("explicit web assets synchronization section bounds = %d/%d, want ordered markers", start, end)
+		}
+		syncStep := releasePlan[start:end]
+		assertContainsText(t, "dedicated web assets token", syncStep,
+			"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}")
+		assertContainsText(t, "fallback release token", syncStep,
+			"RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}")
+	})
 
 	t.Run("Should derive the next beta from immutable Git and npm versions", func(t *testing.T) {
 		t.Parallel()

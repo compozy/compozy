@@ -634,6 +634,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_REF_INPUT: ${{ inputs.release_ref }}
         run: |
           set -euo pipefail
