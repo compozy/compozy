@@ -3185,7 +3185,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		db := openDaemonTestGlobalDB(t)
 		registry := extensionpkg.NewRegistry(db.DB())
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry: registry, HomePaths: homePaths, Logger: discardLogger(), Now: time.Now,
 			},
 			withDaemonExtensionMarketplace(

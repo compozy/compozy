@@ -376,7 +376,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		runtime := newLifecycleStateRuntime(registry)
 		health := mcppkg.NewRuntimeHealthRegistry()
 		service := newDaemonExtensionService(
-			daemonExtensionServiceDeps{
+			&daemonExtensionServiceDeps{
 				Registry: registry, Runtime: runtime, HomePaths: deps.HomePaths,
 				Logger: discardLogger(), Now: time.Now,
 			},

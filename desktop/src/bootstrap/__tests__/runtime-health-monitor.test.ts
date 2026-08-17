@@ -5,15 +5,12 @@ import { RuntimeHealthMonitor } from "../runtime-health-monitor";
 // Invariant: a product window cannot remain healthy after the runtime becomes unreachable.
 describe("runtime health monitor", () => {
   it("Should probe the bounded runtime identity endpoint", async () => {
-    let resolveProbe: ((input: string) => void) | undefined;
-    const probe = new Promise<string>(resolve => {
-      resolveProbe = resolve;
-    });
+    const requests: string[] = [];
     const monitor = new RuntimeHealthMonitor({
       origin: "http://127.0.0.1:2123",
       intervalMs: 1,
       fetcher: async input => {
-        resolveProbe?.(input);
+        requests.push(input);
         return new Response(null, { status: 200 });
       },
       onDisconnected: async () => {},
@@ -21,7 +18,7 @@ describe("runtime health monitor", () => {
 
     monitor.start();
     try {
-      await expect(probe).resolves.toBe("http://127.0.0.1:2123/api/status/identity");
+      await expect.poll(() => requests[0]).toBe("http://127.0.0.1:2123/api/status/identity");
     } finally {
       monitor.stop();
     }

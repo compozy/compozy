@@ -7,9 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	settingspkg "github.com/compozy/compozy/internal/settings"
-	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,7 +23,6 @@ const (
 var (
 	errSettingsServiceUnavailable = errors.New("settings service is not configured")
 	errSettingsRestartUnavailable = errors.New("settings restart controller is not configured")
-	errSettingsUpdateUnavailable  = errors.New("settings update controller is not configured")
 )
 
 // SettingsLogTailEventPayload is the shared SSE payload for daemon log tailing.
@@ -225,60 +222,6 @@ func (h *BaseHandlers) UpdateSettingsObservability(c *gin.Context) {
 // GetSettingsHooksExtensions returns the hooks and extensions settings section.
 func (h *BaseHandlers) GetSettingsHooksExtensions(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionHooksExtensions)
-}
-
-// GetSettingsUpdate returns the current software update status snapshot.
-func (h *BaseHandlers) GetSettingsUpdate(c *gin.Context) {
-	if h.SettingsUpdate == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
-		return
-	}
-
-	status, err := h.SettingsUpdate.GetUpdate(c.Request.Context())
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, SettingsUpdateResponseFromStatus(status))
-}
-
-// ApplySettingsUpdate durably acquires an asynchronous update operation.
-func (h *BaseHandlers) ApplySettingsUpdate(c *gin.Context) {
-	if h.SettingsUpdate == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
-		return
-	}
-	var request contract.SettingsUpdateApplyRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
-		return
-	}
-	target := compozyupdate.Target(strings.TrimSpace(string(request.Target)))
-	if target != compozyupdate.TargetRuntime && target != compozyupdate.TargetApp {
-		h.respondError(c, http.StatusBadRequest, errors.New("settings: update target must be runtime or app"))
-		return
-	}
-	result, err := h.SettingsUpdate.ApplyUpdate(c.Request.Context(), target)
-	if err != nil && result.Status == "" {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, SettingsUpdateApplyResponseFromResult(result))
-}
-
-// CancelSettingsUpdate cancels and archives a dormant update operation.
-func (h *BaseHandlers) CancelSettingsUpdate(c *gin.Context) {
-	if h.SettingsUpdate == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
-		return
-	}
-	result, err := h.SettingsUpdate.CancelUpdate(c.Request.Context())
-	if err != nil && result.Status == "" {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, SettingsUpdateCancelResponseFromResult(result))
 }
 
 // UpdateSettingsHooksExtensions persists the hooks and extensions settings section.
