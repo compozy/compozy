@@ -476,6 +476,14 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_initial:",
 		"github.com/compozy/releasepr@v0.0.28",
 		"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}",
+		"name: Synchronize explicit release web assets",
+		`go run "${mage_module}" webAssetsCheck`,
+		`go run "${mage_module}" releaseWebAssetsSync`,
+		`target_branch="${RELEASE_REF_INPUT#refs/heads/}"`,
+		`git show-ref --verify --quiet "${target_remote_ref}"`,
+		`git add go.mod go.sum`,
+		`git push origin "HEAD:refs/heads/${target_branch}"`,
+		`echo "ref=$(git rev-parse HEAD)"`,
 		"go run \"${PR_RELEASE_MODULE}\" plan",
 		"if [[ \"${GITHUB_EVENT_NAME}\" == \"workflow_dispatch\" ]]",
 		"allow_existing_tag_args+=(--allow-existing-tag)",
@@ -536,6 +544,9 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	}
 	if got := strings.Count(workflow, `render-and-validate-release-body.sh`); got != 3 {
 		t.Fatalf("release body render/validation reference count = %d, want staging plus two invocations", got)
+	}
+	if got := strings.Count(workflow, `name: Synchronize explicit release web assets`); got != 1 {
+		t.Fatalf("explicit web assets synchronization count = %d, want 1", got)
 	}
 
 	t.Run("Should derive the next beta from immutable Git and npm versions", func(t *testing.T) {

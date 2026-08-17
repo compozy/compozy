@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       release_ref:
-        description: Git ref or revision that must resolve to the checked-out HEAD
+        description: Source ref; an explicit run may add one deterministic web-assets pin commit
         required: true
         type: string
       release_version:
@@ -594,7 +594,7 @@ jobs:
         startsWith(github.event.head_commit.message, 'build: prepare release ')) &&
        vars.RELEASE_AUTO_CHANNEL == 'beta')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     outputs:
       release_ref: ${{ steps.plan.outputs.release_ref }}
       release_commit: ${{ steps.plan.outputs.release_commit }}
@@ -614,6 +614,7 @@ jobs:
           ref: ${{ inputs.release_ref || github.sha }}
           fetch-depth: 0
           fetch-tags: true
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - uses: ./.github/actions/setup-go
         with:
@@ -625,6 +626,59 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Synchronize explicit release web assets
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}
+          RELEASE_REF_INPUT: ${{ inputs.release_ref }}
+        run: |
+          set -euo pipefail
+          mage_module="github.com/magefile/mage@v1.17.2"
+          if go run "${mage_module}" webAssetsCheck; then
+            echo "Pinned web assets already match the deterministic Web build"
+            exit 0
+          fi
+
+          target_branch="${RELEASE_REF_INPUT#refs/heads/}"
+          target_remote_ref="refs/remotes/origin/${target_branch}"
+          if [[ "${target_branch}" == "main" ]] ||
+            ! git check-ref-format --branch "${target_branch}" >/dev/null 2>&1 ||
+            ! git show-ref --verify --quiet "${target_remote_ref}" ||
+            [[ "$(git rev-parse HEAD)" != "$(git rev-parse "${target_remote_ref}")" ]]; then
+            echo "::error::Stale explicit-release web assets require a non-main branch ref"
+            exit 1
+          fi
+
+          go run "${mage_module}" releaseWebAssetsSync
+          changed_paths="$(
+            git diff --name-only
+            git ls-files --others --exclude-standard
+          )"
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            case "${path}" in
+              go.mod|go.sum) ;;
+              *)
+                echo "::error::Web-assets sync changed an unexpected path: ${path}"
+                exit 1
+                ;;
+            esac
+          done <<<"${changed_paths}"
+          if git diff --quiet -- go.mod go.sum; then
+            echo "::error::Web-assets sync completed without updating the stale module pin"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add go.mod go.sum
+          git commit -m "build: sync web assets for explicit release"
+          git push origin "HEAD:refs/heads/${target_branch}"
+
       - name: Resolve release identity
         id: identity
         env:
@@ -635,7 +689,7 @@ jobs:
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             {
-              echo "ref=${RELEASE_REF_INPUT}"
+              echo "ref=$(git rev-parse HEAD)"
               echo "version=${RELEASE_VERSION_INPUT}"
               echo "channel=${RELEASE_CHANNEL_INPUT}"
             } >>"${GITHUB_OUTPUT}"
