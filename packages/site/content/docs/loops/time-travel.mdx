@@ -54,8 +54,8 @@ Pass `--request-id` to rerun or fork when retrying a request after a transport f
 key with identical inputs returns the committed result; changing the request while reusing the key returns
 `timetravel_key_reuse`. Omitting the key means each accepted call is a new operation.
 
-| Action | CLI | HTTP / UDS | Native tool |
-| --- | --- | --- | --- |
-| Diff | `compozy loop diff` | `GET /loop-runs/:id/diff` | `compozy__loop_diff` |
-| Rerun | `compozy loop rerun` | `POST /loop-runs/:id/rerun` | `compozy__loop_rerun` |
-| Fork | `compozy loop fork` | `POST /loop-runs/:id/fork` | `compozy__loop_fork` |
+| Action | CLI                  | HTTP / UDS                  | Native tool           |
+| ------ | -------------------- | --------------------------- | --------------------- |
+| Diff   | `compozy loop diff`  | `GET /loop-runs/:id/diff`   | `compozy__loop_diff`  |
+| Rerun  | `compozy loop rerun` | `POST /loop-runs/:id/rerun` | `compozy__loop_rerun` |
+| Fork   | `compozy loop fork`  | `POST /loop-runs/:id/fork`  | `compozy__loop_fork`  |

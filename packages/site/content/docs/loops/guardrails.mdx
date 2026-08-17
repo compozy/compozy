@@ -37,7 +37,7 @@ resume. `paused` is operator-initiated; `needs-approval` is system-initiated by 
 | `blocked`   | An external dependency made progress impossible — a missing dependency, missing credential, or unreachable resource; a human gate `reject`; or a `loop.gate.pre` hook denial. Distinct from `stalled`. |
 | `failed`    | An unrecoverable node or gate error, or a `loop.generation.pre` hook denial.                                                                                                                           |
 | `canceled`  | An operator cancel or kill, with cause `operator_cancel` or `operator_kill`.                                                                                                                           |
-| `exhausted` | A hard stop limit tripped before the goal — the iteration cap or an authored `max_fan_out` bound.                                                                                                     |
+| `exhausted` | A hard stop limit tripped before the goal — the iteration cap or an authored `max_fan_out` bound.                                                                                                      |
 | `stalled`   | No progress is being made — the no-progress window elapsed, the failure circuit breaker tripped, the blocker-ID signature repeated, or a watched source went silent past its window.                   |
 
 <OperatorNote label="Never coerced">
@@ -165,11 +165,11 @@ When a set budget is exceeded during active work, `budget.on_exceeded` chooses t
 
 <OperatorNote label="What the coordinator enforces">
   The stop axes the coordinator checks every generation are the **iteration cap** and authored
-  **fan-out bound** (`exhausted`), and the **no-progress window**, **inactivity clock**, **blocker-ID stall
-  signature**, and **failure circuit breaker** (`stalled`). Token and wall-clock budgets are
-  declarable contract fields with defined `on_exceeded` routing — a set budget is opt-in, and
-  ceilings are expressed in tokens and time, never dollars. Cost is **display-only** everywhere —
-  there is no enforced USD cap (ADR-017).
+  **fan-out bound** (`exhausted`), and the **no-progress window**, **inactivity clock**,
+  **blocker-ID stall signature**, and **failure circuit breaker** (`stalled`). Token and wall-clock
+  budgets are declarable contract fields with defined `on_exceeded` routing — a set budget is
+  opt-in, and ceilings are expressed in tokens and time, never dollars. Cost is **display-only**
+  everywhere — there is no enforced USD cap (ADR-017).
 </OperatorNote>
 
 ## Cost is a meter, not a cap

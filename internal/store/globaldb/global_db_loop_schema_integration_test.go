@@ -734,6 +734,8 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_name",
 		"status",
 		"completion_state",
+		"forked_from_run_id",
+		"forked_from_generation",
 		"generation",
 		"reattempt_strategy",
 		"last_progress_at",
