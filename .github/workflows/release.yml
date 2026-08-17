@@ -1022,27 +1022,24 @@ jobs:
         env:
           CSC_LINK_VALUE: ${{ secrets.APPLE_CERTIFICATE }}
           CSC_KEY_PASSWORD_VALUE: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_API_KEY_VALUE: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID_VALUE: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD_VALUE: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID_VALUE: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
-          for name in CSC_LINK_VALUE CSC_KEY_PASSWORD_VALUE APPLE_API_KEY_VALUE \
-            APPLE_API_KEY_ID APPLE_API_ISSUER; do
+          for name in CSC_LINK_VALUE CSC_KEY_PASSWORD_VALUE APPLE_ID_VALUE \
+            APPLE_APP_SPECIFIC_PASSWORD_VALUE APPLE_TEAM_ID_VALUE; do
             if [[ -z "${!name:-}" ]]; then
               echo "desktop release: required signing value ${name} is missing" >&2
               exit 1
             fi
           done
-          api_key_path="${RUNNER_TEMP}/AuthKey_${APPLE_API_KEY_ID}.p8"
-          printf '%s' "${APPLE_API_KEY_VALUE}" >"${api_key_path}"
-          chmod 600 "${api_key_path}"
           {
             printf 'CSC_LINK=%s\n' "${CSC_LINK_VALUE}"
             printf 'CSC_KEY_PASSWORD=%s\n' "${CSC_KEY_PASSWORD_VALUE}"
-            printf 'APPLE_API_KEY=%s\n' "${api_key_path}"
-            printf 'APPLE_API_KEY_ID=%s\n' "${APPLE_API_KEY_ID}"
-            printf 'APPLE_API_ISSUER=%s\n' "${APPLE_API_ISSUER}"
+            printf 'APPLE_ID=%s\n' "${APPLE_ID_VALUE}"
+            printf 'APPLE_APP_SPECIFIC_PASSWORD=%s\n' "${APPLE_APP_SPECIFIC_PASSWORD_VALUE}"
+            printf 'APPLE_TEAM_ID=%s\n' "${APPLE_TEAM_ID_VALUE}"
           } >>"${GITHUB_ENV}"
 
       - name: Generate release builder configuration
