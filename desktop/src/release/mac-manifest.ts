@@ -1,4 +1,7 @@
 import { parse, stringify } from "yaml";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { basename } from "node:path";
 
 export interface UpdateFile {
@@ -47,6 +50,40 @@ export function rewriteUpdateManifestURLs(contents: string, downloadBase: string
       url: `${base}/${basename(new URL(file.url, "https://manifest.invalid/").pathname)}`,
     })),
   });
+}
+
+export async function refreshUpdateManifestFileIntegrity(
+  contents: string,
+  artifactPath: string
+): Promise<string> {
+  const raw: unknown = parse(contents);
+  if (!raw || typeof raw !== "object") throw new Error("Update manifest must be an object.");
+  const manifest = parseUpdateManifest(contents);
+  const artifactName = basename(artifactPath);
+  const matches = manifest.files.filter(
+    file => basename(new URL(file.url, "https://manifest.invalid/").pathname) === artifactName
+  );
+  if (matches.length !== 1) {
+    throw new Error(`Update manifest must contain exactly one entry for ${artifactName}.`);
+  }
+
+  const hash = createHash("sha512");
+  for await (const chunk of createReadStream(artifactPath)) hash.update(chunk);
+  const integrity = { sha512: hash.digest("base64"), size: (await stat(artifactPath)).size };
+  const updatedFiles = manifest.files.map(file =>
+    basename(new URL(file.url, "https://manifest.invalid/").pathname) === artifactName
+      ? { ...file, ...integrity }
+      : file
+  );
+  const updated = { ...raw, files: updatedFiles };
+  const primaryPath = Reflect.get(raw, "path");
+  if (
+    typeof primaryPath === "string" &&
+    basename(new URL(primaryPath, "https://manifest.invalid/").pathname) === artifactName
+  ) {
+    Reflect.set(updated, "sha512", integrity.sha512);
+  }
+  return stringify(updated);
 }
 
 export function mergeMacUpdateManifests(arm64: string, x64: string): string {

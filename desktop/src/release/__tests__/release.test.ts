@@ -1,5 +1,9 @@
 import { createServer } from "node:http";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { parse as parseYAML } from "yaml";
 
 import { describe, expect, it } from "vitest";
 
@@ -10,6 +14,7 @@ import { appleIDNotaryArguments } from "../notary-auth";
 import {
   mergeMacUpdateManifests,
   parseUpdateManifest,
+  refreshUpdateManifestFileIntegrity,
   rewriteUpdateManifestURLs,
 } from "../mac-manifest";
 import { buildReleaseConfig, validateReleaseConfig } from "../release-config";
@@ -116,6 +121,50 @@ releaseDate: 2026-08-16T12:00:00Z
         size: 10,
       },
     ]);
+  });
+
+  it("Should refresh a finalized mac package without changing the other manifest entry", async () => {
+    const root = await mkdtemp(join(tmpdir(), "compozy-finalized-dmg-"));
+    try {
+      const artifactName = "CompozyOS-1.2.0-beta.1-mac-arm64.dmg";
+      const artifactPath = join(root, artifactName);
+      await writeFile(artifactPath, "final-dmg", "utf8");
+      const manifest = `version: 1.2.0-beta.1
+files:
+  - url: CompozyOS-1.2.0-beta.1-mac-arm64.zip
+    sha512: primary-zip
+    size: 10
+  - url: ${artifactName}
+    sha512: pre-staple-dmg
+    size: 7
+path: CompozyOS-1.2.0-beta.1-mac-arm64.zip
+sha512: primary-zip
+releaseDate: 2026-08-16T12:00:00Z
+`;
+
+      const refreshed = parseYAML(
+        await refreshUpdateManifestFileIntegrity(manifest, artifactPath)
+      ) as Record<string, unknown>;
+      expect(refreshed).toMatchObject({
+        path: "CompozyOS-1.2.0-beta.1-mac-arm64.zip",
+        sha512: "primary-zip",
+      });
+      expect(Reflect.get(refreshed, "files")).toEqual([
+        {
+          url: "CompozyOS-1.2.0-beta.1-mac-arm64.zip",
+          sha512: "primary-zip",
+          size: 10,
+        },
+        {
+          url: artifactName,
+          sha512:
+            "OFHDU28VPvEIZ1iB7yDUeFR4NN34T8J69rJI5mzmM2ojTAi1UNVNP9WxTi0NVrCHH0oAXAghgKF2G5exs+GidA==",
+          size: 9,
+        },
+      ]);
+    } finally {
+      await rm(root, { recursive: true });
+    }
   });
 
   it("Should reject invalid or conflicting update manifests", () => {

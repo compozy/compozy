@@ -1131,7 +1131,8 @@ jobs:
           codesign --verify --deep --strict --verbose=4 "${app_path}"
           spctl --assess --type execute --verbose=4 "${app_path}"
           bun run --cwd desktop release:finalize-mac -- \
-            ".artifacts/builder/CompozyOS-${version}-mac-${{ matrix.arch }}.dmg"
+            ".artifacts/builder/CompozyOS-${version}-mac-${{ matrix.arch }}.dmg" \
+            ".artifacts/builder/latest-mac.yml"
           bun run --cwd desktop release:verify-mac-zip -- \
             ".artifacts/builder/CompozyOS-${version}-mac-${{ matrix.arch }}.zip"
 

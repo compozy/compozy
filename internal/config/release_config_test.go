@@ -910,6 +910,7 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"codesign --verify --deep --strict",
 			"spctl --assess --type execute",
 			"release:finalize-mac",
+			`".artifacts/builder/latest-mac.yml"`,
 			"release:verify-mac-zip",
 			"--notarize ${{ matrix.platform == 'mac' }}",
 		} {
