@@ -996,8 +996,12 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		}
 		cleanupSessionStop(t, h, spawned.ID)
 
+		governance, err := h.manager.spawnGovernanceForParent(testutil.Context(t), secondGoal.Info())
+		if err != nil {
+			t.Fatalf("spawnGovernanceForParent(second Goal) error = %v", err)
+		}
 		err = h.manager.validateSpawnCaps(
-			testutil.Context(t), secondGoal.Info(),
+			testutil.Context(t), secondGoal.Info(), governance,
 			store.SessionSpawnBudget{
 				MaxChildren: DefaultSpawnMaxChildren, MaxDepth: DefaultSpawnMaxDepth,
 				MaxActivePerWorkspace: 1,

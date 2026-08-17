@@ -291,30 +291,41 @@ func TestRecordEventDispatchesSessionMessagePersistedAfterDurableAgentMessage(t 
 func TestMessagePersistedLineageUsesSessionTypeForActorKind(t *testing.T) {
 	t.Parallel()
 
-	lineage := &store.SessionLineage{
-		ParentSessionID: "sess-orchestrator", RootSessionID: "sess-orchestrator", SpawnDepth: 1,
-	}
-	goal := &Session{ID: "sess-goal", Type: SessionTypeSystem, Lineage: lineage}
-	rootID, parentID, actorKind, sessionID := messagePersistedLineage(goal)
-	if rootID != "sess-orchestrator" || parentID != "sess-orchestrator" ||
-		actorKind != sessionActorKindRoot || sessionID != "sess-goal" {
-		t.Fatalf(
-			"messagePersistedLineage(system provenance) = %q/%q/%q/%q, want correlated agent_root",
-			rootID, parentID, actorKind, sessionID,
-		)
-	}
+	t.Run("Should classify a system provenance session as an agent root", func(t *testing.T) {
+		t.Parallel()
 
-	spawned := &Session{ID: "sess-worker", Type: SessionTypeSpawned, Lineage: lineage}
-	spawnedRootID, spawnedParentID, actorKind, spawnedSessionID := messagePersistedLineage(spawned)
-	if actorKind != sessionActorKindSubagent {
-		t.Fatalf("messagePersistedLineage(spawned) actor kind = %q, want agent_subagent", actorKind)
-	}
-	if spawnedRootID == "" || spawnedParentID == "" || spawnedSessionID != spawned.ID {
-		t.Fatalf(
-			"messagePersistedLineage(spawned) = %q/%q/%q, want complete lineage",
-			spawnedRootID, spawnedParentID, spawnedSessionID,
-		)
-	}
+		lineage := &store.SessionLineage{
+			ParentSessionID: "sess-orchestrator", RootSessionID: "sess-orchestrator", SpawnDepth: 1,
+		}
+		goal := &Session{ID: "sess-goal", Type: SessionTypeSystem, Lineage: lineage}
+		rootID, parentID, actorKind, sessionID := messagePersistedLineage(goal)
+		if rootID != "sess-orchestrator" || parentID != "sess-orchestrator" ||
+			actorKind != sessionActorKindRoot || sessionID != "sess-goal" {
+			t.Fatalf(
+				"messagePersistedLineage(system provenance) = %q/%q/%q/%q, want correlated agent_root",
+				rootID, parentID, actorKind, sessionID,
+			)
+		}
+	})
+
+	t.Run("Should classify a spawned session as an agent subagent", func(t *testing.T) {
+		t.Parallel()
+
+		lineage := &store.SessionLineage{
+			ParentSessionID: "sess-orchestrator", RootSessionID: "sess-orchestrator", SpawnDepth: 1,
+		}
+		spawned := &Session{ID: "sess-worker", Type: SessionTypeSpawned, Lineage: lineage}
+		rootID, parentID, actorKind, sessionID := messagePersistedLineage(spawned)
+		if actorKind != sessionActorKindSubagent {
+			t.Fatalf("messagePersistedLineage(spawned) actor kind = %q, want agent_subagent", actorKind)
+		}
+		if rootID == "" || parentID == "" || sessionID != spawned.ID {
+			t.Fatalf(
+				"messagePersistedLineage(spawned) = %q/%q/%q, want complete lineage",
+				rootID, parentID, sessionID,
+			)
+		}
+	})
 }
 
 func TestPromptDispatchesTurnAndMessageHooksAtACPBoundaries(t *testing.T) {

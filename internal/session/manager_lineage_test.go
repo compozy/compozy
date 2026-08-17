@@ -462,7 +462,7 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 				SpawnDepth:      1,
 			},
 		})
-		if err == nil || !strings.Contains(err.Error(), "only spawned or user sessions") {
+		if err == nil || !strings.Contains(err.Error(), "provenance-linked system sessions") {
 			t.Fatalf("Create(system with parent) error = %v, want type rule rejection", err)
 		}
 	})
@@ -543,6 +543,38 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 		}
 	})
 
+	t.Run("Should rebase a new system child when the historical root is missing", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		root := createSession(t, h)
+		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: root.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(system parent) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		if err := h.manager.Delete(testutil.Context(t), root.ID); err != nil {
+			t.Fatalf("Delete(historical root) error = %v", err)
+		}
+
+		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: parent.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(system child with deleted historical root) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+		lineage := child.Info().Lineage
+		if lineage == nil || lineage.ParentSessionID != parent.ID ||
+			lineage.RootSessionID != parent.ID || lineage.SpawnDepth != 2 {
+			t.Fatalf("system child lineage = %#v, want rebased root %q at display depth 2", lineage, parent.ID)
+		}
+	})
+
 	t.Run("Should reject provenance for a non-system session", func(t *testing.T) {
 		t.Parallel()
 
@@ -553,7 +585,7 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeUser,
 			ProvenanceParentSessionID: parent.ID,
 		})
-		if !errors.Is(err, ErrValidation) {
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "requires a system session") {
 			t.Fatalf("Create(user with internal provenance) error = %v, want %v", err, ErrValidation)
 		}
 	})
@@ -569,7 +601,7 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 			Lineage:                   &store.SessionLineage{ParentSessionID: parent.ID},
 			ProvenanceParentSessionID: parent.ID,
 		})
-		if !errors.Is(err, ErrValidation) {
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "cannot be combined with lineage") {
 			t.Fatalf("Create(system with two lineage inputs) error = %v, want %v", err, ErrValidation)
 		}
 	})
@@ -583,7 +615,7 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 		_, err := h.manager.normalizeCreateLineage(
 			testutil.Context(t), "sess-system-foreign", SessionTypeSystem, "ws-other", nil, parent.ID,
 		)
-		if !errors.Is(err, ErrValidation) {
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "another workspace") {
 			t.Fatalf("normalizeCreateLineage(system cross-workspace) error = %v, want %v", err, ErrValidation)
 		}
 	})

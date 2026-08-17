@@ -354,7 +354,7 @@ func (m *Manager) spawnLineage(
 	if targetWorkspaceID == "" {
 		targetWorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 	}
-	if err := m.validateSpawnCaps(ctx, parent, budget, targetWorkspaceID); err != nil {
+	if err := m.validateSpawnCaps(ctx, parent, governance, budget, targetWorkspaceID); err != nil {
 		return nil, err
 	}
 
@@ -392,6 +392,7 @@ func (m *Manager) spawnLineage(
 func (m *Manager) validateSpawnCaps(
 	ctx context.Context,
 	parent *Info,
+	governance spawnGovernance,
 	budget store.SessionSpawnBudget,
 	targetWorkspaceID string,
 ) error {
@@ -410,10 +411,6 @@ func (m *Manager) validateSpawnCaps(
 	lookup := func(sessionID string) (*Info, bool, error) {
 		info, ok := infosByID[sessionID]
 		return info, ok, nil
-	}
-	governance, err := resolveSpawnGovernance(parent, lookup)
-	if err != nil {
-		return err
 	}
 	for _, info := range infos {
 		if info == nil || normalizeSessionType(info.Type) != SessionTypeSpawned ||

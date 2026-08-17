@@ -101,37 +101,41 @@ func TestCreateUsesPatchedSessionPreCreatePayload(t *testing.T) {
 	}
 }
 
-func TestCreateRejectsProvenanceWhenPreCreateChangesSystemType(t *testing.T) {
+func TestCreateRejectsInvalidPreCreateProvenance(t *testing.T) {
 	t.Parallel()
 
-	sessionType := string(SessionTypeUser)
-	hooks := newNativeHookDispatcher(t,
-		[]hookspkg.HookDecl{{
-			Name:         "change-system-type",
-			Event:        hookspkg.HookSessionPreCreate,
-			Mode:         hookspkg.HookModeSync,
-			ExecutorKind: hookspkg.HookExecutorNative,
-		}},
-		map[string]hookspkg.Executor{
-			"change-system-type": hookspkg.NewTypedNativeExecutor(
-				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreCreatePayload) (hookspkg.SessionCreatePatch, error) {
-					return hookspkg.SessionCreatePatch{SessionType: &sessionType}, nil
-				},
-			),
-		},
-	)
+	t.Run("Should reject provenance when pre-create changes the system type", func(t *testing.T) {
+		t.Parallel()
 
-	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
-	parent := createSession(t, h)
-	t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		sessionType := string(SessionTypeUser)
+		hooks := newNativeHookDispatcher(t,
+			[]hookspkg.HookDecl{{
+				Name:         "change-system-type",
+				Event:        hookspkg.HookSessionPreCreate,
+				Mode:         hookspkg.HookModeSync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			}},
+			map[string]hookspkg.Executor{
+				"change-system-type": hookspkg.NewTypedNativeExecutor(
+					func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreCreatePayload) (hookspkg.SessionCreatePatch, error) {
+						return hookspkg.SessionCreatePatch{SessionType: &sessionType}, nil
+					},
+				),
+			},
+		)
 
-	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
-		ProvenanceParentSessionID: parent.ID,
+		h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
+			ProvenanceParentSessionID: parent.ID,
+		})
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Create(pre-create changed system type) error = %v, want %v", err, ErrValidation)
+		}
 	})
-	if !errors.Is(err, ErrValidation) {
-		t.Fatalf("Create(pre-create changed system type) error = %v, want %v", err, ErrValidation)
-	}
 }
 
 func TestPostCreateHookFiresAfterSessionActive(t *testing.T) {

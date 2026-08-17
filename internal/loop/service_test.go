@@ -1150,6 +1150,7 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		store := newFakeLoopStore()
 		parent := seedFakeRun(store, loop.StatusRunning)
 		parent.WorkspaceID = "ws-foreign"
+		parent.LoopName = "other-loop"
 		store.seed(parent)
 		svc := newTestService(t, store, validDefinition())
 
@@ -1159,6 +1160,30 @@ func TestServiceStartShouldEnforceConcurrencyAndAncestry(t *testing.T) {
 		}, humanActor(t))
 		if !errors.Is(err, loop.ErrAncestryRejected) {
 			t.Fatalf("Start() error = %v, want ErrAncestryRejected", err)
+		}
+		if !strings.Contains(err.Error(), "target workspace") {
+			t.Fatalf("Start() error = %v, want workspace rejection", err)
+		}
+	})
+
+	t.Run("Should reject a parent row with a mismatched identity", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		parent := seedFakeRun(store, loop.StatusRunning)
+		store.getRunByID = func(loop.RunID) (loop.Run, error) {
+			returned := parent
+			returned.ID = "looprun-other"
+			return returned, nil
+		}
+		svc := newTestService(t, store, validDefinition())
+
+		_, err := svc.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values:          map[string]any{"tasks": "task-ref"},
+			ParentLoopRunID: parent.ID,
+		}, humanActor(t))
+		if !errors.Is(err, loop.ErrAncestryRejected) || !strings.Contains(err.Error(), "identity") {
+			t.Fatalf("Start() error = %v, want identity rejection", err)
 		}
 	})
 }
@@ -2962,6 +2987,7 @@ type fakeLoopStore struct {
 	generationOutputs                map[loop.RunID][]loop.GenerationOutput
 	waitResumeMutation               *loop.WaitResumeMutation
 	creates                          int
+	getRunByID                       func(loop.RunID) (loop.Run, error)
 }
 
 func (s *fakeLoopStore) ListPendingCancellations(
@@ -3221,6 +3247,9 @@ func (s *fakeLoopStore) GetLoopRun(
 }
 
 func (s *fakeLoopStore) GetLoopRunByID(_ context.Context, runID loop.RunID) (loop.Run, error) {
+	if s.getRunByID != nil {
+		return s.getRunByID(runID)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	run, ok := s.runs[runID]

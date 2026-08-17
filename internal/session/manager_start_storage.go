@@ -133,7 +133,9 @@ func validateCreateLineageParentType(sessionType Type, hasParent, systemProvenan
 		return errors.New("session: coordinator sessions must be root sessions")
 	case hasParent && sessionType != SessionTypeSpawned && sessionType != SessionTypeUser &&
 		(sessionType != SessionTypeSystem || !systemProvenance):
-		return errors.New("session: only spawned or user sessions may have a parent session id")
+		return errors.New(
+			"session: only spawned, user, or provenance-linked system sessions may have a parent session id",
+		)
 	default:
 		return nil
 	}

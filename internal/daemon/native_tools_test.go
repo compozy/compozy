@@ -9623,6 +9623,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonPolicyDenied)
 
 		agents.agent.Toolsets = nil
+		sessions.info.Type = session.SessionTypeSpawned
 		sessions.info.Lineage = &store.SessionLineage{
 			ParentSessionID: "parent-1",
 			RootSessionID:   "root-1",
@@ -10251,6 +10252,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireNativeViewContains(t, rootViews, toolspkg.ToolIDMemoryNote)
 
 		sessions.info.ID = "sess-child"
+		sessions.info.Type = session.SessionTypeSpawned
 		sessions.info.Lineage = &store.SessionLineage{
 			ParentSessionID: "sess-root",
 			RootSessionID:   "sess-root",

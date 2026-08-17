@@ -13,7 +13,7 @@ import (
 func TestSessionLineageClassificationUsesSessionType(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should not enforce an empty spawned policy on a system provenance session", func(t *testing.T) {
+	t.Run("Should not enforce spawned policy metadata on a system provenance session", func(t *testing.T) {
 		t.Parallel()
 
 		inputs := toolspkg.PolicyInputs{}
@@ -21,13 +21,14 @@ func TestSessionLineageClassificationUsesSessionType(t *testing.T) {
 			ID: "sess-goal", Type: session.SessionTypeSystem,
 			Lineage: &store.SessionLineage{
 				ParentSessionID: "sess-orchestrator", RootSessionID: "sess-orchestrator", SpawnDepth: 1,
+				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"compozy__session_status"}},
 			},
 		})
 		if err != nil {
 			t.Fatalf("applySessionToolPolicy(system provenance) error = %v", err)
 		}
 		if inputs.Session.Enforced {
-			t.Fatalf("system provenance policy = %#v, want unenforced empty policy", inputs.Session)
+			t.Fatalf("system provenance policy = %#v, want unenforced policy", inputs.Session)
 		}
 	})
 

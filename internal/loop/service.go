@@ -346,7 +346,10 @@ func (s *service) ensureAncestry(
 		if err != nil {
 			return err
 		}
-		if parent.ID != currentID || parent.WorkspaceID != workspaceID {
+		if parent.ID != currentID {
+			return fmt.Errorf("%w: parent loop run identity does not match the requested run", ErrAncestryRejected)
+		}
+		if parent.WorkspaceID != workspaceID {
 			return fmt.Errorf("%w: parent loop run is outside the target workspace", ErrAncestryRejected)
 		}
 		if parent.LoopName == targetLoop {

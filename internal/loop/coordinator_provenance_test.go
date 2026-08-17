@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/task"
@@ -34,6 +35,23 @@ func TestCoordinatorRunnerProvenanceParentSessionID(t *testing.T) {
 			t.Fatalf("provenanceParentSessionID() = %q, %v, want sess-inline", got, err)
 		}
 	})
+
+	for _, tt := range []struct {
+		name string
+		run  Run
+	}{
+		{name: "Should reject an empty run ID", run: Run{WorkspaceID: workspaceID}},
+		{name: "Should reject an empty workspace ID", run: Run{ID: "looprun-missing-workspace"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := newRunner(nil).provenanceParentSessionID(context.Background(), tt.run)
+			if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "identity is incomplete") {
+				t.Fatalf("provenanceParentSessionID(incomplete identity) error = %v, want validation", err)
+			}
+		})
+	}
 
 	t.Run("Should use the current agent-session starter for a catalog run", func(t *testing.T) {
 		t.Parallel()

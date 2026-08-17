@@ -60,6 +60,17 @@ func (m *Manager) prepareInternalSystemProvenance(
 	if rootSessionID == "" {
 		rootSessionID = parent.ID
 	}
+	if rootSessionID != parent.ID {
+		root, statusErr := m.Status(ctx, rootSessionID)
+		switch {
+		case errors.Is(statusErr, ErrSessionNotFound):
+			rootSessionID = parent.ID
+		case statusErr != nil:
+			return nil, false, fmt.Errorf("session: resolve internal provenance root %q: %w", rootSessionID, statusErr)
+		case strings.TrimSpace(root.WorkspaceID) != strings.TrimSpace(workspaceID):
+			return nil, false, fmt.Errorf("%w: internal provenance root belongs to another workspace", ErrValidation)
+		}
+	}
 	return &store.SessionLineage{
 		ParentSessionID: parent.ID,
 		RootSessionID:   rootSessionID,

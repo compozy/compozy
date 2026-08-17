@@ -138,7 +138,11 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if err != nil || recreated.Outcome != session.EnsureCreatedOutcomeCreated {
 			t.Fatalf("EnsureCreated(recreate without parent) = %#v, %v, want created", recreated, err)
 		}
-		t.Cleanup(func() { _ = fixture.manager.Delete(testutil.Context(t), request.DesiredSessionID) })
+		t.Cleanup(func() {
+			if err := fixture.manager.Delete(testutil.Context(t), request.DesiredSessionID); err != nil {
+				t.Errorf("Delete(recreated child) error = %v", err)
+			}
+		})
 		assertSessionProvenanceParent(t, fixture.manager, request.DesiredSessionID, "")
 		retry, err := fixture.manager.EnsureCreated(testutil.Context(t), opts)
 		if err != nil || retry.Outcome != session.EnsureCreatedOutcomeExistingMatch {
