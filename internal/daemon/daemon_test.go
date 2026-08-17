@@ -2319,14 +2319,18 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 func TestBootResourceWatchersRequiresHookBindingsForSkillsWatcher(t *testing.T) {
 	t.Parallel()
 
-	state := &bootState{skillsRegistry: skills.NewRegistry(skills.RegistryConfig{})}
-	err := (&Daemon{}).bootResourceWatchers(testutil.Context(t), state, &bootCleanup{})
-	if err == nil {
-		t.Fatal("bootResourceWatchers() error = nil, want missing hook bindings error")
-	}
-	if got, want := err.Error(), "daemon: hook bindings are required before starting the skills watcher"; got != want {
-		t.Fatalf("bootResourceWatchers() error = %q, want %q", got, want)
-	}
+	t.Run("Should reject skills watcher startup without hook bindings", func(t *testing.T) {
+		t.Parallel()
+
+		state := &bootState{skillsRegistry: skills.NewRegistry(skills.RegistryConfig{})}
+		err := (&Daemon{}).bootResourceWatchers(testutil.Context(t), state, &bootCleanup{})
+		if err == nil {
+			t.Fatal("bootResourceWatchers() error = nil, want missing hook bindings error")
+		}
+		if got, want := err.Error(), "daemon: hook bindings are required before starting the skills watcher"; got != want {
+			t.Fatalf("bootResourceWatchers() error = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestAttachExtensionRuntimeUsesHookBindingSyncBeforeRebuild(t *testing.T) {

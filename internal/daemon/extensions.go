@@ -83,15 +83,23 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 }
 
 func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) error {
+	const waitError = "daemon: wait for extension consumer sync: %w"
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf(waitError, err)
+	}
+
 	gate := s.extensionConsumerSyncGate()
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("daemon: wait for extension consumer sync: %w", ctx.Err())
+		return fmt.Errorf(waitError, ctx.Err())
 	case <-gate:
 	}
 	defer func() {
 		gate <- struct{}{}
 	}()
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf(waitError, err)
+	}
 
 	var syncErr error
 	if s.agentSkill != nil {

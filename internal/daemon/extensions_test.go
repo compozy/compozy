@@ -24,6 +24,29 @@ import (
 func TestDaemonExtensionServiceConsumerSync(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject a canceled sync before entering resource consumers", func(t *testing.T) {
+		t.Parallel()
+
+		entered := make(chan struct{})
+		publisher := agentSkillPublisherFunc(func(context.Context) error {
+			close(entered)
+			return nil
+		})
+		service := &daemonExtensionService{agentSkill: publisher}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		err := service.syncExtensionConsumers(ctx)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("sync error = %v, want context cancellation", err)
+		}
+		select {
+		case <-entered:
+			t.Fatal("canceled sync entered a resource consumer")
+		default:
+		}
+	})
+
 	t.Run("Should cancel a queued sync without entering resource consumers", func(t *testing.T) {
 		t.Parallel()
 
