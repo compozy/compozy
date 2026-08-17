@@ -1,12 +1,20 @@
 import { BrowserWindow } from "electron";
 
 import type { ShellSnapshot } from "../state/app-state";
+import { presentWindow, type WindowPresentation } from "./window-presentation";
 
 export class BootWindow {
   readonly #window: BrowserWindow;
+  readonly #presentation: WindowPresentation;
   #lastSnapshot: ShellSnapshot = { state: "resolving" };
 
-  constructor(options: { pagePath: string; preloadPath: string; onError: (error: Error) => void }) {
+  constructor(options: {
+    pagePath: string;
+    preloadPath: string;
+    presentation: WindowPresentation;
+    onError: (error: Error) => void;
+  }) {
+    this.#presentation = options.presentation;
     this.#window = new BrowserWindow({
       width: 420,
       height: 460,
@@ -29,8 +37,7 @@ export class BootWindow {
     this.#window.webContents.on("will-navigate", event => event.preventDefault());
     this.#window.webContents.on("did-finish-load", () => {
       this.render(this.#lastSnapshot);
-      this.#window.show();
-      this.#window.focus();
+      presentWindow(this.#window, this.#presentation);
     });
     void this.#window.loadFile(options.pagePath).catch(options.onError);
   }
@@ -42,8 +49,7 @@ export class BootWindow {
 
   show(): void {
     if (!this.#window.isDestroyed()) {
-      this.#window.show();
-      this.#window.focus();
+      presentWindow(this.#window, this.#presentation);
     }
   }
 

@@ -156,7 +156,19 @@ test("E2E-001 E2E-002: first run provisions offline and exposes every boot phase
       NO_PROXY: "127.0.0.1,localhost,::1",
     },
   });
+  expect(
+    await desktop.app.evaluate(
+      ({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().filter(window => window.isFocused()).length
+    )
+  ).toBe(0);
   const product = await desktop.product();
+  expect(
+    await desktop.app.evaluate(
+      ({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().filter(window => window.isFocused()).length
+    )
+  ).toBe(0);
   await expect(product).toHaveTitle(/CompozyOS/u);
   const events = await bootstrapEvents(desktop.home);
   const completedPhases = events
@@ -291,11 +303,33 @@ test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers a
   await expect(await desktop.product()).toHaveTitle(/CompozyOS/u);
 });
 
-test("E2E-008: bounds, maximized state, and off-screen recovery survive relaunch", async ({
+test("E2E-008: native product chrome and window geometry survive relaunch", async ({
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
-  await desktop.product();
+  const product = await desktop.product();
+  if (process.platform === "darwin" || process.platform === "linux") {
+    const overlay = await product.evaluate(() => {
+      const windowControlsOverlay = Reflect.get(navigator, "windowControlsOverlay") as
+        | {
+            getTitlebarAreaRect(): DOMRect;
+            visible: boolean;
+          }
+        | undefined;
+      if (!windowControlsOverlay) return null;
+      const area = windowControlsOverlay.getTitlebarAreaRect();
+      return {
+        height: area.height,
+        narrowerThanWindow: area.width < window.innerWidth,
+        visible: windowControlsOverlay.visible,
+      };
+    });
+    expect(overlay).toEqual({
+      height: 44,
+      narrowerThanWindow: true,
+      visible: true,
+    });
+  }
   await desktop.app.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows().find(candidate => {
       const url = candidate.webContents.getURL();
@@ -441,8 +475,9 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
     "Skills",
     "Automation",
     "Network",
-    "Gateway",
+    "Attention",
     "Observability",
+    "Gateway",
     "Hooks",
     "Extensions",
   ]);

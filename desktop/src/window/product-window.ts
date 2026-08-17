@@ -4,6 +4,8 @@ import { productDeepLink, productNavigationURL, type DeepLinkQueue } from "../de
 import { writeWindowState, readWindowState, type StoredWindowState } from "./window-state-store";
 import { CrashRecoveryBudget } from "./crash-recovery-policy";
 import { guardWindowNavigation } from "./security";
+import { productWindowChrome } from "./product-window-chrome";
+import { presentWindow, type WindowPresentation } from "./window-presentation";
 import { MINIMUM_WINDOW_SIZE, restoreWindowBounds } from "./window-state-policy";
 import { nextZoomLevel } from "./zoom-policy";
 
@@ -27,18 +29,21 @@ async function showCrashLoopDialog(window: BrowserWindow): Promise<void> {
 export class ProductWindow {
   readonly #origin: string;
   readonly #windowStatePath: string;
+  readonly #presentation: WindowPresentation;
   readonly #links: DeepLinkQueue;
   readonly #onReady: () => Promise<void>;
   readonly #onLoadFailure: (error: Error) => Promise<void>;
   readonly #onError: (error: Error) => void;
   readonly #crashes = new CrashRecoveryBudget();
   #window: BrowserWindow | null = null;
+  #ready = false;
   #zoomLevel = 0;
   #saveTimer: NodeJS.Timeout | null = null;
 
   constructor(options: {
     origin: string;
     windowStatePath: string;
+    presentation: WindowPresentation;
     links: DeepLinkQueue;
     onReady: () => Promise<void>;
     onLoadFailure: (error: Error) => Promise<void>;
@@ -46,6 +51,7 @@ export class ProductWindow {
   }) {
     this.#origin = options.origin;
     this.#windowStatePath = options.windowStatePath;
+    this.#presentation = options.presentation;
     this.#links = options.links;
     this.#onReady = options.onReady;
     this.#onLoadFailure = options.onLoadFailure;
@@ -57,9 +63,11 @@ export class ProductWindow {
     const saved = await readWindowState(this.#windowStatePath);
     const displays = screen.getAllDisplays().map(display => display.workArea);
     const bounds = restoreWindowBounds(saved, displays);
+    this.#ready = false;
     this.#zoomLevel = saved?.zoom_level ?? 0;
     const window = new BrowserWindow({
       ...bounds,
+      ...productWindowChrome(process.platform),
       minWidth: MINIMUM_WINDOW_SIZE.width,
       minHeight: MINIMUM_WINDOW_SIZE.height,
       show: false,
@@ -95,8 +103,7 @@ export class ProductWindow {
     const window = this.#window;
     if (!window || window.isDestroyed()) return;
     if (window.isMinimized()) window.restore();
-    window.show();
-    window.focus();
+    presentWindow(window, this.#presentation);
     this.#navigatePending();
   }
 
@@ -130,9 +137,9 @@ export class ProductWindow {
     window.webContents.on("did-finish-load", () => {
       window.webContents.setZoomLevel(this.#zoomLevel);
       this.#scheduleSave();
-      if (!window.isVisible()) {
-        window.show();
-        window.focus();
+      if (!this.#ready) {
+        this.#ready = true;
+        presentWindow(window, this.#presentation);
         void this.#onReady().catch(this.#onError);
       }
       this.#navigatePending();

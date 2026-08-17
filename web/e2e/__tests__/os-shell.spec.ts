@@ -215,6 +215,14 @@ test("E2E-001: fresh boot renders the empty desktop without opening a window", a
 
   await expect(appPage.getByRole("navigation", { name: "Dock" })).toBeVisible();
   await expect(appPage.getByRole("banner", { name: "System bar" })).toBeVisible();
+  expect(
+    await appPage.evaluate(() => {
+      const overlay = Reflect.get(navigator, "windowControlsOverlay") as
+        | { visible: boolean }
+        | undefined;
+      return overlay?.visible ?? false;
+    })
+  ).toBe(false);
   await expect(appPage.getByTestId("os-desk-hint")).toContainText("⌘K");
   await expect(appPage.locator('[data-testid^="os-window-"]')).toHaveCount(0);
   await expect(appPage.getByRole("button", { name: "Desktop 1 of 1: Desktop 1" })).toHaveAttribute(

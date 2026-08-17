@@ -32,6 +32,7 @@ import { OperationWatcher } from "./update/operation-watcher";
 import { UpdateTransitionClient } from "./update/transition-client";
 import { BootWindow } from "./window/boot-window";
 import { ProductWindow } from "./window/product-window";
+import type { WindowPresentation } from "./window/window-presentation";
 import { applyDefaultDenyPermissions } from "./window/security";
 import { installApplicationMenu } from "./window/application-menu";
 
@@ -43,6 +44,8 @@ const bootId = randomUUID();
 const processStartedAt = new Date(performance.timeOrigin);
 const links = new DeepLinkQueue();
 const logger = new DesktopLogger(paths.desktopLog, bootId);
+const windowPresentation: WindowPresentation =
+  process.env.COMPOZY_DESKTOP_E2E === "1" ? "inactive" : "foreground";
 let product: ProductWindow | null = null;
 let boot: BootWindow | null = null;
 let controlServer: ControlServer | null = null;
@@ -153,6 +156,7 @@ async function start(): Promise<void> {
   boot = new BootWindow({
     pagePath: resources.page,
     preloadPath: resources.preload,
+    presentation: windowPresentation,
     onError: error => logger.error("load boot window", error),
   });
   installApplicationMenu(() => product);
@@ -229,6 +233,7 @@ async function start(): Promise<void> {
       product = new ProductWindow({
         origin: runtime.origin,
         windowStatePath: paths.windowState,
+        presentation: windowPresentation,
         links,
         onReady: async () => {
           await statePublisher.publish({
