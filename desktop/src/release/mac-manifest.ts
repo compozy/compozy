@@ -52,6 +52,24 @@ export function rewriteUpdateManifestURLs(contents: string, downloadBase: string
   });
 }
 
+export function selectUpdateManifestFiles(
+  contents: string,
+  requiredSuffixes: readonly string[]
+): string {
+  if (requiredSuffixes.length === 0) throw new Error("Update manifest file suffixes are required.");
+  const manifest = parseUpdateManifest(contents);
+  const files = requiredSuffixes.map(suffix => {
+    const matches = manifest.files.filter(file =>
+      basename(new URL(file.url, "https://manifest.invalid/").pathname).endsWith(suffix)
+    );
+    if (matches.length !== 1) {
+      throw new Error(`Update manifest must contain exactly one file ending in ${suffix}.`);
+    }
+    return matches[0]!;
+  });
+  return stringify({ ...manifest, files });
+}
+
 export async function refreshUpdateManifestFileIntegrity(
   contents: string,
   artifactPath: string

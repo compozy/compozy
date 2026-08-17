@@ -1,6 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-import { mergeMacUpdateManifests, rewriteUpdateManifestURLs } from "../src/release/mac-manifest";
+import {
+  mergeMacUpdateManifests,
+  rewriteUpdateManifestURLs,
+  selectUpdateManifestFiles,
+} from "../src/release/mac-manifest";
 
 const [arm64Path, x64Path, linuxPath, outputDirectory, downloadBase] = process.argv.slice(2);
 if (!arm64Path || !x64Path || !linuxPath || !outputDirectory || !downloadBase) {
@@ -12,7 +16,7 @@ const mac = mergeMacUpdateManifests(
   await readFile(arm64Path, "utf8"),
   await readFile(x64Path, "utf8")
 );
-const linux = await readFile(linuxPath, "utf8");
+const linux = selectUpdateManifestFiles(await readFile(linuxPath, "utf8"), ["-linux-x64.AppImage"]);
 await mkdir(outputDirectory, { recursive: true });
 await writeFile(
   `${outputDirectory}/latest-mac.yml`,

@@ -16,6 +16,7 @@ import {
   parseUpdateManifest,
   refreshUpdateManifestFileIntegrity,
   rewriteUpdateManifestURLs,
+  selectUpdateManifestFiles,
 } from "../mac-manifest";
 import { buildReleaseConfig, validateReleaseConfig } from "../release-config";
 import { parseBooleanFlag, parseReleaseScriptFlags } from "../release-script-flags";
@@ -124,6 +125,32 @@ releaseDate: 2026-08-16T12:00:00Z
         size: 10,
       },
     ]);
+  });
+
+  it("Should keep only the AppImage in the Linux update manifest", () => {
+    const manifest = `version: 1.2.0-beta.1
+files:
+  - url: CompozyOS-1.2.0-beta.1-linux-x64.AppImage
+    sha512: appimage
+    size: 10
+  - url: CompozyOS-1.2.0-beta.1-linux-x64.deb
+    sha512: deb
+    size: 20
+releaseDate: 2026-08-16T12:00:00Z
+`;
+    expect(
+      parseUpdateManifest(selectUpdateManifestFiles(manifest, ["-linux-x64.AppImage"])).files
+    ).toEqual([
+      {
+        url: "CompozyOS-1.2.0-beta.1-linux-x64.AppImage",
+        sha512: "appimage",
+        size: 10,
+      },
+    ]);
+    expect(() => selectUpdateManifestFiles(manifest, [])).toThrow("suffixes are required");
+    expect(() => selectUpdateManifestFiles(manifest, ["-linux-arm64.AppImage"])).toThrow(
+      "exactly one file"
+    );
   });
 
   it("Should refresh a finalized mac package without changing the other manifest entry", async () => {
