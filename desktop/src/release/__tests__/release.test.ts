@@ -90,6 +90,9 @@ files:
   - url: CompozyOS-1.2.0-beta.1-mac-${arch}.zip
     sha512: ${arch}
     size: 10
+  - url: CompozyOS-1.2.0-beta.1-mac-${arch}.dmg
+    sha512: ${arch}-dmg
+    size: 20
 releaseDate: 2026-08-16T12:00:00Z
     `;
     const merged = mergeMacUpdateManifests(manifest("arm64"), manifest("x64"));
@@ -190,22 +193,30 @@ releaseDate: 2026-08-16T12:00:00Z
       rewriteUpdateManifestURLs("version: 1.0.0\nreleaseDate: now\nfiles: []\n", "relative")
     ).toThrow("absolute URL");
 
-    const manifest = (version: string, sha512: string, date: string) => `version: "${version}"
+    const manifest = (
+      version: string,
+      arch: string,
+      sha512: string,
+      date: string
+    ) => `version: "${version}"
 files:
-  - url: app.zip
+  - url: CompozyOS-${version}-mac-${arch}.zip
     sha512: ${sha512}
     size: 10
 releaseDate: "${date}"
 `;
-    expect(() => mergeMacUpdateManifests(manifest("1", "a", "2"), manifest("2", "a", "1"))).toThrow(
-      "same version"
-    );
-    expect(() => mergeMacUpdateManifests(manifest("1", "a", "2"), manifest("1", "b", "1"))).toThrow(
-      "Conflicting"
-    );
-    expect(mergeMacUpdateManifests(manifest("1", "a", "1"), manifest("1", "a", "2"))).toContain(
-      'releaseDate: "2"'
-    );
+    expect(() =>
+      mergeMacUpdateManifests(manifest("1", "arm64", "a", "2"), manifest("2", "x64", "a", "1"))
+    ).toThrow("same version");
+    expect(() =>
+      mergeMacUpdateManifests(manifest("1", "arm64", "a", "2"), manifest("1", "arm64", "b", "1"))
+    ).toThrow("Conflicting macOS update manifest entry");
+    expect(() =>
+      mergeMacUpdateManifests(manifest("1", "arm64", "a", "2"), manifest("1", "arm64", "a", "1"))
+    ).toThrow("must contain one arm64 ZIP and one x64 ZIP");
+    expect(
+      mergeMacUpdateManifests(manifest("1", "arm64", "a", "1"), manifest("1", "x64", "a", "2"))
+    ).toContain('releaseDate: "2"');
   });
 
   it("Should refuse a mac update zip whose framework symlink was dereferenced", () => {

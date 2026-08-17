@@ -94,6 +94,8 @@ export function mergeMacUpdateManifests(arm64: string, x64: string): string {
   }
   const files = new Map<string, UpdateFile>();
   for (const file of [...first.files, ...second.files]) {
+    const assetName = basename(new URL(file.url, "https://manifest.invalid/").pathname);
+    if (!assetName.endsWith(".zip")) continue;
     const existing = files.get(file.url);
     if (existing && (existing.sha512 !== file.sha512 || existing.size !== file.size)) {
       throw new Error(`Conflicting macOS update manifest entry: ${file.url}`);
@@ -101,6 +103,16 @@ export function mergeMacUpdateManifests(arm64: string, x64: string): string {
     files.set(file.url, file);
   }
   const ordered = [...files.values()].sort((left, right) => left.url.localeCompare(right.url));
+  const archiveNames = ordered.map(file =>
+    basename(new URL(file.url, "https://manifest.invalid/").pathname)
+  );
+  if (
+    archiveNames.length !== 2 ||
+    !archiveNames.some(name => name.endsWith("-mac-arm64.zip")) ||
+    !archiveNames.some(name => name.endsWith("-mac-x64.zip"))
+  ) {
+    throw new Error("macOS update manifests must contain one arm64 ZIP and one x64 ZIP.");
+  }
   return stringify({
     version: first.version,
     files: ordered,
