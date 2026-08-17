@@ -532,22 +532,28 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 		}
 	})
 
-	t.Run("Should degrade to a root when the provenance parent is missing", func(t *testing.T) {
+	t.Run("Should persist a missing provenance parent as an orphan root", func(t *testing.T) {
 		t.Parallel()
 
+		const parentID = "sess-deleted"
 		h := newHarness(t)
 		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
-			ProvenanceParentSessionID: "sess-deleted",
+			ProvenanceParentSessionID: parentID,
 		})
 		if err != nil {
 			t.Fatalf("Create(system with deleted parent) error = %v", err)
 		}
 		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
 		lineage := child.Info().Lineage
-		if lineage == nil || lineage.ParentSessionID != "" ||
-			lineage.RootSessionID != child.ID || lineage.SpawnDepth != 0 {
-			t.Fatalf("system lineage = %#v, want self-rooted child %q", lineage, child.ID)
+		if lineage == nil || lineage.ParentSessionID != parentID ||
+			lineage.RootSessionID != parentID || lineage.SpawnDepth != 1 {
+			t.Fatalf("system lineage = %#v, want orphaned child of %q", lineage, parentID)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if meta.Lineage == nil || meta.Lineage.ParentSessionID != parentID ||
+			meta.Lineage.RootSessionID != parentID || meta.Lineage.SpawnDepth != 1 {
+			t.Fatalf("persisted system lineage = %#v, want orphaned child of %q", meta.Lineage, parentID)
 		}
 	})
 

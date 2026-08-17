@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -136,6 +137,12 @@ func TestCreateRejectsInvalidPreCreateProvenance(t *testing.T) {
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("Create(pre-create changed system type) error = %v, want %v", err, ErrValidation)
 		}
+		if !strings.Contains(err.Error(), "internal provenance requires a system session") {
+			t.Fatalf(
+				"Create(pre-create changed system type) error = %v, want internal provenance type rejection",
+				err,
+			)
+		}
 	})
 }
 
@@ -231,10 +238,18 @@ func TestCreateProtectsDaemonOwnedSessionTypeFromPreCreatePatch(t *testing.T) {
 			if !errors.Is(err, ErrValidation) {
 				t.Fatalf(
 					"Create(type transition %q -> %q) error = %v, want %v",
-					t.requestedType,
-					t.patchedType,
+					tt.requestedType,
+					tt.patchedType,
 					err,
 					ErrValidation,
+				)
+			}
+			if !strings.Contains(err.Error(), "session.pre_create cannot change daemon-owned session type") {
+				t.Fatalf(
+					"Create(type transition %q -> %q) error = %v, want daemon-owned type rejection",
+					tt.requestedType,
+					tt.patchedType,
+					err,
 				)
 			}
 			if got := len(h.driver.startCalls); got != startCallsBeforeCreate {

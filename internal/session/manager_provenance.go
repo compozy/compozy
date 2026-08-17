@@ -48,7 +48,11 @@ func (m *Manager) prepareInternalSystemProvenance(
 				"parent_session_id", parentSessionID,
 				"workspace_id", strings.TrimSpace(workspaceID),
 			)
-			return nil, true, nil
+			return &store.SessionLineage{
+				ParentSessionID: parentSessionID,
+				RootSessionID:   parentSessionID,
+				SpawnDepth:      1,
+			}, true, nil
 		}
 		return nil, false, fmt.Errorf("session: resolve internal provenance parent: %w", err)
 	}
