@@ -31,6 +31,7 @@ const (
 	extensionAuthoringE2EName             = "authoring-dev-e2e"
 	resourceOnlyExtensionAuthoringE2EName = "resource-only-authoring-e2e"
 	resourceOnlyAuthoringAgentName        = "resource-only-agent"
+	resourceOnlyAuthoringSkillName        = "resource-only-skill"
 )
 
 func TestDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts(t *testing.T) {
@@ -171,6 +172,14 @@ func testDaemonE2EResourceOnlyExtensionAuthoring(t *testing.T) {
 	)); err != nil {
 		t.Fatalf("os.Stat(generated agent) error = %v", err)
 	}
+	if _, err := os.Stat(filepath.Join(
+		firstBuild.GenerationDir,
+		"skills",
+		resourceOnlyAuthoringSkillName,
+		"SKILL.md",
+	)); err != nil {
+		t.Fatalf("os.Stat(generated skill) error = %v", err)
+	}
 
 	var linked compozycontract.ExtensionPayload
 	runExtensionAuthoringCLI(
@@ -186,7 +195,9 @@ func testDaemonE2EResourceOnlyExtensionAuthoring(t *testing.T) {
 		t.Fatalf("resource-only extension dev result = %#v, want generation %q", linked, firstBuild.GenerationHash)
 	}
 	assertResourceOnlyAuthoringAgent(t, ctx, harness, "generation one")
+	assertResourceOnlyAuthoringSkill(t, ctx, harness)
 	assertResourceOnlyAuthoringAgentIsWorkspaceScoped(t, ctx, harness)
+	assertResourceOnlyAuthoringSkillIsWorkspaceScoped(t, ctx, harness)
 
 	writeResourceOnlyAuthoringAgent(t, sourceDir, "generation two")
 	var reloaded compozycontract.ExtensionPayload
@@ -252,11 +263,13 @@ min_compozy_version = "0.3.0-beta.1"
 
 [resources]
 agents = ["agents"]
+skills = ["skills"]
 `, resourceOnlyExtensionAuthoringE2EName)
 	if err := os.WriteFile(filepath.Join(sourceDir, "extension.toml"), []byte(manifest), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(resource-only manifest) error = %v", err)
 	}
 	writeResourceOnlyAuthoringAgent(t, sourceDir, prompt)
+	writeResourceOnlyAuthoringSkill(t, sourceDir)
 }
 
 func writeResourceOnlyAuthoringAgent(t *testing.T, sourceDir, prompt string) {
@@ -276,6 +289,24 @@ func writeInvalidResourceOnlyAuthoringAgent(t *testing.T, sourceDir string) {
 	agentPath := filepath.Join(sourceDir, "agents", resourceOnlyAuthoringAgentName, "AGENT.md")
 	if err := os.WriteFile(agentPath, []byte("---\nname: [\n---\ninvalid\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(invalid resource-only agent) error = %v", err)
+	}
+}
+
+func writeResourceOnlyAuthoringSkill(t *testing.T, sourceDir string) {
+	t.Helper()
+	skillDir := filepath.Join(sourceDir, "skills", resourceOnlyAuthoringSkillName)
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(resource-only skill) error = %v", err)
+	}
+	content := fmt.Sprintf(`---
+name: %s
+description: Exercise resource-only extension authoring.
+---
+
+# Resource-only authoring
+`, resourceOnlyAuthoringSkillName)
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(resource-only skill) error = %v", err)
 	}
 }
 
@@ -313,6 +344,35 @@ func assertResourceOnlyAuthoringAgentIsWorkspaceScoped(
 	}
 }
 
+func assertResourceOnlyAuthoringSkill(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) {
+	t.Helper()
+	response := listAuthoringSkills(t, ctx, harness, harness.WorkspaceRoot)
+	for _, skill := range response.Skills {
+		if skill.Name == resourceOnlyAuthoringSkillName {
+			return
+		}
+	}
+	t.Fatalf("workspace skills = %#v, want %q", response.Skills, resourceOnlyAuthoringSkillName)
+}
+
+func assertResourceOnlyAuthoringSkillIsWorkspaceScoped(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) {
+	t.Helper()
+	response := listAuthoringSkills(t, ctx, harness, "")
+	for _, skill := range response.Skills {
+		if skill.Name == resourceOnlyAuthoringSkillName {
+			t.Fatalf("global skills contain workspace resource-only skill: %#v", skill)
+		}
+	}
+}
+
 func listAuthoringAgents(
 	t *testing.T,
 	ctx context.Context,
@@ -327,6 +387,24 @@ func listAuthoringAgents(
 	var response compozycontract.AgentsResponse
 	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		t.Fatalf("list agents for workspace %q error = %v", workspace, err)
+	}
+	return response
+}
+
+func listAuthoringSkills(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	workspace string,
+) compozycontract.SkillsResponse {
+	t.Helper()
+	path := "/api/skills"
+	if workspace != "" {
+		path += "?workspace=" + url.QueryEscape(workspace)
+	}
+	var response compozycontract.SkillsResponse
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("list skills for workspace %q error = %v", workspace, err)
 	}
 	return response
 }

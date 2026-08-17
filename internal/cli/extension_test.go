@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -1012,6 +1014,127 @@ func main() {
 	if output.WorkspaceID != "workspace-stable" || !output.Dev {
 		t.Fatalf("extension dev output = %#v", output)
 	}
+}
+
+func TestExtensionDevWatchReloadsResourceOnlyChanges(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should rebuild and reload a changed resource-only source", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			sourceDir := filepath.Join(t.TempDir(), "resource-watch")
+			skillDir := filepath.Join(sourceDir, "skills", "writer")
+			if err := os.MkdirAll(skillDir, 0o755); err != nil {
+				t.Fatalf("os.MkdirAll(skillDir) error = %v", err)
+			}
+			writeExtensionManifest(t, filepath.Join(sourceDir, "extension.toml"), `[extension]
+name = "resource-watch"
+version = "0.1.0"
+description = "Resource-only watch fixture"
+min_compozy_version = "0.5.0"
+
+[resources]
+skills = ["skills"]
+`)
+			skillPath := filepath.Join(skillDir, "SKILL.md")
+			writeExtensionManifest(t, skillPath, `---
+name: writer
+description: Write clear release notes.
+---
+
+# Writer
+`)
+
+			initialHash := make(chan string, 1)
+			reloadHash := make(chan string, 1)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			client := &stubClient{
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					if ref != "workspace-alias" {
+						return WorkspaceDetailRecord{}, fmt.Errorf(
+							"GetWorkspace() ref = %q, want workspace-alias",
+							ref,
+						)
+					}
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+						ID: "workspace-stable", Name: ref, RootDir: filepath.Dir(sourceDir),
+					}}, nil
+				},
+				devExtensionFn: func(
+					_ context.Context,
+					workspaceRef string,
+					request DevLinkExtensionRequest,
+				) (ExtensionRecord, error) {
+					initialHash <- request.GenerationHash
+					return ExtensionRecord{
+						Name: "resource-watch", WorkspaceID: workspaceRef, Dev: true, DaemonRunning: true,
+					}, nil
+				},
+				reloadDevExtensionFn: func(
+					_ context.Context,
+					workspaceRef string,
+					name string,
+					request ReloadExtensionRequest,
+				) (ExtensionRecord, error) {
+					if workspaceRef != "workspace-stable" || name != "resource-watch" {
+						return ExtensionRecord{}, fmt.Errorf(
+							"ReloadDevExtension() target = %q/%q, want workspace-stable/resource-watch",
+							workspaceRef,
+							name,
+						)
+					}
+					reloadHash <- request.GenerationHash
+					cancel()
+					return ExtensionRecord{
+						Name: name, WorkspaceID: workspaceRef, Dev: true, DaemonRunning: true,
+					}, nil
+				},
+			}
+			deps, homePaths := newExtensionLocalDeps(t, client)
+			deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+				return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+			}
+			deps.processAlive = func(int) bool { return true }
+			deps.loadConfig = func() (compozyconfig.Config, error) {
+				cfg := compozyconfig.DefaultWithHome(homePaths)
+				cfg.Extensions.Dev.WatchInterval = time.Second
+				return cfg, nil
+			}
+
+			result := make(chan error, 1)
+			go func() {
+				command := newRootCommand(deps)
+				command.SetOut(io.Discard)
+				command.SetErr(io.Discard)
+				command.SetArgs([]string{
+					"extension", "dev", sourceDir, "--watch", "--workspace", "workspace-alias", "-o", "json",
+				})
+				result <- command.ExecuteContext(ctx)
+			}()
+
+			firstGeneration := <-initialHash
+			synctest.Wait()
+			writeExtensionManifest(t, skillPath, `---
+name: writer
+description: Write concise release notes.
+---
+
+# Writer
+`)
+			time.Sleep(time.Second)
+			synctest.Wait()
+
+			secondGeneration := <-reloadHash
+			if secondGeneration == firstGeneration {
+				t.Fatalf("reload generation = %q, want a new hash after the skill changed", secondGeneration)
+			}
+			if err := <-result; !errors.Is(err, context.Canceled) {
+				t.Fatalf("extension dev --watch error = %v, want context cancellation", err)
+			}
+		})
+	})
 }
 
 func TestExtensionBundleAndHelpers(t *testing.T) {

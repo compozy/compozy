@@ -4,15 +4,15 @@ area: ET
 title: Iterate on a resource-only extension without a build toolchain
 persona: Bruno
 journey: J-extension-dev-lifecycle
-expected: A native extension that declares only static agents, skills, loops, automation, or layouts builds without package.json or go.mod and without running build or describe commands; dev and reload publish its resources only to the selected workspace, identical input keeps the same generation, changed valid input creates a new generation, and an invalid edit leaves the last-good generation active.
+expected: A native extension that declares only static agents, skills, loops, automation, or layouts builds without package.json or go.mod and without running build or describe commands; network participation remains in the generated manifest and contributes to its generation hash; dev, reload, and watch publish changed resources only to the selected workspace; and an invalid edit leaves the last-good generation active.
 entry_points: `compozy extension build <dir>`; `compozy extension dev <dir> --workspace <ref>`; `compozy extension reload <name> <dir> --workspace <ref>`; `compozy extension dev <dir> --watch`; `GET /api/agents?workspace=<ref>`
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /home/franciscpd/dev/qa-labs/compozy-resource-only-extension-dev-20260817-020712-286410-lab/qa-artifacts/qa/journey-log.jsonl; /home/franciscpd/dev/qa-labs/compozy-resource-only-extension-dev-20260817-020712-286410-lab/qa-artifacts/qa/qa-audit-report.json; /home/franciscpd/dev/qa-labs/compozy-resource-only-extension-dev-20260817-020712-286410-lab/qa-artifacts/qa/teardown.json; /home/franciscpd/dev/qa-labs/compozy-resource-only-extension-dev-20260817-020712-286410-lab/project/resource-only-kit/dist/gen-6542fc8f1f0d926e9c2eff47fe0e6f4040f96a0f38b44499bad1c1cc681c3eb5
-last_report: docs/qa/reports/2026-08-17-resource-only-extension-dev.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-423-resource-only-watch-20260817-185100-670194-lab/qa-artifacts/qa/generated-manifest.toml; /Users/pedronauck/dev/qa-labs/compozy-pr-423-resource-only-watch-20260817-185100-670194-lab/qa-artifacts/qa/watch-reload.jsonl; /Users/pedronauck/dev/qa-labs/compozy-pr-423-resource-only-watch-20260817-185100-670194-lab/qa-artifacts/qa/workspace-skills.json; /Users/pedronauck/dev/qa-labs/compozy-pr-423-resource-only-watch-20260817-185100-670194-lab/qa-artifacts/qa/extensions-after-invalid.json; /Users/pedronauck/dev/qa-labs/compozy-pr-423-resource-only-watch-20260817-185100-670194-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-pr-423-resource-only-watch-20260817-185100-670194-lab/qa-artifacts/qa/teardown.json
+last_report: docs/qa/reports/2026-08-17-pr-423-resource-only-watch.md
 overlaps: ET-extension-dev-reload-loop; ET-agent-plugin-dev-reload
 ---
 
@@ -32,3 +32,13 @@ and confirmed malformed YAML left the new last-good generation active. Removal c
 agent, and a code-backed scaffold remained callable as the adjacent compatibility canary. The
 source-freeze retest also confirmed the workspace agent through `compozy__workspace_describe` before
 strict evidence audit and clean teardown.
+
+QA impact 2026-08-17 (PR #423 review): reset after the resource-only watch path, generated Network
+requirement fidelity, and cross-workspace consumer synchronization were strengthened. The new targeted
+walk must exercise an actual long-running `--watch` process and a fresh public read after the edit.
+
+QA 2026-08-17 (PR #423 review): Bruno observed the Network consent refusal, retried with the exact
+digest, kept `extension dev --watch` active, changed only `SKILL.md`, and received generation
+`8df8e674…` after `898e6f20…`. Workspace API reads returned the changed skill and agent while global
+reads returned neither. A malformed skill then failed with a positioned YAML error while the daemon
+kept `8df8e674…` and its prior skill active. A code-backed tool-provider remained callable.

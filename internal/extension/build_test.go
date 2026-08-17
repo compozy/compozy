@@ -88,11 +88,22 @@ func TestBuildBundle(t *testing.T) {
 		if err := os.MkdirAll(skillDir, 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(skillDir) error = %v", err)
 		}
-		writeFile(t, filepath.Join(skillDir, "SKILL.md"), "# Writer\n")
+		writeFile(t, filepath.Join(skillDir, "SKILL.md"), `---
+name: writer
+description: Write clear release notes.
+---
+
+# Writer
+`)
 		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
 name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
+
+[network_participation]
+required = true
+mode = "live"
+channel_scopes = ["builders"]
 
 [resources]
 skills = ["skills"]
@@ -107,8 +118,17 @@ skills = ["skills"]
 		if err != nil {
 			t.Fatalf("os.ReadFile(copied skill) error = %v", err)
 		}
-		if string(copied) != "# Writer\n" {
-			t.Fatalf("copied skill = %q, want %q", copied, "# Writer\n")
+		if !strings.Contains(string(copied), "# Writer") {
+			t.Fatalf("copied skill = %q, want Writer content", copied)
+		}
+		if result.Manifest.NetworkParticipation == nil ||
+			!result.Manifest.NetworkParticipation.Required ||
+			result.Manifest.NetworkParticipation.Mode != "live" ||
+			!reflect.DeepEqual(result.Manifest.NetworkParticipation.ChannelScopes, []string{"builders"}) {
+			t.Fatalf(
+				"generated NetworkParticipation = %#v, want required live builders scope",
+				result.Manifest.NetworkParticipation,
+			)
 		}
 		if len(runner.Commands()) != 0 {
 			t.Fatalf("commands = %#v, want none", runner.Commands())
@@ -124,7 +144,13 @@ skills = ["skills"]
 				result.GenerationHash,
 			)
 		}
-		writeFile(t, filepath.Join(skillDir, "SKILL.md"), "# Editor\n")
+		writeFile(t, filepath.Join(skillDir, "SKILL.md"), `---
+name: writer
+description: Edit clear release notes.
+---
+
+# Editor
+`)
 		changed, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
 			t.Fatalf("buildBundle(changed) error = %v", err)
@@ -134,6 +160,33 @@ skills = ["skills"]
 		}
 		if len(runner.Commands()) != 0 {
 			t.Fatalf("commands after rebuild = %#v, want none", runner.Commands())
+		}
+		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "resource-only"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+
+[network_participation]
+required = true
+mode = "live"
+channel_scopes = ["release"]
+
+[resources]
+skills = ["skills"]
+`)
+		networkChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
+		if err != nil {
+			t.Fatalf("buildBundle(network changed) error = %v", err)
+		}
+		if networkChanged.GenerationHash == changed.GenerationHash {
+			t.Fatalf("network-changed generation hash = %q, want a new hash", networkChanged.GenerationHash)
+		}
+		if networkChanged.Manifest.NetworkParticipation == nil ||
+			!reflect.DeepEqual(networkChanged.Manifest.NetworkParticipation.ChannelScopes, []string{"release"}) {
+			t.Fatalf(
+				"network-changed participation = %#v, want release scope",
+				networkChanged.Manifest.NetworkParticipation,
+			)
 		}
 	})
 

@@ -43,6 +43,12 @@ func manifestTOMLDocument(manifest *Manifest) (map[string]any, error) {
 		},
 		manifestSubprocessKey: subprocessTOMLTable(manifest.Subprocess),
 	}
+	if requirement := manifest.NetworkParticipation.Normalize(); requirement != nil {
+		networkParticipation := map[string]any{manifestRequiredKey: requirement.Required}
+		putNonEmpty(networkParticipation, "mode", requirement.Mode)
+		putNonEmptyStrings(networkParticipation, "channel_scopes", requirement.ChannelScopes)
+		document[manifestFieldNetworkParticipation] = networkParticipation
+	}
 
 	resources, err := resourcesTOMLTable(manifest.Resources)
 	if err != nil {

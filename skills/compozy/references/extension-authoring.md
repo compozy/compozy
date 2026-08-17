@@ -224,13 +224,12 @@ What `build` writes, for reading rather than editing: `[extension]` (`name`, `ve
 `[permissions] requires`, `[subprocess]` (`command`, `args`, `env`, `secret_env`,
 `health_check_interval`, `shutdown_timeout`), `[resources.tools.<handler>]` (id, handler, backend
 kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, optional `command`),
-`[[resources.hooks]]`, and `[[resources.command_groups]]`.
+`[[resources.hooks]]`, `[[resources.command_groups]]`, and `[network_participation]`.
 
-Resource-only extensions additionally hand-write `resources.skills|agents|loops|automation|layouts`
-and may declare `[resources.publish]` (families plus `max_scope`). Resource paths resolve inside the
-extension root; `{{config_dir}}` is that root and `{{env:NAME}}` reads the daemon process environment.
-Hooks, tools, command groups, MCP servers, bridge metadata, and subprocess behavior require a supported
-code toolchain.
+Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`.
+Resource paths resolve inside the extension root; `{{config_dir}}` is that root and
+`{{env:NAME}}` reads the daemon process environment. Hooks, tools, command groups, MCP servers,
+dynamic resource publication, bridge metadata, and subprocess behavior require a supported code toolchain.
 
 Static kit resources stay inert after install. Enable publishes the instance-owned resources; disable
 removes them. Use extension inventory to compare shipped and live resources, and preview to inspect

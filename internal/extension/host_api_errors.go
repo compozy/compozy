@@ -81,7 +81,7 @@ func rpcCapabilityDenied(err error) error {
 		return hostAPIStatusRPCError(403, "Forbidden", map[string]any{
 			extensionStateError: denied.Error(),
 			hostAPIMethodKey:    strings.TrimSpace(denied.Data.Method),
-			"required":          append([]string(nil), denied.Data.Required...),
+			manifestRequiredKey: append([]string(nil), denied.Data.Required...),
 			"granted":           append([]string(nil), denied.Data.Granted...),
 		})
 	}

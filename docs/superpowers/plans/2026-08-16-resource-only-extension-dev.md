@@ -19,7 +19,7 @@
 
 ## Compozy Impact Audit
 
-- Native tools: `compozy__extensions_build`, `_dev`, and `_reload` gain resource-only source support through their existing `BuildBundle` dependency; tool IDs, descriptors, schemas, risk flags, and capability gates do not change.
+- Native tools: `compozy__extensions_build` gains resource-only source support through `BuildBundle`; `_dev` and `_reload` remain hash-based consumers of a completed build. Tool IDs, descriptors, schemas, risk flags, and capability gates do not change.
 - Extensibility and hooks: native resource-only manifests can enter the existing generation/dev-overlay lifecycle; code-backed extension, hook, MCP sidecar, and dynamic `resources.publish` contracts remain unchanged and executable extension contracts still require a toolchain.
 - Workspace data isolation: no stored shape or scope changes; existing dev links remain keyed by daemon-resolved `workspace_id`, and the QA scenario must prove the overlay is visible only in its workspace.
 - Official Compozy skill: update `skills/compozy/references/extensions.md` and `skills/compozy/references/extension-authoring.md` so agents select the resource-only authoring path correctly.
@@ -169,4 +169,3 @@ make gate-status
 ```
 
 Expected: the scoped gate and exactly one fresh full gate pass with zero warnings and errors.
-

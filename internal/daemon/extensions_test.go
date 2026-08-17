@@ -21,6 +21,85 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+func TestDaemonExtensionServiceConsumerSync(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should cancel a queued sync without entering resource consumers", func(t *testing.T) {
+		t.Parallel()
+
+		firstEntered := make(chan struct{})
+		firstRelease := make(chan struct{})
+		secondEntered := make(chan struct{})
+		publisher := &blockingExtensionConsumerPublisher{
+			firstEntered:  firstEntered,
+			firstRelease:  firstRelease,
+			secondEntered: secondEntered,
+		}
+		registry := extensionpkg.NewRegistry(openDaemonTestGlobalDB(t).DB())
+		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry: registry,
+			Loops:    publisher,
+		}).(*daemonExtensionService)
+
+		firstResult := make(chan error, 1)
+		go func() {
+			firstResult <- service.syncExtensionConsumers(t.Context())
+		}()
+		requireLifecycleSignal(t, firstEntered, "first resource consumer sync")
+
+		secondCtx, cancelSecond := context.WithCancel(t.Context())
+		secondStarted := make(chan struct{})
+		secondResult := make(chan error, 1)
+		go func() {
+			close(secondStarted)
+			secondResult <- service.syncExtensionConsumers(secondCtx)
+		}()
+		requireLifecycleSignal(t, secondStarted, "queued resource consumer sync")
+		cancelSecond()
+
+		queuedErr := requireLifecycleResult(t, secondResult, "queued resource consumer sync")
+		if !errors.Is(queuedErr, context.Canceled) {
+			t.Fatalf("queued sync error = %v, want context cancellation", queuedErr)
+		}
+		select {
+		case <-secondEntered:
+			t.Fatal("queued sync entered the resource consumer while another sync was active")
+		default:
+		}
+
+		close(firstRelease)
+		if err := requireLifecycleResult(t, firstResult, "first resource consumer sync"); err != nil {
+			t.Fatalf("first sync error = %v", err)
+		}
+	})
+}
+
+type blockingExtensionConsumerPublisher struct {
+	mu            sync.Mutex
+	calls         int
+	firstEntered  chan<- struct{}
+	firstRelease  <-chan struct{}
+	secondEntered chan<- struct{}
+}
+
+func (p *blockingExtensionConsumerPublisher) Sync(ctx context.Context) error {
+	p.mu.Lock()
+	p.calls++
+	call := p.calls
+	p.mu.Unlock()
+	if call == 1 {
+		close(p.firstEntered)
+		select {
+		case <-p.firstRelease:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	close(p.secondEntered)
+	return ctx.Err()
+}
+
 func TestExtensionLifecycleCoordinator(t *testing.T) {
 	t.Parallel()
 

@@ -222,7 +222,8 @@ a hand-maintained manifest allowed cannot occur.
 ### `[[resources.hooks]]`
 
 Hooks declared through the SDK's supported hook events are generated with a subprocess executor
-pointed at the same binary. A resource-only extension writes them by hand:
+pointed at the same binary. Hooks require a supported code toolchain; resource-only sources cannot
+declare executable hooks:
 
 ```toml
 [[resources.hooks]]
@@ -291,7 +292,7 @@ No code, no subprocess, no permissions:
 [extension]
 name = "review-pack"
 version = "0.1.0"
-description = "Review skills, hooks, and MCP helpers"
+description = "Review skills, agents, automation, and layouts"
 min_compozy_version = "0.3.0-beta.1"
 
 [resources]
@@ -299,11 +300,6 @@ skills = ["skills"]
 agents = ["agents"]
 automation = ["automation"]
 layouts = ["layouts"]
-
-[resources.mcp_servers.git]
-command = "uvx"
-args = ["mcp-server-git"]
-env = { REPO_ROOT = "{{env:REPO_ROOT}}" }
 ```
 
 Installation is inert. These resources become live only after the extension is enabled, and disable
