@@ -37,6 +37,7 @@ linux:
   category: Development
   executableName: compozyos
   icon: build/icon.png
+  maintainer: Compozy
   syncDesktopName: true
   target:
     - AppImage

@@ -3,6 +3,7 @@
     "version": "0.3.0",
     "private": true,
     "description": "CompozyOS Electron desktop shell",
+    "homepage": "https://compozy.com",
     "author": "Compozy",
     "type": "module",
     "main": "dist/main.cjs",
@@ -37,5 +38,6 @@
         "typescript": "7.0.2",
         "vitest": "4.1.10",
         "yaml": "2.9.0"
-    }
+    },
+    "desktopName": "compozyos.desktop"
 }

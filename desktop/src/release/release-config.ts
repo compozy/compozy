@@ -42,6 +42,7 @@ export function buildReleaseConfig(input: ReleaseConfigInput): Record<string, un
     },
     ...(input.platform === "mac"
       ? {
+          dmg: { sign: true },
           mac: {
             detectUpdateChannel: false,
             hardenedRuntime: true,
@@ -54,6 +55,7 @@ export function buildReleaseConfig(input: ReleaseConfigInput): Record<string, un
             artifactName: "CompozyOS-${version}-linux-x64.${ext}",
             detectUpdateChannel: false,
             executableName: "compozyos",
+            maintainer: "Compozy",
             syncDesktopName: true,
             target,
           },

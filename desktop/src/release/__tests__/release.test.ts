@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 
 import { describe, expect, it } from "vitest";
 
+import packageMetadata from "../../../package.json";
 import { shouldDisableDifferentialDownload } from "../cross-arch";
 import { assertMacZipSymlinks, parseZipInfoLongListing, requiredMacZipSymlinks } from "../mac-zip";
 import { appleIDNotaryArguments } from "../notary-auth";
@@ -27,6 +28,7 @@ describe("desktop release policy", () => {
         version: "1.2.0-beta.1",
       })
     ).toMatchObject({
+      dmg: { sign: true },
       extraMetadata: { version: "1.2.0-beta.1" },
       mac: { detectUpdateChannel: false, notarize: true, target: ["dmg", "zip"] },
       publish: {
@@ -37,6 +39,10 @@ describe("desktop release policy", () => {
   });
 
   it("Should produce Linux targets and reject invalid release matrices", () => {
+    expect(packageMetadata).toMatchObject({
+      desktopName: "compozyos.desktop",
+      homepage: "https://compozy.com",
+    });
     expect(
       buildReleaseConfig({
         arch: "x64",
@@ -50,6 +56,7 @@ describe("desktop release policy", () => {
         artifactName: "CompozyOS-${version}-linux-x64.${ext}",
         detectUpdateChannel: false,
         executableName: "compozyos",
+        maintainer: "Compozy",
         syncDesktopName: true,
         target: ["AppImage", "deb"],
       },
