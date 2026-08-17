@@ -627,15 +627,17 @@ code,
   color: var(--accent-ink);
 }
 
-/* the S2 indicator — a menubar control, sized and shaped like its bell /
-   settings siblings; the info ink IS the signal, and it exists only while
+/* the S2 indicator — the bar's one accent target; it exists only while
    the daemon reports an available update on either track. */
 .mb-update {
-  color: var(--info);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: var(--shadow-highlight);
 }
 .mb-update:hover {
-  background: var(--btn-default-fill);
-  color: var(--info);
+  background: var(--accent-hover);
+  color: var(--accent-ink);
 }
 .mb-update.is-focused {
   box-shadow: var(--shadow-focus-ring);

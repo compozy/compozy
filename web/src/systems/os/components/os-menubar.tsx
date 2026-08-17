@@ -34,7 +34,7 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   /** Non-interactive system status rendered in the trailing cluster, before the bell. */
   status?: React.ReactNode;
   /**
-   * Interactive update offer, rendered between the ⌘K chip and the settings cog.
+   * Interactive update offer, rendered before the approvals bell.
    * Separate from `status` because that slot is non-interactive by contract.
    */
   updateIndicator?: React.ReactNode;
@@ -223,6 +223,7 @@ export function OsMenuBar({
             not a menu item, and nesting it there breaks the menu's semantics. */}
         {scopeNotice}
         {status}
+        {updateIndicator}
         <Control
           data-slot="os-menubar-bell"
           // The badge count reaches assistive tech through the label — the
@@ -245,7 +246,6 @@ export function OsMenuBar({
             {commandShortcutLabel}
           </Control>
         ) : null}
-        {updateIndicator}
         <Control
           data-slot="os-menubar-settings"
           aria-label="Settings"

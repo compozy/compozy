@@ -348,8 +348,8 @@ function FocusUpdateIndicatorSetup() {
 }
 
 /**
- * An update is offered: a single discreet glyph joins the trailing cluster between
- * the ⌘K chip and the settings cog. No count, no dropdown — detail lives in Settings.
+ * An update is offered: a filled accent control joins the trailing cluster
+ * before the approvals bell. No count, no dropdown — detail lives in Settings.
  */
 export const UpdateIndicatorAvailable: Story = updateIndicatorStory(
   settingsUpdateBothAvailableFixture

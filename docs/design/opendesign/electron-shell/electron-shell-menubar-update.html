@@ -47,10 +47,10 @@
     <!-- ============ S2 · THE CONTROL ============ -->
     <section class="lab-sec">
       <div class="lab-sec__head"><span class="lab-sec__num">S2</span><h2 class="lab-sec__t">The indicator — one control, one meaning</h2>
-        <span class="lab-sec__gist">28px · info ink · no count, no pulse, no menu</span></div>
+        <span class="lab-sec__gist">28px · accent fill · rounded-full · no count, no pulse, no menu</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>A sibling, not a new species</b>The indicator takes the exact geometry of the bell and the settings cog it sits with: a 28px control, <code>rounded-md</code>, a 16px Lucide glyph at the 1.75 stroke. Only the ink differs — <code>--color-info</code>, the section's own "update available" tone — so the bar gains one quiet colour exactly when something is waiting, and none the rest of the time.</div>
+        <div class="spec__note"><b>The bar's one accent target</b>The indicator keeps the 28px hit of the bell and settings cog, then steps off their ghost chrome: <code>rounded-full</code>, filled with the Button default pair (<code>--color-accent</code> / <code>--color-accent-ink</code>), a 16px Lucide glyph at the 1.75 stroke. Orange appears only while an update is waiting, so the fill is the action, not decoration.</div>
         <div class="spec__demo">
           <div class="plain">
             <div class="zoom">
@@ -64,7 +64,7 @@
               </div>
               <div class="zoom__cell">
                 <div class="zoom__frame">
-                  <span class="mb-icon mb-update" style="background:var(--btn-default-fill)" role="img" aria-label="Update available">
+                  <span class="mb-icon mb-update" style="background:var(--accent-hover)" role="img" aria-label="Update available">
                     <svg class="ic ic--lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>
                   </span>
                 </div>
@@ -94,10 +94,10 @@
             <table class="spec-table">
               <thead><tr><th>property</th><th>value</th><th>source</th></tr></thead>
               <tbody>
-                <tr><td>control</td><td>28px box, <span class="mono">rounded-md</span> (8px)</td><td class="ex">os-menubar.tsx bell / settings</td></tr>
+                <tr><td>control</td><td>28px circle, <span class="mono">rounded-full</span></td><td class="ex">Button size=icon + size-7</td></tr>
                 <tr><td>glyph</td><td>Lucide <span class="mono">circle-arrow-up</span>, 16px, stroke 1.75</td><td class="ex">Icon size="lg" · DESIGN.md §8</td></tr>
-                <tr><td>ink</td><td><span class="mono">--color-info</span> #8e8eb5 — 5.9:1 on the bar</td><td class="ex">signal palette</td></tr>
-                <tr><td>hover</td><td><span class="mono">--color-btn-default-fill</span>; ink unchanged</td><td class="ex">menubar INTERACTIVE recipe</td></tr>
+                <tr><td>fill</td><td><span class="mono">--color-accent</span> / <span class="mono">--color-accent-ink</span></td><td class="ex">Button variant=default</td></tr>
+                <tr><td>hover</td><td><span class="mono">--color-accent-hover</span>; ink unchanged</td><td class="ex">Button default hover</td></tr>
                 <tr><td>focus</td><td><span class="mono">--shadow-focus-ring</span> — 2px, 50% white</td><td class="ex">tokens.css focus contract</td></tr>
                 <tr><td>motion</td><td>colour/background only, <span class="mono">--duration-base</span></td><td class="ex">no pulse, no entrance</td></tr>
                 <tr><td>name</td><td class="ex">Update available</td><td class="ex">aria-label + title</td></tr>

@@ -1,8 +1,6 @@
-import { CircleArrowUp } from "lucide-react";
+import { Download } from "lucide-react";
 
-import { Icon } from "@compozy/ui";
-
-import { cn } from "@/lib/utils";
+import { Button, Icon } from "@compozy/ui";
 
 export interface MenubarUpdateIndicatorProps {
   /** Daemon truth: at least one track offers an update and nothing is running. */
@@ -24,20 +22,18 @@ export function MenubarUpdateIndicator({ available, onActivate }: MenubarUpdateI
   if (!available) return null;
 
   return (
-    <button
+    <Button
       aria-label="Update available"
-      className={cn(
-        "grid size-7 place-items-center rounded-md text-info",
-        "transition-colors duration-base hover:bg-btn-default-fill",
-        "focus-visible:shadow-focus-ring focus-visible:outline-none"
-      )}
+      className="size-7"
       data-slot="os-menubar-update"
       data-testid="os-menubar-update"
       onClick={onActivate}
+      size="icon"
       title="Update available"
       type="button"
+      variant="default"
     >
-      <Icon as={CircleArrowUp} size="lg" />
-    </button>
+      <Icon as={Download} size="lg" />
+    </Button>
   );
 }
