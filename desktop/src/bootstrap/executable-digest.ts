@@ -3,6 +3,7 @@ import { createReadStream } from "node:fs";
 import { open, type FileHandle } from "node:fs/promises";
 
 const MACH_O_64_LITTLE_ENDIAN = 0xfeedfacf;
+const MACH_O_CPU_TYPE_X86_64 = 0x01000007;
 const MAXIMUM_LOAD_COMMAND_BYTES = 1024 * 1024;
 const LC_SEGMENT_64 = 0x19;
 const LC_CODE_SIGNATURE = 0x1d;
@@ -10,6 +11,7 @@ const LC_CODE_SIGNATURE = 0x1d;
 export const MACH_O_64_LAYOUT = {
   headerBytes: 32,
   headerMagic: 0,
+  headerCPUType: 4,
   headerCommandCount: 16,
   headerCommandBytes: 20,
   commandKind: 0,
@@ -28,6 +30,36 @@ export const MACH_O_64_LAYOUT = {
 interface MachODigestPlan {
   readonly contentEnd: number;
   readonly header: Buffer;
+}
+
+function normalizeInsertedX64Signature(
+  header: Buffer,
+  signatureCommand: number,
+  commandCount: number,
+  commandBytes: number,
+  contentEnd: number,
+  linkEditCommands: readonly number[]
+): void {
+  const signatureCommandBytes = MACH_O_64_LAYOUT.signatureCommandBytes;
+  if (
+    signatureCommand + signatureCommandBytes !== header.length ||
+    commandCount === 0 ||
+    commandBytes < signatureCommandBytes
+  ) {
+    throw new Error("The x64 Mach-O code-signature command is invalid.");
+  }
+  header.writeUInt32LE(commandCount - 1, MACH_O_64_LAYOUT.headerCommandCount);
+  header.writeUInt32LE(commandBytes - signatureCommandBytes, MACH_O_64_LAYOUT.headerCommandBytes);
+  header.fill(0, signatureCommand, signatureCommand + signatureCommandBytes);
+  for (const offset of linkEditCommands) {
+    const fileOffset = header.readBigUInt64LE(offset + MACH_O_64_LAYOUT.segmentFileOffset);
+    if (fileOffset > BigInt(contentEnd)) {
+      throw new Error("The x64 Mach-O __LINKEDIT segment is invalid.");
+    }
+    const unsignedBytes = BigInt(contentEnd) - fileOffset;
+    header.writeBigUInt64LE(unsignedBytes, offset + MACH_O_64_LAYOUT.segmentVMSize);
+    header.writeBigUInt64LE(unsignedBytes, offset + MACH_O_64_LAYOUT.segmentFileSize);
+  }
 }
 
 async function readExact(
@@ -66,6 +98,7 @@ async function machODigestPlan(path: string): Promise<MachODigestPlan | null> {
 
     const commandCount = prefix.readUInt32LE(MACH_O_64_LAYOUT.headerCommandCount);
     const commandBytes = prefix.readUInt32LE(MACH_O_64_LAYOUT.headerCommandBytes);
+    const cpuType = prefix.readUInt32LE(MACH_O_64_LAYOUT.headerCPUType);
     if (commandBytes > MAXIMUM_LOAD_COMMAND_BYTES) {
       throw new Error("The Mach-O load commands exceed the integrity limit.");
     }
@@ -118,12 +151,25 @@ async function machODigestPlan(path: string): Promise<MachODigestPlan | null> {
       throw new Error("The Mach-O code-signature envelope is invalid.");
     }
 
-    // Signing replaces the signature envelope and rewrites only these size
-    // fields. The OS verifies the ignored envelope before this binary runs.
-    header.writeUInt32LE(0, signatureCommand + MACH_O_64_LAYOUT.signatureDataSize);
-    for (const offset of linkEditCommands) {
-      header.writeBigUInt64LE(0n, offset + MACH_O_64_LAYOUT.segmentVMSize);
-      header.writeBigUInt64LE(0n, offset + MACH_O_64_LAYOUT.segmentFileSize);
+    // Go emits unsigned x64 binaries, so codesign inserts the final load command
+    // and expands __LINKEDIT. Reconstruct those unsigned bytes before hashing.
+    if (cpuType === MACH_O_CPU_TYPE_X86_64) {
+      normalizeInsertedX64Signature(
+        header,
+        signatureCommand,
+        commandCount,
+        commandBytes,
+        contentEnd,
+        linkEditCommands
+      );
+    } else {
+      // Other supported Mach-O binaries already carry a linker signature.
+      // Signing replaces its envelope and rewrites only these size fields.
+      header.writeUInt32LE(0, signatureCommand + MACH_O_64_LAYOUT.signatureDataSize);
+      for (const offset of linkEditCommands) {
+        header.writeBigUInt64LE(0n, offset + MACH_O_64_LAYOUT.segmentVMSize);
+        header.writeBigUInt64LE(0n, offset + MACH_O_64_LAYOUT.segmentFileSize);
+      }
     }
     return { contentEnd, header };
   } finally {
