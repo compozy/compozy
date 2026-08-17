@@ -7,7 +7,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 
-import { handlers, resetSessionAttachmentMock, seedSessionAttachmentMock } from "../handlers";
+import {
+  handlers,
+  resetSessionAttachmentMock,
+  resetSessionAttentionMock,
+  seedSessionAttachmentMock,
+} from "../handlers";
 import { sessionFixtures } from "../fixtures";
 
 const server = setupServer(...handlers);
@@ -39,6 +44,7 @@ beforeAll(() => {
 beforeEach(() => {
   server.resetHandlers();
   resetSessionAttachmentMock();
+  resetSessionAttentionMock();
 });
 
 afterAll(() => {
@@ -208,6 +214,65 @@ describe("session MSW handlers", () => {
     };
     expect(workspaceBody.sessions.every(session => session.workspace_id === workspace)).toBe(true);
     expect(workspaceBody.sessions.length).toBeGreaterThanOrEqual(body.sessions.length);
+  });
+
+  it("Should expose canonical attention filters, summary, interactions, and presence", async () => {
+    const attentionResponse = await fetch(`${API}/api/sessions?attention=true`);
+    const attention = (await attentionResponse.json()) as {
+      sessions: Array<{ badge: string; id: string }>;
+    };
+    expect(attentionResponse.status).toBe(200);
+    expect(attention.sessions.map(session => session.badge).sort()).toEqual([
+      "waiting-for-auth",
+      "waiting-for-input",
+    ]);
+
+    const doneResponse = await fetch(`${API}/api/sessions?badge=done`);
+    const done = (await doneResponse.json()) as { sessions: Array<{ badge: string }> };
+    expect(done.sessions).toHaveLength(1);
+    expect(done.sessions[0]?.badge).toBe("done");
+
+    const summaryResponse = await fetch(`${API}/api/sessions/attention-summary`);
+    await expect(summaryResponse.json()).resolves.toMatchObject({
+      needs_you: 2,
+      finished: 1,
+    });
+
+    const clarify = sessionFixtures.find(session => session.badge === "waiting-for-input");
+    if (!clarify?.workspace_id) throw new Error("clarify fixture must include workspace_id");
+    const interactionsResponse = await fetch(
+      `${API}/api/workspaces/${clarify.workspace_id}/sessions/${clarify.id}/interactions?status=pending`
+    );
+    await expect(interactionsResponse.json()).resolves.toMatchObject({
+      interactions: [
+        {
+          interaction_id: "interaction_story_clarify",
+          kind: "clarify",
+          status: "pending",
+        },
+      ],
+    });
+
+    const presenceURL = `${API}/api/workspaces/${clarify.workspace_id}/sessions/${clarify.id}/presence`;
+    const acquire = await fetch(presenceURL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visible: true }),
+    });
+    const acquired = (await acquire.json()) as { lease_id: string };
+    expect(acquire.status).toBe(200);
+    const renew = await fetch(presenceURL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visible: true, lease_id: acquired.lease_id }),
+    });
+    expect(renew.status).toBe(204);
+    const release = await fetch(presenceURL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visible: false, lease_id: acquired.lease_id }),
+    });
+    expect(release.status).toBe(204);
   });
 
   it("Should preserve the not-found response for an unknown session ID", async () => {

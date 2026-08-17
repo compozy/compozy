@@ -30,18 +30,37 @@ function frameFixture(overrides: Partial<OsWindowFrameModel> = {}): OsWindowFram
 function contextFixture(frame: OsWindowFrameModel | null, focusedId: string | null) {
   const manager = {
     reopenWindow: vi.fn(() => ({ accepted: true, completion: Promise.resolve(true) })),
+    switchDesktop: vi.fn(),
+    switchDesktopDirection: vi.fn(),
+    createDesktop: vi.fn(),
   } as unknown as WindowManagerController;
   const state = {
     focusedId,
     frames: frame ? { [frame.desktopId]: [frame] } : {},
+    windows: {
+      "w-1": { id: "w-1", minimized: false },
+      "w-2": { id: "w-2", minimized: false },
+      "w-3": { id: "w-3", minimized: false },
+    },
+    client: { focusOrder: ["w-2", "w-1", "w-3"] },
+    desktops: [],
   } as unknown as OsDesktopRuntimeStore;
   const activateWindow = vi.fn();
   const openNewTab = vi.fn();
   return {
     manager,
     state,
+    openPalette: vi.fn(),
+    openPaletteSessions: vi.fn(),
+    openNewSession: vi.fn(),
+    toggleGlobalScope: vi.fn(),
+    openCheatsheet: vi.fn(),
     openDesktops: vi.fn(),
     openWorkspaces: vi.fn(),
+    cycleWorkspace: vi.fn(),
+    cycleSession: vi.fn(),
+    focusAttention: vi.fn(),
+    toggleSidebar: vi.fn(),
     activateWindow,
     openNewTab,
   };
@@ -110,5 +129,47 @@ describe("dispatchWindowManagerAction — tab actions", () => {
     const context = contextFixture(frameFixture(), "w-2");
     dispatchWindowManagerAction("window.tab.jump.8", context);
     expect(context.activateWindow).not.toHaveBeenCalled();
+  });
+});
+
+describe("dispatchWindowManagerAction — navigation v2", () => {
+  it("Should focus the previous MRU window and ignore minimized entries [UT-072]", () => {
+    const context = contextFixture(null, "w-2");
+    context.state = {
+      ...context.state,
+      client: { ...context.state.client!, focusOrder: ["w-2", "w-3", "w-1"] },
+      windows: {
+        ...context.state.windows,
+        "w-3": { ...context.state.windows["w-3"]!, minimized: true },
+      },
+    };
+
+    dispatchWindowManagerAction("window.focus.last", context);
+
+    expect(context.activateWindow).toHaveBeenCalledExactlyOnceWith("w-1");
+  });
+
+  it("Should share stable desktop order with numeric switching and no-op missing slots [UT-073]", () => {
+    const context = contextFixture(null, null);
+    context.state.desktops = [
+      { id: "desktop:c", order: 1 },
+      { id: "desktop:b", order: 0 },
+      { id: "desktop:a", order: 0 },
+    ] as unknown as OsDesktopRuntimeStore["desktops"];
+
+    dispatchWindowManagerAction("desktop.switch.2", context);
+    expect(context.manager.switchDesktop).toHaveBeenCalledExactlyOnceWith("desktop:b");
+
+    dispatchWindowManagerAction("desktop.switch.9", context);
+    expect(context.manager.switchDesktop).toHaveBeenCalledOnce();
+  });
+
+  it("Should route session and attention actions through their shared shell owners [UT-074]", () => {
+    const context = contextFixture(null, null);
+    dispatchWindowManagerAction("session.cycle.next", context);
+    dispatchWindowManagerAction("session.focus.attention", context);
+
+    expect(context.cycleSession).toHaveBeenCalledExactlyOnceWith("next");
+    expect(context.focusAttention).toHaveBeenCalledOnce();
   });
 });

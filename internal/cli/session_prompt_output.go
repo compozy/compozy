@@ -88,7 +88,7 @@ func goalCommandRows(prompt SessionPromptResultRecord, result contract.GoalComma
 
 func goalCommandFields() []string {
 	return []string{
-		"outcome", "reason_code", "replaced_run_id", agentKernelRunIDKey, sessionStatusKey,
+		cliOutcomeKey, "reason_code", "replaced_run_id", agentKernelRunIDKey, sessionStatusKey,
 		"objective", "turns_used", "turn_limit", goalLiveKey, messageIDKey, idempotencyKeyField,
 	}
 }

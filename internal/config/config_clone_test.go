@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestCloneConfig(t *testing.T) {
@@ -32,7 +33,7 @@ func TestCloneConfig(t *testing.T) {
 		cloned := CloneConfig(&source)
 
 		cloned.WindowManager.Snap.RepeatRatios[0] = 0.75
-		cloned.WindowManager.Shortcuts["focus"] = "mutated"
+		cloned.WindowManager.Shortcuts["focus"][0] = "mutated"
 		cloned.MCPServers[0].Args[0] = "mutated"
 		cloned.MCPServers[0].Env["TOKEN"] = "mutated"
 		cloned.MCPServers[0].Headers["X-Tenant"] = "mutated"
@@ -91,7 +92,7 @@ func configCloneFixture() Config {
 		Redact:      RedactConfig{Enabled: true},
 		WindowManager: WindowManagerConfig{
 			Snap:      WindowManagerSnapConfig{RepeatRatios: []float64{0.5}},
-			Shortcuts: map[string]string{"focus": "cmd+j"},
+			Shortcuts: map[string]windowmanager.ShortcutBinding{"focus": {"cmd+j"}},
 		},
 		MCPServers: []MCPServer{{
 			Name: "github", Args: []string{"serve"}, Env: map[string]string{"TOKEN": "one"},

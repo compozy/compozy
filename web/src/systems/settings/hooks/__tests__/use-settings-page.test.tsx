@@ -56,6 +56,7 @@ describe("useSettingsPage", () => {
       "automation",
       "network",
       "gateway",
+      "attention",
       "observability",
       "hooks",
       "extensions",

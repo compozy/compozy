@@ -367,9 +367,11 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       automation_selected_item: automationSelectedItem,
       // Job run rows link straight to the session; trigger runs expose the link inside the
       // expanded drawer, and only when the daemon recorded a session id.
-      automation_session_link_count: document.querySelectorAll(
-        'a[data-testid^="automation-run-"][href^="/session/"], a[data-testid^="trigger-run-open-"][href^="/session/"]'
-      ).length,
+      automation_session_link_count: [
+        ...document.querySelectorAll<HTMLAnchorElement>(
+          'a[data-testid^="automation-run-"][href^="/session/"], a[data-testid^="trigger-run-open-"][href^="/session/"]'
+        ),
+      ].filter(link => link.closest("[hidden]") === null).length,
       automation_trigger_visible:
         document.querySelector('[data-testid="trigger-job-btn"]') !== null,
       automation_view_visible:

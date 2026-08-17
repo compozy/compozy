@@ -234,7 +234,7 @@ const getLoopConfig = `-- name: GetLoopConfig :one
 SELECT human_gate_enabled, reattempt_strategy, enabled_checks_json,
        iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
        no_progress_window, fan_out_width, gate_max_revisions,
-       runtime_defaults_json, runtime_rules_json
+       runtime_defaults_json, runtime_rules_json, environment_json
 FROM loop_config WHERE workspace_id = ?1 AND loop_name = ?2
 `
 
@@ -256,6 +256,7 @@ type GetLoopConfigRow struct {
 	GateMaxRevisions    sql.NullInt64  `json:"gate_max_revisions"`
 	RuntimeDefaultsJson sql.NullString `json:"runtime_defaults_json"`
 	RuntimeRulesJson    sql.NullString `json:"runtime_rules_json"`
+	EnvironmentJson     sql.NullString `json:"environment_json"`
 }
 
 func (q *Queries) GetLoopConfig(ctx context.Context, arg GetLoopConfigParams) (GetLoopConfigRow, error) {
@@ -274,6 +275,7 @@ func (q *Queries) GetLoopConfig(ctx context.Context, arg GetLoopConfigParams) (G
 		&i.GateMaxRevisions,
 		&i.RuntimeDefaultsJson,
 		&i.RuntimeRulesJson,
+		&i.EnvironmentJson,
 	)
 	return i, err
 }
@@ -403,13 +405,14 @@ const insertLoopConfigIfMissing = `-- name: InsertLoopConfigIfMissing :exec
 INSERT OR IGNORE INTO loop_config (
   workspace_id, loop_name, human_gate_enabled, reattempt_strategy, enabled_checks_json,
   iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
-  no_progress_window, fan_out_width, gate_max_revisions, runtime_defaults_json, runtime_rules_json
+  no_progress_window, fan_out_width, gate_max_revisions,
+  runtime_defaults_json, runtime_rules_json, environment_json
 ) VALUES (
   ?1, ?2, ?3,
   ?4, ?5, ?6,
   ?7, ?8, ?9,
   ?10, ?11, ?12,
-  ?13, ?14
+  ?13, ?14, ?15
 )
 `
 
@@ -428,6 +431,7 @@ type InsertLoopConfigIfMissingParams struct {
 	GateMaxRevisions    sql.NullInt64  `json:"gate_max_revisions"`
 	RuntimeDefaultsJson sql.NullString `json:"runtime_defaults_json"`
 	RuntimeRulesJson    sql.NullString `json:"runtime_rules_json"`
+	EnvironmentJson     sql.NullString `json:"environment_json"`
 }
 
 func (q *Queries) InsertLoopConfigIfMissing(ctx context.Context, arg InsertLoopConfigIfMissingParams) error {
@@ -446,6 +450,7 @@ func (q *Queries) InsertLoopConfigIfMissing(ctx context.Context, arg InsertLoopC
 		arg.GateMaxRevisions,
 		arg.RuntimeDefaultsJson,
 		arg.RuntimeRulesJson,
+		arg.EnvironmentJson,
 	)
 	return err
 }
@@ -752,8 +757,9 @@ UPDATE loop_config SET
   fan_out_width = CASE WHEN ?17 THEN ?18 ELSE fan_out_width END,
   gate_max_revisions = CASE WHEN ?19 THEN ?20 ELSE gate_max_revisions END,
   runtime_defaults_json = CASE WHEN ?21 THEN ?22 ELSE runtime_defaults_json END,
-  runtime_rules_json = CASE WHEN ?23 THEN ?24 ELSE runtime_rules_json END
-WHERE workspace_id = ?25 AND loop_name = ?26
+  runtime_rules_json = CASE WHEN ?23 THEN ?24 ELSE runtime_rules_json END,
+  environment_json = CASE WHEN ?25 THEN ?26 ELSE environment_json END
+WHERE workspace_id = ?27 AND loop_name = ?28
 `
 
 type PatchLoopConfigParams struct {
@@ -781,6 +787,8 @@ type PatchLoopConfigParams struct {
 	RuntimeDefaultsJson   sql.NullString `json:"runtime_defaults_json"`
 	PatchRuntimeRules     sql.NullString `json:"patch_runtime_rules"`
 	RuntimeRulesJson      sql.NullString `json:"runtime_rules_json"`
+	PatchEnvironment      sql.NullString `json:"patch_environment"`
+	EnvironmentJson       sql.NullString `json:"environment_json"`
 	WorkspaceID           string         `json:"workspace_id"`
 	LoopName              string         `json:"loop_name"`
 }
@@ -811,6 +819,8 @@ func (q *Queries) PatchLoopConfig(ctx context.Context, arg PatchLoopConfigParams
 		arg.RuntimeDefaultsJson,
 		arg.PatchRuntimeRules,
 		arg.RuntimeRulesJson,
+		arg.PatchEnvironment,
+		arg.EnvironmentJson,
 		arg.WorkspaceID,
 		arg.LoopName,
 	)

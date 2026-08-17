@@ -4,14 +4,10 @@ import { toast } from "sonner";
 
 import type { OsShellHandle } from "../../contexts/os-shell-context";
 import { useOsShell } from "../../hooks/use-os-shell";
-import { matchSessionInstance } from "../../lib/app-catalog";
-import { useSessionWindowDesktopState } from "./hooks/use-session-window-desktop-state";
+import { useSessionWindowRuntime } from "./hooks/use-session-window-runtime";
 import { preloadSessionWindowModules } from "./session-window-module-loader";
 import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
 import { sessionDetailOptions, SessionNotFoundError } from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
-
-const SESSION_AGENT_PATTERN = /^\/agents\/([^/]+)\/sessions\//;
 
 // This controller is itself route-local and lazy. Once it is requested, warm
 // the chat surface chunks together so nested lazy boundaries do not waterfall.
@@ -41,12 +37,8 @@ function returnToAgent(
  */
 export function SessionWindow({ windowId }: { windowId: string }) {
   const { coordinator } = useOsShell();
-  const activeWorkspace = useActiveWorkspace();
-  const runtimeWorkspaceId = activeWorkspace.runtimeWorkspaceId?.trim() || null;
-  const { liveTailEnabled, pathname } = useSessionWindowDesktopState(windowId);
-  const sessionId = matchSessionInstance(pathname);
-  const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
-  const agentName = agentMatch ? decodeURIComponent(agentMatch[1]) : null;
+  const { runtimeWorkspaceId, liveTailEnabled, sessionId, agentName } =
+    useSessionWindowRuntime(windowId);
 
   const detailQueryOptions = sessionDetailOptions(runtimeWorkspaceId ?? "", sessionId ?? "");
   const sessionQuery = useQuery({

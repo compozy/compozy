@@ -1,5 +1,6 @@
 import { useSelector } from "@xstate/store-react";
 
+import type { PaletteViewFrame } from "../lib/palette-view-stack";
 import type { SnapTarget } from "../lib/snap-targets";
 import {
   selectDesktopOverviewSegmentRequest,
@@ -79,4 +80,8 @@ export function useWindowManagerDiagnostic(): WindowManagerDiagnostic | null {
 
 export function useWindowPaletteIntent(): WindowPaletteIntent | null {
   return useSelector(windowManagerStore, snapshot => snapshot.context.paletteIntent);
+}
+
+export function useWindowPaletteViewStack(): readonly PaletteViewFrame[] {
+  return useSelector(windowManagerStore, snapshot => snapshot.context.paletteViewStack);
 }

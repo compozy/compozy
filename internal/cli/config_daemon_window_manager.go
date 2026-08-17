@@ -2,11 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func applyWindowManagerConfigValue(
@@ -86,6 +86,26 @@ func settingsWindowManagerPayloadFromConfig(
 			TopCenter:    contract.SettingsWindowBindingAction(cfg.Bindings.TopCenter),
 			BottomCenter: contract.SettingsWindowBindingAction(cfg.Bindings.BottomCenter),
 		},
-		Shortcuts: maps.Clone(cfg.Shortcuts),
+		Shortcuts: windowmanager.CloneShortcutMap(cfg.Shortcuts),
 	}
+}
+
+type configWindowManagerDiscovery struct {
+	Config    contract.SettingsWindowManagerConfigPayload `json:"config"`
+	Defaults  map[string]windowmanager.ShortcutBinding    `json:"defaults"`
+	Effective map[string]windowmanager.ShortcutBinding    `json:"effective"`
+}
+
+func windowManagerConfigDiscovery(
+	cfg compozyconfig.WindowManagerConfig,
+) (configWindowManagerDiscovery, error) {
+	effective, err := windowmanager.EffectiveKeymap(cfg.Shortcuts)
+	if err != nil {
+		return configWindowManagerDiscovery{}, fmt.Errorf("cli: resolve effective window-manager keymap: %w", err)
+	}
+	return configWindowManagerDiscovery{
+		Config:    settingsWindowManagerPayloadFromConfig(cfg),
+		Defaults:  windowmanager.DefaultKeymap(),
+		Effective: effective,
+	}, nil
 }

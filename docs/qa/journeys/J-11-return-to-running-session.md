@@ -7,6 +7,7 @@ flowchart TD
     E1[Entry: tab restore] --> P{Cache warm?}
     E2[Entry: session list click] --> P
     E3[Entry: permalink /session/:id] --> P
+    E4[Entry: focused session window acquires a presence lease] --> PRES[Renew while focused and visible]
     P -->|warm| T1[Transcript renders from cache instantly]
     P -->|cold, >gcTime window| SK[Skeleton — never empty-state copy]
     SK --> T2[Transcript tail paints ≤2 round trips]
@@ -25,6 +26,11 @@ flowchart TD
     RESET --> LIVE
     T1 --> ST{Session state while away?}
     ST -->|stopped/failed| BADGE[Badge flips to stopped + failure reason visible, no manual refresh]
+    ST -->|settles without lease| DONE[Persist done until a focused visible window marks it seen]
+    ST -->|settles under any live lease| SEEN[Remain idle; never publish done]
+    DONE -->|open or focus session| PRES
+    PRES --> SEEN
+    SEEN --> LIVE
     ST -->|still running| LIVE
     E1 --> W{Active workspace switched away?}
     W -->|yes| RN[Redirect + explanatory notice naming session + owning workspace]
@@ -47,6 +53,10 @@ journey:
       origin: in-app-nav
     - url: "web permalink /session/:id"
       origin: external-share
+    - url: "POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence over HTTP or UDS"
+      origin: direct
+    - url: "CLI: compozy session list --badge done; compozy session status <session-id>"
+      origin: direct
   actions:
     - step: 1
       verb: "Return to a session left running in the background"
@@ -59,7 +69,7 @@ journey:
       expected_observable: "New rows apply incrementally from the safe cursor; empty deltas may advance that cursor, and a transient stream drop reconnects with bounded backoff using the matching fences"
     - step: 4
       verb: "Confirm the session's truthful state"
-      expected_observable: "If it ended while away, the badge shows stopped/failed with the failure reason, without a manual refresh; if still running, the running pulse shows (reduced-motion honored)"
+      expected_observable: "A settle while unseen derives done until the visible focused window holds a lease; a settle under any live client lease remains idle; passive reads never clear done; stopped or failed state remains terminal and truthful"
   goal:
     observable: "The persisted conversation is visible and current within the heartbeat window; the lifecycle badge matches reality; blank-thread telemetry never fires for this session"
     side_effects: [telemetry-counters-fired, sse-subscription-opened, transcript-snapshot-or-delta-served]

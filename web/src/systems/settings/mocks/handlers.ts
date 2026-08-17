@@ -10,6 +10,7 @@ import {
   settingsAppliedMutationFixture,
   settingsApplyRecordsFixture,
   settingsAutomationSectionFixture,
+  settingsAttentionSectionFixture,
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
   settingsGeneralSectionFixture,
@@ -126,6 +127,13 @@ export const handlers: HttpHandler[] = [
   ),
   compozyApiMock.patch("/api/settings/network", () =>
     HttpResponse.json(mutationResult("network", true))
+  ),
+
+  compozyApiMock.get("/api/settings/attention", () =>
+    HttpResponse.json(settingsAttentionSectionFixture)
+  ),
+  compozyApiMock.patch("/api/settings/attention", () =>
+    HttpResponse.json(mutationResult("attention"))
   ),
 
   compozyApiMock.get("/api/settings/window-manager", () =>

@@ -175,6 +175,36 @@ func (h *BaseHandlers) UpdateSettingsWindowManager(c *gin.Context) {
 	h.updateSettingsSection(c, req)
 }
 
+// GetSettingsAttention returns the operator attention settings section.
+func (h *BaseHandlers) GetSettingsAttention(c *gin.Context) {
+	h.getSettingsSection(c, settingspkg.SectionAttention)
+}
+
+// UpdateSettingsAttention persists the operator attention settings section.
+func (h *BaseHandlers) UpdateSettingsAttention(c *gin.Context) {
+	req, err := parseUpdateSettingsAttentionRequest(c)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	h.updateSettingsSection(c, req)
+}
+
+// GetSettingsShell returns the operator shell settings section.
+func (h *BaseHandlers) GetSettingsShell(c *gin.Context) {
+	h.getSettingsSection(c, settingspkg.SectionShell)
+}
+
+// UpdateSettingsShell persists the operator shell settings section.
+func (h *BaseHandlers) UpdateSettingsShell(c *gin.Context) {
+	req, err := parseUpdateSettingsShellRequest(c)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	h.updateSettingsSection(c, req)
+}
+
 // GetSettingsObservability returns the observability settings section.
 func (h *BaseHandlers) GetSettingsObservability(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionObservability)

@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type NetworkDirectResolveParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	SessionID   string `json:"session_id"`
+	PeerID      string `json:"peer_id"`
+}
+
 type NetworkDirectRoomMessagesResponse struct {
 	Messages []NetworkConversationMessagePayload `json:"messages"`
 	Page     CursorPagePayload                   `json:"page"`
@@ -291,9 +298,4 @@ type NetworkThreadMessagesParams struct {
 	Kind        string `json:"kind,omitempty"`
 	WorkID      string `json:"work_id,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
-}
-
-type NetworkThreadMessagesResponse struct {
-	Messages []NetworkConversationMessagePayload `json:"messages"`
-	Page     CursorPagePayload                   `json:"page"`
 }

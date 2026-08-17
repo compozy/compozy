@@ -35,6 +35,8 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   status?: React.ReactNode;
   onCommandClick?: () => void;
   onSettingsClick?: () => void;
+  /** Live daemon binding for the command-palette chip. */
+  commandShortcutLabel?: string;
   /** Renders the CompozyOS mark inside its system-menu owner (shell wiring). */
   logoMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /** Renders the workspace chip inside its menu owner (shell wiring). */
@@ -127,6 +129,7 @@ export function OsMenuBar({
   status,
   onCommandClick,
   onSettingsClick,
+  commandShortcutLabel,
   logoMenu,
   workspaceMenu,
   scopeControl,
@@ -226,14 +229,16 @@ export function OsMenuBar({
           <Icon as={Bell} size="lg" />
           {notifications ? <NotificationBadge count={notifications} /> : null}
         </Control>
-        <Control
-          data-slot="os-menubar-command"
-          title="Command palette"
-          className="flex h-menubar-chip items-center rounded-md border border-line px-2.5 font-mono text-eyebrow text-muted"
-          onClick={onCommandClick}
-        >
-          ⌘K
-        </Control>
+        {commandShortcutLabel ? (
+          <Control
+            data-slot="os-menubar-command"
+            title="Command palette"
+            className="flex h-menubar-chip items-center rounded-md border border-line px-2.5 font-mono text-eyebrow text-muted"
+            onClick={onCommandClick}
+          >
+            {commandShortcutLabel}
+          </Control>
+        ) : null}
         <Control
           data-slot="os-menubar-settings"
           aria-label="Settings"

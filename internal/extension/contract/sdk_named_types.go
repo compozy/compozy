@@ -157,6 +157,14 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 		Name:  sdkSessionHealthUpdateAfterPayloadValue,
 		Value: hooks.SessionHealthUpdateAfterPayload{},
 	},
+	sdkSessionAttentionChangedPayloadValue: {
+		Name:  sdkSessionAttentionChangedPayloadValue,
+		Value: hooks.SessionAttentionChangedPayload{},
+	},
+	sdkSessionAttentionObservationPatchValue: {
+		Name:  sdkSessionAttentionObservationPatchValue,
+		Value: hooks.SessionAttentionObservationPatch{},
+	},
 	sdkAuthoredContextObservationPatchValue: {
 		Name:  sdkAuthoredContextObservationPatchValue,
 		Value: hooks.AuthoredContextObservationPatch{},

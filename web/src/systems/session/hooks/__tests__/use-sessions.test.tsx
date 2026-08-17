@@ -66,6 +66,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
     updated_at: "2026-04-06T10:00:00Z",
     ...overrides,
     archived_at: overrides.archived_at ?? null,
+    pending_interactions: overrides.pending_interactions ?? [],
   };
 }
 
@@ -166,6 +167,33 @@ describe("useSessions", () => {
         workspace: "ws_alpha",
       })
     );
+  });
+
+  it("loads every cursor page when the consumer requests the complete catalog", async () => {
+    vi.mocked(fetchSessions)
+      .mockResolvedValueOnce({
+        sessions: [makeSession({ id: "sess-002" })],
+        page: { has_more: true, limit: 1, next_cursor: "cursor-1", total: 2 },
+      })
+      .mockResolvedValueOnce({
+        sessions: [makeSession({ id: "sess-001" })],
+        page: { has_more: false, limit: 1, total: 2 },
+      });
+
+    const { result } = renderHook(
+      () =>
+        useSessions("ws_alpha", {
+          loadAll: true,
+          filters: { limit: 1, sort: "attention" },
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() =>
+      expect(result.current.data?.map(session => session.id)).toEqual(["sess-002", "sess-001"])
+    );
+    expect(fetchSessions).toHaveBeenCalledTimes(2);
+    expect(result.current.hasNextPage).toBe(false);
   });
 
   it("does not periodically refetch every loaded catalog page", async () => {
@@ -276,6 +304,7 @@ describe("useSession", () => {
       attachable: true,
       archived_at: null,
       available_commands: [],
+      pending_interactions: [],
       created_at: "2026-04-06T10:00:00Z",
       updated_at: "2026-04-06T10:00:00Z",
     });

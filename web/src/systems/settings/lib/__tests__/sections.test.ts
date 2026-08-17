@@ -20,16 +20,27 @@ describe("settings sections metadata", () => {
       "automation",
       "network",
       "gateway",
+      "attention",
       "observability",
       "hooks",
       "extensions",
     ]);
   });
 
+  it("groups operator-facing sections together", () => {
+    // Attention and Observability are about how the operator works, not how the
+    // workspace or the runtime is configured.
+    const operator = SETTINGS_SECTIONS.filter(section => section.group === "operator").map(
+      section => section.slug
+    );
+    expect(operator).toEqual(["attention", "observability"]);
+  });
+
   it("provides nested paths rooted under the settings shell", () => {
     expect(SETTINGS_ROOT_PATH).toBe("/settings");
     expect(settingsSectionPath("providers")).toBe("/settings/providers");
     expect(settingsSectionPath("layouts")).toBe("/settings/layouts");
+    expect(settingsSectionPath("attention")).toBe("/settings/attention");
     expect(settingsSectionPath("hooks")).toBe("/settings/hooks");
     expect(settingsSectionPath("extensions")).toBe("/settings/extensions");
   });

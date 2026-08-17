@@ -103,7 +103,7 @@ func newMCPAuthorizationCommand(deps commandDeps, use string, short string) *cob
 		false,
 		"Confirm the requested OAuth scope escalation",
 	)
-	cmd.Flags().DurationVar(&opts.timeout, "timeout", defaultMCPAuthLoginTimeout, "Authorization timeout")
+	cmd.Flags().DurationVar(&opts.timeout, cliTimeoutKey, defaultMCPAuthLoginTimeout, "Authorization timeout")
 	return cmd
 }
 

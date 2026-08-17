@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { windowManagerStore } from "../stores/window-manager-store";
+import { resetPaletteViewStack } from "./use-os-palette-view-stack";
 import { useWindowManagerOverlay, useWindowPaletteIntent } from "./use-window-manager-store";
 
 /**
@@ -47,6 +48,11 @@ export function useDesktopOverlays() {
     if (paletteIntent !== null && (!open || overlay !== "palette")) {
       windowManagerStore.trigger.paletteIntentCleared();
     }
+    // Every palette open and every dismissal returns to the root, so "reopening
+    // starts at root" holds for Esc, a click outside, an action that closes the
+    // palette, and another overlay stealing it — without each of those paths
+    // having to know the stack exists (Business Rule 32).
+    if (overlay === "palette" || open) resetPaletteViewStack();
     if (overlay === "desktops") {
       setLocalOverlay(null);
       if (open) {

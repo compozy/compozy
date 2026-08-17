@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type CompactionMatcher struct {
+	Reason   string `json:"compaction_reason,omitempty"`
+	Strategy string `json:"compaction_strategy,omitempty"`
+}
+
 type ConnectivityAdvertisedEndpoint struct {
 	URL          string `json:"url"`
 	Scheme       string `json:"scheme"`
@@ -235,22 +240,4 @@ type CoordinatorLifecyclePayload struct {
 
 type CoordinatorObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type CoordinatorPreSpawnPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	Reason                       string    `json:"reason,omitempty"`
-	Denied                       bool      `json:"denied,omitempty"`
-	DenyReason                   string    `json:"deny_reason,omitempty"`
 }

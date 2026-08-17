@@ -1,21 +1,27 @@
 import { useEffect, useEffectEvent } from "react";
 
 import { dispatchWindowManagerAction } from "../lib/window-manager-action-dispatch";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
+import type { ResolvedWindowManagerAction } from "../lib/window-manager-shortcuts";
 import {
   primaryShortcutModifier,
   resolveWindowManagerActions,
   shortcutMatches,
 } from "../lib/window-manager-shortcuts";
-import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
-import type { WindowManagerActionId } from "../lib/window-manager-command-registry";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { useOsShell } from "./use-os-shell";
 
 export interface OsShortcutHandlers {
   onPalette: () => void;
+  onPaletteSessions: () => void;
   onNewSession: () => void;
   onDesktops: () => void;
   onWorkspaces: () => void;
+  onCycleWorkspace: (direction: "previous" | "next") => void;
+  onCycleSession: (direction: "previous" | "next") => void;
+  onFocusAttention: () => void;
+  onToggleSidebar: () => void;
+  onCheatsheet: () => void;
   onEscape: () => void;
   onToggleGlobalScope: () => void;
 }
@@ -23,19 +29,6 @@ export interface OsShortcutHandlers {
 export interface OsShortcutOptions {
   /** Off while a blocking surface owns the shell (first-run setup). */
   enabled?: boolean;
-}
-
-function isPlainMod(event: KeyboardEvent): boolean {
-  return (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
-}
-
-function isPrimaryModifierPressed(
-  event: KeyboardEvent,
-  primaryModifier: ReturnType<typeof primaryShortcutModifier>
-): boolean {
-  return primaryModifier === "meta"
-    ? event.metaKey && !event.ctrlKey
-    : event.ctrlKey && !event.metaKey;
 }
 
 /** AltGr aliases ⌃⌥ on some layouts — never steal keystrokes from text entry. */
@@ -53,18 +46,15 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-function isGlobalTabAction(actionId: WindowManagerActionId): boolean {
-  return actionId === "window.close" || actionId.startsWith("window.tab.");
+function allowedInEditable(action: ResolvedWindowManagerAction, chordIndex: number): boolean {
+  if (action.allowInEditable) return true;
+  if (action.id !== "shortcuts.cheatsheet") return false;
+  return action.chords[chordIndex]?.modifiers.has("meta") ?? false;
 }
 
 /**
- * The shell's global shortcut set (ADR-005): ⌘K palette (owned here — the old
- * RuntimeSelector registry is deleted), ⌘N new session, Esc focus return,
- * and the live window-manager action registry. Config overrides are read at
- * event time, so a successful Settings apply changes dispatch immediately.
- *
- * `enabled: false` unbinds the listener entirely: ⌘K and ⌘N must not fire behind
- * a blocking panel, and `inert` alone does not stop document-level keydown.
+ * One registry-driven listener. Config is read at event time, so Settings
+ * changes apply without reload; Escape remains the sole hardcoded shell key.
  */
 export function useOsShortcuts(
   handlers: OsShortcutHandlers,
@@ -81,76 +71,49 @@ export function useOsShortcuts(
     }
     const state = projection.get();
     const config = state.windowManagerConfig;
+    if (config === null) return;
     const editableTarget = isEditableTarget(event.target);
     const primaryModifier = primaryShortcutModifier(navigator.platform);
-    if (
-      !editableTarget &&
-      isPrimaryModifierPressed(event, primaryModifier) &&
-      event.shiftKey &&
-      !event.altKey &&
-      event.key.toLowerCase() === "g"
-    ) {
-      event.preventDefault();
-      handlers.onToggleGlobalScope();
-      return;
-    }
-    if (config !== null && windowManagerCommandsAvailable(state)) {
-      const action = resolveWindowManagerActions(config.shortcuts).find(
-        candidate => candidate.chord && shortcutMatches(event, candidate.chord, primaryModifier)
+    const commandsAvailable = windowManagerCommandsAvailable(state);
+    for (const action of resolveWindowManagerActions(config.effectiveShortcuts)) {
+      const chordIndex = action.chords.findIndex(chord =>
+        shortcutMatches(event, chord, primaryModifier)
       );
-      if (
-        action &&
-        (!editableTarget || isGlobalTabAction(action.id)) &&
-        (!action.needsFocusedWindow || state.focusedId !== null)
-      ) {
-        event.preventDefault();
-        dispatchWindowManagerAction(action.id, {
-          manager,
-          state,
-          openDesktops: handlers.onDesktops,
-          openWorkspaces: handlers.onWorkspaces,
-          activateWindow: windowId => void coordinator.userFocus(windowId),
-          openNewTab: stackTargetWindowId =>
-            void coordinator
-              .userOpen({
-                app: "new-tab",
-                ...(stackTargetWindowId ? { stackTargetWindowId } : {}),
-              })
-              .then(windowId => {
-                if (windowId !== null) {
-                  windowManagerStore.trigger.paletteIntentRequested({
-                    intent: { kind: "destination", windowId },
-                  });
-                }
-              }),
-        });
-        return;
-      }
-      // Primary+[ pops the active tab's own stack (D7). The chord is fixed:
-      // the Go rebinding allow-list deliberately excludes navigation pops.
-      if (
-        !editableTarget &&
-        isPrimaryModifierPressed(event, primaryModifier) &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.code === "BracketLeft" &&
-        state.focusedId !== null
-      ) {
-        event.preventDefault();
-        void manager.popWindowRoute(state.focusedId).completion;
-        return;
-      }
-    }
-    if (!isPlainMod(event)) return;
-    const key = event.key.toLowerCase();
-    if (key === "k") {
+      if (chordIndex < 0) continue;
+      if (editableTarget && !allowedInEditable(action, chordIndex)) return;
+      if (!commandsAvailable && !action.availabilityExempt) return;
+      if (action.needsFocusedWindow && state.focusedId === null) return;
       event.preventDefault();
-      handlers.onPalette();
+      dispatchWindowManagerAction(action.id, {
+        manager,
+        state,
+        openPalette: handlers.onPalette,
+        openPaletteSessions: handlers.onPaletteSessions,
+        openNewSession: handlers.onNewSession,
+        toggleGlobalScope: handlers.onToggleGlobalScope,
+        openCheatsheet: handlers.onCheatsheet,
+        openDesktops: handlers.onDesktops,
+        openWorkspaces: handlers.onWorkspaces,
+        cycleWorkspace: handlers.onCycleWorkspace,
+        cycleSession: handlers.onCycleSession,
+        focusAttention: handlers.onFocusAttention,
+        toggleSidebar: handlers.onToggleSidebar,
+        activateWindow: windowId => void coordinator.userFocus(windowId),
+        openNewTab: stackTargetWindowId =>
+          void coordinator
+            .userOpen({
+              app: "new-tab",
+              ...(stackTargetWindowId ? { stackTargetWindowId } : {}),
+            })
+            .then(windowId => {
+              if (windowId !== null) {
+                windowManagerStore.trigger.paletteIntentRequested({
+                  intent: { kind: "destination", windowId },
+                });
+              }
+            }),
+      });
       return;
-    }
-    if (key === "n") {
-      event.preventDefault();
-      handlers.onNewSession();
     }
   });
 

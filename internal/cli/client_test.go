@@ -742,6 +742,157 @@ func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 	})
 }
 
+func TestUnixSocketClientAgentNotifySendsIdentityAndDecodesOutcome(t *testing.T) {
+	t.Parallel()
+
+	credentials := agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"}
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			assertAgentRequestHeaders(t, req, credentials)
+			if req.Method != http.MethodPost || req.URL.Path != "/api/agent/notify" {
+				t.Fatalf("request = %s %s, want POST /api/agent/notify", req.Method, req.URL.Path)
+			}
+			var request AgentNotifyRequest
+			if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
+				t.Fatalf("decode notify body: %v", err)
+			}
+			if request.Title != "Done" || request.Body != "No blockers" {
+				t.Fatalf("notify request = %#v, want title and body", request)
+			}
+			return newHTTPResponse(http.StatusOK, `{"outcome":"rate-limited","retry_after_ms":875}`), nil
+		})},
+	}
+
+	result, err := client.AgentNotify(context.Background(), AgentNotifyRequest{
+		Title: "Done", Body: "No blockers",
+	}, credentials)
+	if err != nil {
+		t.Fatalf("AgentNotify() error = %v", err)
+	}
+	if result.Outcome != "rate-limited" || result.RetryAfterMS != 875 {
+		t.Fatalf("AgentNotify() = %#v, want rate-limited/875ms", result)
+	}
+}
+
+func TestUnixSocketClientUpdateSettingsAttentionRoundTripsContract(t *testing.T) {
+	t.Parallel()
+
+	want := UpdateSettingsAttentionRequest{Config: contract.SettingsAttentionPayload{
+		Toasts: false, Sound: false, System: true,
+		MutedWorkspaces: []string{"ws_0123456789abcdef"},
+	}}
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if req.Method != http.MethodPatch || req.URL.Path != "/api/settings/attention" {
+				t.Fatalf("request = %s %s, want PATCH /api/settings/attention", req.Method, req.URL.Path)
+			}
+			var got UpdateSettingsAttentionRequest
+			if err := json.NewDecoder(req.Body).Decode(&got); err != nil {
+				t.Fatalf("decode attention body: %v", err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("attention request = %#v, want %#v", got, want)
+			}
+			return newHTTPResponse(
+				http.StatusOK,
+				`{"section":"attention","scope":"global","applied":true,"lifecycle":"live","next_action":"none"}`,
+			), nil
+		})},
+	}
+
+	result, err := client.UpdateSettingsAttention(context.Background(), want)
+	if err != nil {
+		t.Fatalf("UpdateSettingsAttention() error = %v", err)
+	}
+	if string(result.Section) != string(contract.SettingsSectionAttention) || !result.Applied {
+		t.Fatalf("UpdateSettingsAttention() = %#v, want applied attention", result)
+	}
+}
+
+func TestUnixSocketClientUpdateSettingsShellRoundTripsContract(t *testing.T) {
+	t.Parallel()
+
+	want := UpdateSettingsShellRequest{Config: contract.SettingsShellPayload{
+		Sessions: contract.SettingsShellSessionsPayload{Sort: "attention", Scope: "all-workspaces"},
+	}}
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			if req.Method != http.MethodPatch || req.URL.Path != "/api/settings/shell" {
+				t.Fatalf("request = %s %s, want PATCH /api/settings/shell", req.Method, req.URL.Path)
+			}
+			var got UpdateSettingsShellRequest
+			if err := json.NewDecoder(req.Body).Decode(&got); err != nil {
+				t.Fatalf("decode shell body: %v", err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("shell request = %#v, want %#v", got, want)
+			}
+			return newHTTPResponse(
+				http.StatusOK,
+				`{"section":"shell","scope":"global","applied":true,"lifecycle":"live","next_action":"none"}`,
+			), nil
+		})},
+	}
+
+	result, err := client.UpdateSettingsShell(context.Background(), want)
+	if err != nil {
+		t.Fatalf("UpdateSettingsShell() error = %v", err)
+	}
+	if string(result.Section) != string(contract.SettingsSectionShell) || !result.Applied {
+		t.Fatalf("UpdateSettingsShell() = %#v, want applied shell", result)
+	}
+}
+
+func TestUnixSocketClientSessionAttentionReadsUseCanonicalRoutes(t *testing.T) {
+	t.Parallel()
+
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			switch {
+			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/attention-summary":
+				return newHTTPResponse(http.StatusOK, `{"needs_you":2,"finished":1,"by_workspace":[]}`), nil
+			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-08-16T12:00:00Z","updated_at":"2026-08-16T12:00:00Z"}}`,
+				), nil
+			case req.Method == http.MethodGet &&
+				req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/interactions":
+				got := req.URL.Query()["status"]
+				want := []string{"pending", "orphaned"}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("interaction statuses = %#v, want %#v", got, want)
+				}
+				return newHTTPResponse(http.StatusOK, `{"interactions":[]}`), nil
+			default:
+				t.Fatalf("unexpected request = %s %s?%s", req.Method, req.URL.Path, req.URL.RawQuery)
+				return nil, errors.New("unexpected request")
+			}
+		})},
+	}
+
+	summary, err := client.GetSessionAttentionSummary(context.Background())
+	if err != nil {
+		t.Fatalf("GetSessionAttentionSummary() error = %v", err)
+	}
+	if summary.NeedsYou != 2 || summary.Finished != 1 {
+		t.Fatalf("GetSessionAttentionSummary() = %#v, want 2/1", summary)
+	}
+	interactions, err := client.ListSessionInteractions(
+		context.Background(), "sess-1", []string{" pending ", "", "orphaned"},
+	)
+	if err != nil {
+		t.Fatalf("ListSessionInteractions() error = %v", err)
+	}
+	if len(interactions.Interactions) != 0 {
+		t.Fatalf("ListSessionInteractions() = %#v, want empty list", interactions)
+	}
+}
+
 func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 	t.Parallel()
 

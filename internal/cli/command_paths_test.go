@@ -79,6 +79,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	deleteAgentHeartbeatCalled := false
 	rollbackAgentHeartbeatCalled := false
 	getAgentHeartbeatStatusCalled := false
+	waitSessionCalled := false
 	client := &stubClient{
 		statusFn: func(context.Context) (StatusRecord, error) {
 			return StatusRecord{
@@ -310,6 +311,21 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		getSessionUsageFn: func(context.Context, string) (SessionUsageRecord, error) {
 			return SessionUsageRecord{CostStatus: "included", CostSource: "none"}, nil
 		},
+		waitSessionFn: func(
+			_ context.Context,
+			workspaceID string,
+			sessionID string,
+			request SessionWaitRequest,
+		) (SessionWaitRecord, error) {
+			waitSessionCalled = true
+			if workspaceID != "ws-1" || sessionID != "sess-1" {
+				t.Fatalf("WaitSession() scope = %q/%q, want ws-1/sess-1", workspaceID, sessionID)
+			}
+			if request.TimeoutMS != 300_000 {
+				t.Fatalf("WaitSession() timeout = %d, want 300000", request.TimeoutMS)
+			}
+			return SessionWaitRecord{SessionID: sessionID, Outcome: "state-reached", State: "idle"}, nil
+		},
 		inspectSessionFn: func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error) {
 			return SessionInspectRecord{SessionID: "sess-1", Health: statusSessionHealth}, nil
 		},
@@ -534,6 +550,9 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			rollbackAgentHeartbeatCalled,
 			getAgentHeartbeatStatusCalled,
 		)
+	}
+	if !waitSessionCalled {
+		t.Fatal("WaitSession() was not called")
 	}
 	if !refreshSessionSoulCalled {
 		t.Fatal("RefreshSessionSoul() was not called")

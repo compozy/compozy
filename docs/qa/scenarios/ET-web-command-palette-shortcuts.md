@@ -11,9 +11,9 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png
-last_report: docs/qa/reports/2026-08-13-pr-368-coderabbit.md
-overlaps: ET-web-desktop-shell-lifecycle; ET-web-window-routing-lifecycle
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png; docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_05
+last_report: docs/qa/reports/2026-08-16-herdr-parity.md
+overlaps: ET-web-desktop-shell-lifecycle; ET-web-window-routing-lifecycle; ET-palette-nested-views; ET-palette-sessions-view-switch
 ---
 
 story: As a keyboard operator, I can discover and execute every global desktop action without losing the session runtime shortcut or trapping focus in stale overlays.
@@ -25,3 +25,14 @@ qa-impact: OS Shell Task 04 moved ⌘/Ctrl+K ownership to the global palette, re
 2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
 
 2026-08-13 re-walk: the live palette exposed "Turn off Global scope" and "Switch to tmp turns Global scope off"; executing the workspace action closed the overlay, restored `tmp`, and refresh preserved the destination.
+
+2026-08-16 qa-impact: Command palette and New session moved into the daemon-owned registry while
+remaining available inside inputs; new keyboard navigation actions share that registry. Reset for
+the Herdr parity QA tail.
+
+2026-08-16 qa-impact: The palette root gained a Views group and a keyboard-hint footer; nested view
+behaviour and the Sessions view are walked by `ET-palette-nested-views` and
+`ET-palette-sessions-view-switch`. Already `untested`, so no further reset — this walk still owns
+the flat root behaviour above.
+
+QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.

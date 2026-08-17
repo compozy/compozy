@@ -149,6 +149,15 @@ type Manager struct {
 	streamEvents          *sessionEventBroadcaster
 	catalogEventsMu       sync.Mutex
 	catalogEvents         *sessionCatalogBroadcaster
+	presenceMu            sync.Mutex
+	presenceLeases        map[sessionPresenceKey]sessionPresenceLease
+	notifyMu              sync.Mutex
+	notifyConfig          compozyconfig.AttentionConfig
+	notifyLastBySession   map[string]time.Time
+	waitRegistry          *sessionWaitRegistry
+	spawnWakeMu           sync.Mutex
+	spawnWakeEventIDs     map[string]struct{}
+	spawnWakeEventOrder   []string
 
 	logger                       *slog.Logger
 	driver                       AgentDriver
@@ -156,6 +165,7 @@ type Manager struct {
 	networkPeers                 NetworkPeerLifecycle
 	participationResolver        participation.Resolver
 	turnEndNotifier              TurnEndNotifier
+	spawnWakeNotifier            SpawnWakeNotifier
 	inputAugmenter               PromptInputAugmenter
 	commandService               CommandService
 	inputQueue                   *inputqueue.Service
@@ -174,12 +184,14 @@ type Manager struct {
 	modelCatalog                 modelcatalog.Service
 	skillRegistry                SkillRegistry
 	toolsetCatalog               toolspkg.ToolsetCatalog
+	toolUniverse                 []toolspkg.ToolID
 	mcpResolver                  MCPResolver
 	hostedMCP                    HostedMCPLauncher
 	soulStore                    SoulSnapshotStore
 	soulRunChecker               SoulRunActivityChecker
 	sessionHealthStore           HealthStore
 	sessionCatalog               store.SessionCatalog
+	attentionStore               store.SessionAttentionStore
 	creationStore                store.SessionCreationStore
 	transcriptEpochStore         store.SessionTranscriptEpochStore
 	ledgerMaterializer           LedgerMaterializer
@@ -204,6 +216,12 @@ type Manager struct {
 	newSandboxID                 IDGenerator
 	newTurnID                    IDGenerator
 	newRepairEventID             IDGenerator
+	newInteractionID             IDGenerator
+	newPresenceLeaseID           IDGenerator
+	newNotificationID            IDGenerator
+	newWaitID                    IDGenerator
+	newWaitTimer                 waitTimerFactory
+	newWaitAfterFunc             waitAfterFunc
 	acquireSessionDBFamilyLease  sessionDBFamilyLeaseAcquirer
 	removeAllPath                func(path string) error
 	promptBufSize                int

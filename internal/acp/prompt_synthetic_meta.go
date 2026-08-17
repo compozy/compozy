@@ -11,6 +11,9 @@ type PromptSyntheticMeta struct {
 	WorkflowID           string          `json:"workflow_id,omitempty"`
 	ClaimTokenHash       string          `json:"claim_token_hash,omitempty"`
 	CoordinatorSessionID string          `json:"coordinator_session_id,omitempty"`
+	ChildSessionID       string          `json:"child_session_id,omitempty"`
+	ChildAgentName       string          `json:"child_agent_name,omitempty"`
+	Badge                string          `json:"badge,omitempty"`
 	Reason               string          `json:"reason,omitempty"`
 	Summary              string          `json:"summary,omitempty"`
 	WakeEventID          string          `json:"wake_event_id,omitempty"`
@@ -28,6 +31,9 @@ func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 		WorkflowID:           strings.TrimSpace(m.WorkflowID),
 		ClaimTokenHash:       strings.TrimSpace(m.ClaimTokenHash),
 		CoordinatorSessionID: strings.TrimSpace(m.CoordinatorSessionID),
+		ChildSessionID:       strings.TrimSpace(m.ChildSessionID),
+		ChildAgentName:       strings.TrimSpace(m.ChildAgentName),
+		Badge:                strings.TrimSpace(m.Badge),
 		Reason:               strings.TrimSpace(m.Reason),
 		Summary:              strings.TrimSpace(m.Summary),
 		WakeEventID:          strings.TrimSpace(m.WakeEventID),
@@ -42,7 +48,9 @@ func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 func (m PromptSyntheticMeta) IsZero() bool {
 	normalized := m.Normalize()
 	return normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
-		normalized.ClaimTokenHash == "" && normalized.CoordinatorSessionID == "" && normalized.Reason == "" &&
+		normalized.ClaimTokenHash == "" && normalized.CoordinatorSessionID == "" &&
+		normalized.ChildSessionID == "" && normalized.ChildAgentName == "" && normalized.Badge == "" &&
+		normalized.Reason == "" &&
 		normalized.Summary == "" && normalized.WakeEventID == "" && normalized.PolicySnapshotID == "" &&
 		normalized.PolicyDigest == "" && normalized.ConfigDigest == "" && normalized.Goal == nil
 }

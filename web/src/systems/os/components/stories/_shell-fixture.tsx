@@ -19,9 +19,8 @@ const ROUTER: OsRouterPort = { navigate: () => {}, replace: () => {} };
  * Story shell over the real runtime. Nothing is bound, so window commands read
  * as unavailable — which is exactly the resting state of a cold desktop.
  */
-export function createStoryShell({ collapsedAgent }: { collapsedAgent?: string } = {}) {
+export function createStoryShell() {
   const manager = new WindowManagerRuntime(new QueryClient());
-  if (collapsedAgent) manager.toggleRailGroup(collapsedAgent);
   const coordinator = new RoutingCoordinator(manager, ROUTER);
   coordinator.completeHydration();
   return { projection: manager.projectionAtom, manager, coordinator } satisfies OsShellHandle;
@@ -47,6 +46,8 @@ const CONFIG: WindowManagerConfig = {
   snap: { edgeBand: 32, cornerReach: 150, exitSlack: 16, repeatRatios: [0.5, 0.666667, 0.333333] },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  shortcutDefaults: {},
+  effectiveShortcuts: {},
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {
@@ -93,11 +94,13 @@ function outcome(): WindowManagerCommandOutcome {
 export interface LiveStoryShellOptions {
   windows?: Record<string, OsWindow>;
   focusedWindowId?: string | null;
+  windowManagerConfig?: WindowManagerConfig;
 }
 
 export function createLiveStoryShell({
   windows: suppliedWindows,
   focusedWindowId: suppliedFocusedWindowId,
+  windowManagerConfig = CONFIG,
 }: LiveStoryShellOptions = {}): OsShellHandle {
   const focused = storyWindow("w-story-tasks", 2);
   const peer = storyWindow("w-story-agents", 1);
@@ -105,7 +108,7 @@ export function createLiveStoryShell({
   const focusedWindowId = suppliedFocusedWindowId ?? focused.id;
   const state: OsDesktopRuntimeStore = {
     snapshot: SNAPSHOT,
-    windowManagerConfig: CONFIG,
+    windowManagerConfig,
     client: {
       workspaceId: "workspace-compozy",
       clientId: "client:story",
@@ -143,7 +146,6 @@ export function createLiveStoryShell({
     windows,
     activeDesktopId: STORY_DESKTOP_ID,
     focusedId: focusedWindowId,
-    railCollapsedAgentIds: [],
     wallpaper: "ember",
     reduceMotion: false,
     dockMagnify: true,
@@ -186,7 +188,6 @@ export function createLiveStoryShell({
     pinWindow: () => outcome(),
     reopenWindow: () => outcome(),
     closeWindowScoped: async () => true,
-    toggleRailGroup: fn(),
     setWallpaper: fn(),
     setDockMagnify: fn(),
     setReduceMotion: fn(),

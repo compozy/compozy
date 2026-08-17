@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -326,10 +327,18 @@ func TestApproveSessionHandler(t *testing.T) {
 		)
 		homePaths := newTestHomePaths(t)
 		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
-			ApproveFn: func(_ context.Context, id string, req acp.ApproveRequest) error {
+			ApproveFn: func(
+				_ context.Context,
+				id string,
+				req acp.ApproveRequest,
+			) (session.ApprovalResult, error) {
 				gotID = id
 				gotReq = req
-				return nil
+				return session.ApprovalResult{
+					Outcome:   "applied",
+					RequestID: req.RequestID,
+					Decision:  req.Decision,
+				}, nil
 			},
 		}, stubObserver{}, homePaths))
 
@@ -353,6 +362,12 @@ func TestApproveSessionHandler(t *testing.T) {
 		}
 		if gotReq.RequestID != "req-1" || gotReq.TurnID != "turn-1" || gotReq.Decision != "allow-once" {
 			t.Fatalf("approve request = %#v", gotReq)
+		}
+		var response contract.SessionApprovalResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Outcome != "applied" || response.RequestID != "req-1" ||
+			response.Decision != "allow-once" {
+			t.Fatalf("approve response = %#v", response)
 		}
 	})
 }

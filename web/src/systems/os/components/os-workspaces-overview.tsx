@@ -46,6 +46,10 @@ export interface OsWorkspacesOverviewProps {
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  shortcutLabels?: {
+    picker: string | null;
+    globalScope: string | null;
+  };
 }
 
 /**
@@ -171,6 +175,7 @@ function OsWorkspacesStage({
   onOpenChange,
   overlayRef,
   escapeGuardRef,
+  shortcutLabels,
 }: OsWorkspacesStageProps) {
   const tree = worktreesByWorkspace
     ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
@@ -275,14 +280,6 @@ function OsWorkspacesStage({
         >
           {subtitleFor(tree.length, totalWorktrees)}
         </DialogDescription>
-        {!empty && scope === "global" ? (
-          <p
-            data-testid="os-workspaces-notice"
-            className="-mt-1.5 mb-3.5 max-w-workspaces-notice text-center text-form-label text-muted"
-          >
-            Global scope is on — picking a workspace turns it off.
-          </p>
-        ) : null}
         {empty ? (
           <div
             data-slot="os-workspaces-strip"
@@ -393,6 +390,8 @@ function OsWorkspacesStage({
         layer={switcher.layer === "menu" ? "menu" : "strip"}
         hasMenuRows={menuNavRows.length > 0}
         empty={empty}
+        pickerShortcutLabel={shortcutLabels?.picker ?? null}
+        globalScopeShortcutLabel={shortcutLabels?.globalScope ?? null}
       />
     </>
   );

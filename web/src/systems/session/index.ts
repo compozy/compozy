@@ -46,6 +46,9 @@ export type {
   GoalPromptMeta,
   SessionAttachResponse,
   SessionBadge,
+  SessionPendingInteraction,
+  SessionAttentionEventPayload,
+  OperatorNotificationEventPayload,
   SessionCatalogEventPayload,
   SessionCommandPayload,
   SessionCommandsResponse,
@@ -138,32 +141,82 @@ export {
 } from "./hooks/use-session-runtime-selection";
 
 // Query infrastructure
-export { sessionAttachmentBytesURL, sessionAttachmentIdFromURI } from "./lib/attachment-url";
-export { attachmentsFromPromptMessageParts } from "./lib/attachment-kinds";
 export { sessionPromptCapability } from "./lib/session-prompt-capability";
 export type { SessionPromptCapability } from "./lib/session-prompt-capability";
-export {
-  consumeSubmittedComposerAttachment,
-  retainSubmittedComposerAttachments,
-} from "./lib/session-composer-attachment-ownership";
+// Attachment surface — byte URLs, prompt parts, item shaping, cards (./attachments).
 export {
   attachmentExtensionMark,
+  attachmentsFromPromptMessageParts,
+  consumeSubmittedComposerAttachment,
   formatAttachmentBytes,
   isImageMediaType,
+  retainSubmittedComposerAttachments,
+  sessionAttachmentBytesURL,
+  sessionAttachmentIdFromURI,
   sessionAttachmentMediaType,
+  SessionAttachmentFileCard,
+  SessionAttachmentFrame,
+  SessionAttachmentGallery,
   userMessageAttachmentItems,
   userMessageHasAttachments,
   userMessageHasText,
-} from "./lib/session-attachment-items";
-export type {
-  SessionAttachmentFileItem,
-  SessionAttachmentImageItem,
-  SessionAttachmentItem,
-} from "./lib/session-attachment-items";
+  type SessionAttachmentFileCardProps,
+  type SessionAttachmentFileItem,
+  type SessionAttachmentFrameProps,
+  type SessionAttachmentGalleryProps,
+  type SessionAttachmentImageItem,
+  type SessionAttachmentItem,
+} from "./attachments";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
+// Attention surface — badge dictionary, pending-interaction reads, list
+// preferences, presence lease. Grouped in ./attention; re-exported here.
+export {
+  acquireSessionPresence,
+  DEFAULT_SESSION_LIST_PREFERENCES,
+  isFinishedBadge,
+  isNeedsYouBadge,
+  maskedAttentionNote,
+  pendingClarifyCount,
+  pendingInteractionReason,
+  pendingInteractions,
+  pendingPermissionCount,
+  releaseSessionPresence,
+  renewSessionPresence,
+  SESSION_BADGE_SIGNAL,
+  SESSION_BADGES,
+  SESSION_LIST_SCOPES,
+  SESSION_LIST_SORTS,
+  SessionBadgeGlyph,
+  SessionBadgeMark,
+  SessionArchivedToggle,
+  SessionScopeToggle,
+  sessionAttentionClass,
+  sessionBadgeSignal,
+  sessionBadgeWordClass,
+  sessionListSortParam,
+  toSessionBadge,
+  toSessionListScope,
+  toSessionListSort,
+  useSessionListPreferences,
+  useSessionListView,
+  useSessionPresence,
+  useWorkspaceSessionGroups,
+  type SessionAttentionClass,
+  type SessionBadgeGlyphProps,
+  type SessionBadgeMarkProps,
+  type SessionBadgeShape,
+  type SessionBadgeSignal,
+  type SessionBadgeToken,
+  type SessionListPreferences,
+  type SessionListPreferencesModel,
+  type SessionListScope,
+  type SessionListSort,
+  type SessionListViewModel,
+  type WorkspaceSessionGroup,
+} from "./attention";
 export { queuedPromptAttachmentSummary } from "./lib/queued-prompt";
 export type {
   QueuedPrompt,
@@ -193,6 +246,7 @@ export {
   sessionClarificationsOptions,
   sessionCommandsOptions,
   sessionInputsOptions,
+  sessionAttentionSummaryOptions,
   sessionDetailOptions,
   sessionEventsOptions,
   sessionHistoryOptions,
@@ -202,6 +256,7 @@ export {
   sessionUsageOptions,
   sessionTranscriptOptions,
   sessionsListOptions,
+  sessionsCompleteListOptions,
 } from "./lib/query-options";
 export {
   sessionCommandMenuCatalog,
@@ -277,6 +332,7 @@ export {
   type UseSessionInspectorStateResult,
 } from "./hooks/use-session-inspector-state";
 export {
+  toggleSessionSidebar,
   useSessionSidebarState,
   type UseSessionSidebarStateResult,
 } from "./hooks/use-session-sidebar-state";
@@ -361,23 +417,13 @@ export {
   buildSessionTree,
   childSessionSignalTone,
   collectThreadSessions,
+  visibleSessionOrder,
+  type VisibleSessionOrderOptions,
 } from "./lib/session-hierarchy";
 export {
   SessionWorkspaceSwitchDialog,
   type SessionWorkspaceSwitchDialogProps,
 } from "./components/session-workspace-switch-dialog";
-export {
-  SessionAttachmentFileCard,
-  type SessionAttachmentFileCardProps,
-} from "./components/session-attachment-file-card";
-export {
-  SessionAttachmentFrame,
-  type SessionAttachmentFrameProps,
-} from "./components/session-attachment-frame";
-export {
-  SessionAttachmentGallery,
-  type SessionAttachmentGalleryProps,
-} from "./components/session-attachment-gallery";
 export { SessionToolCallRow, type SessionToolCallRowProps } from "./components/tool-call-card";
 export {
   SessionChatRuntimeProvider,
@@ -416,32 +462,30 @@ export {
 } from "./components/session-inspector";
 export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
 
-// Worktree environment surfaces (Task 07)
-export { SessionEnvironmentField } from "./components/session-environment-field";
-export { SessionEnvironmentChip } from "./components/session-environment-chip";
-export type { SessionEnvironmentChipState } from "./components/session-environment-chip";
-export { SessionEnvironmentControl } from "./components/session-environment-control";
-export type { SessionEnvironmentControlHandle } from "./components/session-environment-control";
-export { SessionWorktreeForkDialog } from "./components/session-worktree-fork-dialog";
-export { SessionWorktreeBindingChip } from "./components/session-worktree-binding-chip";
-export { useSessionEnvironment } from "./hooks/use-session-environment";
-export type { SessionEnvironmentModel } from "./hooks/use-session-environment";
-export {
-  useSessionWorktreeBinding,
-  WORKTREE_COMMAND_TOKEN,
-} from "./hooks/use-session-worktree-binding";
-export type { SessionWorktreeBinding } from "./hooks/use-session-worktree-binding";
-export { useForkSessionToWorktree } from "./hooks/use-fork-session-to-worktree";
-export { forkSessionToWorktree } from "./adapters/session-worktree-api";
+// Environment surface — worktree binding, fork, target selection (./environment).
 export {
   environmentTargetLabel,
+  forkSessionToWorktree,
   isEnvironmentTargetMissing,
   NEW_WORKTREE_LABEL,
   ROOT_ENVIRONMENT_TARGET,
   selectableWorktrees,
+  SessionEnvironmentChip,
+  SessionEnvironmentControl,
+  SessionEnvironmentField,
+  SessionWorktreeBindingChip,
+  SessionWorktreeForkDialog,
+  useForkSessionToWorktree,
+  useSessionEnvironment,
+  useSessionWorktreeBinding,
   WORKSPACE_ROOT_LABEL,
-} from "./lib/session-environment-target";
-export type { SessionEnvironmentTarget } from "./lib/session-environment-target";
+  WORKTREE_COMMAND_TOKEN,
+  type SessionEnvironmentChipState,
+  type SessionEnvironmentControlHandle,
+  type SessionEnvironmentModel,
+  type SessionEnvironmentTarget,
+  type SessionWorktreeBinding,
+} from "./environment";
 export { findSessionCommand } from "./hooks/use-session-commands";
 export { useSessionFirstPrompt } from "./hooks/use-session-first-prompt";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";

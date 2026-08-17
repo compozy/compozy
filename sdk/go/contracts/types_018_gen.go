@@ -4,6 +4,33 @@ package contracts
 
 import "time"
 
+type RoutingPolicy struct {
+	IncludePeer   bool `json:"include_peer"`
+	IncludeThread bool `json:"include_thread"`
+	IncludeGroup  bool `json:"include_group"`
+}
+
+type Run struct {
+	ID                   string         `json:"id"`
+	JobID                string         `json:"job_id,omitempty"`
+	TriggerID            string         `json:"trigger_id,omitempty"`
+	SessionID            string         `json:"session_id,omitempty"`
+	TaskID               string         `json:"task_id,omitempty"`
+	TaskRunID            string         `json:"task_run_id,omitempty"`
+	LoopRunID            string         `json:"loop_run_id,omitempty"`
+	FireID               string         `json:"fire_id,omitempty"`
+	Status               RunStatus      `json:"status"`
+	Attempt              int            `json:"attempt"`
+	ScheduledAt          *time.Time     `json:"scheduled_at,omitempty"`
+	StartedAt            *time.Time     `json:"started_at,omitempty"`
+	EndedAt              *time.Time     `json:"ended_at,omitempty"`
+	Error                string         `json:"error,omitempty"`
+	DeliveryError        string         `json:"delivery_error,omitempty"`
+	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
+	NetworkParticipation *Request       `json:"network_participation,omitempty"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
+}
+
 type RunDesignationSummary struct {
 	Index int    `json:"index"`
 	Brief string `json:"brief,omitempty"`
@@ -236,15 +263,4 @@ type SandboxSyncBeforePayload struct {
 	ExcludePatterns []string  `json:"exclude_patterns,omitempty"`
 	Denied          bool      `json:"denied,omitempty"`
 	DenyReason      string    `json:"deny_reason,omitempty"`
-}
-
-type ScheduleMode string
-
-type ScheduleSpec struct {
-	Mode                ScheduleMode           `json:"mode"`
-	Expr                string                 `json:"expr,omitempty"`
-	Interval            string                 `json:"interval,omitempty"`
-	Time                string                 `json:"time,omitempty"`
-	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
 }

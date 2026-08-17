@@ -3,7 +3,6 @@ package contract
 import (
 	"encoding/json"
 	"errors"
-
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
@@ -73,6 +72,7 @@ type SessionLineagePayload struct {
 	SpawnRole        string                       `json:"spawn_role,omitempty"`
 	TTLExpiresAt     *time.Time                   `json:"ttl_expires_at,omitempty"`
 	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
+	NotifyCreator    bool                         `json:"notify_creator"`
 	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
 	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
 }
@@ -291,6 +291,7 @@ type AgentSpawnRequest struct {
 	SpawnRole        string                       `json:"spawn_role"`
 	TTLSeconds       int64                        `json:"ttl_seconds"`
 	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
+	NotifyCreator    *bool                        `json:"notify_creator,omitempty"`
 	Permissions      SpawnPermissionPolicyPayload `json:"permissions"`
 	IdempotencyKey   string                       `json:"idempotency_key,omitempty"`
 }

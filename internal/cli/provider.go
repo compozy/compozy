@@ -148,7 +148,7 @@ func newProviderAuthLoginCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&noTTY, "no-tty", false, "Disable TTY attachment for the login command")
-	cmd.Flags().DurationVar(&timeout, "timeout", 0, "Optional login command timeout")
+	cmd.Flags().DurationVar(&timeout, cliTimeoutKey, 0, "Optional login command timeout")
 	return cmd
 }
 

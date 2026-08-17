@@ -564,6 +564,7 @@ type LoopConfig struct {
 	GateMaxRevisions    sql.NullInt64  `json:"gate_max_revisions"`
 	RuntimeDefaultsJson sql.NullString `json:"runtime_defaults_json"`
 	RuntimeRulesJson    sql.NullString `json:"runtime_rules_json"`
+	EnvironmentJson     sql.NullString `json:"environment_json"`
 }
 
 type LoopDefinitionSnapshot struct {
@@ -1435,6 +1436,13 @@ type Session struct {
 	AttachedTo               string         `json:"attached_to"`
 	AttachExpiresAt          sql.NullString `json:"attach_expires_at"`
 	TranscriptEpoch          int64          `json:"transcript_epoch"`
+	PendingPermissionCount   int64          `json:"pending_permission_count"`
+	PendingClarifyCount      int64          `json:"pending_clarify_count"`
+	AttentionRevision        int64          `json:"attention_revision"`
+	LastSettledRevision      int64          `json:"last_settled_revision"`
+	LastSeenRevision         int64          `json:"last_seen_revision"`
+	LastSeenAt               sql.NullString `json:"last_seen_at"`
+	AttentionChangedAt       sql.NullString `json:"attention_changed_at"`
 	SandboxID                string         `json:"sandbox_id"`
 	SandboxBackend           string         `json:"sandbox_backend"`
 	SandboxProfile           string         `json:"sandbox_profile"`
@@ -1454,6 +1462,7 @@ type Session struct {
 	SpawnRole                sql.NullString `json:"spawn_role"`
 	TtlExpiresAt             sql.NullString `json:"ttl_expires_at"`
 	AutoStopOnParent         bool           `json:"auto_stop_on_parent"`
+	NotifyCreator            bool           `json:"notify_creator"`
 	SpawnBudgetJson          string         `json:"spawn_budget_json"`
 	PermissionPolicyJson     string         `json:"permission_policy_json"`
 	SoulSnapshotID           sql.NullString `json:"soul_snapshot_id"`
@@ -1545,6 +1554,21 @@ type SessionInputQueue struct {
 	TerminalTokensReported   int64          `json:"terminal_tokens_reported"`
 	TerminalTokensUsed       sql.NullInt64  `json:"terminal_tokens_used"`
 	TerminalAt               sql.NullTime   `json:"terminal_at"`
+}
+
+type SessionPendingInteraction struct {
+	InteractionID     string         `json:"interaction_id"`
+	SessionID         string         `json:"session_id"`
+	Kind              string         `json:"kind"`
+	ProviderRequestID string         `json:"provider_request_id"`
+	TurnID            string         `json:"turn_id"`
+	Title             string         `json:"title"`
+	PayloadJson       string         `json:"payload_json"`
+	Status            string         `json:"status"`
+	CreatedAt         string         `json:"created_at"`
+	ResolvedAt        sql.NullString `json:"resolved_at"`
+	Resolution        string         `json:"resolution"`
+	ResolvedBy        string         `json:"resolved_by"`
 }
 
 type SessionPromptAdmission struct {

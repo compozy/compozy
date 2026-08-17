@@ -405,6 +405,6 @@ func (b *harnessReentryBridge) processTerminalRun(
 		agentName,
 		completionSequence,
 		completedAt,
-		decision,
+		&decision,
 	)
 }

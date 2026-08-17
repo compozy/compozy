@@ -4,6 +4,14 @@ package contracts
 
 import "time"
 
+type HeartbeatStatusRequest struct {
+	WorkspaceID             string `json:"workspace_id,omitempty"`
+	AgentName               string `json:"agent_name"`
+	SessionID               string `json:"session_id,omitempty"`
+	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
+	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
+}
+
 type HeartbeatStatusResponse struct {
 	AgentName        string                             `json:"agent_name"`
 	SourcePath       string                             `json:"source_path,omitempty"`
@@ -176,5 +184,3 @@ type InboundEdit struct {
 }
 
 type InboundEditOperation string
-
-type InboundEventFamily string

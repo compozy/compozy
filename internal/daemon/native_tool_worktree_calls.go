@@ -132,7 +132,7 @@ func (n *daemonNativeTools) worktreeRemove(
 		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
 	}
 	return structuredResult(
-		map[string]any{"worktree_id": worktreeID, "state": string(worktree.StateRemoved)},
+		map[string]any{"worktree_id": worktreeID, nativePayloadStateKey: string(worktree.StateRemoved)},
 		worktreeID,
 	)
 }

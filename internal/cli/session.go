@@ -42,6 +42,7 @@ const (
 	sessionNameKey        = "name"
 	sessionNewKey         = "new"
 	sessionProviderKey    = "provider"
+	sessionRequestIDKey   = "request_id"
 	sessionSessionIDKey   = "session_id"
 	sessionStateKey       = "state"
 	sessionStatusKey      = "status"
@@ -291,48 +292,4 @@ func newSessionApproveCommand(deps commandDeps) *cobra.Command {
 		StringVar(&request.Decision, "decision", "", "Decision: allow-once, allow-always, reject-once, or reject-always")
 	mustMarkFlagRequired(cmd, "decision")
 	return cmd
-}
-
-func newSessionWaitCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   "wait <id>",
-		Short: "Block until a session stops",
-		Example: `  # Block until a session emits its stopped event
-  compozy session wait sess_1234`,
-		Args: exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			info, err := client.GetSession(cmd.Context(), args[0])
-			if err != nil {
-				return err
-			}
-			if info.State != session.StateStopped {
-				err = client.StreamSessionEvents(
-					cmd.Context(),
-					args[0],
-					SessionEventQuery{},
-					"",
-					func(event SSEEvent) error {
-						if event.Event == session.EventTypeSessionStopped {
-							return errStopSSE
-						}
-						return nil
-					},
-				)
-				if err != nil && !errors.Is(err, errStopSSE) {
-					return err
-				}
-				info, err = client.GetSession(cmd.Context(), args[0])
-				if err != nil {
-					return err
-				}
-			}
-
-			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
-		},
-	}
 }

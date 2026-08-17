@@ -4,13 +4,15 @@ import { useLoopNodeExists } from "@/systems/loops";
 import {
   attentionCount,
   deriveAttentionBadges,
-  deriveAttentionRows,
+  deriveAttentionSections,
   type OsAttentionBadges,
-  type OsAttentionRow,
+  type OsAttentionSections,
 } from "../lib/attention-model";
 import {
+  sessionListSortParam,
   type SessionCatalogStreamStatus,
   type SessionPayload,
+  useSessionListPreferences,
   useSessions,
 } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
@@ -20,6 +22,9 @@ import {
   type WorkspacePayload,
 } from "@/systems/workspace";
 
+import { useAttentionPolicy } from "./use-attention-policy";
+import { useAttentionSessions } from "./use-attention-rows";
+import { useAttentionSummary } from "./use-attention-summary";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 
 const ATTENTION_REFETCH_INTERVAL_MS = 5_000;
@@ -27,20 +32,30 @@ const ATTENTION_REFETCH_INTERVAL_MS = 5_000;
 export interface OsAttentionModel {
   badges: OsAttentionBadges;
   notificationCount: number;
-  rows: OsAttentionRow[];
+  sections: OsAttentionSections;
   sessions: SessionPayload[];
-  archivedSessions: SessionPayload[];
-  archivedSessionsTotal: number;
+  attentionSessionsDisconnected: boolean;
   sessionsDisconnected: boolean;
   tasksDisconnected: boolean;
   loading: boolean;
 }
 
+/**
+ * The shell's attention view model.
+ *
+ * Counts and rows have separate authorities on purpose. Counts come from the
+ * daemon's cross-workspace summary projection, so they stay exact past any page
+ * size and past any worktree scope. Rows come from server-filtered
+ * cross-workspace reads. The modal leg stays worktree-scoped because it is a
+ * window's content, not an attention signal — and `archived` only ever reaches
+ * that leg, so the archive can never inflate an attention count.
+ */
 export function useOsAttention(
   runtimeWorkspace: WorkspacePayload | null | undefined,
-  sessionCatalogStreamStatus: SessionCatalogStreamStatus
+  sessionCatalogStreamStatus: SessionCatalogStreamStatus,
+  archived: boolean
 ): OsAttentionModel {
-  const { scope, activeWorkspaceId } = useActiveWorkspace();
+  const { scope, activeWorkspaceId, workspaces } = useActiveWorkspace();
   const documentVisible = useDocumentVisible();
   const workspaceId = runtimeWorkspace?.id ?? null;
   const sessionsEnabled = workspaceId !== null;
@@ -50,32 +65,22 @@ export function useOsAttention(
     enabled: sessionsEnabled && scope === "workspace",
   });
   const scopedSessionsEnabled = sessionsEnabled && worktree.resolved;
-  // Attention authority: workspace-wide and never worktree-filtered. A pending
-  // approval in another worktree is still a notification, so deriving badges or
-  // rows from a scoped page would silently hide work.
-  const attentionSessionsQuery = useSessions(workspaceId, {
-    enabled: sessionsEnabled,
-    filters: { include_health: true, limit: 100, sort: "last_activity" },
-  });
+  const policy = useAttentionPolicy();
+  // The modal renders the same order the operator chose everywhere else.
+  const listPreferences = useSessionListPreferences();
+  const summary = useAttentionSummary(sessionCatalogStreamStatus);
+  const attention = useAttentionSessions(sessionCatalogStreamStatus, sessionsEnabled);
   // Sessions-modal content: a shell surface, so it follows the focused window's
   // scope exactly like the menubar chip. Distinct query key, no shared snapshot.
   const modalSessionsQuery = useSessions(workspaceId, {
     enabled: scopedSessionsEnabled,
+    loadAll: listPreferences.scope === "workspace",
     filters: {
       include_health: true,
       limit: 100,
-      sort: "last_activity",
+      sort: sessionListSortParam(listPreferences.sort),
       worktree: worktree.worktreeId,
-    },
-  });
-  const archivedSessionsQuery = useSessions(workspaceId, {
-    enabled: scopedSessionsEnabled,
-    filters: {
-      archive: "only",
-      include_health: true,
-      limit: 100,
-      sort: "last_activity",
-      worktree: worktree.worktreeId,
+      ...(archived ? { archive: "only" as const } : {}),
     },
   });
   const dashboardQuery = useTaskDashboard(taskScope ?? {}, {
@@ -98,26 +103,18 @@ export function useOsAttention(
   const loopWaitingPresent = useLoopNodeExists(loopWorkspaceId, "waiting", sessionsEnabled);
   const loopAttentionPresent = useLoopNodeExists(loopWorkspaceId, "attention", sessionsEnabled);
 
-  const attentionSessions = attentionSessionsQuery.data ?? [];
   const modalSessions = modalSessionsQuery.data ?? [];
-  const archivedSessions = archivedSessionsQuery.data ?? [];
   const dashboard = dashboardQuery.data ?? null;
   const tasks = tasksQuery.data ?? [];
-  // Staleness follows each consumer: badges must not read fresh off the scoped
-  // page, and the modal must not read fresh off the unscoped one.
-  const attentionSessionsStale =
-    !sessionsEnabled ||
-    sessionCatalogStreamStatus !== "live" ||
-    attentionSessionsQuery.isError ||
-    attentionSessionsQuery.data === undefined;
+  // Staleness follows each consumer: counts must not read fresh off a stale
+  // summary, and the modal must not read fresh off the attention rows.
   const sessionsDisconnected =
     !sessionsEnabled ||
     (worktree.resolved &&
       (sessionCatalogStreamStatus !== "live" ||
         modalSessionsQuery.isError ||
-        archivedSessionsQuery.isError ||
-        modalSessionsQuery.data === undefined ||
-        archivedSessionsQuery.data === undefined));
+        modalSessionsQuery.data === undefined));
+  const attentionSessionsDisconnected = attention.stale || summary.stale;
   const tasksDisconnected =
     !tasksEnabled ||
     dashboardQuery.isError ||
@@ -127,15 +124,17 @@ export function useOsAttention(
     tasksDisconnected || tasksQuery.isError || tasksQuery.data === undefined;
 
   const badges = deriveAttentionBadges({
-    sessions: attentionSessions,
-    sessionsStale: attentionSessionsStale,
+    summary: summary.summary,
+    summaryStale: summary.stale,
     dashboard,
     tasksStale: tasksDisconnected,
   });
-  const rows = deriveAttentionRows({
-    sessions: attentionSessions,
+  const sections = deriveAttentionSections({
+    sessions: attention.sessions,
+    sessionRowsStale: attention.stale,
+    workspaceLabels: new Map(workspaces.map(workspace => [workspace.id, workspace.name])),
+    mutedWorkspaceIds: policy.mutedWorkspaceIds,
     tasks,
-    sessionRowsStale: attentionSessionsStale,
     taskRowsStale: taskRowsDisconnected,
     loopWaitingPresent,
     loopAttentionPresent,
@@ -143,18 +142,17 @@ export function useOsAttention(
   return {
     badges,
     notificationCount: attentionCount(badges),
-    rows,
+    sections,
     sessions: modalSessions,
-    archivedSessions,
-    archivedSessionsTotal: archivedSessionsQuery.total,
+    attentionSessionsDisconnected,
     sessionsDisconnected,
     tasksDisconnected: taskRowsDisconnected,
     loading:
       (sessionsEnabled &&
         (!worktree.resolved ||
-          attentionSessionsQuery.isLoading ||
-          modalSessionsQuery.isLoading ||
-          archivedSessionsQuery.isLoading)) ||
+          summary.loading ||
+          attention.loading ||
+          modalSessionsQuery.isLoading)) ||
       (tasksEnabled && (dashboardQuery.isLoading || tasksQuery.isLoading)),
   };
 }

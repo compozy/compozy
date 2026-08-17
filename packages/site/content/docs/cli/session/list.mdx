@@ -26,7 +26,10 @@ compozy session list [flags]
 ```
       --agent string       Filter by exact agent definition name
       --all                Include every session state when --state is omitted
+      --all-workspaces     List sessions across every workspace
       --archived           Show only archived sessions
+      --attention          Show only sessions that need operator attention
+      --badge strings      Filter by exact badge (repeat or comma-separate)
       --cursor string      Continue from an opaque next_cursor
   -h, --help               help for list
       --include-archived   Include archived sessions
@@ -36,8 +39,9 @@ compozy session list [flags]
       --query string       Search session id, name, agent, provider, or channel
       --resumable          Show only sessions eligible for resume attach
       --root string        Filter by exact root session id (includes the root itself)
-      --sort string        Sort by recent or last_activity
+      --sort string        Sort by recent, last_activity, or attention
       --state string       Filter by state (starting|active|stopping|stopped)
+      --summary            Show exact attention counts across workspaces
       --type string        Filter by session type (user|system|coordinator|spawned)
       --workspace string   Override workspace filter (ID, name, or path)
       --worktree string    Filter by exact worktree ID

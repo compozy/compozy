@@ -4,6 +4,23 @@ package contracts
 
 import "time"
 
+type ForgeCapabilitiesResponse struct {
+	Served             bool     `json:"served"`
+	Available          bool     `json:"available"`
+	Winner             string   `json:"winner,omitempty"`
+	Provider           string   `json:"provider,omitempty"`
+	ServedRemote       string   `json:"served_remote,omitempty"`
+	RequestNoun        string   `json:"request_noun,omitempty"`
+	OpenActionLabel    string   `json:"open_action_label,omitempty"`
+	ViewActionLabel    string   `json:"view_action_label,omitempty"`
+	SupportsDraft      bool     `json:"supports_draft,omitempty"`
+	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
+	TemplatePaths      []string `json:"template_paths,omitempty"`
+	CredentialSource   string   `json:"credential_source,omitempty"`
+	DefaultBranch      string   `json:"default_branch,omitempty"`
+	Cause              string   `json:"cause,omitempty"`
+}
+
 type ForgePRCreateRequest struct {
 	RemoteURLs []string `json:"remote_urls"`
 	Head       string   `json:"head"`
@@ -190,12 +207,4 @@ type HeartbeatRollbackRequest struct {
 	TargetDigest   string `json:"target_digest,omitempty"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type HeartbeatStatusRequest struct {
-	WorkspaceID             string `json:"workspace_id,omitempty"`
-	AgentName               string `json:"agent_name"`
-	SessionID               string `json:"session_id,omitempty"`
-	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
-	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
 }

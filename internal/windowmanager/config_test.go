@@ -6,9 +6,12 @@ package windowmanager
 // Boundary OUT: TOML decoding and transport DTO validation.
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -32,7 +35,7 @@ func TestEffectiveConfig(t *testing.T) {
 		gaps := GapsConfig{Inner: 1, Top: 2, Right: 3, Bottom: 4, Left: 5}
 		snap := SnapConfig{EdgeBand: 24, CornerReach: 120, ExitSlack: 12, RepeatRatios: []float64{0.4, 0.6}}
 		bindings := BindingsConfig{TopCenter: "reserved", BottomCenter: configValueNone}
-		shortcuts := map[string]string{"layout.balance": " Shift + Meta + KeyB "}
+		shortcuts := map[string]ShortcutBinding{"layout.balance": {" Shift + Meta + KeyB "}}
 
 		effective, err := effectiveConfig(defaults, WorkspaceConfig{
 			NewWindowPolicy: &newWindowPolicy, SmallViewportPolicy: &smallViewportPolicy,
@@ -60,13 +63,13 @@ func TestEffectiveConfig(t *testing.T) {
 			t.Fatalf("effective behavioral config = %+v", effective)
 		}
 		if effective.Gaps != gaps || effective.Bindings != bindings || len(effective.Snap.RepeatRatios) != 2 ||
-			effective.Shortcuts["layout.balance"] != "meta+shift+KeyB" {
+			!slices.Equal(effective.Shortcuts["layout.balance"], ShortcutBinding{"meta+shift+KeyB"}) {
 			t.Fatalf("effective structural config = %+v", effective)
 		}
 
 		effective.Snap.RepeatRatios[0] = 0.2
-		effective.Shortcuts["layout.balance"] = "changed"
-		if snap.RepeatRatios[0] != 0.4 || shortcuts["layout.balance"] != " Shift + Meta + KeyB " {
+		effective.Shortcuts["layout.balance"][0] = "changed"
+		if snap.RepeatRatios[0] != 0.4 || shortcuts["layout.balance"][0] != " Shift + Meta + KeyB " {
 			t.Fatal("effective config aliases caller-owned collections")
 		}
 		if defaults.NewWindowPolicy != NewWindowFloating || defaults.HistoryLimit != 50 {
@@ -75,150 +78,161 @@ func TestEffectiveConfig(t *testing.T) {
 	})
 }
 
-func TestCanonicalShortcuts(t *testing.T) {
-	t.Run(
-		"Should accept tab actions through jump eight and reject jump nine or collisions [UT-143]",
-		func(t *testing.T) {
-			t.Parallel()
-			actions := []string{
-				shortcutWindowTabNewAction,
-				"window.tab.next",
-				"window.tab.previous",
-				"window.tab.last",
-				shortcutWindowTabReopenAction,
-				"window.tab.jump.1",
-				"window.tab.jump.2",
-				"window.tab.jump.3",
-				"window.tab.jump.4",
-				"window.tab.jump.5",
-				"window.tab.jump.6",
-				"window.tab.jump.7",
-				"window.tab.jump.8",
-			}
-			shortcuts := make(map[string]string, len(actions))
-			codes := []string{
-				"KeyA",
-				"KeyB",
-				"KeyC",
-				"KeyD",
-				"KeyE",
-				"Digit1",
-				"Digit2",
-				"Digit3",
-				"Digit4",
-				"Digit5",
-				"Digit6",
-				"Digit7",
-				"Digit8",
-			}
-			for index, action := range actions {
-				shortcuts[action] = "meta+" + codes[index]
-			}
-			canonical, err := CanonicalShortcuts(shortcuts)
-			if err != nil || len(canonical) != len(actions) {
-				t.Fatalf("CanonicalShortcuts(tab actions) = %#v, error = %v", canonical, err)
-			}
-			if _, err := CanonicalShortcuts(
-				map[string]string{"window.tab.jump.9": "meta+Digit9"},
-			); !errors.Is(
-				err,
-				ErrInvalidCommand,
-			) {
-				t.Fatalf("CanonicalShortcuts(jump.9) error = %v", err)
-			}
-			if _, err := CanonicalShortcuts(
-				map[string]string{
-					shortcutWindowTabNewAction:    "meta+KeyT",
-					shortcutWindowTabReopenAction: "META + KeyT",
-				},
-			); !errors.Is(
-				err,
-				ErrInvalidCommand,
-			) {
-				t.Fatalf("CanonicalShortcuts(tab collision) error = %v", err)
-			}
-		},
-	)
-
-	t.Run("Should accept every action and canonicalize modifier order before conflict checks", func(t *testing.T) {
+func TestCanonicalShortcutsV2(t *testing.T) {
+	t.Run("Should decode scalar and array bindings from JSON [UT-035,UT-036]", func(t *testing.T) {
 		t.Parallel()
-		actions := []string{
-			"window.close", "window.minimize", "window.zoom", "window.toggle_floating",
-			"window.tile.left", "window.tile.right", "window.tile.top", "window.tile.bottom",
-			"window.tile.top-left", "window.tile.top-right", "window.tile.bottom-left",
-			"window.tile.bottom-right", "window.focus.left", "window.focus.right",
-			"window.focus.up", "window.focus.down", "desktop.switch.previous",
-			"desktop.switch.next", "desktop.overview", "workspaces.overview", "layout.arrange.two-up",
-			"layout.arrange.grid", "layout.balance", "layout.undo", "layout.redo",
-		}
-		shortcuts := make(map[string]string, len(actions))
-		for index, action := range actions {
-			shortcuts[action] = fmt.Sprintf("meta+Key%c", 'A'+index)
-		}
-		shortcuts["layout.balance"] = " Shift + Alt + CONTROL + Meta + KeyV "
 
-		canonical, err := CanonicalShortcuts(shortcuts)
-		if err != nil {
-			t.Fatalf("CanonicalShortcuts() error = %v", err)
+		for raw, want := range map[string]ShortcutBinding{
+			`"meta+KeyW"`:              {"meta+KeyW"},
+			`["meta+KeyQ","alt+KeyQ"]`: {"meta+KeyQ", "alt+KeyQ"},
+		} {
+			var binding ShortcutBinding
+			if err := json.Unmarshal([]byte(raw), &binding); err != nil {
+				t.Fatalf("json.Unmarshal(%s) error = %v", raw, err)
+			}
+			if !slices.Equal(binding, want) {
+				t.Fatalf("json.Unmarshal(%s) = %#v, want %#v", raw, binding, want)
+			}
 		}
-		if len(canonical) != len(actions) ||
-			canonical["layout.balance"] != "meta+control+alt+shift+KeyV" {
-			t.Fatalf("canonical shortcuts = %#v", canonical)
-		}
-		canonical["layout.balance"] = "changed"
-		if shortcuts["layout.balance"] != " Shift + Alt + CONTROL + Meta + KeyV " {
-			t.Fatal("CanonicalShortcuts() aliases its input")
+
+		for _, raw := range []string{`42`, `["meta+KeyR",42]`} {
+			var binding ShortcutBinding
+			if err := json.Unmarshal([]byte(raw), &binding); err == nil {
+				t.Fatalf("json.Unmarshal(%s) error = nil", raw)
+			}
 		}
 	})
 
-	tests := []struct {
-		name      string
-		shortcuts map[string]string
-		wantError string
-	}{
-		{
-			name:      "Should reject an unknown action",
-			shortcuts: map[string]string{"window.teleport": "meta+KeyT"},
-			wantError: `shortcut action "window.teleport" is unsupported: window manager invalid command`,
-		},
-		{
-			name:      "Should reject an unknown token",
-			shortcuts: map[string]string{"window.close": "meta+KeyAA"},
-			wantError: `shortcut "window.close": chord token "KeyAA" is unsupported: window manager invalid command`,
-		},
-		{
-			name:      "Should reject a duplicate modifier",
-			shortcuts: map[string]string{"window.close": "meta+META+KeyW"},
-			wantError: `shortcut "window.close": chord repeats modifier "meta": window manager invalid command`,
-		},
-		{
-			name:      "Should require a modifier",
-			shortcuts: map[string]string{"window.close": "KeyW"},
-			wantError: `shortcut "window.close": chord requires at least one modifier: window manager invalid command`,
-		},
-		{
-			name:      "Should require exactly one KeyboardEvent code",
-			shortcuts: map[string]string{"window.close": "meta+KeyW+KeyQ"},
-			wantError: `shortcut "window.close": chord must contain exactly one KeyboardEvent.code: window manager invalid command`,
-		},
-		{
-			name: "Should reject a collision after canonicalization",
-			shortcuts: map[string]string{
-				"window.close":    "Shift+Meta+KeyW",
-				"window.minimize": "meta + shift + KeyW",
-			},
-			wantError: `shortcut "meta+shift+KeyW" conflicts between "window.close" and "window.minimize": window manager invalid command`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			if _, err := CanonicalShortcuts(test.shortcuts); !errors.Is(err, ErrInvalidCommand) ||
-				err.Error() != test.wantError {
-				t.Fatalf("CanonicalShortcuts() error = %v, want %q wrapping ErrInvalidCommand", err, test.wantError)
-			}
+	t.Run("Should canonicalize scalar and array bindings without aliasing [UT-035,UT-036]", func(t *testing.T) {
+		t.Parallel()
+		overrides := map[string]ShortcutBinding{
+			"window.close": {" Shift + Alt + CONTROL + Meta + KeyQ ", "alt+KeyW"},
+		}
+		canonical, err := CanonicalShortcutsV2(overrides)
+		if err != nil {
+			t.Fatalf("CanonicalShortcutsV2() error = %v", err)
+		}
+		want := ShortcutBinding{"meta+control+alt+shift+KeyQ", "alt+KeyW"}
+		if !slices.Equal(canonical["window.close"], want) {
+			t.Fatalf("canonical binding = %#v, want %#v", canonical["window.close"], want)
+		}
+		canonical["window.close"][0] = "changed"
+		if overrides["window.close"][0] != " Shift + Alt + CONTROL + Meta + KeyQ " {
+			t.Fatal("CanonicalShortcutsV2() aliases its input")
+		}
+	})
+
+	t.Run("Should expand desktop ranges and keep tab jumps capped at eight [UT-037,UT-038]", func(t *testing.T) {
+		t.Parallel()
+		canonical, err := CanonicalShortcutsV2(map[string]ShortcutBinding{
+			"desktop.switch": {"control+Digit1..9"},
 		})
-	}
+		if err != nil {
+			t.Fatalf("CanonicalShortcutsV2(desktop range) error = %v", err)
+		}
+		if len(canonical) != 9 || !slices.Equal(canonical["desktop.switch.9"], ShortcutBinding{"control+Digit9"}) {
+			t.Fatalf("expanded desktop range = %#v", canonical)
+		}
+		for action, binding := range map[string]ShortcutBinding{
+			"window.close":    {"control+Digit1..9"},
+			"window.tab.jump": {"control+alt+Digit1..9"},
+		} {
+			if _, rangeErr := CanonicalShortcutsV2(
+				map[string]ShortcutBinding{action: binding},
+			); !errors.Is(
+				rangeErr,
+				ErrInvalidCommand,
+			) {
+				t.Fatalf("CanonicalShortcutsV2(%s) error = %v", action, rangeErr)
+			}
+		}
+	})
+
+	t.Run("Should diagnose duplicate chords across and within arrays [UT-039,UT-040]", func(t *testing.T) {
+		t.Parallel()
+		across := map[string]ShortcutBinding{
+			"window.close":    {"alt+KeyQ", "control+KeyQ"},
+			"window.minimize": {"control+KeyQ"},
+		}
+		if _, err := CanonicalShortcutsV2(across); !errors.Is(err, ErrInvalidCommand) ||
+			!stringsContainAll(err.Error(), "control+KeyQ", "window.close", "window.minimize") {
+			t.Fatalf("cross-action duplicate error = %v", err)
+		}
+		within := map[string]ShortcutBinding{"window.close": {"alt+KeyQ", "ALT + KeyQ"}}
+		if _, err := CanonicalShortcutsV2(within); !errors.Is(err, ErrInvalidCommand) ||
+			!stringsContainAll(err.Error(), "window.close", "alt+KeyQ", "repeats") {
+			t.Fatalf("same-action duplicate error = %v", err)
+		}
+	})
+
+	t.Run("Should replace a family with an exact partial range [UT-041]", func(t *testing.T) {
+		t.Parallel()
+		effective, err := EffectiveKeymap(map[string]ShortcutBinding{
+			"desktop.switch": {"meta+control+Digit1..4"},
+		})
+		if err != nil {
+			t.Fatalf("EffectiveKeymap() error = %v", err)
+		}
+		count := 0
+		for action := range effective {
+			if family, ok := shortcutFamily(action); ok && family.action == "desktop.switch" {
+				count++
+			}
+		}
+		if count != 4 || !slices.Equal(effective["desktop.switch.4"], ShortcutBinding{"meta+control+Digit4"}) {
+			t.Fatalf("partial effective range = %#v", effective)
+		}
+	})
+
+	t.Run("Should name the exact expanded member in a shadowed collision [UT-042,UT-045]", func(t *testing.T) {
+		t.Parallel()
+		_, err := EffectiveKeymap(map[string]ShortcutBinding{
+			"window.close": {"control+Digit3"},
+		})
+		if !errors.Is(err, ErrInvalidCommand) ||
+			!stringsContainAll(err.Error(), "control+Digit3", "desktop.switch.3", "window.close") {
+			t.Fatalf("EffectiveKeymap(shadowed member) error = %v", err)
+		}
+	})
+
+	t.Run("Should own every v2 action in immutable daemon defaults [UT-043]", func(t *testing.T) {
+		t.Parallel()
+		defaults := DefaultKeymap()
+		for _, action := range []string{
+			"palette.open", "palette.view.sessions", "session.new", "scope.global.toggle",
+			"window.nav.back", "session.cycle.next", "session.cycle.previous",
+			"session.focus.attention", "workspace.picker", "workspace.cycle.next",
+			"workspace.cycle.previous", "desktop.switch.9", "desktop.create", "sidebar.toggle",
+			"window.focus.last", "window.tile.top", "window.tile.bottom", "shortcuts.cheatsheet",
+		} {
+			if _, ok := defaults[action]; !ok {
+				t.Fatalf("DefaultKeymap() missing %q", action)
+			}
+		}
+		defaults["palette.open"][0] = "changed"
+		if DefaultKeymap()["palette.open"][0] != "meta+KeyK" {
+			t.Fatal("DefaultKeymap() aliases daemon defaults")
+		}
+	})
+
+	t.Run("Should reject unknown actions and allow explicit disables [UT-044,UT-046]", func(t *testing.T) {
+		t.Parallel()
+		if _, err := CanonicalShortcutsV2(map[string]ShortcutBinding{
+			"window.teleport": {"meta+KeyT"},
+		}); !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("CanonicalShortcutsV2(unknown) error = %v", err)
+		}
+		effective, err := EffectiveKeymap(map[string]ShortcutBinding{
+			"window.close": {},
+			"window.zoom":  {""},
+		})
+		if err != nil {
+			t.Fatalf("EffectiveKeymap(disabled) error = %v", err)
+		}
+		if len(effective["window.close"]) != 0 || len(effective["window.zoom"]) != 0 {
+			t.Fatalf("disabled actions = %#v", effective)
+		}
+	})
 
 	t.Run("Should accept exactly the KeyboardEvent code families in the contract", func(t *testing.T) {
 		t.Parallel()
@@ -248,6 +262,15 @@ func TestCanonicalShortcuts(t *testing.T) {
 			}
 		}
 	})
+}
+
+func stringsContainAll(value string, parts ...string) bool {
+	for _, part := range parts {
+		if !strings.Contains(value, part) {
+			return false
+		}
+	}
+	return true
 }
 
 func TestConfigValidation(t *testing.T) {
@@ -342,16 +365,18 @@ func TestConfigValidation(t *testing.T) {
 			wantError: `binding "stack": window manager invalid command`,
 		},
 		{
-			name:      "Should reject an empty shortcut",
-			mutate:    func(config *Config) { config.Shortcuts = map[string]string{"layout.balance": " "} },
-			wantError: `shortcut "layout.balance": chord contains an empty token: window manager invalid command`,
+			name: "Should reject an empty member mixed with a chord",
+			mutate: func(config *Config) {
+				config.Shortcuts = map[string]ShortcutBinding{"layout.balance": {"meta+KeyQ", " "}}
+			},
+			wantError: `shortcut "layout.balance": binding member 1 is empty; use an empty string or array to disable the action: window manager invalid command`,
 		},
 		{
 			name: "Should reject shortcut chord conflicts",
 			mutate: func(config *Config) {
-				config.Shortcuts = map[string]string{
-					"layout.balance": "Shift+Meta+KeyB",
-					"layout.undo":    " meta + shift + KeyB ",
+				config.Shortcuts = map[string]ShortcutBinding{
+					"layout.balance": {"Shift+Meta+KeyB"},
+					"layout.undo":    {" meta + shift + KeyB "},
 				}
 			},
 			wantError: `shortcut "meta+shift+KeyB" conflicts between "layout.balance" and "layout.undo": window manager invalid command`,
@@ -465,11 +490,11 @@ func TestServiceDefaultConfigLifecycle(t *testing.T) {
 
 		next := DefaultConfig()
 		next.HistoryLimit = 1
-		next.Shortcuts = map[string]string{"layout.undo": "meta+KeyZ"}
+		next.Shortcuts = map[string]ShortcutBinding{"layout.undo": {"meta+KeyZ"}}
 		if err := manager.UpdateDefaults(next); err != nil {
 			t.Fatalf("UpdateDefaults(valid) error = %v", err)
 		}
-		next.Shortcuts["layout.undo"] = "tampered"
+		next.Shortcuts["layout.undo"][0] = "tampered"
 		second := executeTestCommand(
 			t,
 			manager,

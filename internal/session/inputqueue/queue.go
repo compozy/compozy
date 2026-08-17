@@ -121,16 +121,7 @@ func (s *Service) Enqueue(
 	ctx context.Context,
 	req InputRequest,
 ) (store.SessionInputQueueEntry, int, error) {
-	insert, err := s.newInsert(insertSpec{
-		sessionID:        req.SessionID,
-		text:             req.Text,
-		mode:             store.SessionInputQueueModeQueue,
-		delivery:         store.SessionInputDeliveryAfterTurn,
-		generation:       req.Generation,
-		runtime:          req.Runtime,
-		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
-		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
-	})
+	insert, err := s.PrepareQueue(req)
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
 	}
@@ -142,6 +133,20 @@ func (s *Service) Enqueue(
 		return store.SessionInputQueueEntry{}, 0, err
 	}
 	return entry, position, nil
+}
+
+// PrepareQueue validates queued input and allocates its durable insert without persisting it.
+func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert, error) {
+	return s.newInsert(insertSpec{
+		sessionID:        req.SessionID,
+		text:             req.Text,
+		mode:             store.SessionInputQueueModeQueue,
+		delivery:         store.SessionInputDeliveryAfterTurn,
+		generation:       req.Generation,
+		runtime:          req.Runtime,
+		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
+		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
+	})
 }
 
 // EnqueueAdmitted atomically persists one external command receipt and its queue entry.

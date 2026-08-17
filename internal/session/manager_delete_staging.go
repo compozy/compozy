@@ -412,6 +412,7 @@ func (m *Manager) commitStagedSessionDeletes(ctx context.Context, staged []stage
 		}
 		cleanupErr = errors.Join(cleanupErr, entry.capabilities.Release(), entry.attachments.Release())
 		if entry.info != nil {
+			m.publishWaitSessionGone(entry.info)
 			m.remove(entry.info.ID)
 			m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventDeleted, entry.info))
 		}

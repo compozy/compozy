@@ -1,32 +1,22 @@
-import { PillDot, StatusDot, Time, type PillTone } from "@compozy/ui";
+import { Time } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
+import { sessionBadgeSignal } from "../../lib/session-badge";
+import { sessionBadgeWordClass } from "../../lib/session-badge-classes";
+import { maskedAttentionNote } from "../../lib/session-pending-interactions";
+import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
-
-function sessionStatusTone(badge: string): PillTone {
-  if (badge === "running") return "accent";
-  if (badge === "idle") return "success";
-  if (badge === "waiting-for-auth" || badge === "hung") return "warning";
-  if (badge === "failed" || badge === "unhealthy") return "danger";
-  return "neutral";
-}
-
-export function SessionStatusMark({ badge }: { badge: string }) {
-  if (badge === "stopped") {
-    return <StatusDot tone="faint" variant="ring" label="stopped" />;
-  }
-  return <PillDot tone={sessionStatusTone(badge)} pulse={badge === "running"} size="sm" />;
-}
 
 export interface SessionListRowProps {
   session: SessionPayload;
   current?: boolean;
   onSelect: () => void;
   sessionActions: SessionLifecycleActionHandlers;
+  showActions?: boolean;
   testIdPrefix: string;
   /** Trailing controls rendered beside the row actions (e.g. a thread toggle). */
   trailing?: React.ReactNode;
@@ -37,9 +27,12 @@ export function SessionListRow({
   current = false,
   onSelect,
   sessionActions,
+  showActions = true,
   testIdPrefix,
   trailing,
 }: SessionListRowProps) {
+  const signal = sessionBadgeSignal(session.badge);
+  const maskedNote = maskedAttentionNote(session, signal.label);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
       <button
@@ -54,13 +47,13 @@ export function SessionListRow({
         aria-current={current ? "true" : undefined}
         onClick={onSelect}
       >
-        <span className="mt-1.5 grid place-items-center">
-          <SessionStatusMark badge={session.badge} />
-        </span>
+        <SessionBadgeMark badge={session.badge} className="mt-1.5" />
         <span className="min-w-0">
           <span
             className={cn(
-              "block truncate text-small-body text-fg-strong",
+              "block truncate text-small-body",
+              // A needs-you row keeps its pull even when the window is not focused.
+              signal.attention === "needs-you" ? "font-medium text-fg-strong" : "text-fg-strong",
               current && "font-medium"
             )}
           >
@@ -69,7 +62,13 @@ export function SessionListRow({
           <span className="block truncate text-micro text-subtle">
             <span className="font-medium text-muted">{session.agent_name}</span>
             <span aria-hidden="true"> · </span>
-            {session.badge}
+            <span className={sessionBadgeWordClass(session.badge)}>{signal.label}</span>
+            {maskedNote !== null ? (
+              <>
+                <span aria-hidden="true"> · </span>
+                {maskedNote}
+              </>
+            ) : null}
             {session.archived_at !== null ? (
               <>
                 <span aria-hidden="true"> · </span>
@@ -82,7 +81,7 @@ export function SessionListRow({
       </button>
       <div className="flex items-center gap-0.5 pt-1">
         {trailing}
-        <SessionRowActions session={session} actions={sessionActions} />
+        {showActions ? <SessionRowActions session={session} actions={sessionActions} /> : null}
       </div>
     </div>
   );

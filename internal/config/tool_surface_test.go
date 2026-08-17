@@ -395,6 +395,16 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueDuration,
 		},
 		{
+			name: "Should allow shell session sort mutation",
+			path: "shell.sessions.sort",
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow shell session scope mutation",
+			path: "shell.sessions.scope",
+			kind: ConfigValueString,
+		},
+		{
 			name: "Should allow subprocess health escalation threshold mutation",
 			path: "daemon.subprocess_health_escalation_threshold",
 			kind: ConfigValueInt,

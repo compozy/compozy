@@ -34,6 +34,7 @@ const fallbackFraudSession: SessionPayload = {
   attachable: true,
   archived_at: null,
   available_commands: [],
+  pending_interactions: [],
   created_at: "2026-04-17T16:00:00Z",
   updated_at: "2026-04-17T18:10:00Z",
 };

@@ -2,12 +2,13 @@ package core
 
 import (
 	"errors"
-	"maps"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func settingsWindowManagerSectionResponse(
@@ -16,11 +17,17 @@ func settingsWindowManagerSectionResponse(
 	if envelope.WindowManager == nil {
 		return nil, errors.New("settings window-manager section is required")
 	}
+	effective, err := windowmanager.EffectiveKeymap(envelope.WindowManager.Config.Shortcuts)
+	if err != nil {
+		return nil, fmt.Errorf("settings window-manager shortcuts are invalid: %w", err)
+	}
 	return contract.SettingsWindowManagerResponse{
 		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
 		Config: settingsWindowManagerConfigPayload(
 			envelope.WindowManager.Config,
 		),
+		Defaults:  requiredWindowManagerShortcutsPayload(windowmanager.DefaultKeymap()),
+		Effective: requiredWindowManagerShortcutsPayload(effective),
 	}, nil
 }
 
@@ -62,9 +69,15 @@ func settingsWindowManagerConfigPayload(
 	}
 }
 
-func requiredWindowManagerShortcutsPayload(src map[string]string) map[string]string {
-	shortcuts := make(map[string]string, len(src))
-	maps.Copy(shortcuts, src)
+func requiredWindowManagerShortcutsPayload(
+	src map[string]windowmanager.ShortcutBinding,
+) map[string]windowmanager.ShortcutBinding {
+	shortcuts := make(map[string]windowmanager.ShortcutBinding, len(src))
+	for action, binding := range src {
+		cloned := make(windowmanager.ShortcutBinding, len(binding))
+		copy(cloned, binding)
+		shortcuts[action] = cloned
+	}
 	return shortcuts
 }
 
@@ -102,7 +115,7 @@ func windowManagerConfigFromPayload(
 			TopCenter:    strings.TrimSpace(string(payload.Bindings.TopCenter)),
 			BottomCenter: strings.TrimSpace(string(payload.Bindings.BottomCenter)),
 		},
-		Shortcuts: cloneStringMap(payload.Shortcuts),
+		Shortcuts: windowmanager.CloneShortcutMap(payload.Shortcuts),
 	}
 	if err := value.Validate(); err != nil {
 		return compozyconfig.WindowManagerConfig{}, NewSettingsValidationError(err)

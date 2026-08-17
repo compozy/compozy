@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
 
@@ -18,11 +19,17 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 		if err != nil {
 			return nil, fmt.Errorf("daemon: build session toolset catalog: %w", err)
 		}
+		descriptors := builtintools.NativeDescriptors()
+		toolUniverse := make([]toolspkg.ToolID, 0, len(descriptors))
+		for _, descriptor := range descriptors {
+			toolUniverse = append(toolUniverse, descriptor.ID)
+		}
 		return session.NewManager(
 			session.WithHomePaths(deps.HomePaths),
 			session.WithLifecycleContext(ctx),
 			session.WithLogger(deps.Logger),
 			session.WithNotifier(deps.Notifier),
+			session.WithSpawnWakeNotifier(deps.SpawnWakeNotifier),
 			session.WithHookSet(deps.Hooks),
 			session.WithPromptAssembler(deps.PromptAssembler),
 			session.WithStartupPromptOverlay(deps.StartupPromptOverlay),
@@ -32,6 +39,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithAgentResolver(deps.AgentResolver),
 			session.WithSkillRegistry(deps.SkillRegistry),
 			session.WithToolsetCatalog(toolsets),
+			session.WithToolUniverse(toolUniverse),
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithWorktreeResolver(deps.WorktreeResolver),
@@ -44,6 +52,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionPromptAdmissionStore(deps.SessionPromptAdmission),
 			session.WithAttachmentOpener(deps.SessionAttachments),
 			session.WithSessionHealthConfig(deps.SessionHealthConfig),
+			session.WithAttentionConfig(deps.AttentionConfig),
 			session.WithSessionHealthStore(deps.SessionHealthStore),
 			session.WithSessionCatalog(deps.SessionCatalog),
 			session.WithHostedMCPLauncher(deps.HostedMCP),

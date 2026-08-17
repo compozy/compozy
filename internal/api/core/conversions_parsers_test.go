@@ -260,7 +260,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Run("Should map the durable runtime projection from the session catalog", func(t *testing.T) {
 		t.Parallel()
 
-		payload := core.SessionPayloadFromStoreInfo(store.SessionInfo{
+		info := store.SessionInfo{
 			ID:                "sess-catalog",
 			AgentName:         "coder",
 			Provider:          "codex",
@@ -274,7 +274,8 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			State:             string(session.StateActive),
 			CreatedAt:         time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 			UpdatedAt:         time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
-		})
+		}
+		payload := core.SessionPayloadFromStoreInfo(&info)
 		if payload.Runtime.Status != session.RuntimeStatusReady ||
 			payload.Runtime.Transition != session.RuntimeTransitionLiveConfiguration ||
 			payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "codex" ||

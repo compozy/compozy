@@ -1,5 +1,7 @@
 package contract
 
+import "github.com/compozy/compozy/internal/windowmanager"
+
 type SettingsWindowNewPolicy string
 
 const (
@@ -55,23 +57,23 @@ const (
 )
 
 type SettingsWindowManagerConfigPayload struct {
-	NewWindowPolicy     SettingsWindowNewPolicy             `json:"new_window_policy"`
-	SmallViewportPolicy SettingsWindowSmallViewportPolicy   `json:"small_viewport_policy"`
-	FocusPolicy         SettingsWindowFocusPolicy           `json:"focus_policy"`
-	FocusWrap           bool                                `json:"focus_wrap"`
-	FocusFollowsPointer bool                                `json:"focus_follows_pointer"`
-	RaiseOnFocus        bool                                `json:"raise_on_focus"`
-	DragAwayPolicy      SettingsWindowDragAwayPolicy        `json:"drag_away_policy"`
-	GroupMoveModifier   SettingsWindowDragModifier          `json:"group_move_modifier"`
-	SwapModifier        SettingsWindowDragModifier          `json:"swap_modifier"`
-	HistoryLimit        int                                 `json:"history_limit"`
-	NavStackLimit       int                                 `json:"nav_stack_limit"`
-	ClosedEntryLimit    int                                 `json:"closed_entry_limit"`
-	DesktopTransition   SettingsWindowDesktopTransition     `json:"desktop_transition"`
-	Gaps                SettingsWindowManagerGapsPayload    `json:"gaps"`
-	Snap                SettingsWindowManagerSnapPayload    `json:"snap"`
-	Bindings            SettingsWindowManagerBindingPayload `json:"bindings"`
-	Shortcuts           map[string]string                   `json:"shortcuts"`
+	NewWindowPolicy     SettingsWindowNewPolicy                  `json:"new_window_policy"`
+	SmallViewportPolicy SettingsWindowSmallViewportPolicy        `json:"small_viewport_policy"`
+	FocusPolicy         SettingsWindowFocusPolicy                `json:"focus_policy"`
+	FocusWrap           bool                                     `json:"focus_wrap"`
+	FocusFollowsPointer bool                                     `json:"focus_follows_pointer"`
+	RaiseOnFocus        bool                                     `json:"raise_on_focus"`
+	DragAwayPolicy      SettingsWindowDragAwayPolicy             `json:"drag_away_policy"`
+	GroupMoveModifier   SettingsWindowDragModifier               `json:"group_move_modifier"`
+	SwapModifier        SettingsWindowDragModifier               `json:"swap_modifier"`
+	HistoryLimit        int                                      `json:"history_limit"`
+	NavStackLimit       int                                      `json:"nav_stack_limit"`
+	ClosedEntryLimit    int                                      `json:"closed_entry_limit"`
+	DesktopTransition   SettingsWindowDesktopTransition          `json:"desktop_transition"`
+	Gaps                SettingsWindowManagerGapsPayload         `json:"gaps"`
+	Snap                SettingsWindowManagerSnapPayload         `json:"snap"`
+	Bindings            SettingsWindowManagerBindingPayload      `json:"bindings"`
+	Shortcuts           map[string]windowmanager.ShortcutBinding `json:"shortcuts"`
 }
 
 type SettingsWindowManagerGapsPayload struct {
@@ -100,5 +102,7 @@ type UpdateSettingsWindowManagerRequest struct {
 
 type SettingsWindowManagerResponse struct {
 	SettingsGlobalSectionResponseMetaPayload
-	Config SettingsWindowManagerConfigPayload `json:"config"`
+	Config    SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults  map[string]windowmanager.ShortcutBinding `json:"defaults"`
+	Effective map[string]windowmanager.ShortcutBinding `json:"effective"`
 }

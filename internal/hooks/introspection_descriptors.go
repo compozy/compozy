@@ -2,6 +2,7 @@ package hooks
 
 var hookEventDescriptors = mergeHookEventDescriptors(
 	sessionHookEventDescriptors(),
+	sessionAttentionHookEventDescriptors(),
 	agentHookEventDescriptors(),
 	interactionHookEventDescriptors(),
 	coordinationHookEventDescriptors(),

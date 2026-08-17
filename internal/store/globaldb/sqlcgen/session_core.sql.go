@@ -253,7 +253,7 @@ INSERT INTO sessions (
   runtime_selection_revision, workspace_id, worktree_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
-  auto_stop_on_parent, spawn_budget_json, permission_policy_json,
+  auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
   acp_session_id, stop_reason, stop_detail, failure_kind, failure_summary, crash_bundle_path,
   subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason, activity_json,
   transcript_epoch, soul_snapshot_id, soul_digest, parent_soul_digest,
@@ -270,16 +270,16 @@ INSERT INTO sessions (
   ?19, ?20, ?21,
   ?22, ?23, ?24, ?25,
   ?26, ?27, ?28, ?29,
-  ?30, ?31, ?32,
-  ?33, ?34, ?35, ?36,
-  ?37, ?38, ?39,
-  ?40, ?41, ?42,
-  ?43, ?44, ?45,
-  ?46, ?47, ?48,
-  ?49, ?50, ?51,
-  ?52, ?53, ?54,
-  ?55, ?56,
-  ?57, ?58
+  ?30, ?31, ?32, ?33,
+  ?34, ?35, ?36, ?37,
+  ?38, ?39, ?40,
+  ?41, ?42, ?43,
+  ?44, ?45, ?46,
+  ?47, ?48, ?49,
+  ?50, ?51, ?52,
+  ?53, ?54, ?55,
+  ?56, ?57,
+  ?58, ?59
 WHERE ?18 IS NULL
    OR EXISTS (
       SELECT 1
@@ -321,6 +321,7 @@ ON CONFLICT(id) DO UPDATE SET
   spawn_role = excluded.spawn_role,
   ttl_expires_at = excluded.ttl_expires_at,
   auto_stop_on_parent = excluded.auto_stop_on_parent,
+  notify_creator = excluded.notify_creator,
   spawn_budget_json = excluded.spawn_budget_json,
   permission_policy_json = excluded.permission_policy_json,
   acp_session_id = excluded.acp_session_id,
@@ -387,6 +388,7 @@ type UpsertSessionParams struct {
 	SpawnRole                sql.NullString `json:"spawn_role"`
 	TtlExpiresAt             sql.NullString `json:"ttl_expires_at"`
 	AutoStopOnParent         bool           `json:"auto_stop_on_parent"`
+	NotifyCreator            bool           `json:"notify_creator"`
 	SpawnBudgetJson          string         `json:"spawn_budget_json"`
 	PermissionPolicyJson     string         `json:"permission_policy_json"`
 	AcpSessionID             sql.NullString `json:"acp_session_id"`
@@ -449,6 +451,7 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.SpawnRole,
 		arg.TtlExpiresAt,
 		arg.AutoStopOnParent,
+		arg.NotifyCreator,
 		arg.SpawnBudgetJson,
 		arg.PermissionPolicyJson,
 		arg.AcpSessionID,

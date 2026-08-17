@@ -67,6 +67,7 @@ func stripKnownPromptAugmentation(prompt string) string {
 	next = stripLeadingSelfClosingPromptBlock(next, currentAvailableSkillsSelfClosing)
 	next = stripLeadingSelfClosingPromptBlock(next, availableSkillsSelfClosing)
 	next = stripLeadingDurableMemoryBlock(next)
+	next = stripLeadingPromptBlock(next, workspaceKnowledgeOpen, workspaceKnowledgeClose)
 	next = stripLeadingUserMessageBlock(next)
 	next = stripLeadingInboundBridgePrompt(next)
 	next = stripTrailingLoopOutputContract(next)

@@ -1,3 +1,5 @@
+import { sessionBadgeSignal } from "./session-badge";
+import type { SessionListScope } from "./session-list-preferences";
 import type { SessionPayload } from "../types";
 
 export interface SessionListTree {
@@ -5,6 +7,40 @@ export interface SessionListTree {
   roots: SessionPayload[];
   /** Direct children keyed by parent session id, in the incoming list order. */
   childrenByParent: Map<string, SessionPayload[]>;
+}
+
+export interface VisibleSessionOrderOptions {
+  scope: SessionListScope;
+  collapsedThreadIds: ReadonlySet<string>;
+  collapsedWorkspaceIds: ReadonlySet<string>;
+  workspaceGroups: ReadonlyArray<{
+    workspaceId: string;
+    sessions: readonly SessionPayload[];
+  }>;
+}
+
+/**
+ * Projects the same unfiltered row order the shared session catalog renders.
+ * Closed groups and closed threads are excluded because the cycle shortcut
+ * must never focus a row the operator cannot currently see.
+ */
+export function visibleSessionOrder(
+  sessions: readonly SessionPayload[],
+  options: VisibleSessionOrderOptions
+): SessionPayload[] {
+  if (options.scope === "all-workspaces") {
+    return options.workspaceGroups.flatMap(group =>
+      options.collapsedWorkspaceIds.has(group.workspaceId) ? [] : group.sessions
+    );
+  }
+
+  const tree = buildSessionTree(sessions);
+  return tree.roots.flatMap(root => [
+    root,
+    ...(options.collapsedThreadIds.has(root.id)
+      ? []
+      : collectThreadSessions(root.id, tree.childrenByParent)),
+  ]);
 }
 
 /**
@@ -115,17 +151,23 @@ export function filterThreadSessions(
 
 export type ChildSessionSignalTone = "danger" | "warning" | "accent";
 
-/** Most urgent child state, so a collapsed thread never hides an escalation. */
+/**
+ * Most urgent child state, so a collapsed thread never hides an escalation.
+ * Urgency is read from the one badge dictionary rather than a local badge list,
+ * so every member of the needs-you class escalates and runtime-health warnings
+ * stay a rank below it. `done` deliberately raises nothing: finished-unseen work
+ * is an inbox item, not an escalation.
+ */
 export function childSessionSignalTone(
   children: readonly SessionPayload[]
 ): ChildSessionSignalTone | null {
   let tone: ChildSessionSignalTone | null = null;
   for (const child of children) {
-    const badge = child.badge;
-    if (badge === "failed" || badge === "unhealthy") return "danger";
-    if (badge === "waiting-for-auth" || badge === "hung") {
+    const signal = sessionBadgeSignal(child.badge);
+    if (signal.attention === "needs-you") return "danger";
+    if (signal.tone === "warning") {
       tone = "warning";
-    } else if (badge === "running" && tone !== "warning") {
+    } else if (signal.label === "running" && tone !== "warning") {
       tone = "accent";
     }
   }

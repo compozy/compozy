@@ -54,6 +54,8 @@ type SpawnOpts struct {
 	SpawnRole            string
 	TTL                  time.Duration
 	AutoStopOnParent     bool
+	NotifyCreator        bool
+	NotifyCreatorSet     bool
 	PermissionPolicy     store.SessionPermissionPolicy
 	IdempotencyKey       string
 	AllowStoppedParent   bool
@@ -174,6 +176,9 @@ func (m *Manager) prepareSpawn(
 
 func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized := opts
+	if !normalized.NotifyCreatorSet {
+		normalized.NotifyCreator = true
+	}
 	normalized.ParentSessionID = strings.TrimSpace(normalized.ParentSessionID)
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
@@ -367,6 +372,7 @@ func (m *Manager) spawnLineage(
 		SpawnRole:        opts.SpawnRole,
 		TTLExpiresAt:     &ttlExpiresAt,
 		AutoStopOnParent: opts.AutoStopOnParent,
+		NotifyCreator:    opts.NotifyCreator,
 		SpawnBudget:      budget,
 		PermissionPolicy: opts.PermissionPolicy,
 	}), nil

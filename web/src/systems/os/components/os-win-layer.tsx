@@ -52,6 +52,7 @@ function DesktopLayer({
   onSeamPreview,
   onFrameSeamPreview,
   onSeamPreviewEnd,
+  paletteShortcutLabel,
 }: {
   model: DesktopLayerModel;
   compact: boolean;
@@ -60,6 +61,7 @@ function DesktopLayer({
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
   seamProjection: LayoutProjection | undefined;
+  paletteShortcutLabel: string | null;
 } & SeamGestureHandlers) {
   const incoming = transition?.toDesktopId === model.desktop.id;
   const outgoing = transition?.fromDesktopId === model.desktop.id;
@@ -110,7 +112,8 @@ function DesktopLayer({
           data-testid="os-desk-hint"
           className="pointer-events-none absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 text-small-body text-subtle select-none"
         >
-          <Kbd>⌘K</Kbd> to open anything — or pick a surface from the dock
+          {paletteShortcutLabel ? <Kbd>{paletteShortcutLabel}</Kbd> : null} to open anything — or
+          pick a surface from the dock
         </p>
       ) : null}
       {model.frames.map(frame => (
@@ -144,11 +147,13 @@ export function OsWinLayer({
   onSeamPreview,
   onFrameSeamPreview,
   onSeamPreviewEnd,
+  paletteShortcutLabel,
 }: {
   model: OsWinLayerModel;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
   onTransitionComplete: () => void;
+  paletteShortcutLabel: string | null;
 } & SeamGestureHandlers) {
   const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
   return (
@@ -173,6 +178,7 @@ export function OsWinLayer({
           onSeamPreview={onSeamPreview}
           onFrameSeamPreview={onFrameSeamPreview}
           onSeamPreviewEnd={onSeamPreviewEnd}
+          paletteShortcutLabel={paletteShortcutLabel}
         />
       ))}
       {viewportState === "rejected" ? (

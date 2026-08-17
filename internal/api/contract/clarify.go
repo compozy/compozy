@@ -13,7 +13,7 @@ type ClarificationAnswerRequest struct {
 }
 
 // ClarificationAnswerPayload is the exact public clarification result.
-type ClarificationAnswerPayload = toolspkg.ClarifyAnswer
+type ClarificationAnswerPayload = toolspkg.ClarifyAnswerResult
 
 // ClarificationPendingPayload is the public live pending projection.
 type ClarificationPendingPayload struct {

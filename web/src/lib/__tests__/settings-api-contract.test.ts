@@ -35,9 +35,11 @@ describe("settings openapi contract", () => {
       | "skills"
       | "automation"
       | "network"
+      | "window-manager"
+      | "attention"
+      | "shell"
       | "observability"
       | "hooks-extensions"
-      | "window-manager"
     >();
     expectTypeOf<GetSettingsGeneralResponse["scope"]>().toEqualTypeOf<"global">();
     expectTypeOf<

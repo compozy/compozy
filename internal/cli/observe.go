@@ -103,7 +103,7 @@ func observeOverviewBundle(overview *contract.ObserveOverviewPayload) outputBund
 				name  string
 				value any
 			}{
-				{"attention", overview.Attention},
+				{configAttentionKey, overview.Attention},
 				{"today", overview.Today},
 				{"outcomes", overview.Outcomes},
 				{observeUsageSectionKey, overview.Usage},

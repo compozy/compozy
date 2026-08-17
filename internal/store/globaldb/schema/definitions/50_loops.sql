@@ -13,6 +13,7 @@ CREATE TABLE loop_config (
 			gate_max_revisions  INTEGER,
 			runtime_defaults_json TEXT CHECK (runtime_defaults_json IS NULL OR json_valid(runtime_defaults_json)),
 			runtime_rules_json    TEXT CHECK (runtime_rules_json IS NULL OR json_valid(runtime_rules_json)),
+			environment_json      TEXT CHECK (environment_json IS NULL OR json_valid(environment_json)),
 			PRIMARY KEY (workspace_id, loop_name)
 		);
 

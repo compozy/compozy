@@ -5,14 +5,14 @@ title: Configure window behavior and declarative layouts safely
 persona: Bruno
 journey: J-administer-window-manager
 expected: Settings › Layouts exposes every supported `[window_manager]` value through direct manipulation — a desktop canvas, a 1:1 gap box, a snap-zone map, a repeat-width track, and a chord recorder — with no number field bound to a geometry value; out-of-range gaps, snap thresholds, history limit, duplicate repeat widths, and duplicate shortcut chords each name the exact value at fault and block the save while preserving the active known-good configuration; one floating save bar covers the global config and the workspace layout reviews inside its own card; a valid save hot-applies to the next command without restarting; workspace layout overrides remain isolated.
-entry_points: Settings › Layouts; global config.toml; compozy config get|set|apply; compozy layout-profile list|get|put|delete
+entry_points: Settings › Layouts; global config.toml; compozy config get|set|apply; GET/PATCH /api/settings/window-manager over HTTP and UDS; compozy layout-profile list|get|put|delete
 qa_status: pass
 bug_ids: BUG-20260801-window-manager-live-config-drift
 fix_status: fixed
 retest_status: pass
 fix_commits: d196f3a7
-evidence: /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/status-pending-restart.json; /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/config-apply-history.json; /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/nav-stack-limit.json
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/status-pending-restart.json; /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/config-apply-history.json; /Users/pedronauck/dev/qa-labs/compozy-window-tabs-live-apply-status-retest-20260801-115716-306628-lab/qa-artifacts/qa/evidence/nav-stack-limit.json; docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_05
+last_report: docs/qa/reports/2026-08-16-herdr-parity.md
 overlaps: ET-window-manager-layout-recovery; ET-window-manager-layout-gestures
 ---
 
@@ -30,3 +30,8 @@ accepted. Status remains untested; no QA replay ran.
 
 QA impact 2026-07-31: `nav_stack_limit`, `closed_entry_limit`, and tab shortcut actions joined the
 live window-manager config contract. Reset for the window-tabs targeted cycle.
+
+2026-08-16 qa-impact: shortcut values now accept arrays, indexed ranges, and explicit disables;
+the daemon serves defaults and the effective map. Reset for the Herdr parity QA tail.
+
+QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.

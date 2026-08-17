@@ -39,6 +39,12 @@ type SessionHealthRecord = contract.SessionHealthPayload
 // SessionStatusRecord is the shared compact session status payload.
 type SessionStatusRecord = contract.SessionStatusResponse
 
+// SessionInteractionsRecord is the restart-durable pending-interaction projection.
+type SessionInteractionsRecord = contract.SessionInteractionsResponse
+
+// SessionAttentionSummaryRecord is the exact operator-wide attention aggregate.
+type SessionAttentionSummaryRecord = contract.SessionAttentionSummaryPayload
+
 // SessionInspectRecord is the shared detailed session inspect payload.
 type SessionInspectRecord = contract.SessionInspectResponse
 

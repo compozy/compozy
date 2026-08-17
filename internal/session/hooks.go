@@ -130,6 +130,14 @@ type AuthoredContextHooks interface {
 	) (hookspkg.SessionHealthUpdateAfterPayload, error)
 }
 
+// AttentionHooks groups committed attention observation dispatch.
+type AttentionHooks interface {
+	DispatchSessionAttentionChanged(
+		context.Context,
+		hookspkg.SessionAttentionChangedPayload,
+	) (hookspkg.SessionAttentionChangedPayload, error)
+}
+
 // HookSet collects the grouped session hook domains. Nil groups are treated as
 // no-op implementations so callers only provide the domains they exercise.
 type HookSet struct {
@@ -143,6 +151,7 @@ type HookSet struct {
 	Compaction      CompactionHooks
 	Spawn           SpawnHooks
 	AuthoredContext AuthoredContextHooks
+	Attention       AttentionHooks
 }
 
 var _ LifecycleHooks = noopSessionLifecycleHooks{}
@@ -155,6 +164,7 @@ var _ ToolHooks = noopToolHooks{}
 var _ CompactionHooks = noopCompactionHooks{}
 var _ SpawnHooks = noopSpawnHooks{}
 var _ AuthoredContextHooks = noopAuthoredContextHooks{}
+var _ AttentionHooks = noopAttentionHooks{}
 
 func (h HookSet) session() LifecycleHooks {
 	if h.Session != nil {
@@ -224,4 +234,11 @@ func (h HookSet) authoredContext() AuthoredContextHooks {
 		return h.AuthoredContext
 	}
 	return noopAuthoredContextHooks{}
+}
+
+func (h HookSet) attention() AttentionHooks {
+	if h.Attention != nil {
+		return h.Attention
+	}
+	return noopAttentionHooks{}
 }

@@ -7,6 +7,7 @@ func CloneConfig(source *Config) Config {
 	}
 
 	cloned := *source
+	cloned.Attention.MutedWorkspaces = append([]string(nil), source.Attention.MutedWorkspaces...)
 	cloned.WindowManager = cloneWindowManagerConfig(source.WindowManager)
 	cloned.MCPServers = cloneMCPServers(source.MCPServers)
 	cloned.Providers = cloneProviders(source.Providers)

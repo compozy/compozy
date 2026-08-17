@@ -85,7 +85,7 @@ func newExtensionBuildCommand(deps commandDeps) *cobra.Command {
 		nil,
 		"Build command argv; repeat or use a comma-separated value",
 	)
-	command.Flags().DurationVar(&timeout, "timeout", 60*time.Second, "Describe-mode timeout")
+	command.Flags().DurationVar(&timeout, cliTimeoutKey, 60*time.Second, "Describe-mode timeout")
 	return command
 }
 

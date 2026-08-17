@@ -116,6 +116,8 @@ type BackendRef struct {
 	RequiresCapabilities []string    `json:"requires_capabilities,omitempty"`
 }
 
+type Badge string
+
 type BlockKind string
 
 type BlockedReason struct {
@@ -175,8 +177,3 @@ type BridgeCheckResponse struct {
 type BridgeCheckStatus string
 
 type BridgeDMPolicy string
-
-type BridgeDegradation struct {
-	Reason  BridgeDegradationReason `json:"reason"`
-	Message string                  `json:"message,omitempty"`
-}

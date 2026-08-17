@@ -61,7 +61,7 @@ type networkWakePrompter interface {
 		message string,
 		meta ...acp.PromptNetworkMeta,
 	) (<-chan acp.AgentEvent, error)
-	CancelPrompt(ctx context.Context, sessionID string) error
+	CancelPrompt(ctx context.Context, sessionID string) (session.PromptCancelResult, error)
 }
 
 type networkWakeStore interface {

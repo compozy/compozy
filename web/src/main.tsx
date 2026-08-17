@@ -49,7 +49,14 @@ if (rootElement && !rootElement.innerHTML) {
           <TanStackQueryProvider {...TanStackQueryProviderContext}>
             <RouterProvider router={router} />
           </TanStackQueryProvider>
-          <Toaster />
+          {/* Top-right, clear of the menubar: the shell's floating-chrome
+              region, and the one corner the dock never occupies. */}
+          <Toaster
+            expand
+            position="top-right"
+            visibleToasts={5}
+            offset={{ top: "3rem", right: "0.75rem" }}
+          />
         </TooltipProvider>
       </UIProvider>
     </StrictMode>

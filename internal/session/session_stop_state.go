@@ -47,7 +47,10 @@ func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.beginExclusivePromptSetupLocked()
+}
 
+func (s *Session) beginExclusivePromptSetupLocked() (*AgentProcess, error) {
 	if s.State != StateActive {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}

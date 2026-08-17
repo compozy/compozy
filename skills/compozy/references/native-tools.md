@@ -45,7 +45,16 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
 `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_rename`.
+`compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_wait`,
+`compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
+`compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
+
+`compozy__notify` sends one operator notification from the bound session and workspace. Pass a
+required `title` of at most 80 characters and an optional `body` of at most 240 characters. The
+daemon sanitizes and redacts both fields before delivery, then returns exactly one provable outcome:
+`delivered` when at least one live operator catalog-stream subscriber accepted the event,
+`no-client`, `muted-workspace`, or `rate-limited` with `retry_after_ms`. The per-session limit is one
+send per second, including sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
 `new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
@@ -66,6 +75,28 @@ The first prompt to an unbound session requires `runtime.provider`; model, reaso
 are optional snapshot fields. Read the runtime semantics, queued/interrupt snapshot behavior, and
 rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
 `runtime` object rather than deriving it from the session state.
+
+`compozy__session_wait` blocks on one same-workspace session other than the caller. `until` accepts
+the canonical attention/lifecycle badges; omission uses the settled set, and `done` satisfies `idle`.
+`timeout_ms` defaults to 300,000 and cannot exceed 1,800,000. Outcomes are `state-reached`, `timeout`,
+`session-gone`, `canceled`, and `overflow`. A native wait emits activity heartbeats while blocked so
+session supervision does not mistake orchestration for inactivity.
+
+`compozy__session_spawn` creates one governed child of the caller. It requires `agent_name` and a
+positive `ttl_seconds`; optional permission arrays can only narrow the parent. Omitted
+`notify_creator` defaults to true, while explicit false suppresses the synthetic parent wake for
+that child. The result returns the child session ID, role, depth, and TTL expiry.
+
+`compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
+idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another
+session's active prompt and returns `canceled` or `nothing-in-flight` without stopping the session.
+
+`compozy__session_approve` resolves another session's permission request with `allow-once`,
+`allow-always`, `reject-once`, or `reject-always`. `compozy__session_clarify_answer` resolves another
+session's pending question with either a one-based `choice` or text. Both preserve durable
+post-restart interactions and can return `already-resolved`, `resolved-after-restart`, or
+`queue-full`; self-action is denied. Read `compozy session interactions` or
+`compozy__session_status` for the durable request IDs instead of matching display text.
 
 `compozy__session_rewind` is a destructive conversation-only mutation. Pass the durable user
 `message_id`, an idempotency key, and the transcript epoch, generation, and maximum sequence returned

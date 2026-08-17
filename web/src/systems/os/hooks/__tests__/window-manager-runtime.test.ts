@@ -62,6 +62,8 @@ const CONFIG: WindowManagerConfig = {
   },
   bindings: { topCenter: "zoom", bottomCenter: "reserved" },
   shortcuts: {},
+  shortcutDefaults: {},
+  effectiveShortcuts: {},
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {

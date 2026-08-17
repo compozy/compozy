@@ -40,9 +40,10 @@ type permissionPolicy struct {
 
 // ApproveRequest resolves one pending permission request.
 type ApproveRequest struct {
-	RequestID string `json:"request_id,omitempty"`
-	TurnID    string `json:"turn_id,omitempty"`
-	Decision  string `json:"decision"`
+	RequestID  string `json:"request_id,omitempty"`
+	TurnID     string `json:"turn_id,omitempty"`
+	Decision   string `json:"decision"`
+	ResolvedBy string `json:"-"`
 }
 
 // RequestPermissionRequest asks the session permission bridge for a tool-call decision.

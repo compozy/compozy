@@ -62,6 +62,25 @@ child runs in. Use `--workspace` for that.
 The response includes the child session, lineage, and safe permission projection. It does not create
 or claim task work by itself.
 
+## Wake the creator
+
+CompozyOS queues a sanitized synthetic turn on the parent when a child stops, fails, or enters a
+needs-you state. This `notify_creator` behavior defaults to on and never interrupts an active parent
+prompt. It is suppressed when the parent is no longer live or the delivery would wake the same
+session.
+
+Opt out for one child when the parent already has another coordination channel:
+
+```bash
+compozy spawn \
+  --agent reviewer \
+  --ttl-seconds 1800 \
+  --no-notify-creator
+```
+
+HTTP, UDS, and `compozy__session_spawn` use the presence-aware `notify_creator` boolean: omission
+keeps the default, while explicit false opts out. There is no `config.toml` key for this default.
+
 ## Cross-workspace spawn
 
 `--workspace` overrides the workspace the child runs in. It takes a workspace id, a workspace name,
@@ -133,5 +152,6 @@ The daemon enforces the permission subset after hook patches.
 
 - [Agent Spawning](/docs/agents/spawning) explains normal session launch behavior.
 - [Session Lifecycle](/docs/sessions/lifecycle) explains the `spawned` session type.
+- [Session Orchestration](/docs/sessions/orchestration) covers wait, interaction resolution, prompt cancel, and native tools.
 - [Task Runs and Leases](/docs/autonomy/task-runs-and-leases) explains child lease release.
 - [Spawn CLI Reference](/docs/cli/spawn) lists exact flags.

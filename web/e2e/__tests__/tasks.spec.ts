@@ -6,9 +6,10 @@ import {
   sessionWindowSelectors,
   tasksOperatorSelectors,
 } from "../fixtures/selectors";
-import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
+import { openAppWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
+import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktree-repo";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
@@ -27,6 +28,13 @@ const tasksSessionAgentName = "browser-lifecycle-agent";
 const createdDraftDescription =
   "Use the shared browser lane to capture fresh Tasks evidence for task_19.";
 const deleteDraftDescription = "Exercise the shared delete confirmation dialog from Tasks e2e.";
+
+let tasksWorktreeRepo: WorktreeRepoFixture | null = null;
+
+test.afterEach(async () => {
+  await tasksWorktreeRepo?.cleanup();
+  tasksWorktreeRepo = null;
+});
 
 function tasksSessionPath(sessionId: string): string {
   return `/agents/${tasksSessionAgentName}/sessions/${sessionId}`;
@@ -304,14 +312,20 @@ test("operator sets the task worktree policy from the setup sheet", async ({
   runtime,
 }) => {
   await completeOnboardingIfPrompted(appPage);
+  tasksWorktreeRepo = await createWorktreeRepo();
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
+    referenceTaskScope: "workspace",
     sessionAgentName: tasksSessionAgentName,
+    workspaceRootDir: tasksWorktreeRepo.rootDir,
   });
   const taskId = seeded.referenceTask.id;
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await openAppWindow(appPage, "Tasks", "tasks");
-  await appPage.getByTestId(`tasks-row-${taskId}`).click();
-  await appPage.getByTestId("tasks-detail-setup").click();
+  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+  const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
+  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
+  await tasksUI.taskCard(taskId).click();
+  await appPage.getByTestId("tasks-rail-edit-setup").click();
+  await appPage.getByTestId("tasks-setup-edit").click();
 
   const policy = appPage.locator('[data-slot="task-worktree-policy"]');
   await expect(policy).toBeVisible();
@@ -339,13 +353,19 @@ test("operator sets the task worktree policy from the setup sheet", async ({
 // result attributes each run to the worktree the response named.
 test("operator isolates each fan-out run in its own worktree", async ({ appPage, runtime }) => {
   await completeOnboardingIfPrompted(appPage);
+  tasksWorktreeRepo = await createWorktreeRepo();
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
+    referenceTaskScope: "workspace",
     sessionAgentName: tasksSessionAgentName,
+    workspaceRootDir: tasksWorktreeRepo.rootDir,
   });
   const taskId = seeded.referenceTask.id;
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await openAppWindow(appPage, "Tasks", "tasks");
-  await appPage.getByTestId(`tasks-row-${taskId}`).click();
+  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+  const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
+  const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
+  await tasksUI.taskCard(taskId).click();
+  await tasksUI.detailOverflow.click();
   await appPage.getByTestId("tasks-detail-fan-out").click();
 
   await appPage

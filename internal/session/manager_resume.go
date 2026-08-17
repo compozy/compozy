@@ -77,6 +77,9 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 			errors.Join(validationErrs...),
 		)
 	}
+	if _, err := m.RecoverPendingInteractions(ctx, target); err != nil {
+		return nil, err
+	}
 
 	spec, err := m.prepareResumeStart(ctx, meta)
 	if err != nil {

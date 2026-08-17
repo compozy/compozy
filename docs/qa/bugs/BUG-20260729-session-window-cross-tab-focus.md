@@ -73,3 +73,31 @@ passed against independent fixtures, isolating the failure to the document/windo
 
 - **Evidence:** `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/047-session-delete-attach`
 - **Report:** `docs/qa/reports/2026-07-28-untested-full.md`
+
+## Re-found and fixed (2026-08-16) — RT-web-attention-bell-jump
+
+The Herdr parity replay exposed another stale-topology path in the shared attention jump. Selecting
+the foreign `release-manager-agent` Finished row changed the active workspace from `ws_launch_hq` to
+`ws_platform_control`, but the hook treated any live Window Manager client as sufficient and issued
+the open against the previous workspace's projection. The route changed while no matching session
+window opened.
+
+The hook now derives the command workspace from the live Window Manager snapshot and waits until it
+equals the target workspace before opening. A canonical hook regression first reproduced the stale
+manager call, then passed with the workspace-bound barrier. During the same replay, the daemon's
+window-manager settings response was found to encode disabled shortcut arrays as `null`; the Web
+contract rejected that response and kept Window Manager commands unavailable. The API boundary now
+copies every shortcut into a non-nil slice so disabled bindings encode as `[]` without weakening the
+Web schema.
+
+- **Regression tests:** `web/src/systems/os/hooks/__tests__/use-attention-jump.test.tsx`;
+  `internal/api/core/settings_test.go`.
+- **Retest:** pass in isolated lab `northstar-pay-20260816-141901-835450`. From `ws_launch_hq`, the
+  Needs-you row for `sess-287ab2f0a074001d` switched to `ws_platform_control`, POSTed the target
+  workspace's Window Manager command with HTTP 200, opened the named session, approved its pending
+  permission in the Web UI, and returned it to `idle`. Opening the remaining Finished row acquired
+  presence and reduced the daemon summary to `needs_you=0`, `finished=0`.
+- **Evidence:**
+  `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-cross-workspace-needs-you-fixed.png`;
+  `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/screenshots/herdr-attention-all-quiet-cleared.png`.
+- **Report:** `docs/qa/reports/2026-08-16-herdr-parity.md`.

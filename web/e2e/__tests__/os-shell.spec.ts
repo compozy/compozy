@@ -79,6 +79,11 @@ test.use({
  * E2E-010 → E2E-035 ·  E2E-011 → E2E-043 ·  E2E-012 → E2E-036
  * E2E-013 → E2E-039 ·  E2E-014 → E2E-038 ·  E2E-015 → E2E-044
  * E2E-016 → E2E-037 ·  E2E-018 → E2E-045
+ *
+ * Herdr parity contract coverage (`.compozy/tasks/herdr-parity/_tests.md`) is
+ * prefixed `Herdr ` because this suite's physical numbering already claims the
+ * same digits: Herdr E2E-016 (⌘E → Sessions view → land) and Herdr E2E-019
+ * (nested view push, pop, and reopen-at-root).
  */
 
 interface NormalizedRect {
@@ -568,6 +573,120 @@ test("E2E-008: palette stays global while RuntimeSelector owns scoped ⌘J", asy
   await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
 });
 
+test("Herdr E2E-016: ⌘E lands on a session while the shared chords keep their rules", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const target = await createNamedSession(runtime, workspace.id, "Palette view target");
+  await createNamedSession(runtime, workspace.id, "Palette view neighbour");
+
+  // ⌘E deep-opens the palette inside the Sessions view.
+  await appPage.keyboard.press("ControlOrMeta+E");
+  const palette = appPage.getByTestId("os-command-palette");
+  await expect(palette).toBeVisible();
+  await expect(palette).toHaveAttribute("data-palette-view", "sessions");
+  await expect(palette.getByTestId("os-palette-breadcrumb")).toContainText("Sessions");
+
+  // Chips narrow by state class and report truthful counts.
+  const idleChip = palette.getByTestId("os-palette-session-filter-idle");
+  await expect(idleChip).toBeVisible();
+  await palette.getByTestId("os-palette-session-filter-finished").click();
+  await expect(palette.getByTestId(`os-palette-session-view-${target.id}`)).toHaveCount(0);
+  await idleChip.click();
+  const targetRow = palette.getByTestId(`os-palette-session-view-${target.id}`);
+  await expect(targetRow).toBeVisible();
+
+  // Typing narrows, ⏎ lands on the session window and closes the palette.
+  const search = palette.getByPlaceholder("Search sessions…");
+  await search.fill("Palette view target");
+  await expect(palette.getByTestId(/^os-palette-session-view-/)).toHaveCount(1);
+  await search.press("Enter");
+  const sessionWin = sessionWindow(appPage, target.id);
+  await expect(sessionWin).toBeVisible();
+  await expect(palette).toHaveCount(0);
+
+  // Closing the window and activating the row again restores it (US-030.EC-4).
+  await sessionWin.getByRole("button", { name: "Close window" }).click();
+  await expect(sessionWin).toHaveCount(0);
+  await appPage.keyboard.press("ControlOrMeta+E");
+  await palette.getByTestId(`os-palette-session-view-${target.id}`).click();
+  await expect(sessionWindow(appPage, target.id)).toBeVisible();
+
+  // ⌘B toggles the sessions sidebar.
+  const sidebar = appPage.getByTestId("session-sidebar");
+  const sidebarVisible = await sidebar.isVisible();
+  await appPage.keyboard.press("ControlOrMeta+B");
+  await expect(sidebar).toBeVisible({ visible: !sidebarVisible });
+
+  // `?` opens the cheatsheet outside editables and types normally inside one.
+  await appPage.keyboard.press("Shift+Slash");
+  const cheatsheet = appPage.getByTestId("os-shortcuts-dialog");
+  await expect(cheatsheet).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(cheatsheet).toHaveCount(0);
+
+  const composer = sessionWindow(appPage, target.id).getByRole("textbox", {
+    name: "Session prompt",
+  });
+  await composer.focus();
+  await appPage.keyboard.press("?");
+  await expect(composer).toHaveText("?");
+  await expect(appPage.getByTestId("os-shortcuts-dialog")).toHaveCount(0);
+
+  // ⌘K still fires from inside an editable after the keymap migration.
+  await appPage.keyboard.press("ControlOrMeta+K");
+  await expect(palette).toBeVisible();
+  await expect(palette).not.toHaveAttribute("data-palette-view", "sessions");
+  await appPage.keyboard.press("ControlOrMeta+K");
+  await expect(palette).toHaveCount(0);
+
+  // Jump-to-attention no-ops calmly when nothing needs the operator.
+  await appPage.keyboard.press("Control+Alt+KeyA");
+  await expect(appPage.getByText("No session needs attention.")).toBeVisible();
+});
+
+test("Herdr E2E-019: palette views push, pop, and always reopen at the root", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  await createNamedSession(runtime, workspace.id, "Nested view session");
+
+  await appPage.keyboard.press("ControlOrMeta+K");
+  const palette = appPage.getByTestId("os-command-palette");
+  await expect(palette).toBeVisible();
+  await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
+
+  // A root view entry pushes the view instead of closing the palette.
+  await palette.getByTestId("os-palette-view-sessions").click();
+  await expect(palette).toHaveAttribute("data-palette-view", "sessions");
+  await expect(palette.getByTestId("os-palette-breadcrumb")).toContainText("Sessions");
+  await expect(palette.getByTestId("os-palette-view-sessions")).toHaveCount(0);
+
+  // ⌫ edits the query while it has text, and pops only once it is empty.
+  const search = palette.getByPlaceholder("Search sessions…");
+  await search.fill("nested");
+  await search.press("Backspace");
+  await expect(search).toHaveValue("neste");
+  await expect(palette).toHaveAttribute("data-palette-view", "sessions");
+  await search.fill("");
+  await search.press("Backspace");
+  await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
+  await expect(palette.getByTestId("os-palette-view-sessions")).toBeVisible();
+
+  // Dismiss closes the whole stack, and reopening starts at the root.
+  await palette.getByTestId("os-palette-view-sessions").click();
+  await expect(palette).toHaveAttribute("data-palette-view", "sessions");
+  await appPage.keyboard.press("Escape");
+  await expect(palette).toHaveCount(0);
+
+  await appPage.keyboard.press("ControlOrMeta+K");
+  await expect(palette).toBeVisible();
+  await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
+  await expect(palette.getByTestId("os-palette-view-sessions")).toBeVisible();
+});
+
 test("E2E-010 and E2E-018: peers converge topology while presentation stays client-local", async ({
   appPage,
   browser,
@@ -1040,11 +1159,11 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await expect(workspaces.getByTestId("os-workspaces-caption")).toContainText(secondWorkspace.name);
   await appPage.keyboard.press("Escape");
   await expect(workspaces).toHaveCount(0);
-  // ⇧⌘W is the registered overlay chord (workspaces.overview).
-  await appPage.keyboard.press("ControlOrMeta+Shift+W");
+  // ⇧⌘O is the registered workspace picker chord.
+  await appPage.keyboard.press("ControlOrMeta+Shift+O");
   await expect(appPage.getByTestId("os-workspaces-overview")).toBeVisible();
   await appPage.keyboard.press("Escape");
-  await appPage.keyboard.press("ControlOrMeta+Shift+S");
+  await appPage.keyboard.press("ControlOrMeta+Shift+D");
   await expect(desktops).toBeVisible();
   await appPage.keyboard.press("Escape");
 
@@ -1054,7 +1173,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await expect(shortcuts).toBeVisible();
   // Every registry action is listed, bound or not.
   await expect(shortcuts.getByTestId("os-shortcut-row-window.close")).toContainText("⌘W");
-  await expect(shortcuts.getByTestId("os-shortcut-row-workspaces.overview")).toContainText("⌘⇧W");
+  await expect(shortcuts.getByTestId("os-shortcut-row-workspace.picker")).toContainText("⌘⇧O");
   await expect(shortcuts.getByTestId("os-shortcut-row-window.tile.top")).toBeVisible();
   await appPage.keyboard.press("Escape");
   await expect(shortcuts).toHaveCount(0);
@@ -3608,7 +3727,7 @@ test("operator sees one nested worktree tree across all three workspace-listing 
     await expect(palette).toBeVisible();
     const paletteRow = palette.getByTestId(`os-palette-worktree-${worktree.id}`);
     await expect(paletteRow).toContainText("payments-retry");
-    await paletteRow.press("Enter");
+    await paletteRow.click();
     await expect(palette).toHaveCount(0);
 
     // Surface 3 — the overview's vertical worktree menu, always visible for

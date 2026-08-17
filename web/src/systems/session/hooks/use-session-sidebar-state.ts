@@ -64,6 +64,10 @@ export const sessionSidebarStore = sessionSidebarLogic.createStore().with(
   })
 );
 
+export function toggleSessionSidebar(): void {
+  sessionSidebarStore.trigger.sidebarToggled();
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("storage", event => {
     if (event.key === SESSION_SIDEBAR_STORAGE_KEY) {
@@ -94,7 +98,7 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
 
   return {
     open,
-    toggle: () => sessionSidebarStore.trigger.sidebarToggled(),
+    toggle: toggleSessionSidebar,
     setOpen: (nextOpen: boolean) =>
       sessionSidebarStore.trigger.sidebarVisibilityChanged({ open: nextOpen }),
     collapsedThreadIds,

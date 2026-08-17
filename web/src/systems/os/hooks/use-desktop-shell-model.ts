@@ -2,12 +2,14 @@ import { useState } from "react";
 
 import { useAgentCreateDialog, useAgents } from "@/systems/agent";
 import { useSessionCatalogStreams, useSessionCreateDialogController } from "@/systems/session";
+
+import { publishAttentionEdge, publishOperatorNotification } from "../lib/attention-edge-bus";
 import {
   useActiveWorkspace,
   useUserHomeDir,
   useWorkspace,
   useWorktreeCatalogStream,
-  useWorktreeListings,
+  useWorktrees,
 } from "@/systems/workspace";
 
 /**
@@ -47,8 +49,12 @@ export function useDesktopShellModel() {
   const workspaceAgents = runtimeWorkspaceId === null ? undefined : agents;
   const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
   const [worktreeCreateWorkspaceId, setWorktreeCreateWorkspaceId] = useState<string | null>(null);
+  // Attention edges leave the stream through the module-level bus so the
+  // notifier can subscribe without ever reopening this connection.
   const sessionCatalogStreamStatus = useSessionCatalogStreams(registeredWorkspaces, {
     enabled: registeredWorkspaces.length > 0,
+    onAttentionEdge: publishAttentionEdge,
+    onOperatorNotification: publishOperatorNotification,
   });
 
   // One catalog subscription per shell; the query stays the snapshot authority
@@ -56,14 +62,8 @@ export function useDesktopShellModel() {
   const worktreeCatalogStreamStatus = useWorktreeCatalogStream(workspaces, {
     enabled: hasWorkspaces,
   });
-  // The switcher, the menubar menu, and the overview all list every workspace,
-  // so every authorized workspace's worktrees are loaded — scoping to the active
-  // one would silently drop the rest of the tree.
-  const worktreesByWorkspace = useWorktreeListings(workspaces, { enabled: hasWorkspaces });
+  const activeWorktrees = useWorktrees(activeWorkspaceId, { enabled: activeWorkspaceId !== null });
   const userHomeDir = useUserHomeDir();
-  const activeWorktreeListing = activeWorkspaceId
-    ? worktreesByWorkspace[activeWorkspaceId]
-    : undefined;
   const sessionCreate = useSessionCreateDialogController();
   const agentCreate = useAgentCreateDialog({
     activeWorkspace,
@@ -103,8 +103,7 @@ export function useDesktopShellModel() {
     agentCreate,
     userHomeDir,
     worktreeCatalogStreamStatus,
-    worktreesByWorkspace,
-    worktreeListing: activeWorktreeListing,
+    worktreeListing: activeWorktrees.data,
     worktreeCreateWorkspaceId,
     setWorktreeCreateWorkspaceId,
     openWorktreeCreate: (workspaceId: string) => setWorktreeCreateWorkspaceId(workspaceId),

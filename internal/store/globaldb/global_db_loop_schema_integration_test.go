@@ -27,6 +27,16 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
+		seedLoopTestWorkspaces(t, first, "ws-loop-environment")
+		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
+		if err := first.UpsertLoopConfig(
+			testutil.Context(t),
+			"ws-loop-environment",
+			"delivery",
+			looppkg.LoopConfig{Environment: &environment},
+		); err != nil {
+			t.Fatalf("UpsertLoopConfig(environment) error = %v", err)
+		}
 		assertLoopRunStateSchema(t, first)
 		if err := first.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(first) error = %v", err)
@@ -42,6 +52,13 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			}
 		})
 		assertLoopRunStateSchema(t, second)
+		stored, err := second.GetLoopConfig(testutil.Context(t), "ws-loop-environment", "delivery")
+		if err != nil {
+			t.Fatalf("GetLoopConfig(reopened environment) error = %v", err)
+		}
+		if stored.Environment == nil || stored.Environment.Mode != dsl.EnvironmentPerRun {
+			t.Fatalf("reopened Environment = %#v, want per_run", stored.Environment)
+		}
 	})
 
 	t.Run("Should enforce immutable lineage and paired best-state constraints", func(t *testing.T) {
@@ -861,6 +878,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"gate_max_revisions",
 		"runtime_defaults_json",
 		"runtime_rules_json",
+		"environment_json",
 	})
 	assertTableHasColumn(t, globalDB.db, "task_runs", "run_kind")
 	assertTableHasColumn(t, globalDB.db, "task_runs", "loop_run_id")

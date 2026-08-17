@@ -226,7 +226,9 @@ func (p *AgentProcess) handleRequestPermission(
 		case errors.Is(err, ErrPermissionDenied):
 			outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
 			raw := buildPermissionEventRaw(requestID, appliedDecision, request)
-			p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, raw)
+			p.emitPermissionEvent(
+				sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "provider", raw,
+			)
 			return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 		default:
 			return acpsdk.RequestPermissionResponse{}, err
@@ -242,14 +244,16 @@ func (p *AgentProcess) handleRequestPermission(
 	if !interactive {
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
 		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
-		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, raw)
+		p.emitPermissionEvent(
+			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "provider", raw,
+		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	}
 
 	requestID, pending := p.registerPendingPermission(turnID, request)
 	defer p.clearPendingPermission(requestID)
 	raw := buildPermissionEventRaw(requestID, decisionPending, request)
-	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", raw)
+	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw)
 
 	timer := time.NewTimer(p.permissionTimeoutOrDefault())
 	defer timer.Stop()
@@ -258,12 +262,16 @@ func (p *AgentProcess) handleRequestPermission(
 	case resolvedDecision := <-pending.response:
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, resolvedDecision)
 		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
-		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, raw)
+		p.emitPermissionEvent(
+			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, pending.resolvedBy, raw,
+		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	case <-timer.C:
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
 		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
-		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, raw)
+		p.emitPermissionEvent(
+			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "provider", raw,
+		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	case <-ctx.Done():
 		return acpsdk.RequestPermissionResponse{

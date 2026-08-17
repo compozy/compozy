@@ -16,7 +16,10 @@ flowchart TD
     V -->|valid| S[Save through the owning public API]
     S --> P[Show live, restart-required, or failed apply truth]
     P --> F[Fresh read, page reload, and structured surface comparison]
-    F --> Z[True end: persisted value, provenance, and apply state agree]
+    F --> A{Attention policy?}
+    A -->|yes| C[Trigger toast, sound, system, and muted-workspace outcomes]
+    A -->|no| Z[True end: persisted value, provenance, and apply state agree]
+    C --> Z
 ```
 
 ```yaml
@@ -29,6 +32,8 @@ journey:
     - url: "web Settings window"
       origin: in-app-nav
     - url: "CLI, HTTP, UDS, and native configuration surfaces"
+      origin: direct
+    - url: "config.toml [attention]; compozy config get/set attention.*; GET/PATCH /api/settings/attention over HTTP or UDS"
       origin: direct
   actions:
     - step: 1
@@ -43,6 +48,9 @@ journey:
     - step: 4
       verb: "Reload and compare structured output"
       expected_observable: "Persisted value, active value, and restart requirement still agree"
+    - step: 5
+      verb: "Exercise each attention channel and workspace mute"
+      expected_observable: "Toast, sound, system permission, and mute behavior reflect the persisted live policy without claiming unavailable delivery"
   goal:
     observable: "The intended setting is durable and its runtime apply state is explicit across Web and agent-manageable surfaces"
     side_effects: [config-persisted, runtime-apply-attempted]
@@ -55,3 +63,9 @@ journey:
       resume: "Reopen the section; the prior effective configuration remains authoritative."
   crosses: [settings-web, config-lifecycle, HTTP, UDS, CLI, native-tools, observability]
 ```
+
+design_reference:
+  locked_root: "docs/design/opendesign/herdr-parity/"
+  visual_contracts:
+    - "task_03 VC-21..VC-23 — herdr-parity-settings-attention.html"
+  judgment_rule: "Judge the Attention section against the locked board while daemon values and real browser permission state remain authoritative."

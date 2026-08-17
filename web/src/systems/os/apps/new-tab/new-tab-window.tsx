@@ -1,6 +1,7 @@
 import { Button, Kbd, useTopbarSlot } from "@compozy/ui";
 
-import { COMMAND_PALETTE_SHORTCUT_LABEL } from "../../lib/shell-shortcuts";
+import { useDesktop } from "../../hooks/use-desktop";
+import { shortcutActionLabel } from "../../lib/window-manager-shortcuts";
 import { windowManagerStore } from "../../stores/window-manager-store";
 
 /**
@@ -9,6 +10,13 @@ import { windowManagerStore } from "../../stores/window-manager-store";
  * shell palette opens scoped to this window and navigating replaces the tab.
  */
 export function NewTabWindow({ windowId }: { windowId: string }) {
+  const paletteShortcutLabel = useDesktop(state =>
+    shortcutActionLabel(
+      state.windowManagerConfig?.effectiveShortcuts,
+      "palette.open",
+      typeof navigator === "undefined" ? "" : navigator.platform
+    )
+  );
   useTopbarSlot({
     crumb: <span className="text-muted">New tab</span>,
   });
@@ -33,9 +41,11 @@ export function NewTabWindow({ windowId }: { windowId: string }) {
       >
         Choose a destination
       </Button>
-      <p className="text-small-body text-subtle">
-        or press <Kbd>{COMMAND_PALETTE_SHORTCUT_LABEL}</Kbd>
-      </p>
+      {paletteShortcutLabel ? (
+        <p className="text-small-body text-subtle">
+          or press <Kbd>{paletteShortcutLabel}</Kbd>
+        </p>
+      ) : null}
     </div>
   );
 }

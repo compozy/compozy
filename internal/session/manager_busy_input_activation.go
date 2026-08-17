@@ -45,7 +45,7 @@ func (m *Manager) activateInterruptingInput(
 			activeTurnID,
 		)
 	}
-	if err := m.CancelPrompt(ctx, session.ID); err != nil {
+	if _, err := m.CancelPrompt(ctx, session.ID); err != nil {
 		return err
 	}
 	if !session.IsPrompting() {

@@ -22,7 +22,7 @@ func (b *harnessReentryBridge) applyWakeDecision(
 	agentName string,
 	completionSequence int64,
 	completedAt time.Time,
-	decision harnessReentryDecision,
+	decision *harnessReentryDecision,
 ) error {
 	switch decision.outcome {
 	case harnessReentryOutcomeSilent:

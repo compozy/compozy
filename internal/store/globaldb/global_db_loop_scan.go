@@ -249,6 +249,7 @@ type loopConfigScanValues struct {
 	gateMaxRevisions    sql.NullInt64
 	runtimeDefaultsJSON sql.NullString
 	runtimeRulesJSON    sql.NullString
+	environmentJSON     sql.NullString
 }
 
 func (v loopConfigScanValues) toConfig() (looppkg.LoopConfig, error) {
@@ -295,6 +296,13 @@ func (v loopConfigScanValues) toConfig() (looppkg.LoopConfig, error) {
 			return looppkg.LoopConfig{}, fmt.Errorf("store: decode loop runtime rules: %w", err)
 		}
 		cfg.RuntimeRules = rules
+	}
+	if v.environmentJSON.Valid {
+		var environment dsl.EnvironmentSpec
+		if err := json.Unmarshal([]byte(v.environmentJSON.String), &environment); err != nil {
+			return looppkg.LoopConfig{}, fmt.Errorf("store: decode loop environment: %w", err)
+		}
+		cfg.Environment = &environment
 	}
 	return cfg, nil
 }

@@ -28,7 +28,9 @@ flowchart TD
     Q -->|nobody answers before timeout| TS[Unanswered sentinel Choice=nil Text empty Fallback=true — never a synthesized selection]
     Q -.->|operator closes the tab| AB[Abandon: question stays pending in-memory]
     AB -.->|returns before timeout| AN
-    AB -.->|daemon restarts| CLR[Pending cleared per-boot; no ghost prompt]
+    AB -.->|daemon restarts| ORPHAN[Durable request becomes orphaned with the same interaction ID]
+    ORPHAN -->|operator resolves once| RESUME[Resolution and continuation queue commit atomically]
+    RESUME --> TE
     AN --> TE[True end: fresh reads show the grant list, zero re-prompts for granted calls, and the clarify answer inside the durable tool result]
     RP --> TE
 ```
@@ -44,7 +46,11 @@ journey:
       origin: in-app-nav
     - url: "CLI: compozy tool approvals set|list|revoke; compozy session clarify pending|answer"
       origin: direct
-    - url: "HTTP/UDS: /api/tool-approval-grants; /api/workspaces/:workspace_id/sessions/:session_id/clarifications"
+    - url: "CLI: compozy session interactions <session-id>; compozy session status <session-id>"
+      origin: direct
+    - url: "HTTP/UDS: /api/tool-approval-grants; GET .../interactions; POST .../approve; POST .../clarifications/:request_id/answer"
+      origin: direct
+    - url: "native: compozy__session_approve; compozy__session_clarify_answer"
       origin: direct
   actions:
     - step: 1
@@ -57,8 +63,8 @@ journey:
       verb: "Set one explicit agent-wide and one tool-wide decision, then revoke"
       expected_observable: "Wider grants exist only through explicit set surfaces (no input_digest), list identically across Web/CLI/HTTP/UDS/native, and revocation restores prompting"
     - step: 4
-      verb: "Answer a live compozy__clarify question"
-      expected_observable: "The card shows the exact question and ≤4 choices; the answer lands in the tool result and unblocks the turn; a timeout resolves the unanswered sentinel"
+      verb: "Answer a live compozy__clarify question through Web or a governed native tool"
+      expected_observable: "The card and interaction read show the same sanitized question and ≤4 choices; a live answer reports answered and unblocks the turn; after restart the durable orphan resolves once, queues one continuation, and duplicate resolution returns the original winner"
   goal:
     observable: "Zero re-prompts for remembered decisions; the clarify answer is inside the durable tool result"
     side_effects: [approval-grant-persisted, canonical-grant-events, clarify-session-events]
@@ -68,6 +74,6 @@ journey:
   abandonment:
     - at_step: 4
       how: "The operator never answers the clarify question."
-      resume: "The configured timeout resolves the explicit unanswered sentinel (never a synthesized choice); pending state is per-boot, so a restart clears it without ghost prompts."
+      resume: "The configured timeout resolves the explicit unanswered sentinel (never a synthesized choice). After a daemon restart, the durable request remains discoverable as orphaned and an explicit resolution atomically queues one continuation; queue-full leaves it retryable."
   crosses: [tool-approval-bridge, three-mode-policy, GlobalDB-grants, clarify-broker, SSE, Web-settings, CLI, HTTP, UDS, native-tools]
 ```

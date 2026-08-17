@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Menubar, MenubarTrigger, UIProvider } from "@compozy/ui";
 
-import type { WorkspacePayload } from "@/systems/workspace";
+import { GLOBAL_SCOPE_COPY, type WorkspacePayload } from "@/systems/workspace";
 import {
   discoveredOnlyWorktreeListingFixture,
   discoveredWorktreeFixture,
@@ -284,6 +284,24 @@ describe("WorkspaceMenu", () => {
 
     await screen.findByTestId(`os-worktree-copy-path-${DISCOVERED_KEY}`);
     expect(screen.queryByTestId(`os-worktree-remove-${DISCOVERED_KEY}`)).not.toBeInTheDocument();
+  });
+
+  it("Should omit the Global-on info notice", () => {
+    renderMenu({ globalScopeOn: true });
+
+    expect(screen.queryByText(/Global scope is on/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("os-workspace-deletion-notice")).not.toBeInTheDocument();
+  });
+
+  it("Should keep a deletion notice when the remembered workspace was removed", () => {
+    renderMenu({
+      globalScopeOn: true,
+      deletionNotice: GLOBAL_SCOPE_COPY.rememberedWorkspaceRemoved,
+    });
+
+    expect(screen.getByTestId("os-workspace-deletion-notice")).toHaveTextContent(
+      GLOBAL_SCOPE_COPY.rememberedWorkspaceRemoved
+    );
   });
 
   it("Should omit Remove while a worktree is not ready", async () => {

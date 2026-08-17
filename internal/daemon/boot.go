@@ -88,6 +88,7 @@ type bootState struct {
 	worktrees              *worktree.Service
 	windowManagerBootState
 	sessions              SessionManager
+	sessionWakeBridge     *sessionWakeBridge
 	hostedMCP             *mcppkg.HostedService
 	providerVault         *vault.Service
 	modelCatalog          *modelCatalogRuntime
@@ -113,6 +114,7 @@ type bootState struct {
 	toolsets              core.ToolsetRegistry
 	toolApprovals         toolspkg.ApprovalTokenIssuer
 	clarify               *clarifyBridge
+	attentionMuteMutator  attentionWorkspaceMuteMutator
 	observer              Observer
 	lifecycleObservers    *sessionLifecycleFanout
 	hookTelemetrySinks    *hookTelemetryFanout

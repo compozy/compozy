@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // SessionListQuery captures the CLI filters for one session catalog page.
@@ -22,6 +23,8 @@ type SessionListQuery struct {
 	Root          string
 	Query         string
 	Resumable     bool
+	Attention     bool
+	Badges        []session.Badge
 	Archive       string
 	IncludeHealth bool
 	Limit         int
@@ -105,6 +108,16 @@ func sessionListValues(query SessionListQuery) url.Values {
 	}
 	if query.Resumable {
 		values.Set("resumable", "true")
+	}
+	if query.Attention {
+		values.Set("attention", "true")
+	}
+	if len(query.Badges) > 0 {
+		badges := make([]string, 0, len(query.Badges))
+		for _, badge := range query.Badges {
+			badges = append(badges, string(badge))
+		}
+		values.Set("badge", strings.Join(badges, ","))
 	}
 	if archive := strings.TrimSpace(query.Archive); archive != "" {
 		values.Set("archive", archive)

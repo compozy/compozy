@@ -5107,6 +5107,9 @@ func TestBootCreatesWorkspaceResolverAndInjectsSessionManager(t *testing.T) {
 	if capturedDeps.SandboxRegistry == nil {
 		t.Fatal("boot() did not inject the session manager sandbox registry")
 	}
+	if capturedDeps.SpawnWakeNotifier == nil || capturedDeps.SpawnWakeNotifier != d.sessionWakeBridge {
+		t.Fatal("boot() did not inject the daemon-owned session wake bridge")
+	}
 	if capturedDeps.SessionCompaction != cfg.Session.Compaction {
 		t.Fatalf(
 			"session compaction config = %#v, want %#v",
@@ -6706,6 +6709,7 @@ type fakeSessionManager struct {
 	stopCalls                []string
 	deleteCalls              []string
 	repairCalls              []session.RepairOpts
+	pendingRecoveryCalls     []string
 	stopWithCauseCalls       []fakeStopWithCauseCall
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
@@ -6893,6 +6897,13 @@ func (f *fakeSessionManager) List() []*session.Info {
 
 func (f *fakeSessionManager) ListAll(context.Context) ([]*session.Info, error) {
 	return f.List(), nil
+}
+
+func (f *fakeSessionManager) RecoverPendingInteractions(_ context.Context, sessionID string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pendingRecoveryCalls = append(f.pendingRecoveryCalls, sessionID)
+	return 1, nil
 }
 
 func (f *fakeSessionManager) Status(_ context.Context, id string) (*session.Info, error) {
@@ -7286,6 +7297,16 @@ func TestBootSessionRepair(t *testing.T) {
 		if manager.repairCalls[0].SessionID != "sess-crash" || manager.repairCalls[1].SessionID != "sess-error" {
 			t.Fatalf("repair calls = %#v, want crash then error sessions", manager.repairCalls)
 		}
+		if got, want := manager.pendingRecoveryCalls, []string{
+			"sess-crash",
+			"sess-error",
+			"sess-complete",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("pending recovery calls = %#v, want %#v", got, want)
+		}
 	})
 }
 
@@ -7420,8 +7441,11 @@ func (f *fakeSessionManager) PromotePendingInputToSteer(
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
-func (f *fakeSessionManager) CancelPrompt(context.Context, string) error {
-	return nil
+func (f *fakeSessionManager) CancelPrompt(
+	context.Context,
+	string,
+) (session.PromptCancelResult, error) {
+	return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled}, nil
 }
 
 func (f *fakeSessionManager) PromptSynthetic(
@@ -7452,8 +7476,12 @@ func (f *fakeSessionManager) PromptSynthetic(
 	return ch, nil
 }
 
-func (f *fakeSessionManager) ApprovePermission(context.Context, string, acp.ApproveRequest) error {
-	return nil
+func (f *fakeSessionManager) ApprovePermission(
+	context.Context,
+	string,
+	acp.ApproveRequest,
+) (session.ApprovalResult, error) {
+	return session.ApprovalResult{}, nil
 }
 
 func (f *fakeSessionManager) SetNetworkPeerLifecycle(session.NetworkPeerLifecycle) {}
@@ -10581,6 +10609,13 @@ func (f *fakeHookRuntime) DispatchSessionHealthUpdateAfter(
 	_ context.Context,
 	payload hookspkg.SessionHealthUpdateAfterPayload,
 ) (hookspkg.SessionHealthUpdateAfterPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionAttentionChanged(
+	_ context.Context,
+	payload hookspkg.SessionAttentionChangedPayload,
+) (hookspkg.SessionAttentionChangedPayload, error) {
 	return payload, nil
 }
 

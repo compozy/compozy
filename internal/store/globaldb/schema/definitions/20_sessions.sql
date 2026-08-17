@@ -120,6 +120,13 @@ CREATE TABLE sessions (
 		attached_to    TEXT NOT NULL DEFAULT '',
 		attach_expires_at TEXT,
 		transcript_epoch INTEGER NOT NULL DEFAULT 0,
+		pending_permission_count INTEGER NOT NULL DEFAULT 0 CHECK (pending_permission_count >= 0),
+		pending_clarify_count INTEGER NOT NULL DEFAULT 0 CHECK (pending_clarify_count >= 0),
+		attention_revision INTEGER NOT NULL DEFAULT 0 CHECK (attention_revision >= 0),
+		last_settled_revision INTEGER NOT NULL DEFAULT 0 CHECK (last_settled_revision >= 0),
+		last_seen_revision INTEGER NOT NULL DEFAULT 0 CHECK (last_seen_revision >= 0),
+		last_seen_at TEXT,
+		attention_changed_at TEXT,
 		sandbox_id TEXT NOT NULL DEFAULT '',
 		sandbox_backend TEXT NOT NULL DEFAULT 'local',
 		sandbox_profile TEXT NOT NULL DEFAULT '',
@@ -130,7 +137,7 @@ CREATE TABLE sessions (
 		sandbox_last_sync_error TEXT NOT NULL DEFAULT '',
 		created_at     TEXT NOT NULL,
 		updated_at     TEXT NOT NULL
-	, failure_kind TEXT, failure_summary TEXT NOT NULL DEFAULT '', crash_bundle_path TEXT NOT NULL DEFAULT '', parent_session_id TEXT, root_session_id TEXT, spawn_depth INTEGER NOT NULL DEFAULT 0, spawn_role TEXT, ttl_expires_at TEXT, auto_stop_on_parent BOOLEAN NOT NULL DEFAULT 0, spawn_budget_json TEXT NOT NULL DEFAULT '{}', permission_policy_json TEXT NOT NULL DEFAULT '{}', soul_snapshot_id TEXT
+	, failure_kind TEXT, failure_summary TEXT NOT NULL DEFAULT '', crash_bundle_path TEXT NOT NULL DEFAULT '', parent_session_id TEXT, root_session_id TEXT, spawn_depth INTEGER NOT NULL DEFAULT 0, spawn_role TEXT, ttl_expires_at TEXT, auto_stop_on_parent BOOLEAN NOT NULL DEFAULT 0, notify_creator BOOLEAN NOT NULL DEFAULT 1, spawn_budget_json TEXT NOT NULL DEFAULT '{}', permission_policy_json TEXT NOT NULL DEFAULT '{}', soul_snapshot_id TEXT
 				REFERENCES agent_soul_snapshots(id) ON DELETE SET NULL, soul_digest TEXT NOT NULL DEFAULT '', parent_soul_digest TEXT NOT NULL DEFAULT '', input_generation INTEGER NOT NULL DEFAULT 0, creation_digest TEXT
 				CHECK (creation_digest IS NULL OR length(trim(creation_digest)) > 0), policy_spec_digest TEXT
 				CHECK (policy_spec_digest IS NULL OR length(trim(policy_spec_digest)) > 0), creation_profile_ref TEXT
@@ -144,6 +151,22 @@ CREATE TABLE sessions (
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		UNIQUE (workspace_id, id));
+
+CREATE TABLE session_pending_interactions (
+		interaction_id TEXT PRIMARY KEY CHECK (length(trim(interaction_id)) > 0),
+		session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL CHECK (kind IN ('permission', 'clarify')),
+		provider_request_id TEXT NOT NULL CHECK (length(trim(provider_request_id)) > 0),
+		turn_id TEXT NOT NULL DEFAULT '',
+		title TEXT NOT NULL DEFAULT '' CHECK (length(CAST(title AS BLOB)) <= 200),
+		payload_json TEXT NOT NULL DEFAULT '{}'
+			CHECK (json_valid(payload_json) AND length(CAST(payload_json AS BLOB)) <= 4096),
+		status TEXT NOT NULL CHECK (status IN ('pending', 'orphaned', 'resolved', 'timed_out', 'canceled')),
+		created_at TEXT NOT NULL,
+		resolved_at TEXT,
+		resolution TEXT NOT NULL DEFAULT '' CHECK (length(CAST(resolution AS BLOB)) <= 240),
+		resolved_by TEXT NOT NULL DEFAULT ''
+	);
 
 CREATE TABLE token_stats (
 		id            TEXT PRIMARY KEY,
@@ -234,6 +257,13 @@ CREATE INDEX idx_sessions_spawn_role ON sessions(spawn_role);
 CREATE INDEX idx_sessions_type_depth ON sessions(session_type, spawn_depth);
 
 CREATE INDEX idx_sessions_worktree ON sessions(worktree_id) WHERE worktree_id IS NOT NULL;
+
+CREATE INDEX idx_session_pending_interactions_session_status
+		ON session_pending_interactions(session_id, status, created_at, interaction_id);
+
+CREATE UNIQUE INDEX uq_session_pending_interactions_active_provider_request
+		ON session_pending_interactions(session_id, kind, provider_request_id)
+		WHERE status IN ('pending', 'orphaned');
 
 CREATE TRIGGER trg_sessions_archive_insert_guard
 			BEFORE INSERT ON sessions

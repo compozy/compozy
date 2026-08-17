@@ -21,6 +21,7 @@ import { useWindowMergeTarget } from "../hooks/use-window-merge-target";
 import { getOsApp, getOsAppMinimum } from "../lib/app-registry";
 import type { OsWindowFrameModel } from "../lib/group-projection";
 import { ensureWindowSlotStore } from "../lib/window-slot-registry";
+import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import { windowVisualLayer } from "../lib/window-visual-layer";
 import { OsWindowDeck } from "./os-window-deck";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
@@ -54,12 +55,18 @@ export function OsWindow({ frame }: OsWindowProps) {
     registerRnd,
     resizeMax,
   } = useOsWindow(frame);
-  const { presentation, activeApp, reduceMotion } = useDesktop(
-    state => ({
-      presentation: state.presentation,
-      activeApp: state.windows[frame.activeWindowId]?.app ?? null,
-      reduceMotion: state.reduceMotion,
-    }),
+  const { presentation, activeApp, reduceMotion, closeShortcut, newTabShortcut } = useDesktop(
+    state => {
+      const effective = state.windowManagerConfig?.effectiveShortcuts;
+      const platform = typeof navigator === "undefined" ? "" : navigator.platform;
+      return {
+        presentation: state.presentation,
+        activeApp: state.windows[frame.activeWindowId]?.app ?? null,
+        reduceMotion: state.reduceMotion,
+        closeShortcut: shortcutActionLabel(effective, "window.close", platform) ?? undefined,
+        newTabShortcut: shortcutActionLabel(effective, "window.tab.new", platform) ?? undefined,
+      };
+    },
     shallowEqual
   );
   const dragging = useWindowManagerGestureDragging(frame.activeWindowId);
@@ -138,6 +145,7 @@ export function OsWindow({ frame }: OsWindowProps) {
             onTrafficLight={handleTrafficLight}
             zoomMenu={button => <OsZoomMenu windowId={frame.activeWindowId}>{button}</OsZoomMenu>}
             dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
+            shortcutLabels={{ close: closeShortcut, newTab: newTabShortcut }}
           />
         ) : null}
         {frame.members.map(member => (

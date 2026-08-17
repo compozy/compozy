@@ -20,6 +20,7 @@ func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *SessionLinea
 		SpawnRole:        normalized.SpawnRole,
 		TTLExpiresAt:     cloneContractTimePtr(normalized.TTLExpiresAt),
 		AutoStopOnParent: normalized.AutoStopOnParent,
+		NotifyCreator:    normalized.NotifyCreator,
 		SpawnBudget: SpawnBudgetPayload{
 			MaxChildren:           normalized.SpawnBudget.MaxChildren,
 			MaxDepth:              normalized.SpawnBudget.MaxDepth,

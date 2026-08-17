@@ -31,6 +31,10 @@ type sessionClientAPI interface {
 	RewindSession(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
 	ApproveSession(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	ListSessionClarifications(context.Context, string) (ClarificationsRecord, error)
+	ListSessionInteractions(context.Context, string, []string) (SessionInteractionsRecord, error)
+	GetSessionAttentionSummary(context.Context) (SessionAttentionSummaryRecord, error)
+	WaitSession(context.Context, string, string, SessionWaitRequest) (SessionWaitRecord, error)
+	CancelSessionPrompt(context.Context, string) (SessionPromptCancelRecord, error)
 	AnswerSessionClarification(
 		context.Context,
 		string,

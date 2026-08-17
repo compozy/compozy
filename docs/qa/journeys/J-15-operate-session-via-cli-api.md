@@ -7,9 +7,16 @@ flowchart TD
     E1[Entry: compozy CLI] --> C[Create session + send prompt]
     E2[Entry: HTTP client] --> C
     E3[Entry: UDS client] --> C
+    E4[Entry: compozy__ native tools] --> C
     C --> REST[Read bounded transcript tail + older pages via before_sequence]
     C --> STRM[Subscribe SSE: frames=transcript + after_sequence + epoch + generation]
     C -->|ACP process disconnects mid-response| PFAIL[Persist delivered chunks + emit terminal error]
+    C --> W[Wait on an exact badge set without polling]
+    W -->|state reached| CTRL[Stop or cancel another session through governed native tools]
+    W -->|timeout with resume_id| W
+    W -->|gone, canceled, overflow, or cap| OUT[Return one deterministic structured outcome]
+    CTRL --> LS
+    OUT --> LS
     PFAIL --> DIAG[Read process_exit diagnostics + preserved transcript]
     DIAG -->|normal prompt| REFUSED[Reject before session/load]
     REFUSED --> RECAP[Read recap and transcript again]
@@ -38,9 +45,15 @@ journey:
   entry_points:
     - url: "CLI: compozy session ... (create/prompt/events --follow/status/stop)"
       origin: direct
+    - url: "CLI: compozy session list --attention/--badge/--all-workspaces/--summary; interactions; wait --until/--timeout/--unbounded; prompt-cancel; spawn --no-notify-creator; notify"
+      origin: direct
     - url: "HTTP: POST/GET /api/.../sessions/:id/{prompt,stream,transcript,events,recap,stop}"
       origin: direct
+    - url: "HTTP: presence, interactions, attention-summary, wait, notify, spawn, and prompt-cancel routes"
+      origin: direct
     - url: "UDS: same verb set over the CLI socket"
+      origin: direct
+    - url: "native: compozy__notify and compozy__session_{wait,spawn,stop,approve,clarify_answer,prompt_cancel}"
       origin: direct
   actions:
     - step: 1
@@ -58,10 +71,13 @@ journey:
     - step: 5
       verb: "Compare list, detail, and status across surfaces"
       expected_observable: "State is identical across `list`, `detail`, and `status` through spawn → background → stop (and after a daemon restart); HTTP and UDS agree byte-for-byte on the same inputs"
+    - step: 6
+      verb: "Wait for and control another same-workspace session without polling or shell access"
+      expected_observable: "Wait, stop, prompt cancel, spawn, approval, clarification answer, and notify return deterministic structured winners; self and foreign-workspace targets are denied"
   goal:
     observable: "The agent reads a complete, gap-free transcript and drives the session to a terminal outcome deterministically, with lifecycle state consistent across every surface"
     side_effects: [session-created, prompt-streamed, partial-output-persisted, session-stopped]
-  true_end_state: "Older REST pages remain loaded; reconnect after killing the client resumes from `after_sequence` with matching `epoch`/`generation`, or replaces the bounded tail only on an explicit reset; empty deltas still advance the cursor; an ACP process disconnect retains delivered chunks and diagnostics, refuses a normal prompt before `session/load`, and continues only in an explicit child session with parent provenance; list/detail/status agree after a daemon restart; HTTP and UDS return identical structured output."
+  true_end_state: "Older REST pages remain loaded; reconnect after killing the client resumes from `after_sequence` with matching `epoch`/`generation`, or replaces the bounded tail only on an explicit reset; empty deltas still advance the cursor; an ACP process disconnect retains delivered chunks and diagnostics, refuses a normal prompt before `session/load`, and continues only in an explicit child session with parent provenance; waits and governed native mutations settle once; list/detail/status agree after a daemon restart; HTTP and UDS return identical structured output."
   exit:
     natural: "The agent has a terminal outcome + a complete transcript and hands off / records the result."
   abandonment:

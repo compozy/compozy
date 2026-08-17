@@ -137,7 +137,7 @@ func newSchedulerDrainCommand(deps commandDeps) *cobra.Command {
   compozy scheduler drain --timeout 0s`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			request := SchedulerDrainRequest{Reason: strings.TrimSpace(reason)}
-			if cmd.Flags().Changed("timeout") {
+			if cmd.Flags().Changed(cliTimeoutKey) {
 				seconds, err := parseSchedulerDrainTimeout(timeoutRaw)
 				if err != nil {
 					return err
@@ -158,7 +158,7 @@ func newSchedulerDrainCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional scheduler drain reason")
 	cmd.Flags().StringVar(
 		&timeoutRaw,
-		"timeout",
+		cliTimeoutKey,
 		defaultSchedulerDrainFlag,
 		fmt.Sprintf(
 			"Drain wait timeout as whole seconds from 0s through %ds; 0s returns immediately",

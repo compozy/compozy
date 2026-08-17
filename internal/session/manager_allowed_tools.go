@@ -17,6 +17,14 @@ func WithToolsetCatalog(catalog toolspkg.ToolsetCatalog) Option {
 	}
 }
 
+// WithToolUniverse injects the concrete native tool IDs used to materialize
+// root-session delegation budgets from agent tool patterns and toolsets.
+func WithToolUniverse(ids []toolspkg.ToolID) Option {
+	return func(manager *Manager) {
+		manager.toolUniverse = append([]toolspkg.ToolID(nil), ids...)
+	}
+}
+
 func (s *sessionStartSpec) applyAllowedToolsOverride(
 	resolved *compozyconfig.ResolvedAgent,
 	catalog toolspkg.ToolsetCatalog,
@@ -46,6 +54,85 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(
 	}
 	s.lineage = lineage
 	return nil
+}
+
+func (s *sessionStartSpec) materializeRootDelegationTools(
+	resolved compozyconfig.ResolvedAgent,
+	catalog toolspkg.ToolsetCatalog,
+	universe []toolspkg.ToolID,
+) error {
+	if s == nil || normalizeSessionType(s.sessionType) != SessionTypeUser {
+		return nil
+	}
+	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
+	if strings.TrimSpace(lineage.ParentSessionID) != "" || len(lineage.PermissionPolicy.Tools) > 0 {
+		return nil
+	}
+	tools, err := concreteDelegationTools(resolved, catalog, universe)
+	if err != nil {
+		return err
+	}
+	if len(tools) == 0 {
+		return nil
+	}
+	lineage.PermissionPolicy.Tools = tools
+	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
+	if err := store.ValidateSessionLineage(s.sessionID, lineage); err != nil {
+		return fmt.Errorf("%w: root delegation lineage policy: %w", ErrValidation, err)
+	}
+	s.lineage = lineage
+	return nil
+}
+
+func concreteDelegationTools(
+	resolved compozyconfig.ResolvedAgent,
+	catalog toolspkg.ToolsetCatalog,
+	universe []toolspkg.ToolID,
+) ([]string, error) {
+	denyPatterns, err := toolspkg.ParseToolPatterns(resolved.DenyTools)
+	if err != nil {
+		return nil, fmt.Errorf("%w: agent deny_tools policy is invalid: %w", ErrValidation, err)
+	}
+	candidates := make(map[toolspkg.ToolID]struct{})
+	for idx, raw := range resolved.Tools {
+		pattern, parseErr := toolspkg.ParseToolPattern(raw)
+		if parseErr != nil {
+			return nil, fmt.Errorf("%w: agent tools[%d] is invalid: %w", ErrValidation, idx, parseErr)
+		}
+		if !strings.Contains(pattern.String(), "*") {
+			candidates[toolspkg.ToolID(pattern.String())] = struct{}{}
+			continue
+		}
+		for _, id := range universe {
+			if pattern.Match(id) {
+				candidates[id] = struct{}{}
+			}
+		}
+	}
+	if len(universe) > 0 {
+		toolsets, parseErr := validateAllowedToolsOverrideToolsets(resolved.Toolsets)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		for _, toolsetID := range toolsets {
+			expanded, expandErr := catalog.Expand(toolsetID, universe)
+			if expandErr != nil {
+				return nil, fmt.Errorf("%w: expand agent toolset %q: %w", ErrValidation, toolsetID, expandErr)
+			}
+			for _, id := range expanded {
+				candidates[id] = struct{}{}
+			}
+		}
+	}
+	tools := make([]string, 0, len(candidates))
+	for id := range candidates {
+		if matchesAllowedToolsPattern(denyPatterns, id) {
+			continue
+		}
+		tools = append(tools, id.String())
+	}
+	slices.Sort(tools)
+	return tools, nil
 }
 
 func normalizeAllowedToolsOverride(values []string) ([]string, bool, error) {

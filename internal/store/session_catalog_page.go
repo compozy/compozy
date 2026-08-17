@@ -7,16 +7,30 @@ import (
 	"time"
 )
 
+// SessionCatalogAttentionRank is the stable attention-class component of a catalog cursor.
+type SessionCatalogAttentionRank int
+
+const (
+	SessionCatalogAttentionRankNeedsYou SessionCatalogAttentionRank = iota
+	SessionCatalogAttentionRankFinished
+	SessionCatalogAttentionRankNone
+)
+
 // SessionCatalogPosition is the stable keyset anchor used by bounded catalog reads.
 type SessionCatalogPosition struct {
-	PrimaryAt   time.Time `json:"primary_at"`
-	SecondaryAt time.Time `json:"secondary_at"`
-	CreatedAt   time.Time `json:"created_at"`
-	ID          string    `json:"id"`
+	AttentionRank SessionCatalogAttentionRank `json:"attention_rank"`
+	PrimaryAt     time.Time                   `json:"primary_at"`
+	SecondaryAt   time.Time                   `json:"secondary_at"`
+	CreatedAt     time.Time                   `json:"created_at"`
+	ID            string                      `json:"id"`
 }
 
 // Validate ensures the keyset anchor is complete.
 func (p SessionCatalogPosition) Validate() error {
+	if p.AttentionRank < SessionCatalogAttentionRankNeedsYou ||
+		p.AttentionRank > SessionCatalogAttentionRankNone {
+		return fmt.Errorf("store: session catalog attention rank is invalid: %d", p.AttentionRank)
+	}
 	if p.PrimaryAt.IsZero() || p.SecondaryAt.IsZero() || p.CreatedAt.IsZero() || strings.TrimSpace(p.ID) == "" {
 		return fmt.Errorf("store: session catalog position is incomplete")
 	}

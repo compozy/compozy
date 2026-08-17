@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestParseSinceFlagRFC3339(t *testing.T) {
@@ -1067,6 +1070,154 @@ func TestSessionListDefaultsToExactActiveState(t *testing.T) {
 	}
 }
 
+func TestSessionListAttentionFiltersAndSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass needs-you filtering with attention-first ordering", func(t *testing.T) {
+		t.Parallel()
+
+		var seenQuery SessionListQuery
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				seenQuery = query
+				return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: session.DefaultListLimit}}, nil
+			},
+		})
+		if _, _, err := executeRootCommand(t, deps, "session", "list", "--attention", "-o", "json"); err != nil {
+			t.Fatalf("executeRootCommand(session list --attention) error = %v", err)
+		}
+		if !seenQuery.Attention || seenQuery.Sort != session.ListSortAttention || seenQuery.State != "" {
+			t.Fatalf("ListSessions() query = %#v, want attention filter without implicit state", seenQuery)
+		}
+	})
+
+	t.Run("Should pass exact badges across every workspace", func(t *testing.T) {
+		t.Parallel()
+
+		var seenQuery SessionListQuery
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				seenQuery = query
+				return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: session.DefaultListLimit}}, nil
+			},
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				t.Fatal("GetWorkspace() called for --all-workspaces")
+				return WorkspaceDetailRecord{}, nil
+			},
+		})
+		deps.getenv = func(key string) string {
+			if key == workspaceEnvName {
+				return "workspace-from-environment"
+			}
+			return ""
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session", "list", "--badge", "done", "--all-workspaces", "-o", "json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(session list --badge done) error = %v", err)
+		}
+		if seenQuery.Workspace != "" || seenQuery.Sort != session.ListSortAttention ||
+			!slices.Equal(seenQuery.Badges, []session.Badge{session.BadgeDone}) {
+			t.Fatalf("ListSessions() query = %#v, want exact cross-workspace done filter", seenQuery)
+		}
+	})
+
+	t.Run("Should reject an unknown badge with usage exit code", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, &stubClient{}),
+			"session", "list", "--badge", "sleeping",
+		)
+		if err == nil || cliExitCodeForError(err) != 65 {
+			t.Fatalf("session list invalid badge error = %v, exit = %d, want exit 65", err, cliExitCodeForError(err))
+		}
+		if !strings.Contains(err.Error(), string(session.BadgeWaitingForInput)) ||
+			!strings.Contains(err.Error(), string(session.BadgeDone)) {
+			t.Fatalf("session list invalid badge error = %q, want canonical vocabulary", err)
+		}
+	})
+
+	t.Run("Should render the exact operator-wide summary", func(t *testing.T) {
+		t.Parallel()
+
+		want := SessionAttentionSummaryRecord{
+			NeedsYou: 7,
+			Finished: 3,
+			ByWorkspace: []contract.WorkspaceAttentionSummaryPayload{
+				{WorkspaceID: "ws-a", NeedsYou: 4, Finished: 1},
+				{WorkspaceID: "ws-b", NeedsYou: 3, Finished: 2},
+			},
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionAttentionSummaryFn: func(context.Context) (SessionAttentionSummaryRecord, error) {
+				return want, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "list", "--summary", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session list --summary) error = %v", err)
+		}
+		var got SessionAttentionSummaryRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(session attention summary) error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("session attention summary = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func TestSessionInteractionsRendersSanitizedProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should request and render the canonical pending interactions", func(t *testing.T) {
+		t.Parallel()
+
+		createdAt := fixedTestNow.Add(-time.Minute)
+		want := SessionInteractionsRecord{Interactions: []contract.PendingInteractionPayload{
+			{
+				InteractionID: "interaction-1", Kind: "clarify", ProviderRequestID: "request-1",
+				Status: "pending", Title: "Choose a deployment", CreatedAt: createdAt,
+			},
+		}}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSessionInteractionsFn: func(_ context.Context, id string, statuses []string) (SessionInteractionsRecord, error) {
+				if id != "sess-1" || len(statuses) != 0 {
+					t.Fatalf("ListSessionInteractions() id = %q statuses = %#v", id, statuses)
+				}
+				return want, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "interactions", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session interactions) error = %v", err)
+		}
+		var got SessionInteractionsRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("json.Unmarshal(session interactions) error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("session interactions = %#v, want %#v", got, want)
+		}
+
+		bundle := sessionInteractionsBundle(want)
+		human, humanErr := bundle.human()
+		if humanErr != nil || !strings.Contains(human, "interaction-1") ||
+			!strings.Contains(human, "Choose a deployment") {
+			t.Fatalf("session interactions human = %q, error = %v", human, humanErr)
+		}
+		toon, toonErr := bundle.toon()
+		if toonErr != nil || !strings.Contains(toon, "interaction-1") ||
+			!strings.Contains(toon, "request-1") {
+			t.Fatalf("session interactions toon = %q, error = %v", toon, toonErr)
+		}
+	})
+}
+
 func TestSessionListResolvesOptionalWorkspaceOverride(t *testing.T) {
 	t.Parallel()
 
@@ -1231,7 +1382,16 @@ func TestSessionClarifyPendingUsesLiveDaemonProjection(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeRootCommand(t, deps, "session", "clarify", "pending", "sess-1", "-o", "json")
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"session",
+		sessionClarifyCommandUse,
+		"pending",
+		"sess-1",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("executeRootCommand(session clarify pending) error = %v", err)
 	}
@@ -1261,7 +1421,11 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 			if request.ChoiceIndex == nil || *request.ChoiceIndex != wireChoice || request.Text != "" {
 				t.Fatalf("answer request = %#v, want zero-based choice %d", request, wireChoice)
 			}
-			return ClarificationAnswerRecord{Choice: &wireChoice}, nil
+			return ClarificationAnswerRecord{
+				ClarifyAnswer: toolspkg.ClarifyAnswer{Choice: &wireChoice},
+				Outcome:       "answered",
+				RequestID:     requestID,
+			}, nil
 		},
 	})
 
@@ -1269,7 +1433,7 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 		t,
 		deps,
 		"session",
-		"clarify",
+		sessionClarifyCommandUse,
 		"answer",
 		"sess-1",
 		"req-1",
@@ -1285,7 +1449,8 @@ func TestSessionClarifyAnswerTranslatesOneBasedChoiceAtCLIBoundary(t *testing.T)
 	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
 		t.Fatalf("json.Unmarshal(session clarify answer) error = %v", err)
 	}
-	if got.Choice == nil || *got.Choice != wireChoice || got.Text != "" || got.Fallback {
+	if got.Choice == nil || *got.Choice != wireChoice || got.Text != "" || got.Fallback ||
+		got.Outcome != "answered" || got.RequestID != "req-1" {
 		t.Fatalf("clarification answer = %#v, want exact wire result", got)
 	}
 }
@@ -1322,7 +1487,7 @@ func TestSessionClarifyAnswerRequiresExactlyOneAnswerFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			args := []string{"session", "clarify", "answer", "sess-1", "req-1"}
+			args := []string{"session", sessionClarifyCommandUse, "answer", "sess-1", "req-1"}
 			args = append(args, tt.args...)
 			_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{}), args...)
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
@@ -1565,93 +1730,232 @@ func TestSessionCommandsRendersUnifiedCatalog(t *testing.T) {
 	})
 }
 
-func TestSessionWaitReturnsImmediatelyForStoppedSession(t *testing.T) {
+func TestSessionWaitReturnsMatchingState(t *testing.T) {
 	t.Parallel()
+	t.Run("Should pass normalized predicates and render the reached state", func(t *testing.T) {
+		t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		getSessionFn: func(context.Context, string) (SessionRecord, error) {
-			return SessionRecord{
-				ID:            "sess-1",
-				AgentName:     "coder",
-				WorkspaceID:   "ws-1",
-				WorkspacePath: "/workspace/project",
-				State:         session.StateStopped,
-				CreatedAt:     fixedTestNow,
-				UpdatedAt:     fixedTestNow,
-			}, nil
-		},
-		streamSessionFn: func(context.Context, string, SessionEventQuery, string, SSEHandler) error {
-			t.Fatal("StreamSessionEvents should not be called for an already stopped session")
-			return nil
-		},
+		var captured SessionWaitRequest
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:              "sess-1",
+					AgentName:       "coder",
+					WorkspaceID:     "ws-1",
+					WorkspacePath:   "/workspace/project",
+					State:           session.StateActive,
+					TranscriptEpoch: 8,
+					CreatedAt:       fixedTestNow,
+					UpdatedAt:       fixedTestNow,
+				}, nil
+			},
+			waitSessionFn: func(
+				_ context.Context,
+				workspaceID string,
+				sessionID string,
+				request SessionWaitRequest,
+			) (SessionWaitRecord, error) {
+				if workspaceID != "ws-1" || sessionID != "sess-1" {
+					t.Fatalf("WaitSession() scope = %q/%q, want ws-1/sess-1", workspaceID, sessionID)
+				}
+				captured = request
+				return SessionWaitRecord{
+					SessionID: sessionID,
+					Outcome:   "state-reached",
+					State:     "idle",
+					WaitedMS:  38_000,
+					Until:     []string{"waiting-for-input", "idle"},
+					Revision:  11,
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"wait",
+			"sess-1",
+			"--until",
+			"waiting-for-input,idle,idle",
+			"--timeout",
+			"120s",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		if captured.TimeoutMS != 120_000 || captured.Epoch != 8 || len(captured.Until) != 2 ||
+			captured.Until[0] != "waiting-for-input" || captured.Until[1] != "idle" {
+			t.Fatalf("WaitSession() request = %#v, want normalized flags and epoch pin", captured)
+		}
+		var decoded SessionWaitRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Outcome != "state-reached" || decoded.State != "idle" || decoded.WaitedMS != 38_000 ||
+			decoded.Revision != 11 {
+			t.Fatalf("decoded wait = %#v, want reached idle with revision fence", decoded)
+		}
 	})
-
-	stdout, _, err := executeRootCommand(t, deps, "session", "wait", "sess-1", "-o", "json")
-	if err != nil {
-		t.Fatalf("executeRootCommand() error = %v", err)
-	}
-
-	var decoded SessionRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
-	}
-	if decoded.State != session.StateStopped {
-		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
-	}
 }
 
-func TestSessionWaitStreamsUntilStopped(t *testing.T) {
+func TestSessionWaitReturnsTimeoutExitAndPayload(t *testing.T) {
 	t.Parallel()
+	t.Run("Should return exit 75 with a structured timeout outcome", func(t *testing.T) {
+		t.Parallel()
 
-	getCalls := 0
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		getSessionFn: func(context.Context, string) (SessionRecord, error) {
-			getCalls++
-			state := session.StateActive
-			if getCalls > 1 {
-				state = session.StateStopped
-			}
-			return SessionRecord{
-				ID:            "sess-1",
-				AgentName:     "coder",
-				WorkspaceID:   "ws-1",
-				WorkspacePath: "/workspace/project",
-				State:         state,
-				CreatedAt:     fixedTestNow,
-				UpdatedAt:     fixedTestNow,
-			}, nil
-		},
-		streamSessionFn: func(_ context.Context, id string, _ SessionEventQuery, _ string, handler SSEHandler) error {
-			return handler(SSEEvent{
-				ID:    "2",
-				Event: session.EventTypeSessionStopped,
-				Data: mustJSON(t, SessionEventRecord{
-					ID:        "evt-2",
-					SessionID: id,
-					Sequence:  2,
-					Type:      session.EventTypeSessionStopped,
-					AgentName: "coder",
-					Timestamp: fixedTestNow,
-				}),
-			})
-		},
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:            "sess-1",
+					AgentName:     "coder",
+					WorkspaceID:   "ws-1",
+					WorkspacePath: "/workspace/project",
+					State:         session.StateActive,
+					CreatedAt:     fixedTestNow,
+					UpdatedAt:     fixedTestNow,
+				}, nil
+			},
+			waitSessionFn: func(
+				_ context.Context,
+				_ string,
+				sessionID string,
+				request SessionWaitRequest,
+			) (SessionWaitRecord, error) {
+				return SessionWaitRecord{
+					SessionID: sessionID,
+					Outcome:   "timeout",
+					WaitedMS:  request.TimeoutMS,
+					Until:     request.Until,
+					ResumeID:  "wait-1",
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"wait",
+			"sess-1",
+			"--until",
+			"idle",
+			"--timeout",
+			"5s",
+			"-o",
+			"json",
+		)
+		if err == nil || cliExitCodeForError(err) != 75 {
+			t.Fatalf("session wait timeout error = %v, exit = %d, want 75", err, cliExitCodeForError(err))
+		}
+		var decoded SessionWaitRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Outcome != "timeout" || decoded.WaitedMS != 5_000 || decoded.ResumeID != "wait-1" ||
+			len(decoded.Until) != 1 || decoded.Until[0] != "idle" {
+			t.Fatalf("decoded wait timeout = %#v, want explicit timeout outcome", decoded)
+		}
 	})
+}
 
-	stdout, _, err := executeRootCommand(t, deps, "session", "wait", "sess-1", "-o", "json")
-	if err != nil {
-		t.Fatalf("executeRootCommand() error = %v", err)
-	}
-	if getCalls != 2 {
-		t.Fatalf("GetSession() calls = %d, want 2", getCalls)
-	}
+func TestSessionWaitUnboundedResumesGaplesslyAndRecoversExpiredRegistration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resume gaplessly and replace an expired registration", func(t *testing.T) {
+		t.Parallel()
 
-	var decoded SessionRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
-	}
-	if decoded.State != session.StateStopped {
-		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
-	}
+		calls := 0
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{ID: "sess-1", WorkspaceID: "ws-1", TranscriptEpoch: 4}, nil
+			},
+			waitSessionFn: func(
+				_ context.Context,
+				_ string,
+				sessionID string,
+				request SessionWaitRequest,
+			) (SessionWaitRecord, error) {
+				calls++
+				switch calls {
+				case 1:
+					if request.ResumeID != "" || request.TimeoutMS != 300_000 {
+						t.Fatalf("first wait request = %#v, want fresh bounded wait", request)
+					}
+					return SessionWaitRecord{
+						SessionID: sessionID, Outcome: "timeout", WaitedMS: 300_000, ResumeID: "wait-1",
+					}, nil
+				case 2:
+					if request.ResumeID != "wait-1" {
+						t.Fatalf("second wait resume_id = %q, want wait-1", request.ResumeID)
+					}
+					return SessionWaitRecord{}, &daemonAPIError{
+						statusCode: http.StatusGone,
+						status:     http.StatusText(http.StatusGone),
+						payload:    contract.ErrorPayload{Error: "wait expired", Code: "wait_expired"},
+					}
+				case 3:
+					if request.ResumeID != "" {
+						t.Fatalf("third wait resume_id = %q, want fresh registration", request.ResumeID)
+					}
+					return SessionWaitRecord{
+						SessionID: sessionID, Outcome: "state-reached", State: "idle", WaitedMS: 1_000,
+					}, nil
+				default:
+					t.Fatalf("WaitSession() calls = %d, want 3", calls)
+					return SessionWaitRecord{}, nil
+				}
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"wait",
+			"sess-1",
+			"--unbounded",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		if calls != 3 {
+			t.Fatalf("WaitSession() calls = %d, want 3", calls)
+		}
+		var decoded SessionWaitRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Outcome != "state-reached" || decoded.State != "idle" || decoded.WaitedMS != 301_000 {
+			t.Fatalf("decoded unbounded wait = %#v, want accumulated state outcome", decoded)
+		}
+	})
+}
+
+func TestSessionWaitRejectsUnknownStateBeforeCallingDaemon(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject an unknown state before contacting the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				t.Fatal("GetSession() called for invalid wait state")
+				return SessionRecord{}, nil
+			},
+			waitSessionFn: func(context.Context, string, string, SessionWaitRequest) (SessionWaitRecord, error) {
+				t.Fatal("WaitSession() called for invalid wait state")
+				return SessionWaitRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(t, deps, "session", "wait", "sess-1", "--until", "sleeping")
+		if err == nil || cliExitCodeForError(err) != 65 || !strings.Contains(err.Error(), "unknown session state") {
+			t.Fatalf("invalid wait error = %v, exit = %d, want vocabulary error/65", err, cliExitCodeForError(err))
+		}
+	})
 }
 
 func TestSessionStopFetchesUpdatedSession(t *testing.T) {
@@ -1751,6 +2055,7 @@ func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 				AgentName:       "coder",
 				WorkspaceID:     "ws-1",
 				State:           "idle",
+				Badge:           session.BadgeWaitingForInput,
 				Health:          "healthy",
 				Attachable:      true,
 				EligibleForWake: true,
@@ -1768,8 +2073,17 @@ func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if decoded.SessionID != "sess-1" || decoded.State != "idle" || !decoded.EligibleForWake {
+	if decoded.SessionID != "sess-1" || decoded.State != "idle" ||
+		decoded.Badge != session.BadgeWaitingForInput || !decoded.EligibleForWake {
 		t.Fatalf("decoded = %#v, want sess-1 eligible idle health", decoded)
+	}
+
+	human, _, err := executeRootCommand(t, deps, "session", "status", "sess-1")
+	if err != nil {
+		t.Fatalf("executeRootCommand(human) error = %v", err)
+	}
+	if !strings.Contains(human, string(session.BadgeWaitingForInput)) {
+		t.Fatalf("human status = %q, want badge %q", human, session.BadgeWaitingForInput)
 	}
 }
 
@@ -2588,19 +2902,81 @@ func TestSessionInputCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject prompt cancel as a removed command", func(t *testing.T) {
+	t.Run("Should cancel the active prompt through the direct verb", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := executeRootCommand(
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{ID: "sess-1", WorkspaceID: "ws-1"}, nil
+			},
+			cancelSessionPromptFn: func(
+				_ context.Context,
+				sessionID string,
+			) (SessionPromptCancelRecord, error) {
+				if sessionID != "sess-1" {
+					t.Fatalf("CancelSessionPrompt() id = %q, want sess-1", sessionID)
+				}
+				return SessionPromptCancelRecord{
+					SessionID: sessionID, Outcome: "canceled", TurnID: "turn-1",
+				}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
 			t,
-			newWorkspaceTestDeps(t, &stubClient{}),
+			deps,
 			"session",
-			"prompt",
+			"prompt-cancel",
 			"sess-1",
-			"--cancel",
-			"queue-1",
+			"-o",
+			"json",
 		)
-		assertErrorContains(t, err, "unknown flag: --cancel")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session prompt-cancel) error = %v", err)
+		}
+		var decoded SessionPromptCancelRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(prompt cancel) error = %v", err)
+		}
+		if decoded.Outcome != "canceled" || decoded.TurnID != "turn-1" {
+			t.Fatalf("prompt cancel payload = %#v, want canceled turn", decoded)
+		}
+	})
+
+	t.Run("Should return exit 66 when no prompt is active", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getSessionFn: func(context.Context, string) (SessionRecord, error) {
+				return SessionRecord{ID: "sess-1", WorkspaceID: "ws-1"}, nil
+			},
+			cancelSessionPromptFn: func(
+				_ context.Context,
+				sessionID string,
+			) (SessionPromptCancelRecord, error) {
+				return SessionPromptCancelRecord{
+					SessionID: sessionID, Outcome: "nothing-in-flight",
+				}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"prompt-cancel",
+			"sess-1",
+			"-o",
+			"json",
+		)
+		if err == nil || cliExitCodeForError(err) != 66 {
+			t.Fatalf("prompt cancel error = %v, exit = %d, want 66", err, cliExitCodeForError(err))
+		}
+		var decoded SessionPromptCancelRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(prompt cancel) error = %v", err)
+		}
+		if decoded.Outcome != "nothing-in-flight" {
+			t.Fatalf("prompt cancel payload = %#v, want nothing-in-flight", decoded)
+		}
 	})
 }
 

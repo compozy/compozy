@@ -89,15 +89,25 @@ func (m *Manager) recordEventWithAuthoredText(
 	event acp.AgentEvent,
 	authoredText string,
 ) error {
+	event = m.enrichRecordedAgentEvent(session, event)
+	attentionCommitted, err := m.applyAttentionAgentEvent(ctx, session, event)
+	if err != nil {
+		return fmt.Errorf("session: persist canonical attention event: %w", err)
+	}
 	recorder := session.recorderHandle()
 	if recorder == nil {
-		return errors.New("session: event recorder is not available")
+		return m.handleAttentionTranscriptFailure(
+			ctx,
+			session,
+			event,
+			attentionCommitted,
+			errors.New("session: event recorder is not available"),
+		)
 	}
-	event = m.enrichRecordedAgentEvent(session, event)
 
 	payload, err := marshalAgentEventPreservingAuthoredText(event, authoredText)
 	if err != nil {
-		return err
+		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
 	}
 
 	m.dispatchEventPreRecord(ctx, session, event, payload)
@@ -111,19 +121,41 @@ func (m *Manager) recordEventWithAuthoredText(
 		Timestamp: event.Timestamp,
 	})
 	if err != nil {
-		return err
+		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
 	}
 
 	m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
 	if err := m.persistAdvertisedCommandsFromEvent(ctx, session, event); err != nil {
-		return err
+		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
 	}
 
 	m.dispatchEventPostRecord(ctx, session, event, payload, persisted.Sequence)
 	m.dispatchSessionMessagePersisted(ctx, session, event, persisted, payload)
 	m.publishSessionEvent(ctx, session, persisted)
-	m.publishSessionCatalogWakeForEvent(session, event)
+	if !attentionCommitted {
+		m.publishSessionCatalogWakeForEvent(session, event)
+	}
 
+	return nil
+}
+
+func (m *Manager) handleAttentionTranscriptFailure(
+	ctx context.Context,
+	target *Session,
+	event acp.AgentEvent,
+	attentionCommitted bool,
+	err error,
+) error {
+	if !attentionCommitted {
+		return err
+	}
+	m.sessionLogger(target).WarnContext(
+		ctx,
+		"session: append attention transcript event failed after canonical commit",
+		"event_type", event.Type,
+		"request_id", event.RequestIDValue(),
+		"error", err,
+	)
 	return nil
 }
 

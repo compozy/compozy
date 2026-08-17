@@ -145,3 +145,15 @@ declared tasks unstarted and six task-owning agents silent, while the independen
 - **Evidence:**
   `/Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/observation-summary.json`;
   `/Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/tasks-runtime-0840.json`.
+
+## Re-found — 2026-08-16
+
+- **Persona:** Sofia Mendes, CTO for the `northstar-pay` Herdr parity replay.
+- **Report:** `docs/qa/reports/2026-08-16-herdr-parity.md`.
+- **Result:** Reproduced after exactly one kickoff. The 1,800-second observer stopped growing after
+  fourteen bootstrap/controller rows, set `stall_detected=true` at its five-minute threshold, and
+  classified all twelve declared runs as incomplete plus all twelve declared tasks as unstarted.
+  No follow-up provider prompt was sent to conceal the stalled public progress surface.
+- **Evidence:**
+  `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/observation-summary.json`;
+  `/Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/journey-log.jsonl`.

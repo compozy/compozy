@@ -57,8 +57,9 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Skills",
       "Automation",
       "Network",
-      "Gateway",
+      "Attention",
       "Observability",
+      "Gateway",
       "Hooks",
       "Extensions",
     ]);
@@ -139,6 +140,111 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     await expect(settingsUI.general.restartNotice).toContainText("Restarted");
   }
   await browserArtifacts.captureScreenshot("tc-int-016-general-restart-ready", appPage);
+});
+
+test("Herdr E2E-017: shortcut alternates persist and refresh the live cheatsheet", async ({
+  appPage,
+  runtime,
+}) => {
+  const sessionUI = sessionLifecycleSelectors(appPage);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-shortcuts-settings-"));
+  const workspace = await runtime.resolveWorkspace(workspaceRoot);
+
+  await ensureGlobalWorkspace(runtime);
+  await completeOnboardingIfPrompted(sessionUI);
+  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  await appPage.goto(runtime.url("/settings/layouts"), { waitUntil: "domcontentloaded" });
+
+  const settingsWin = appWindow(appPage, "settings");
+  await expect(settingsWin.getByTestId("settings-page-layouts")).toBeVisible({ timeout: 20_000 });
+  const tabsGroup = settingsWin.getByRole("button", { name: /^Tabs/ });
+  if ((await tabsGroup.getAttribute("aria-expanded")) !== "true") await tabsGroup.click();
+
+  const newTab = settingsWin.getByTestId("window-manager-shortcut-window.tab.new");
+  await newTab.getByRole("button", { name: "Add an alternate for New tab" }).click();
+  await appPage.keyboard.press("Alt+r");
+  await expect(newTab).toContainText("⌥R");
+
+  const saveResponse = appPage.waitForResponse(
+    response =>
+      new URL(response.url()).pathname === "/api/settings/window-manager" &&
+      response.request().method() === "PATCH"
+  );
+  await settingsWin.getByTestId("settings-page-layouts-save").click();
+  expect((await saveResponse).ok()).toBe(true);
+
+  await appPage.keyboard.press("Shift+/");
+  const cheatsheet = appPage.getByTestId("os-shortcuts-dialog");
+  await expect(cheatsheet).toBeVisible();
+  await expect(cheatsheet.getByTestId("os-shortcut-row-window.tab.new")).toContainText("⌥R");
+  await appPage.keyboard.press("Escape");
+
+  await newTab.getByRole("button", { name: "New tab shortcut" }).click();
+  await appPage.keyboard.press("Control+Alt+ArrowLeft");
+  await expect(newTab).toContainText("Blocked");
+  await expect(settingsWin.getByTestId("window-manager-shortcut-sidebar.toggle")).toContainText(
+    "Shadowed"
+  );
+  await settingsWin.getByTestId("settings-page-layouts-reset").click();
+});
+
+test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies idempotently", async ({
+  appPage,
+  runtime,
+}) => {
+  const sessionUI = sessionLifecycleSelectors(appPage);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-shortcuts-preset-"));
+  const workspace = await runtime.resolveWorkspace(workspaceRoot);
+  const before = await runtime.requestJSON<{
+    config: { shortcuts: Record<string, string[]> } & Record<string, unknown>;
+  }>("/api/settings/window-manager");
+
+  try {
+    await ensureGlobalWorkspace(runtime);
+    await completeOnboardingIfPrompted(sessionUI);
+    await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+    await switchWorkspace(appPage, workspace.id, workspace.name);
+    await appPage.goto(runtime.url("/settings/layouts"), { waitUntil: "domcontentloaded" });
+
+    const settingsWin = appWindow(appPage, "settings");
+    await expect(settingsWin.getByTestId("settings-page-layouts")).toBeVisible({
+      timeout: 20_000,
+    });
+    const preset = settingsWin.getByTestId("terminal-shortcut-preset");
+    await preset.getByRole("button", { name: "Preview" }).click();
+    await expect(preset).toContainText("window.tab.jump");
+    await expect(preset).toContainText("desktop.switch");
+    await expect(preset).toContainText("⌘1–8");
+    await expect(preset).toContainText("⌘1–9");
+    await expect(preset).toContainText("Control+Alt can alias AltGr");
+
+    await preset.getByRole("button", { name: "Apply preset" }).click();
+    await expect(preset).toContainText("Applied");
+    await expect(preset.getByRole("button", { name: "Revert" })).toBeVisible();
+    await preset.getByRole("button", { name: "Revert" }).click();
+    await expect(settingsWin.getByTestId("settings-page-layouts-save-bar")).toHaveCount(0);
+
+    await preset.getByRole("button", { name: "Preview" }).click();
+    await preset.getByRole("button", { name: "Apply preset" }).click();
+    const saveResponse = appPage.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === "/api/settings/window-manager" &&
+        response.request().method() === "PATCH"
+    );
+    await settingsWin.getByTestId("settings-page-layouts-save").click();
+    expect((await saveResponse).ok()).toBe(true);
+
+    await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url("/settings/layouts"), { waitUntil: "domcontentloaded" });
+    await preset.getByRole("button", { name: "Preview" }).click();
+    await expect(preset.getByRole("button", { name: "Apply preset" })).toBeDisabled();
+  } finally {
+    await runtime.requestJSON("/api/settings/window-manager", {
+      method: "PATCH",
+      body: JSON.stringify({ config: before.config }),
+    });
+  }
 });
 
 test("operator can distinguish skills actions that apply now from policy changes that require restart", async ({

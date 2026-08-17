@@ -13,7 +13,6 @@ import {
 } from "@compozy/ui";
 
 import {
-  GLOBAL_SCOPE_COPY,
   groupWorkspaceTree,
   WorktreeAggregate,
   WorktreeSubmenuPanel,
@@ -91,7 +90,6 @@ export function WorkspaceMenu({
   onOpenWorktreeContext,
   onRemoveWorktree,
 }: WorkspaceMenuProps) {
-  const notice = deletionNotice ?? (globalScopeOn ? GLOBAL_SCOPE_COPY.menuNotice : null);
   const tree = worktreesByWorkspace
     ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
     : null;
@@ -102,15 +100,15 @@ export function WorkspaceMenu({
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       {trigger}
       <MenubarContent align="start" data-testid="os-workspace-menu">
-        {notice ? (
+        {deletionNotice ? (
           <Alert
             className="mx-1.5 mb-1 px-2.5 py-2"
-            data-testid="os-workspace-global-notice"
+            data-testid="os-workspace-deletion-notice"
             role="note"
             variant="info"
           >
             <Info aria-hidden="true" className="size-3.5" />
-            <AlertDescription className="text-form-hint">{notice}</AlertDescription>
+            <AlertDescription className="text-form-hint">{deletionNotice}</AlertDescription>
           </Alert>
         ) : null}
         {orderedWorkspaces.map(workspace => {

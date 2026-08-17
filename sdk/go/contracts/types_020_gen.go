@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+type SessionInputPromoteParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	SessionID      string `json:"session_id"`
+	QueueEntryID   string `json:"queue_entry_id"`
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+	ExpectedTurnID string `json:"expected_turn_id"`
+}
+
+type SessionInputReplaceParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	SessionID      string `json:"session_id"`
+	QueueEntryID   string `json:"queue_entry_id"`
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+type SessionInputResult struct {
+	Input SessionInput `json:"input"`
+}
+
+type SessionInputTargetParams struct {
+	WorkspaceID  string `json:"workspace_id"`
+	SessionID    string `json:"session_id"`
+	QueueEntryID string `json:"queue_entry_id"`
+}
+
 type SessionInputsListParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
@@ -272,20 +301,4 @@ type SessionRuntimeSetParams struct {
 	SessionID        string                         `json:"session_id"`
 	Runtime          SessionRuntimeSelectionPayload `json:"runtime"`
 	ExpectedRevision *int64                         `json:"expected_revision"`
-}
-
-type SessionRuntimeStatus string
-
-type SessionRuntimeTransition string
-
-type SessionSoulRefreshParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	SessionID      string `json:"session_id"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type SessionSoulRefreshRequest struct {
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }

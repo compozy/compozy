@@ -224,6 +224,8 @@ func (e *forkedMemoryExtractor) spawnExtractorSession(
 			PromptOverlay:       memoryExtractorOverlay(),
 			SpawnRole:           session.SpawnRoleMemoryExtractor,
 			TTL:                 e.extractorTTL(),
+			NotifyCreator:       false,
+			NotifyCreatorSet:    true,
 			AllowStoppedParent:  true,
 			DiscardStartFailure: true,
 		})

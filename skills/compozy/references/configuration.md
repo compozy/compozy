@@ -13,6 +13,7 @@
 - Session attachments
 - Auto-title role
 - Window manager
+- Shell session preferences
 
 ## Desired State And Apply Lifecycle
 
@@ -20,7 +21,7 @@
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
-- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
+- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `shell`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
 - `SettingsMutationBehavior`: `applied_now`, `restart_required`, or `action_trigger`.
 - `SettingsApplyLifecycle`: `live`, `live-add`, `live-remove-if-unused`, `restart-required`, or `session-rebind`.
 - `ConfigApplyStatus`: `pending_apply`, `applied`, `blocked`, or `failed`.
@@ -148,3 +149,32 @@ snap thresholds and repeat ratios, edge bindings, and shortcuts. Every `window_m
 live-applied only after the complete candidate validates; a failed apply keeps the prior active
 generation. Workspace topology overrides remain part of revisioned layout documents rather than a
 second Settings scope. Field detail lives in `references/window-management.md` (Configuration and hooks).
+
+Shortcut entries accept a string, a string array, an empty binding, or an indexed range for
+`desktop.switch` (`1..9`) and `window.tab.jump` (`1..8`). Read
+`compozy config get window_manager -o json` to inspect daemon defaults and the effective map before
+writing an override. The daemon expands
+ranges and validates the full map atomically; a collision stores nothing.
+
+## Attention
+
+`[attention]` controls operator notification delivery. `toasts` and `sound` default to `true`,
+`system` defaults to `false`, and `muted_workspaces` defaults to an empty array of workspace
+registration IDs returned by workspace list surfaces. Every `attention.*` path applies live as one validated candidate. A muted workspace receives no
+notification event, but its attention rows and counts remain unchanged. Workspace removal prunes its
+ID from `muted_workspaces`.
+
+Use `compozy config get|set attention.<key>` or `GET/PATCH /api/settings/attention`. The title count
+is always on and is not a config key.
+
+## Shell Session Preferences
+
+`shell.sessions.sort` persists the session list order and accepts `last_activity` (default) or
+`attention`. `shell.sessions.scope` persists the list breadth and accepts `workspace` (default) or
+`all-workspaces`. Both keys are global, apply live, and survive browser restarts in
+`$COMPOZY_HOME/config.toml`; workspace-scoped writes are rejected, and browser-local storage is not
+authoritative.
+
+Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`. The PATCH
+request replaces the complete `shell` config section, so read the current section before changing
+one field.

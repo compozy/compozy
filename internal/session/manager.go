@@ -76,6 +76,10 @@ func NewManager(opts ...Option) (*Manager, error) {
 		sessionHealthHookLast: make(map[string]time.Time),
 		streamEvents:          newSessionEventBroadcaster(),
 		catalogEvents:         newSessionCatalogBroadcaster(),
+		presenceLeases:        make(map[sessionPresenceKey]sessionPresenceLease),
+		notifyConfig:          compozyconfig.DefaultAttentionConfig(),
+		notifyLastBySession:   make(map[string]time.Time),
+		spawnWakeEventIDs:     make(map[string]struct{}),
 		logger:                slog.Default(),
 		driver:                NewACPDriverAdapter(acp.New()),
 		homePaths:             homePaths,
@@ -95,6 +99,10 @@ func NewManager(opts ...Option) (*Manager, error) {
 		newSandboxID:                newIDGenerator("env"),
 		newTurnID:                   newIDGenerator("turn"),
 		newRepairEventID:            newIDGenerator("ev"),
+		newInteractionID:            newULIDGenerator("int"),
+		newPresenceLeaseID:          newULIDGenerator("prl"),
+		newNotificationID:           newULIDGenerator("ntf"),
+		newWaitID:                   newULIDGenerator("wait"),
 		acquireSessionDBFamilyLease: sessiondb.AcquireFamilyLease,
 		promptBufSize:               defaultPromptBufferSize,
 		soulRefreshTimeout:          defaultLifecycleTimeout,
@@ -109,16 +117,24 @@ func NewManager(opts ...Option) (*Manager, error) {
 	if err := manager.applyRuntimeDefaults(); err != nil {
 		return nil, err
 	}
-	if err := compozyconfig.EnsureHomeLayout(manager.homePaths); err != nil {
-		return nil, fmt.Errorf("session: ensure home layout: %w", err)
-	}
-	if err := manager.startRuntimeOwners(); err != nil {
+	if err := manager.initializeRuntime(); err != nil {
 		return nil, err
 	}
-	manager.cleanupDeleteTombstones()
-	manager.cleanupWorkspaceAttachmentDeleteTombstones()
 
 	return manager, nil
+}
+
+func (m *Manager) initializeRuntime() error {
+	m.waitRegistry = newSessionWaitRegistry(m.newWaitID, m.now, m.newWaitAfterFunc)
+	if err := compozyconfig.EnsureHomeLayout(m.homePaths); err != nil {
+		return fmt.Errorf("session: ensure home layout: %w", err)
+	}
+	if err := m.startRuntimeOwners(); err != nil {
+		return err
+	}
+	m.cleanupDeleteTombstones()
+	m.cleanupWorkspaceAttachmentDeleteTombstones()
+	return nil
 }
 
 // Get returns the active in-memory session by id.
@@ -427,6 +443,7 @@ func (m *Manager) remove(id string) {
 	m.soulLocksMu.Unlock()
 
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotFound)
+	m.forgetSpawnWakeEvents(target)
 }
 
 func (m *Manager) removeActive(id string) {
@@ -440,6 +457,7 @@ func (m *Manager) removeActive(id string) {
 	m.soulLocksMu.Lock()
 	delete(m.soulLocks, target)
 	m.soulLocksMu.Unlock()
+	m.forgetSpawnWakeEvents(target)
 
 	m.emitDroppedSyntheticPrompts(m.takeQueuedSyntheticPrompts(target), ErrSessionNotActive)
 }

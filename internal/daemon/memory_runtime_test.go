@@ -290,6 +290,13 @@ func TestForkedMemoryExtractor(t *testing.T) {
 		if sessions.spawnOpts.Model != "claude-haiku-memory" {
 			t.Fatalf("spawn model = %q, want configured extractor model", sessions.spawnOpts.Model)
 		}
+		if sessions.spawnOpts.NotifyCreator || !sessions.spawnOpts.NotifyCreatorSet {
+			t.Fatalf(
+				"spawn notify creator = %t (set=%t), want explicitly disabled",
+				sessions.spawnOpts.NotifyCreator,
+				sessions.spawnOpts.NotifyCreatorSet,
+			)
+		}
 		if sessions.stoppedID != "sess-memory-child" {
 			t.Fatalf("stopped child = %q, want spawned extractor child stopped", sessions.stoppedID)
 		}

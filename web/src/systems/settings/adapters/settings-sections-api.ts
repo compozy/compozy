@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-client";
 
 import type {
+  SettingsAttentionSection,
   SettingsAutomationSection,
   SettingsCreateNotificationPresetRequest,
   SettingsGeneralSection,
@@ -17,8 +18,10 @@ import type {
   SettingsNotificationPresetEntry,
   SettingsNotificationPresetFilter,
   SettingsObservabilitySection,
+  SettingsShellSection,
   SettingsSkillsFilter,
   SettingsSkillsSection,
+  SettingsUpdateAttentionRequest,
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
@@ -26,6 +29,7 @@ import type {
   SettingsUpdateNetworkRequest,
   SettingsUpdateNotificationPresetRequest,
   SettingsUpdateObservabilityRequest,
+  SettingsUpdateShellRequest,
   SettingsUpdateSkillsFilter,
   SettingsUpdateSkillsRequest,
   SettingsUpdateStatus,
@@ -279,6 +283,65 @@ export async function updateSettingsNetwork(
     );
   }
   return requireResponseData(data, response, "Failed to update network settings");
+}
+
+export async function getSettingsAttention(
+  signal?: AbortSignal
+): Promise<SettingsAttentionSection> {
+  const { data, error, response } = await apiClient.GET("/api/settings/attention", { signal });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to load attention settings", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to load attention settings");
+}
+
+/** Full-config PATCH, mirroring every other section: the body carries the whole `[attention]` block. */
+export async function updateSettingsAttention(
+  body: SettingsUpdateAttentionRequest,
+  signal?: AbortSignal
+): Promise<SettingsMutationResult> {
+  const { data, error, response } = await apiClient.PATCH("/api/settings/attention", {
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to update attention settings", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to update attention settings");
+}
+
+export async function getSettingsShell(signal?: AbortSignal): Promise<SettingsShellSection> {
+  const { data, error, response } = await apiClient.GET("/api/settings/shell", { signal });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to load shell settings", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to load shell settings");
+}
+
+export async function updateSettingsShell(
+  body: SettingsUpdateShellRequest,
+  signal?: AbortSignal
+): Promise<SettingsMutationResult> {
+  const { data, error, response } = await apiClient.PATCH("/api/settings/shell", {
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to update shell settings", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to update shell settings");
 }
 
 export async function getSettingsObservability(

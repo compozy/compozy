@@ -34,6 +34,7 @@ type daemonRuntimeState struct {
 	localMemoryProvider    memoryProviderShutdowner
 	situationContext       *situation.Service
 	sessions               SessionManager
+	sessionWakeBridge      *sessionWakeBridge
 	tasks                  *taskRuntime
 	coordinator            *coordinatorRuntime
 	spawnReaper            *spawnReaper

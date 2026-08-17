@@ -36,6 +36,7 @@ func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing
 			FixturePath:  fixturePath,
 			FixtureAgent: "alpha",
 			AgentName:    "mock-alpha",
+			Tools:        []string{"compozy__session_spawn", "compozy__clarify"},
 		})
 
 		loaded, err := compozyconfig.LoadAgentDefFile(registration.AgentDefPath)
@@ -47,6 +48,9 @@ func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing
 		}
 		if got, want := loaded.Provider, acpmock.ProviderName; got != want {
 			t.Fatalf("loaded.Provider = %q, want %q", got, want)
+		}
+		if got, want := strings.Join(loaded.Tools, ","), "compozy__session_spawn,compozy__clarify"; got != want {
+			t.Fatalf("loaded.Tools = %#v, want %q", loaded.Tools, want)
 		}
 		if !strings.Contains(loaded.Command, "--agent alpha") {
 			t.Fatalf("loaded.Command = %q, want --agent alpha", loaded.Command)

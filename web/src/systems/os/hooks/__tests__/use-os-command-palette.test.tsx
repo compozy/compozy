@@ -1,10 +1,15 @@
 // Suite: OS command palette
 // Invariant: palette commands preserve the selected tab's identity and route by
-// delegating each lifecycle decision to the routing coordinator exactly once.
+// delegating each lifecycle decision to the routing coordinator exactly once,
+// and a pushed view owns the surface completely — its own results, its own
+// filters, and a keyboard selection that survives the catalog moving.
 // Owning layer: command-palette hook and presentation boundary.
-// Boundary OUT: keyboard action dispatch (window-manager-action-dispatch) and
-// daemon command transport.
-import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+// Boundary OUT: keyboard action dispatch (window-manager-action-dispatch),
+// overlay lifetime and stack reset (use-desktop-overlays), stack and filter
+// mechanics (palette-view-stack, palette-session-filters), and daemon command
+// transport.
+import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,36 +17,81 @@ import type { LayoutDesktop } from "../../lib/window-manager-types";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { OsCommandPalette } from "../../components/os-command-palette";
 import { useOsCommandPalette } from "../use-os-command-palette";
+import { PALETTE_SESSION_ROW_LIMIT } from "../use-os-palette-sessions-view";
 
-const paletteMocks = vi.hoisted(() => ({
-  activeWorkspaceId: "workspace:alpha" as string | null,
-  closeWindow: vi.fn(async () => true),
-  coordinator: {
-    userActivateWindow: vi.fn(async () => true),
-    userOpen: vi.fn(async () => "window:new-tab" as string | null),
-  },
-  desktop: null as OsDesktopRuntimeStore | null,
-  isWaiting: vi.fn<(sessionId: string) => boolean>(() => false),
-  openForAgent: vi.fn(),
-  pending: false,
-  paletteIntent: null as { kind: "destination"; windowId: string } | null,
-  paletteIntentCleared: vi.fn(),
-  paletteIntentRequested: vi.fn(),
-  sessions: [] as Array<{ id: string; name: string | null; agent_name: string; badge: string }>,
-  sessionsWorkspaceId: vi.fn(),
-  toggleLocked: false,
-  windowCommands: {
-    arrangeCommands: [],
-    commandsAvailable: true,
-    dispatchArrange: vi.fn(),
-    dispatchPlacement: vi.fn(),
-    focusedWindowActions: null,
-    placementCommands: [],
-    shortcutLabels: {},
-  },
-  windowSlots: new Map<string, { crumb?: string }>(),
-  workspaces: [{ id: "workspace:alpha", name: "Alpha" }],
-}));
+type PaletteSessionFixture = {
+  id: string;
+  name: string | null;
+  agent_name: string;
+  badge: string;
+  workspace_id?: string;
+  updated_at: string;
+  attention_changed_at?: string;
+};
+
+// The view path is the one piece of palette state a click has to move, so the
+// mock is a real subscribable store rather than a value: pushing a view in a
+// test re-renders the palette exactly as it does in the shell.
+const paletteMocks = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  let viewStack: readonly { viewId: "sessions" }[] = [];
+  return {
+    activeWorkspaceId: "workspace:alpha" as string | null,
+    closeWindow: vi.fn(async () => true),
+    coordinator: {
+      userActivateWindow: vi.fn(async () => true),
+      userOpen: vi.fn(async () => "window:new-tab" as string | null),
+    },
+    desktop: null as OsDesktopRuntimeStore | null,
+    isWaiting: vi.fn<(sessionId: string) => boolean>(() => false),
+    jumpToSession: vi.fn(),
+    openForAgent: vi.fn(),
+    pending: false,
+    paletteIntent: null as { kind: "destination"; windowId: string } | null,
+    paletteIntentCleared: vi.fn(),
+    paletteIntentRequested: vi.fn(),
+    sessionListScope: "workspace" as "workspace" | "all-workspaces",
+    sessionListSaving: false,
+    sessions: [] as PaletteSessionFixture[],
+    sessionsLoading: false,
+    sessionsWorkspaceId: vi.fn(),
+    sessionsFilters: vi.fn(),
+    setSessionListScope: vi.fn(),
+    toggleLocked: false,
+    windowCommands: {
+      arrangeCommands: [],
+      commandsAvailable: true,
+      dispatchArrange: vi.fn(),
+      dispatchPlacement: vi.fn(),
+      focusedWindowActions: null,
+      placementCommands: [],
+      shortcutLabels: {},
+    },
+    windowSlots: new Map<string, { crumb?: string }>(),
+    workspaceGroups: [] as Array<{
+      workspaceId: string;
+      workspaceName: string;
+      sessions: PaletteSessionFixture[];
+      total: number;
+      loading: boolean;
+      failed: boolean;
+      retry: () => void;
+    }>,
+    workspaces: [
+      { id: "workspace:alpha", name: "Alpha" },
+      { id: "workspace:beta", name: "Beta" },
+    ],
+    readViewStack: () => viewStack,
+    subscribeViewStack: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    writeViewStack: (next: readonly { viewId: "sessions" }[]) => {
+      viewStack = next;
+      listeners.forEach(listener => listener());
+    },
+  };
+});
 
 vi.mock("@/systems/session/lib/session-display-title", () => ({
   getSessionDisplayTitle: (session: { id: string; name: string | null }) =>
@@ -60,10 +110,27 @@ vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
   useActiveWorktree: () => ({ selectedWorktreeId: null, activeWorktree: null, fallback: null }),
 }));
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
-  useSessions: (workspaceId: string | null) => {
+  useSessions: (workspaceId: string | null, options?: { filters?: Record<string, unknown> }) => {
     paletteMocks.sessionsWorkspaceId(workspaceId);
-    return { data: paletteMocks.sessions };
+    paletteMocks.sessionsFilters(options?.filters ?? {});
+    return { data: paletteMocks.sessions, isLoading: paletteMocks.sessionsLoading };
   },
+}));
+vi.mock("@/systems/session/hooks/use-session-list-preferences", () => ({
+  useSessionListPreferences: () => ({
+    sort: "last_activity" as const,
+    scope: paletteMocks.sessionListScope,
+    setSort: vi.fn(),
+    setScope: paletteMocks.setSessionListScope,
+    loading: false,
+    saving: paletteMocks.sessionListSaving,
+  }),
+}));
+vi.mock("@/systems/session/hooks/use-workspace-session-groups", () => ({
+  useWorkspaceSessionGroups: () => paletteMocks.workspaceGroups,
+}));
+vi.mock("../use-attention-jump", () => ({
+  useAttentionJump: () => paletteMocks.jumpToSession,
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
@@ -104,12 +171,21 @@ vi.mock("../../hooks/use-os-window-commands", () => ({
   useOsWindowCommands: () => paletteMocks.windowCommands,
 }));
 
-vi.mock("../../hooks/use-window-manager-store", () => ({
-  useWindowPaletteIntent: () => paletteMocks.paletteIntent,
-}));
+vi.mock("../../hooks/use-window-manager-store", async () => {
+  const { useSyncExternalStore } = await import("react");
+  return {
+    useWindowPaletteIntent: () => paletteMocks.paletteIntent,
+    useWindowPaletteViewStack: () =>
+      useSyncExternalStore(
+        paletteMocks.subscribeViewStack,
+        paletteMocks.readViewStack,
+        paletteMocks.readViewStack
+      ),
+  };
+});
 
 vi.mock("../../lib/attention-model", () => ({
-  isWaitingSession: (session: { id: string }) => paletteMocks.isWaiting(session.id),
+  isNeedsYouSession: (session: { id: string }) => paletteMocks.isWaiting(session.id),
 }));
 
 vi.mock("../../lib/window-slot-registry", () => ({
@@ -119,14 +195,30 @@ vi.mock("../../lib/window-slot-registry", () => ({
   windowSlotSnapshot: (windowId: string) => paletteMocks.windowSlots.get(windowId) ?? null,
 }));
 
-vi.mock("../../stores/window-manager-store", () => ({
-  windowManagerStore: {
-    trigger: {
-      paletteIntentCleared: paletteMocks.paletteIntentCleared,
-      paletteIntentRequested: paletteMocks.paletteIntentRequested,
+vi.mock("../../stores/window-manager-store", async () => {
+  const { popPaletteViewFrame, pushPaletteViewFrame } =
+    await import("../../lib/palette-view-stack");
+  return {
+    windowManagerStore: {
+      trigger: {
+        paletteIntentCleared: paletteMocks.paletteIntentCleared,
+        paletteIntentRequested: paletteMocks.paletteIntentRequested,
+        paletteViewPushed: ({ viewId }: { viewId: "sessions" }) =>
+          paletteMocks.writeViewStack(
+            pushPaletteViewFrame(paletteMocks.readViewStack(), viewId) as Array<{
+              viewId: "sessions";
+            }>
+          ),
+        paletteViewPopped: () =>
+          paletteMocks.writeViewStack(
+            popPaletteViewFrame(paletteMocks.readViewStack()) as Array<{ viewId: "sessions" }>
+          ),
+        paletteViewStackSet: ({ stack }: { stack: readonly { viewId: "sessions" }[] }) =>
+          paletteMocks.writeViewStack(stack),
+      },
     },
-  },
-}));
+  };
+});
 
 function windowFixture(overrides: Partial<OsWindow> = {}): OsWindow {
   return {
@@ -194,7 +286,6 @@ function desktopFixture(
     hydration: "live",
     presentation: "floating",
     projections: {},
-    railCollapsedAgentIds: [],
     reduceMotion: false,
     snapshot: null,
     viewportState: "ready",
@@ -222,7 +313,14 @@ describe("useOsCommandPalette", () => {
     paletteMocks.paletteIntentRequested.mockClear();
     paletteMocks.pending = false;
     paletteMocks.sessions = [];
+    paletteMocks.sessionsLoading = false;
     paletteMocks.sessionsWorkspaceId.mockClear();
+    paletteMocks.sessionListScope = "workspace";
+    paletteMocks.sessionListSaving = false;
+    paletteMocks.setSessionListScope.mockClear();
+    paletteMocks.jumpToSession.mockClear();
+    paletteMocks.workspaceGroups = [];
+    paletteMocks.writeViewStack([]);
     paletteMocks.toggleLocked = false;
     paletteMocks.windowSlots.clear();
     paletteMocks.windowCommands.commandsAvailable = true;
@@ -324,7 +422,13 @@ describe("useOsCommandPalette", () => {
       route: { pathname: "/agents/codex/sessions/session%3Awaiting", search: {} },
     });
     paletteMocks.sessions = [
-      { agent_name: "codex", badge: "running", id: "session:waiting", name: "Needs input" },
+      {
+        agent_name: "codex",
+        badge: "running",
+        id: "session:waiting",
+        name: "Needs input",
+        updated_at: "2026-08-16T10:00:00Z",
+      },
     ];
     paletteMocks.isWaiting.mockImplementation(
       (sessionId: string) => sessionId === "session:waiting"
@@ -368,5 +472,277 @@ describe("useOsCommandPalette", () => {
     });
 
     expect(paletteMocks.coordinator.userActivateWindow).toHaveBeenCalledWith("window:minimized");
+  });
+});
+
+function paletteSession(
+  overrides: Partial<PaletteSessionFixture> & { id: string }
+): PaletteSessionFixture {
+  return {
+    name: null,
+    agent_name: "claude",
+    badge: "idle",
+    workspace_id: "workspace:alpha",
+    updated_at: "2026-08-16T10:00:00Z",
+    ...overrides,
+  };
+}
+
+function workspaceGroup(
+  workspaceId: string,
+  name: string,
+  sessions: PaletteSessionFixture[],
+  overrides: Partial<{ loading: boolean; failed: boolean }> = {}
+) {
+  return {
+    workspaceId,
+    workspaceName: name,
+    sessions,
+    total: sessions.length,
+    loading: false,
+    failed: false,
+    retry: () => undefined,
+    ...overrides,
+  };
+}
+
+async function pushSessionsView(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByTestId("os-palette-view-sessions"));
+  return screen.getByPlaceholderText("Search sessions…");
+}
+
+describe("palette nested views", () => {
+  beforeEach(() => {
+    paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
+    paletteMocks.writeViewStack([]);
+    paletteMocks.sessions = [];
+    paletteMocks.sessionListScope = "workspace";
+    paletteMocks.setSessionListScope.mockClear();
+    paletteMocks.jumpToSession.mockClear();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Should push a view, keep editing text, and pop only on an empty query [UT-059]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [paletteSession({ id: "s-1", name: "Refactor session store" })];
+    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    expect(screen.queryByTestId("os-palette-breadcrumb")).not.toBeInTheDocument();
+
+    const input = await pushSessionsView(user);
+    expect(screen.getByTestId("os-palette-breadcrumb")).toHaveTextContent("Sessions");
+
+    await user.type(input, "ref");
+    expect(input).toHaveValue("ref");
+    await user.keyboard("{Backspace}");
+    expect(input).toHaveValue("re");
+    expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
+
+    await user.clear(input);
+    await user.keyboard("{Backspace}");
+    expect(screen.queryByTestId("os-palette-breadcrumb")).not.toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-view-sessions")).toBeInTheDocument();
+  });
+
+  it("Should render only the active view's results and name its own empty state [UT-060]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [paletteSession({ id: "s-1", name: "Refactor session store" })];
+    const rendered = render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    expect(screen.getByTestId("os-palette-app-tasks")).toBeInTheDocument();
+
+    await pushSessionsView(user);
+    expect(screen.getByTestId("os-palette-session-view-s-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("os-palette-app-tasks")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("os-palette-toggle-global-scope")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("os-palette-view-sessions")).not.toBeInTheDocument();
+
+    paletteMocks.sessions = [];
+    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    expect(screen.getByText("No sessions in this workspace yet.")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
+  });
+
+  it("Should narrow by chip, name a zero match, and clear it in one keystroke [UT-061]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [
+      paletteSession({ id: "s-needs", name: "Chargeback flow", badge: "waiting-for-input" }),
+      paletteSession({ id: "s-running", name: "Fix payment retries", badge: "running" }),
+    ];
+    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    const input = await pushSessionsView(user);
+
+    expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*2/);
+    expect(screen.getByTestId("os-palette-session-filter-finished")).toHaveTextContent(
+      /Finished\s*0/
+    );
+
+    await user.click(screen.getByTestId("os-palette-session-filter-needs-you"));
+    expect(screen.getByTestId("os-palette-session-view-s-needs")).toBeInTheDocument();
+    expect(screen.queryByTestId("os-palette-session-view-s-running")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("os-palette-session-filter-finished"));
+    expect(screen.getByText("Nothing finished right now.")).toBeInTheDocument();
+
+    await user.click(input);
+    await user.keyboard("{Backspace}");
+    expect(screen.getByTestId("os-palette-session-view-s-needs")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-session-view-s-running")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
+  });
+
+  it("Should widen through the operator's persisted session-list scope [UT-061]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [paletteSession({ id: "s-alpha", name: "Refactor session store" })];
+    const rendered = render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    await pushSessionsView(user);
+
+    const scope = screen.getByTestId("os-palette-session-scope");
+    expect(scope).toHaveAccessibleName("All workspaces");
+    expect(scope).toHaveAttribute("aria-pressed", "false");
+    await user.click(scope);
+    expect(paletteMocks.setSessionListScope).toHaveBeenCalledWith("all-workspaces");
+
+    paletteMocks.sessionListScope = "all-workspaces";
+    paletteMocks.workspaceGroups = [
+      workspaceGroup("workspace:alpha", "Alpha", [
+        paletteSession({ id: "s-alpha", name: "Refactor session store" }),
+      ]),
+      workspaceGroup("workspace:beta", "Beta", [
+        paletteSession({
+          id: "s-beta",
+          name: "Chargeback flow",
+          workspace_id: "workspace:beta",
+          badge: "waiting-for-input",
+        }),
+      ]),
+      workspaceGroup("workspace:gamma", "Gamma", [], { failed: true }),
+    ];
+    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByTestId("os-palette-session-scope")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("os-palette-session-view-s-beta")).toHaveTextContent("Beta");
+    expect(screen.getByText("Gamma couldn't be loaded.")).toBeInTheDocument();
+    // Attention-first survives the union: the needs-you row from the foreign
+    // workspace outranks the idle row from this one.
+    const rows = screen.getAllByTestId(/^os-palette-session-view-/);
+    expect(rows.map(row => row.dataset.testid)).toEqual([
+      "os-palette-session-view-s-beta",
+      "os-palette-session-view-s-alpha",
+    ]);
+
+    await user.click(screen.getByTestId("os-palette-session-scope"));
+    expect(paletteMocks.setSessionListScope).toHaveBeenLastCalledWith("workspace");
+
+    paletteMocks.workspaceGroups = [];
+    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    expect(screen.getByText("No sessions across workspaces yet.")).toBeInTheDocument();
+  });
+
+  it("Should read the archive through its own toggle without touching the breadth [UT-061]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [paletteSession({ id: "s-alpha", name: "Refactor session store" })];
+    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    await pushSessionsView(user);
+
+    const archived = screen.getByTestId("os-palette-session-archived");
+    expect(archived).toHaveAccessibleName("Archived");
+    expect(archived).toHaveAttribute("aria-pressed", "false");
+    expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ archive: expect.anything() })
+    );
+
+    await user.click(archived);
+
+    expect(screen.getByTestId("os-palette-session-archived")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
+      expect.objectContaining({ archive: "only" })
+    );
+    // The archive is its own axis: flipping it never writes the persisted breadth.
+    expect(paletteMocks.setSessionListScope).not.toHaveBeenCalled();
+  });
+
+  it("Should land on a session through the shared attention jump [UT-060]", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    paletteMocks.sessions = [
+      paletteSession({ id: "s-1", name: "Refactor session store", agent_name: "codex" }),
+    ];
+    render(<OsCommandPalette open onOpenChange={onOpenChange} />);
+    await pushSessionsView(user);
+
+    await user.click(screen.getByTestId("os-palette-session-view-s-1"));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(paletteMocks.jumpToSession).toHaveBeenCalledWith({
+      sessionId: "s-1",
+      agentName: "codex",
+      workspaceId: "workspace:alpha",
+    });
+    expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should keep the keyboard selection while the catalog moves underneath it [UT-076]", async () => {
+    const user = userEvent.setup();
+    const stamped = (id: string, minute: string) =>
+      paletteSession({ id, name: id, attention_changed_at: `2026-08-16T10:0${minute}:00Z` });
+    paletteMocks.sessions = [stamped("s-a", "3"), stamped("s-b", "2"), stamped("s-c", "1")];
+    const rendered = render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    await pushSessionsView(user);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("os-palette-session-view-s-a")).toHaveAttribute(
+        "aria-selected",
+        "true"
+      );
+    });
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByTestId("os-palette-session-view-s-b")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    paletteMocks.sessions = [
+      stamped("s-new", "4"),
+      stamped("s-a", "3"),
+      stamped("s-b", "2"),
+      stamped("s-c", "1"),
+    ];
+    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    expect(screen.getByTestId("os-palette-session-view-s-b")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    paletteMocks.sessions = [stamped("s-new", "4"), stamped("s-a", "3"), stamped("s-c", "1")];
+    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    expect(screen.getByTestId("os-palette-session-view-s-c")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+
+  it("Should bound the rendered rows and say how many matches went unrendered", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = Array.from({ length: PALETTE_SESSION_ROW_LIMIT + 12 }, (_, index) =>
+      paletteSession({ id: `s-${index}`, name: `Session ${index}` })
+    );
+    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    await pushSessionsView(user);
+
+    expect(screen.getAllByTestId(/^os-palette-session-view-/)).toHaveLength(
+      PALETTE_SESSION_ROW_LIMIT
+    );
+    const list = screen.getByTestId("os-command-palette");
+    expect(
+      within(list).getByText(
+        `Showing ${PALETTE_SESSION_ROW_LIMIT} of ${PALETTE_SESSION_ROW_LIMIT + 12} — keep typing to narrow.`,
+        { exact: false }
+      )
+    ).toBeInTheDocument();
   });
 });

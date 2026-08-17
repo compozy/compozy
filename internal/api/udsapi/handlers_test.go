@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/transcript"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -199,6 +200,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/resources/:kind",
 			"GET /api/resources/:kind/:id",
 			"GET /api/sessions",
+			"GET /api/sessions/attention-summary",
 			"GET /api/sessions/catalog-stream",
 			"GET /api/sessions/:session_id",
 			"GET /api/sessions/:session_id/owner",
@@ -210,6 +212,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/interactions",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/recap",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/usage",
@@ -236,6 +239,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/settings/mcp-servers/:name/auth/logout",
 			"GET /api/settings/memory",
 			"GET /api/settings/network",
+			"GET /api/settings/attention",
+			"GET /api/settings/shell",
 			"GET /api/settings/window-manager",
 			"GET /api/settings/observability",
 			"GET /api/settings/observability/log-tail",
@@ -297,6 +302,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/bridges/:id",
 			"PATCH /api/memory/:filename",
 			"PATCH /api/settings/automation",
+			"PATCH /api/settings/attention",
+			"PATCH /api/settings/shell",
 			"PATCH /api/settings/general",
 			"PATCH /api/settings/hooks-extensions",
 			"PATCH /api/settings/memory",
@@ -332,6 +339,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/bridges/:id/webhook/register",
 			"POST /api/agent/channels/:channel/send",
 			"POST /api/agent/channels/reply",
+			"POST /api/agent/notify",
 			"POST /api/agent/soul/validate",
 			"POST /api/agent/spawn",
 			"POST /api/agent/tasks/:run_id/complete",
@@ -414,6 +422,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/rewind",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/presence",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/wait",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id/steer",
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
@@ -690,7 +700,14 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			req settingspkg.SectionRequest,
 		) (settingspkg.SectionEnvelope, error) {
 			envelope := settingsTestSectionEnvelope(req.Section, req.Scope, req.WorkspaceID)
-			if req.Section == settingspkg.SectionWindowManager {
+			switch req.Section {
+			case settingspkg.SectionAttention:
+				envelope.Attention = &settingspkg.AttentionSection{Config: compozyconfig.AttentionConfig{
+					Toasts: true, Sound: true,
+				}}
+			case settingspkg.SectionShell:
+				envelope.Shell = &settingspkg.ShellSection{Config: compozyconfig.DefaultShellConfig()}
+			case settingspkg.SectionWindowManager:
 				envelope.WindowManager = &settingspkg.WindowManagerSection{
 					Config: compozyconfig.DefaultWindowManagerConfig(),
 				}
@@ -792,6 +809,110 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			},
 		},
 		{
+			name:       "Should get attention section",
+			method:     http.MethodGet,
+			path:       "/api/settings/attention",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsAttentionResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionAttention ||
+					!response.Config.Toasts || !response.Config.Sound {
+					t.Fatalf("attention response = %#v, want enabled defaults", response)
+				}
+				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionAttention {
+					t.Fatalf(
+						"LastGetSectionRequest.Section = %q, want %q",
+						settingsService.LastGetSectionRequest.Section,
+						settingspkg.SectionAttention,
+					)
+				}
+			},
+		},
+		{
+			name:       "Should patch attention section",
+			method:     http.MethodPatch,
+			path:       "/api/settings/attention",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.UpdateSettingsAttentionRequest{
+				Config: contract.SettingsAttentionPayload{
+					Toasts: false, Sound: false, System: true,
+					MutedWorkspaces: []string{"ws_0123456789abcdef"},
+				},
+			}),
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsGlobalSectionMutationResult
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionAttention {
+					t.Fatalf("response.Section = %q, want attention", response.Section)
+				}
+				request := settingsService.LastUpdateSectionRequest
+				if request.Section != settingspkg.SectionAttention || request.Attention == nil ||
+					request.Attention.Toasts || request.Attention.Sound || !request.Attention.System ||
+					!reflect.DeepEqual(
+						request.Attention.MutedWorkspaces,
+						[]string{"ws_0123456789abcdef"},
+					) {
+					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed attention config", request)
+				}
+			},
+		},
+		{
+			name:       "Should get shell section",
+			method:     http.MethodGet,
+			path:       "/api/settings/shell",
+			wantStatus: http.StatusOK,
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsShellResponse
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionShell ||
+					response.Config.Sessions.Sort != contract.SettingsShellSessionSortLastActivity ||
+					response.Config.Sessions.Scope != contract.SettingsShellSessionScopeWorkspace {
+					t.Fatalf("shell response = %#v, want default session preferences", response)
+				}
+				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionShell {
+					t.Fatalf(
+						"LastGetSectionRequest.Section = %q, want %q",
+						settingsService.LastGetSectionRequest.Section,
+						settingspkg.SectionShell,
+					)
+				}
+			},
+		},
+		{
+			name:       "Should patch shell section",
+			method:     http.MethodPatch,
+			path:       "/api/settings/shell",
+			wantStatus: http.StatusOK,
+			body: mustJSONBody(t, contract.UpdateSettingsShellRequest{
+				Config: contract.SettingsShellPayload{Sessions: contract.SettingsShellSessionsPayload{
+					Sort:  contract.SettingsShellSessionSortAttention,
+					Scope: contract.SettingsShellSessionScopeAllWorkspaces,
+				}},
+			}),
+			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				t.Helper()
+
+				var response contract.SettingsGlobalSectionMutationResult
+				decodeJSONResponse(t, recorder, &response)
+				if response.Section != contract.SettingsSectionShell {
+					t.Fatalf("response.Section = %q, want shell", response.Section)
+				}
+				request := settingsService.LastUpdateSectionRequest
+				if request.Section != settingspkg.SectionShell || request.Shell == nil ||
+					request.Shell.Sessions.Sort != compozyconfig.ShellSessionSortAttention ||
+					request.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces {
+					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed shell config", request)
+				}
+			},
+		},
+		{
 			name:       "Should get window-manager section",
 			method:     http.MethodGet,
 			path:       "/api/settings/window-manager",
@@ -840,7 +961,10 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					request.WindowManager.HistoryLimit != 77 ||
 					request.WindowManager.NavStackLimit != 66 ||
 					request.WindowManager.ClosedEntryLimit != 18 ||
-					request.WindowManager.Shortcuts["desktop.switch.next"] != "Meta+ArrowRight" {
+					!slices.Equal(
+						request.WindowManager.Shortcuts["desktop.switch.next"],
+						windowmanager.ShortcutBinding{"Meta+ArrowRight"},
+					) {
 					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed window-manager config", request)
 				}
 			},
@@ -1033,7 +1157,7 @@ func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfig
 			TopCenter:    contract.SettingsWindowBindingActionNone,
 			BottomCenter: contract.SettingsWindowBindingActionZoom,
 		},
-		Shortcuts: map[string]string{"desktop.switch.next": "Meta+ArrowRight"},
+		Shortcuts: map[string]windowmanager.ShortcutBinding{"desktop.switch.next": {"Meta+ArrowRight"}},
 	}
 }
 
@@ -1123,6 +1247,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"GET /api/agent/me":                                            "AgentMe",
 		"POST /api/agent/channels/:channel/send":                       "AgentChannelSend",
 		"POST /api/agent/channels/reply":                               "AgentChannelReply",
+		"POST /api/agent/notify":                                       "AgentNotify",
 		"POST /api/agent/tasks/:run_id/complete":                       "AgentTaskComplete",
 		"POST /api/agent/tasks/:run_id/fail":                           "AgentTaskFail",
 		"POST /api/agent/tasks/:run_id/heartbeat":                      "AgentTaskHeartbeat",
@@ -2247,11 +2372,13 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		CancelPromptFn: func(_ context.Context, id string) error {
+		CancelPromptFn: func(_ context.Context, id string) (session.PromptCancelResult, error) {
 			if id != "sess-123" {
 				t.Fatalf("CancelPrompt() id = %q, want sess-123", id)
 			}
-			return nil
+			return session.PromptCancelResult{
+				Outcome: session.PromptCancelOutcomeNothingInFlight,
+			}, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -2267,8 +2394,10 @@ func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
-	if got := recorder.Body.String(); got != "" {
-		t.Fatalf("body = %q, want empty", got)
+	var payload contract.SessionPromptCancelResponse
+	apitestutil.DecodeJSONResponse(t, recorder, &payload)
+	if payload.SessionID != "sess-123" || payload.Outcome != "nothing-in-flight" || payload.TurnID != "" {
+		t.Fatalf("prompt cancel payload = %#v, want nothing-in-flight", payload)
 	}
 }
 

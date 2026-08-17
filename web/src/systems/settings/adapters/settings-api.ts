@@ -2,15 +2,18 @@ export { SettingsApiError, normalizeOptionalText } from "./settings-api-error";
 export {
   createSettingsNotificationPreset,
   deleteSettingsNotificationPreset,
+  getSettingsAttention,
   getSettingsAutomation,
   getSettingsGeneral,
   getSettingsHooksExtensions,
   getSettingsMemory,
   getSettingsNetwork,
   getSettingsObservability,
+  getSettingsShell,
   getSettingsSkills,
   getSettingsUpdate,
   listSettingsNotificationPresets,
+  updateSettingsAttention,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
@@ -18,6 +21,7 @@ export {
   updateSettingsNetwork,
   updateSettingsNotificationPreset,
   updateSettingsObservability,
+  updateSettingsShell,
   updateSettingsSkills,
 } from "./settings-sections-api";
 export {

@@ -284,6 +284,6 @@ func (*hostAPIClarifyBrokerStub) Answer(
 	toolspkg.Scope,
 	string,
 	toolspkg.ClarifyAnswerRequest,
-) (toolspkg.ClarifyAnswer, error) {
-	return toolspkg.ClarifyAnswer{}, errors.New("unexpected clarification answer")
+) (toolspkg.ClarifyAnswerResult, error) {
+	return toolspkg.ClarifyAnswerResult{}, errors.New("unexpected clarification answer")
 }

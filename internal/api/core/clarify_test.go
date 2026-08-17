@@ -70,6 +70,14 @@ func TestClarifyCoreHandlersAuthorizeLiveSessionScope(t *testing.T) {
 				answer.Body.String(),
 			)
 		}
+		var answerPayload contract.ClarificationAnswerPayload
+		if err := json.Unmarshal(answer.Body.Bytes(), &answerPayload); err != nil {
+			t.Fatalf("decode answer response error = %v", err)
+		}
+		if answerPayload.Outcome != "answered" || answerPayload.RequestID != "request-one" ||
+			answerPayload.ResolvedAnswer != "Yes" {
+			t.Fatalf("answer response = %#v", answerPayload)
+		}
 		if broker.answerScope != broker.pendingScope || broker.requestID != "request-one" ||
 			broker.answerRequest.ChoiceIndex == nil || *broker.answerRequest.ChoiceIndex != choice {
 			t.Fatalf(
@@ -299,12 +307,18 @@ func (s *clarifyBrokerStub) Answer(
 	scope toolspkg.Scope,
 	requestID string,
 	request toolspkg.ClarifyAnswerRequest,
-) (toolspkg.ClarifyAnswer, error) {
+) (toolspkg.ClarifyAnswerResult, error) {
 	s.answerScope = scope
 	s.requestID = requestID
 	s.answerRequest = request
 	if s.answerErr != nil {
-		return toolspkg.ClarifyAnswer{}, s.answerErr
+		return toolspkg.ClarifyAnswerResult{}, s.answerErr
 	}
-	return request.Normalize(toolspkg.ClarifyQuestion{Question: "Continue?", Choices: []string{"Yes"}})
+	answer, err := request.Normalize(toolspkg.ClarifyQuestion{Question: "Continue?", Choices: []string{"Yes"}})
+	return toolspkg.ClarifyAnswerResult{
+		ClarifyAnswer:  answer,
+		Outcome:        "answered",
+		RequestID:      requestID,
+		ResolvedAnswer: "Yes",
+	}, err
 }

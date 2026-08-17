@@ -74,6 +74,13 @@ func WithNotifier(notifier Notifier) Option {
 	}
 }
 
+// WithSpawnWakeNotifier injects creator wake delivery for spawned sessions.
+func WithSpawnWakeNotifier(notifier SpawnWakeNotifier) Option {
+	return func(manager *Manager) {
+		manager.spawnWakeNotifier = notifier
+	}
+}
+
 // WithHookSet injects the grouped hook dispatch surface used by the session
 // manager for lifecycle and runtime hook points.
 func WithHookSet(hooks HookSet) Option {
@@ -149,6 +156,9 @@ func WithSessionHealthStore(store HealthStore) Option {
 func WithSessionCatalog(catalog store.SessionCatalog) Option {
 	return func(manager *Manager) {
 		manager.sessionCatalog = catalog
+		if attentionStore, ok := catalog.(store.SessionAttentionStore); ok {
+			manager.attentionStore = attentionStore
+		}
 		if creationStore, ok := catalog.(store.SessionCreationStore); ok {
 			manager.creationStore = creationStore
 		}
@@ -188,6 +198,14 @@ func WithSessionHealthConfig(config compozyconfig.HeartbeatConfig) Option {
 	return func(manager *Manager) {
 		manager.sessionHealthStaleAfter = config.SessionHealthStaleAfter
 		manager.sessionHealthHookMinInterval = config.SessionHealthHookMinInterval
+	}
+}
+
+// WithAttentionConfig injects the live operator notification policy.
+func WithAttentionConfig(config compozyconfig.AttentionConfig) Option {
+	return func(manager *Manager) {
+		manager.notifyConfig = config
+		manager.notifyConfig.MutedWorkspaces = append([]string(nil), config.MutedWorkspaces...)
 	}
 }
 
@@ -294,6 +312,20 @@ func WithNow(now func() time.Time) Option {
 func WithSessionIDGenerator(generator IDGenerator) Option {
 	return func(manager *Manager) {
 		manager.newSessionID = generator
+	}
+}
+
+// WithInteractionIDGenerator overrides pending-interaction id allocation.
+func WithInteractionIDGenerator(generator IDGenerator) Option {
+	return func(manager *Manager) {
+		manager.newInteractionID = generator
+	}
+}
+
+// WithPresenceLeaseIDGenerator overrides operator-presence lease id allocation.
+func WithPresenceLeaseIDGenerator(generator IDGenerator) Option {
+	return func(manager *Manager) {
+		manager.newPresenceLeaseID = generator
 	}
 }
 

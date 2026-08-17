@@ -298,6 +298,56 @@ func parseUpdateSettingsWindowManagerRequest(c *gin.Context) (settingspkg.Sectio
 	return settingspkg.SectionUpdateRequest{SectionRequest: req, WindowManager: &config}, nil
 }
 
+func parseUpdateSettingsAttentionRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
+	var body struct {
+		Config *contract.SettingsAttentionPayload `json:"config"`
+	}
+	if err := decodeStrictJSONBody(c, &body); err != nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			fmt.Errorf("decode attention settings request: %w", err),
+		)
+	}
+	if body.Config == nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			errors.New("attention.config is required"),
+		)
+	}
+	req, err := parseSettingsSectionRequest(c, settingspkg.SectionAttention)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	config, err := attentionConfigFromPayload(*body.Config)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	return settingspkg.SectionUpdateRequest{SectionRequest: req, Attention: &config}, nil
+}
+
+func parseUpdateSettingsShellRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
+	var body struct {
+		Config *contract.SettingsShellPayload `json:"config"`
+	}
+	if err := decodeStrictJSONBody(c, &body); err != nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			fmt.Errorf("decode shell settings request: %w", err),
+		)
+	}
+	if body.Config == nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			errors.New("shell.config is required"),
+		)
+	}
+	req, err := parseSettingsSectionRequest(c, settingspkg.SectionShell)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	config, err := shellConfigFromPayload(*body.Config)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	return settingspkg.SectionUpdateRequest{SectionRequest: req, Shell: &config}, nil
+}
+
 func parseUpdateSettingsObservabilityRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
 	var body struct {
 		Config *contract.SettingsObservabilityConfigPayload `json:"config"`

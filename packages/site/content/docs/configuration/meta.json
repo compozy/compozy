@@ -3,6 +3,7 @@
     "icon": "Settings",
     "pages": [
         "config-toml",
+        "shortcuts",
         "lifecycle-matrix",
         "vault",
         "agent-md",

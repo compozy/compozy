@@ -136,6 +136,9 @@ cannot be validated fail closed.
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
     compozy session list --resumable -o json
+    compozy session list --attention -o json
+    compozy session list --badge done --all-workspaces -o json
+    compozy session list --summary -o json
     compozy session list --archived -o json
     compozy session list --include-archived -o json
     compozy session status <session-id> -o json
@@ -160,8 +163,10 @@ cannot be validated fail closed.
     compozy session soul refresh <session-id> --expected-digest sha256:old -o json
     compozy session approve <session-id> --request-id req_123 --turn-id turn_123 --decision allow-once
     compozy session clarify pending <session-id> -o json
+    compozy session interactions <session-id> -o json
     compozy session clarify answer <session-id> <request-id> --choice 1 -o json
     compozy session clarify answer <session-id> <request-id> --text "Use staging" -o json
+    compozy session prompt-cancel <session-id> -o json
     compozy session wait <session-id>
 
 `compozy session new` is promptless and accepts no runtime selection. It returns the durable active,
@@ -194,6 +199,59 @@ Rewind is available only for idle ordinary user sessions.
 It archives the removed suffix for audit. It does not undo file changes, tool or network effects,
 saved memory, or external provider actions. Use `--archive archived` or `--archive all` on events
 and history to inspect the discarded suffix.
+
+### Session attention and pending interactions
+
+Session badges have one daemon-owned precedence order. `waiting-for-auth`, `waiting-for-input`, and
+`failed` form the `needs-you` class. `done` means the latest settled turn has not been seen; it forms
+the `finished` class. A new turn, terminal lifecycle state, or higher-priority pending interaction
+always outranks `done`. CLI and API reads never mark a session seen.
+
+Use `compozy session list --attention` for the `needs-you` class, `--badge <token>` for an exact
+badge, and `--all-workspaces` to remove the workspace filter. `--summary` returns exact `needs_you`,
+`finished`, and per-workspace totals across the whole catalog. Attention lists default to
+`--sort attention`, ordered by the latest attention transition with a stable session-ID tie-break.
+
+`compozy session interactions <session-id>` lists the sanitized pending and restart-orphaned
+questions and permission requests. The same projection is available from
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/interactions` and is embedded in session
+detail and status payloads. Interaction IDs are durable across daemon restart; resolve the returned
+ID through the existing approve or clarify-answer surface instead of matching display text.
+
+Resolution outcomes are explicit. A live permission decision reports `applied`, and a live
+clarification answer reports `answered`. Resolving an orphaned request reports
+`resolved-after-restart`; repeating that resolution reports `already-resolved` with the original
+winning decision or answer. `queue-full` leaves the interaction untouched and is safe to retry.
+`compozy session status <session-id> -o json` returns both the canonical badge and this same bounded
+pending-interaction projection.
+
+Operator clients acquire a per-client visibility lease with
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence`. A first request with
+`{"visible":true}` returns `lease_id`; renew or release only that lease by sending the ID back.
+When a turn settles under any live lease, the daemon marks it seen and does not derive `done`.
+Leases expire after 15 seconds unless renewed. Presence, attention-summary, and cross-workspace
+catalog surfaces are operator-only; agent identity receives `403 agent_scope_denied`. Interaction
+discovery accepts a validated agent identity only for that agent's workspace.
+
+Subscribe to `session_attention_changed` on the session catalog stream for committed badge edges.
+Extension hooks use the separate async-only `session.attention.changed` event. Its payload carries
+`from`, `to`, `class`, `at`, and the session/workspace context; hook failure never rolls back the
+canonical attention change.
+
+### Waiting for session state
+
+`compozy session wait <session-id>` blocks until the session settles or needs someone. The default
+target set is `waiting-for-input`, `waiting-for-auth`, `idle`, `stopped`, and `failed`; `done` also
+satisfies `idle`. Override it with `--until`, bound the request with `--timeout` (default 5 minutes),
+or use `--unbounded` to let the CLI transparently resume bounded server waits without a blind spot.
+Valid explicit targets also include `done`, `running`, `hung`, and `unhealthy`.
+
+The structured result names `state-reached`, `timeout`, `session-gone`, `canceled`, or `overflow`,
+plus the observed state, elapsed milliseconds, and attention revision when available. Exit `75`
+means timeout, `69` means the session or daemon is unavailable, and `65` means an invalid target.
+The HTTP/UDS wait route always requires a positive `timeout_ms` no greater than 1,800,000; timeout is
+a normal `200` result, while a gone session returns `410`. Server waits are always bounded even when
+the CLI uses `--unbounded`.
 
 Each accepted prompt records its immutable runtime snapshot with the authored user event. Omitting
 runtime flags uses the durable `selected` value first, then the current `effective` selection; both
@@ -243,6 +301,12 @@ configuration or replacement restores the prior binding and reports the runtime 
 user event is persisted only after a runtime is ready, rollback creates no user prompt event to retry.
 Read `runtime.transition` to distinguish `initial_bind`, `live_configuration`, and
 `process_replacement`.
+
+Use `compozy session prompt-cancel <session-id>` to cancel only the current prompt while keeping the
+session alive. The result is `canceled` with the affected `turn_id`, or `nothing-in-flight` when the
+session has no active prompt. Repeating the command is safe: it follows the same idempotent
+cancellation path used by HTTP, UDS, and `compozy__session_prompt_cancel`. The CLI exits `0` for a
+cancel and `66` for nothing in flight.
 
 If a CompozyOS-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 
@@ -322,6 +386,12 @@ The session catalog is counted and workspace-scoped. Dream sessions are internal
 
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
 
+`compozy spawn` and `compozy__session_spawn` create governed children with a required TTL and
+permission subsets. The parent receives one sanitized synthetic turn when an eligible child stops,
+fails, or enters a needs-you state. This `notify_creator` behavior defaults to on and has no
+`config.toml` key. Use `--no-notify-creator` in the CLI or explicit `notify_creator: false` in the
+HTTP/UDS or native-tool request to opt out for that child.
+
 ## MCP Serve
 
 Use `compozy mcp serve` to expose the approved Host API subset to a trusted external MCP client over
@@ -361,10 +431,10 @@ First-run onboarding completion is a global instance flag (stored in the `app_me
 
 The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot registers the operator `$HOME` as the default workspace before the wizard starts, so the workspace step should not require manual project registration on a clean machine.
 
-Native session tools are read-oriented. Clarification answers, recap, repair, approval, session
-inspect, and Soul refresh use CLI/HTTP/UDS management surfaces unless the live registry exposes a
-scoped native tool. `compozy__clarify` asks from inside the active session; it does not answer another
-session's question.
+Native session tools include scoped wait, governed spawn, stop, approval, clarification answer, and
+prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS management surfaces unless
+the live registry exposes a matching tool. `compozy__clarify` asks from inside the active session;
+`compozy__session_clarify_answer` answers a pending question on another same-workspace session.
 
 ## Gateway Exposure and Device Authentication
 

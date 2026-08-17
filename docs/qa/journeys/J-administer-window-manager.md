@@ -6,16 +6,18 @@ known-good runtime.
 
 ```mermaid
 flowchart TD
-    A[Entry: Settings or config.toml] --> B[Read active window-manager defaults]
+    A[Entry: Settings, config.toml, or config CLI/API] --> B[Read daemon defaults, overrides, and effective keymap]
     B --> C{Edit behavior or layout}
-    C -->|behavior| D[Validate the complete config]
+    C -->|behavior or shortcut arrays/ranges| D[Validate the complete effective config]
     C -->|layout| E[Preview and validate the complete layout]
+    C -->|Terminal preset| P[Preview displaced bindings and platform hazards]
+    P --> F
     D --> F{Valid?}
     E --> F
     F -->|no| G[Show exact diagnostics and retain known-good runtime]
     G --> B
     F -->|yes| H[Commit atomically at expected revision]
-    H --> I[Run the next semantic window command]
+    H --> I[Run the next semantic window or keyboard command]
     I --> J[Observe new behavior in one workspace/client]
     J --> K[True end: sibling workspace and client remain isolated]
 ```
@@ -31,21 +33,23 @@ journey:
       origin: direct
     - url: "config.toml [window_manager]"
       origin: direct
+    - url: "compozy config get/set window_manager.shortcuts; GET/PATCH /api/settings/window-manager over HTTP or UDS"
+      origin: direct
     - url: "compozy layout export|validate|apply"
       origin: direct
   actions:
     - step: 1
-      verb: "Read behavior defaults and the workspace layout"
-      expected_observable: "Settings, CLI, and daemon snapshot expose the same supported values and revision."
+      verb: "Read behavior defaults, overrides, effective shortcuts, and the workspace layout"
+      expected_observable: "Settings, CLI, HTTP, UDS, and the daemon snapshot expose the same supported values, effective bindings, and revision."
     - step: 2
-      verb: "Edit snapping, gaps, focus, shortcuts, bindings, or a declarative layout"
-      expected_observable: "The UI keeps the draft local and exposes preview or validation before commit."
+      verb: "Edit snapping, gaps, focus, shortcut arrays or ranges, bindings, a preset, or a declarative layout"
+      expected_observable: "The UI keeps the draft local and exposes conflict, platform-hazard, preset, or layout validation before commit."
     - step: 3
       verb: "Submit an invalid draft"
       expected_observable: "Stable diagnostics name each invalid path; no runtime value, topology, revision, event, or history entry changes."
     - step: 4
       verb: "Correct and save the complete draft"
-      expected_observable: "The configuration or layout commits once and the next semantic command uses it without daemon restart."
+      expected_observable: "The configuration, exact pre-preset state, or layout commits once and the next semantic command uses it without daemon restart."
     - step: 5
       verb: "Observe a sibling workspace and second client"
       expected_observable: "Global defaults apply as documented, workspace overrides do not leak, and client presentation remains independent."
@@ -64,3 +68,9 @@ journey:
       resume: "The exact diagnostic path identifies the correction without a partial apply."
   crosses: [settings, config-lifecycle, window-manager, resources, workspace-isolation]
 ```
+
+design_reference:
+  locked_root: "docs/design/opendesign/herdr-parity/"
+  visual_contracts:
+    - "task_05 VC-01..VC-06 — herdr-parity-settings-shortcuts.html"
+  judgment_rule: "Judge the shortcut table, diagnostics, and Terminal preset against the locked board; the daemon effective keymap owns every rendered chord."

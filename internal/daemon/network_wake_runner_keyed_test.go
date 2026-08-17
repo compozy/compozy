@@ -289,8 +289,11 @@ func (s *keyedNetworkWakePrompterStub) PromptNetwork(
 	return events, nil
 }
 
-func (*keyedNetworkWakePrompterStub) CancelPrompt(context.Context, string) error {
-	return nil
+func (*keyedNetworkWakePrompterStub) CancelPrompt(
+	context.Context,
+	string,
+) (session.PromptCancelResult, error) {
+	return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled}, nil
 }
 
 func (s *keyedNetworkWakePrompterStub) waitStarted(t *testing.T) string {

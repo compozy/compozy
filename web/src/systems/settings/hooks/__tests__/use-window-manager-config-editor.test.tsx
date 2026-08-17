@@ -11,11 +11,46 @@ import { createElement, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
 import type { WindowManagerConfig } from "@/systems/os";
+import { windowManagerSettingsConfigToWire } from "../../lib/window-manager-layout-schema";
+import {
+  applyTerminalShortcutPreset,
+  previewTerminalShortcutPreset,
+  revertTerminalShortcutPreset,
+  TERMINAL_SHORTCUT_PRESET,
+} from "../../lib/window-manager-shortcut-preset";
 
 import {
   useWindowManagerConfigEditor,
   windowManagerConfigEditorLogic,
 } from "../use-window-manager-config-editor";
+
+const SHORTCUT_DEFAULTS = {
+  "window.close": ["meta+KeyW"],
+  "window.tile.left": ["control+alt+ArrowLeft"],
+  "window.focus.up": ["control+ArrowUp"],
+  "window.focus.down": ["control+ArrowDown"],
+  "window.tile.bottom-left": ["control+alt+KeyJ"],
+  "window.tile.bottom-right": ["control+alt+KeyK"],
+  "sidebar.toggle": ["meta+KeyB"],
+  "window.tab.jump.1": ["meta+Digit1"],
+  "window.tab.jump.2": ["meta+Digit2"],
+  "window.tab.jump.3": ["meta+Digit3"],
+  "window.tab.jump.4": ["meta+Digit4"],
+  "window.tab.jump.5": ["meta+Digit5"],
+  "window.tab.jump.6": ["meta+Digit6"],
+  "window.tab.jump.7": ["meta+Digit7"],
+  "window.tab.jump.8": ["meta+Digit8"],
+  "window.tab.last": ["meta+Digit9"],
+  "desktop.switch.1": ["control+Digit1"],
+  "desktop.switch.2": ["control+Digit2"],
+  "desktop.switch.3": ["control+Digit3"],
+  "desktop.switch.4": ["control+Digit4"],
+  "desktop.switch.5": ["control+Digit5"],
+  "desktop.switch.6": ["control+Digit6"],
+  "desktop.switch.7": ["control+Digit7"],
+  "desktop.switch.8": ["control+Digit8"],
+  "desktop.switch.9": ["control+Digit9"],
+} as const;
 
 const CONFIG: WindowManagerConfig = {
   newWindowPolicy: "floating",
@@ -35,6 +70,8 @@ const CONFIG: WindowManagerConfig = {
   snap: { edgeBand: 24, cornerReach: 96, exitSlack: 16, repeatRatios: [0.5, 0.33, 0.67] },
   bindings: { topCenter: "zoom", bottomCenter: "none" },
   shortcuts: {},
+  shortcutDefaults: SHORTCUT_DEFAULTS,
+  effectiveShortcuts: SHORTCUT_DEFAULTS,
 };
 
 function renderEditor(initial = CONFIG) {
@@ -54,6 +91,14 @@ function fields(problems: ReadonlyArray<{ field: string }>) {
 }
 
 describe("useWindowManagerConfigEditor", () => {
+  it("Should preserve every daemon-required limit in the wire config", () => {
+    expect(windowManagerSettingsConfigToWire(CONFIG)).toMatchObject({
+      history_limit: 100,
+      nav_stack_limit: 50,
+      closed_entry_limit: 20,
+    });
+  });
+
   it("Should preserve a dirty draft when a newer baseline is rendered", () => {
     const { result, rerender } = renderEditor();
     act(() => {
@@ -142,8 +187,8 @@ describe("useWindowManagerConfigEditor", () => {
     const { result } = renderEditor();
     act(() => {
       result.current.setShortcuts({
-        "window.focus.up": "meta+shift+KeyP",
-        "window.focus.down": "meta+shift+KeyP",
+        "window.focus.up": ["meta+shift+KeyP"],
+        "window.focus.down": ["meta+shift+KeyP"],
       });
     });
 
@@ -151,12 +196,19 @@ describe("useWindowManagerConfigEditor", () => {
     expect(result.current.canSave).toBe(false);
   });
 
-  it("Should allow an override that only shadows another action's shipped chord", () => {
+  it("Should block an override that collides with a daemon default", () => {
     const { result } = renderEditor();
     act(() => {
-      // control+alt+ArrowLeft ships on window.tile.left; the daemon stores this.
-      result.current.setShortcuts({ "window.close": "control+alt+ArrowLeft" });
+      result.current.setShortcuts({ "window.close": ["control+alt+ArrowLeft"] });
     });
+
+    expect(fields(result.current.problems)).toEqual(["shortcuts"]);
+    expect(result.current.canSave).toBe(false);
+  });
+
+  it("Should keep focused-surface shadowing advisory rather than blocking", () => {
+    const { result } = renderEditor();
+    act(() => result.current.setShortcuts({ "sidebar.toggle": ["meta+KeyB"] }));
 
     expect(result.current.problems).toEqual([]);
     expect(result.current.canSave).toBe(true);
@@ -175,5 +227,53 @@ describe("useWindowManagerConfigEditor", () => {
 
     expect(result.current.dirty).toBe(false);
     expect(result.current.draft.historyLimit).toBe(100);
+  });
+});
+
+describe("Terminal shortcut preset", () => {
+  it("Should preview every changed key and flag layout hazards [UT-063]", () => {
+    const preview = previewTerminalShortcutPreset({}, SHORTCUT_DEFAULTS);
+
+    expect(preview.map(change => change.actionId)).toEqual(Object.keys(TERMINAL_SHORTCUT_PRESET));
+    expect(preview.some(change => change.hazards.includes("altgr"))).toBe(true);
+    expect(
+      preview.find(change => change.actionId === "window.tile.bottom-left")?.hazards
+    ).toContain("displaced-default");
+    expect(preview.find(change => change.actionId === "window.tab.jump")?.before).toEqual([
+      "meta+Digit1..8",
+    ]);
+    expect(preview.find(change => change.actionId === "desktop.switch")?.after).toEqual([
+      "control+Digit1..9",
+      "meta+Digit1..9",
+    ]);
+    const conflicted = previewTerminalShortcutPreset(
+      { "layout.undo": ["control+ArrowLeft"] },
+      SHORTCUT_DEFAULTS
+    );
+    expect(
+      conflicted
+        .find(change => change.actionId === "window.focus.left")
+        ?.conflicts.some(conflict => conflict.kind === "blocked")
+    ).toBe(true);
+  });
+
+  it("Should apply atomically, re-apply idempotently, and restore only touched keys [UT-064]", () => {
+    const before = {
+      "window.close": ["meta+shift+KeyW"],
+      "layout.undo": ["alt+KeyU"],
+    };
+    const applied = applyTerminalShortcutPreset(before);
+    expect(applied.changed).toBe(true);
+    expect(applied.revert).not.toBeNull();
+    expect(applied.overrides["window.close"]).toEqual(TERMINAL_SHORTCUT_PRESET["window.close"]);
+
+    const reapplied = applyTerminalShortcutPreset(applied.overrides);
+    expect(reapplied.changed).toBe(false);
+    expect(reapplied.overrides).toBe(applied.overrides);
+
+    const manuallyEdited = { ...applied.overrides, "layout.undo": ["alt+KeyZ"] };
+    const restored = revertTerminalShortcutPreset(manuallyEdited, applied.revert!);
+    expect(restored["window.close"]).toEqual(["meta+shift+KeyW"]);
+    expect(restored["layout.undo"]).toEqual(["alt+KeyZ"]);
   });
 });

@@ -109,6 +109,8 @@ describe("useSessionCatalogStreams", () => {
       });
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(beta.id) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: sessionKeys.detail(beta.id, "sess_beta"),
       exact: true,
@@ -130,6 +132,8 @@ describe("useSessionCatalogStreams", () => {
     act(() => sources[0]?.emit("open"));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(alpha.id) });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(beta.id) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
 
     rerender({ workspaces: [alpha] });
     expect(sources[0]?.closed).toBe(true);
@@ -140,6 +144,116 @@ describe("useSessionCatalogStreams", () => {
     unmount();
     expect(remaining?.closed).toBe(true);
     expect([...remaining!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
+  });
+
+  it("Should route each named attention event to its handler exactly once (UT-078, UT-083)", () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const onAttentionEdge = vi.fn();
+    const onOperatorNotification = vi.fn();
+    const alpha = workspace("ws_alpha");
+    const { unmount } = renderHook(
+      () =>
+        useSessionCatalogStreams([alpha], {
+          eventSourceFactory: factory,
+          onAttentionEdge,
+          onOperatorNotification,
+        }),
+      { wrapper: wrapper(queryClient) }
+    );
+
+    const edge = {
+      session_id: "sess_alpha",
+      workspace_id: alpha.id,
+      from: "running",
+      to: "waiting-for-input",
+      class: "needs-you",
+      at: "2026-07-13T12:04:00Z",
+    };
+    const notification = {
+      notification_id: "ntf_1",
+      session_id: "sess_alpha",
+      workspace_id: alpha.id,
+      title: "Deps audit done",
+      body: "3 findings",
+      at: "2026-07-13T12:05:00Z",
+    };
+
+    act(() => {
+      sources[0]?.emit("session_attention_changed", edge);
+      sources[0]?.emit("operator_notification", notification);
+    });
+
+    expect(onAttentionEdge).toHaveBeenCalledExactlyOnceWith(edge);
+    expect(onOperatorNotification).toHaveBeenCalledExactlyOnceWith(notification);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists(alpha.id) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLists("") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.attentionSummary() });
+
+    // A workspace this client does not hold must not reach the notifier.
+    act(() => {
+      sources[0]?.emit("session_attention_changed", { ...edge, workspace_id: "ws_foreign" });
+      sources[0]?.emit("operator_notification", { ...notification, workspace_id: "ws_foreign" });
+    });
+    expect(onAttentionEdge).toHaveBeenCalledTimes(1);
+    expect(onOperatorNotification).toHaveBeenCalledTimes(1);
+
+    // A malformed frame is dropped rather than delivered half-populated.
+    act(() => {
+      sources[0]?.emit("session_attention_changed", { session_id: "sess_alpha" });
+      sources[0]?.emit("operator_notification", { notification_id: "ntf_2" });
+    });
+    expect(onAttentionEdge).toHaveBeenCalledTimes(1);
+    expect(onOperatorNotification).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(sources[0]?.listeners.get("session_attention_changed")?.size ?? 0).toBe(0);
+    expect(sources[0]?.listeners.get("operator_notification")?.size ?? 0).toBe(0);
+  });
+
+  it("Should keep handler identity out of the connection lifetime (UT-078)", () => {
+    // A re-rendering notifier must never tear down and reopen the stream: that
+    // would drop edges and restart the generation fence on every render.
+    const queryClient = new QueryClient();
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const alpha = workspace("ws_alpha");
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = renderHook(
+      ({ handler }: { handler: () => void }) =>
+        useSessionCatalogStreams([alpha], {
+          eventSourceFactory: factory,
+          onAttentionEdge: handler,
+        }),
+      { initialProps: { handler: first }, wrapper: wrapper(queryClient) }
+    );
+
+    rerender({ handler: second });
+
+    expect(sources).toHaveLength(1);
+    act(() => {
+      sources[0]?.emit("session_attention_changed", {
+        session_id: "sess_alpha",
+        workspace_id: alpha.id,
+        from: "running",
+        to: "failed",
+        class: "needs-you",
+        at: "2026-07-13T12:06:00Z",
+      });
+    });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
   });
 
   it("Should keep the shell alive when global source construction fails", () => {

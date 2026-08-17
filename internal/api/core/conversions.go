@@ -57,6 +57,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		AttachedTo:                   strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:              cloneTimePtr(info.AttachExpiresAt),
 		TranscriptEpoch:              info.TranscriptEpoch,
+		AttentionChangedAt:           cloneTimePtr(info.AttentionChangedAt),
+		PendingInteractions:          PendingInteractionPayloadsFromStore(info.PendingInteractions),
 		ArchivedAt:                   cloneTimePtr(info.ArchivedAt),
 		StopReason:                   info.StopReason,
 		StopDetail:                   info.StopDetail,
@@ -82,8 +84,9 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 }
 
 // SessionPayloadFromStoreInfo converts the persisted session index row into the shared payload.
-func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload {
+func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayload {
 	state := session.State(strings.TrimSpace(info.State))
+	attention := info.AttentionSnapshot()
 	converted := &session.Info{
 		ID:                       strings.TrimSpace(info.ID),
 		Name:                     strings.TrimSpace(info.Name),
@@ -116,11 +119,41 @@ func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload
 		AttachedTo:               strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAt),
 		TranscriptEpoch:          info.TranscriptEpoch,
+		PendingPermissionCount:   attention.PendingPermissionCount,
+		PendingClarifyCount:      attention.PendingClarifyCount,
+		AttentionRevision:        attention.AttentionRevision,
+		LastSettledRevision:      attention.LastSettledRevision,
+		LastSeenRevision:         attention.LastSeenRevision,
+		LastSeenAt:               cloneTimePtr(attention.LastSeenAt),
+		AttentionChangedAt:       cloneTimePtr(attention.AttentionChangedAt),
 		ArchivedAt:               cloneTimePtr(info.ArchivedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}
 	return SessionPayloadFromInfo(converted)
+}
+
+// PendingInteractionPayloadsFromStore converts canonical records into sanitized wire payloads.
+func PendingInteractionPayloadsFromStore(values []store.PendingInteraction) []contract.PendingInteractionPayload {
+	result := make([]contract.PendingInteractionPayload, 0, len(values))
+	for _, value := range values {
+		value = store.SanitizePendingInteraction(value)
+		result = append(result, contract.PendingInteractionPayload{
+			InteractionID:     strings.TrimSpace(value.InteractionID),
+			Kind:              strings.TrimSpace(value.Kind),
+			ProviderRequestID: strings.TrimSpace(value.ProviderRequestID),
+			TurnID:            strings.TrimSpace(value.TurnID),
+			Title:             strings.TrimSpace(value.Title),
+			Choices:           append([]string(nil), value.Payload.Choices...),
+			Decisions:         append([]string(nil), value.Payload.Decisions...),
+			Status:            strings.TrimSpace(value.Status),
+			CreatedAt:         value.CreatedAt.UTC(),
+			ResolvedAt:        cloneTimePtr(value.ResolvedAt),
+			Resolution:        strings.TrimSpace(value.Resolution),
+			ResolvedBy:        strings.TrimSpace(value.ResolvedBy),
+		})
+	}
+	return result
 }
 
 func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelectionPayload {
