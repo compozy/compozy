@@ -16,6 +16,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
+	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -128,8 +129,9 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			Runtime: looppkg.RuntimeSpec{
 				Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high",
 			},
-			ContractBlock:        "Follow the loop contract.",
-			NetworkParticipation: new(loopParticipation),
+			ContractBlock:             "Follow the loop contract.",
+			NetworkParticipation:      new(loopParticipation),
+			ProvenanceParentSessionID: "sess-orchestrator",
 		})
 		if err != nil {
 			t.Fatalf("BindActionSession() error = %v", err)
@@ -156,6 +158,12 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		if got, want := createCall.NetworkOwnerKey, "loop_run:loop-run-policy"; got != want {
 			t.Fatalf("CreateOpts.NetworkOwnerKey = %q, want %q", got, want)
 		}
+		if createCall.ProvenanceParentSessionID != "" {
+			t.Fatalf(
+				"ephemeral CreateOpts.ProvenanceParentSessionID = %q, want empty",
+				createCall.ProvenanceParentSessionID,
+			)
+		}
 		if !slices.Equal(createCall.AllowedToolsOverride, allowedTools) {
 			t.Fatalf(
 				"CreateOpts.AllowedToolsOverride = %#v, want %#v",
@@ -173,6 +181,37 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			t.Fatalf(
 				"binding AppliedRuntime = %#v, want final CreateOpts runtime",
 				binding.AppliedRuntime,
+			)
+		}
+	})
+
+	t.Run("Should carry provenance only in run-owned Goal creation options", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
+			Name: "task-worker", Provider: "mock", Prompt: "Handle the Goal node.",
+		}})
+		binder := &loopActionSessionBinder{policyGate: &loopSessionPolicyGate{
+			workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			},
+		}}
+		_, opts, _, err := binder.resolveRunOwnedBindingProfile(
+			context.Background(),
+			looppkg.ActionSessionBindRequest{
+				WorkspaceID: "ws-loop", LoopRunID: "loop-run-goal", Agent: "task-worker",
+				ProvenanceParentSessionID: "sess-orchestrator",
+			},
+			goalpkg.SessionBinding{},
+			false,
+		)
+		if err != nil {
+			t.Fatalf("resolveRunOwnedBindingProfile() error = %v", err)
+		}
+		if opts.ProvenanceParentSessionID != "sess-orchestrator" {
+			t.Fatalf(
+				"CreateOpts.ProvenanceParentSessionID = %q, want sess-orchestrator",
+				opts.ProvenanceParentSessionID,
 			)
 		}
 	})

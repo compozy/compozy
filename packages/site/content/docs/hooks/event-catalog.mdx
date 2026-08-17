@@ -64,7 +64,9 @@ pre-operation control points, CompozyOS returns the event-specific denial error 
 | `session.attention.changed` | async only | `SessionAttentionChangedPayload` | `SessionAttentionObservationPatch` | After a canonical session-attention edge is committed. |
 
 Session lifecycle patches can set `session_name`, `session_type`, `agent_name`, `workspace_id`,
-or `workspace`. Pre-create, pre-resume, and pre-stop hooks can also deny the operation.
+or `workspace`. `session.pre_create` cannot change a session into or out of the daemon-owned
+`coordinator` and `spawned` types. After creation, hooks cannot change the session type or workspace
+identity. Pre-create, pre-resume, and pre-stop hooks can also deny the operation.
 `session.attention.changed` is observation-only and carries `from`, `to`, `class`, and `at`; hook
 failure does not change the committed session state.
 

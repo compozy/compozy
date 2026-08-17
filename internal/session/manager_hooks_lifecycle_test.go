@@ -576,6 +576,55 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a pre-stop session type mutation before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		var patchOnce sync.Once
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPreStopFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPreStopPayload,
+			) (hookspkg.SessionPreStopPayload, error) {
+				patchOnce.Do(func() {
+					payload.SessionType = string(SessionTypeUser)
+				})
+				return payload, nil
+			},
+		}
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		parent := createSession(t, h)
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), child.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("cleanup Stop(child) error = %v", err)
+			}
+			if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("cleanup Stop(parent) error = %v", err)
+			}
+		})
+
+		err = h.manager.Stop(testutil.Context(t), child.ID)
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "session type is immutable") {
+			t.Fatalf("Stop(type mutation) error = %v, want immutable type validation", err)
+		}
+		if got := child.Info().Type; got != SessionTypeSpawned {
+			t.Fatalf("active session type = %q, want %q", got, SessionTypeSpawned)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if got := Type(meta.SessionType); got != SessionTypeSpawned {
+			t.Fatalf("persisted session type = %q, want %q", got, SessionTypeSpawned)
+		}
+	})
+
 	t.Run("ShouldReturnImmediatelyWhenDriverStopFailsBeforeProcessExit", func(t *testing.T) {
 		t.Parallel()
 

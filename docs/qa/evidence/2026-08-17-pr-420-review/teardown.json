@@ -1,0 +1,9 @@
+{
+  "clean": true,
+  "command": "python3 .agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --manifest /Users/pedronauck/dev/qa-audit/pr420-review-20260817/qa/bootstrap-manifest.json --repo-root /Users/pedronauck/Dev/compozy/_worktrees/pr-420 --json",
+  "checked_port": 54515,
+  "checked_pid": 9728,
+  "completed_at": "2026-08-17T18:53:36Z",
+  "survivors": [],
+  "note": "The teardown stopped PID 9728; a follow-up process check found it absent and port 54515 closed."
+}

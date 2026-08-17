@@ -110,6 +110,39 @@ func validateImmutableSessionWorkspace(expected, actual hookspkg.SessionContext)
 	)
 }
 
+func validateImmutableSessionType(expected, actual hookspkg.SessionContext) error {
+	expectedType := normalizeSessionType(Type(strings.TrimSpace(expected.SessionType)))
+	actualType := normalizeSessionType(Type(strings.TrimSpace(actual.SessionType)))
+	if actualType == expectedType {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: session type is immutable after creation: expected %q, got %q",
+		ErrValidation,
+		expectedType,
+		actualType,
+	)
+}
+
+func validateProtectedPreCreateSessionType(expected, actual hookspkg.SessionContext) error {
+	expectedType := normalizeSessionType(Type(strings.TrimSpace(expected.SessionType)))
+	actualType := normalizeSessionType(Type(strings.TrimSpace(actual.SessionType)))
+	if expectedType == actualType ||
+		(!daemonOwnedSessionType(expectedType) && !daemonOwnedSessionType(actualType)) {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: session.pre_create cannot change daemon-owned session type: expected %q, got %q",
+		ErrValidation,
+		expectedType,
+		actualType,
+	)
+}
+
+func daemonOwnedSessionType(sessionType Type) bool {
+	return sessionType == SessionTypeCoordinator || sessionType == SessionTypeSpawned
+}
+
 func hookTimestamp(now time.Time, eventTime time.Time) time.Time {
 	if !eventTime.IsZero() {
 		return eventTime

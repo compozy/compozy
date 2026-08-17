@@ -71,9 +71,21 @@ func (m *Manager) normalizeCreateLineage(
 	sessionType Type,
 	workspaceID string,
 	lineage *store.SessionLineage,
+	provenanceParentSessionID string,
 ) (*store.SessionLineage, error) {
 	normalizedType := normalizeSessionType(sessionType)
-	prepared, err := m.prepareProvenanceLineage(ctx, normalizedType, workspaceID, lineage)
+	prepared, systemProvenance, err := m.prepareInternalSystemProvenance(
+		ctx,
+		sessionID,
+		normalizedType,
+		workspaceID,
+		lineage,
+		provenanceParentSessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	prepared, err = m.prepareProvenanceLineage(ctx, normalizedType, workspaceID, prepared)
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +95,14 @@ func (m *Manager) normalizeCreateLineage(
 	}
 
 	hasParent := strings.TrimSpace(normalized.ParentSessionID) != ""
-	switch {
-	case normalizedType == SessionTypeSpawned && !hasParent:
-		return nil, errors.New("session: spawned session lineage requires a parent session id")
-	case normalizedType == SessionTypeCoordinator && hasParent:
-		return nil, errors.New("session: coordinator sessions must be root sessions")
-	case hasParent && normalizedType != SessionTypeSpawned && normalizedType != SessionTypeUser:
-		return nil, errors.New("session: only spawned or user sessions may have a parent session id")
+	if err := validateCreateLineageParentType(normalizedType, hasParent, systemProvenance); err != nil {
+		return nil, err
+	}
+	if normalizedType == SessionTypeSpawned {
+		normalized, err = m.prepareSpawnedLineageReferences(ctx, normalized)
+		if err != nil {
+			return nil, fmt.Errorf("session: validate lineage references for %q: %w", sessionID, err)
+		}
 	}
 
 	requiresTTL := normalizedType == SessionTypeSpawned || normalizedType == SessionTypeCoordinator
@@ -109,11 +122,29 @@ func (m *Manager) normalizeCreateLineage(
 			normalized.SpawnBudget.TTLSeconds = ttlSeconds
 		}
 	}
-	if err := m.validateCreateLineageReferences(ctx, normalized); err != nil {
-		return nil, fmt.Errorf("session: validate lineage references for %q: %w", sessionID, err)
+	if !systemProvenance && normalizedType != SessionTypeSpawned {
+		if err := m.validateCreateLineageReferences(ctx, normalized); err != nil {
+			return nil, fmt.Errorf("session: validate lineage references for %q: %w", sessionID, err)
+		}
 	}
 
 	return normalized, nil
+}
+
+func validateCreateLineageParentType(sessionType Type, hasParent, systemProvenance bool) error {
+	switch {
+	case sessionType == SessionTypeSpawned && !hasParent:
+		return errors.New("session: spawned session lineage requires a parent session id")
+	case sessionType == SessionTypeCoordinator && hasParent:
+		return errors.New("session: coordinator sessions must be root sessions")
+	case hasParent && sessionType != SessionTypeSpawned && sessionType != SessionTypeUser &&
+		(sessionType != SessionTypeSystem || !systemProvenance):
+		return errors.New(
+			"session: only spawned, user, or provenance-linked system sessions may have a parent session id",
+		)
+	default:
+		return nil
+	}
 }
 
 // prepareProvenanceLineage fills server-owned root/depth for user sessions that

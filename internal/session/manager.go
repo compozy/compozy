@@ -325,48 +325,6 @@ func (m *Manager) lookup(id string) (*Session, error) {
 	return session, nil
 }
 
-func (m *Manager) reserveStart(ctx context.Context, id string, workspaceID string) error {
-	if ctx == nil {
-		return errors.New("session: reserve start context is required")
-	}
-	targetWorkspace := strings.TrimSpace(workspaceID)
-	if targetWorkspace == "" {
-		return errors.New("session: reserve start workspace id is required")
-	}
-
-	m.lifecycleMu.Lock()
-	defer m.lifecycleMu.Unlock()
-
-	resolver, err := m.requireWorkspaceResolver()
-	if err != nil {
-		return err
-	}
-	resolved, err := resolver.Resolve(ctx, targetWorkspace)
-	if err != nil {
-		return fmt.Errorf("session: revalidate workspace %q before start: %w", targetWorkspace, err)
-	}
-	if strings.TrimSpace(resolved.ID) != targetWorkspace {
-		return fmt.Errorf(
-			"session: revalidated workspace id %q does not match %q",
-			strings.TrimSpace(resolved.ID),
-			targetWorkspace,
-		)
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if _, ok := m.sessions[id]; ok {
-		return fmt.Errorf("session: session %q is already active", id)
-	}
-	if _, ok := m.pending[id]; ok {
-		return fmt.Errorf("session: session %q is already pending", id)
-	}
-
-	m.pending[id] = sessionReservation{workspaceID: targetWorkspace}
-	return nil
-}
-
 func (m *Manager) activate(session *Session) error {
 	if session == nil {
 		return errors.New("session: session is required")

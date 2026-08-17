@@ -17,7 +17,7 @@ import {
 
 function treeSession(
   id: string,
-  options: { parent?: string; badge?: string } = {}
+  options: { parent?: string; badge?: string; sessionType?: SessionPayload["type"] } = {}
 ): SessionPayload {
   return {
     id,
@@ -26,6 +26,7 @@ function treeSession(
     runtime: sessionRuntime("claude"),
     workspace_id: "ws-1",
     state: "active",
+    type: options.sessionType ?? "user",
     badge: options.badge ?? "running",
     attachable: true,
     archived_at: null,
@@ -67,6 +68,21 @@ describe("buildSessionTree", () => {
     expect(tree.roots.map(session => session.id)).toEqual(["sess-root", "sess-orphan"]);
     expect(tree.childrenByParent.get("sess-root")?.map(session => session.id)).toEqual([
       "sess-child",
+    ]);
+  });
+
+  it("Should nest a system Goal under its loaded origin session", () => {
+    const origin = treeSession("sess-origin");
+    const goal = treeSession("sess-goal", {
+      parent: "sess-origin",
+      sessionType: "system",
+    });
+
+    const tree = buildSessionTree([origin, goal]);
+
+    expect(tree.roots.map(session => session.id)).toEqual(["sess-origin"]);
+    expect(tree.childrenByParent.get("sess-origin")?.map(session => session.id)).toEqual([
+      "sess-goal",
     ]);
   });
 

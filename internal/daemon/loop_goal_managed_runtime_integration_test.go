@@ -76,6 +76,93 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve a materialized binding lineage after provenance parent deletion", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "provenance-existing", nil, withoutInitialGoalBinding())
+		parentID, _ := fixture.createOriginSession(t, "provenance-existing", participation.LocalSpec())
+		request := fixture.bindingRequest("provenance-existing")
+		request.ProvenanceParentSessionID = parentID
+
+		created, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
+		if err != nil {
+			t.Fatalf("BindActionSession(first) error = %v", err)
+		}
+		assertSessionProvenanceParent(t, fixture.manager, created.SessionID, parentID)
+		if err := fixture.manager.Delete(testutil.Context(t), parentID); err != nil {
+			t.Fatalf("Delete(parent) error = %v", err)
+		}
+
+		matched, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
+		if err != nil {
+			t.Fatalf("BindActionSession(existing) error = %v", err)
+		}
+		if matched.SessionID != created.SessionID || matched.BindingEpoch != created.BindingEpoch {
+			t.Fatalf("existing binding = %#v, want identity %#v", matched, created)
+		}
+		assertSessionProvenanceParent(t, fixture.manager, matched.SessionID, parentID)
+		t.Cleanup(func() {
+			if err := fixture.manager.Delete(testutil.Context(t), matched.SessionID); err != nil {
+				t.Errorf("Delete(bound session) error = %v", err)
+			}
+		})
+	})
+
+	t.Run("Should drop a deleted provenance parent when a managed retry advances", func(t *testing.T) {
+		var failingManager *failFirstEnsureCreatedManager
+		fixture := newLoopGoalManagedRuntimeFixture(
+			t,
+			"provenance-retry",
+			nil,
+			withoutInitialGoalBinding(),
+			withGoalRuntimeSessionManager(func(manager *session.Manager) SessionManager {
+				failingManager = &failFirstEnsureCreatedManager{Manager: manager}
+				return failingManager
+			}),
+		)
+		parentID, _ := fixture.createOriginSession(t, "provenance-retry", participation.LocalSpec())
+		failingManager.beforeFailure = func(ctx context.Context) error {
+			return fixture.manager.Delete(ctx, parentID)
+		}
+		request := fixture.bindingRequest("provenance-retry")
+		request.ProvenanceParentSessionID = parentID
+
+		failedBinding, err := fixture.runtime.BindActionSession(testutil.Context(t), request)
+		creationErr, creationErrMatched := errors.AsType[*looppkg.ActionSessionCreationError](err)
+		if !creationErrMatched || !creationErr.EffectKnownFalse {
+			t.Fatalf("BindActionSession(first) error = %v, want known-false creation failure", err)
+		}
+		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
+			t.Fatalf("failed session %q was materialized", request.DesiredSessionID)
+		}
+
+		retryRequest := request
+		retryRequest.TargetBindingEpoch = 2
+		retryRequest.BindingAttemptID = "binding-attempt-goal-managed-provenance-retry-2"
+		retryRequest.DesiredSessionID = "sess-goal-managed-provenance-retry-2"
+		if err := fixture.runtime.AdvanceActionSessionRetry(testutil.Context(t), &looppkg.ActionSessionRetryRequest{
+			BindRequest:           retryRequest,
+			FailedBinding:         failedBinding,
+			FailureCode:           creationErr.Code,
+			ExpectedPromptAttempt: 0,
+			RetryWithFreshSession: true,
+		}); err != nil {
+			t.Fatalf("AdvanceActionSessionRetry() error = %v", err)
+		}
+
+		retryBinding, err := fixture.runtime.BindActionSession(testutil.Context(t), retryRequest)
+		if err != nil {
+			t.Fatalf("BindActionSession(retry) error = %v", err)
+		}
+		if retryBinding.BindingEpoch != 2 || retryBinding.SessionID != retryRequest.DesiredSessionID {
+			t.Fatalf("retry binding = %#v, want epoch 2 session %q", retryBinding, retryRequest.DesiredSessionID)
+		}
+		t.Cleanup(func() {
+			if err := fixture.manager.Delete(testutil.Context(t), retryBinding.SessionID); err != nil {
+				t.Errorf("Delete(retry session) error = %v", err)
+			}
+		})
+		assertSessionProvenanceParent(t, fixture.manager, retryBinding.SessionID, "")
+	})
+
 	t.Run("Should reject a runtime triple that diverges from the active pinned profile", func(t *testing.T) {
 		fixture := newLoopGoalManagedRuntimeFixture(t, "runtime-profile", nil, withoutInitialGoalBinding())
 		firstRequest := fixture.bindingRequest("runtime-profile")
@@ -913,6 +1000,31 @@ type delayedEnsureCreatedManager struct {
 	release      <-chan struct{}
 }
 
+type failFirstEnsureCreatedManager struct {
+	*session.Manager
+	beforeFailure func(context.Context) error
+	failed        atomic.Bool
+}
+
+func (m *failFirstEnsureCreatedManager) EnsureCreated(
+	ctx context.Context,
+	opts session.CreateOpts,
+) (session.EnsureCreatedResult, error) {
+	if m.failed.CompareAndSwap(false, true) {
+		if m.beforeFailure != nil {
+			if err := m.beforeFailure(ctx); err != nil {
+				return session.EnsureCreatedResult{}, err
+			}
+		}
+		return session.EnsureCreatedResult{}, &session.CreationError{
+			Effect: session.EffectKnownFalse,
+			Code:   session.SessionCreationCodeStoreUnavailable,
+			Err:    errors.New("injected known-false creation failure"),
+		}
+	}
+	return m.Manager.EnsureCreated(ctx, opts)
+}
+
 func (m *delayedEnsureCreatedManager) EnsureCreated(
 	ctx context.Context,
 	opts session.CreateOpts,
@@ -1117,6 +1229,25 @@ func (f loopGoalManagedRuntimeFixture) createOriginSession(
 		t.Fatalf("EnsureCreated(origin) error = %v", err)
 	}
 	return sessionID, identity
+}
+
+func assertSessionProvenanceParent(
+	t *testing.T,
+	manager *session.Manager,
+	sessionID string,
+	wantParentID string,
+) {
+	t.Helper()
+	info, err := manager.Status(testutil.Context(t), sessionID)
+	if err != nil {
+		t.Fatalf("Status(%q) error = %v", sessionID, err)
+	}
+	if info.Lineage == nil || info.Lineage.ParentSessionID != wantParentID {
+		t.Fatalf("Status(%q).Lineage = %#v, want parent %q", sessionID, info.Lineage, wantParentID)
+	}
+	if wantParentID == "" && (info.Lineage.RootSessionID != sessionID || info.Lineage.SpawnDepth != 0) {
+		t.Fatalf("Status(%q).Lineage = %#v, want self-rooted lineage", sessionID, info.Lineage)
+	}
 }
 
 func (f loopGoalManagedRuntimeFixture) preparePrompt(

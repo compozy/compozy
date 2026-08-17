@@ -527,6 +527,12 @@ Coordinator sessions are root lineage rows. They are created only after executab
 is enqueued, not when a task is merely created. Spawned sessions record parent, root, depth, role,
 TTL, and permission metadata so CompozyOS can reap children when their TTL expires or their parent stops.
 
+System sessions created for a Loop Goal record the session that started the Loop as creation
+provenance when one is available. That relationship groups the Goal under its origin in session
+views, but it does not make the Goal a safe-spawn child: it has no inherited spawn permissions,
+TTL, child cap, or parent-stop behavior. Deleting the origin keeps the Goal session and its recorded
+lineage; views show it as a root when the recorded parent is no longer available.
+
 ## Next steps
 
 - Use [Resume Attach and Replay](/docs/sessions/resume) when you need to attach to an eligible live session or reconstruct prior work from durable reads.

@@ -177,6 +177,7 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 			coordinatorActionRunMetadata{Generation: 1, GoalSegmentEpoch: 1},
 			nil,
 			GenerationHistory{},
+			"session-provenance",
 		)
 		if err != nil {
 			t.Fatalf("actionExecutionInput() error = %v", err)
@@ -189,6 +190,185 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 			input.OriginPolicySpecDigest != run.Origin.PolicySpecDigest ||
 			input.OriginCreationDigest != run.Origin.CreationDigest {
 			t.Fatalf("action origin identity = %#v, want %#v", input, run.Origin)
+		}
+		if input.ProvenanceParentSessionID != "session-provenance" {
+			t.Fatalf("ProvenanceParentSessionID = %q, want session-provenance", input.ProvenanceParentSessionID)
+		}
+	})
+
+	t.Run("Should resolve the nearest session before executing a Goal action", func(t *testing.T) {
+		t.Parallel()
+
+		node := dsl.Node{ID: "goal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal)}
+		origin := Run{
+			ID: "looprun-origin", WorkspaceID: "ws-goal-provenance",
+			StartedBy: task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: "session-origin"},
+			Origin:    &RunOrigin{Kind: RunOriginCatalog},
+		}
+		loopRun := Run{
+			ID: "looprun-goal-provenance", WorkspaceID: origin.WorkspaceID,
+			ParentLoopRunID: origin.ID, Inputs: map[string]any{},
+			StartedBy: task.ActorIdentity{Kind: task.ActorKindDaemon, Ref: "loop-runner"},
+			Origin:    &RunOrigin{Kind: RunOriginCatalog},
+		}
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		capture := &recordingActionExecutor{}
+		actions, err := NewActionRegistry(
+			&internalActionRegistryFake{},
+			WithActionGoalExecutor(capture),
+		)
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+				Generation: 1, NodeID: string(node.ID), Status: generationOutputRunning, TaskRunID: "run-goal",
+			}}}},
+			dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}},
+			WithCoordinatorActionRegistry(actions),
+		)
+		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
+			loopRun.ID: loopRun,
+			origin.ID:  origin,
+		})
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{
+			Generation: 1, NodeID: string(node.ID), Attempt: 1, GoalSegmentEpoch: 1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(action metadata) error = %v", err)
+		}
+		workerRun := task.Run{
+			ID: "run-goal", RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed, Metadata: metadata,
+		}
+
+		if _, err := runner.ExecuteActionRun(t.Context(), workerRun, task.ActorContext{}); err != nil {
+			t.Fatalf("ExecuteActionRun() error = %v", err)
+		}
+		if got := capture.input.ProvenanceParentSessionID; got != "session-origin" {
+			t.Fatalf("executed provenance parent = %q, want session-origin", got)
+		}
+	})
+
+	t.Run("Should stop before Goal execution when provenance lookup fails", func(t *testing.T) {
+		t.Parallel()
+
+		node := dsl.Node{ID: "goal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal)}
+		loopRun := Run{
+			ID: "looprun-goal-provenance-error", WorkspaceID: "ws-goal-provenance-error",
+			ParentLoopRunID: "looprun-missing-origin", Inputs: map[string]any{},
+			StartedBy: task.ActorIdentity{Kind: task.ActorKindDaemon, Ref: "loop-runner"},
+			Origin:    &RunOrigin{Kind: RunOriginCatalog},
+		}
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		capture := &recordingActionExecutor{}
+		actions, err := NewActionRegistry(
+			&internalActionRegistryFake{},
+			WithActionGoalExecutor(capture),
+		)
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+				Generation: 1, NodeID: string(node.ID), Status: generationOutputRunning, TaskRunID: "run-goal-error",
+			}}}},
+			dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}},
+			WithCoordinatorActionRegistry(actions),
+		)
+		store := runner.store.(*coordinatorRunnerLoopStore)
+		current := store.run
+		storeErr := errors.New("provenance store unavailable")
+		store.getRun = func(runID RunID) (Run, error) {
+			if runID == current.ID {
+				return current, nil
+			}
+			return Run{}, storeErr
+		}
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{
+			Generation: 1, NodeID: string(node.ID), Attempt: 1, GoalSegmentEpoch: 1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(action metadata) error = %v", err)
+		}
+		workerRun := task.Run{
+			ID: "run-goal-error", RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed, Metadata: metadata,
+		}
+
+		_, err = runner.ExecuteActionRun(t.Context(), workerRun, task.ActorContext{})
+		if !errors.Is(err, storeErr) {
+			t.Fatalf("ExecuteActionRun() error = %v, want %v", err, storeErr)
+		}
+		if capture.input.LoopRunID != "" {
+			t.Fatalf("action executor input = %#v, want no execution", capture.input)
+		}
+	})
+
+	t.Run("Should skip provenance ancestry for a non-Goal action", func(t *testing.T) {
+		t.Parallel()
+
+		node := dsl.Node{ID: "transform", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)}
+		loopRun := Run{
+			ID: "looprun-transform-provenance", WorkspaceID: "ws-transform-provenance",
+			ParentLoopRunID: "looprun-unavailable-origin", Inputs: map[string]any{},
+			StartedBy: task.ActorIdentity{Kind: task.ActorKindDaemon, Ref: "loop-runner"},
+			Origin:    &RunOrigin{Kind: RunOriginCatalog},
+		}
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		capture := &recordingActionExecutor{}
+		actions, err := NewActionRegistry(
+			&internalActionRegistryFake{},
+			WithActionTransformExecutor(capture),
+		)
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+				Generation: 1, NodeID: string(node.ID), Status: generationOutputRunning, TaskRunID: "run-transform",
+			}}}},
+			dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}},
+			WithCoordinatorActionRegistry(actions),
+		)
+		store := runner.store.(*coordinatorRunnerLoopStore)
+		current := store.run
+		ancestorLookups := 0
+		store.getRun = func(runID RunID) (Run, error) {
+			if runID == current.ID {
+				return current, nil
+			}
+			ancestorLookups++
+			return Run{}, errors.New("unexpected ancestry lookup")
+		}
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{
+			Generation: 1, NodeID: string(node.ID), Attempt: 1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(action metadata) error = %v", err)
+		}
+		workerRun := task.Run{
+			ID: "run-transform", RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed, Metadata: metadata,
+		}
+
+		if _, err := runner.ExecuteActionRun(t.Context(), workerRun, task.ActorContext{}); err != nil {
+			t.Fatalf("ExecuteActionRun() error = %v", err)
+		}
+		if ancestorLookups != 0 {
+			t.Fatalf("provenance ancestor lookups = %d, want 0", ancestorLookups)
 		}
 	})
 
@@ -4363,6 +4543,7 @@ type coordinatorRunnerLoopStore struct {
 	run      Run
 	runs     map[RunID]Run
 	snapshot *DefinitionSnapshot
+	getRun   func(RunID) (Run, error)
 }
 
 func (s *coordinatorRunnerLoopStore) CreateLoopRunForStart(
@@ -4378,6 +4559,9 @@ func (s *coordinatorRunnerLoopStore) GetLoopRun(context.Context, WorkspaceID, Ru
 }
 
 func (s *coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID RunID) (Run, error) {
+	if s.getRun != nil {
+		return s.getRun(runID)
+	}
 	if s.runs != nil {
 		run, ok := s.runs[runID]
 		if !ok {

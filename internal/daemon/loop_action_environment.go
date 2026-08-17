@@ -34,6 +34,7 @@ func (b *loopActionSessionBinder) resolveRunOwnedBindingProfile(
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 	}
+	opts.ProvenanceParentSessionID = strings.TrimSpace(req.ProvenanceParentSessionID)
 	policyDigest, err := profile.PolicySpecDigest()
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err

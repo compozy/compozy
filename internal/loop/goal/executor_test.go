@@ -181,6 +181,8 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 			"mode": "directory", "directory": "packages/{{ .inputs.slug }}",
 		}
 		input := testGoalInput(t)
+		input.OriginSessionID = "session-adoption"
+		input.ProvenanceParentSessionID = "session-provenance"
 		input.Namespace = map[string]any{"inputs": map[string]any{
 			"slug":    "weather-app",
 			"literal": "{{ .inputs.slug }}",
@@ -201,6 +203,10 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 			Mode: dsl.EnvironmentDirectory, Directory: "packages/weather-app",
 		}) {
 			t.Fatalf("Goal bind environment = %#v, want one-pass materialized directory", binder.binds)
+		}
+		if binder.binds[0].OriginSessionID != "session-adoption" ||
+			binder.binds[0].ProvenanceParentSessionID != "session-provenance" {
+			t.Fatalf("Goal bind identities = %#v, want distinct adoption and provenance sessions", binder.binds[0])
 		}
 		judge.mu.Lock()
 		defer judge.mu.Unlock()

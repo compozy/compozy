@@ -288,7 +288,7 @@ func provenanceReaperInfo(id string, parentID string) *session.Info {
 		AgentName:   "coder",
 		WorkspaceID: "ws-1",
 		Workspace:   "/repo",
-		Type:        session.SessionTypeUser,
+		Type:        session.SessionTypeSystem,
 		State:       session.StateActive,
 		Lineage: &store.SessionLineage{
 			ParentSessionID: parentID,

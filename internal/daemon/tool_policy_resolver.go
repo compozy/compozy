@@ -294,14 +294,16 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	if info == nil {
 		return nil
 	}
+	switch info.Type {
+	case session.SessionTypeSpawned, session.SessionTypeCoordinator:
+	default:
+		return nil
+	}
 	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
 	if lineage == nil {
 		return nil
 	}
 	policy := store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
-	if lineage.ParentSessionID == "" && len(policy.Tools) == 0 {
-		return nil
-	}
 	ids := make([]toolspkg.ToolID, 0, len(policy.Tools))
 	for i, raw := range policy.Tools {
 		id := toolspkg.ToolID(strings.TrimSpace(raw))

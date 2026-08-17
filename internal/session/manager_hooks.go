@@ -61,7 +61,7 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 		return opts, nil
 	}
 
-	payload, err := m.hooks.session().DispatchSessionPreCreate(ctx, hookspkg.SessionPreCreatePayload{
+	request := hookspkg.SessionPreCreatePayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookSessionPreCreate,
 			Timestamp: m.now(),
@@ -74,9 +74,13 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 			Workspace:   strings.TrimSpace(opts.WorkspacePath),
 			State:       string(StateStarting),
 		},
-	})
+	}
+	payload, err := m.hooks.session().DispatchSessionPreCreate(ctx, request)
 	if err != nil {
 		return CreateOpts{}, fmt.Errorf("session: dispatch session.pre_create: %w", err)
+	}
+	if err := validateProtectedPreCreateSessionType(request.SessionContext, payload.SessionContext); err != nil {
+		return CreateOpts{}, fmt.Errorf("session: validate session.pre_create patch: %w", err)
 	}
 
 	next := opts
@@ -134,6 +138,9 @@ func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.Sessi
 	if err := validateImmutableSessionWorkspace(request.SessionContext, payload.SessionContext); err != nil {
 		return store.SessionMeta{}, fmt.Errorf("session: validate session.pre_resume patch: %w", err)
 	}
+	if err := validateImmutableSessionType(request.SessionContext, payload.SessionContext); err != nil {
+		return store.SessionMeta{}, fmt.Errorf("session: validate session.pre_resume patch: %w", err)
+	}
 
 	next := meta
 	next.Name = strings.TrimSpace(payload.SessionName)
@@ -162,6 +169,9 @@ func (m *Manager) dispatchSessionPreStop(ctx context.Context, session *Session) 
 		return fmt.Errorf("session: dispatch session.pre_stop: %w", err)
 	}
 	if err := validateImmutableSessionWorkspace(request.SessionContext, payload.SessionContext); err != nil {
+		return fmt.Errorf("session: validate session.pre_stop patch: %w", err)
+	}
+	if err := validateImmutableSessionType(request.SessionContext, payload.SessionContext); err != nil {
 		return fmt.Errorf("session: validate session.pre_stop patch: %w", err)
 	}
 
