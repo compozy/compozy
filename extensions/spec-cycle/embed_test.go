@@ -484,7 +484,18 @@ func TestSpecCycleManagedInstallShouldReenrollChangedBundledSkills(t *testing.T)
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", oldManifestPath, err)
 	}
-	manifestBytes = []byte(strings.Replace(string(manifestBytes), `"version": "0.4.0"`, `"version": "0.3.0"`, 1))
+	bundledVersion := installed.Version
+	staleBytes := []byte(
+		strings.Replace(string(manifestBytes), `"version": "`+bundledVersion+`"`, `"version": "0.0.1"`, 1),
+	)
+	if slices.Equal(staleBytes, manifestBytes) {
+		t.Fatalf(
+			"manifest version %q not found in %q; stale-install setup did not apply",
+			bundledVersion,
+			oldManifestPath,
+		)
+	}
+	manifestBytes = staleBytes
 	if err := os.WriteFile(oldManifestPath, manifestBytes, 0o600); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", oldManifestPath, err)
 	}
@@ -513,11 +524,12 @@ func TestSpecCycleManagedInstallShouldReenrollChangedBundledSkills(t *testing.T)
 	if err != nil {
 		t.Fatalf("registry.Get(%q updated) error = %v", Name, err)
 	}
-	if updated.Version != "0.4.0" || strings.EqualFold(updated.Checksum, oldChecksum) {
+	if updated.Version != bundledVersion || strings.EqualFold(updated.Checksum, oldChecksum) {
 		t.Fatalf(
-			"updated identity = version %q checksum %q, want 0.4.0 and checksum != %q",
+			"updated identity = version %q checksum %q, want %s and checksum != %q",
 			updated.Version,
 			updated.Checksum,
+			bundledVersion,
 			oldChecksum,
 		)
 	}

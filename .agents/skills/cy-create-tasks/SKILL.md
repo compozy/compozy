@@ -94,7 +94,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 
 7. Enrich each task file.
    - For each task file, check whether it already has `## Overview`, `## Deliverables`, and `## Tests` sections, plus a complete `## Visual Contract` when it implements visible UI from a named reference. Skip enrichment only when every required and conditional section is complete.
-   - Map the task to Part I requirements, user stories, Part II guidance, and the `_dx.md`/`_uiux.md` surface contracts.
+   - Map the task to Part I requirements, user stories, Part II guidance, the `_dx.md`/`_uiux.md` surface contracts, and its subset of the `_spec.md` File References index.
    - Spawn an Agent tool call to discover relevant files, dependent files, integration points, and project rules for this specific task.
    - Fill ALL template sections from `references/task-template.md`. Every task file MUST contain each of the following sections — omitting any is a failure:
      - `## Overview`: what slice of the system the task delivers and why, in 2-3 sentences.
@@ -104,6 +104,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
      - `## Implementation Details`: file paths to create or modify, integration points. Reference `_spec.md` Part II for patterns.
      - `### Relevant Files`: discovered paths from codebase exploration with brief reasons.
      - `### Dependent Files`: files that will be affected by this task with brief reasons.
+     - `### Competitor References`: this task's `.resources/<repo>/path` entries copied from `_spec.md` File References — same paths, never paraphrased; omit the subsection when the spec cites none.
      - `### Related ADRs`: links to relevant ADRs if any exist, or omit the subsection if none apply.
      - `## Deliverables`: concrete outputs, including every assigned test case implemented and passing.
      - `## Tests`: the assigned test-case IDs grouped by level with the behavior they cover; full case definitions stay in `_tests.md`.

@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Timeline · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-timeline-rows · S2 run story timeline.
+  Spec: .compozy/tasks/graph-eng/_uiux.md · stories US-011/018/004/022 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-run-story-timeline.tsx (22px tone ring, 1.5px border,
+                 title · sub · timestamp · micro; TONE_RING; What happened
+                 section + generation fold)
+    spec — new families: request opened / answered / expired; route taken
+           (selected route + matched condition, or "default — no condition
+           matched" US-011.EC-1); prune / canceled-by-strategy with deciding
+           cause (US-018.AC-2); aggregate prune (US-018.EC-2); node amended
+           (actor + link to original); run forked; rerun generation opened
+    authorized delta — live rows pulse the tone ring; historical rings settle
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tl-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Timeline</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-progress-strategies.html">Progress →</a>
+      <a class="btn btn--sm" href="graph-eng-node-verbs.html">Node verbs →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="tl-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Run page — story timeline</h2>
+        <span class="lab-sec__gist">new families in one flow</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Mixed sequence</b>Generation 3 of <code>run_7f3a</code> in chronological order. Existing families (generation opened, node settled) sit beside the new request, route, prune, amend, and fork rows. Live rings pulse; settled rings do not. Machine ids stay micro mono.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="tl-final-stage">
+            <section class="win is-focused win--req" data-od-id="tl-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="git-branch"></svg></span>
+                  <span class="w2-title">release-train</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="run" data-od-id="tl-final-status">
+                    <svg data-lucide="activity" style="width:12px;height:12px"></svg>
+                    live
+                  </span>
+                  <!-- gating: run.status is live → Stop is offered -->
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button" data-od-id="tl-final-stop">Stop</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="app">
+                  <div class="run-sub" data-od-id="tl-final-subhead">
+                    <span class="run-sub__id">run_7f3a</span>
+                    <span class="dotsep"></span>
+                    <span>Started by pedro</span>
+                    <span class="dotsep"></span>
+                    <span>Round 3</span>
+                    <span class="dotsep"></span>
+                    <span>Started 14m ago</span>
+                    <span class="dotsep"></span>
+                    <span class="run-sub__id">14m used</span>
+                  </div>
+                  <div class="lsec" data-open="true" data-od-id="tl-final-story">
+                    <button class="lsec__head" type="button" aria-expanded="true" data-od-id="tl-final-story-toggle">
+                      <svg data-lucide="history"></svg>
+                      <span class="eyebrow">What happened</span>
+                      <span class="lsec__gist">10 events</span>
+                      <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                    </button>
+                    <div class="lsec__body">
+                      <div class="story-stack">
+                        <div class="story-stack__body" data-od-id="tl-final-rows">
+
+                          <div class="story-row" data-tone="neutral" data-od-id="tl-final-gen">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="play"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">Generation 3 opened</div>
+                              <p class="story-sub">Pinned definition v3. Fan-out over services[] is live.</p>
+                              <div class="story-cause">origin · succession · gen 3</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:25:00-03:00">14m</time><span class="story-micro">ev_g3</span></div>
+                          </div>
+
+                          <!-- gating: request.kind = ask · node = confirm-rollout · lane = api -->
+                          <div class="story-row" data-tone="warning" data-od-id="tl-final-opened">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="triangle-alert"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">Request opened on confirm-rollout <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span></div>
+                              <p class="story-sub">Which regions ship first?</p>
+                              <div class="story-cause">ask · lane api · req_a91c</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:27:00-03:00">12m</time><span class="story-micro">req_a91c</span></div>
+                          </div>
+
+                          <!-- gating: request.answered_by = pedro · decision = approve -->
+                          <div class="story-row" data-tone="info" data-od-id="tl-final-answered">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="check"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">pedro answered <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span> <span class="pill" data-tone="info">approve</span></div>
+                              <p class="story-sub">Decision recorded. The ask on lane api unblocked.</p>
+                              <div class="story-cause">actor pedro · decision approve · req_a91c</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:28:00-03:00">11m</time><span class="story-micro">req_a91c</span></div>
+                          </div>
+
+                          <!-- gating: route.triage selected = standard · condition severity == "p1" -->
+                          <div class="story-row" data-tone="neutral" data-od-id="tl-final-route">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="git-branch"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">Route taken · standard</div>
+                              <p class="story-sub">triage matched one declared condition.</p>
+                              <div class="story-cause">severity == "p1" · route standard</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:29:00-03:00">10m</time><span class="story-micro">triage</span></div>
+                          </div>
+
+                          <!-- gating: US-018.AC-2 route-not-taken · deciding router = triage -->
+                          <div class="story-row" data-tone="neutral" data-od-id="tl-final-pruned">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="git-branch"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">Branch pruned — not taken <span class="req-chip" data-tone="neutral"><svg data-lucide="git-branch"></svg>not taken</span></div>
+                              <p class="story-sub">hotfix did not fire. Absence stays calm.</p>
+                              <div class="story-cause">cause route_not_taken · arm hotfix</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:29:10-03:00">10m</time><span class="story-micro">arm_hotfix</span></div>
+                          </div>
+
+                          <div class="story-row" data-tone="success" data-od-id="tl-final-settled">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="check"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">apply-migration settled</div>
+                              <p class="story-sub">Review admitted. The migrate ran with the edited args.</p>
+                              <div class="story-cause">node apply-migration · gen 3</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:32:00-03:00">7m</time><span class="story-micro">node_apply</span></div>
+                          </div>
+
+                          <!-- gating: US-018.AC-2 canceled-by-strategy · cause from event payload -->
+                          <div class="story-row" data-tone="neutral" data-od-id="tl-final-canceled">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="minus"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">Lane web canceled <span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>canceled</span></div>
+                              <p class="story-sub">A strategy dropped this sibling. Not a failure of web.</p>
+                              <div class="story-cause">fail_fast — lane worker failed</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:33:00-03:00">6m</time><span class="story-micro">lane web</span></div>
+                          </div>
+
+                          <!-- gating: US-004 amend on render-notes · actor pedro -->
+                          <div class="story-row" data-tone="info" data-od-id="tl-final-amended">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="pencil"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">render-notes amended by pedro <span class="req-chip" data-tone="info"><svg data-lucide="pencil"></svg>amended</span></div>
+                              <p class="story-sub">Corrected output is effective. <a class="story-link" href="graph-eng-node-verbs.html#verb-prov">Original preserved</a>.</p>
+                              <div class="story-cause">actor pedro · node render-notes · rev 3</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:35:00-03:00">4m</time><span class="story-micro">amend_notes</span></div>
+                          </div>
+
+                          <!-- gating: US-022 fork from gen 2 → run_9c1d -->
+                          <div class="story-row" data-tone="info" data-od-id="tl-final-forked">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="git-fork"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">Run forked <span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span></div>
+                              <p class="story-sub">New run <a class="story-link" href="#tl-fork-row">run_9c1d</a> from generation 2. This run is unchanged.</p>
+                              <div class="story-cause">forked_from run_7f3a · gen 2 · run_9c1d</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:37:00-03:00">2m</time><span class="story-micro">run_9c1d</span></div>
+                          </div>
+
+                          <!-- gating: US-021 origin = operator_rerun -->
+                          <div class="story-row" data-tone="info" data-live data-od-id="tl-final-rerun">
+                            <span class="story-ring" aria-hidden="true"><svg data-lucide="rotate-ccw"></svg></span>
+                            <div class="story-main">
+                              <div class="story-title">Rerun generation opened</div>
+                              <p class="story-sub">retry migration with fixed flag</p>
+                              <div class="story-cause">origin operator_rerun · from apply-migration · gen 4</div>
+                            </div>
+                            <div class="story-trail"><time datetime="2026-08-16T13:38:00-03:00">1m</time><span class="story-micro">ev_g4</span></div>
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · REQUEST LIFECYCLE ===== -->
+    <section class="lab-sec" data-od-id="tl-requests">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Request lifecycle rows</h2>
+        <span class="lab-sec__gist">opened · answered · expired · live vs historical</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Opened</b>Pending tone on the ring, glyph, and the word <code>pending</code>. Live pulse vs settled historical. Ask <code>confirm-rollout</code> on lane <code>api</code>.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-req-opened">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="warning" data-live data-od-id="tl-opened-live">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="triangle-alert"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Request opened on confirm-rollout <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span></div>
+                    <p class="story-sub">Which regions ship first?</p>
+                    <div class="story-cause">ask · lane api · req_a91c</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:27:00-03:00">12m</time><span class="story-micro">req_a91c</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="warning" data-od-id="tl-opened-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="triangle-alert"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Request opened on confirm-rollout <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span></div>
+                    <p class="story-sub">Which regions ship first?</p>
+                    <div class="story-cause">ask · lane api · req_a91c</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T12:10:00-03:00">1h</time><span class="story-micro">req_a91c</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Answered by operator</b>Info tone. Actor <code>pedro</code> and the decision chip stay visible. US-001.EC-3: the form is gone; this row is the provenance.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-req-pedro">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-live data-od-id="tl-ans-pedro-live">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="check"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">pedro answered <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span> <span class="pill" data-tone="info">approve</span></div>
+                    <div class="story-cause">actor pedro · decision approve · req_a91c</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:28:00-03:00">11m</time><span class="story-micro">req_a91c</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-od-id="tl-ans-pedro-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="check"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">pedro answered <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span> <span class="pill" data-tone="info">approve</span></div>
+                    <div class="story-cause">actor pedro · decision approve · req_a91c</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T11:40:00-03:00">2h</time><span class="story-micro">req_a91c</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Answered by agent</b>US-005: <code>release-bot</code> is a permitted responder on <code>confirm-rollout</code>. Same info tone; the actor name is the agent id.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-req-bot">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-live data-od-id="tl-ans-bot-live">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="check"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">release-bot answered <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span> <span class="pill" data-tone="info">respond</span></div>
+                    <div class="story-cause">actor release-bot · decision respond · req_a91c</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:28:20-03:00">11m</time><span class="story-micro">req_a91c</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-od-id="tl-ans-bot-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="check"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">release-bot answered <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span> <span class="pill" data-tone="info">respond</span></div>
+                    <div class="story-cause">actor release-bot · decision respond · req_a91c</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T10:15:00-03:00">3h</time><span class="story-micro">req_a91c</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Expired</b>Danger + the word <code>expired</code>. The row names the route that was taken. No answer form lives here (US-001.EC-4).</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-req-expired">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="danger" data-live data-od-id="tl-exp-live">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="circle-alert"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Request expired <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>expired</span></div>
+                    <p class="story-sub">Route taken · <span class="mono">backlog</span></p>
+                    <div class="story-cause">expired · route backlog · req_a91c</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:38:00-03:00">1m</time><span class="story-micro">req_a91c</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="danger" data-od-id="tl-exp-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="circle-alert"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Request expired <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>expired</span></div>
+                    <p class="story-sub">Route taken · <span class="mono">backlog</span></p>
+                    <div class="story-cause">expired · route backlog · req_a91c</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-15T18:02:00-03:00">19h</time><span class="story-micro">req_a91c</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · ROUTE ROWS ===== -->
+    <section class="lab-sec" data-od-id="tl-routes">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Route rows</h2>
+        <span class="lab-sec__gist">selected route + condition · default copy locked</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Condition matched</b>US-011: selected route <code>standard</code> and the matched condition in micro mono. Declaration order is the tiebreak; this row records the winner.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-route-matched">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-live data-od-id="tl-route-standard">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="git-branch"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Route taken · standard</div>
+                    <p class="story-sub">triage chose the p1 arm.</p>
+                    <div class="story-cause">severity == "p1" · route standard</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:29:00-03:00">10m</time><span class="story-micro">triage</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-od-id="tl-route-standard-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="git-branch"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Route taken · standard</div>
+                    <p class="story-sub">triage chose the p1 arm.</p>
+                    <div class="story-cause">severity == "p1" · route standard</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T09:12:00-03:00">4h</time><span class="story-micro">triage</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Default</b>US-011.EC-1 — exact copy: <code>default — no condition matched</code>. Never phrased as a matched condition.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="tl-route-default">
+            <div class="story-stack">
+              <div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-od-id="tl-route-backlog">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="git-branch"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Route taken · backlog</div>
+                    <p class="story-sub">No declared condition fired.</p>
+                    <div class="story-cause">default — no condition matched</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T09:12:00-03:00">4h</time><span class="story-micro">triage</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · PRUNE / CANCEL ===== -->
+    <section class="lab-sec" data-od-id="tl-prune">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Prune and cancel rows</h2>
+        <span class="lab-sec__gist">neutral · cause from the event · never 47 rows</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Branch pruned</b>US-018.AC-2: route not taken. Neutral. The deciding router is named. Not a failure.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-prune-stage">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-live data-od-id="tl-prune-row">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="git-branch"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Branch pruned — not taken <span class="req-chip" data-tone="neutral"><svg data-lucide="git-branch"></svg>not taken</span></div>
+                    <p class="story-sub">hotfix did not fire.</p>
+                    <div class="story-cause">cause route_not_taken · arm hotfix</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:29:10-03:00">10m</time><span class="story-micro">arm_hotfix</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-od-id="tl-prune-row-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="git-branch"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Branch pruned — not taken <span class="req-chip" data-tone="neutral"><svg data-lucide="git-branch"></svg>not taken</span></div>
+                    <p class="story-sub">hotfix did not fire.</p>
+                    <div class="story-cause">cause route_not_taken · arm hotfix</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T09:12:00-03:00">4h</time><span class="story-micro">arm_hotfix</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Canceled by strategy</b>Cause text is the event payload: <code>fail_fast — lane worker failed</code>. Neutral. Distinct from the worker's own failure row.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-cancel-stage">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-live data-od-id="tl-cancel-row">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="minus"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Lane web canceled <span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>canceled</span></div>
+                    <div class="story-cause">fail_fast — lane worker failed</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:33:00-03:00">6m</time><span class="story-micro">lane web</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-od-id="tl-cancel-row-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="minus"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Lane web canceled <span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>canceled</span></div>
+                    <div class="story-cause">fail_fast — lane worker failed</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T11:40:00-03:00">2h</time><span class="story-micro">lane web</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Aggregate prune</b>US-018.EC-2: high-width cancel is one row — <code>47 branches canceled by fail_fast</code> — with an expand hint. Per-branch causes stay queryable. Never 47 rows.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-agg-stage">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-live data-od-id="tl-agg-row">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="minus"></svg></span>
+                  <div class="story-main">
+                    <button class="story-agg" type="button" aria-expanded="false" data-agg-more="tl-agg-more" data-od-id="tl-agg-toggle">
+                      <span class="story-title">47 branches canceled by fail_fast</span>
+                      <svg class="story-agg__chev" data-lucide="chevron-right"></svg>
+                    </button>
+                    <div class="story-cause">canceled-by-strategy · trigger lane worker · bounded payload</div>
+                    <p class="story-agg__more" hidden id="tl-agg-more" data-od-id="tl-agg-more">Per-branch causes remain queryable in the node inventory. This row stays one event.</p>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:33:00-03:00">6m</time><span class="story-micro">n=47</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-od-id="tl-agg-row-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="minus"></svg></span>
+                  <div class="story-main">
+                    <button class="story-agg" type="button" aria-expanded="false" data-agg-more="tl-agg-more-hist" data-od-id="tl-agg-toggle-hist">
+                      <span class="story-title">47 branches canceled by fail_fast</span>
+                      <svg class="story-agg__chev" data-lucide="chevron-right"></svg>
+                    </button>
+                    <div class="story-cause">canceled-by-strategy · trigger lane worker · bounded payload</div>
+                    <p class="story-agg__more" hidden id="tl-agg-more-hist" data-od-id="tl-agg-more-hist">Per-branch causes remain queryable in the node inventory. This row stays one event.</p>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T11:40:00-03:00">2h</time><span class="story-micro">n=47</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · TIME TRAVEL ===== -->
+    <section class="lab-sec" data-od-id="tl-travel">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Time-travel rows</h2>
+        <span class="lab-sec__gist">amended · forked · rerun generation</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Node amended</b>Info tone. Actor + a link to the original. The original is never rewritten (US-004.AC-2). Ties to S5 provenance and S6 lineage.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-amend-stage">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-live data-od-id="tl-amend-row">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="pencil"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">render-notes amended by pedro <span class="req-chip" data-tone="info"><svg data-lucide="pencil"></svg>amended</span></div>
+                    <p class="story-sub"><a class="story-link" href="graph-eng-node-verbs.html#verb-prov">Original preserved</a></p>
+                    <div class="story-cause">actor pedro · node render-notes · rev 3</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:35:00-03:00">4m</time><span class="story-micro">amend_notes</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-od-id="tl-amend-row-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="pencil"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">render-notes amended by pedro <span class="req-chip" data-tone="info"><svg data-lucide="pencil"></svg>amended</span></div>
+                    <p class="story-sub"><a class="story-link" href="graph-eng-node-verbs.html#verb-prov">Original preserved</a></p>
+                    <div class="story-cause">actor pedro · node render-notes · rev 3</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T10:15:00-03:00">3h</time><span class="story-micro">amend_notes</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Run forked</b>Info <code>fork</code> chip. Link to <code>run_9c1d</code>. Lineage is a fact, not an alarm (US-022.AC-2).</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-fork-stage">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-live id="tl-fork-row" data-od-id="tl-fork-row">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="git-fork"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Run forked <span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span></div>
+                    <p class="story-sub">Opened <a class="story-link" href="#tl-fork-row">run_9c1d</a> from generation 2.</p>
+                    <div class="story-cause">forked_from run_7f3a · gen 2 · run_9c1d</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:37:00-03:00">2m</time><span class="story-micro">run_9c1d</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-od-id="tl-fork-row-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="git-fork"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Run forked <span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span></div>
+                    <p class="story-sub">Opened <a class="story-link" href="#tl-fork-row">run_9c1d</a> from generation 2.</p>
+                    <div class="story-cause">forked_from run_7f3a · gen 2 · run_9c1d</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T12:10:00-03:00">1h</time><span class="story-micro">run_9c1d</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Rerun generation</b>US-021: origin <code>operator_rerun</code> and the reason string from the request. Starts from <code>apply-migration</code> on the same run identity.</div>
+        <div class="spec__demo">
+          <div class="plain story-pair" data-od-id="tl-rerun-stage">
+            <div>
+              <div class="story-pair__lab">Live</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-live data-od-id="tl-rerun-row">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="rotate-ccw"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Rerun generation opened</div>
+                    <p class="story-sub">retry migration with fixed flag</p>
+                    <div class="story-cause">origin operator_rerun · from apply-migration · gen 4</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:38:00-03:00">1m</time><span class="story-micro">ev_g4</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div>
+              <div class="story-pair__lab">Historical</div>
+              <div class="story-stack"><div class="story-stack__body">
+                <div class="story-row" data-tone="info" data-od-id="tl-rerun-row-hist">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="rotate-ccw"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Rerun generation opened</div>
+                    <p class="story-sub">retry migration with fixed flag</p>
+                    <div class="story-cause">origin operator_rerun · from apply-migration · gen 4</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T11:40:00-03:00">2h</time><span class="story-micro">ev_g4</span></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · ANATOMY ===== -->
+    <section class="lab-sec" data-od-id="tl-anatomy">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Row anatomy</h2>
+        <span class="lab-sec__gist">ring · glyph · sentence · cause · time</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Slots</b>One production row. Each slot carries one kind of truth. Color is never the only channel.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="tl-anatomy-plain">
+            <div class="story-stack">
+              <div class="story-stack__body">
+                <div class="story-row" data-tone="neutral" data-od-id="tl-anatomy-row">
+                  <span class="story-ring" aria-hidden="true"><svg data-lucide="minus"></svg></span>
+                  <div class="story-main">
+                    <div class="story-title">Lane web canceled <span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>canceled</span></div>
+                    <p class="story-sub">A strategy dropped this sibling.</p>
+                    <div class="story-cause">fail_fast — lane worker failed</div>
+                  </div>
+                  <div class="story-trail"><time datetime="2026-08-16T13:33:00-03:00">6m</time><span class="story-micro">lane web</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="story-slots">
+              <div class="story-slot"><span class="story-slot__k">tone ring</span><span class="story-slot__v">Signal only — warning / danger / info / neutral. Live pulses; historical settles.</span></div>
+              <div class="story-slot"><span class="story-slot__k">glyph</span><span class="story-slot__v">One Lucide concept (triangle-alert, check, git-branch, minus, pencil, git-fork).</span></div>
+              <div class="story-slot"><span class="story-slot__k">sentence</span><span class="story-slot__v">Human title plus the locked state word on the chip.</span></div>
+              <div class="story-slot"><span class="story-slot__k">micro mono</span><span class="story-slot__v">Cause, ids, hashes, conditions — daemon payload, never paraphrased.</span></div>
+              <div class="story-slot"><span class="story-slot__k">timestamp</span><span class="story-slot__v">Relative age. Absolute time on the <code>datetime</code> attribute.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="tl-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>loop-run-story-timeline.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  document.querySelectorAll(".lsec__head").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sec = btn.closest(".lsec");
+      const open = sec.getAttribute("data-open") !== "false";
+      sec.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+
+  document.querySelectorAll("[data-agg-more]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = document.getElementById(btn.getAttribute("data-agg-more"));
+      if (!panel) return;
+      const open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

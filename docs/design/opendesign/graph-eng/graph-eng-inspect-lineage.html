@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Inspect lineage · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-inspect-lineage · S6 run inspect sheet.
+  Spec: .compozy/tasks/graph-eng/_uiux.md · stories US-019, US-020, US-022 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-run-inspect-sheet.tsx (right Sheet, 36px search well,
+                 Operator eyebrow, Inspect run title, run id + digest,
+                 View graph / View definition; generations, verdicts,
+                 resolved runtimes, frames)
+    spec — each generation row gains Compare… (opens S7 seeded with that
+           generation) and Fork from here (opens S8); lineage renders
+           forked_from and forks[] as two-way links (US-020.AC-2,
+           US-022.AC-2); route causes + strategy settlements in generation
+           detail; fork-of-fork is a flat list (US-022.EC-2); absent
+           lineage does not render
+    authorized delta — generation list is the sheet's center of gravity
+                       (every generation is an entry point); production
+                       tiles / frames stay below the fold, not restaged
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="insp-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Inspect lineage</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-run-diff.html">Diff →</a>
+      <a class="btn btn--sm" href="graph-eng-fork-dialog.html">Fork →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="insp-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Run page — inspect sheet</h2>
+        <span class="lab-sec__gist">every generation is an entry point</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Inspect + lineage</b>US-019 / US-022: the sheet lists generations 1 · 2 · 3 of <code>run_7f3a</code>. Each row carries <code>Compare…</code> (seeds S7) and <code>Fork from here</code> (opens S8). Gen 3 is current. Detail shows route <code>standard</code> — <code>severity == "p1"</code> and <code>best_effort 66% — partial 2/3</code>. Lineage is a fact: forks → <code>run_9c1d</code> from gen 2.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="insp-final-stage">
+            <section class="win is-focused win--req" data-od-id="insp-final-win" style="margin:20px auto 0;height:calc(100% - 40px)">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="git-branch"></svg></span>
+                  <span class="w2-title">release-train</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="needs" data-od-id="insp-final-status">
+                    <svg data-lucide="pause" style="width:12px;height:12px"></svg>
+                    parked
+                  </span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button" data-od-id="insp-final-stop">Stop</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="app">
+                  <div class="run-sub" data-od-id="insp-final-subhead">
+                    <span class="run-sub__id">run_7f3a</span>
+                    <span class="dotsep"></span>
+                    <span>Started by pedro</span>
+                    <span class="dotsep"></span>
+                    <span>Round 3</span>
+                    <span class="dotsep"></span>
+                    <span>Started 14m ago</span>
+                    <span class="dotsep"></span>
+                    <span class="run-sub__id">14m used</span>
+                  </div>
+                  <div class="lsec" data-open="true">
+                    <button class="lsec__head" type="button" aria-expanded="true">
+                      <svg data-lucide="bell"></svg>
+                      <span class="eyebrow">Needs you</span>
+                      <span class="lsec__gist">2 pending</span>
+                      <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                    </button>
+                    <div class="lsec__body">
+                      <div class="req-stack">
+                        <article class="req-card" data-tone="warning">
+                          <svg class="req-card__glyph" data-lucide="triangle-alert"></svg>
+                          <div class="req-card__main">
+                            <div class="req-card__kicker">
+                              <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                              <span class="req-lane">lane · api</span>
+                            </div>
+                            <h3 class="req-card__prompt">Which regions ship first?</h3>
+                            <div class="req-card__micro">ask · confirm-rollout · gen 3 · req_a91c</div>
+                          </div>
+                        </article>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <div class="overlay overlay--sheet" data-od-id="insp-final-overlay">
+              <aside class="insp-sheet" role="dialog" aria-labelledby="insp-final-title" aria-modal="true" data-od-id="insp-final-sheet">
+                <div class="insp-sheet__head">
+                  <div class="insp-well"><svg data-lucide="search"></svg></div>
+                  <div>
+                    <div class="insp-sheet__eye">Operator</div>
+                    <h3 class="insp-sheet__t" id="insp-final-title">Inspect run</h3>
+                    <p class="insp-sheet__d">Loop mechanics for <span class="mono">run_7f3a</span> · digest <span class="mono">d7f3…a91c</span></p>
+                    <div class="insp-sheet__links">
+                      <button class="btn btn--sm" type="button" data-od-id="insp-final-graph"><svg data-lucide="workflow"></svg>View graph</button>
+                      <button class="btn btn--sm" type="button" data-od-id="insp-final-def"><svg data-lucide="code-xml"></svg>View definition</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="insp-sheet__body">
+                  <div class="insp-block" data-od-id="insp-final-gens">
+                    <div class="insp-block__h"><svg data-lucide="layers"></svg><span class="eyebrow">Generations</span></div>
+                    <div class="gen-list">
+                      <!-- gating: generation.origin = initial -->
+                      <article class="gen-row" data-od-id="insp-final-gen-1">
+                        <div class="gen-row__top">
+                          <span class="gen-row__n">Generation 1</span>
+                          <span class="req-chip" data-tone="neutral"><svg data-lucide="circle"></svg>initial</span>
+                          <span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>revise</span>
+                        </div>
+                        <div class="gen-row__settle">4 settled · 2 carried</div>
+                        <div class="gen-row__detail">
+                          <span>route standard — severity == "p1"</span>
+                          <span>best_effort 66% — partial 2/3</span>
+                        </div>
+                        <div class="gen-row__acts">
+                          <a class="btn btn--sm" href="graph-eng-run-diff.html" data-od-id="insp-final-cmp-1">Compare…</a>
+                          <a class="btn btn--sm" href="graph-eng-fork-dialog.html" data-od-id="insp-final-fork-1">Fork from here</a>
+                        </div>
+                        <div class="gen-row__micro">gen 1 · run_7f3a · origin initial</div>
+                      </article>
+                      <!-- gating: generation.origin = retry -->
+                      <article class="gen-row" data-od-id="insp-final-gen-2">
+                        <div class="gen-row__top">
+                          <span class="gen-row__n">Generation 2</span>
+                          <span class="req-chip" data-tone="neutral"><svg data-lucide="rotate-ccw"></svg>retry</span>
+                          <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>partial 2/3</span>
+                        </div>
+                        <div class="gen-row__settle">5 settled · 1 pending</div>
+                        <div class="gen-row__detail">
+                          <span>route standard — severity == "p1"</span>
+                          <span>best_effort 66% — partial 2/3</span>
+                        </div>
+                        <div class="gen-row__acts">
+                          <a class="btn btn--sm" href="graph-eng-run-diff.html" data-od-id="insp-final-cmp-2">Compare…</a>
+                          <a class="btn btn--sm" href="graph-eng-fork-dialog.html" data-od-id="insp-final-fork-2">Fork from here</a>
+                        </div>
+                        <div class="gen-row__micro">gen 2 · run_7f3a · origin retry · fork source of run_9c1d</div>
+                      </article>
+                      <!-- gating: generation.origin = operator_rerun · current -->
+                      <article class="gen-row" data-current data-od-id="insp-final-gen-3">
+                        <div class="gen-row__top">
+                          <span class="gen-row__n">Generation 3</span>
+                          <span class="pill">current</span>
+                          <span class="req-chip" data-tone="info"><svg data-lucide="rotate-ccw"></svg>operator_rerun</span>
+                          <span class="req-chip" data-tone="warning"><svg data-lucide="pause"></svg>parked</span>
+                        </div>
+                        <div class="gen-row__settle">3 settled · 2 pending</div>
+                        <div class="gen-row__detail">
+                          <span>route standard — severity == "p1"</span>
+                          <span>best_effort 66% — partial 2/3</span>
+                          <span>reason · retry migration with fixed flag</span>
+                        </div>
+                        <div class="gen-row__acts">
+                          <a class="btn btn--sm" href="graph-eng-run-diff.html" data-od-id="insp-final-cmp-3">Compare…</a>
+                          <a class="btn btn--sm" href="graph-eng-fork-dialog.html" data-od-id="insp-final-fork-3">Fork from here</a>
+                        </div>
+                        <div class="gen-row__micro">gen 3 · run_7f3a · from apply-migration · current</div>
+                      </article>
+                    </div>
+                  </div>
+                  <div class="insp-block" data-od-id="insp-final-lineage">
+                    <div class="insp-block__h"><svg data-lucide="git-fork"></svg><span class="eyebrow">Lineage</span></div>
+                    <div class="lin-list">
+                      <div class="lin-row" data-od-id="insp-final-forks">
+                        <svg class="lin-row__glyph" data-lucide="git-fork"></svg>
+                        <div class="lin-row__main">
+                          <div class="lin-row__t">
+                            <span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span>
+                            forks → <a href="graph-eng-inspect-lineage.html#lin-child">run_9c1d</a> (from gen 2)
+                          </div>
+                          <div class="lin-row__micro">forks[] · run_7f3a → run_9c1d · source_generation 2</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · GENERATION ROW ===== -->
+    <section class="lab-sec" data-od-id="insp-anatomy">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Generation row</h2>
+        <span class="lab-sec__gist">number · origin · verdict · entry points</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Row anatomy</b>A generation is an entry point, not a history footnote. Origin is a chip with the literal word <code>initial</code> / <code>retry</code> / <code>operator_rerun</code> plus reason when present. Verdict and settled counts sit with the number. <code>Compare…</code> and <code>Fork from here</code> are secondary — neither is the page primary. Ids stay micro mono.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="insp-anatomy-plain">
+            <article class="gen-row" data-current data-od-id="insp-anatomy-row">
+              <div class="gen-row__top">
+                <span class="gen-row__n">Generation 3</span>
+                <span class="pill">current</span>
+                <span class="req-chip" data-tone="info"><svg data-lucide="rotate-ccw"></svg>operator_rerun</span>
+                <span class="req-chip" data-tone="warning"><svg data-lucide="pause"></svg>parked</span>
+              </div>
+              <div class="gen-row__settle">3 settled · 2 pending</div>
+              <div class="gen-row__detail">
+                <span>reason · retry migration with fixed flag</span>
+                <span>from_node apply-migration</span>
+              </div>
+              <div class="gen-row__acts">
+                <button class="btn btn--sm" type="button">Compare…</button>
+                <button class="btn btn--sm" type="button">Fork from here</button>
+              </div>
+              <div class="gen-row__micro">gen 3 · run_7f3a · origin operator_rerun</div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · LINEAGE TWO-WAY ===== -->
+    <section class="lab-sec" data-od-id="insp-lineage">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Lineage block</h2>
+        <span class="lab-sec__gist">two-way links · info tone</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Parent view</b>US-020.AC-2 / US-022.AC-2: <code>run_7f3a</code> lists <code>forks[]</code>. The chip is info — glyph <code>git-fork</code> + the word <code>fork</code>. The child id is a link, not a tree node.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="insp-lineage-parent">
+            <div class="insp-block__h"><svg data-lucide="git-fork"></svg><span class="eyebrow">Lineage</span></div>
+            <div class="lin-row">
+              <svg class="lin-row__glyph" data-lucide="git-fork"></svg>
+              <div class="lin-row__main">
+                <div class="lin-row__t">
+                  <span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span>
+                  forks → <a href="#lin-child">run_9c1d</a> (from gen 2)
+                </div>
+                <div class="lin-row__micro">forks[] · run_7f3a → run_9c1d · source_generation 2</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Child view</b>The same fact from <code>run_9c1d</code>: <code>forked_from</code> names the source run and generation. Both directions use the same chip and link treatment.</div>
+        <div class="spec__demo">
+          <div class="plain" id="lin-child" data-od-id="insp-lineage-child">
+            <div class="insp-block__h"><svg data-lucide="git-fork"></svg><span class="eyebrow">Lineage</span></div>
+            <div class="lin-row">
+              <svg class="lin-row__glyph" data-lucide="git-fork"></svg>
+              <div class="lin-row__main">
+                <div class="lin-row__t">
+                  <span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span>
+                  forked from <a href="#insp-lineage-parent">run_7f3a</a> · gen 2
+                </div>
+                <div class="lin-row__micro">forked_from · run_9c1d ← run_7f3a · source_generation 2</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · FORK CHAIN ===== -->
+    <section class="lab-sec" data-od-id="insp-chain">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Fork chain</h2>
+        <span class="lab-sec__gist">flat list · depth markers · never a tree</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Fork of a fork</b>US-022.EC-2: <code>run_9c1d</code> forks <code>run_c44e</code>. The chain is a flat list with depth marks (<code>0</code> · <code>1</code> · <code>2</code>), not a disclosure tree. Each id navigates. Info tone stays on the fork chip, not the list chrome.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="insp-chain-plain">
+            <div class="insp-block__h"><svg data-lucide="git-fork"></svg><span class="eyebrow">Lineage</span></div>
+            <div class="lin-chain" data-od-id="insp-chain-list">
+              <div class="lin-step" data-od-id="insp-chain-0">
+                <span class="lin-step__mark">0</span>
+                <div class="lin-step__body">
+                  <div class="lin-step__t"><a href="#insp-final-lineage">run_7f3a</a> · release-train v3</div>
+                  <div class="lin-step__micro">source · gen 2 · origin initial</div>
+                </div>
+              </div>
+              <div class="lin-step" data-od-id="insp-chain-1">
+                <span class="lin-step__mark">1</span>
+                <div class="lin-step__body">
+                  <div class="lin-step__t"><span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span> <a href="#lin-child">run_9c1d</a> · from gen 2</div>
+                  <div class="lin-step__micro">forked_from run_7f3a · source_generation 2</div>
+                </div>
+              </div>
+              <div class="lin-step" data-od-id="insp-chain-2">
+                <span class="lin-step__mark">2</span>
+                <div class="lin-step__body">
+                  <div class="lin-step__t"><span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span> <a href="#insp-chain-2">run_c44e</a> · from gen 1</div>
+                  <div class="lin-step__micro">forked_from run_9c1d · source_generation 1</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · LINEAGE ABSENT ===== -->
+    <section class="lab-sec" data-od-id="insp-absent">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Lineage absent</h2>
+        <span class="lab-sec__gist">the block does not render</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Calm absence</b>A run with no <code>forked_from</code> and an empty <code>forks[]</code> omits the lineage block. No empty-state card, no “no forks yet”. Generations still render — they are the inspect job.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="insp-absent-plain">
+            <div class="insp-block">
+              <div class="insp-block__h"><svg data-lucide="layers"></svg><span class="eyebrow">Generations</span></div>
+              <div class="gen-list">
+                <article class="gen-row" data-current data-od-id="insp-absent-gen">
+                  <div class="gen-row__top">
+                    <span class="gen-row__n">Generation 1</span>
+                    <span class="pill">current</span>
+                    <span class="req-chip" data-tone="neutral"><svg data-lucide="circle"></svg>initial</span>
+                  </div>
+                  <div class="gen-row__settle">2 settled</div>
+                  <div class="gen-row__acts">
+                    <button class="btn btn--sm" type="button">Compare…</button>
+                    <button class="btn btn--sm" type="button">Fork from here</button>
+                  </div>
+                  <div class="gen-row__micro">gen 1 · run_b80e · origin initial · forks[] empty</div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="insp-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>loop-run-inspect-sheet.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+  document.querySelectorAll(".lsec__head").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sec = btn.closest(".lsec");
+      const open = sec.getAttribute("data-open") !== "false";
+      sec.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

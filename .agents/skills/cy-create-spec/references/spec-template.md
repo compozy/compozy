@@ -191,6 +191,25 @@ Risk and likelihood, mitigation approach, areas requiring further research or pr
 
 For concurrency- or ownership-sensitive paths: the invariants as a numbered list, never prose. Omit only when the design has no such path, and say so.
 
+## File References
+
+The read-first index for implementing agents: every path the design depends on, each with one clause on why to read it. Use `path:line-start-line-end` when a region carries the pattern. Index an existing per-file catalog (e.g. `analysis/` reference tables) instead of inlining it, and name sources that are not navigable ("cited by concept — not vendored under `.resources/`") so nobody hunts for a missing path. `cy-create-tasks` copies each task's subset from here into its `### Relevant Files` / `### Dependent Files` / `### Competitor References`.
+
+### Repo Files
+
+- `internal/<pkg>/<file>.go:120-180` — what it establishes and why the design depends on it
+
+### Competitor References
+
+Include only when the design draws on vendored competitor sources; paths stay relative to `.resources/`, never paraphrased:
+
+- `.resources/<repo>/<path>:100-150` — the pattern to mirror, or the mismatch to reject, and why
+
+### Design and Analysis Sources
+
+- `analysis/<NN_analysis_topic>.md` — the decision context it carries and the ADRs it feeds
+- `docs/design/opendesign/<artboard>.html` — the surface it is the visual contract for
+
 ## Assumptions and Defaults
 
 Closing section pre-empting "what if" questions: every assumption made and every default chosen, with the value.

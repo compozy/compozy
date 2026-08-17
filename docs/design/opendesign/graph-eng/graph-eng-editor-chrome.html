@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Editor chrome · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-editor-chrome · S12 chrome & ergonomics (addendum 2026-08-16).
+  Spec: .compozy/tasks/graph-eng/_uiux.md S12 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-editor.tsx 3-pane grid; loop-editor-toolbar.tsx;
+                 loop-editor-palette.tsx + loop-editor-palette-menu.tsx
+                 (Add-node is the lg-hidden fallback); loop-editor-sidebar.tsx
+                 Contract|Node; loop-editor-node.tsx selection ring
+    spec — optional rails ship collapsed; full-bleed canvas wins; every
+           chrome state persists per user at
+           compozy:loops:editor-chrome:v1 (palette collapsed · inspector
+           collapsed · inspector width 344 · linter-dock folded). Selecting
+           a node auto-opens the inspector on Node. Canvas-scoped keys:
+           a quick-add · [ palette · ] inspector · Escape closes.
+           ⌘-chords stay shell-owned.
+    authorized delta — PanelLeft / PanelRight toggles with [ ] kbd hints;
+                       connection-drop picker at the release point;
+                       member-vs-focus rings on multi-select (one ring = one
+                       inspector, so only the focus node rings)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ch-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Editor chrome</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-editor-route-ask.html">← Route + ask</a>
+      <a class="btn btn--sm" href="graph-eng-bell-requests.html">Bell requests →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — CALM DEFAULT ===== -->
+    <section class="lab-sec" data-od-id="ch-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Calm default — both rails collapsed</h2>
+        <span class="lab-sec__gist">both rails ship collapsed · full-bleed canvas</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>S12 default</b>Palette and inspector start closed. The canvas takes the full stage. Toolbar keeps the palette toggle (<code>PanelLeft</code>, hint <kbd class="ed-kbd">[</kbd>) · Add-node · Graph|DSL · zoom cluster · inspector toggle (<code>PanelRight</code>, hint <kbd class="ed-kbd">]</kbd>). <code>Publish</code> is the one primary. Chrome state is per user, not per loop. <span class="mono">E2E-031..E2E-034 · VC-15 · VC-16</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--ed" data-od-id="ch-final-stage">
+            <section class="win is-focused win--ed" data-od-id="ch-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="workflow"></svg></span>
+                  <span class="w2-title">release-train</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status">v3 · draft</span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button">Validate</button>
+                    <button class="btn btn--sm btn--primary" type="button" data-od-id="ch-final-publish">Publish</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="ed" data-pal="off" data-insp="off" data-view="graph" data-od-id="ch-final-ed">
+                  <div class="ed-bar" data-od-id="ch-final-bar">
+                    <div class="ed-bar__tools">
+                      <button class="ed-icon" type="button" data-rail="pal" aria-pressed="false" title="Palette [" aria-label="Palette" data-od-id="ch-final-pal-toggle"><svg data-lucide="panel-left"></svg></button>
+                      <button class="btn btn--sm" type="button" data-od-id="ch-final-add"><svg data-lucide="plus"></svg>Add node</button>
+                      <div class="pill-group pill-group--sm" role="group" aria-label="Editor view">
+                        <button class="pill-group__item is-on" type="button" aria-pressed="true"><svg data-lucide="share-2"></svg>Graph</button>
+                        <button class="pill-group__item" type="button" aria-pressed="false"><svg data-lucide="code-2"></svg>DSL</button>
+                      </div>
+                    </div>
+                    <div class="ed-bar__tools">
+                      <div class="ed-zoom">
+                        <button class="ed-icon" type="button" aria-label="Auto layout"><svg data-lucide="layout-grid"></svg></button>
+                        <button class="ed-icon" type="button" aria-label="Zoom out"><svg data-lucide="zoom-out"></svg></button>
+                        <span class="ed-zoom__pct">100%</span>
+                        <button class="ed-icon" type="button" aria-label="Zoom in"><svg data-lucide="zoom-in"></svg></button>
+                        <button class="ed-icon" type="button" aria-label="Fit view"><svg data-lucide="maximize"></svg></button>
+                      </div>
+                      <button class="btn btn--sm btn--ghost" type="button"><svg data-lucide="save"></svg>Save layout</button>
+                      <button class="ed-icon" type="button" data-rail="insp" aria-pressed="false" title="Inspector ]" aria-label="Inspector" data-od-id="ch-final-insp-toggle"><svg data-lucide="panel-right"></svg></button>
+                    </div>
+                  </div>
+                  <div class="ed-body">
+                    <aside class="ed-pal" data-od-id="ch-final-pal">
+                      <span class="eyebrow">Add node</span>
+                      <div class="ed-pal__g"><div class="ed-pal__lab">Control</div>
+                        <button class="ed-pal__item" type="button"><span class="ed-pal__glyph"><svg data-lucide="signpost"></svg></span><span class="ed-pal__name">Route</span></button>
+                      </div>
+                    </aside>
+                    <section class="ed-main">
+                      <div class="ed-canvas" data-od-id="ch-final-canvas">
+                        <div class="ed-board" style="min-width:720px;min-height:420px">
+                          <svg class="ed-wires" viewBox="0 0 720 420" preserveAspectRatio="none" aria-hidden="true">
+                            <path d="M220 120 C240 120, 248 120, 260 120"/>
+                            <path d="M456 120 C476 120, 484 120, 496 120"/>
+                            <path d="M220 260 C240 260, 248 260, 260 260"/>
+                            <path d="M456 260 C476 260, 484 260, 496 260"/>
+                          </svg>
+                          <article class="ed-node" style="left:32px;top:96px">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="log-in"></svg></span><span class="ed-node__id">input</span><span class="ed-node__kind">source</span></div>
+                          </article>
+                          <article class="ed-node" style="left:268px;top:96px">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="signpost"></svg></span><span class="ed-node__id">triage</span><span class="ed-node__kind">control · route</span></div>
+                          </article>
+                          <article class="ed-node" style="left:504px;top:96px">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="message-circle-question"></svg></span><span class="ed-node__id">confirm-rollout</span><span class="ed-node__kind">control · ask</span></div>
+                          </article>
+                          <article class="ed-node" style="left:32px;top:236px">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="split"></svg></span><span class="ed-node__id">fan-services</span><span class="ed-node__kind">control · fan-out</span></div>
+                          </article>
+                          <article class="ed-node" style="left:268px;top:236px">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="bot"></svg></span><span class="ed-node__id">apply-migration</span><span class="ed-node__kind">action</span></div>
+                          </article>
+                          <article class="ed-node" style="left:504px;top:236px">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="megaphone"></svg></span><span class="ed-node__id">announce</span><span class="ed-node__kind">action</span></div>
+                          </article>
+                        </div>
+                      </div>
+                      <div class="ed-lint" data-fold>
+                        <button class="ed-lint__h" type="button" aria-expanded="false" data-lint-toggle>
+                          <span class="eyebrow">Validation</span>
+                          <span class="req-chip" data-tone="neutral"><svg data-lucide="check"></svg>clean</span>
+                          <svg class="ed-lint__chev" data-lucide="chevron-down"></svg>
+                        </button>
+                      </div>
+                    </section>
+                    <aside class="ed-insp">
+                      <div class="ed-insp__empty">
+                        <svg data-lucide="mouse-pointer-click"></svg>
+                        <b>No node selected</b>
+                        <p>Select a node on the canvas to edit its fields.</p>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · PALETTE ===== -->
+    <section class="lab-sec" data-od-id="ch-pal">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Palette expanded</h2>
+        <span class="lab-sec__gist">search · arrow-key nav · Add-node fallback</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Filter “ro”</b>Search is active. Only route matches stay visible. Arrow keys move the active row; Enter adds. Other sections collapse.</div>
+        <div class="spec__demo">
+          <aside class="ed-pal ed-pal--frame" data-od-id="ch-pal-ro">
+            <span class="eyebrow">Add node</span>
+            <label class="field ed-pal__search"><svg data-lucide="search"></svg><input value="ro" aria-label="Filter palette" autofocus></label>
+            <p class="ed-pal__hint">↑↓ to move · Enter to add</p>
+            <div class="ed-pal__g">
+              <div class="ed-pal__lab">Control</div>
+              <button class="ed-pal__item" type="button" data-active data-od-id="ch-pal-route"><span class="ed-pal__glyph"><svg data-lucide="signpost"></svg></span><span class="ed-pal__name">Route</span></button>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Zero hits</b>Sections collapse. One calm empty line — no illustration, no retry button.</div>
+        <div class="spec__demo">
+          <aside class="ed-pal ed-pal--frame ed-pal--short" data-od-id="ch-pal-zero">
+            <span class="eyebrow">Add node</span>
+            <label class="field ed-pal__search"><svg data-lucide="search"></svg><input value="xyz" aria-label="Filter palette"></label>
+            <p class="ed-pal__empty">No kinds match “xyz”.</p>
+          </aside>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Collapsed fallback</b>When the rail is closed — at every breakpoint — the toolbar Add-node menu is the add path. Groups mirror the palette.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="ch-pal-menu-stage" style="min-height:280px">
+            <div class="ed-bar" style="position:relative;width:min(560px,100%);border:1px solid var(--line);border-radius:var(--radius-lg)">
+              <div class="ed-bar__tools">
+                <button class="ed-icon" type="button" aria-pressed="false" title="Palette [" aria-label="Palette"><svg data-lucide="panel-left"></svg></button>
+                <button class="btn btn--sm" type="button" data-open aria-expanded="true" data-od-id="ch-pal-add"><svg data-lucide="plus"></svg>Add node</button>
+              </div>
+              <div class="popover ed-menu" style="position:absolute;top:44px;left:40px" data-od-id="ch-pal-add-menu">
+                <div class="pop-eyebrow">Control</div>
+                <button class="pop-item" type="button"><svg data-lucide="signpost"></svg>Route</button>
+                <button class="pop-item" type="button"><svg data-lucide="message-circle-question"></svg>Ask</button>
+                <button class="pop-item" type="button"><svg data-lucide="split"></svg>Fan-out</button>
+                <div class="pop-sep"></div>
+                <div class="pop-eyebrow">Action</div>
+                <button class="pop-item" type="button"><svg data-lucide="bot"></svg>Run agent</button>
+                <button class="pop-item" type="button"><svg data-lucide="parentheses"></svg>Transform</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · INSPECTOR AUTO-OPEN ===== -->
+    <section class="lab-sec" data-od-id="ch-insp">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Inspector auto-open</h2>
+        <span class="lab-sec__gist">select opens Node · collapse keeps the ring</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Select → Node tab</b>Clicking <code>triage</code> opens the inspector on Node. The card wears the accent ring — one ring means one inspector. Contract stays one tab away.</div>
+        <div class="spec__demo">
+          <div class="stage stage--ed" data-od-id="ch-insp-open-stage" style="min-height:420px">
+            <section class="win is-focused win--ed" style="min-height:420px">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id"><span class="w2-glyph"><svg data-lucide="workflow"></svg></span><span class="w2-title">release-train</span></div>
+                <span class="w2-flex"></span>
+                <div class="win-trail"><button class="btn btn--sm btn--primary" type="button">Publish</button></div>
+              </header>
+              <div class="win-body">
+                <div class="ed" data-pal="off" data-insp="on" data-view="graph">
+                  <div class="ed-bar">
+                    <div class="ed-bar__tools">
+                      <button class="ed-icon" type="button" title="Palette [" aria-label="Palette"><svg data-lucide="panel-left"></svg></button>
+                    </div>
+                    <div class="ed-bar__tools">
+                      <button class="ed-icon" type="button" aria-pressed="true" title="Inspector ]" aria-label="Inspector" data-od-id="ch-insp-toggle-on"><svg data-lucide="panel-right"></svg></button>
+                    </div>
+                  </div>
+                  <div class="ed-body">
+                    <section class="ed-main">
+                      <div class="ed-canvas">
+                        <div class="ed-board" style="min-width:280px;min-height:200px">
+                          <article class="ed-node is-sel" style="left:36px;top:48px" data-od-id="ch-insp-node">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="signpost"></svg></span><span class="ed-node__id">triage</span><span class="ed-node__kind">control · route</span></div>
+                          </article>
+                        </div>
+                      </div>
+                    </section>
+                    <aside class="ed-insp" data-od-id="ch-insp-open">
+                      <div class="lane-tabs ed-insp__tabs" role="tablist" aria-label="Loop editor inspector">
+                        <button class="lane-tab" type="button" role="tab" aria-selected="false">Contract</button>
+                        <button class="lane-tab is-on" type="button" role="tab" aria-selected="true">Node</button>
+                      </div>
+                      <div class="ed-insp__head">
+                        <div class="ed-insp__name"><b>triage</b><span class="pill">control</span></div>
+                        <p class="ed-insp__micro">route · id: triage</p>
+                      </div>
+                      <div class="ed-insp__body">
+                        <div class="ed-fld"><label class="ed-fld__lab" for="ch-insp-id">id</label><input class="input input--mono" id="ch-insp-id" value="triage"></div>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Manually collapsed</b>The node stays selected — the ring remains. The rail is closed. Contract is still reachable from the collapsed toggle (opens on Contract if that was the last tab).</div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="ch-insp-closed-stage">
+            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+              <article class="ed-node ed-node--static is-sel" data-od-id="ch-insp-ring">
+                <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="signpost"></svg></span><span class="ed-node__id">triage</span><span class="ed-node__kind">control · route</span></div>
+              </article>
+              <button class="ed-icon" type="button" aria-pressed="false" title="Inspector ]" aria-label="Open inspector" data-od-id="ch-insp-collapsed"><svg data-lucide="panel-right"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · QUICK-ADD ===== -->
+    <section class="lab-sec" data-od-id="ch-qa">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Quick-add</h2>
+        <span class="lab-sec__gist">a or double-click · Escape closes</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Canvas-scoped</b>Plain <kbd class="ed-kbd">a</kbd> or a pane double-click opens the dialog. Palette kinds plus a jump-to-node group (search by id or kind → reveal). Escape closes with no mutation. The key is ignored while a field is focused.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short" data-od-id="ch-qa-stage" style="min-height:360px">
+            <div class="ed-canvas" style="min-height:360px">
+              <div class="ed-qa" style="left:50%;top:48px;transform:translateX(-50%)" role="dialog" aria-label="Quick add" data-od-id="ch-qa-dlg">
+                <label class="field"><svg data-lucide="search"></svg><input placeholder="Add or jump…" aria-label="Quick add"></label>
+                <div class="ed-qa__list">
+                  <div class="ed-qa__g">Add node</div>
+                  <button class="ed-qa__item" type="button" data-active><svg data-lucide="signpost"></svg>Route</button>
+                  <button class="ed-qa__item" type="button"><svg data-lucide="message-circle-question"></svg>Ask</button>
+                  <button class="ed-qa__item" type="button"><svg data-lucide="split"></svg>Fan-out</button>
+                  <button class="ed-qa__item" type="button"><svg data-lucide="bot"></svg>Run agent</button>
+                  <div class="ed-qa__g">Jump to node</div>
+                  <button class="ed-qa__item" type="button"><svg data-lucide="signpost"></svg>triage<span class="ed-qa__esc" style="margin:0 0 0 auto;padding:0">route</span></button>
+                  <button class="ed-qa__item" type="button"><svg data-lucide="message-circle-question"></svg>confirm-rollout<span class="ed-qa__esc" style="margin:0 0 0 auto;padding:0">ask</span></button>
+                </div>
+                <p class="ed-qa__esc">Escape closes · no mutation</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · CONNECTION-DROP ===== -->
+    <section class="lab-sec" data-od-id="ch-drop">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Connection-drop picker</h2>
+        <span class="lab-sec__gist">live edge · choose creates + wires · Escape = zero mutations</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Drop on empty canvas</b>A dragged connection released on empty space opens the picker at the drop point. The live edge stays attached to the source. Choosing a kind creates the node and wires it in one transition. Escape dismisses with zero mutations.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short" data-od-id="ch-drop-stage" style="min-height:320px">
+            <div class="ed-canvas" style="min-height:320px">
+              <svg class="ed-wires" viewBox="0 0 640 300" preserveAspectRatio="none" aria-hidden="true">
+                <path data-live d="M220 88 C320 88, 360 160, 400 168"/>
+              </svg>
+              <article class="ed-node is-sel" style="left:24px;top:64px" data-od-id="ch-drop-src">
+                <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="message-circle-question"></svg></span><span class="ed-node__id">confirm-rollout</span><span class="ed-node__kind">control · ask</span></div>
+              </article>
+              <div class="ed-drop" style="left:388px;top:156px" data-od-id="ch-drop-pick">
+                <div class="pop-eyebrow">Add and wire</div>
+                <button class="pop-item" type="button"><svg data-lucide="split"></svg>Fan-out</button>
+                <button class="pop-item" type="button"><svg data-lucide="bot"></svg>Run agent</button>
+                <button class="pop-item" type="button"><svg data-lucide="git-merge"></svg>Collect</button>
+                <p class="ed-qa__esc">Escape · zero mutations</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · CONTEXT MENU ===== -->
+    <section class="lab-sec" data-od-id="ch-ctx">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Node context menu</h2>
+        <span class="lab-sec__gist">mutating verbs absent when read-only</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Writable</b>Right-click on a node card. Duplicate · Copy · Paste carry no shortcut hint (⌘-chords stay shell-owned). Rename keeps <kbd class="ed-kbd">⏎</kbd> · Delete keeps <kbd class="ed-kbd">⌫</kbd>. Delete prunes the node’s edges in the same transition. <span class="mono">E2E-031..E2E-034 · VC-16</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="ch-ctx-write-stage" style="min-height:280px">
+            <div style="position:relative;width:min(420px,100%);min-height:220px">
+              <article class="ed-node is-sel" style="left:16px;top:16px" data-od-id="ch-ctx-node">
+                <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="bot"></svg></span><span class="ed-node__id">apply-migration</span><span class="ed-node__kind">action</span></div>
+              </article>
+              <div class="popover ed-menu" style="left:220px;top:28px" data-od-id="ch-ctx-write">
+                <button class="pop-item" type="button"><svg data-lucide="copy"></svg>Duplicate</button>
+                <button class="pop-item" type="button"><svg data-lucide="copy"></svg>Copy</button>
+                <button class="pop-item" type="button"><svg data-lucide="clipboard-paste"></svg>Paste</button>
+                <button class="pop-item" type="button"><svg data-lucide="pencil"></svg>Rename<kbd>⏎</kbd></button>
+                <div class="pop-sep"></div>
+                <button class="pop-item" type="button"><svg data-lucide="trash-2"></svg>Delete<kbd>⌫</kbd></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Read-only</b>Mutating verbs are absent — not disabled. Layout and navigation verbs stay: Reveal, Fit selection.</div>
+        <div class="spec__demo">
+          <div class="popover ed-menu" style="position:relative" data-od-id="ch-ctx-ro">
+            <button class="pop-item" type="button"><svg data-lucide="search"></svg>Reveal</button>
+            <button class="pop-item" type="button"><svg data-lucide="maximize"></svg>Fit selection</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · MULTI-SELECT + EDGES ===== -->
+    <section class="lab-sec" data-od-id="ch-multi">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Multi-select + edge affordances</h2>
+        <span class="lab-sec__gist">one ring · one inspector</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Marquee</b>Two nodes inside the marquee. The inspector-focus node wears the accent ring; the other is a lighter member state. One ring on N nodes would read as N inspectors — so only the focus rings. A selected edge shows the delete control at its midpoint. Deleting a node prunes its edges in the same transition.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short" data-od-id="ch-multi-stage" style="min-height:300px">
+            <div class="ed-canvas" style="min-height:300px">
+              <div class="ed-marquee" style="left:20px;top:36px;width:420px;height:140px" data-od-id="ch-marquee"></div>
+              <svg class="ed-wires" viewBox="0 0 640 280" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M220 88 C260 88, 280 88, 300 88"/>
+              </svg>
+              <button class="ed-x" type="button" style="left:252px;top:80px" aria-label="Delete edge" data-od-id="ch-edge-x"><svg data-lucide="x"></svg></button>
+              <article class="ed-node is-sel" style="left:24px;top:64px" data-od-id="ch-multi-focus">
+                <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="signpost"></svg></span><span class="ed-node__id">triage</span><span class="ed-node__kind">control · route</span></div>
+              </article>
+              <article class="ed-node is-member" style="left:308px;top:64px" data-od-id="ch-multi-member">
+                <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                <div class="ed-node__head"><span class="ed-node__glyph"><svg data-lucide="message-circle-question"></svg></span><span class="ed-node__id">confirm-rollout</span><span class="ed-node__kind">control · ask</span></div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · PERSISTENCE ===== -->
+    <section class="lab-sec" data-od-id="ch-persist">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Chrome persistence</h2>
+        <span class="lab-sec__gist">per user · not per loop</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Key</b><code>compozy:loops:editor-chrome:v1</code> in the operator profile. Defaults are the calm ones. Canvas-scoped plain keys; ⌘-chords stay shell-owned. <span class="mono">E2E-031..E2E-034 · VC-15</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="ch-persist-table">
+            <table class="ed-persist">
+              <thead>
+                <tr><th>State</th><th>Persisted</th><th>Default</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="k">palette collapsed</td>
+                  <td class="v">compozy:loops:editor-chrome:v1</td>
+                  <td>collapsed</td>
+                </tr>
+                <tr>
+                  <td class="k">inspector collapsed</td>
+                  <td class="v">compozy:loops:editor-chrome:v1</td>
+                  <td>collapsed</td>
+                </tr>
+                <tr>
+                  <td class="k">inspector width</td>
+                  <td class="v">compozy:loops:editor-chrome:v1</td>
+                  <td>344px</td>
+                </tr>
+                <tr>
+                  <td class="k">linter-dock fold</td>
+                  <td class="v">compozy:loops:editor-chrome:v1</td>
+                  <td>folded</td>
+                </tr>
+                <tr>
+                  <td class="k">keyboard map</td>
+                  <td class="v">a quick-add · [ palette · ] inspector · Escape closes</td>
+                  <td>canvas-scoped plain keys · ⌘-chords stay shell-owned</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="ch-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> S12 addendum 2026-08-16 · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-editor.tsx</code>, <code>loop-editor-toolbar.tsx</code>, <code>loop-editor-palette-menu.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  document.querySelectorAll("[data-rail]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ed = btn.closest(".ed");
+      if (!ed) return;
+      const which = btn.getAttribute("data-rail");
+      const key = which === "pal" ? "data-pal" : "data-insp";
+      const off = ed.getAttribute(key) === "off";
+      ed.setAttribute(key, off ? "on" : "off");
+      btn.setAttribute("aria-pressed", off ? "true" : "false");
+    });
+  });
+
+  document.querySelectorAll("[data-lint-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dock = btn.closest(".ed-lint");
+      if (!dock) return;
+      const folded = dock.hasAttribute("data-fold");
+      if (folded) dock.removeAttribute("data-fold");
+      else dock.setAttribute("data-fold", "");
+      btn.setAttribute("aria-expanded", folded ? "true" : "false");
+    });
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

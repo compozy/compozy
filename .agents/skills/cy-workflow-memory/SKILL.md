@@ -1,6 +1,6 @@
 ---
 name: cy-workflow-memory
-description: Maintains workflow-scoped task memory for Compozy runs using .compozy/tasks/<name>/memory/ files. Use when a task prompt provides workflow memory paths and requires the agent to read, update, compact, and promote durable context across spec task executions. Do not use for PR review remediation, global user preferences, or programmatic event-log summarization.
+description: Maintains workflow-scoped task memory for CompozyOS runs using .compozy/tasks/<name>/memory/ files. Use when a task prompt provides workflow memory paths and requires the agent to read, update, compact, and promote durable context across spec task executions. Do not use for PR review remediation, global user preferences, or programmatic event-log summarization.
 ---
 
 # Workflow Memory

@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Attention bell · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-bell-requests · S9 attention bell — loop-request row kind.
+  Spec: .compozy/tasks/graph-eng/_uiux.md S9 (post-herdr seam) · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — web/src/systems/os/components/attention-bell.tsx (flat list);
+                 web/src/systems/os/hooks/use-os-attention.ts composition seam
+                 (workspace-wide authority; this spec adds a loops request
+                 source — never the session attention-summary contract)
+    spec — _uiux.md S9: loop requests join Needs you; jump lands on the
+           run page request form (S1); badge/title = sessions needs_you +
+           loops aggregates.pending (two daemon-computed counts);
+           answered/expired leave the section (herdr no-dismiss inbox-drain)
+    authorized delta — herdr.css import (this board only) + request row
+                       kind (data-k="request", data-expiring). herdr.css
+                       stays untouched. Bell needs-you = danger (ADR-006);
+                       run-page warning mapping does not apply here.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="bell-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Attention bell</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-needs-you-requests.html">← Needs you</a>
+      <a class="btn btn--sm" href="index.html">Index →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ============ 01 · FINAL — BELL OPEN ON THE SHELL ============ -->
+    <section class="lab-sec" data-od-id="bell-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Bell open — loop requests join Needs you</h2>
+        <span class="lab-sec__gist">one more row kind · same bell</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same inbox, one new kind</b>herdr’s <b>Needs you</b> / <b>Finished</b> sections stay. Loop requests join as <code>data-k="request"</code> rows — they do not replace session or task rows. Why-line is loop + verb + node; lane sits in micro mono; workspace label is unchanged. In the bell, pending is <b>danger</b> (herdr needs-you). Badge and tab title compose two daemon counts: sessions <code>needs_you</code> <b>4</b> + loops <code>aggregates.pending</code> <b>2</b> = <b>6</b> — never a client row-page count. Click a request row to land on the run page form (S1). <span class="mono">US-007</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="bell-stage">
+            <header class="menubar" style="position:relative">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg>
+                </button>
+                <button class="ws-trigger"><span class="ws-avatar mono">CO</span><span class="ws-name">compozy</span>
+                  <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <nav class="mb-menus" aria-label="Menus">
+                  <button class="mb-menu">Session</button>
+                  <button class="mb-menu">View</button>
+                  <button class="mb-menu">Help</button>
+                </nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" id="bellBtn" aria-label="Attention, 6 need you" aria-expanded="true" data-od-id="bell-trigger">
+                  <svg data-lucide="bell"></svg>
+                  <span class="badge" id="bellBadge">6</span>
+                </button>
+                <button class="mb-chip"><span class="mono">⌘K</span></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+
+            <div class="popover bell-pop" id="bellPop" style="right:52px;top:50px" role="dialog" aria-label="Attention" data-od-id="bell-popover">
+              <div class="bell-scroll">
+                <div class="bell-sec" data-od-id="bell-needs-you">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">6</span></div>
+                  <button class="bell-row" type="button">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Refactor session store</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — Should I drop the legacy column?</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">2m</span>
+                  </button>
+                  <button class="bell-row" type="button">
+                    <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Chargeback flow</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — approval to run <code class="mono" style="font-size:10px">stripe trigger</code></span><span class="bell-row__ws">payments</span></span>
+                    </span>
+                    <span class="bell-row__time">6m</span>
+                  </button>
+                  <button class="bell-row" type="button">
+                    <span class="sig" data-k="approval"><svg data-lucide="shield"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Push to origin/main</span>
+                      <span class="bell-row__sub"><span class="why">task approval — release loop</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">12m</span>
+                  </button>
+                  <!-- gating: request.kind pending → Needs you; jump = S1 request form -->
+                  <a class="bell-row" href="graph-eng-needs-you-requests.html" data-k="request" data-od-id="bell-row-request-compozy">
+                    <span class="sig" data-k="request"><svg data-lucide="triangle-alert"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">apply-migration</span>
+                      <span class="bell-row__sub"><span class="why">release-train — approve apply-migration?</span><span class="bell-row__lane">lane · web</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">12m</span>
+                  </a>
+                  <a class="bell-row" href="graph-eng-needs-you-requests.html" data-k="request" data-od-id="bell-row-request-payments">
+                    <span class="sig" data-k="request"><svg data-lucide="triangle-alert"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">confirm-batch</span>
+                      <span class="bell-row__sub"><span class="why">invoice-sync — answer confirm-batch?</span><span class="bell-row__ws">payments</span></span>
+                    </span>
+                    <span class="bell-row__time">18m</span>
+                  </a>
+                  <button class="bell-row" type="button">
+                    <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">TF upgrade</span>
+                      <span class="bell-row__sub"><span class="why"><b>codex</b> — exit 1 · terraform plan</span><span class="bell-row__ws">infra</span></span>
+                    </span>
+                    <span class="bell-row__time">41m</span>
+                  </button>
+                </div>
+                <div class="bell-sec" data-od-id="bell-finished">
+                  <div class="bell-sec__head">Finished <span class="bell-sec__count">2</span>
+                    <button class="bell-clear" type="button">Mark all seen</button>
+                  </div>
+                  <button class="bell-row" type="button">
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Release notes draft</span>
+                      <span class="bell-row__sub"><span class="why"><b>hermes</b> — finished while you were away</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">26m</span>
+                  </button>
+                  <button class="bell-row" type="button">
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Rotate tokens</span>
+                      <span class="bell-row__sub"><span class="why"><b>codex</b> — finished while you were away</span><span class="bell-row__ws">infra</span></span>
+                    </span>
+                    <span class="bell-row__time">1h</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · REQUEST ROW STATES ============ -->
+    <section class="lab-sec" data-od-id="bell-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Request row states</h2>
+        <span class="lab-sec__gist">pending · near-expiry · then absence</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Pending vs near-expiry</b>Same danger plate — the clock and the remaining-time string carry urgency. Near-expiry uses <code>data-expiring</code>; the time slot shows the countdown (<code>expires 4m</code> on the run page; here the slot is the remaining <code>4m</code>). The run-page warning mapping does not leak into the bell. <span class="mono">US-006 · US-007</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0;gap:16px;flex-wrap:wrap;display:flex;align-items:flex-start">
+            <div class="popover bell-pop" style="position:relative" data-od-id="bell-request-pending">
+              <div class="bell-scroll">
+                <div class="bell-sec">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">1</span></div>
+                  <a class="bell-row" href="graph-eng-needs-you-requests.html" data-k="request">
+                    <span class="sig" data-k="request"><svg data-lucide="triangle-alert"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">apply-migration</span>
+                      <span class="bell-row__sub"><span class="why">release-train — approve apply-migration?</span><span class="bell-row__lane">lane · web</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">12m</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div class="popover bell-pop" style="position:relative" data-od-id="bell-request-expiring">
+              <div class="bell-scroll">
+                <div class="bell-sec">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">1</span></div>
+                  <a class="bell-row" href="graph-eng-needs-you-requests.html" data-k="request" data-expiring data-od-id="bell-row-expiring">
+                    <span class="sig" data-k="request"><svg data-lucide="triangle-alert"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">confirm-rollout</span>
+                      <span class="bell-row__sub"><span class="why">release-train — answer confirm-rollout?</span><span class="bell-row__lane">lane · api</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time"><svg data-lucide="clock"></svg>4m</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Answered and expired leave</b>A resolved request never renders as a live row — no strike, no dim, no dismiss control. herdr’s inbox-drain: the row is gone and the section count drops. If Needs you empties, the section header goes with it. Click always lands on the run page’s request form (S1), not a session window. <span class="mono">US-006 · US-007</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0" data-od-id="bell-request-drained">
+            <div class="popover bell-pop" style="position:relative">
+              <div class="bell-scroll">
+                <div class="bell-sec">
+                  <div class="bell-sec__head">Needs you <span class="bell-sec__count">1</span></div>
+                  <button class="bell-row" type="button">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="bell-row__main">
+                      <span class="bell-row__title">Refactor session store</span>
+                      <span class="bell-row__sub"><span class="why"><b>claude</b> — Should I drop the legacy column?</span><span class="bell-row__ws">compozy</span></span>
+                    </span>
+                    <span class="bell-row__time">2m</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 · LIST INDICATOR + COUNT MATH ============ -->
+    <section class="lab-sec" data-od-id="bell-count">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Run-list indicator &amp; what counts</h2>
+        <span class="lab-sec__gist">chip on the run · compose two counts</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>List indicator</b>The only S9 surface outside the bell. A run with pending requests wears a needs-you chip with the count — warning here (run-list, not bell). Zero pending renders nothing. <code>run_7f3a</code> carries the <code>apply-migration</code> request; <code>invoice-sync</code> carries <code>confirm-batch</code> (run id is the daemon’s). <code>run_9c1d</code> is the fork with no pending request. <span class="mono">US-007</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="min-height:0" data-od-id="bell-runs-stage">
+            <div class="list-shell" data-od-id="bell-runs">
+              <a class="listing-row" href="graph-eng-needs-you-requests.html" data-od-id="bell-run-7f3a">
+                <span class="listing-row__icon"><svg data-lucide="git-branch"></svg></span>
+                <span class="listing-row__main">
+                  <span class="listing-row__name"><b class="sans">release-train</b></span>
+                  <span class="listing-row__slug">run_7f3a · manual</span>
+                </span>
+                <span class="listing-row__trail">
+                  <span class="req-chip" data-tone="warning" aria-label="1 pending request"><svg data-lucide="triangle-alert"></svg>pending · 1</span>
+                </span>
+              </a>
+              <a class="listing-row" href="graph-eng-needs-you-requests.html" data-od-id="bell-run-invoice">
+                <span class="listing-row__icon"><svg data-lucide="git-branch"></svg></span>
+                <span class="listing-row__main">
+                  <span class="listing-row__name"><b class="sans">invoice-sync</b></span>
+                  <span class="listing-row__slug">payments · confirm-batch</span>
+                </span>
+                <span class="listing-row__trail">
+                  <span class="req-chip" data-tone="warning" aria-label="1 pending request"><svg data-lucide="triangle-alert"></svg>pending · 1</span>
+                </span>
+              </a>
+              <div class="listing-row" data-od-id="bell-run-9c1d">
+                <span class="listing-row__icon"><svg data-lucide="git-fork"></svg></span>
+                <span class="listing-row__main">
+                  <span class="listing-row__name"><b class="sans">release-train</b></span>
+                  <span class="listing-row__slug">run_9c1d · fork</span>
+                </span>
+                <span class="listing-row__trail"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>One number, two sources</b>Badge and <code>document.title</code> share the composed count. Sessions <code>needs_you</code> is herdr’s daemon summary; loops <code>aggregates.pending</code> is the requests inventory projection. A stale source contributes zero. Finished never counts. Menubar pill keeps the 9+ cap; the title carries the exact number.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="bell-title-spec">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th>state</th>
+                  <th>badge math</th>
+                  <th>loops aggregates.pending</th>
+                  <th>document.title</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>both live</td>
+                  <td class="ex">4 + 2 = 6</td>
+                  <td class="ex">2</td>
+                  <td class="ex">(6) compozy — Compozy</td>
+                </tr>
+                <tr>
+                  <td>loops pending = 0</td>
+                  <td class="ex">4 + 0 = 4</td>
+                  <td class="ex">0</td>
+                  <td class="ex">(4) compozy — Compozy</td>
+                </tr>
+                <tr>
+                  <td>sessions = 0</td>
+                  <td class="ex">0 + 2 = 2</td>
+                  <td class="ex">2</td>
+                  <td class="ex">(2) compozy — Compozy</td>
+                </tr>
+                <tr>
+                  <td>count = 0</td>
+                  <td class="ex">0 + 0 = 0</td>
+                  <td class="ex">0</td>
+                  <td class="ex">compozy — Compozy</td>
+                </tr>
+                <tr>
+                  <td>badge cap</td>
+                  <td class="ex">8 + 4 → 9+ pill</td>
+                  <td class="ex">4</td>
+                  <td class="ex">(12) compozy — Compozy</td>
+                </tr>
+                <tr>
+                  <td>stale loops source</td>
+                  <td class="ex">4 + 0 = 4</td>
+                  <td class="ex">0 (stale)</td>
+                  <td class="ex">(4) compozy — Compozy</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="bell-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> S9 · contract <code>DESIGN-NOTES.md</code> · production seams <code>attention-bell.tsx</code>, <code>use-os-attention.ts</code>. Bell grammar from <code>herdr-parity/herdr.css</code> (read-only). Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  /* gating: composition in use-os-attention.ts — sessions needs_you
+     + loops aggregates.pending; staleness-gated per source */
+  const btn = document.getElementById("bellBtn");
+  const pop = document.getElementById("bellPop");
+  btn.addEventListener("click", () => {
+    const open = pop.hidden;
+    pop.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+  });
+  if (window.lucide) lucide.createIcons();
+})();
+</script>
+</body>
+</html>

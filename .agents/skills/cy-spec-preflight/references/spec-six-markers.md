@@ -75,5 +75,6 @@ The six quality markers are not the whole approval gate. Compozy Spec Part II mu
 - **Extensibility Integration Plan** — extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs added/changed/removed or explicitly unaffected.
 - **Agent Manageability Plan** — CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use to operate the feature. Must be consistent with `_dx.md`.
 - **Config Lifecycle** — `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests added/changed/removed or explicitly unaffected.
+- **File References** — the read-first index: repo files, `.resources/<competitor>/path` entries when the design drew on competitors, and `analysis/`/design sources, each annotated with why to read it. Tasks copy their subsets from here.
 
 If a section says "no impact", it must list the surfaces checked and why no change is needed.

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Graph engine · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  graph-eng-index · set map — requests · strategies · time travel · editor.
+  Spec: .compozy/tasks/graph-eng/_uiux.md (S1–S12) · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — the opendesign index pattern
+    spec — `_uiux.md` surface map
+    authorized delta — none
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:70ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="graph-index">
+  <h1>Graph engine</h1>
+  <p class="lede">Requests, strategies, time travel, and the editor for the Loop graph — ten boards from <code>.compozy/tasks/graph-eng/_uiux.md</code>. Each board opens with the final surface, then walks its states. Contract in <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="grp" data-od-id="graph-index-requests">
+    <div class="grp__t">Requests</div>
+    <div class="cards">
+      <a class="card" href="graph-eng-needs-you-requests.html" data-od-id="card-needs-you">
+        <span class="card__top"><span class="card__name">Needs you</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-needs-you-requests.html</span></span>
+        <span class="card__sub">S1 · S4 — the run-page needs-you stack and the parked / waits rail. Pending is warning here; danger stays in the bell.</span>
+      </a>
+      <a class="card" href="graph-eng-bell-requests.html" data-od-id="card-bell">
+        <span class="card__top"><span class="card__name">Attention bell</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-bell-requests.html</span></span>
+        <span class="card__sub">S9 — loop-request rows join the herdr bell; badge composes sessions <span class="mono">needs_you</span> + loops <span class="mono">aggregates.pending</span>.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="graph-index-run">
+    <div class="grp__t">Run page</div>
+    <div class="cards">
+      <a class="card" href="graph-eng-timeline-rows.html" data-od-id="card-timeline">
+        <span class="card__top"><span class="card__name">Timeline</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-timeline-rows.html</span></span>
+        <span class="card__sub">S2 — story timeline request rows: opened, answered, expired, route taken, prune, amend, fork, rerun.</span>
+      </a>
+      <a class="card" href="graph-eng-progress-strategies.html" data-od-id="card-progress">
+        <span class="card__top"><span class="card__name">Progress &amp; strategies</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-progress-strategies.html</span></span>
+        <span class="card__sub">S3 — fan-out lanes and <span class="mono">best_effort</span> / <span class="mono">fail_fast</span> / <span class="mono">race</span>, with partial always saying partial.</span>
+      </a>
+      <a class="card" href="graph-eng-node-verbs.html" data-od-id="card-verbs">
+        <span class="card__top"><span class="card__name">Node verbs</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-node-verbs.html</span></span>
+        <span class="card__sub">S5 — Amend output and Rerun from here: dialogs, absence rules, deterministic daemon answers.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="graph-index-time">
+    <div class="grp__t">Time travel</div>
+    <div class="cards">
+      <a class="card" href="graph-eng-inspect-lineage.html" data-od-id="card-inspect">
+        <span class="card__top"><span class="card__name">Inspect + lineage</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-inspect-lineage.html</span></span>
+        <span class="card__sub">S6 — inspect sheet and fork lineage. Amend and fork wear info chips, never alarms.</span>
+      </a>
+      <a class="card" href="graph-eng-run-diff.html" data-od-id="card-diff">
+        <span class="card__top"><span class="card__name">Run diff</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-run-diff.html</span></span>
+        <span class="card__sub">S7 — generation↔generation and run↔run compare of the same loop.</span>
+      </a>
+      <a class="card" href="graph-eng-fork-dialog.html" data-od-id="card-fork">
+        <span class="card__top"><span class="card__name">Fork dialog</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-fork-dialog.html</span></span>
+        <span class="card__sub">S8 — generation picker plus the declared-input form; submit starts <span class="mono">run_9c1d</span>.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="graph-index-editor">
+    <div class="grp__t">Editor</div>
+    <div class="cards">
+      <a class="card" href="graph-eng-editor-route-ask.html" data-od-id="card-editor-route">
+        <span class="card__top"><span class="card__name">Route + ask</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-editor-route-ask.html</span></span>
+        <span class="card__sub">S10 · S11 — ask and route inspector fields, and the read-only body DAG for the new kinds.</span>
+      </a>
+      <a class="card" href="graph-eng-editor-chrome.html" data-od-id="card-editor-chrome">
+        <span class="card__top"><span class="card__name">Editor chrome</span><span class="tag tag--final">final + lab</span><span class="card__file">graph-eng-editor-chrome.html</span></span>
+        <span class="card__sub">S12 — palette, inspector, and linter dock chrome; rails persist collapsed.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span>; <span class="mono">herdr.css</span> for the bell board + <span class="mono">graph-eng.css</span>. Content illustrative; runtime truth owns values.</p>
+</div>
+</body>
+</html>

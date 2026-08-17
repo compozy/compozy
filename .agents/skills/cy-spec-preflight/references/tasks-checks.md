@@ -43,7 +43,7 @@ Run after `cy-create-tasks` produces a draft, before handing off to execution.
 
 ## Competitor refs
 
-- [ ] When the spec drew on `.resources/<repo>`, each task body lists exact file paths so the implementer reads them.
+- [ ] When the spec drew on `.resources/<repo>`, each task body carries `### Competitor References` with its subset of exact file paths copied from `_spec.md` `## File References`.
 - [ ] Reference paths stay relative to `.resources/` and are not paraphrased.
 
 ## Hygiene

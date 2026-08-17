@@ -63,9 +63,10 @@ Stage 2 — Surface + Part II (Technical):
 10. Confirm the Agent Manageability Plan and API sections are consistent with `_dx.md` (routes, payloads, CLI verbs, config keys — no divergence between promise and design).
 11. Confirm the Extensibility Integration Plan enumerates extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs that are added/changed/removed or explicitly unaffected.
 12. Confirm the Config Lifecycle section enumerates `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests that are added/changed/removed or explicitly unaffected.
-13. Confirm the Assumptions and Defaults section closes the spec.
-14. Confirm Web/Docs Impact is captured if any contract surface is touched (activate `cy-web-docs-impact`).
-15. After the user approves the complete spec and it has been saved, offer `cy-spec-peer-review`. Invoke it only if the user explicitly opts in.
+13. Confirm File References is filled as the read-first index: repo files, `.resources/<competitor>/path` entries when the design drew on competitors, and `analysis/`/design sources — each annotated with why to read it.
+14. Confirm the Assumptions and Defaults section closes the spec.
+15. Confirm Web/Docs Impact is captured if any contract surface is touched (activate `cy-web-docs-impact`).
+16. After the user approves the complete spec and it has been saved, offer `cy-spec-peer-review`. Invoke it only if the user explicitly opts in.
 
 ### Phase: `tasks`
 
@@ -78,7 +79,7 @@ Stage 2 — Surface + Part II (Technical):
 7. Confirm Web/Docs Impact subsection exists in every backend task body (activate `cy-web-docs-impact` to populate).
 8. Confirm Extensibility / Agent Manageability / Config Lifecycle subsections exist in every feature-bearing backend task body.
 9. Confirm test density is proportional to behavior count per task. Reject "fraco" plans (1-2 tests for many behaviors).
-10. Confirm `.resources/<competitor>/path` references are cited per task when the spec drew on competitors.
+10. Confirm each task's `### Competitor References` copies its `.resources/<competitor>/path` subset from `_spec.md` File References when the spec drew on competitors.
 11. Confirm no TBD / placeholder rows.
 
 ### Phase: `task-body`
@@ -89,7 +90,7 @@ Stage 2 — Surface + Part II (Technical):
 4. Confirm Tests section enumerates assertions covering happy path + failure paths + concurrency stress + contract redaction (when relevant).
 5. Confirm Web/Docs Impact subitem.
 6. Confirm Extensibility / Agent Manageability / Config Lifecycle subitem.
-7. Confirm References section cites `.resources/<competitor>/path` paths from the spec.
+7. Confirm `### Competitor References` cites this task's `.resources/<competitor>/path` subset copied from `_spec.md` File References.
 
 **Step 4: Coordinate With the Inner Skill**
 

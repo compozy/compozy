@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Progress · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-progress-strategies · S3 progress panel.
+  Spec: .compozy/tasks/graph-eng/_uiux.md · stories US-012..015, US-017 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-run-progress-panel.tsx (goal title, done-when, equal-width
+                 segment bar, left/right meta; LoopSection Progress)
+    spec — declared strategy + threshold; partial never renders complete
+           (US-013.AC-1/AC-3); canceled-by-strategy count distinct from
+           failures (US-012.AC-2); windowed settled/active/pending/
+           never-materialized (US-017.AC-2); empty collection (US-013.EC-4);
+           never 500 rows (US-017.EC-4)
+    authorized delta — canceled / never-materialized join the bar as
+                       neutral segments; 100× width uses aggregate cells
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="pg-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Progress</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-timeline-rows.html">Timeline →</a>
+      <a class="btn btn--sm" href="graph-eng-node-verbs.html">Node verbs →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="pg-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Run page — progress panel</h2>
+        <span class="lab-sec__gist">partial is first-class · never renders complete</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>best_effort met</b>Threshold 66% with 2/3 lanes settled. The badge always contains the word <code>partial</code> plus coverage. Canceled and failed are separate counts. The outcome card reads the same daemon <code>completion_state</code> — never inferred here.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="pg-final-stage">
+            <section class="win is-focused win--req" data-od-id="pg-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="git-branch"></svg></span>
+                  <span class="w2-title">release-train</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="needs" data-od-id="pg-final-status">
+                    <svg data-lucide="triangle-alert" style="width:12px;height:12px"></svg>
+                    partial
+                  </span>
+                  <!-- gating: run.status live after a partial join → Stop offered -->
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button" data-od-id="pg-final-stop">Stop</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="app">
+                  <div class="run-sub" data-od-id="pg-final-subhead">
+                    <span class="run-sub__id">run_7f3a</span>
+                    <span class="dotsep"></span>
+                    <span>Started by pedro</span>
+                    <span class="dotsep"></span>
+                    <span>Round 3</span>
+                    <span class="dotsep"></span>
+                    <span>Started 14m ago</span>
+                    <span class="dotsep"></span>
+                    <span class="run-sub__id">14m used</span>
+                  </div>
+                  <div class="run-page">
+                    <div class="run-cols">
+                      <div class="lsec" data-open="true" data-od-id="pg-final-progress">
+                        <button class="lsec__head" type="button" aria-expanded="true">
+                          <svg data-lucide="gauge"></svg>
+                          <span class="eyebrow">Progress</span>
+                          <span class="lsec__gist">best_effort · 66%</span>
+                          <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                        </button>
+                        <div class="lsec__body">
+                          <!-- gating: run.completion_state = partial · strategy = best_effort · threshold = 66 -->
+                          <div class="prog" data-od-id="pg-final-panel">
+                            <div class="prog__body">
+                              <div class="prog__kicker">
+                                <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>partial 2/3 lanes · 66% required</span>
+                                <span class="req-lane">best_effort</span>
+                              </div>
+                              <h3 class="prog__goal">Ship the release train across api, web, and worker</h3>
+                              <p class="prog__done">Done when the join admits coverage at the declared quorum and downstream can read that the result is partial.</p>
+                              <div class="prog__bar" role="img" aria-label="2 of 3 lanes settled, 1 canceled by strategy, partial" data-od-id="pg-final-bar">
+                                <span class="prog__seg" data-state="clean" title="api settled"></span>
+                                <span class="prog__seg" data-state="clean" title="web settled"></span>
+                                <span class="prog__seg" data-state="canceled" title="worker canceled-by-strategy"></span>
+                              </div>
+                              <div class="prog__meta">
+                                <span>2 of 3 lanes settled · partial</span>
+                                <span class="prog__right">66% required</span>
+                              </div>
+                              <div class="prog__counts">
+                                <span class="prog-count" data-k="partial"><strong>partial</strong> 2/3 lanes · 66% required</span>
+                                <span class="prog-count" data-k="canceled"><strong>1</strong> canceled</span>
+                                <span class="prog-count" data-k="failed"><strong>0</strong> failed</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <aside class="railbox railbox--req" data-od-id="pg-final-rail">
+                      <div class="waits-rail">
+                        <div class="waits-rail__h">
+                          <svg data-lucide="flag"></svg>
+                          <span class="eyebrow">Outcome</span>
+                        </div>
+                        <div class="outcome" data-od-id="pg-final-outcome">
+                          <div class="outcome__t">completion_state · partial</div>
+                          <p class="outcome__b">Sourced from the daemon. This card does not infer completeness from the bar.</p>
+                          <div class="req-card__micro">2/3 lanes · 66% required · canceled 1 · failed 0</div>
+                        </div>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · STRATEGY DECLARATION ===== -->
+    <section class="lab-sec" data-od-id="pg-strats">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Strategy declaration</h2>
+        <span class="lab-sec__gist">kind · glyph · mono threshold</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One row per kind</b><code>wait_all</code> is today's view — unchanged, no threshold. The other three declare their number in mono. Glyph is identity, not a second palette.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="pg-strat-list">
+            <div class="strat-list">
+              <div class="strat-row" data-od-id="pg-strat-wait">
+                <svg class="strat-row__glyph" data-lucide="list-checks"></svg>
+                <div>
+                  <div class="strat-row__name">wait_all</div>
+                  <div class="strat-row__note">Default view unchanged. Every lane must settle.</div>
+                </div>
+                <span class="strat-row__th">—</span>
+              </div>
+              <div class="strat-row" data-od-id="pg-strat-best">
+                <svg class="strat-row__glyph" data-lucide="percent"></svg>
+                <div>
+                  <div class="strat-row__name">best_effort</div>
+                  <div class="strat-row__note">Join at quorum. Missing lanes are acceptable.</div>
+                </div>
+                <span class="strat-row__th">66%</span>
+              </div>
+              <div class="strat-row" data-od-id="pg-strat-fail">
+                <svg class="strat-row__glyph" data-lucide="zap"></svg>
+                <div>
+                  <div class="strat-row__name">fail_fast</div>
+                  <div class="strat-row__note">First definitive failure cancels siblings.</div>
+                </div>
+                <span class="strat-row__th">trigger</span>
+              </div>
+              <div class="strat-row" data-od-id="pg-strat-race">
+                <svg class="strat-row__glyph" data-lucide="flag"></svg>
+                <div>
+                  <div class="strat-row__name">race</div>
+                  <div class="strat-row__note">First success wins. Losers cancel.</div>
+                </div>
+                <span class="strat-row__th">first</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · SETTLEMENT ===== -->
+    <section class="lab-sec" data-od-id="pg-settle">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Settlement states</h2>
+        <span class="lab-sec__gist">one stage per strategy</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>fail_fast triggered</b>US-012.AC-1/AC-2: trigger lane <code>worker</code> named. Siblings canceled-by-strategy stay neutral. The join takes the failure path. Failed and canceled stay distinct.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="pg-settle-fail">
+            <div class="prog" data-od-id="pg-fail-panel">
+              <div class="prog__body">
+                <div class="prog__kicker">
+                  <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>failed</span>
+                  <span class="req-lane">fail_fast</span>
+                  <span class="req-lane">trigger · worker</span>
+                </div>
+                <h3 class="prog__goal">Ship the release train across api, web, and worker</h3>
+                <div class="prog__bar" role="img" aria-label="worker failed, api and web canceled by strategy">
+                  <span class="prog__seg" data-state="canceled" title="api canceled-by-strategy"></span>
+                  <span class="prog__seg" data-state="canceled" title="web canceled-by-strategy"></span>
+                  <span class="prog__seg" data-state="failed" title="worker failed"></span>
+                </div>
+                <div class="prog__meta">
+                  <span>Join took the failure path</span>
+                  <span class="prog__right">trigger worker</span>
+                </div>
+                <div class="prog__counts">
+                  <span class="prog-count" data-k="failed"><strong>1</strong> failed</span>
+                  <span class="prog-count" data-k="canceled"><strong>2</strong> canceled</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>best_effort met</b>Partial. Coverage numbers on the chip. The canceled pending lane is not a failure.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="pg-settle-best">
+            <div class="prog" data-od-id="pg-best-panel">
+              <div class="prog__body">
+                <div class="prog__kicker">
+                  <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>partial 2/3 lanes · 66% required</span>
+                </div>
+                <h3 class="prog__goal">Ship the release train across api, web, and worker</h3>
+                <div class="prog__bar" role="img" aria-label="2 of 3 lanes settled, partial">
+                  <span class="prog__seg" data-state="clean"></span>
+                  <span class="prog__seg" data-state="clean"></span>
+                  <span class="prog__seg" data-state="canceled"></span>
+                </div>
+                <div class="prog__meta">
+                  <span>2 of 3 lanes settled · partial</span>
+                  <span class="prog__right">66% required</span>
+                </div>
+                <div class="prog__counts">
+                  <span class="prog-count" data-k="partial"><strong>partial</strong> 2/3 lanes · 66% required</span>
+                  <span class="prog-count" data-k="canceled"><strong>1</strong> canceled</span>
+                  <span class="prog-count" data-k="failed"><strong>0</strong> failed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>best_effort not met</b>US-013.AC-4: failure path with coverage <code>1/3 settled · 66% required</code>. Not painted as partial.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="pg-settle-short">
+            <div class="prog" data-od-id="pg-short-panel">
+              <div class="prog__body">
+                <div class="prog__kicker">
+                  <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>failed</span>
+                  <span class="req-lane">1/3 settled · 66% required</span>
+                </div>
+                <h3 class="prog__goal">Ship the release train across api, web, and worker</h3>
+                <div class="prog__bar" role="img" aria-label="1 of 3 lanes settled, threshold missed">
+                  <span class="prog__seg" data-state="clean"></span>
+                  <span class="prog__seg" data-state="failed"></span>
+                  <span class="prog__seg" data-state="failed"></span>
+                </div>
+                <div class="prog__meta">
+                  <span>Threshold missed · failure path</span>
+                  <span class="prog__right">1/3 settled · 66% required</span>
+                </div>
+                <div class="prog__counts">
+                  <span class="prog-count" data-k="failed"><strong>2</strong> failed</span>
+                  <span class="prog-count" data-k="canceled"><strong>0</strong> canceled</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>race won</b>US-014.AC-1: winner <code>api</code> named. Losers canceled-by-strategy, neutral. Their completed work is not rewritten.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="pg-settle-race">
+            <div class="prog" data-od-id="pg-race-panel">
+              <div class="prog__body">
+                <div class="prog__kicker">
+                  <span class="req-lane">race</span>
+                  <span class="req-lane">winner · api</span>
+                </div>
+                <h3 class="prog__goal">Ship the release train across api, web, and worker</h3>
+                <div class="prog__bar" role="img" aria-label="api won, web and worker canceled by strategy">
+                  <span class="prog__seg" data-state="clean" title="api winner"></span>
+                  <span class="prog__seg" data-state="canceled" title="web canceled-by-strategy"></span>
+                  <span class="prog__seg" data-state="canceled" title="worker canceled-by-strategy"></span>
+                </div>
+                <div class="prog__meta">
+                  <span>Winner api</span>
+                  <span class="prog__right">losers canceled</span>
+                </div>
+                <div class="prog__counts">
+                  <span class="prog-count"><strong>1</strong> winner</span>
+                  <span class="prog-count" data-k="canceled"><strong>2</strong> canceled</span>
+                  <span class="prog-count" data-k="failed"><strong>0</strong> failed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · WINDOWED WIDTH ===== -->
+    <section class="lab-sec" data-od-id="pg-wide">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Windowed width</h2>
+        <span class="lab-sec__gist">500 items · max_parallel 8 · never 500 rows</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Aggregates</b>US-017.AC-2 / EC-4: settled / active / pending / never-materialized. The full set stays queryable. This stage never paints 500 rows. The 100-cell strip is the 100× treatment — each cell is 5 branches.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="pg-wide-stage">
+            <div class="prog" data-od-id="pg-wide-panel">
+              <div class="prog__body">
+                <div class="prog__kicker">
+                  <span class="req-lane">fan-out · 500</span>
+                  <span class="req-lane">max_parallel · 8</span>
+                </div>
+                <h3 class="prog__goal">Windowed fan-out over services[]</h3>
+                <p class="prog__done">A bounded window is active. Counts are daemon truth for this generation.</p>
+                <div class="prog__counts" data-od-id="pg-wide-counts">
+                  <span class="prog-count"><strong>185</strong> settled</span>
+                  <span class="prog-count"><strong>10</strong> active</span>
+                  <span class="prog-count"><strong>280</strong> pending</span>
+                  <span class="prog-count"><strong>25</strong> never-materialized</span>
+                </div>
+                <div class="agg-grid" data-agg="37,2,56,5" data-od-id="pg-wide-100x" role="img" aria-label="100 cells, 5 branches each: 37 settled, 2 active, 56 pending, 5 never-materialized"></div>
+                <div class="agg-legend">
+                  <span><i data-state="clean"></i>settled ×5</span>
+                  <span><i data-state="active"></i>active ×5</span>
+                  <span><i data-state="pending"></i>pending ×5</span>
+                  <span><i data-state="never"></i>never-materialized ×5</span>
+                </div>
+                <p class="prog-query">Full set queryable in the node inventory. <a href="#pg-wide-counts">185 + 10 + 280 + 25 = 500</a></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · PARTIAL COMPLETION ===== -->
+    <section class="lab-sec" data-od-id="pg-partial">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Partial completion</h2>
+        <span class="lab-sec__gist">daemon completion_state · never inferred</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same source</b>US-013.AC-1/AC-3: outcome card and progress panel both read <code>completion_state: partial</code>. Canceled-by-strategy stays distinct from failures (US-012.AC-2). Nothing on this stage paints complete.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="flex-direction:column;gap:12px;align-items:center" data-od-id="pg-partial-stage">
+            <div class="outcome" data-od-id="pg-partial-outcome">
+              <div class="outcome__t">Run outcome · partial</div>
+              <p class="outcome__b">completion_state comes from the daemon. History, this card, and the progress panel share that field.</p>
+              <div class="req-card__micro">completion_state partial · 2/3 lanes · 66% required</div>
+            </div>
+            <div class="prog" data-od-id="pg-partial-panel">
+              <div class="prog__body">
+                <div class="prog__kicker">
+                  <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>partial 2/3 lanes · 66% required</span>
+                </div>
+                <div class="prog__bar" role="img" aria-label="partial, 2 settled, 1 canceled">
+                  <span class="prog__seg" data-state="clean"></span>
+                  <span class="prog__seg" data-state="clean"></span>
+                  <span class="prog__seg" data-state="canceled"></span>
+                </div>
+                <div class="prog__counts">
+                  <span class="prog-count" data-k="canceled"><strong>1</strong> canceled</span>
+                  <span class="prog-count" data-k="failed"><strong>0</strong> failed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · EMPTY ===== -->
+    <section class="lab-sec" data-od-id="pg-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Empty collection</h2>
+        <span class="lab-sec__gist">zero branches · strategy irrelevant · run continues</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Zero</b>US-013.EC-4: fan-out over an empty <code>services[]</code>. Neutral. Strategy is recorded as irrelevant. The run does not halt.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="pg-empty-stage">
+            <div class="prog" data-od-id="pg-empty-panel">
+              <div class="prog__body">
+                <div class="prog__kicker">
+                  <span class="req-lane">services[] · 0</span>
+                </div>
+                <h3 class="prog__goal">Ship the release train across api, web, and worker</h3>
+                <div class="empty" data-od-id="pg-empty-zero" style="padding:28px 16px">
+                  <svg data-lucide="circle-dashed"></svg>
+                  <b>0 branches</b>
+                  <p>The collection was empty. Strategy is irrelevant. The run continues.</p>
+                </div>
+                <div class="prog__meta">
+                  <span>0 of 0 lanes · strategy irrelevant</span>
+                  <span class="prog__right">run continues</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="pg-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>loop-run-progress-panel.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  document.querySelectorAll(".lsec__head").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sec = btn.closest(".lsec");
+      const open = sec.getAttribute("data-open") !== "false";
+      sec.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+
+  document.querySelectorAll("[data-agg]").forEach((grid) => {
+    const parts = String(grid.getAttribute("data-agg") || "").split(",").map((n) => Number(n) || 0);
+    const states = ["clean", "active", "pending", "never"];
+    const frag = document.createDocumentFragment();
+    states.forEach((state, i) => {
+      const count = parts[i] || 0;
+      for (let n = 0; n < count; n += 1) {
+        const cell = document.createElement("span");
+        cell.className = "agg-cell";
+        cell.setAttribute("data-state", state);
+        frag.appendChild(cell);
+      }
+    });
+    grid.appendChild(frag);
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

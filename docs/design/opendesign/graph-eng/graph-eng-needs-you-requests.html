@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Needs you · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-needs-you-requests · S1 needs-you region + S4 parked / waits.
+  Spec: .compozy/tasks/graph-eng/_uiux.md · stories US-001/002/005/007 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-run-needs-you-card.tsx (neutral panelbox; warning on the
+                 glyph only); loop-run-parked-panels.tsx wait-row anatomy;
+                 loop-run-waits-rail.tsx (zero stays the glyph 0);
+                 loop-section.tsx (icon · eyebrow · gist · chevron);
+                 loop-run-page-body.tsx main + rail; loop-run-subhead.tsx;
+                 ds-shell .win 44px head (identity once, ≤2 actions)
+    spec — pending = warning on run-page (danger reserved for bell, ADR-006);
+           decisions render only the persisted set approve / edit / reject /
+           respond; ask/review wait-kind sentences; schema-driven form;
+           redacted values render ••• redacted; terminated run never shows
+           an answer form (US-007.EC-2)
+    authorized delta — two concurrent request cards across fan-out lanes;
+                       waits rail counts pending / escalated / near-expiry
+                       (not production's open-waits / attention / quarantined)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="req-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Needs you</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-timeline-rows.html">Timeline →</a>
+      <a class="btn btn--sm" href="graph-eng-progress-strategies.html">Progress →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="req-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Run page — two pending requests</h2>
+        <span class="lab-sec__gist">two pending · each names its lane</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Needs-you region</b>Open human requests share one <code>Needs you</code> stack on the run page. Ask <code>confirm-rollout</code> on lane <code>api</code> and review <code>apply-migration</code> on lane <code>web</code> are independently answerable. Pending is <b>warning</b> here (ADR-006 reserves danger for the bell). Submit answer is the one primary on this screen; review decisions stay secondary. Rail counts are this-run request tallies; a zero stays the glyph <code>0</code> (production waits-rail contract).</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="req-final-stage">
+            <section class="win is-focused win--req" data-od-id="req-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="git-branch"></svg></span>
+                  <span class="w2-title">release-train</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="needs" data-od-id="req-final-status">
+                    <svg data-lucide="triangle-alert" style="width:12px;height:12px"></svg>
+                    pending
+                  </span>
+                  <!-- gating: run.status is live → Stop is offered; Pause omitted while parked on a request -->
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button" data-od-id="req-final-stop">Stop</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="app">
+                  <div class="run-sub" data-od-id="req-final-subhead">
+                    <span class="run-sub__id">run_7f3a</span>
+                    <span class="dotsep"></span>
+                    <span>Started by pedro</span>
+                    <span class="dotsep"></span>
+                    <span>Round 3</span>
+                    <span class="dotsep"></span>
+                    <span>Started 14m ago</span>
+                    <span class="dotsep"></span>
+                    <span class="run-sub__id">14m used</span>
+                  </div>
+                  <div class="run-page">
+                    <div class="run-cols">
+                      <div class="lsec" data-open="true" data-od-id="req-final-needs">
+                        <button class="lsec__head" type="button" aria-expanded="true" data-od-id="req-final-needs-toggle">
+                          <svg data-lucide="bell"></svg>
+                          <span class="eyebrow">Needs you</span>
+                          <span class="lsec__gist">2 pending</span>
+                          <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                        </button>
+                        <div class="lsec__body">
+                          <div class="req-stack">
+
+                            <article class="req-card" data-tone="warning" data-od-id="req-final-ask">
+                              <svg class="req-card__glyph" data-lucide="triangle-alert"></svg>
+                              <div class="req-card__main">
+                                <div class="req-card__kicker">
+                                  <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                                  <span class="req-lane">lane · api</span>
+                                  <span class="req-deadline">expires 23h</span>
+                                </div>
+                                <h3 class="req-card__prompt">Which regions ship first?</h3>
+                                <div class="req-ctx" data-od-id="req-final-ask-ctx">
+                                  <p class="req-ctx__body">Release train v3 is pinned. Fan-out over <code class="mono">services[]</code> is live on api, web, and worker. Registry token is <span class="req-redact">••• redacted</span>.</p>
+                                  <div class="req-ctx__full" hidden id="req-final-ask-full" data-od-id="req-final-ask-full">
+                                    <p class="req-ctx__body">Fetched excerpt — author context for <code class="mono">confirm-rollout</code> on lane api, including the pinned definition and the lane assignment. This prototype does not dump the remaining bytes.</p>
+                                  </div>
+                                  <div class="req-ctx__meta">
+                                    <span>showing 2.1 of 8.4 KB</span>
+                                    <button class="btn btn--sm req-ctx__fetch" type="button" data-fetch-full="req-final-ask-full" data-od-id="req-final-ask-fetch">Fetch full</button>
+                                  </div>
+                                </div>
+                                <!-- gating: request.expected_shape = {regions: string[], canary: boolean} -->
+                                <form class="req-form" data-req-form="submit" data-od-id="req-final-ask-form">
+                                  <div class="req-field">
+                                    <label class="req-field__lab" for="req-final-region-in">regions <span class="mono">string[]</span></label>
+                                    <div class="chip-list" id="req-final-regions" data-od-id="req-final-regions">
+                                      <span class="chip" data-od-id="req-final-region-us-east">us-east<button class="chip__x" type="button" aria-label="Remove us-east"><svg data-lucide="x"></svg></button></span>
+                                      <span class="chip" data-od-id="req-final-region-eu-west">eu-west<button class="chip__x" type="button" aria-label="Remove eu-west"><svg data-lucide="x"></svg></button></span>
+                                    </div>
+                                    <div class="req-add">
+                                      <input class="ctl" id="req-final-region-in" data-add-input="req-final-regions" placeholder="Add region" autocomplete="off">
+                                      <button class="btn btn--sm" type="button" data-add-chip="req-final-regions">Add</button>
+                                    </div>
+                                  </div>
+                                  <div class="req-check">
+                                    <button class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="req-final-canary-lab" data-od-id="req-final-canary"><span class="knob"></span></button>
+                                    <div>
+                                      <div class="req-check__lab" id="req-final-canary-lab">canary</div>
+                                      <div class="req-check__hint">boolean · off until you turn it on</div>
+                                    </div>
+                                  </div>
+                                  <div class="req-actions">
+                                    <button class="btn btn--primary" type="submit" data-od-id="req-final-ask-submit">Submit answer</button>
+                                    <span class="req-note" data-form-note hidden aria-live="polite">Submitting — waiting for the daemon ack.</span>
+                                  </div>
+                                </form>
+                                <div class="req-who" data-od-id="req-final-ask-who">
+                                  <span class="agent-chip">PN</span><span class="req-who__name">pedro</span>
+                                  <span class="agent-chip">RB</span><span class="req-who__name">release-bot</span>
+                                </div>
+                                <div class="req-card__micro">ask · confirm-rollout · gen 3 · req_a91c</div>
+                              </div>
+                            </article>
+
+                            <article class="req-card" data-tone="warning" data-od-id="req-final-review">
+                              <svg class="req-card__glyph" data-lucide="shield"></svg>
+                              <div class="req-card__main">
+                                <div class="req-card__kicker">
+                                  <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                                  <span class="req-lane">lane · web</span>
+                                  <span class="req-deadline">expires 23h</span>
+                                </div>
+                                <h3 class="req-card__prompt">apply-migration proposes a migrate</h3>
+                                <div class="req-args-wrap">
+                                  <table class="req-args" data-od-id="req-final-args">
+                                    <thead><tr><th>arg</th><th>original</th><th>edited</th></tr></thead>
+                                    <tbody>
+                                      <tr><td class="k">--env</td><td class="v">prod</td><td class="v">prod</td></tr>
+                                      <tr>
+                                        <td class="k">--dry-run</td>
+                                        <td class="v">present</td>
+                                        <td class="v"><span class="req-args__tag"><svg data-lucide="minus"></svg>removed</span></td>
+                                      </tr>
+                                      <tr><td class="k">--lock-timeout</td><td class="v">30s</td><td class="v">30s</td></tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <!-- gating: request.decisions = [approve, edit, reject, respond] -->
+                                <div class="req-bar" role="group" aria-label="Review decisions" data-od-id="req-final-bar">
+                                  <button class="btn" type="button" data-decision="approve" data-od-id="req-final-approve"><svg data-lucide="check"></svg>Approve</button>
+                                  <button class="btn" type="button" data-decision="edit" data-od-id="req-final-edit"><svg data-lucide="pencil"></svg>Edit</button>
+                                  <button class="btn btn--destructive" type="button" data-decision="reject" data-od-id="req-final-reject"><svg data-lucide="x"></svg>Reject</button>
+                                  <button class="btn" type="button" data-decision="respond" data-od-id="req-final-respond"><svg data-lucide="message-square"></svg>Respond</button>
+                                  <span class="req-bar__hint" data-bar-note hidden aria-live="polite"></span>
+                                </div>
+                                <div class="req-who" data-od-id="req-final-review-who">
+                                  <span class="agent-chip">PN</span><span class="req-who__name">pedro</span>
+                                </div>
+                                <div class="req-card__micro">review · apply-migration · gen 3 · req_b04e · agents denied</div>
+                              </div>
+                            </article>
+
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <aside class="railbox railbox--req" data-od-id="req-final-rail">
+                      <div class="waits-rail">
+                        <div class="waits-rail__h">
+                          <svg data-lucide="hourglass"></svg>
+                          <span class="eyebrow">Waits</span>
+                        </div>
+                        <dl class="waits-dl">
+                          <div class="waits-row" data-k="pending">
+                            <dt class="waits-row__k">Pending</dt>
+                            <dd class="waits-row__v" data-n="2"><a href="#req-final-ask">2</a></dd>
+                          </div>
+                          <div class="waits-row" data-k="escalated">
+                            <dt class="waits-row__k">Escalated</dt>
+                            <dd class="waits-row__v" data-n="0">0</dd>
+                          </div>
+                          <div class="waits-row" data-k="near">
+                            <dt class="waits-row__k">Near-expiry</dt>
+                            <dd class="waits-row__v" data-n="0">0</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · SIGNAL DICTIONARY ===== -->
+    <section class="lab-sec" data-od-id="req-dictionary">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Request signal dictionary</h2>
+        <span class="lab-sec__gist">tone · glyph · word · when it applies</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One map</b>Every later board consumes this dictionary. Pending is warning on run-page surfaces; danger is reserved for bell contexts (ADR-006). Partial join — locked here even though this board has no join demo — is warning and always includes the word <code>partial</code> plus coverage numbers. Canceled, unused, and never-materialized rows stay neutral. Each row pairs tone, glyph, and the state word (US-001 vocabulary).</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="req-legend">
+            <div class="req-legend">
+              <div class="req-legend__row" data-od-id="req-sig-pending">
+                <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                <span class="req-legend__word">pending</span>
+                <span class="req-legend__tone" data-tone="warning">warning</span>
+                <span class="req-legend__when">Open human request on a run-page surface. The run is parked on you.</span>
+              </div>
+              <div class="req-legend__row" data-od-id="req-sig-near">
+                <span class="req-chip" data-tone="warning"><svg data-lucide="clock"></svg>pending<span class="req-chip__cd">expires 4m</span></span>
+                <span class="req-legend__word">near-expiry</span>
+                <span class="req-legend__tone" data-tone="warning">warning</span>
+                <span class="req-legend__when">Same tone as pending. The clock glyph and the shared countdown string carry urgency — card and rail use the same remaining-time text.</span>
+              </div>
+              <div class="req-legend__row" data-od-id="req-sig-expired">
+                <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>expired</span>
+                <span class="req-legend__word">expired</span>
+                <span class="req-legend__tone" data-tone="danger">danger</span>
+                <span class="req-legend__when">Deadline passed. The card names the route that was taken and omits the answer form (US-001.EC-4).</span>
+              </div>
+              <div class="req-legend__row" data-od-id="req-sig-answered">
+                <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span>
+                <span class="req-legend__word">answered</span>
+                <span class="req-legend__tone" data-tone="info">info</span>
+                <span class="req-legend__when">A responder already wrote. Provenance (actor + decision) replaces the form (US-001.EC-3).</span>
+              </div>
+              <div class="req-legend__row" data-od-id="req-sig-amended">
+                <span class="req-chip" data-tone="info"><svg data-lucide="pencil"></svg>amended</span>
+                <span class="req-legend__word">amended</span>
+                <span class="req-legend__tone" data-tone="info">info</span>
+                <span class="req-legend__when">A later amend on <code>render-notes</code>. The chip marks provenance on the existing node.</span>
+              </div>
+              <div class="req-legend__row" data-od-id="req-sig-canceled">
+                <span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>canceled</span>
+                <span class="req-legend__word">canceled-by-strategy</span>
+                <span class="req-legend__tone" data-tone="neutral">neutral</span>
+                <span class="req-legend__when">A strategy dropped the lane (<code>fail_fast</code> on worker, or a lost <code>race</code>). The row stays on the neutral tone.</span>
+              </div>
+              <div class="req-legend__row" data-od-id="req-sig-route">
+                <span class="req-chip" data-tone="neutral"><svg data-lucide="git-branch"></svg>not taken</span>
+                <span class="req-legend__word">route-not-taken</span>
+                <span class="req-legend__tone" data-tone="neutral">neutral</span>
+                <span class="req-legend__when">A <code>triage</code> arm that did not fire (hotfix / standard / backlog). The unused arm stays listed.</span>
+              </div>
+              <div class="req-legend__row" data-od-id="req-sig-never">
+                <span class="req-chip" data-tone="neutral"><svg data-lucide="circle-dashed"></svg>never materialized</span>
+                <span class="req-legend__word">never-materialized</span>
+                <span class="req-legend__tone" data-tone="neutral">neutral</span>
+                <span class="req-legend__when">The node was in the graph and this run never produced a request for it.</span>
+              </div>
+              <div class="req-legend__row" data-od-id="req-sig-fork">
+                <span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span>
+                <span class="req-legend__word">fork lineage</span>
+                <span class="req-legend__tone" data-tone="info">info</span>
+                <span class="req-legend__when">Generation 2 forked to <code>run_9c1d</code>. The chip marks that lineage.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · PENDING ASK ===== -->
+    <section class="lab-sec" data-od-id="req-ask">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Pending ask — schema-driven form</h2>
+        <span class="lab-sec__gist">prompt · redacted preview · shape fields · no optimistic paint</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Ask card</b>US-001.AC-1: the form is derived from <code>{regions: string[], canary: boolean}</code>. Context preview is truncated and names the unread bytes (US-007.EC-1). A redacted vault value renders <code>••• redacted</code> (US-007.EC-4). Submit disables the form and waits for the daemon ack before any answered state is painted.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-ask-stage">
+            <article class="req-stack" style="width:min(560px,100%)">
+              <div class="req-card" data-tone="warning" data-od-id="req-ask-card">
+                <svg class="req-card__glyph" data-lucide="triangle-alert"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                    <span class="req-lane">lane · api</span>
+                    <span class="req-deadline">expires 23h</span>
+                  </div>
+                  <h3 class="req-card__prompt">Which regions ship first?</h3>
+                  <div class="req-ctx" data-od-id="req-ask-ctx">
+                    <p class="req-ctx__body">Author context for <code class="mono">confirm-rollout</code>. Registry token is <span class="req-redact">••• redacted</span>. Lane assignment is api.</p>
+                    <div class="req-ctx__full" hidden id="req-ask-full" data-od-id="req-ask-full">
+                      <p class="req-ctx__body">Fetched excerpt of the same record. Remaining unread bytes stay on the daemon; this board does not invent them.</p>
+                    </div>
+                    <div class="req-ctx__meta">
+                      <span>showing 2.1 of 8.4 KB</span>
+                      <button class="btn btn--sm req-ctx__fetch" type="button" data-fetch-full="req-ask-full" data-od-id="req-ask-fetch">Fetch full</button>
+                    </div>
+                  </div>
+                  <form class="req-form" data-req-form="submit" data-od-id="req-ask-form" id="req-ask-form">
+                    <div class="req-field">
+                      <label class="req-field__lab" for="req-ask-region-in">regions <span class="mono">string[]</span></label>
+                      <div class="chip-list" id="req-ask-regions" data-od-id="req-ask-regions">
+                        <span class="chip">us-east<button class="chip__x" type="button" aria-label="Remove us-east"><svg data-lucide="x"></svg></button></span>
+                        <span class="chip">eu-west<button class="chip__x" type="button" aria-label="Remove eu-west"><svg data-lucide="x"></svg></button></span>
+                      </div>
+                      <div class="req-add">
+                        <input class="ctl" id="req-ask-region-in" data-add-input="req-ask-regions" placeholder="Add region" autocomplete="off">
+                        <button class="btn btn--sm" type="button" data-add-chip="req-ask-regions">Add</button>
+                      </div>
+                    </div>
+                    <div class="req-check">
+                      <button class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="req-ask-canary-lab" data-od-id="req-ask-canary"><span class="knob"></span></button>
+                      <div>
+                        <div class="req-check__lab" id="req-ask-canary-lab">canary</div>
+                        <div class="req-check__hint">boolean</div>
+                      </div>
+                    </div>
+                    <div class="req-actions">
+                      <button class="btn btn--primary" type="submit" data-od-id="req-ask-submit">Submit answer</button>
+                      <span class="req-note" data-form-note hidden aria-live="polite">Submitting — waiting for the daemon ack.</span>
+                    </div>
+                  </form>
+                  <div class="req-card__micro">expected_shape · {regions: string[], canary: boolean} · req_a91c</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · PENDING REVIEW ===== -->
+    <section class="lab-sec" data-od-id="req-review">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Pending review — proposed args</h2>
+        <span class="lab-sec__gist">original vs edited · --dry-run removed · persisted decisions only</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Review card</b>US-002.AC-1: original vs edited args, with the removed <code>--dry-run</code> labeled <code>removed</code>. The bar renders only the persisted set <code>approve / edit / reject / respond</code>. <code>edit</code> opens the editor pre-filled; <code>respond</code> opens an output form validated against the node's output shape. Both verbs stay on the bar. Approve is the primary on this standalone review stage.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-review-stage">
+            <article class="req-stack" style="width:min(560px,100%)">
+              <div class="req-card" data-tone="warning" data-od-id="req-review-card">
+                <svg class="req-card__glyph" data-lucide="shield"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                    <span class="req-lane">lane · web</span>
+                  </div>
+                  <h3 class="req-card__prompt">apply-migration proposes a migrate</h3>
+                  <div class="req-args-wrap">
+                    <table class="req-args" data-od-id="req-review-args">
+                      <thead><tr><th>arg</th><th>original</th><th>edited</th></tr></thead>
+                      <tbody>
+                        <tr><td class="k">--env</td><td class="v">prod</td><td class="v">prod</td></tr>
+                        <tr>
+                          <td class="k">--dry-run</td>
+                          <td class="v">present</td>
+                          <td class="v"><span class="req-args__tag"><svg data-lucide="minus"></svg>removed</span></td>
+                        </tr>
+                        <tr><td class="k">--lock-timeout</td><td class="v">30s</td><td class="v">30s</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="req-bar" role="group" aria-label="Review decisions" data-od-id="req-review-bar" id="req-review-bar">
+                    <button class="btn btn--primary" type="button" data-decision="approve" data-od-id="req-review-approve"><svg data-lucide="check"></svg>Approve</button>
+                    <button class="btn" type="button" data-decision="edit" data-od-id="req-review-edit"><svg data-lucide="pencil"></svg>Edit</button>
+                    <button class="btn btn--destructive" type="button" data-decision="reject" data-od-id="req-review-reject"><svg data-lucide="x"></svg>Reject</button>
+                    <button class="btn" type="button" data-decision="respond" data-od-id="req-review-respond"><svg data-lucide="message-square"></svg>Respond</button>
+                    <span class="req-bar__hint" data-bar-note hidden aria-live="polite"></span>
+                  </div>
+                  <div class="req-card__micro">decisions · approve · edit · reject · respond · req_b04e</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Absent is absent</b>Persisted set is only <code>approve / reject</code>. The bar renders those two buttons — no disabled <code>edit</code> or <code>respond</code> ghosts.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-review-absent-stage">
+            <article class="req-stack" style="width:min(560px,100%)">
+              <div class="req-card" data-tone="warning" data-od-id="req-review-absent">
+                <svg class="req-card__glyph" data-lucide="shield"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                    <span class="req-lane">lane · web</span>
+                  </div>
+                  <h3 class="req-card__prompt">apply-migration proposes a migrate</h3>
+                  <div class="req-bar" role="group" aria-label="Review decisions" data-od-id="req-review-absent-bar">
+                    <button class="btn" type="button" data-decision="approve"><svg data-lucide="check"></svg>Approve</button>
+                    <button class="btn btn--destructive" type="button" data-decision="reject"><svg data-lucide="x"></svg>Reject</button>
+                  </div>
+                  <div class="req-card__micro">decisions · approve · reject · req_b04e</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · FAILURE + RESOLUTION ===== -->
+    <section class="lab-sec" data-od-id="req-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Failure and resolution</h2>
+        <span class="lab-sec__gist">validation · already answered · expired · near-expiry · terminated</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Field-level failure</b>US-001.EC-1: submit with an empty <code>regions</code> array fails on the field. The form stays pending and the error stays on that field.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-state-validate">
+            <article class="req-stack" style="width:min(560px,100%)">
+              <div class="req-card" data-tone="warning" data-od-id="req-validate-card">
+                <svg class="req-card__glyph" data-lucide="triangle-alert"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                    <span class="req-lane">lane · api</span>
+                  </div>
+                  <h3 class="req-card__prompt">Which regions ship first?</h3>
+                  <form class="req-form" data-req-form="validate" data-od-id="req-validate-form">
+                    <div class="req-field" data-od-id="req-validate-field">
+                      <label class="req-field__lab" for="req-validate-in">regions <span class="mono">string[]</span></label>
+                      <div class="chip-list" id="req-validate-regions" data-od-id="req-validate-regions"></div>
+                      <div class="req-add">
+                        <input class="ctl" id="req-validate-in" data-add-input="req-validate-regions" placeholder="Add region" autocomplete="off">
+                        <button class="btn btn--sm" type="button" data-add-chip="req-validate-regions">Add</button>
+                      </div>
+                      <span class="req-field__err" data-field-err hidden>regions needs at least one value</span>
+                    </div>
+                    <div class="req-actions">
+                      <button class="btn btn--primary" type="submit" data-od-id="req-validate-submit">Submit answer</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Already answered</b>US-001.EC-3: someone else responded. The form is gone. Actor + decision stay as info provenance — never a stale editor.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-state-answered">
+            <article class="req-stack" style="width:min(560px,100%)">
+              <div class="req-card" data-tone="info" data-od-id="req-answered-card">
+                <svg class="req-card__glyph" data-lucide="check"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="info"><svg data-lucide="check"></svg>answered</span>
+                    <span class="req-lane">lane · api</span>
+                  </div>
+                  <h3 class="req-card__prompt">Which regions ship first?</h3>
+                  <div class="req-resolved" data-od-id="req-answered-prov">
+                    <div class="req-resolved__line"><span class="req-who__name">pedro</span> · respond · us-east, eu-west · canary off</div>
+                  </div>
+                  <div class="req-card__micro">answered 11m ago · req_a91c · actor pedro</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Expired, route taken</b>US-001.EC-4: the deadline passed and the ask’s <code>expires</code> route fired. The card names that route. No form.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-state-expired">
+            <article class="req-stack" style="width:min(560px,100%)">
+              <div class="req-card" data-tone="danger" data-od-id="req-expired-card">
+                <svg class="req-card__glyph" data-lucide="circle-alert"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>expired</span>
+                    <span class="req-lane">lane · api</span>
+                    <span class="req-deadline" data-expired>expired</span>
+                  </div>
+                  <h3 class="req-card__prompt">Which regions ship first?</h3>
+                  <div class="req-resolved" data-tone="danger">
+                    <div class="req-resolved__line">Route taken · <span class="mono">backlog</span> · the ask's expires route</div>
+                  </div>
+                  <div class="req-card__micro">expired · route backlog · req_a91c</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Near-expiry</b>Same warning tone as pending. The countdown string matches the rail row — one remaining-time value, two surfaces.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-state-near">
+            <article class="req-stack" style="width:min(560px,100%)">
+              <div class="req-card" data-tone="warning" data-od-id="req-near-card">
+                <svg class="req-card__glyph" data-lucide="clock"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="clock"></svg>pending<span class="req-chip__cd">expires 4m</span></span>
+                    <span class="req-lane">lane · api</span>
+                    <span class="req-deadline" data-near>expires 4m</span>
+                  </div>
+                  <h3 class="req-card__prompt">Which regions ship first?</h3>
+                  <p class="req-hint">The form stays available. Near-expiry keeps the pending warning tone and the same decision set.</p>
+                  <div class="req-card__micro">pending · near-expiry · same string as the rail</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Terminated run</b>US-007.EC-2: the run ended. The request shows the resolved outcome and omits the answer form.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-state-terminated">
+            <article class="req-stack" style="width:min(560px,100%)">
+              <div class="req-card" data-tone="neutral" data-od-id="req-terminated-card">
+                <svg class="req-card__glyph" data-lucide="minus"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>canceled</span>
+                    <span class="req-lane">lane · api</span>
+                  </div>
+                  <h3 class="req-card__prompt">Which regions ship first?</h3>
+                  <div class="req-outcome" data-od-id="req-terminated-outcome">
+                    <div class="req-outcome__t">Run ended · canceled</div>
+                    <p class="req-outcome__b">run_7f3a terminated before this request was answered. The unresolved ask stays as this outcome view.</p>
+                  </div>
+                  <div class="req-card__micro">run.status canceled · request unresolved · req_a91c</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · RESPONDER RULES ===== -->
+    <section class="lab-sec" data-od-id="req-responders">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Responder rules</h2>
+        <span class="lab-sec__gist">agents on confirm-rollout · operator-only on apply-migration</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Who may answer</b>US-005: <code>confirm-rollout</code> lists operator <code>pedro</code> and agent <code>release-bot</code>. <code>apply-migration</code> is operator-only. A denied self-response is a deterministic micro-mono reason on the card.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="flex-direction:column;gap:12px;align-items:center" data-od-id="req-responders-stage">
+            <article class="req-stack" style="width:min(560px,100%)" data-od-id="req-who-ask">
+              <div class="req-card" data-tone="warning">
+                <svg class="req-card__glyph" data-lucide="circle-help"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                    <span class="req-lane">confirm-rollout</span>
+                  </div>
+                  <h3 class="req-card__prompt">Agents permitted</h3>
+                  <div class="req-who">
+                    <span class="agent-chip">PN</span><span class="req-who__name">pedro</span>
+                    <span class="agent-chip">RB</span><span class="req-who__name">release-bot</span>
+                  </div>
+                  <div class="req-card__micro">responders.agents true · confirm-rollout</div>
+                </div>
+              </div>
+            </article>
+            <article class="req-stack" style="width:min(560px,100%)" data-od-id="req-who-review">
+              <div class="req-card" data-tone="warning">
+                <svg class="req-card__glyph" data-lucide="lock"></svg>
+                <div class="req-card__main">
+                  <div class="req-card__kicker">
+                    <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>pending</span>
+                    <span class="req-lane">apply-migration</span>
+                  </div>
+                  <h3 class="req-card__prompt">Operator only</h3>
+                  <div class="req-who">
+                    <span class="agent-chip">PN</span><span class="req-who__name">pedro</span>
+                  </div>
+                  <p class="req-deny">denied · self_response · release-bot cannot answer apply-migration · responders.agents = false</p>
+                  <div class="req-card__micro">responders.agents false · apply-migration</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · PARKED + WAITS RAIL ===== -->
+    <section class="lab-sec" data-od-id="req-parked">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Parked panel and waits rail</h2>
+        <span class="lab-sec__gist">wait-kind sentences · rail pending / escalated / near-expiry · zero is 0</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Parked rows</b>S4: each parked node uses the locked wait-kind sentence and links to its form. Ask: <code>is waiting for an answer</code>. Review: <code>is waiting for a decision on its proposed action</code>. Production row anatomy (title · sentence · micro · age) is transcribed; the sentences are the spec delta.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-parked-stage">
+            <div class="lsec" data-open="true" style="width:min(640px,100%)" data-od-id="req-parked-panel">
+              <button class="lsec__head" type="button" aria-expanded="true">
+                <svg data-lucide="hourglass"></svg>
+                <span class="eyebrow">Waiting</span>
+                <span class="lsec__gist">2 waits</span>
+                <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+              </button>
+              <div class="lsec__body">
+                <div class="park-stack">
+                  <a class="park-row" href="#req-ask-form" data-od-id="req-park-ask">
+                    <span class="park-row__dot" aria-hidden="true"></span>
+                    <div class="park-row__main">
+                      <div class="park-row__title">Confirm rollout is waiting for an answer <span class="req-lane">lane · api</span></div>
+                      <p class="park-row__sent">The ask is open. Answering it unblocks this lane; sibling lanes keep their own waits.</p>
+                      <div class="park-row__micro">ask · confirm-rollout · gen 3 · req_a91c</div>
+                    </div>
+                    <span class="park-row__trail">waiting 14m <svg data-lucide="arrow-right"></svg></span>
+                  </a>
+                  <a class="park-row" href="#req-review-bar" data-od-id="req-park-review">
+                    <span class="park-row__dot" aria-hidden="true"></span>
+                    <div class="park-row__main">
+                      <div class="park-row__title">Apply migration is waiting for a decision on its proposed action <span class="req-lane">lane · web</span></div>
+                      <p class="park-row__sent">The review is open. Approve, edit, reject, or respond — only the persisted set.</p>
+                      <div class="park-row__micro">review · apply-migration · gen 3 · req_b04e</div>
+                    </div>
+                    <span class="park-row__trail">waiting 9m <svg data-lucide="arrow-right"></svg></span>
+                  </a>
+                  <a class="park-foot" href="#req-final-needs">All waits in the inventory <svg data-lucide="arrow-right"></svg></a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Rail states</b>Pending / escalated / near-expiry are this-run request counts. Non-zero values are warning (run-page), never danger. A quiet rail keeps every row and prints <code>0</code> — hiding a zero would look like a missing metric (production waits-rail contract, authorized delta on the three labels).</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="req-rail-stage">
+            <div class="rail-stack">
+              <div class="railbox railbox--req" data-od-id="req-rail-pending">
+                <div class="waits-rail">
+                  <div class="waits-rail__h"><svg data-lucide="hourglass"></svg><span class="eyebrow">Waits</span></div>
+                  <dl class="waits-dl">
+                    <div class="waits-row" data-k="pending"><dt class="waits-row__k">Pending</dt><dd class="waits-row__v" data-n="2"><a href="#req-final-ask">2</a><span class="waits-row__id">· confirm-rollout</span></dd></div>
+                    <div class="waits-row" data-k="escalated"><dt class="waits-row__k">Escalated</dt><dd class="waits-row__v" data-n="0">0</dd></div>
+                    <div class="waits-row" data-k="near"><dt class="waits-row__k">Near-expiry</dt><dd class="waits-row__v" data-n="0">0</dd></div>
+                  </dl>
+                </div>
+              </div>
+              <div class="railbox railbox--req" data-od-id="req-rail-escalated">
+                <div class="waits-rail">
+                  <div class="waits-rail__h"><svg data-lucide="hourglass"></svg><span class="eyebrow">Waits</span></div>
+                  <dl class="waits-dl">
+                    <div class="waits-row" data-k="pending"><dt class="waits-row__k">Pending</dt><dd class="waits-row__v" data-n="1"><a href="#req-final-review">1</a></dd></div>
+                    <div class="waits-row" data-k="escalated"><dt class="waits-row__k">Escalated</dt><dd class="waits-row__v" data-n="1"><a href="#req-final-review">1</a><span class="waits-row__id">· apply-migration</span></dd></div>
+                    <div class="waits-row" data-k="near"><dt class="waits-row__k">Near-expiry</dt><dd class="waits-row__v" data-n="0">0</dd></div>
+                  </dl>
+                </div>
+              </div>
+              <div class="railbox railbox--req" data-od-id="req-rail-near">
+                <div class="waits-rail">
+                  <div class="waits-rail__h"><svg data-lucide="hourglass"></svg><span class="eyebrow">Waits</span></div>
+                  <dl class="waits-dl">
+                    <div class="waits-row" data-k="pending"><dt class="waits-row__k">Pending</dt><dd class="waits-row__v" data-n="1"><a href="#req-near-card">1</a></dd></div>
+                    <div class="waits-row" data-k="escalated"><dt class="waits-row__k">Escalated</dt><dd class="waits-row__v" data-n="0">0</dd></div>
+                    <div class="waits-row" data-k="near"><dt class="waits-row__k">Near-expiry</dt><dd class="waits-row__v" data-n="1"><a href="#req-near-card">1</a><span class="waits-row__id">expires 4m</span></dd></div>
+                  </dl>
+                </div>
+              </div>
+              <div class="railbox railbox--req" data-od-id="req-rail-zero">
+                <div class="waits-rail">
+                  <div class="waits-rail__h"><svg data-lucide="hourglass"></svg><span class="eyebrow">Waits</span></div>
+                  <dl class="waits-dl">
+                    <div class="waits-row" data-k="pending"><dt class="waits-row__k">Pending</dt><dd class="waits-row__v" data-n="0">0</dd></div>
+                    <div class="waits-row" data-k="escalated"><dt class="waits-row__k">Escalated</dt><dd class="waits-row__v" data-n="0">0</dd></div>
+                    <div class="waits-row" data-k="near"><dt class="waits-row__k">Near-expiry</dt><dd class="waits-row__v" data-n="0">0</dd></div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="req-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-run-needs-you-card.tsx</code>, <code>loop-run-parked-panels.tsx</code>, <code>loop-run-waits-rail.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  const DECISION_NOTE = {
+    approve: "Approve sends the persisted decision. The run resumes from apply-migration.",
+    edit: "Edit opens the editor pre-filled with the proposed args.",
+    reject: "Reject records the decision and stops this lane.",
+    respond: "Respond opens an output form validated against the node's output shape."
+  };
+
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  document.querySelectorAll(".lsec__head").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sec = btn.closest(".lsec");
+      const open = sec.getAttribute("data-open") !== "false";
+      sec.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+
+  document.querySelectorAll('[role="switch"]').forEach((el) => {
+    el.addEventListener("click", () => {
+      const on = el.getAttribute("aria-checked") === "true";
+      el.setAttribute("aria-checked", on ? "false" : "true");
+      el.classList.toggle("is-on", !on);
+    });
+    el.addEventListener("keydown", (ev) => {
+      if (ev.key === " " || ev.key === "Enter") {
+        ev.preventDefault();
+        el.click();
+      }
+    });
+  });
+
+  function addChip(listId, value) {
+    const list = document.getElementById(listId);
+    const name = String(value || "").trim();
+    if (!list || !name) return;
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.dataset.odId = "req-chip-" + name.replace(/[^a-z0-9-]+/gi, "-");
+    chip.appendChild(document.createTextNode(name));
+    const x = document.createElement("button");
+    x.className = "chip__x";
+    x.type = "button";
+    x.setAttribute("aria-label", "Remove " + name);
+    x.innerHTML = '<svg data-lucide="x"></svg>';
+    chip.appendChild(x);
+    list.appendChild(chip);
+    const field = list.closest(".req-field");
+    if (field) {
+      field.removeAttribute("data-invalid");
+      const err = field.querySelector("[data-field-err]");
+      if (err) err.hidden = true;
+    }
+    refreshIcons();
+  }
+
+  document.querySelectorAll("[data-add-chip]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-add-chip");
+      const input = document.querySelector('[data-add-input="' + id + '"]');
+      addChip(id, input ? input.value : "");
+      if (input) input.value = "";
+      if (input) input.focus();
+    });
+  });
+
+  document.querySelectorAll("[data-add-input]").forEach((input) => {
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        addChip(input.getAttribute("data-add-input"), input.value);
+        input.value = "";
+      }
+    });
+  });
+
+  document.addEventListener("click", (ev) => {
+    const x = ev.target.closest(".chip__x");
+    if (!x) return;
+    const chip = x.closest(".chip");
+    if (chip) chip.remove();
+  });
+
+  document.querySelectorAll("[data-fetch-full]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = document.getElementById(btn.getAttribute("data-fetch-full"));
+      if (!panel) return;
+      const open = panel.hidden;
+      panel.hidden = !open;
+      btn.textContent = open ? "Fetched" : "Fetch full";
+      btn.disabled = open;
+    });
+  });
+
+  document.querySelectorAll("form[data-req-form]").forEach((form) => {
+    form.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const kind = form.getAttribute("data-req-form");
+      if (kind === "validate") {
+        const list = form.querySelector(".chip-list");
+        const field = form.querySelector(".req-field");
+        const err = form.querySelector("[data-field-err]");
+        const empty = !list || list.querySelectorAll(".chip").length === 0;
+        if (empty) {
+          if (field) field.setAttribute("data-invalid", "");
+          if (err) err.hidden = false;
+          return;
+        }
+        if (field) field.removeAttribute("data-invalid");
+        if (err) err.hidden = true;
+      }
+      form.setAttribute("data-busy", "");
+      const note = form.querySelector("[data-form-note]");
+      if (note) note.hidden = false;
+      form.querySelectorAll("button[type='submit']").forEach((b) => { b.disabled = true; });
+    });
+  });
+
+  document.querySelectorAll(".req-bar [data-decision]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const bar = btn.closest(".req-bar");
+      const note = bar.querySelector("[data-bar-note]");
+      const key = btn.getAttribute("data-decision");
+      if (note) {
+        note.hidden = false;
+        note.textContent = DECISION_NOTE[key] || "";
+      }
+    });
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Workflow Memory Guidelines
 
-Use these rules to keep Compozy workflow memory useful across repeated spec task runs.
+Use these rules to keep CompozyOS workflow memory useful across repeated spec task runs.
 
 ## File Roles
 

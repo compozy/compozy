@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "graph-eng/graph-eng-editor-route-ask.html",
+  "entry": "graph-eng/graph-eng-editor-route-ask.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-16T17:23:40.863Z",
+  "updatedAt": "2026-08-16T17:23:40.863Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

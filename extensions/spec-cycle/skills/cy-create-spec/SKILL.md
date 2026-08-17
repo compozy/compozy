@@ -69,7 +69,7 @@ Track each step as a task in the runtime's task tracker when one is available, a
 
 ### Stage 2 — Surface, then internals
 
-6. Explore the architecture: spawn a read-only subagent to map patterns, existing components, dependencies, and technology stack relevant to the design; read every `adrs/*.md` and `analysis/*.md` under the slug.
+6. Explore the architecture: spawn a read-only subagent to map patterns, existing components, dependencies, and technology stack relevant to the design; have it return every load-bearing path annotated with why it matters — repo files, and vendored external sources when they inform the design — as the seed for the File References section. Read every `adrs/*.md` and `analysis/*.md` under the slug.
 
 7. Draft the public surface as if the feature already shipped:
    - Read `references/dx-template.md` and draft `.compozy/tasks/<slug>/_dx.md` — always.
@@ -82,6 +82,7 @@ Track each step as a task in the runtime's task tracker when one is available, a
 10. Write Part II of `_spec.md`.
     - Fill every applicable Part II section per the template: map every Part I goal, every story in `_user_stories.md`, and every surface in `_dx.md`/`_uiux.md` to a technical component; reference Part I sections by name without duplicating them.
     - The template carries the six quality markers and the CompozyOS mandatory sections — fill each or state explicit no-impact evidence.
+    - Fill File References with every path the design depends on — repo files, vendored external sources, analysis files, design artboards — each with its one-clause read-reason; tasks copy their subsets from this index.
     - List every ADR from both stages in the Architecture Decision Records section; if none exists yet, record the primary-technical-approach ADR first.
 
 11. Write the test contract.

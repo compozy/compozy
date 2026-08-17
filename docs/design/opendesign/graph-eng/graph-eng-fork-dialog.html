@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Fork dialog · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-fork-dialog · S8 fork dialog (new).
+  Spec: .compozy/tasks/graph-eng/_uiux.md · story US-022 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — use-loop-run-form.ts + loop-run-form.tsx +
+                 loop-run-input-field.tsx (declared-input fields: mono name,
+                 type badge, required mark, inline required error after
+                 submit attempt; Dry run / Start run action bar)
+    spec — generation picker defaults to the inspected generation;
+           declared-input form pre-filled with the source run's inputs;
+           Start fork is the one primary; validation errors render
+           exactly as the run form (US-022.AC-3); no overrides = pure
+           replay (US-022.EC-4); source content unavailable blocks
+           submit with the deterministic reason (US-022.EC-1); no
+           optimistic paints — disable on submit and wait for ack
+    authorized delta — dialog chrome reuses chapter-8 ConfirmDialog
+                       anatomy (36px well · eyebrow · footer); run-form
+                       overrides / participation / environment stay
+                       folded out of this dialog (inputs only)
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="fork-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Fork dialog</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-inspect-lineage.html">Inspect →</a>
+      <a class="btn btn--sm" href="graph-eng-run-diff.html">Diff →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="fork-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Run page — fork dialog</h2>
+        <span class="lab-sec__gist">picker + pre-filled inputs · validation identical to the run form</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Fork from gen 2</b>US-022: the picker defaults to the inspected generation (gen 2). Declared inputs <code>severity</code> and <code>services</code> arrive pre-filled from <code>run_7f3a</code>. <code>Start fork</code> is the one primary. Submit disables the form and waits for the daemon ack — then the new run opens with its <code>forked from</code> line.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="fork-final-stage">
+            <section class="win is-focused win--req" data-od-id="fork-final-win" style="margin:20px auto 0">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="git-branch"></svg></span>
+                  <span class="w2-title">release-train</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="needs">
+                    <svg data-lucide="pause" style="width:12px;height:12px"></svg>
+                    parked
+                  </span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button">Stop</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="app">
+                  <div class="run-sub">
+                    <span class="run-sub__id">run_7f3a</span>
+                    <span class="dotsep"></span>
+                    <span>Started by pedro</span>
+                    <span class="dotsep"></span>
+                    <span>Round 3</span>
+                  </div>
+                  <div class="lsec" data-open="true">
+                    <button class="lsec__head" type="button" aria-expanded="true">
+                      <svg data-lucide="layers"></svg>
+                      <span class="eyebrow">Generations</span>
+                      <span class="lsec__gist">3 · current gen 3</span>
+                      <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                    </button>
+                    <div class="lsec__body">
+                      <div class="gen-list">
+                        <article class="gen-row">
+                          <div class="gen-row__top">
+                            <span class="gen-row__n">Generation 2</span>
+                            <span class="req-chip" data-tone="neutral"><svg data-lucide="rotate-ccw"></svg>retry</span>
+                          </div>
+                          <div class="gen-row__acts">
+                            <a class="btn btn--sm" href="graph-eng-run-diff.html">Compare…</a>
+                            <button class="btn btn--sm" type="button" data-open-dlg="fork-dlg-final" data-od-id="fork-final-open">Fork from here</button>
+                          </div>
+                        </article>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <div class="overlay overlay--dlg" id="fork-dlg-final" data-od-id="fork-dlg-final">
+              <div class="verb-dlg verb-dlg--fork" role="dialog" aria-labelledby="fork-final-title" aria-modal="true">
+                <div class="verb-dlg__head">
+                  <div class="verb-well" data-tone="info"><svg data-lucide="git-fork"></svg></div>
+                  <div>
+                    <div class="verb-dlg__eye">Run</div>
+                    <h3 class="verb-dlg__t" id="fork-final-title">Fork from here</h3>
+                    <p class="verb-dlg__d">Starts a new run seeded from this generation. The source run is untouched.</p>
+                  </div>
+                </div>
+                <form class="verb-dlg__body" data-fork-form="start" data-od-id="fork-final-form">
+                  <div class="fork-pick" data-od-id="fork-final-pick">
+                    <div class="verb-col__lab">Generation</div>
+                    <button class="fork-opt" type="button" data-gen="1" aria-pressed="false">
+                      <span class="fork-opt__n">Generation 1</span>
+                      <span class="req-chip" data-tone="neutral"><svg data-lucide="circle"></svg>initial</span>
+                      <span class="fork-opt__m">gen 1</span>
+                    </button>
+                    <button class="fork-opt" type="button" data-gen="2" data-sel aria-pressed="true" data-od-id="fork-final-gen-2">
+                      <span class="fork-opt__n">Generation 2</span>
+                      <span class="req-chip" data-tone="neutral"><svg data-lucide="rotate-ccw"></svg>retry</span>
+                      <span class="fork-opt__m">gen 2 · inspected</span>
+                    </button>
+                    <button class="fork-opt" type="button" data-gen="3" aria-pressed="false">
+                      <span class="fork-opt__n">Generation 3</span>
+                      <span class="pill">current</span>
+                      <span class="fork-opt__m">gen 3</span>
+                    </button>
+                  </div>
+                  <div>
+                    <div class="verb-col__lab">Inputs</div>
+                    <div class="req-field">
+                      <label class="req-field__lab" for="fork-final-sev">severity <span class="mono">string</span></label>
+                      <input class="input input--mono" id="fork-final-sev" name="severity" value="p1" required>
+                    </div>
+                    <div class="req-field" style="margin-top:10px">
+                      <label class="req-field__lab" for="fork-final-svc">services <span class="mono">string[]</span></label>
+                      <div class="chip-list" id="fork-final-services" data-od-id="fork-final-services">
+                        <span class="chip">api<button class="chip__x" type="button" aria-label="Remove api"><svg data-lucide="x"></svg></button></span>
+                        <span class="chip">web<button class="chip__x" type="button" aria-label="Remove web"><svg data-lucide="x"></svg></button></span>
+                        <span class="chip">worker<button class="chip__x" type="button" aria-label="Remove worker"><svg data-lucide="x"></svg></button></span>
+                      </div>
+                      <div class="req-add">
+                        <input class="ctl" id="fork-final-svc" data-add-input="fork-final-services" placeholder="Add service" autocomplete="off">
+                        <button class="btn btn--sm" type="button" data-add-chip="fork-final-services">Add</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="verb-dlg__foot">
+                    <div class="verb-dlg__micro"><svg data-lucide="git-fork"></svg>source run_7f3a · gen 2</div>
+                    <div class="verb-dlg__actions">
+                      <button class="btn btn--ghost" type="button" data-close-dlg data-keep>Cancel</button>
+                      <button class="btn btn--primary" type="submit" data-od-id="fork-final-go">Start fork</button>
+                    </div>
+                  </div>
+                  <span class="req-note" data-form-note hidden aria-live="polite">Submitting — waiting for the daemon ack.</span>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · PURE REPLAY ===== -->
+    <section class="lab-sec" data-od-id="fork-replay">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Pure replay</h2>
+        <span class="lab-sec__gist">no overrides · lineage still records</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Inputs untouched</b>US-022.EC-4: the fields match the source run byte-for-byte. The dialog reads as a replay of generation 2 as a new run. Lineage records regardless — a fork with identical inputs is still a fork.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fork-replay-stage">
+            <div class="verb-dlg verb-dlg--fork" data-od-id="fork-replay-dlg">
+              <div class="verb-dlg__head">
+                <div class="verb-well" data-tone="info"><svg data-lucide="git-fork"></svg></div>
+                <div>
+                  <div class="verb-dlg__eye">Run</div>
+                  <h3 class="verb-dlg__t">Fork from here</h3>
+                  <p class="verb-dlg__d">Starts a new run seeded from this generation. The source run is untouched.</p>
+                </div>
+              </div>
+              <div class="verb-dlg__body">
+                <div class="fork-replay" data-od-id="fork-replay-note">Replay generation 2 as a new run. Inputs match <code class="mono">run_7f3a</code>. Lineage records regardless.</div>
+                <div class="req-field">
+                  <label class="req-field__lab" for="fork-replay-sev">severity <span class="mono">string</span></label>
+                  <input class="input input--mono" id="fork-replay-sev" value="p1" readonly>
+                </div>
+                <div class="req-field">
+                  <label class="req-field__lab">services <span class="mono">string[]</span></label>
+                  <div class="chip-list">
+                    <span class="chip">api</span>
+                    <span class="chip">web</span>
+                    <span class="chip">worker</span>
+                  </div>
+                </div>
+                <div class="verb-dlg__foot">
+                  <div class="verb-dlg__micro"><svg data-lucide="git-fork"></svg>no overrides · forked_from still written</div>
+                  <div class="verb-dlg__actions">
+                    <button class="btn btn--ghost" type="button">Cancel</button>
+                    <button class="btn btn--primary" type="button" data-od-id="fork-replay-go">Start fork</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · VALIDATION ===== -->
+    <section class="lab-sec" data-od-id="fork-valid">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Validation failure</h2>
+        <span class="lab-sec__gist">same field error as the run form</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Run-form errors</b>US-022.AC-3: a missing required input uses the run form’s sentence and tone — <code>{name} is required to run this loop.</code> — with the same invalid border. Submit stays blocked. No toast, no dialog-level banner.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fork-valid-stage">
+            <form class="verb-dlg verb-dlg--fork" data-fork-form="validate" data-od-id="fork-valid-dlg">
+              <div class="verb-dlg__head">
+                <div class="verb-well" data-tone="info"><svg data-lucide="git-fork"></svg></div>
+                <div>
+                  <div class="verb-dlg__eye">Run</div>
+                  <h3 class="verb-dlg__t">Fork from here</h3>
+                  <p class="verb-dlg__d">Starts a new run seeded from this generation. The source run is untouched.</p>
+                </div>
+              </div>
+              <div class="verb-dlg__body">
+                <div class="req-field" data-invalid data-od-id="fork-valid-field">
+                  <label class="req-field__lab" for="fork-valid-sev">severity <span class="mono">string</span></label>
+                  <input class="input input--mono" id="fork-valid-sev" value="" aria-invalid="true" aria-describedby="fork-valid-err">
+                  <span class="req-field__err" id="fork-valid-err"><svg data-lucide="circle-alert" style="width:12px;height:12px;display:inline-block;vertical-align:-2px"></svg> severity is required to run this loop.</span>
+                </div>
+                <div class="verb-dlg__foot">
+                  <div class="verb-dlg__micro"><svg data-lucide="circle-alert"></svg>submit blocked · same validator as Start run</div>
+                  <div class="verb-dlg__actions">
+                    <button class="btn btn--ghost" type="button">Cancel</button>
+                    <button class="btn btn--primary" type="submit" data-od-id="fork-valid-go">Start fork</button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · SOURCE UNAVAILABLE ===== -->
+    <section class="lab-sec" data-od-id="fork-gone">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Source content unavailable</h2>
+        <span class="lab-sec__gist">submit blocked · deterministic reason</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Pruned generation</b>US-022.EC-1: the generation’s outputs reference content that was pruned. Submit is blocked. The reason is micro mono, neutral — not danger. Refresh and back are the affordances. No partial fork starts.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fork-gone-stage">
+            <div class="verb-dlg verb-dlg--fork" data-od-id="fork-gone-dlg">
+              <div class="verb-dlg__head">
+                <div class="verb-well"><svg data-lucide="git-fork"></svg></div>
+                <div>
+                  <div class="verb-dlg__eye">Run</div>
+                  <h3 class="verb-dlg__t">Fork from here</h3>
+                  <p class="verb-dlg__d">Starts a new run seeded from this generation. The source run is untouched.</p>
+                </div>
+              </div>
+              <div class="verb-dlg__body">
+                <div class="verb-note" data-tone="neutral" data-od-id="fork-gone-note">This generation’s content is no longer available. Nothing was started.</div>
+                <div class="req-deny" data-od-id="fork-gone-reason">fork_source_unavailable: generation content pruned</div>
+                <div class="verb-dlg__foot">
+                  <div class="verb-dlg__micro"><svg data-lucide="info"></svg>gen 1 · run_7f3a · retained-out</div>
+                  <div class="verb-dlg__actions">
+                    <button class="btn btn--ghost" type="button" data-od-id="fork-gone-back">Back</button>
+                    <button class="btn" type="button" data-od-id="fork-gone-refresh">Refresh</button>
+                    <button class="btn btn--primary" type="button" disabled data-od-id="fork-gone-go">Start fork</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · POST-SUBMIT ===== -->
+    <section class="lab-sec" data-od-id="fork-ack">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">After submit</h2>
+        <span class="lab-sec__gist">disabled on submit · reconcile from truth</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No optimistic paint</b>The dialog goes busy and waits for the daemon. The new run opens with its <code>forked from</code> lineage line — the same two-way fact as inspect §03. The source run is unchanged.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fork-ack-stage">
+            <div class="verb-dlg verb-dlg--fork" data-busy data-od-id="fork-ack-busy">
+              <div class="verb-dlg__head">
+                <div class="verb-well" data-tone="info"><svg data-lucide="git-fork"></svg></div>
+                <div>
+                  <div class="verb-dlg__eye">Run</div>
+                  <h3 class="verb-dlg__t">Fork from here</h3>
+                  <p class="verb-dlg__d">Starts a new run seeded from this generation. The source run is untouched.</p>
+                </div>
+              </div>
+              <div class="verb-dlg__body">
+                <div class="req-note" data-live>Submitting — waiting for the daemon ack.</div>
+                <div class="verb-dlg__foot">
+                  <div class="verb-dlg__micro"><svg data-lucide="loader"></svg>no optimistic run id</div>
+                  <div class="verb-dlg__actions">
+                    <button class="btn btn--ghost" type="button" disabled>Cancel</button>
+                    <button class="btn btn--primary" type="button" disabled>Start fork</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>New run</b>After ack, <code>run_9c1d</code> opens. The lineage line is the inspect contract: forked from <code>run_7f3a</code> · gen 2. Info tone. The source run did not move.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="fork-ack-opened">
+            <div class="run-sub">
+              <span class="run-sub__id">run_9c1d</span>
+              <span class="dotsep"></span>
+              <span>Started by pedro</span>
+              <span class="dotsep"></span>
+              <span>Round 1</span>
+              <span class="dotsep"></span>
+              <span class="req-chip" data-tone="info"><svg data-lucide="git-fork"></svg>fork</span>
+            </div>
+            <div class="lin-row" style="padding-top:10px">
+              <svg class="lin-row__glyph" data-lucide="git-fork"></svg>
+              <div class="lin-row__main">
+                <div class="lin-row__t">forked from <a href="graph-eng-inspect-lineage.html#lin-child">run_7f3a</a> · gen 2</div>
+                <div class="lin-row__micro">forked_from · run_9c1d ← run_7f3a · source_generation 2 · source byte-identical</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="fork-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seams <code>use-loop-run-form.ts</code>, <code>loop-run-input-field.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  document.querySelectorAll(".lsec__head").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sec = btn.closest(".lsec");
+      const open = sec.getAttribute("data-open") !== "false";
+      sec.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+
+  document.querySelectorAll("[data-open-dlg]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dlg = document.getElementById(btn.getAttribute("data-open-dlg"));
+      if (!dlg) return;
+      dlg.hidden = false;
+      const first = dlg.querySelector(".fork-opt[data-sel], input, button.btn--primary");
+      if (first) first.focus();
+    });
+  });
+
+  document.querySelectorAll("[data-close-dlg]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const overlay = btn.closest(".overlay");
+      if (overlay) overlay.hidden = true;
+    });
+  });
+
+  document.querySelectorAll(".overlay--dlg").forEach((overlay) => {
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) overlay.hidden = true;
+    });
+  });
+
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    document.querySelectorAll(".overlay--dlg:not([hidden])").forEach((overlay) => {
+      overlay.hidden = true;
+    });
+  });
+
+  document.querySelectorAll(".fork-opt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const group = btn.closest(".fork-pick");
+      if (!group) return;
+      group.querySelectorAll(".fork-opt").forEach((opt) => {
+        opt.removeAttribute("data-sel");
+        opt.setAttribute("aria-pressed", "false");
+      });
+      btn.setAttribute("data-sel", "");
+      btn.setAttribute("aria-pressed", "true");
+    });
+  });
+
+  function addChip(listId, value) {
+    const list = document.getElementById(listId);
+    const name = String(value || "").trim();
+    if (!list || !name) return;
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.appendChild(document.createTextNode(name));
+    const x = document.createElement("button");
+    x.className = "chip__x";
+    x.type = "button";
+    x.setAttribute("aria-label", "Remove " + name);
+    x.innerHTML = '<svg data-lucide="x"></svg>';
+    chip.appendChild(x);
+    list.appendChild(chip);
+    refreshIcons();
+  }
+
+  document.querySelectorAll("[data-add-chip]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-add-chip");
+      const input = document.querySelector('[data-add-input="' + id + '"]');
+      addChip(id, input ? input.value : "");
+      if (input) input.value = "";
+      if (input) input.focus();
+    });
+  });
+
+  document.querySelectorAll("[data-add-input]").forEach((input) => {
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        addChip(input.getAttribute("data-add-input"), input.value);
+        input.value = "";
+      }
+    });
+  });
+
+  document.addEventListener("click", (ev) => {
+    const x = ev.target.closest(".chip__x");
+    if (!x) return;
+    const chip = x.closest(".chip");
+    if (chip) chip.remove();
+  });
+
+  document.querySelectorAll("form[data-fork-form]").forEach((form) => {
+    form.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const kind = form.getAttribute("data-fork-form");
+      if (kind === "validate") {
+        const sev = form.querySelector("#fork-valid-sev");
+        const field = form.querySelector(".req-field");
+        if (sev && String(sev.value || "").trim() === "") {
+          if (field) field.setAttribute("data-invalid", "");
+          return;
+        }
+      }
+      const dlg = form.closest(".verb-dlg");
+      if (dlg) dlg.setAttribute("data-busy", "");
+      const note = form.querySelector("[data-form-note]");
+      if (note) note.hidden = false;
+      form.querySelectorAll("button[type='submit']").forEach((b) => { b.disabled = true; });
+    });
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # UIUX Template
 
-Structure for `_uiux.md` — the UI change map written only for UI-bearing features (anything touching `web/` surfaces). It freezes the operator-facing surface the way `_dx.md` freezes the developer-facing one. Its presence marks the feature UI-bearing: `cy-tasks-tail-qa-pair` adds browser e2e coverage when the file exists. Downstream consumers: the Stage 2 surface grill reworks it, the design pass (`designer` agent with `eng-design` + `ui-craft`) consumes it as its inventory, implementation tasks cite its component plan, and `_tests.md` derives browser E2E journeys from its surface map.
+Structure for `_uiux.md` — the UI change map written only for UI-bearing features (anything touching `web/` surfaces). It freezes the operator-facing surface the way `_dx.md` freezes the developer-facing one. Its presence marks the feature UI-bearing, so the task suite carries browser e2e coverage. Downstream consumers: the Stage 2 surface grill reworks it, the design pass (`designer` agent with `eng-design` + `ui-craft`) consumes it as its inventory, implementation tasks cite its component plan, and `_tests.md` derives browser E2E journeys from its surface map.
 
 ## Rules
 

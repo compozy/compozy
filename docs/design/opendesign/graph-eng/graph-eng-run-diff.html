@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Run diff · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-run-diff · S7 run diff view (new full-height surface).
+  Spec: .compozy/tasks/graph-eng/_uiux.md · stories US-019, US-020 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — no dedicated view yet; CLI `compozy loop diff` in _dx.md
+                 owns the vocabulary (CHANGED / RERUN / SKIPPED / CARRIED /
+                 VERDICT) and the JSON shape (inputs[], nodes[], terminal)
+    spec — generation↔generation and run↔run (same loop); rows grouped by
+           change kind with counts; unchanged summarized (US-019.AC-2);
+           large outputs as size + hash + view full (US-019.EC-3); input
+           diff on run↔run (US-020.AC-1); definition-divergence banner
+           (US-020.EC-1); live-side as-of label (US-020.EC-3); empty self-diff
+           (US-019.EC-1); carried-from generation (US-019.EC-2); pickers
+           same-loop scoped — cross-loop is CLI/API only
+    authorized delta — full-height window (not a sheet); breadcrumb head
+                       release-train / Compare; kind tones: changed=accent ·
+                       rerun=info · skipped=neutral · carried=muted ·
+                       verdict=existing verdict tones
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="diff-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Run diff</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-inspect-lineage.html">Inspect →</a>
+      <a class="btn btn--sm" href="graph-eng-fork-dialog.html">Fork →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="diff-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Compare — gen 2 vs gen 3</h2>
+        <span class="lab-sec__gist">grouped by change kind · CLI vocabulary 1:1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Generation compare</b>US-019: <code>run_7f3a</code> gen 2 → gen 3, both pinned to definition v3. Rows group as <code>changed / rerun / skipped / carried / verdict</code>. Unchanged collapse to one line. Large outputs show size + hash and a view-full link — never an inline dump (US-019.AC-2, EC-3). This surface has no primary button; it is a read.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="diff-final-stage">
+            <section class="win is-focused win--diff" data-od-id="diff-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <a class="w2-back" href="graph-eng-inspect-lineage.html" aria-label="Back to run"><svg data-lucide="chevron-left"></svg></a>
+                <nav class="w2-crumbs">
+                  <a class="w2-crumb" href="graph-eng-inspect-lineage.html">release-train</a>
+                  <span class="w2-sep">/</span>
+                  <span class="w2-title">Compare</span>
+                </nav>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-od-id="diff-final-status">gen 2 → 3</span>
+                </div>
+              </header>
+              <div class="win-toolbar" data-od-id="diff-final-strip">
+                <div class="diff-picks">
+                  <div class="diff-pick">
+                    <label class="diff-pick__lab" for="diff-final-base">Base</label>
+                    <select class="input input--mono" id="diff-final-base" data-od-id="diff-final-base">
+                      <option>gen 1 · initial · v3</option>
+                      <option selected>gen 2 · retry · v3</option>
+                      <option>gen 3 · operator_rerun · v3</option>
+                    </select>
+                  </div>
+                  <div class="diff-pick">
+                    <label class="diff-pick__lab" for="diff-final-against">Against</label>
+                    <select class="input input--mono" id="diff-final-against" data-od-id="diff-final-against">
+                      <option>gen 1 · initial · v3</option>
+                      <option>gen 2 · retry · v3</option>
+                      <option selected>gen 3 · operator_rerun · v3</option>
+                    </select>
+                  </div>
+                </div>
+                <span class="w2-flex"></span>
+                <span class="run-sub__id">run_7f3a · release-train v3</span>
+              </div>
+              <div class="win-body">
+                <div class="app">
+                  <div class="diff" data-od-id="diff-final-body">
+                    <div class="diff-head">
+                      <div class="diff-head__pair">
+                        <div class="diff-head__t">Generation 2 → 3</div>
+                        <div class="diff-head__sub">release-train · both sides pin v3</div>
+                        <div class="diff-head__micro">run_7f3a · origin retry → operator_rerun · from apply-migration</div>
+                      </div>
+                    </div>
+                    <div class="diff-body">
+
+                      <div class="diff-group" data-od-id="diff-final-changed">
+                        <div class="diff-group__h">
+                          <span class="diff-kind" data-kind="changed">CHANGED</span>
+                          <span class="diff-group__n">2</span>
+                        </div>
+                        <div class="diff-stack">
+                          <article class="diff-row" data-kind="changed" data-od-id="diff-final-ch-apply">
+                            <svg class="diff-row__glyph" data-lucide="pencil"></svg>
+                            <div>
+                              <div class="diff-row__id">apply-migration</div>
+                              <div class="diff-row__line"><span class="mono">--dry-run</span>: <span class="del">present</span> → <span class="ins">removed</span></div>
+                              <div class="diff-row__micro">field arg · review · lane web</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="neutral"><svg data-lucide="pencil"></svg>changed</span></div>
+                          </article>
+                          <article class="diff-row" data-kind="changed" data-od-id="diff-final-ch-notes">
+                            <svg class="diff-row__glyph" data-lucide="pencil"></svg>
+                            <div>
+                              <div class="diff-row__id">render-notes</div>
+                              <div class="diff-row__line">output.notes amended by pedro</div>
+                              <div class="diff-sum" data-od-id="diff-final-sum">
+                                <span>12.4 KB → 12.8 KB</span>
+                                <span>sha256:b4e1…90ac → sha256:c91d…7f3a</span>
+                                <a href="#diff-final-full" data-view-full="diff-final-full" data-od-id="diff-final-view">View full content</a>
+                              </div>
+                              <div class="diff-full" hidden id="diff-final-full" data-od-id="diff-final-full">Fetched excerpt — amended notes for us-east and eu-west. Canary stays off. This prototype does not dump the remaining bytes.</div>
+                              <div class="diff-row__micro">field output.notes · amended · info</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="info"><svg data-lucide="pencil"></svg>amended</span></div>
+                          </article>
+                        </div>
+                      </div>
+
+                      <div class="diff-group" data-od-id="diff-final-rerun">
+                        <div class="diff-group__h">
+                          <span class="diff-kind" data-kind="rerun">RERUN</span>
+                          <span class="diff-group__n">3</span>
+                        </div>
+                        <div class="diff-stack">
+                          <article class="diff-row" data-kind="rerun" data-od-id="diff-final-rr-apply">
+                            <svg class="diff-row__glyph" data-lucide="rotate-ccw"></svg>
+                            <div>
+                              <div class="diff-row__id">apply-migration</div>
+                              <div class="diff-row__line">parked (was: settled)</div>
+                              <div class="diff-row__micro">rerun set start · origin operator_rerun</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="info"><svg data-lucide="rotate-ccw"></svg>rerun</span></div>
+                          </article>
+                          <article class="diff-row" data-kind="rerun" data-od-id="diff-final-rr-notes">
+                            <svg class="diff-row__glyph" data-lucide="rotate-ccw"></svg>
+                            <div>
+                              <div class="diff-row__id">render-notes</div>
+                              <div class="diff-row__line">parked (was: settled)</div>
+                              <div class="diff-row__micro">dependent</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="info"><svg data-lucide="rotate-ccw"></svg>rerun</span></div>
+                          </article>
+                          <article class="diff-row" data-kind="rerun" data-od-id="diff-final-rr-announce">
+                            <svg class="diff-row__glyph" data-lucide="rotate-ccw"></svg>
+                            <div>
+                              <div class="diff-row__id">announce</div>
+                              <div class="diff-row__line">pending (was: settled)</div>
+                              <div class="diff-row__micro">dependent</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="info"><svg data-lucide="rotate-ccw"></svg>rerun</span></div>
+                          </article>
+                        </div>
+                      </div>
+
+                      <div class="diff-group" data-od-id="diff-final-skipped">
+                        <div class="diff-group__h">
+                          <span class="diff-kind" data-kind="skipped">SKIPPED</span>
+                          <span class="diff-group__n">1</span>
+                        </div>
+                        <div class="diff-stack">
+                          <article class="diff-row" data-kind="skipped" data-od-id="diff-final-sk-hotfix">
+                            <svg class="diff-row__glyph" data-lucide="minus"></svg>
+                            <div>
+                              <div class="diff-row__id">hotfix</div>
+                              <div class="diff-row__line">Branch pruned — not taken</div>
+                              <div class="diff-row__micro">cause route_not_taken · arm hotfix</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>skipped</span></div>
+                          </article>
+                        </div>
+                      </div>
+
+                      <div class="diff-group" data-od-id="diff-final-carried">
+                        <div class="diff-group__h">
+                          <span class="diff-kind" data-kind="carried">CARRIED</span>
+                          <span class="diff-group__n">2</span>
+                        </div>
+                        <div class="diff-stack">
+                          <article class="diff-row" data-kind="carried" data-od-id="diff-final-ca-confirm">
+                            <svg class="diff-row__glyph" data-lucide="arrow-right"></svg>
+                            <div>
+                              <div class="diff-row__id">confirm-rollout</div>
+                              <div class="diff-row__line">unchanged (carried forward)</div>
+                              <div class="diff-row__micro">carried from gen 2</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="muted"><svg data-lucide="arrow-right"></svg>carried</span></div>
+                          </article>
+                          <article class="diff-row" data-kind="carried" data-od-id="diff-final-ca-triage">
+                            <svg class="diff-row__glyph" data-lucide="arrow-right"></svg>
+                            <div>
+                              <div class="diff-row__id">triage</div>
+                              <div class="diff-row__line">unchanged (carried forward)</div>
+                              <div class="diff-row__micro">carried from gen 1 · route standard</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="muted"><svg data-lucide="arrow-right"></svg>carried</span></div>
+                          </article>
+                        </div>
+                      </div>
+
+                      <div class="diff-group" data-od-id="diff-final-verdict">
+                        <div class="diff-group__h">
+                          <span class="diff-kind" data-kind="verdict" data-tone="warning">VERDICT</span>
+                          <span class="diff-group__n">1</span>
+                        </div>
+                        <div class="diff-stack">
+                          <article class="diff-row" data-kind="verdict" data-tone="warning" data-od-id="diff-final-vd">
+                            <svg class="diff-row__glyph" data-lucide="triangle-alert"></svg>
+                            <div>
+                              <div class="diff-row__id">best_effort</div>
+                              <div class="diff-row__line">partial 2/3 (was: partial 2/3)</div>
+                              <div class="diff-row__micro">threshold 66% · lanes api, web · worker canceled-by-strategy</div>
+                            </div>
+                            <div class="diff-row__trail"><span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>partial 2/3</span></div>
+                          </article>
+                        </div>
+                      </div>
+
+                      <button class="diff-unchanged" type="button" aria-expanded="false" data-more="diff-final-more" data-od-id="diff-final-unchanged">
+                        <svg data-lucide="chevron-right"></svg>
+                        14 unchanged
+                      </button>
+                      <div class="diff-row__micro" hidden id="diff-final-more" data-od-id="diff-final-more">14 nodes match on both sides — omitted from the grouped list. Open CLI <code class="mono">-o json</code> for the full node set.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · RUN↔RUN ===== -->
+    <section class="lab-sec" data-od-id="diff-runs">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Run ↔ run</h2>
+        <span class="lab-sec__gist">input diff first · then the same groups</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Fork compare</b>US-020.AC-1: <code>run_7f3a</code> vs its fork <code>run_9c1d</code>. The input block sits above the node groups — original vs override, diff-style. Node rows reuse the same kind groups. Both runs pin v3 here; divergence is the next state.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="diff-runs-stage">
+            <div class="diff" data-od-id="diff-runs-body" style="border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden">
+              <div class="diff-head">
+                <div class="diff-head__pair">
+                  <div class="diff-head__t">run_7f3a → run_9c1d</div>
+                  <div class="diff-head__sub">release-train · both sides pin v3</div>
+                  <div class="diff-head__micro">fork from gen 2 · origin vs override</div>
+                </div>
+              </div>
+              <div class="diff-inputs" data-od-id="diff-runs-inputs">
+                <div class="diff-inputs__h"><svg data-lucide="text-cursor-input"></svg>Input diff</div>
+                <table class="req-args">
+                  <thead><tr><th>input</th><th>original</th><th>override</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td class="k">severity</td>
+                      <td class="v">p1</td>
+                      <td class="v"><span class="ins">p0</span></td>
+                    </tr>
+                    <tr>
+                      <td class="k">services</td>
+                      <td class="v">api, web, worker</td>
+                      <td class="v">api, web, worker</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="diff-body">
+                <div class="diff-group">
+                  <div class="diff-group__h">
+                    <span class="diff-kind" data-kind="changed">CHANGED</span>
+                    <span class="diff-group__n">1</span>
+                  </div>
+                  <div class="diff-stack">
+                    <article class="diff-row" data-kind="changed" data-od-id="diff-runs-ch-triage">
+                      <svg class="diff-row__glyph" data-lucide="git-branch"></svg>
+                      <div>
+                        <div class="diff-row__id">triage</div>
+                        <div class="diff-row__line">route: <span class="del">standard</span> → <span class="ins">hotfix</span> (matched: severity == "p0")</div>
+                        <div class="diff-row__micro">field route · cause severity == "p0"</div>
+                      </div>
+                      <div class="diff-row__trail"><span class="req-chip" data-tone="neutral"><svg data-lucide="pencil"></svg>changed</span></div>
+                    </article>
+                  </div>
+                </div>
+                <div class="diff-group">
+                  <div class="diff-group__h">
+                    <span class="diff-kind" data-kind="skipped">SKIPPED</span>
+                    <span class="diff-group__n">1</span>
+                  </div>
+                  <div class="diff-stack">
+                    <article class="diff-row" data-kind="skipped" data-od-id="diff-runs-sk">
+                      <svg class="diff-row__glyph" data-lucide="minus"></svg>
+                      <div>
+                        <div class="diff-row__id">standard</div>
+                        <div class="diff-row__line">Branch pruned — not taken</div>
+                        <div class="diff-row__micro">cause route_not_taken · arm standard</div>
+                      </div>
+                      <div class="diff-row__trail"><span class="req-chip" data-tone="neutral"><svg data-lucide="minus"></svg>skipped</span></div>
+                    </article>
+                  </div>
+                </div>
+                <button class="diff-unchanged" type="button" aria-expanded="false" data-more="diff-runs-more">
+                  <svg data-lucide="chevron-right"></svg>
+                  14 unchanged
+                </button>
+                <div class="diff-row__micro" hidden id="diff-runs-more">14 nodes match on both sides — omitted from the grouped list.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · DIVERGENCE ===== -->
+    <section class="lab-sec" data-od-id="diff-div">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Definition divergence</h2>
+        <span class="lab-sec__gist">v2 vs v3 · informative, not alarming</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Pinned versions differ</b>US-020.EC-1: one side pins v2, the other v3. The banner sits above the rows, names both versions, and says what that means for comparability. Neutral plate — not warning, not danger. Rows still compare only nodes present in both.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="diff-div-stage">
+            <div class="diff-banner" data-od-id="diff-div-banner">
+              <svg data-lucide="info"></svg>
+              <div><b>Different definition versions.</b> <code class="mono">run_7f3a</code> pins v3; <code class="mono">run_9c1d</code> pins v2. Rows compare only nodes present in both. Shape-only nodes are omitted, not marked failed.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · LIVE SIDE ===== -->
+    <section class="lab-sec" data-od-id="diff-live">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Live side</h2>
+        <span class="lab-sec__gist">as-of the latest settled generation</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One side still executing</b>US-020.EC-3: allowed. The live side wears a <code>live</code> chip and an as-of generation. Rows settle as the run settles — no fake progress bar, no invented percent.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="diff-live-plain">
+            <div class="diff-head" style="padding:0 0 12px;border-bottom:1px solid var(--line)">
+              <div class="diff-head__pair">
+                <div class="diff-head__t">run_7f3a → run_9c1d</div>
+                <div class="diff-head__sub">
+                  <span class="req-chip" data-tone="info"><svg data-lucide="circle-dot"></svg>live</span>
+                  against as of gen 1 · rows settle as the run settles
+                </div>
+                <div class="diff-head__micro">run_9c1d.status = running · no progress invented</div>
+              </div>
+            </div>
+            <article class="diff-row" data-kind="rerun" style="padding:12px 0 0">
+              <svg class="diff-row__glyph" data-lucide="rotate-ccw"></svg>
+              <div>
+                <div class="diff-row__id">apply-migration</div>
+                <div class="diff-row__line">unsettled on the live side</div>
+                <div class="diff-row__micro">as of gen 1 · will fill when the generation settles</div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · EMPTY + CARRIED ===== -->
+    <section class="lab-sec" data-od-id="diff-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Empty diff + carried mark</h2>
+        <span class="lab-sec__gist">self-diff is valid · carried names its source</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No differences</b>US-019.EC-1: gen 3 against itself is a valid empty diff. The calm state says so, then the carried summary. US-019.EC-2: a carried row names the generation it was carried from, in micro mono — never styled as changed.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="diff-empty-plain">
+            <div class="diff-empty" data-od-id="diff-empty-state">
+              <div class="diff-empty__t">No differences</div>
+              <div class="diff-empty__b">Generation 3 compared with itself. Nothing changed, reran, skipped, or settled a new verdict.</div>
+            </div>
+            <button class="diff-unchanged" type="button" aria-expanded="false" data-more="diff-empty-more" style="margin-top:10px">
+              <svg data-lucide="chevron-right"></svg>
+              14 unchanged
+            </button>
+            <div class="diff-row__micro" hidden id="diff-empty-more">14 nodes match on both sides — omitted from the grouped list.</div>
+            <article class="diff-row" data-kind="carried" data-od-id="diff-empty-carried" style="margin-top:12px;padding:10px 0;border-top:1px solid var(--line-soft)">
+              <svg class="diff-row__glyph" data-lucide="arrow-right"></svg>
+              <div>
+                <div class="diff-row__id">confirm-rollout</div>
+                <div class="diff-row__line">unchanged (carried forward)</div>
+                <div class="diff-row__micro">carried from gen 2</div>
+              </div>
+              <div class="diff-row__trail"><span class="req-chip" data-tone="muted"><svg data-lucide="arrow-right"></svg>carried</span></div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · SCOPE ===== -->
+    <section class="lab-sec" data-od-id="diff-scope">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Same-loop scope</h2>
+        <span class="lab-sec__gist">the UI never offers a cross-loop compare</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Pickers stay in-loop</b>Authority: <code>_uiux.md</code> S7. Base and against pickers list only generations and runs of <code>release-train</code>. Cross-loop comparison is CLI/API-only and returns <code>diff_cross_loop</code>. The UI does not render a loop picker, a workspace jump, or a disabled “other loop” option.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="diff-scope-plain">
+            <div class="diff-picks">
+              <div class="diff-pick">
+                <label class="diff-pick__lab" for="diff-scope-base">Base</label>
+                <select class="input input--mono" id="diff-scope-base">
+                  <option>run_7f3a · gen 3 · v3</option>
+                  <option>run_9c1d · gen 1 · v3</option>
+                  <option>run_c44e · gen 1 · v3</option>
+                </select>
+              </div>
+              <div class="diff-pick">
+                <label class="diff-pick__lab" for="diff-scope-against">Against</label>
+                <select class="input input--mono" id="diff-scope-against">
+                  <option>run_7f3a · gen 2 · v3</option>
+                  <option selected>run_9c1d · gen 1 · v3</option>
+                  <option>run_c44e · gen 1 · v3</option>
+                </select>
+              </div>
+            </div>
+            <div class="gen-row__micro" style="margin-top:10px">loop release-train · workspace compozy · no other loop in the list</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="diff-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · CLI seam <code>compozy loop diff</code> in <code>_dx.md</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+  document.querySelectorAll("[data-view-full]").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      const panel = document.getElementById(btn.getAttribute("data-view-full"));
+      if (!panel) return;
+      const open = panel.hidden;
+      panel.hidden = !open;
+      btn.textContent = open ? "Hide content" : "View full content";
+    });
+  });
+  document.querySelectorAll(".diff-unchanged").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const open = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+      const more = document.getElementById(btn.getAttribute("data-more") || "");
+      if (more) more.hidden = open;
+    });
+  });
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

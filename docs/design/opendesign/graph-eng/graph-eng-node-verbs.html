@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Node verbs · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-node-verbs · S5 node row actions.
+  Spec: .compozy/tasks/graph-eng/_uiux.md · stories US-004, US-021 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-node-row-actions.tsx (promoted outline verb; rest in ⋯);
+                 loop-node-control-dialog.tsx ConfirmDialog (36px well, eyebrow,
+                 state strip, reason, LoopControlAnswer inline)
+    spec — Amend output on parked/paused nodes with a declared output shape
+           (US-004); Rerun from here on settled nodes (US-021); absent — not
+           disabled — when unauthorized (no shape / parked / mid-generation);
+           CAS conflict US-004.EC-3; rerun-set = node + transitive dependents
+    authorized delta — amend dialog is two-pane original|editor (wider than
+                       sm:max-w-md); refused answers render neutral + micro
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="verb-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Node verbs</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-timeline-rows.html">Timeline →</a>
+      <a class="btn btn--sm" href="graph-eng-progress-strategies.html">Progress →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="verb-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Run page — node verbs</h2>
+        <span class="lab-sec__gist">verbs render only where the daemon authorizes</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Authorized only</b>Parked <code>render-notes</code> offers <code>Amend output</code> because a shape is declared. Settled <code>apply-migration</code> offers <code>Rerun from here</code>. Parked <code>announce</code> has no output shape — the amend verb is absent, not disabled.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="verb-final-stage">
+            <section class="win is-focused win--req" data-od-id="verb-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="git-branch"></svg></span>
+                  <span class="w2-title">release-train</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-tone="needs" data-od-id="verb-final-status">
+                    <svg data-lucide="pause" style="width:12px;height:12px"></svg>
+                    parked
+                  </span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button" data-od-id="verb-final-stop">Stop</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="app">
+                  <div class="run-sub" data-od-id="verb-final-subhead">
+                    <span class="run-sub__id">run_7f3a</span>
+                    <span class="dotsep"></span>
+                    <span>Started by pedro</span>
+                    <span class="dotsep"></span>
+                    <span>Round 3</span>
+                    <span class="dotsep"></span>
+                    <span>Started 14m ago</span>
+                    <span class="dotsep"></span>
+                    <span class="run-sub__id">14m used</span>
+                  </div>
+                  <div class="lsec" data-open="true" data-od-id="verb-final-nodes">
+                    <button class="lsec__head" type="button" aria-expanded="true">
+                      <svg data-lucide="boxes"></svg>
+                      <span class="eyebrow">Nodes</span>
+                      <span class="lsec__gist">3 this generation</span>
+                      <svg class="lsec__chev" data-lucide="chevron-down"></svg>
+                    </button>
+                    <div class="lsec__body">
+                      <div class="noderows">
+                        <!-- gating: node.state = parked · output_shape present · verb amend -->
+                        <div class="noderow" data-tone="warning" data-od-id="verb-row-notes">
+                          <svg class="noderow__glyph" data-lucide="pencil"></svg>
+                          <div class="noderow__main">
+                            <div class="noderow__title">render-notes</div>
+                            <div class="noderow__micro">parked · output_shape {notes: string, audience: string} · gen 3</div>
+                          </div>
+                          <div class="noderow__trail">
+                            <span class="req-chip" data-tone="warning"><svg data-lucide="pause"></svg>parked</span>
+                            <button class="btn btn--sm" type="button" data-open-dlg="verb-dlg-amend" data-od-id="verb-final-amend">Amend output</button>
+                            <button class="noderow__menu" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button>
+                          </div>
+                        </div>
+                        <!-- gating: node.state = settled · run generation settled · verb rerun -->
+                        <div class="noderow" data-od-id="verb-row-apply">
+                          <svg class="noderow__glyph" data-lucide="check"></svg>
+                          <div class="noderow__main">
+                            <div class="noderow__title">apply-migration</div>
+                            <div class="noderow__micro">settled · dependents render-notes, announce · gen 3</div>
+                          </div>
+                          <div class="noderow__trail">
+                            <span class="req-chip" data-tone="neutral"><svg data-lucide="check"></svg>settled</span>
+                            <button class="btn btn--sm" type="button" data-open-dlg="verb-dlg-rerun" data-od-id="verb-final-rerun">Rerun from here</button>
+                            <button class="noderow__menu" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button>
+                          </div>
+                        </div>
+                        <!-- gating: output_shape absent · amend omitted · node.state = parked · rerun omitted US-021.EC-1 -->
+                        <div class="noderow" data-tone="warning" data-od-id="verb-row-announce">
+                          <svg class="noderow__glyph" data-lucide="megaphone"></svg>
+                          <div class="noderow__main">
+                            <div class="noderow__title">announce</div>
+                            <div class="noderow__micro">parked · output_shape absent · amend omitted</div>
+                          </div>
+                          <div class="noderow__trail">
+                            <span class="req-chip" data-tone="warning"><svg data-lucide="pause"></svg>parked</span>
+                            <button class="noderow__menu" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <div class="overlay overlay--dlg" hidden id="verb-dlg-amend" data-od-id="verb-dlg-amend">
+              <div class="verb-dlg verb-dlg--split" role="dialog" aria-labelledby="verb-amend-title" aria-modal="true">
+                <div class="verb-dlg__head">
+                  <div class="verb-well" data-tone="info"><svg data-lucide="pencil"></svg></div>
+                  <div>
+                    <div class="verb-dlg__eye">Node</div>
+                    <h3 class="verb-dlg__t" id="verb-amend-title">Amend output</h3>
+                    <p class="verb-dlg__d">Correct the effective output. The recorded original is never rewritten.</p>
+                  </div>
+                </div>
+                <form class="verb-dlg__body" data-verb-form="amend" data-od-id="verb-final-amend-form">
+                  <div class="verb-note">parked · render-notes · gen 3 · rev 2</div>
+                  <div class="verb-split">
+                    <div>
+                      <div class="verb-col__lab">Original</div>
+                      <div class="verb-ro" data-od-id="verb-final-original">notes: "Release notes for us-east and eu-west. Canary stays off."<br>audience: "ops"</div>
+                    </div>
+                    <div>
+                      <div class="verb-col__lab">Amended</div>
+                      <div class="req-field">
+                        <label class="req-field__lab" for="verb-final-notes">notes <span class="mono">string</span></label>
+                        <textarea class="textarea" id="verb-final-notes" rows="3">Release notes for us-east and eu-west. Canary stays off.</textarea>
+                      </div>
+                      <div class="req-field" style="margin-top:8px">
+                        <label class="req-field__lab" for="verb-final-aud">audience <span class="mono">string</span></label>
+                        <input class="input input--mono" id="verb-final-aud" value="ops">
+                      </div>
+                    </div>
+                  </div>
+                  <div class="req-field">
+                    <label class="req-field__lab" for="verb-final-reason">Reason</label>
+                    <textarea class="textarea" id="verb-final-reason" rows="2" placeholder="Why this correction"></textarea>
+                  </div>
+                  <div class="verb-dlg__foot">
+                    <div class="verb-dlg__micro"><svg data-lucide="info"></svg>output_shape · {notes, audience}</div>
+                    <div class="verb-dlg__actions">
+                      <button class="btn btn--ghost" type="button" data-close-dlg data-keep>Cancel</button>
+                      <button class="btn btn--primary" type="submit" data-od-id="verb-final-amend-go">Amend</button>
+                    </div>
+                  </div>
+                  <span class="req-note" data-form-note hidden aria-live="polite">Submitting — waiting for the daemon ack.</span>
+                </form>
+              </div>
+            </div>
+            <div class="overlay overlay--dlg" hidden id="verb-dlg-rerun" data-od-id="verb-dlg-rerun">
+              <div class="verb-dlg" role="dialog" aria-labelledby="verb-rerun-title" aria-modal="true">
+                <div class="verb-dlg__head">
+                  <div class="verb-well" data-tone="info"><svg data-lucide="rotate-ccw"></svg></div>
+                  <div>
+                    <div class="verb-dlg__eye">Node</div>
+                    <h3 class="verb-dlg__t" id="verb-rerun-title">Rerun from here</h3>
+                    <p class="verb-dlg__d">Opens a new generation. Everything else carries forward.</p>
+                  </div>
+                </div>
+                <form class="verb-dlg__body" data-verb-form="rerun" data-od-id="verb-final-rerun-form">
+                  <div class="verb-note">settled · apply-migration · gen 3</div>
+                  <div>
+                    <div class="verb-set__n">3 nodes in the rerun set</div>
+                    <div class="verb-set" data-od-id="verb-final-set">
+                      <div class="verb-set__row"><svg data-lucide="corner-down-right"></svg><span class="verb-set__id">apply-migration</span><span class="verb-set__role">start</span></div>
+                      <div class="verb-set__row"><svg data-lucide="corner-down-right"></svg><span class="verb-set__id">render-notes</span><span class="verb-set__role">dependent</span></div>
+                      <div class="verb-set__row"><svg data-lucide="corner-down-right"></svg><span class="verb-set__id">announce</span><span class="verb-set__role">dependent</span></div>
+                    </div>
+                  </div>
+                  <div class="req-field">
+                    <label class="req-field__lab" for="verb-final-rerun-reason">Reason</label>
+                    <textarea class="textarea" id="verb-final-rerun-reason" rows="2">retry migration with fixed flag</textarea>
+                  </div>
+                  <div class="verb-dlg__foot">
+                    <div class="verb-dlg__micro"><svg data-lucide="info"></svg>origin operator_rerun</div>
+                    <div class="verb-dlg__actions">
+                      <button class="btn btn--ghost" type="button" data-close-dlg data-keep>Cancel</button>
+                      <button class="btn btn--primary" type="submit" data-od-id="verb-final-rerun-go">Rerun</button>
+                    </div>
+                  </div>
+                  <span class="req-note" data-form-note hidden aria-live="polite">Submitting — waiting for the daemon ack.</span>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · AMEND DIALOG ===== -->
+    <section class="lab-sec" data-od-id="verb-amend">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Amend dialog</h2>
+        <span class="lab-sec__gist">schema editor · original beside · CAS conflict</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Editor</b>US-004: schema-validated fields from the declared output shape. Original stays read-only. Reason is provenance. Amend is the one primary.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="verb-amend-stage">
+            <div class="overlay overlay--dlg" style="position:relative;inset:auto;background:transparent;backdrop-filter:none;padding:0">
+              <div class="verb-dlg verb-dlg--split" data-od-id="verb-amend-idle">
+                <div class="verb-dlg__head">
+                  <div class="verb-well" data-tone="info"><svg data-lucide="pencil"></svg></div>
+                  <div>
+                    <div class="verb-dlg__eye">Node</div>
+                    <h3 class="verb-dlg__t">Amend output</h3>
+                    <p class="verb-dlg__d">Correct the effective output. The recorded original is never rewritten.</p>
+                  </div>
+                </div>
+                <div class="verb-dlg__body">
+                  <div class="verb-note">parked · render-notes · gen 3 · rev 2</div>
+                  <div class="verb-split">
+                    <div>
+                      <div class="verb-col__lab">Original</div>
+                      <div class="verb-ro">notes: "Release notes for us-east and eu-west. Canary stays off."<br>audience: "ops"</div>
+                    </div>
+                    <div>
+                      <div class="verb-col__lab">Amended</div>
+                      <div class="req-field">
+                        <label class="req-field__lab" for="verb-idle-notes">notes <span class="mono">string</span></label>
+                        <textarea class="textarea" id="verb-idle-notes" rows="3">Release notes for us-east and eu-west. Canary stays off.</textarea>
+                      </div>
+                      <div class="req-field" style="margin-top:8px">
+                        <label class="req-field__lab" for="verb-idle-aud">audience <span class="mono">string</span></label>
+                        <input class="input input--mono" id="verb-idle-aud" value="ops">
+                      </div>
+                    </div>
+                  </div>
+                  <div class="req-field">
+                    <label class="req-field__lab" for="verb-idle-reason">Reason</label>
+                    <textarea class="textarea" id="verb-idle-reason" rows="2" placeholder="Why this correction"></textarea>
+                  </div>
+                </div>
+                <div class="verb-dlg__foot">
+                  <div class="verb-dlg__micro"><svg data-lucide="info"></svg>output_shape · {notes, audience}</div>
+                  <div class="verb-dlg__actions">
+                    <button class="btn btn--ghost" type="button">Cancel</button>
+                    <button class="btn btn--primary" type="button" data-od-id="verb-amend-idle-go">Amend</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Validation failure</b>US-004.EC-2: field-level error. The original stands. The request stays on this node.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="verb-amend-invalid">
+            <div class="verb-dlg verb-dlg--split" data-od-id="verb-amend-fail">
+              <div class="verb-dlg__head">
+                <div class="verb-well" data-tone="info"><svg data-lucide="pencil"></svg></div>
+                <div>
+                  <div class="verb-dlg__eye">Node</div>
+                  <h3 class="verb-dlg__t">Amend output</h3>
+                  <p class="verb-dlg__d">Correct the effective output. The recorded original is never rewritten.</p>
+                </div>
+              </div>
+              <form class="verb-dlg__body" data-verb-form="validate" data-od-id="verb-amend-fail-form">
+                <div class="verb-note">parked · render-notes · gen 3 · rev 2</div>
+                <div class="verb-split">
+                  <div>
+                    <div class="verb-col__lab">Original</div>
+                    <div class="verb-ro">notes: "Release notes for us-east and eu-west. Canary stays off."<br>audience: "ops"</div>
+                  </div>
+                  <div>
+                    <div class="verb-col__lab">Amended</div>
+                    <div class="req-field" data-invalid data-od-id="verb-amend-fail-field">
+                      <label class="req-field__lab" for="verb-fail-notes">notes <span class="mono">string</span></label>
+                      <textarea class="textarea" id="verb-fail-notes" rows="3"></textarea>
+                      <span class="req-field__err">notes needs a string value</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="verb-dlg__foot">
+                  <div class="verb-dlg__micro"><svg data-lucide="info"></svg>request_validation_failed · notes</div>
+                  <div class="verb-dlg__actions">
+                    <button class="btn btn--ghost" type="button">Cancel</button>
+                    <button class="btn btn--primary" type="submit" data-od-id="verb-amend-fail-go">Amend</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Conflict</b>US-004.EC-3 — CAS lost. Copy: someone amended first. Refresh is the one action. Deterministic reason stays micro mono.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="verb-amend-cas">
+            <div class="verb-dlg verb-dlg--split" data-od-id="verb-amend-conflict">
+              <div class="verb-dlg__head">
+                <div class="verb-well" data-tone="info"><svg data-lucide="pencil"></svg></div>
+                <div>
+                  <div class="verb-dlg__eye">Node</div>
+                  <h3 class="verb-dlg__t">Amend output</h3>
+                  <p class="verb-dlg__d">Correct the effective output. The recorded original is never rewritten.</p>
+                </div>
+              </div>
+              <div class="verb-dlg__body">
+                <div class="verb-note" data-tone="warning" data-od-id="verb-cas-banner">Someone amended first. Re-read the current output, then submit again.</div>
+                <div class="verb-split">
+                  <div>
+                    <div class="verb-col__lab">Original</div>
+                    <div class="verb-ro">notes: "Release notes for us-east and eu-west. Canary stays off."<br>audience: "ops"</div>
+                  </div>
+                  <div>
+                    <div class="verb-col__lab">Your draft</div>
+                    <div class="verb-ro" style="color:var(--muted)">notes: "Release notes for us-east only."<br>audience: "ops"</div>
+                  </div>
+                </div>
+                <div class="verb-answer__m">amend_conflict · cas_lost · expected_rev 2 · actual_rev 3</div>
+              </div>
+              <div class="verb-dlg__foot">
+                <div class="verb-dlg__micro"><svg data-lucide="info"></svg>cas_lost · refresh required</div>
+                <div class="verb-dlg__actions">
+                  <button class="btn btn--ghost" type="button">Cancel</button>
+                  <button class="btn btn--primary" type="button" data-od-id="verb-cas-refresh">Refresh</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · RERUN DIALOG ===== -->
+    <section class="lab-sec" data-od-id="verb-rerun">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Rerun dialog</h2>
+        <span class="lab-sec__gist">rerun set · absent while parked or mid-generation</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Rerun set</b>US-021.AC-1: the node plus transitive dependents — <code>apply-migration → render-notes → announce</code> — with a count. Reason is provenance. Rerun is the one primary.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="verb-rerun-stage">
+            <div class="verb-dlg" data-od-id="verb-rerun-idle">
+              <div class="verb-dlg__head">
+                <div class="verb-well" data-tone="info"><svg data-lucide="rotate-ccw"></svg></div>
+                <div>
+                  <div class="verb-dlg__eye">Node</div>
+                  <h3 class="verb-dlg__t">Rerun from here</h3>
+                  <p class="verb-dlg__d">Opens a new generation. Everything else carries forward.</p>
+                </div>
+              </div>
+              <div class="verb-dlg__body">
+                <div class="verb-note">settled · apply-migration · gen 3</div>
+                <div>
+                  <div class="verb-set__n">3 nodes in the rerun set</div>
+                  <div class="verb-set">
+                    <div class="verb-set__row"><svg data-lucide="corner-down-right"></svg><span class="verb-set__id">apply-migration</span><span class="verb-set__role">start</span></div>
+                    <div class="verb-set__row"><svg data-lucide="corner-down-right"></svg><span class="verb-set__id">render-notes</span><span class="verb-set__role">dependent</span></div>
+                    <div class="verb-set__row"><svg data-lucide="corner-down-right"></svg><span class="verb-set__id">announce</span><span class="verb-set__role">dependent</span></div>
+                  </div>
+                </div>
+                <div class="req-field">
+                  <label class="req-field__lab" for="verb-rerun-reason">Reason</label>
+                  <textarea class="textarea" id="verb-rerun-reason" rows="2">retry migration with fixed flag</textarea>
+                </div>
+              </div>
+              <div class="verb-dlg__foot">
+                <div class="verb-dlg__micro"><svg data-lucide="info"></svg>origin operator_rerun</div>
+                <div class="verb-dlg__actions">
+                  <button class="btn btn--ghost" type="button">Cancel</button>
+                  <button class="btn btn--primary" type="button" data-od-id="verb-rerun-go">Rerun</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Verb absent</b>US-021.EC-1/EC-2: no rerun control while the node is parked, or while the run is mid-generation. Absent, not disabled.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" style="flex-direction:column;gap:12px;align-items:center" data-od-id="verb-rerun-absent">
+            <div class="noderows" data-od-id="verb-rerun-parked">
+              <div class="noderow" data-tone="warning">
+                <svg class="noderow__glyph" data-lucide="pause"></svg>
+                <div class="noderow__main">
+                  <div class="noderow__title">apply-migration</div>
+                  <div class="noderow__micro">parked · rerun omitted · US-021.EC-1</div>
+                </div>
+                <div class="noderow__trail">
+                  <span class="req-chip" data-tone="warning"><svg data-lucide="pause"></svg>parked</span>
+                  <button class="noderow__menu" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="noderows" data-od-id="verb-rerun-inflight">
+              <div class="noderow">
+                <svg class="noderow__glyph" data-lucide="loader"></svg>
+                <div class="noderow__main">
+                  <div class="noderow__title">apply-migration</div>
+                  <div class="noderow__micro">run mid-generation · rerun omitted · US-021.EC-2</div>
+                </div>
+                <div class="noderow__trail">
+                  <span class="req-chip" data-tone="neutral"><svg data-lucide="loader"></svg>in flight</span>
+                  <button class="noderow__menu" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · DAEMON ANSWERS ===== -->
+    <section class="lab-sec" data-od-id="verb-answers">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Deterministic answers</h2>
+        <span class="lab-sec__gist">LoopControlAnswer · accepted info · refused neutral</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Accepted</b>Existing LoopControlAnswer pattern. Info tone. The row is information, not a toast.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="verb-ans-ok">
+            <div class="verb-answer" data-tone="info" data-od-id="verb-ans-accepted">
+              <div class="verb-answer__t">Amend accepted</div>
+              <p class="verb-answer__d">render-notes now carries the corrected output. The original remains in history.</p>
+              <div class="verb-answer__m">accepted · node render-notes · rev 3 · actor pedro</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Refused</b>Neutral + the daemon reason in micro mono. Example: <code>rerun_blocked: generation in flight</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="verb-ans-no">
+            <div class="verb-answer" data-tone="neutral" data-od-id="verb-ans-refused">
+              <div class="verb-answer__t">Rerun refused</div>
+              <p class="verb-answer__d">The run is mid-generation. Rerun applies to settled generations.</p>
+              <div class="verb-answer__m">rerun_blocked: generation in flight</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · PROVENANCE ===== -->
+    <section class="lab-sec" data-od-id="verb-prov">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Provenance after amend</h2>
+        <span class="lab-sec__gist">info · original preserved · ties to S2 and S6</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Amended row</b>Info tone + <code>amended by pedro · original preserved</code>. The link is the original output, not a new request. Same fact as the S2 amended timeline row.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="verb-prov-stage">
+            <div class="noderows" data-od-id="verb-prov-row">
+              <div class="noderow" data-tone="info">
+                <svg class="noderow__glyph" data-lucide="pencil"></svg>
+                <div class="noderow__main">
+                  <div class="noderow__title">render-notes <span class="req-chip" data-tone="info"><svg data-lucide="pencil"></svg>amended</span></div>
+                  <div class="noderow__micro">amended by pedro · original preserved</div>
+                  <p class="story-sub" style="margin-top:4px"><a class="story-link" href="graph-eng-timeline-rows.html#tl-amend-row">Original output</a> · rev 3 effective · rev 2 retained</p>
+                </div>
+                <div class="noderow__trail">
+                  <span class="req-chip" data-tone="info"><svg data-lucide="pencil"></svg>amended</span>
+                  <button class="noderow__menu" type="button" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="verb-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-node-row-actions.tsx</code>, <code>loop-node-control-dialog.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  document.querySelectorAll(".lsec__head").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sec = btn.closest(".lsec");
+      const open = sec.getAttribute("data-open") !== "false";
+      sec.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+
+  document.querySelectorAll("[data-open-dlg]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dlg = document.getElementById(btn.getAttribute("data-open-dlg"));
+      if (!dlg) return;
+      dlg.hidden = false;
+      const first = dlg.querySelector("textarea, input, button.btn--primary");
+      if (first) first.focus();
+    });
+  });
+
+  document.querySelectorAll("[data-close-dlg]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const overlay = btn.closest(".overlay");
+      if (overlay) overlay.hidden = true;
+    });
+  });
+
+  document.querySelectorAll(".overlay--dlg").forEach((overlay) => {
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) overlay.hidden = true;
+    });
+  });
+
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    document.querySelectorAll(".overlay--dlg:not([hidden])").forEach((overlay) => {
+      overlay.hidden = true;
+    });
+  });
+
+  document.querySelectorAll("form[data-verb-form]").forEach((form) => {
+    form.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const kind = form.getAttribute("data-verb-form");
+      if (kind === "validate" || kind === "amend") {
+        const notes = form.querySelector("textarea[id$='notes']");
+        const field = form.querySelector(".req-field");
+        const err = form.querySelector(".req-field__err");
+        if (notes && String(notes.value || "").trim() === "") {
+          if (field) field.setAttribute("data-invalid", "");
+          if (err) err.hidden = false;
+          return;
+        }
+        if (field) field.removeAttribute("data-invalid");
+        if (err) err.hidden = true;
+      }
+      const dlg = form.closest(".verb-dlg");
+      if (dlg) dlg.setAttribute("data-busy", "");
+      const note = form.querySelector("[data-form-note]");
+      if (note) note.hidden = false;
+      form.querySelectorAll("button[type='submit']").forEach((b) => { b.disabled = true; });
+    });
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

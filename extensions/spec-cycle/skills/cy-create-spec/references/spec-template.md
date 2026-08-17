@@ -1,6 +1,6 @@
 # Spec Template
 
-Structure for `_spec.md` — the single specification consumed by LLM agents downstream (`cy-create-tasks`, `cy-execute-task`, review rounds, `cy-spec-peer-review`). Part I supplies business rules, domain behavior, and product intent; Part II supplies the implementation design. Fill each section per its rules; omit a Part II section only when it does not apply, and note the reason. Leave insufficiently-known material in Open Questions rather than guessing.
+Structure for `_spec.md` — the single specification consumed by LLM agents downstream (`cy-create-tasks`, `cy-execute-task`, review rounds). Part I supplies business rules, domain behavior, and product intent; Part II supplies the implementation design. Fill each section per its rules; omit a Part II section only when it does not apply, and note the reason. Leave insufficiently-known material in Open Questions rather than guessing.
 
 ---
 
@@ -84,7 +84,7 @@ Remaining items that need clarification — unclear requirements, edge cases req
 
 # Part II — Technical
 
-Part II designs to serve the frozen surface: every section must be consistent with `_dx.md` (and `_uiux.md` when present). Six quality markers are mandatory (`cy-spec-preflight` validates them): **MVP Boundary** · **Architectural Boundaries** · **concrete Go interface signatures** · **data-model field rationale** · **side-table-vs-JSON decisions** · **numbered safety invariants**.
+Part II designs to serve the frozen surface: every section must be consistent with `_dx.md` (and `_uiux.md` when present). Six quality markers are mandatory: **MVP Boundary** · **Architectural Boundaries** · **concrete Go interface signatures** · **data-model field rationale** · **side-table-vs-JSON decisions** · **numbered safety invariants**.
 
 ## Executive Summary
 
@@ -190,6 +190,25 @@ Risk and likelihood, mitigation approach, areas requiring further research or pr
 ## Safety Invariants
 
 For concurrency- or ownership-sensitive paths: the invariants as a numbered list, never prose. Omit only when the design has no such path, and say so.
+
+## File References
+
+The read-first index for implementing agents: every path the design depends on, each with one clause on why to read it. Use `path:line-start-line-end` when a region carries the pattern. Index an existing per-file catalog (e.g. `analysis/` reference tables) instead of inlining it, and name sources that are not navigable ("cited by concept — no path in this repo") so nobody hunts for a missing path. `cy-create-tasks` copies each task's subset from here into its `### Relevant Files` / `### Dependent Files` / `### External References`.
+
+### Repo Files
+
+- `path/to/file:120-180` — what it establishes and why the design depends on it
+
+### External References
+
+Include only when the design draws on sources vendored into the repo (reference implementations, prior art); paths stay exact, never paraphrased:
+
+- `path/to/vendored/source:100-150` — the pattern to mirror, or the mismatch to reject, and why
+
+### Design and Analysis Sources
+
+- `analysis/<NN_analysis_topic>.md` — the decision context it carries and the ADRs it feeds
+- `path/to/artboard.html` — the surface it is the visual contract for
 
 ## Assumptions and Defaults
 

@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Route + ask editor · Graph engine · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="graph-eng.css">
+<!--
+  graph-eng-editor-route-ask · S10 editor grammar + S11 definition-detail DAG.
+  Spec: .compozy/tasks/graph-eng/_uiux.md · stories US-001, US-002, US-009,
+        US-012..016 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — loop-editor.tsx 3-pane (palette · @xyflow canvas · inspector
+                 Contract|Node); loop-editor-toolbar.tsx Graph|DSL · Add-node ·
+                 zoom −/%/+/fit · auto-layout · Save layout; loop-editor-node.tsx
+                 188px card, class glyph + kind + id, one target left / one
+                 source right; loop-linter-dock.tsx Reveal; loop-editor-dsl-view.tsx
+                 read-only bijective codec; loop-body-dag.tsx horizontal spine
+    spec — palette gains ask + route; inspector: route list + required default
+           (US-009.AC-3, declaration order = tiebreak US-009.EC-1); ask
+           prompt/context/expect/responders/expires; fan-out strategy +
+           bind_as/index_as; action review block; on_eval_error on
+           condition-bearing nodes; dock codes route_default_missing ·
+           route_target_invalid · strategy_coverage_undeclared ·
+           strategy_threshold_invalid · iteration_name_conflict ·
+           unknown_parameter
+    authorized delta — route/review cards expose per-row source handles so
+                       each named edge departs from its row (S10 gist);
+                       editor window is full-bleed in the lab stage
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ed-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Graph engine</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Route + ask editor</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="graph-eng-node-verbs.html">← Node verbs</a>
+      <a class="btn btn--sm" href="graph-eng-editor-chrome.html">Chrome →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="ed-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Editor — release-train with route + ask</h2>
+        <span class="lab-sec__gist">routes are rows · edges depart from their row</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>S10 grammar</b>Loop <code>release-train</code> v3. <code>triage</code> is a route node: each ordered route is a row with its own right-edge source handle. Edges wear the condition pill — <code>severity == "p0"</code> → <code>hotfix</code>, <code>severity == "p1"</code> → <code>standard</code>, muted <code>default</code> → <code>backlog</code>. Inspector is open on <code>triage</code>. <code>Publish</code> is the one primary. <span class="mono">US-009</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--ed" data-od-id="ed-final-stage">
+            <section class="win is-focused win--ed" data-od-id="ed-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="workflow"></svg></span>
+                  <span class="w2-title">release-train</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-status" data-od-id="ed-final-status">v3 · draft</span>
+                  <!-- gating: definition.source editable · publish compiles resolved form -->
+                  <div class="w2-actions">
+                    <button class="btn btn--sm" type="button" data-od-id="ed-final-validate">Validate</button>
+                    <button class="btn btn--sm btn--primary" type="button" data-od-id="ed-final-publish">Publish</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="ed" data-view="graph" data-od-id="ed-final-ed">
+                  <div class="ed-bar" data-od-id="ed-final-bar">
+                    <div class="ed-bar__tools">
+                      <button class="btn btn--sm" type="button" data-od-id="ed-final-add"><svg data-lucide="plus"></svg>Add node</button>
+                      <div class="pill-group pill-group--sm" role="group" aria-label="Editor view">
+                        <button class="pill-group__item is-on" type="button" aria-pressed="true" data-ed-view="graph"><svg data-lucide="share-2"></svg>Graph</button>
+                        <button class="pill-group__item" type="button" aria-pressed="false" data-ed-view="dsl"><svg data-lucide="code-2"></svg>DSL</button>
+                      </div>
+                    </div>
+                    <div class="ed-bar__tools">
+                      <div class="ed-zoom">
+                        <button class="ed-icon" type="button" aria-label="Auto layout"><svg data-lucide="layout-grid"></svg></button>
+                        <button class="ed-icon" type="button" aria-label="Zoom out"><svg data-lucide="zoom-out"></svg></button>
+                        <span class="ed-zoom__pct">100%</span>
+                        <button class="ed-icon" type="button" aria-label="Zoom in"><svg data-lucide="zoom-in"></svg></button>
+                        <button class="ed-icon" type="button" aria-label="Fit view"><svg data-lucide="maximize"></svg></button>
+                      </div>
+                      <button class="btn btn--sm btn--ghost" type="button" data-od-id="ed-final-save"><svg data-lucide="save"></svg>Save layout</button>
+                    </div>
+                  </div>
+                  <div class="ed-body">
+                    <aside class="ed-pal" data-od-id="ed-final-pal">
+                      <span class="eyebrow">Add node</span>
+                      <div class="ed-pal__g">
+                        <div class="ed-pal__lab">Control</div>
+                        <button class="ed-pal__item" type="button" data-od-id="ed-pal-route"><span class="ed-pal__glyph"><svg data-lucide="signpost"></svg></span><span class="ed-pal__name">Route</span></button>
+                        <button class="ed-pal__item" type="button" data-od-id="ed-pal-ask"><span class="ed-pal__glyph"><svg data-lucide="message-circle-question"></svg></span><span class="ed-pal__name">Ask</span></button>
+                        <button class="ed-pal__item" type="button" data-od-id="ed-pal-fan"><span class="ed-pal__glyph"><svg data-lucide="split"></svg></span><span class="ed-pal__name">Fan-out</span></button>
+                        <button class="ed-pal__item" type="button"><span class="ed-pal__glyph"><svg data-lucide="git-merge"></svg></span><span class="ed-pal__name">Collect</span></button>
+                      </div>
+                      <div class="ed-pal__g">
+                        <div class="ed-pal__lab">Action</div>
+                        <button class="ed-pal__item" type="button"><span class="ed-pal__glyph"><svg data-lucide="bot"></svg></span><span class="ed-pal__name">Run agent</span></button>
+                        <button class="ed-pal__item" type="button"><span class="ed-pal__glyph"><svg data-lucide="parentheses"></svg></span><span class="ed-pal__name">Transform</span></button>
+                      </div>
+                      <div class="ed-pal__g">
+                        <div class="ed-pal__lab">Source</div>
+                        <button class="ed-pal__item" type="button"><span class="ed-pal__glyph"><svg data-lucide="log-in"></svg></span><span class="ed-pal__name">Input</span></button>
+                      </div>
+                    </aside>
+                    <section class="ed-main">
+                      <div class="ed-canvas" data-od-id="ed-final-canvas">
+                        <div class="ed-board" style="min-width:1480px">
+                          <svg class="ed-wires" viewBox="0 0 1480 520" preserveAspectRatio="none" aria-hidden="true">
+                            <path d="M220 120 C234 120, 234 96, 240 96"/>
+                            <path d="M444 139 C470 139, 490 44, 512 44"/>
+                            <path d="M444 165 C468 165, 490 192, 512 192"/>
+                            <path d="M444 191 C468 240, 490 372, 512 372"/>
+                            <path d="M716 192 C734 192, 742 192, 752 192"/>
+                            <path d="M956 192 C974 192, 982 192, 992 192"/>
+                            <path d="M1196 192 C1214 192, 1222 164, 1232 164"/>
+                            <path d="M1436 164 C1448 300, 40 400, 16 424"/>
+                            <path d="M220 424 C234 424, 234 424, 240 424"/>
+                            <path d="M444 424 C468 424, 490 424, 512 424"/>
+                            <path d="M716 424 C734 424, 742 424, 752 424"/>
+                            <path data-kind="reject" d="M1436 220 C1300 280, 700 360, 716 372"/>
+                          </svg>
+                          <span class="ed-elab" style="left:458px;top:84px">severity == "p0"</span>
+                          <span class="ed-elab" style="left:458px;top:148px">severity == "p1"</span>
+                          <span class="ed-elab" data-kind="default" style="left:458px;top:248px">default</span>
+                          <span class="ed-elab" data-kind="reject" style="left:1100px;top:300px">on_reject</span>
+
+                          <article class="ed-node" style="left:24px;top:96px" data-od-id="ed-n-input">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="log-in"></svg></span>
+                              <span class="ed-node__id">input</span>
+                              <span class="ed-node__kind">source</span>
+                            </div>
+                          </article>
+
+                          <article class="ed-node ed-node--route is-sel" style="left:248px;top:72px" data-od-id="ed-n-triage">
+                            <span class="ed-h ed-h--in"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="signpost"></svg></span>
+                              <span class="ed-node__id">triage</span>
+                              <span class="ed-node__kind">control · route</span>
+                            </div>
+                            <div class="ed-node__body">
+                              <div class="ed-route" data-od-id="ed-n-triage-p0">severity == "p0"<span class="ed-route__to">hotfix</span><span class="ed-h ed-h--out"></span></div>
+                              <div class="ed-route" data-od-id="ed-n-triage-p1">severity == "p1"<span class="ed-route__to">standard</span><span class="ed-h ed-h--out"></span></div>
+                              <div class="ed-route" data-default data-od-id="ed-n-triage-def"><span class="pill">default</span><span class="ed-route__to">backlog</span><span class="ed-h ed-h--out"></span></div>
+                            </div>
+                          </article>
+
+                          <article class="ed-node" style="left:520px;top:16px" data-od-id="ed-n-hotfix">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="wrench"></svg></span>
+                              <span class="ed-node__id">hotfix</span>
+                              <span class="ed-node__kind">action</span>
+                            </div>
+                          </article>
+
+                          <article class="ed-node" style="left:520px;top:168px" data-od-id="ed-n-standard">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="circle-dot"></svg></span>
+                              <span class="ed-node__id">standard</span>
+                              <span class="ed-node__kind">action</span>
+                            </div>
+                          </article>
+
+                          <article class="ed-node" style="left:760px;top:168px" data-od-id="ed-n-ask">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="message-circle-question"></svg></span>
+                              <span class="ed-node__id">confirm-rollout</span>
+                              <span class="ed-node__kind">control · ask</span>
+                            </div>
+                          </article>
+
+                          <article class="ed-node" style="left:520px;top:348px" data-od-id="ed-n-backlog">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="archive"></svg></span>
+                              <span class="ed-node__id">backlog</span>
+                              <span class="ed-node__kind">action</span>
+                            </div>
+                          </article>
+
+                          <article class="ed-node" style="left:1000px;top:168px" data-od-id="ed-n-fan">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="split"></svg></span>
+                              <span class="ed-node__id">fan-services</span>
+                              <span class="ed-node__kind">control · fan-out</span>
+                            </div>
+                            <div class="ed-node__body">
+                              <div class="ed-node__row"><b>over</b>services[]</div>
+                              <div class="ed-node__chips">
+                                <span class="ed-node__chip">best_effort 66%</span>
+                                <span class="ed-node__chip">bind service</span>
+                                <span class="ed-node__chip">i</span>
+                              </div>
+                            </div>
+                          </article>
+
+                          <article class="ed-node" style="left:1240px;top:140px" data-od-id="ed-n-apply">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="bot"></svg></span>
+                              <span class="ed-node__id">apply-migration</span>
+                              <span class="ed-node__kind">action</span>
+                            </div>
+                            <div class="ed-node__body" style="padding:0">
+                              <div class="ed-route" data-od-id="ed-n-apply-rej">on_reject<span class="ed-route__to">backlog</span><span class="ed-h ed-h--out"></span></div>
+                            </div>
+                          </article>
+
+                          <article class="ed-node" style="left:24px;top:400px" data-od-id="ed-n-notes">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="pencil"></svg></span>
+                              <span class="ed-node__id">render-notes</span>
+                              <span class="ed-node__kind">action</span>
+                            </div>
+                          </article>
+                          <article class="ed-node" style="left:248px;top:400px" data-od-id="ed-n-collect">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="git-merge"></svg></span>
+                              <span class="ed-node__id">collect</span>
+                              <span class="ed-node__kind">control</span>
+                            </div>
+                          </article>
+                          <article class="ed-node" style="left:520px;top:400px" data-od-id="ed-n-announce">
+                            <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+                            <div class="ed-node__head">
+                              <span class="ed-node__glyph"><svg data-lucide="megaphone"></svg></span>
+                              <span class="ed-node__id">announce</span>
+                              <span class="ed-node__kind">action</span>
+                            </div>
+                          </article>
+                        </div>
+                      </div>
+                      <div class="ed-dsl" hidden data-od-id="ed-final-dsl">
+                        <p class="ed-dsl__note">Read-only <code class="mono">compozy.loop/v1</code> of the same definition. The Graph|DSL toggle is lossless — the codec is bijective.</p>
+                        <pre class="ed-dsl__pre">name: release-train
+graph:
+  nodes:
+    - { id: input, class: source, kind: input, input_ref: severity }
+    - id: triage
+      class: control
+      kind: route
+      routes:
+        - { when: 'severity == "p0"', to: hotfix }
+        - { when: 'severity == "p1"', to: standard }
+      default: backlog
+      on_eval_error: fail
+    - id: standard
+      class: action
+      kind: run-agent
+    - id: confirm-rollout
+      class: control
+      kind: ask
+      params:
+        prompt: "Which regions ship first?"
+        expect: { type: object, required: [regions, canary] }
+        responders: { agents: allow }
+        expires: { after: 24h, route: backlog }
+    - id: fan-services
+      class: control
+      kind: fan-out
+      collection: "{{ .inputs.services }}"
+      bind_as: service
+      index_as: i
+      strategy: { kind: best_effort, threshold: 66%, missing: acceptable }
+    - id: apply-migration
+      class: action
+      kind: run-agent
+      review:
+        decisions: [approve, edit, reject, respond]
+        on_reject: { route: backlog }</pre>
+                      </div>
+                      <div class="ed-lint" data-fold data-od-id="ed-final-lint">
+                        <button class="ed-lint__h" type="button" aria-expanded="false" data-lint-toggle>
+                          <span class="eyebrow">Validation</span>
+                          <span class="req-chip" data-tone="neutral"><svg data-lucide="check"></svg>clean</span>
+                          <svg class="ed-lint__chev" data-lucide="chevron-down"></svg>
+                        </button>
+                      </div>
+                    </section>
+                    <aside class="ed-insp" data-od-id="ed-final-insp">
+                      <div class="lane-tabs ed-insp__tabs" role="tablist" aria-label="Loop editor inspector">
+                        <button class="lane-tab" type="button" role="tab" aria-selected="false">Contract</button>
+                        <button class="lane-tab is-on" type="button" role="tab" aria-selected="true">Node</button>
+                      </div>
+                      <div class="ed-insp__head">
+                        <div class="ed-insp__name"><b>triage</b><span class="pill">control</span></div>
+                        <p class="ed-insp__micro">route · id: triage</p>
+                      </div>
+                      <div class="ed-insp__body">
+                        <div class="ed-fld">
+                          <label class="ed-fld__lab" for="ed-final-id">id</label>
+                          <input class="input input--mono" id="ed-final-id" value="triage">
+                        </div>
+                        <div class="ed-fld">
+                          <div class="ed-fld__lab">routes <span class="ed-fld__req">*</span></div>
+                          <p class="ed-fld__hint">Declaration order is the tiebreak when two conditions are true. <code class="mono">US-009.EC-1</code></p>
+                          <div class="ed-list" data-od-id="ed-final-routes">
+                            <div class="ed-rrow">
+                              <span class="ed-rrow__grip" aria-hidden="true"><svg data-lucide="grip-vertical"></svg></span>
+                              <input class="input input--mono" value='severity == "p0"' aria-label="Route 1 condition">
+                              <select class="input input--mono" aria-label="Route 1 target"><option>hotfix</option><option>standard</option><option>confirm-rollout</option><option>backlog</option><option>fan-services</option></select>
+                              <button class="ed-icon" type="button" aria-label="Remove route"><svg data-lucide="x"></svg></button>
+                            </div>
+                            <div class="ed-rrow">
+                              <span class="ed-rrow__grip" aria-hidden="true"><svg data-lucide="grip-vertical"></svg></span>
+                              <input class="input input--mono" value='severity == "p1"' aria-label="Route 2 condition">
+                              <select class="input input--mono" aria-label="Route 2 target"><option>hotfix</option><option selected>standard</option><option>confirm-rollout</option><option>backlog</option><option>fan-services</option></select>
+                              <button class="ed-icon" type="button" aria-label="Remove route"><svg data-lucide="x"></svg></button>
+                            </div>
+                          </div>
+                          <button class="btn btn--sm" type="button">Add route</button>
+                        </div>
+                        <div class="ed-fld">
+                          <label class="ed-fld__lab" for="ed-final-def">default <span class="ed-fld__req">*</span></label>
+                          <!-- gating: RouteSpec.Default required · route_default_missing -->
+                          <select class="input input--mono" id="ed-final-def">
+                            <option>hotfix</option>
+                            <option>standard</option>
+                            <option>confirm-rollout</option>
+                            <option selected>backlog</option>
+                          </select>
+                          <p class="ed-fld__hint">Forward nodes only. A router without a default does not compile. <code class="mono">US-009.AC-3</code></p>
+                        </div>
+                        <div class="ed-fld">
+                          <label class="ed-fld__lab" for="ed-final-eval">on_eval_error</label>
+                          <select class="input input--mono" id="ed-final-eval">
+                            <option selected>fail</option>
+                            <option>exit</option>
+                          </select>
+                        </div>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · ROUTE INSPECTOR ===== -->
+    <section class="lab-sec" data-od-id="ed-route">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Route inspector</h2>
+        <span class="lab-sec__gist">ordered routes + required default</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Valid</b>Two conditions, targets constrained to forward nodes, default <code>backlog</code> set. Grip reorders the list — first declared match wins. <code class="mono">US-009.EC-1</code></div>
+        <div class="spec__demo">
+          <aside class="ed-insp ed-insp--solo" data-od-id="ed-route-ok">
+            <div class="ed-insp__head">
+              <div class="ed-insp__name"><b>triage</b><span class="pill">control</span></div>
+              <p class="ed-insp__micro">route · id: triage</p>
+            </div>
+            <div class="ed-insp__body">
+              <div class="ed-fld">
+                <div class="ed-fld__lab">routes <span class="ed-fld__req">*</span></div>
+                <div class="ed-list">
+                  <div class="ed-rrow">
+                    <span class="ed-rrow__grip"><svg data-lucide="grip-vertical"></svg></span>
+                    <input class="input input--mono" value='severity == "p0"' aria-label="Condition">
+                    <select class="input input--mono" aria-label="Target"><option>hotfix</option><option>standard</option><option>confirm-rollout</option><option>backlog</option></select>
+                    <button class="ed-icon" type="button" aria-label="Remove route"><svg data-lucide="x"></svg></button>
+                  </div>
+                  <div class="ed-rrow">
+                    <span class="ed-rrow__grip"><svg data-lucide="grip-vertical"></svg></span>
+                    <input class="input input--mono" value='severity == "p1"' aria-label="Condition">
+                    <select class="input input--mono" aria-label="Target"><option>hotfix</option><option selected>standard</option><option>confirm-rollout</option><option>backlog</option></select>
+                    <button class="ed-icon" type="button" aria-label="Remove route"><svg data-lucide="x"></svg></button>
+                  </div>
+                </div>
+              </div>
+              <div class="ed-fld">
+                <label class="ed-fld__lab" for="ed-route-def">default <span class="ed-fld__req">*</span></label>
+                <select class="input input--mono" id="ed-route-def"><option selected>backlog</option><option>hotfix</option></select>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Lint · <code>route_default_missing</code></b>Default cleared. The field is invalid and the dock row names the router. Publish returns 422 until a forward default is set. <code class="mono">US-009.AC-3</code></div>
+        <div class="spec__demo">
+          <div class="ed-pair" style="flex-direction:column">
+            <aside class="ed-insp ed-insp--solo" data-od-id="ed-route-err">
+              <div class="ed-insp__head">
+                <div class="ed-insp__name"><b>triage</b><span class="pill">control</span><span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>error</span></div>
+                <p class="ed-insp__micro">route · id: triage</p>
+              </div>
+              <div class="ed-insp__body">
+                <div class="ed-fld" data-invalid>
+                  <label class="ed-fld__lab" for="ed-route-def-err">default <span class="ed-fld__req">*</span></label>
+                  <select class="input input--mono" id="ed-route-def-err"><option selected value="">—</option><option>backlog</option><option>hotfix</option></select>
+                  <p class="ed-fld__err"><svg data-lucide="circle-alert"></svg>route_default_missing · a router without a default does not compile</p>
+                </div>
+              </div>
+            </aside>
+            <div class="ed-lint" data-od-id="ed-route-dock">
+              <button class="ed-lint__h" type="button" aria-expanded="true">
+                <span class="eyebrow">Validation</span>
+                <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>1 error</span>
+                <svg class="ed-lint__chev" data-lucide="chevron-down"></svg>
+              </button>
+              <div class="ed-lint__body">
+                <div class="ed-lint__row" data-sev="error">
+                  <svg data-lucide="circle-alert"></svg>
+                  <div>
+                    <p class="ed-lint__msg"><b>triage</b> · default route is required</p>
+                    <p class="ed-lint__code">code: route_default_missing · publish returns 422 until resolved</p>
+                  </div>
+                  <button class="btn btn--sm" type="button"><svg data-lucide="search"></svg>Reveal</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · ASK INSPECTOR ===== -->
+    <section class="lab-sec" data-od-id="ed-ask">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Ask inspector</h2>
+        <span class="lab-sec__gist">prompt · context · expect · responders · expires</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Valid</b><code>confirm-rollout</code> asks “Which regions ship first?”. Expect is the locked shape <code>{regions: string[], canary: boolean}</code>. Responders: operator <code>pedro</code> + agent <code>release-bot</code> (<code>ResponderPolicy</code> agents allow). Expires 24h → <code>backlog</code>. <code class="mono">US-001 · US-005</code></div>
+        <div class="spec__demo">
+          <aside class="ed-insp ed-insp--solo" data-od-id="ed-ask-ok">
+            <div class="ed-insp__head">
+              <div class="ed-insp__name"><b>confirm-rollout</b><span class="pill">control</span></div>
+              <p class="ed-insp__micro">ask · id: confirm-rollout</p>
+            </div>
+            <div class="ed-insp__body">
+              <div class="ed-fld">
+                <label class="ed-fld__lab" for="ed-ask-prompt">prompt <span class="ed-fld__req">*</span></label>
+                <textarea class="textarea" id="ed-ask-prompt">Which regions ship first?</textarea>
+              </div>
+              <div class="ed-fld">
+                <div class="ed-fld__lab">context <span class="ed-fld__opt">reference picker</span></div>
+                <div class="ed-list">
+                  <div class="ed-ref"><span class="ed-ref__k">train</span><input class="input input--mono" value="{{ .inputs }}" aria-label="Context train"></div>
+                  <div class="ed-ref"><span class="ed-ref__k">services</span><input class="input input--mono" value="{{ .inputs.services }}" aria-label="Context services"></div>
+                </div>
+                <button class="btn btn--sm" type="button">Add context</button>
+              </div>
+              <div class="ed-fld">
+                <div class="ed-fld__lab">expect <span class="ed-fld__req">*</span></div>
+                <div class="ed-schema" data-od-id="ed-ask-expect">
+                  <div class="ed-schema__row"><span class="ed-schema__k">regions</span><span class="ed-schema__t">string[]</span></div>
+                  <div class="ed-schema__row"><span class="ed-schema__k">canary</span><span class="ed-schema__t">boolean</span></div>
+                </div>
+                <button class="btn btn--sm" type="button">Add field</button>
+              </div>
+              <div class="ed-fld">
+                <div class="ed-fld__lab">responders</div>
+                <div class="ed-who">
+                  <span class="agent-chip">PN</span><span class="req-who__name">pedro</span><span class="ed-who__role">operator</span>
+                  <span class="agent-chip">RB</span><span class="req-who__name">release-bot</span><span class="ed-who__role">agent · allow</span>
+                </div>
+                <p class="ed-fld__hint">ResponderPolicy · agents: allow on this node.</p>
+              </div>
+              <div class="ed-fld">
+                <label class="ed-fld__lab" for="ed-ask-exp">expires</label>
+                <div class="ed-ref"><span class="ed-ref__k">after</span><input class="input input--mono" id="ed-ask-exp" value="24h"></div>
+                <div class="ed-ref"><span class="ed-ref__k">route</span>
+                  <select class="input input--mono" aria-label="Expiry route"><option selected>backlog</option><option>announce</option></select>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Lint · ask without expect</b>Expect removed. An ask without a schema cannot open a request. The dock names the node; Publish is blocked.</div>
+        <div class="spec__demo">
+          <aside class="ed-insp ed-insp--solo" data-od-id="ed-ask-err">
+            <div class="ed-insp__head">
+              <div class="ed-insp__name"><b>confirm-rollout</b><span class="pill">control</span><span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>error</span></div>
+              <p class="ed-insp__micro">ask · id: confirm-rollout</p>
+            </div>
+            <div class="ed-insp__body">
+              <div class="ed-fld" data-invalid>
+                <div class="ed-fld__lab">expect <span class="ed-fld__req">*</span></div>
+                <div class="ed-schema"><span class="ed-fld__hint">No fields declared.</span></div>
+                <p class="ed-fld__err"><svg data-lucide="circle-alert"></svg>ask requires expect — a request cannot open without a shape</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · FAN-OUT INSPECTOR ===== -->
+    <section class="lab-sec" data-od-id="ed-fan">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Fan-out inspector</h2>
+        <span class="lab-sec__gist">strategy · threshold · bind_as / index_as</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Valid</b><code>best_effort</code> at 66% with <code>missing: acceptable</code> checked. Iteration names <code>service</code> / <code>i</code> are unique in the nesting chain. <code class="mono">US-013 · US-016</code></div>
+        <div class="spec__demo">
+          <aside class="ed-insp ed-insp--solo" data-od-id="ed-fan-ok">
+            <div class="ed-insp__head">
+              <div class="ed-insp__name"><b>fan-services</b><span class="pill">control</span></div>
+              <p class="ed-insp__micro">fan-out · id: fan-services</p>
+            </div>
+            <div class="ed-insp__body">
+              <div class="ed-fld">
+                <label class="ed-fld__lab" for="ed-fan-kind">strategy.kind</label>
+                <select class="input input--mono" id="ed-fan-kind">
+                  <option>wait_all</option>
+                  <option>fail_fast</option>
+                  <option selected>best_effort</option>
+                  <option>race</option>
+                </select>
+              </div>
+              <div class="ed-fld">
+                <label class="ed-fld__lab" for="ed-fan-th">threshold</label>
+                <input class="input input--mono" id="ed-fan-th" value="66%">
+              </div>
+              <div class="ed-check">
+                <button class="switch is-on" type="button" role="switch" aria-checked="true" aria-labelledby="ed-fan-miss-lab"><span class="knob"></span></button>
+                <div>
+                  <div class="ed-check__lab" id="ed-fan-miss-lab">missing: acceptable</div>
+                  <div class="ed-check__hint">Required for best_effort — missing branches are not mandatory coverage. <code class="mono">US-013.AC-2</code></div>
+                </div>
+              </div>
+              <div class="ed-fld">
+                <label class="ed-fld__lab" for="ed-fan-bind">bind_as</label>
+                <input class="input input--mono" id="ed-fan-bind" value="service">
+              </div>
+              <div class="ed-fld">
+                <label class="ed-fld__lab" for="ed-fan-idx">index_as</label>
+                <input class="input input--mono" id="ed-fan-idx" value="i">
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Lint trio</b><code>strategy_threshold_invalid</code> (0%), <code>strategy_coverage_undeclared</code> (checkbox off), <code>iteration_name_conflict</code> (<code>item</code> reserved / collision). Each code is a dock row, not a toast.</div>
+        <div class="spec__demo">
+          <aside class="ed-insp ed-insp--solo" data-od-id="ed-fan-err">
+            <div class="ed-insp__head">
+              <div class="ed-insp__name"><b>fan-services</b><span class="pill">control</span><span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>3 errors</span></div>
+              <p class="ed-insp__micro">fan-out · id: fan-services</p>
+            </div>
+            <div class="ed-insp__body">
+              <div class="ed-fld" data-invalid>
+                <label class="ed-fld__lab" for="ed-fan-th-err">threshold</label>
+                <input class="input input--mono" id="ed-fan-th-err" value="0%">
+                <p class="ed-fld__err"><svg data-lucide="circle-alert"></svg>strategy_threshold_invalid · 0%, negative, or &gt;100%</p>
+              </div>
+              <div class="ed-check">
+                <button class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="ed-fan-miss-err"><span class="knob"></span></button>
+                <div>
+                  <div class="ed-check__lab" id="ed-fan-miss-err">missing: acceptable</div>
+                  <p class="ed-fld__err"><svg data-lucide="circle-alert"></svg>strategy_coverage_undeclared</p>
+                </div>
+              </div>
+              <div class="ed-fld" data-invalid>
+                <label class="ed-fld__lab" for="ed-fan-bind-err">bind_as</label>
+                <input class="input input--mono" id="ed-fan-bind-err" value="item">
+                <p class="ed-fld__err"><svg data-lucide="circle-alert"></svg>iteration_name_conflict · reserved root</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · REVIEW BLOCK ===== -->
+    <section class="lab-sec" data-od-id="ed-rev">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Review block on apply-migration</h2>
+        <span class="lab-sec__gist">on_reject is a labeled row handle</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Review</b>Decisions are the persisted set <code>approve / edit / reject / respond</code> — an absent decision is absent. <code>when</code> is CEL. Responders operator-only. <code>on_reject</code> routes to <code>backlog</code> and leaves the card from its own row handle, same pattern as route rows. Condition-bearing nodes also get <code>on_eval_error</code>. <code class="mono">US-002</code></div>
+        <div class="spec__demo">
+          <div class="ed-pair">
+            <article class="ed-node ed-node--static" data-od-id="ed-rev-card">
+              <span class="ed-h ed-h--in"></span><span class="ed-h ed-h--out"></span>
+              <div class="ed-node__head">
+                <span class="ed-node__glyph"><svg data-lucide="bot"></svg></span>
+                <span class="ed-node__id">apply-migration</span>
+                <span class="ed-node__kind">action</span>
+              </div>
+              <div class="ed-node__body" style="padding:0">
+                <div class="ed-route">on_reject<span class="ed-route__to">backlog</span><span class="ed-h ed-h--out"></span></div>
+              </div>
+            </article>
+            <aside class="ed-insp ed-insp--solo" data-od-id="ed-rev-insp">
+              <div class="ed-insp__head">
+                <div class="ed-insp__name"><b>apply-migration</b><span class="pill">action</span></div>
+                <p class="ed-insp__micro">run-agent · review block</p>
+              </div>
+              <div class="ed-insp__body">
+                <div class="ed-fld">
+                  <div class="ed-fld__lab">decisions</div>
+                  <div class="ed-dec" data-od-id="ed-rev-dec">
+                    <button class="ed-dec__item" type="button" aria-pressed="true">approve</button>
+                    <button class="ed-dec__item" type="button" aria-pressed="true">edit</button>
+                    <button class="ed-dec__item" type="button" aria-pressed="true">reject</button>
+                    <button class="ed-dec__item" type="button" aria-pressed="true">respond</button>
+                  </div>
+                </div>
+                <div class="ed-fld">
+                  <label class="ed-fld__lab" for="ed-rev-when">when</label>
+                  <input class="input input--mono" id="ed-rev-when" value="true">
+                </div>
+                <div class="ed-fld">
+                  <label class="ed-fld__lab" for="ed-rev-prompt">prompt</label>
+                  <textarea class="textarea" id="ed-rev-prompt">Apply the migration as proposed?</textarea>
+                </div>
+                <div class="ed-fld">
+                  <div class="ed-fld__lab">responders</div>
+                  <div class="ed-who"><span class="agent-chip">PN</span><span class="req-who__name">pedro</span><span class="ed-who__role">operator</span></div>
+                  <p class="ed-fld__hint">ResponderPolicy · agents: deny. release-bot cannot self-respond.</p>
+                </div>
+                <div class="ed-fld">
+                  <label class="ed-fld__lab" for="ed-rev-rej">on_reject.route</label>
+                  <select class="input input--mono" id="ed-rev-rej"><option selected>backlog</option><option>announce</option></select>
+                </div>
+                <div class="ed-fld">
+                  <label class="ed-fld__lab" for="ed-rev-exp">expires.after</label>
+                  <input class="input input--mono" id="ed-rev-exp" value="24h">
+                </div>
+                <div class="ed-fld">
+                  <label class="ed-fld__lab" for="ed-rev-eval">on_eval_error</label>
+                  <select class="input input--mono" id="ed-rev-eval"><option selected>fail</option><option>exit</option></select>
+                  <p class="ed-fld__hint">Override on condition-bearing nodes. Default fail.</p>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · LINTER DOCK ===== -->
+    <section class="lab-sec" data-od-id="ed-dock">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Linter dock — six new codes</h2>
+        <span class="lab-sec__gist">Reveal jumps · severity chips</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Dock reports</b>The dock never computes. Each new code is a row with a Reveal affordance. Errors block Publish (422). <code>unknown_parameter</code> flags a removed field. Zero counts omit the chip.</div>
+        <div class="spec__demo">
+          <div class="ed-lint" data-od-id="ed-dock-open">
+            <button class="ed-lint__h" type="button" aria-expanded="true">
+              <span class="eyebrow">Validation</span>
+              <span class="req-chip" data-tone="danger"><svg data-lucide="circle-alert"></svg>5 errors</span>
+              <span class="req-chip" data-tone="warning"><svg data-lucide="triangle-alert"></svg>1 warning</span>
+              <svg class="ed-lint__chev" data-lucide="chevron-down"></svg>
+            </button>
+            <div class="ed-lint__body">
+              <div class="ed-lint__row" data-sev="error" data-od-id="ed-lint-default">
+                <svg data-lucide="circle-alert"></svg>
+                <div><p class="ed-lint__msg"><b>triage</b> · default route is required</p><p class="ed-lint__code">code: route_default_missing · publish returns 422 until resolved</p></div>
+                <button class="btn btn--sm" type="button"><svg data-lucide="search"></svg>Reveal</button>
+              </div>
+              <div class="ed-lint__row" data-sev="error" data-od-id="ed-lint-target">
+                <svg data-lucide="circle-alert"></svg>
+                <div><p class="ed-lint__msg"><b>triage</b> · route target <code class="mono">announce</code> is not a forward node</p><p class="ed-lint__code">code: route_target_invalid · publish returns 422 until resolved</p></div>
+                <button class="btn btn--sm" type="button"><svg data-lucide="search"></svg>Reveal</button>
+              </div>
+              <div class="ed-lint__row" data-sev="error" data-od-id="ed-lint-cov">
+                <svg data-lucide="circle-alert"></svg>
+                <div><p class="ed-lint__msg"><b>fan-services</b> · best_effort requires missing: acceptable</p><p class="ed-lint__code">code: strategy_coverage_undeclared · publish returns 422 until resolved</p></div>
+                <button class="btn btn--sm" type="button"><svg data-lucide="search"></svg>Reveal</button>
+              </div>
+              <div class="ed-lint__row" data-sev="error" data-od-id="ed-lint-th">
+                <svg data-lucide="circle-alert"></svg>
+                <div><p class="ed-lint__msg"><b>fan-services</b> · threshold 0% is not expressible</p><p class="ed-lint__code">code: strategy_threshold_invalid · publish returns 422 until resolved</p></div>
+                <button class="btn btn--sm" type="button"><svg data-lucide="search"></svg>Reveal</button>
+              </div>
+              <div class="ed-lint__row" data-sev="error" data-od-id="ed-lint-name">
+                <svg data-lucide="circle-alert"></svg>
+                <div><p class="ed-lint__msg"><b>fan-services</b> · bind_as <code class="mono">item</code> collides with a reserved root</p><p class="ed-lint__code">code: iteration_name_conflict · publish returns 422 until resolved</p></div>
+                <button class="btn btn--sm" type="button"><svg data-lucide="search"></svg>Reveal</button>
+              </div>
+              <div class="ed-lint__row" data-sev="warning" data-od-id="ed-lint-unk">
+                <svg data-lucide="triangle-alert"></svg>
+                <div><p class="ed-lint__msg"><b>apply-migration</b> · field <code class="mono">retry.max</code> was removed</p><p class="ed-lint__code">code: unknown_parameter · warning · does not block Publish</p></div>
+                <button class="btn btn--sm" type="button"><svg data-lucide="search"></svg>Reveal</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · DSL ROUND-TRIP ===== -->
+    <section class="lab-sec" data-od-id="ed-dsl">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">DSL round-trip</h2>
+        <span class="lab-sec__gist">Graph|DSL toggle is lossless</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Bijective codec</b>The same definition serialized: <code>route</code> / <code>ask</code> / <code>strategy</code> / <code>review</code> / <code>bind_as</code>. Toggling Graph ↔ DSL does not rewrite fields. The DSL surface is read-only in v1 — structural edits stay on the graph. ADR-015.</div>
+        <div class="spec__demo">
+          <div class="ed-dsl" data-od-id="ed-dsl-view" style="position:relative;min-height:0">
+            <div class="pill-group pill-group--sm" role="group" aria-label="Editor view" style="margin-bottom:10px">
+              <button class="pill-group__item" type="button" aria-pressed="false"><svg data-lucide="share-2"></svg>Graph</button>
+              <button class="pill-group__item is-on" type="button" aria-pressed="true"><svg data-lucide="code-2"></svg>DSL</button>
+            </div>
+            <p class="ed-dsl__note">Read-only view of the <span class="mono">compozy.loop/v1</span> document. String values interpolate with Go templates; conditions are CEL; node ids are snake_or_kebab.</p>
+            <pre class="ed-dsl__pre">apiVersion: compozy.loop/v1
+name: release-train
+graph:
+  nodes:
+    - id: triage
+      class: control
+      kind: route
+      routes:
+        - { when: 'severity == "p0"', to: hotfix }
+        - { when: 'severity == "p1"', to: standard }
+      default: backlog
+    - id: standard
+      class: action
+      kind: run-agent
+    - id: confirm-rollout
+      class: control
+      kind: ask
+      params:
+        prompt: "Which regions ship first?"
+        expect:
+          type: object
+          required: [regions, canary]
+        responders: { agents: allow }
+        expires: { after: 24h, route: backlog }
+    - id: fan-services
+      kind: fan-out
+      bind_as: service
+      index_as: i
+      strategy: { kind: best_effort, threshold: 66%, missing: acceptable }
+    - id: apply-migration
+      review:
+        decisions: [approve, edit, reject, respond]
+        on_reject: { route: backlog }</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · S11 DETAIL DAG ===== -->
+    <section class="lab-sec" data-od-id="ed-dag">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Definition detail — body DAG</h2>
+        <span class="lab-sec__gist">read-only · color stays state-only</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>S11</b>Horizontal spine of neutral cards. New glyphs for <code>ask</code> and <code>route</code>. Fan-out summary shows strategy + iteration names. Route card shows route count + default. Class glyph carries identity; color is state-only — this view has no live state. Run-page DAG stays out of scope.</div>
+        <div class="spec__demo">
+          <div class="ed-dag" data-od-id="ed-dag-spine">
+            <div class="ed-dag__row">
+              <div class="ed-dag__card" data-od-id="ed-dag-input">
+                <span class="ed-dag__top"><svg data-lucide="log-in"></svg><span class="ed-dag__id">input</span></span>
+                <span class="ed-dag__cls">source</span>
+                <span class="ed-dag__sum">input</span>
+              </div>
+              <span class="ed-dag__arr" aria-hidden="true"><svg data-lucide="arrow-right"></svg></span>
+              <div class="ed-dag__card" data-od-id="ed-dag-triage">
+                <span class="ed-dag__top"><svg data-lucide="signpost"></svg><span class="ed-dag__id">triage</span></span>
+                <span class="ed-dag__cls">control</span>
+                <span class="ed-dag__sum">routes · 2 · default backlog</span>
+              </div>
+              <span class="ed-dag__arr" aria-hidden="true"><svg data-lucide="arrow-right"></svg></span>
+              <div class="ed-dag__card" data-od-id="ed-dag-standard">
+                <span class="ed-dag__top"><svg data-lucide="circle-dot"></svg><span class="ed-dag__id">standard</span></span>
+                <span class="ed-dag__cls">action</span>
+                <span class="ed-dag__sum">p1 arm</span>
+              </div>
+              <span class="ed-dag__arr" aria-hidden="true"><svg data-lucide="arrow-right"></svg></span>
+              <div class="ed-dag__card" data-od-id="ed-dag-ask">
+                <span class="ed-dag__top"><svg data-lucide="message-circle-question"></svg><span class="ed-dag__id">confirm-rollout</span></span>
+                <span class="ed-dag__cls">control</span>
+                <span class="ed-dag__sum">ask</span>
+              </div>
+              <span class="ed-dag__arr" aria-hidden="true"><svg data-lucide="arrow-right"></svg></span>
+              <div class="ed-dag__card" data-od-id="ed-dag-fan">
+                <span class="ed-dag__top"><svg data-lucide="split"></svg><span class="ed-dag__id">fan-services</span></span>
+                <span class="ed-dag__cls">control</span>
+                <span class="ed-dag__sum">best_effort 66% · bind service · i</span>
+              </div>
+              <span class="ed-dag__arr" aria-hidden="true"><svg data-lucide="arrow-right"></svg></span>
+              <div class="ed-dag__card" data-od-id="ed-dag-apply">
+                <span class="ed-dag__top"><svg data-lucide="bot"></svg><span class="ed-dag__id">apply-migration</span></span>
+                <span class="ed-dag__cls">action</span>
+                <span class="ed-dag__sum">review · on_reject backlog</span>
+              </div>
+              <span class="ed-dag__arr" aria-hidden="true"><svg data-lucide="arrow-right"></svg></span>
+              <div class="ed-dag__card" data-od-id="ed-dag-notes">
+                <span class="ed-dag__top"><svg data-lucide="pencil"></svg><span class="ed-dag__id">render-notes</span></span>
+                <span class="ed-dag__cls">action</span>
+                <span class="ed-dag__sum">run-agent</span>
+              </div>
+              <span class="ed-dag__arr" aria-hidden="true"><svg data-lucide="arrow-right"></svg></span>
+              <div class="ed-dag__card" data-od-id="ed-dag-collect">
+                <span class="ed-dag__top"><svg data-lucide="git-merge"></svg><span class="ed-dag__id">collect</span></span>
+                <span class="ed-dag__cls">control</span>
+                <span class="ed-dag__sum">collect</span>
+              </div>
+              <span class="ed-dag__arr" aria-hidden="true"><svg data-lucide="arrow-right"></svg></span>
+              <div class="ed-dag__card" data-od-id="ed-dag-announce">
+                <span class="ed-dag__top"><svg data-lucide="megaphone"></svg><span class="ed-dag__id">announce</span></span>
+                <span class="ed-dag__cls">action</span>
+                <span class="ed-dag__sum">run-agent</span>
+              </div>
+            </div>
+            <p class="ed-dag__foot">Read-only view. Open the editor to fork and edit this graph.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="ed-foot">Spec <code>.compozy/tasks/graph-eng/_uiux.md</code> S10 + S11 · contract <code>DESIGN-NOTES.md</code> · production seams <code>loop-editor.tsx</code>, <code>loop-editor-node.tsx</code>, <code>loop-linter-dock.tsx</code>, <code>loop-body-dag.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  document.querySelectorAll("[data-ed-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ed = btn.closest(".ed");
+      if (!ed) return;
+      const view = btn.getAttribute("data-ed-view");
+      ed.setAttribute("data-view", view);
+      const dsl = ed.querySelector(".ed-dsl");
+      const canvas = ed.querySelector(".ed-canvas");
+      if (dsl) dsl.hidden = view !== "dsl";
+      if (canvas) canvas.hidden = view !== "graph";
+      ed.querySelectorAll("[data-ed-view]").forEach((b) => {
+        const on = b.getAttribute("data-ed-view") === view;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-lint-toggle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dock = btn.closest(".ed-lint");
+      if (!dock) return;
+      const folded = dock.hasAttribute("data-fold");
+      if (folded) dock.removeAttribute("data-fold");
+      else dock.setAttribute("data-fold", "");
+      btn.setAttribute("aria-expanded", folded ? "true" : "false");
+    });
+  });
+
+  document.querySelectorAll('[role="switch"]').forEach((el) => {
+    el.addEventListener("click", () => {
+      const on = el.getAttribute("aria-checked") === "true";
+      el.setAttribute("aria-checked", on ? "false" : "true");
+      el.classList.toggle("is-on", !on);
+    });
+    el.addEventListener("keydown", (ev) => {
+      if (ev.key === " " || ev.key === "Enter") {
+        ev.preventDefault();
+        el.click();
+      }
+    });
+  });
+
+  document.querySelectorAll(".ed-dec__item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const on = btn.getAttribute("aria-pressed") === "true";
+      btn.setAttribute("aria-pressed", on ? "false" : "true");
+    });
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

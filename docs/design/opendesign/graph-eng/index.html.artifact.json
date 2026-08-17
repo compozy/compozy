@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "graph-eng/index.html",
+  "entry": "graph-eng/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-16T17:31:13.478Z",
+  "updatedAt": "2026-08-16T17:31:13.478Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

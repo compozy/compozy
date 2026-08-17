@@ -61,6 +61,12 @@ Reference the `_spec.md` Part II Implementation Design for code patterns and int
 
 - `path/to/dependency` — [brief reason this file is affected]
 
+### External References
+
+[Only when `_spec.md` File References cites vendored external sources — copy this task's subset: same paths, never paraphrased.]
+
+- `path/to/vendored/source:100-150` — [what to mirror or reject here, and why]
+
 ### Related ADRs
 
 - [ADR-NNN: Title](../adrs/adr-NNN.md) — Relevance to this task

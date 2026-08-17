@@ -59,7 +59,7 @@ func TestDaemonExtensionServiceConsumerSync(t *testing.T) {
 			secondEntered: secondEntered,
 		}
 		registry := extensionpkg.NewRegistry(openDaemonTestGlobalDB(t).DB())
-		service := newDaemonExtensionService(daemonExtensionServiceDeps{
+		service := newDaemonExtensionService(&daemonExtensionServiceDeps{
 			Registry: registry,
 			Loops:    publisher,
 		}).(*daemonExtensionService)

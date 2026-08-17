@@ -80,6 +80,7 @@ The autonomy spec is the high-water mark. Six markers correlate with **clean exe
 - **Phased plan**: safe cleanup phases separated from behavior-changing edits. Each phase has its own verification gate. → Pattern 3.
 - **Testing Approach = strategy only**; every concrete case lives in `_tests.md` with verification commands (`make verify`, `make gate`, etc.). Not "tests will pass". → Pattern 4.
 - **Developer Experience index** into `_dx.md`/`_uiux.md` — never a restated copy. The client-visible examples live in the surface contracts.
+- **File References** — the read-first index: repo files, `.resources/<competitor>/path` slices, and `analysis/`/design sources, each with a one-clause read-reason; tasks copy their subsets from here. → codex_sessions §Engineering Principle 4.
 - **Extensibility Integration Plan** section enumerating extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs that are added/changed/removed or explicitly unaffected. → SD-011.
 - **Agent Manageability Plan** section enumerating CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use to operate the feature. UI-only control is incomplete. → SD-011.
 - **Config Lifecycle** section enumerating `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests that are added/changed/removed or explicitly unaffected. → SD-011.
@@ -161,7 +162,7 @@ Each task file is the unit of execution. The autonomy task files are the canonic
 - **Tests**: enumerated assertions covering happy path + failure paths + concurrency stress where relevant. → `eng-test-conventions` skill, `lessons/L-002`, `eng-cleanup-failure-paths` skill.
 - **Web/Docs Impact**: paths affected under `web/` and `packages/site`, OR explicit `none — backend-only` line. → `cy-web-docs-impact` skill. Includes the **QA impact** line: `docs/qa/scenarios/` ids to reset to `untested` and walk to a recorded verdict at completion when user-visible behavior changes (flag, then verify), OR `none — no user-visible behavior change`.
 - **Extensibility / Agent Manageability / Config Lifecycle**: affected extension hooks/manifests/skills/tools/resources/registries/bridge SDKs, CLI/HTTP/UDS agent operation paths, and `config.toml` keys/docs/tests, OR explicit `none — checked surfaces: ...` line.
-- **References**: `.resources/<competitor>/path` paths cited from the spec.
+- **Competitor References**: this task's `.resources/<competitor>/path` subset copied from `_spec.md` File References.
 - **Completion Notes** (filled at execution time): commands run, coverage %, "not changed" disclaimers for `web/`/`packages/site`.
 
 ### Memory template

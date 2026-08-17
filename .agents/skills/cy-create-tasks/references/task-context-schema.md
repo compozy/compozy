@@ -1,6 +1,6 @@
 # Task Metadata Schemas
 
-Task metadata is parsed from YAML frontmatter by Compozy's `ParseTaskFile()` function in `internal/core/tasks/parser.go`.
+Task metadata is parsed from YAML frontmatter by CompozyOS's `ParseTaskFile()` function in `internal/core/tasks/parser.go`.
 Parallel task execution also reads the canonical `_tasks.md` graph manifest.
 
 ## `_tasks.md` Graph Manifest
@@ -70,4 +70,4 @@ The leading underscore prefix is reserved for meta documents:
 
 ## Parser Compatibility
 
-Compozy reads task files matching the regex `^task_\d+\.md$`. Files with the old `_task_` prefix are not recognized. The file MUST start with YAML frontmatter for `ParseTaskFile()` to read the metadata.
+CompozyOS reads task files matching the regex `^task_\d+\.md$`. Files with the old `_task_` prefix are not recognized. The file MUST start with YAML frontmatter for `ParseTaskFile()` to read the metadata.
