@@ -388,7 +388,7 @@ jobs:
         run: |
           bun run --cwd desktop build:runtime
           bun run --cwd desktop build:main
-          bunx --cwd=desktop electron-builder \
+          bun run --cwd desktop electron-builder \
             --config .artifacts/release-config.json \
             --${{ matrix.platform }} \
             --${{ matrix.arch }} \
@@ -1058,7 +1058,7 @@ jobs:
         run: |
           bun run --cwd desktop build:runtime
           bun run --cwd desktop build:main
-          bunx --cwd=desktop electron-builder \
+          bun run --cwd desktop electron-builder \
             --config .artifacts/release-config.json \
             --${{ matrix.platform }} \
             --${{ matrix.arch }} \
