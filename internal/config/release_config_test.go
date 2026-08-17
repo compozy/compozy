@@ -880,10 +880,11 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"spctl --assess --type execute",
 			"release:finalize-mac",
 			"release:verify-mac-zip",
-			"--notarize true",
+			"--notarize ${{ matrix.platform == 'mac' }}",
 		} {
 			assertContainsText(t, "macOS provenance lane", build, required)
 		}
+		assertNotContainsText(t, "platform-scoped notarization", build, "--notarize true")
 	})
 
 	t.Run("Should smoke every package before staging the draft", func(t *testing.T) {

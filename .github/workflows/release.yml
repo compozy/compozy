@@ -1051,7 +1051,7 @@ jobs:
             --version "${{ needs.release-plan.outputs.release_version }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
-            --notarize true \
+            --notarize ${{ matrix.platform == 'mac' }} \
             --output .artifacts/release-config.json
 
       - name: Build signed desktop bundle
