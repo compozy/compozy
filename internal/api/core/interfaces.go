@@ -280,28 +280,6 @@ type SettingsRestartController interface {
 	GetRestartOperation(ctx context.Context, operationID string) (SettingsRestartOperation, error)
 }
 
-type SettingsUpdateApply struct {
-	Target      compozyupdate.Target
-	Status      compozyupdate.ApplyStatus
-	OperationID string
-	Message     string
-	Holder      *compozyupdate.Holder
-}
-
-type SettingsUpdateCancel struct {
-	Status      compozyupdate.Status
-	OperationID string
-	Message     string
-	Holder      *compozyupdate.Holder
-}
-
-// SettingsUpdateController exposes the daemon-owned update status surface to settings transports.
-type SettingsUpdateController interface {
-	GetUpdate(ctx context.Context) (compozyupdate.MultiState, error)
-	ApplyUpdate(ctx context.Context, target compozyupdate.Target) (SettingsUpdateApply, error)
-	CancelUpdate(ctx context.Context) (SettingsUpdateCancel, error)
-}
-
 // ResourceService exposes the operator-facing desired-state CRUD surface to API transports.
 type ResourceService interface {
 	List(ctx context.Context, filter resources.ResourceFilter) ([]resources.RawRecord, error)

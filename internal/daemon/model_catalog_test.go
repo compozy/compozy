@@ -1333,13 +1333,14 @@ func (e *generationCursorACPProbe) InspectCursorModels(
 
 func (e *generationCursorACPProbe) waitForCommand(t *testing.T, want string) {
 	t.Helper()
+	ctx := testutil.Context(t)
 	select {
 	case req := <-e.started:
 		if req.Command != want {
 			t.Fatalf("discovery command = %q, want %q", req.Command, want)
 		}
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for discovery command %q", want)
+	case <-ctx.Done():
+		t.Fatalf("timeout waiting for discovery command %q: %v", want, ctx.Err())
 	}
 }
 
