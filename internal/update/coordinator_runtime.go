@@ -12,47 +12,51 @@ func (c *Coordinator) applyRuntime(ctx context.Context, state *coordinatorState)
 		return c.failRuntime(ctx, state, err)
 	}
 	var mutationLock MutationLock
-	applied, err := c.releaseManager.ApplyReleaseObserved(ctx, release, func(stepCtx context.Context, step ApplyStep) error {
-		current := state.snapshot()
-		if step.Phase == PhaseSwapping && len(current.Targets) == 1 {
-			installedApp, versionErr := c.runtime.InstalledApp(stepCtx)
-			if versionErr != nil {
-				return versionErr
+	applied, err := c.releaseManager.ApplyReleaseObserved(
+		ctx,
+		release,
+		func(stepCtx context.Context, step ApplyStep) error {
+			current := state.snapshot()
+			if step.Phase == PhaseSwapping && len(current.Targets) == 1 {
+				installedApp, versionErr := c.runtime.InstalledApp(stepCtx)
+				if versionErr != nil {
+					return versionErr
+				}
+				if step.Compatibility == nil {
+					return errors.New("update: verified compatibility is required before runtime swap")
+				}
+				if compatibilityErr := CheckRuntimeCompatibility(
+					*step.Compatibility,
+					installedApp,
+				); compatibilityErr != nil {
+					return c.failRuntime(stepCtx, state, compatibilityErr)
+				}
 			}
-			if step.Compatibility == nil {
-				return errors.New("update: verified compatibility is required before runtime swap")
+			updated, transitionErr := state.transition(stepCtx, Transition{
+				Kind: TransitionPhase, Actor: current.Holder.Surface, Target: TargetRuntime,
+				Phase: step.Phase, Percent: step.Percent, BackupPath: step.BackupPath, Outcome: operationOutcomeStarted,
+			})
+			if transitionErr != nil {
+				return transitionErr
 			}
-			if compatibilityErr := CheckRuntimeCompatibility(
-				*step.Compatibility,
-				installedApp,
-			); compatibilityErr != nil {
-				return c.failRuntime(stepCtx, state, compatibilityErr)
+			if step.Phase != PhaseSwapping {
+				return nil
 			}
-		}
-		updated, transitionErr := state.transition(stepCtx, Transition{
-			Kind: TransitionPhase, Actor: current.Holder.Surface, Target: TargetRuntime,
-			Phase: step.Phase, Percent: step.Percent, BackupPath: step.BackupPath, Outcome: operationOutcomeStarted,
-		})
-		if transitionErr != nil {
-			return transitionErr
-		}
-		if step.Phase != PhaseSwapping {
+			mutationLock, transitionErr = c.runtime.AcquireMutationLock(stepCtx)
+			if transitionErr != nil {
+				return transitionErr
+			}
+			if fenceErr := state.fence(stepCtx); fenceErr != nil {
+				releaseErr := mutationLock.Release()
+				mutationLock = nil
+				return errors.Join(fenceErr, releaseErr)
+			}
+			if updated.Runtime.BackupPath == "" {
+				return errors.New("update: swap transition did not persist its backup path")
+			}
 			return nil
-		}
-		mutationLock, transitionErr = c.runtime.AcquireMutationLock(stepCtx)
-		if transitionErr != nil {
-			return transitionErr
-		}
-		if fenceErr := state.fence(stepCtx); fenceErr != nil {
-			releaseErr := mutationLock.Release()
-			mutationLock = nil
-			return errors.Join(fenceErr, releaseErr)
-		}
-		if updated.Runtime.BackupPath == "" {
-			return errors.New("update: swap transition did not persist its backup path")
-		}
-		return nil
-	})
+		},
+	)
 	if mutationLock != nil {
 		err = errors.Join(err, mutationLock.Release())
 	}

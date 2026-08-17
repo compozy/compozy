@@ -20,15 +20,30 @@ func (m *Manager) Restore(applied AppliedBinary) error {
 	if err != nil {
 		return fmt.Errorf("update: stat backup executable %q: %w", applied.BackupPath, err)
 	}
+	var metadata DesktopProvenanceMetadata
+	var metadataErr error
+	if applied.InstallMethod == InstallMethodDesktopApp {
+		marker, readErr := readDesktopProvenance(desktopProvenancePath(m.homePaths, applied.TargetPath))
+		if readErr != nil {
+			metadataErr = readErr
+		} else {
+			metadata = marker.metadata()
+			metadata.RuntimeVersion = strings.TrimSpace(applied.PreviousVersion)
+			_, metadataErr = normalizeDesktopProvenanceMetadata(metadata)
+		}
+	}
 	if err := m.binaryApplier.RestoreBinary(
 		applied.BackupPath,
 		applied.TargetPath,
 		executableBinaryMode(backupInfo.Mode().Perm(), 0),
 	); err != nil {
-		return err
+		return errors.Join(metadataErr, err)
 	}
 	if applied.InstallMethod == InstallMethodDesktopApp {
-		return rewriteDesktopProvenance(m.homePaths, applied.TargetPath)
+		if metadataErr != nil {
+			return metadataErr
+		}
+		return rewriteDesktopProvenance(m.homePaths, applied.TargetPath, metadata)
 	}
 	return nil
 }

@@ -21,7 +21,7 @@ import {
   lastDeepLink,
 } from "./deep-links/deep-link";
 import { exportDiagnostics } from "./diagnostics/export-diagnostics";
-import { MINIMUM_RUNTIME, RELEASE_CHANNEL } from "./generated/build-config";
+import { MINIMUM_RUNTIME } from "./generated/build-config";
 import { resolveDesktopPaths, runtimeExecutableName } from "./home";
 import { DesktopLogger } from "./logging/desktop-logger";
 import { AppStatePublisher } from "./state/app-state";
@@ -36,6 +36,7 @@ import { applyDefaultDenyPermissions } from "./window/security";
 import { installApplicationMenu } from "./window/application-menu";
 
 declare const __COMPOZY_DESKTOP_E2E_BUILD__: boolean;
+declare const __COMPOZY_RELEASE_CHANNEL__: "beta" | "development";
 
 const paths = resolveDesktopPaths();
 const bootId = randomUUID();
@@ -142,7 +143,7 @@ async function start(): Promise<void> {
   const statePublisher = await AppStatePublisher.create({
     path: paths.appRecord,
     appVersion: app.getVersion(),
-    channel: RELEASE_CHANNEL,
+    channel: __COMPOZY_RELEASE_CHANNEL__,
     startedAt: processStartedAt,
     bootId,
     startupMarker: paths.startupMarker,
@@ -203,6 +204,7 @@ async function start(): Promise<void> {
     logPath: paths.bootstrapLog,
     minimumRuntime: MINIMUM_RUNTIME,
     appVersion: app.getVersion(),
+    channel: __COMPOZY_RELEASE_CHANNEL__,
     bootId,
   });
   let bootstrapFlow: Promise<void> | null = null;

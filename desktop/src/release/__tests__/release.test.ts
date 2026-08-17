@@ -14,10 +14,17 @@ import {
 } from "../mac-manifest";
 import { buildReleaseConfig, validateReleaseConfig } from "../release-config";
 import { parseBooleanFlag, parseReleaseScriptFlags } from "../release-script-flags";
+import { resolveDesktopBuildChannel } from "../build-channel";
 
 // Invariant: release policy emits only the signed, architecture-complete beta inventory.
 // Owner: desktop release policy. Canonical suite: release.test.ts.
 describe("desktop release policy", () => {
+  it("Should bind packaged builds to the explicit release channel", () => {
+    expect(resolveDesktopBuildChannel("beta")).toBe("beta");
+    expect(resolveDesktopBuildChannel(undefined)).toBe("development");
+    expect(() => resolveDesktopBuildChannel("stable")).toThrow("COMPOZY_RELEASE_CHANNEL");
+  });
+
   it("Should produce per-architecture builder targets and the raw beta channel", () => {
     expect(
       buildReleaseConfig({

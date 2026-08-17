@@ -262,7 +262,7 @@ func updateBundle(record updateRecord) outputBundle {
 				)
 			}
 			if record.Runtime.ReleaseURL != "" {
-				rows = append(rows, keyValue{Label: "Release", Value: record.Runtime.ReleaseURL})
+				rows = append(rows, keyValue{Label: cliReleaseValue, Value: record.Runtime.ReleaseURL})
 			}
 			return renderHumanSection("Update", rows), nil
 		},

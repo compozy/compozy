@@ -32,11 +32,88 @@ func TestManagerApplyRelease(t *testing.T) {
 		if err := os.WriteFile(binaryPath, []byte("replacement-runtime"), 0o700); err != nil {
 			t.Fatalf("WriteFile(binary) error = %v", err)
 		}
-		if err := rewriteDesktopProvenance(homePaths, binaryPath); err != nil {
+		metadata := DesktopProvenanceMetadata{
+			AppVersion: "1.0.0-beta.1", Channel: "beta", RuntimeVersion: "1.0.0-beta.1",
+		}
+		if err := rewriteDesktopProvenance(homePaths, binaryPath, metadata); err != nil {
 			t.Fatalf("rewriteDesktopProvenance() error = %v", err)
 		}
 		if !isDesktopAppInstall(homePaths.HomeDir, binaryPath, runtimeOSLinux) {
 			t.Fatal("isDesktopAppInstall() = false after provenance rewrite")
+		}
+		marker, err := readDesktopProvenance(homePaths.DesktopProvenanceFile)
+		if err != nil {
+			t.Fatalf("readDesktopProvenance() error = %v", err)
+		}
+		if marker.AppVersion != metadata.AppVersion || marker.Channel != metadata.Channel ||
+			marker.RuntimeVersion != metadata.RuntimeVersion {
+			t.Fatalf("desktop provenance = %#v, want metadata %#v", marker, metadata)
+		}
+	})
+
+	t.Run("Should advance desktop runtime provenance after a verified self-update", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		executablePath := filepath.Join(homePaths.BinDir, compozyBinaryName)
+		if err := os.MkdirAll(homePaths.BinDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(bin) error = %v", err)
+		}
+		if err := os.WriteFile(executablePath, []byte("current-runtime"), 0o700); err != nil {
+			t.Fatalf("WriteFile(runtime) error = %v", err)
+		}
+		metadata := DesktopProvenanceMetadata{
+			AppVersion: "1.0.0-beta.1", Channel: "beta", RuntimeVersion: "v1.0.0",
+		}
+		if err := rewriteDesktopProvenance(homePaths, executablePath, metadata); err != nil {
+			t.Fatalf("rewriteDesktopProvenance() error = %v", err)
+		}
+		manager, err := NewManager(&Config{
+			HomePaths:       homePaths,
+			CurrentVersion:  "v1.0.0",
+			ExecutablePath:  func() (string, error) { return executablePath, nil },
+			ResolveSymlinks: func(path string) (string, error) { return path, nil },
+			RuntimeOS:       runtimeOSLinux,
+			RuntimeArch:     runtimeArchAMD64,
+			BundleVerifier:  &stubBundleVerifier{},
+		})
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		archiveBody := createTarGzBinary(t, "compozy", []byte("replacement-runtime"), 0o755)
+		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
+			archiveBody: archiveBody,
+			bundleBody:  []byte(`{"mediaType":"application/vnd.dev.sigstore.bundle+json;version=0.3"}`),
+		})
+		defer server.Close()
+		manager.httpClient = server.Client()
+
+		applied, err := manager.ApplyRelease(t.Context(), release)
+		if err != nil {
+			t.Fatalf("ApplyRelease() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Finalize(applied); err != nil {
+				t.Errorf("Finalize() error = %v", err)
+			}
+		})
+		marker, err := readDesktopProvenance(homePaths.DesktopProvenanceFile)
+		if err != nil {
+			t.Fatalf("readDesktopProvenance() error = %v", err)
+		}
+		if marker.AppVersion != metadata.AppVersion || marker.Channel != metadata.Channel ||
+			marker.RuntimeVersion != "v1.1.0" {
+			t.Fatalf("updated desktop provenance = %#v, want app/channel preserved and runtime v1.1.0", marker)
+		}
+		if applied.PreviousVersion != "v1.0.0" || !isDesktopAppInstall(
+			homePaths.HomeDir,
+			executablePath,
+			runtimeOSLinux,
+		) {
+			t.Fatalf("applied desktop runtime = %#v, want prior version and matching provenance", applied)
 		}
 	})
 
@@ -610,7 +687,10 @@ func TestManagerRestore(t *testing.T) {
 		if err := os.WriteFile(executablePath, []byte("replacement-binary"), 0o700); err != nil {
 			t.Fatalf("WriteFile(replacement) error = %v", err)
 		}
-		if err := rewriteDesktopProvenance(homePaths, executablePath); err != nil {
+		metadata := DesktopProvenanceMetadata{
+			AppVersion: "1.1.0-beta.1", Channel: "beta", RuntimeVersion: "1.1.0-beta.1",
+		}
+		if err := rewriteDesktopProvenance(homePaths, executablePath, metadata); err != nil {
 			t.Fatalf("rewriteDesktopProvenance(replacement) error = %v", err)
 		}
 		backupPath := filepath.Join(homePaths.BinDir, ".compozy.backup")
@@ -628,7 +708,8 @@ func TestManagerRestore(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		if err := manager.Restore(AppliedBinary{
-			TargetPath: executablePath, BackupPath: backupPath, InstallMethod: InstallMethodDesktopApp,
+			TargetPath: executablePath, BackupPath: backupPath, PreviousVersion: "1.0.0-beta.1",
+			InstallMethod: InstallMethodDesktopApp,
 		}); err != nil {
 			t.Fatalf("Restore() error = %v", err)
 		}
@@ -641,6 +722,14 @@ func TestManagerRestore(t *testing.T) {
 		}
 		if string(contents) != "original-binary" {
 			t.Fatalf("restored contents = %q, want original-binary", contents)
+		}
+		marker, err := readDesktopProvenance(homePaths.DesktopProvenanceFile)
+		if err != nil {
+			t.Fatalf("readDesktopProvenance() error = %v", err)
+		}
+		if marker.AppVersion != metadata.AppVersion || marker.Channel != metadata.Channel ||
+			marker.RuntimeVersion != "1.0.0-beta.1" {
+			t.Fatalf("restored desktop provenance = %#v, want app/channel preserved and prior runtime", marker)
 		}
 	})
 }

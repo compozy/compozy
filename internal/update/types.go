@@ -124,10 +124,11 @@ type State struct {
 
 // AppliedBinary describes one on-disk binary swap that still retains a rollback backup.
 type AppliedBinary struct {
-	TargetPath    string
-	BackupPath    string
-	Version       string
-	InstallMethod InstallMethod
+	TargetPath      string
+	BackupPath      string
+	Version         string
+	PreviousVersion string
+	InstallMethod   InstallMethod
 }
 
 // CheckOptions customize one update status query.

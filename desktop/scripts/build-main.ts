@@ -3,9 +3,12 @@ import { join } from "node:path";
 
 import { build, type BuildOptions } from "esbuild";
 
+import { resolveDesktopBuildChannel } from "../src/release/build-channel";
+
 const root = join(import.meta.dir, "..");
 const output = join(root, "dist");
 const e2eBuild = process.env.COMPOZY_DESKTOP_E2E_BUILD === "1";
+const releaseChannel = resolveDesktopBuildChannel(process.env.COMPOZY_RELEASE_CHANNEL);
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(join(root, "pages"), join(output, "pages"), { recursive: true });
@@ -56,7 +59,10 @@ await Promise.all([
     entryPoints: [join(root, "src", "main.ts")],
     outfile: join(output, "main.cjs"),
     external: ["electron", "electron-updater"],
-    define: { __COMPOZY_DESKTOP_E2E_BUILD__: JSON.stringify(e2eBuild) },
+    define: {
+      __COMPOZY_DESKTOP_E2E_BUILD__: JSON.stringify(e2eBuild),
+      __COMPOZY_RELEASE_CHANNEL__: JSON.stringify(releaseChannel),
+    },
   }),
   build({
     ...sharedOptions,

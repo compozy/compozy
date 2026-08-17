@@ -385,6 +385,7 @@ jobs:
       - name: Build desktop bundle without publishing
         env:
           COMPOZY_RELEASE_VERSION: 0.0.0-beta.0
+          COMPOZY_RELEASE_CHANNEL: beta
         run: |
           bun run --cwd desktop build:runtime
           bun run --cwd desktop build:main
@@ -1055,6 +1056,7 @@ jobs:
         env:
           COMPOZY_RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
+          COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
         run: |
           bun run --cwd desktop build:runtime
           bun run --cwd desktop build:main

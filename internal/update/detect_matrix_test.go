@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -162,15 +163,29 @@ func runDesktopProvenanceCases(t *testing.T) {
 		{
 			name: "Should detect matching desktop app provenance",
 			marker: func(digest string) []byte {
-				return []byte(`{"installed_by":"desktop-app","binary_sha256":"` + digest + `"}`)
+				return fmt.Appendf(
+					nil,
+					`{"installed_by":"desktop-app","binary_sha256":"%s","app_version":"1.0.0-beta.1","channel":"beta","runtime_version":"1.0.0-beta.1"}`,
+					digest,
+				)
 			},
 			wantMethod:  InstallMethodDesktopApp,
 			wantManaged: false,
 		},
 		{
+			name: "Should fall through when desktop provenance metadata is incomplete",
+			marker: func(digest string) []byte {
+				return []byte(`{"installed_by":"desktop-app","binary_sha256":"` + digest + `"}`)
+			},
+			wantMethod: InstallMethodDirectBinary,
+		},
+		{
 			name: "Should fall through when desktop provenance hash mismatches",
 			marker: func(string) []byte {
-				return []byte(`{"installed_by":"desktop-app","binary_sha256":"deadbeef"}`)
+				return []byte(
+					`{"installed_by":"desktop-app","binary_sha256":"deadbeef",` +
+						`"app_version":"1.0.0-beta.1","channel":"beta","runtime_version":"1.0.0-beta.1"}`,
+				)
 			},
 			wantMethod: InstallMethodDirectBinary,
 		},

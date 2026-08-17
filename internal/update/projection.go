@@ -159,11 +159,12 @@ func applyOperationProjection(state *MultiState, operation *Operation) {
 			return
 		}
 		state.App.AttemptID = operation.App.AttemptID
-		if operation.App.Phase == PhaseFailed {
+		switch operation.App.Phase {
+		case PhaseFailed:
 			state.App.Status = StatusFailed
-		} else if operation.App.Phase == PhasePending {
+		case PhasePending:
 			state.App.Status = StatusAccepted
-		} else {
+		default:
 			state.App.Status = StatusApplying
 		}
 	}

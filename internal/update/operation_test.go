@@ -433,20 +433,62 @@ func TestOperationPhaseMatrix(t *testing.T) {
 			phase  OperationPhase
 			want   OperationEventName
 		}{
-			{name: "Should map runtime downloading", target: TargetRuntime, phase: PhaseDownloading, want: EventDownloadProgress},
-			{name: "Should map runtime verifying", target: TargetRuntime, phase: PhaseVerifying, want: EventVerifyCompleted},
-			{name: "Should map runtime swapping", target: TargetRuntime, phase: PhaseSwapping, want: EventSwapCompleted},
-			{name: "Should map runtime restarting", target: TargetRuntime, phase: PhaseRestarting, want: EventRestartCompleted},
-			{name: "Should map runtime health checking", target: TargetRuntime, phase: PhaseHealthChecking, want: EventHealthCompleted},
-			{name: "Should map runtime finalized", target: TargetRuntime, phase: PhaseFinalized, want: EventFinalized},
-			{name: "Should map runtime rolled back", target: TargetRuntime, phase: PhaseRolledBack, want: EventRolledBack},
-			{name: "Should map runtime failed", target: TargetRuntime, phase: PhaseFailed, want: EventFinalized},
-			{name: "Should map app staged", target: TargetApp, phase: PhaseStaged, want: EventAppStaged},
-			{name: "Should map app applying", target: TargetApp, phase: PhaseApplying, want: EventAppApplying},
-			{name: "Should map app installer handoff", target: TargetApp, phase: PhaseInstallerHandoff, want: EventAppInstallerHandoff},
-			{name: "Should map app restarted", target: TargetApp, phase: PhaseRestarted, want: EventRestartCompleted},
-			{name: "Should map app verified", target: TargetApp, phase: PhaseVerified, want: EventAppVerified},
-			{name: "Should map app failed", target: TargetApp, phase: PhaseFailed, want: EventAppFailed},
+			{
+				name: "Should map runtime downloading", target: TargetRuntime,
+				phase: PhaseDownloading, want: EventDownloadProgress,
+			},
+			{
+				name: "Should map runtime verifying", target: TargetRuntime,
+				phase: PhaseVerifying, want: EventVerifyCompleted,
+			},
+			{
+				name: "Should map runtime swapping", target: TargetRuntime,
+				phase: PhaseSwapping, want: EventSwapCompleted,
+			},
+			{
+				name: "Should map runtime restarting", target: TargetRuntime,
+				phase: PhaseRestarting, want: EventRestartCompleted,
+			},
+			{
+				name: "Should map runtime health checking", target: TargetRuntime,
+				phase: PhaseHealthChecking, want: EventHealthCompleted,
+			},
+			{
+				name: "Should map runtime finalized", target: TargetRuntime,
+				phase: PhaseFinalized, want: EventFinalized,
+			},
+			{
+				name: "Should map runtime rolled back", target: TargetRuntime,
+				phase: PhaseRolledBack, want: EventRolledBack,
+			},
+			{
+				name: "Should map runtime failed", target: TargetRuntime,
+				phase: PhaseFailed, want: EventFinalized,
+			},
+			{
+				name: "Should map app staged", target: TargetApp,
+				phase: PhaseStaged, want: EventAppStaged,
+			},
+			{
+				name: "Should map app applying", target: TargetApp,
+				phase: PhaseApplying, want: EventAppApplying,
+			},
+			{
+				name: "Should map app installer handoff", target: TargetApp,
+				phase: PhaseInstallerHandoff, want: EventAppInstallerHandoff,
+			},
+			{
+				name: "Should map app restarted", target: TargetApp,
+				phase: PhaseRestarted, want: EventRestartCompleted,
+			},
+			{
+				name: "Should map app verified", target: TargetApp,
+				phase: PhaseVerified, want: EventAppVerified,
+			},
+			{
+				name: "Should map app failed", target: TargetApp,
+				phase: PhaseFailed, want: EventAppFailed,
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {

@@ -243,8 +243,8 @@ func TestWaitForDaemonStartReturnsStatusWhenDaemonBecomesReady(t *testing.T) {
 		if err != nil {
 			t.Fatalf("waitForDaemonStart() error = %v", err)
 		}
-		if status.Status != "ready" || status.PID != 42 {
-			t.Fatalf("waitForDaemonStart() status = %#v, want ready pid 42", status)
+		if status.Status != daemonRunningStatus || status.PID != 42 {
+			t.Fatalf("waitForDaemonStart() status = %#v, want running pid 42", status)
 		}
 	})
 }
@@ -709,8 +709,8 @@ func TestRunDaemonDetachedIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
 		if !spawned {
 			t.Fatal("spawnDetached() not called, want detached launch for stale daemon info")
 		}
-		if status.Status != "ready" || status.PID != 84 {
-			t.Fatalf("runDaemonDetached() status = %#v, want ready pid 84", status)
+		if status.Status != daemonRunningStatus || status.PID != 84 {
+			t.Fatalf("runDaemonDetached() status = %#v, want running pid 84", status)
 		}
 	})
 }

@@ -171,7 +171,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		}{
 			{
 				name: "Should project accepted runtime work", target: compozyupdate.TargetRuntime,
-				phase: compozyupdate.PhasePending, percent: 0, wantState: string(compozyupdate.StatusAccepted),
+				phase: compozyupdate.PhasePending, percent: -1, wantState: string(compozyupdate.StatusAccepted),
 			},
 			{
 				name: "Should project downloading runtime work", target: compozyupdate.TargetRuntime,
@@ -180,7 +180,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 			},
 			{
 				name: "Should project accepted app work", target: compozyupdate.TargetApp,
-				phase: compozyupdate.PhasePending, percent: 0, wantState: string(compozyupdate.StatusAccepted),
+				phase: compozyupdate.PhasePending, percent: -1, wantState: string(compozyupdate.StatusAccepted),
 			},
 			{
 				name: "Should project applying app work", target: compozyupdate.TargetApp,
@@ -226,7 +226,13 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 				}
 				if gotState != test.wantState || report.Update.Phase != test.wantUIPhase ||
 					report.Update.Percent == nil || *report.Update.Percent != test.percent {
-					t.Fatalf("update projection = %#v, want state=%q phase=%q percent=%d", report.Update, test.wantState, test.wantUIPhase, test.percent)
+					t.Fatalf(
+						"update projection = %#v, want state=%q phase=%q percent=%d",
+						report.Update,
+						test.wantState,
+						test.wantUIPhase,
+						test.percent,
+					)
 				}
 			})
 		}

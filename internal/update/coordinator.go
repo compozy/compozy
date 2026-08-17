@@ -115,9 +115,10 @@ func (c *Coordinator) recoverSwap(ctx context.Context, state *coordinatorState) 
 
 func (c *Coordinator) appliedFromOperation(operation *Operation) AppliedBinary {
 	return AppliedBinary{
-		TargetPath:    c.binaryManager.RuntimeTargetPath(),
-		BackupPath:    operation.Runtime.BackupPath,
-		Version:       operation.Runtime.ToVersion,
-		InstallMethod: operation.Runtime.InstallMethod,
+		TargetPath:      c.binaryManager.RuntimeTargetPath(),
+		BackupPath:      operation.Runtime.BackupPath,
+		Version:         operation.Runtime.ToVersion,
+		PreviousVersion: operation.Runtime.FromVersion,
+		InstallMethod:   operation.Runtime.InstallMethod,
 	}
 }

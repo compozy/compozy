@@ -59,6 +59,10 @@ func (m *Manager) applyRelease(
 	if err != nil {
 		return AppliedBinary{}, err
 	}
+	desktopMetadata, err := m.desktopProvenanceMetadata(install)
+	if err != nil {
+		return AppliedBinary{}, err
+	}
 	assets, err := m.resolveReleaseAssets(release)
 	if err != nil {
 		return AppliedBinary{}, err
@@ -101,15 +105,26 @@ func (m *Manager) applyRelease(
 	if err := m.binaryApplier.ApplyBinary(binaryPath, m.executablePath, backupPath, binaryMode); err != nil {
 		return AppliedBinary{}, err
 	}
-	if err := m.rewriteAppliedDesktopProvenance(install, backupPath, currentInfo.Mode().Perm()); err != nil {
+	if err := m.rewriteAppliedDesktopProvenance(
+		install,
+		desktopMetadata,
+		strings.TrimSpace(release.Version),
+		backupPath,
+		currentInfo.Mode().Perm(),
+	); err != nil {
 		return AppliedBinary{}, err
 	}
+	return m.appliedBinary(release, backupPath, install), nil
+}
+
+func (m *Manager) appliedBinary(release *Release, backupPath string, install installInfo) AppliedBinary {
 	return AppliedBinary{
-		TargetPath:    m.executablePath,
-		BackupPath:    backupPath,
-		Version:       strings.TrimSpace(release.Version),
-		InstallMethod: InstallMethod(install.Method),
-	}, nil
+		TargetPath:      m.executablePath,
+		BackupPath:      backupPath,
+		Version:         strings.TrimSpace(release.Version),
+		PreviousVersion: strings.TrimSpace(m.currentVersion),
+		InstallMethod:   InstallMethod(install.Method),
+	}
 }
 
 func (m *Manager) prepareReleaseBinary(
@@ -150,20 +165,35 @@ func (m *Manager) prepareReleaseBinary(
 
 func (m *Manager) rewriteAppliedDesktopProvenance(
 	install installInfo,
+	metadata DesktopProvenanceMetadata,
+	runtimeVersion string,
 	backupPath string,
 	currentMode os.FileMode,
 ) error {
 	if install.Method != string(InstallMethodDesktopApp) {
 		return nil
 	}
-	if err := rewriteDesktopProvenance(m.homePaths, m.executablePath); err != nil {
+	replacementMetadata := metadata
+	replacementMetadata.RuntimeVersion = runtimeVersion
+	if err := rewriteDesktopProvenance(m.homePaths, m.executablePath, replacementMetadata); err != nil {
 		restoreErr := m.binaryApplier.RestoreBinary(backupPath, m.executablePath, currentMode)
 		if restoreErr == nil {
-			restoreErr = rewriteDesktopProvenance(m.homePaths, m.executablePath)
+			restoreErr = rewriteDesktopProvenance(m.homePaths, m.executablePath, metadata)
 		}
 		return errors.Join(err, restoreErr)
 	}
 	return nil
+}
+
+func (m *Manager) desktopProvenanceMetadata(install installInfo) (DesktopProvenanceMetadata, error) {
+	if install.Method != string(InstallMethodDesktopApp) {
+		return DesktopProvenanceMetadata{}, nil
+	}
+	marker, err := readDesktopProvenance(desktopProvenancePath(m.homePaths, m.executablePath))
+	if err != nil {
+		return DesktopProvenanceMetadata{}, err
+	}
+	return marker.metadata(), nil
 }
 
 func notifyApplyObserver(ctx context.Context, observer ApplyObserver, step ApplyStep) error {

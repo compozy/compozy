@@ -383,7 +383,7 @@ func TestUpdateTerminalProjection(t *testing.T) {
 		}
 		current, transitionErr = store.Read(t.Context())
 		if transitionErr == nil {
-			current, transitionErr = store.Transition(
+			_, transitionErr = store.Transition(
 				t.Context(), current.ID, current.Holder.ExecutorGeneration, current.Revision,
 				compozyupdate.Transition{
 					Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorShell,

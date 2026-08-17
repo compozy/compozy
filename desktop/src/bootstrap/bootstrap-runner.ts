@@ -23,6 +23,7 @@ export class BootstrapRunner {
   readonly #logPath: string;
   readonly #minimumRuntime: string;
   readonly #appVersion: string;
+  readonly #channel: "beta" | "development";
   readonly #bootId: string;
   readonly #environment: NodeJS.ProcessEnv;
   #running: Promise<BootstrapResult> | null = null;
@@ -33,6 +34,7 @@ export class BootstrapRunner {
     logPath: string;
     minimumRuntime: string;
     appVersion: string;
+    channel: "beta" | "development";
     bootId: string;
     environment?: NodeJS.ProcessEnv;
   }) {
@@ -41,6 +43,7 @@ export class BootstrapRunner {
     this.#logPath = options.logPath;
     this.#minimumRuntime = options.minimumRuntime;
     this.#appVersion = options.appVersion;
+    this.#channel = options.channel;
     this.#bootId = options.bootId;
     this.#environment = options.environment ?? process.env;
   }
@@ -70,6 +73,8 @@ export class BootstrapRunner {
         this.#minimumRuntime,
         "--app-version",
         this.#appVersion,
+        "--channel",
+        this.#channel,
         "-o",
         "jsonl",
       ],

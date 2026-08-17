@@ -15,6 +15,8 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
+	compozyupdate "github.com/compozy/compozy/internal/update"
+	"github.com/spf13/cobra"
 )
 
 func TestDaemonBootstrapPolicy(t *testing.T) {
@@ -26,9 +28,21 @@ func TestDaemonBootstrapPolicy(t *testing.T) {
 			probe bootstrapProbe
 			want  bootstrapResolution
 		}{
-			{name: "Should attach to a healthy runtime", probe: bootstrapProbe{Healthy: true, Installed: true}, want: bootstrapResolutionAttach},
-			{name: "Should start an installed runtime", probe: bootstrapProbe{Installed: true}, want: bootstrapResolutionStart},
-			{name: "Should provision an empty runtime home", probe: bootstrapProbe{}, want: bootstrapResolutionProvision},
+			{
+				name:  "Should attach to a healthy runtime",
+				probe: bootstrapProbe{Healthy: true, Installed: true},
+				want:  bootstrapResolutionAttach,
+			},
+			{
+				name:  "Should start an installed runtime",
+				probe: bootstrapProbe{Installed: true},
+				want:  bootstrapResolutionStart,
+			},
+			{
+				name:  "Should provision an empty runtime home",
+				probe: bootstrapProbe{},
+				want:  bootstrapResolutionProvision,
+			},
 		}
 		for _, test := range cases {
 			t.Run(test.name, func(t *testing.T) {
@@ -48,10 +62,26 @@ func TestDaemonBootstrapPolicy(t *testing.T) {
 			probe bootstrapProbe
 			want  bootstrapProbeClass
 		}{
-			{name: "Should classify a healthy runtime", probe: bootstrapProbe{Healthy: true}, want: bootstrapProbeHealthy},
-			{name: "Should classify an unhealthy listener", probe: bootstrapProbe{Listening: true}, want: bootstrapProbeListeningUnhealthy},
-			{name: "Should classify a stale record", probe: bootstrapProbe{RecordPresent: true}, want: bootstrapProbeStaleRecord},
-			{name: "Should classify a port conflict", probe: bootstrapProbe{PortOccupied: true}, want: bootstrapProbePortConflict},
+			{
+				name:  "Should classify a healthy runtime",
+				probe: bootstrapProbe{Healthy: true},
+				want:  bootstrapProbeHealthy,
+			},
+			{
+				name:  "Should classify an unhealthy listener",
+				probe: bootstrapProbe{Listening: true},
+				want:  bootstrapProbeListeningUnhealthy,
+			},
+			{
+				name:  "Should classify a stale record",
+				probe: bootstrapProbe{RecordPresent: true},
+				want:  bootstrapProbeStaleRecord,
+			},
+			{
+				name:  "Should classify a port conflict",
+				probe: bootstrapProbe{PortOccupied: true},
+				want:  bootstrapProbePortConflict,
+			},
 			{name: "Should classify an unavailable runtime", probe: bootstrapProbe{}, want: bootstrapProbeUnavailable},
 		}
 		for _, test := range cases {
@@ -132,6 +162,69 @@ func TestDaemonBootstrapCompatibility(t *testing.T) {
 }
 
 func TestProvisionBundledRuntime(t *testing.T) {
+	t.Run("Should record the desktop release identity for a provisioned runtime", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := mustTestHomePaths(t)
+		source := filepath.Join(t.TempDir(), "bundled-compozy")
+		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		writeFile(t, source, "bundled-runtime")
+		cmd := &cobra.Command{}
+		cmd.Flags().StringP("output", "o", "jsonl", "")
+		cmd.SetOut(&bytes.Buffer{})
+		err := provisionBootstrapRuntime(cmd, bootstrapProvisionRequest{
+			resolution:    bootstrapResolutionProvision,
+			homePaths:     homePaths,
+			bundlePath:    source,
+			installedPath: installedPath,
+			provenance: compozyupdate.DesktopProvenanceMetadata{
+				AppVersion: "1.0.0-beta.1", Channel: "beta", RuntimeVersion: "1.0.0-beta.1",
+			},
+		})
+		if err != nil {
+			t.Fatalf("provisionBootstrapRuntime() error = %v", err)
+		}
+		markerBytes, err := os.ReadFile(homePaths.DesktopProvenanceFile)
+		if err != nil {
+			t.Fatalf("ReadFile(provenance) error = %v", err)
+		}
+		var marker map[string]string
+		if err := json.Unmarshal(markerBytes, &marker); err != nil {
+			t.Fatalf("json.Unmarshal(provenance) error = %v", err)
+		}
+		for key, want := range map[string]string{
+			"installed_by": "desktop-app", "app_version": "1.0.0-beta.1",
+			"channel": "beta", "runtime_version": "1.0.0-beta.1",
+		} {
+			if marker[key] != want {
+				t.Fatalf("provenance[%q] = %q, want %q", key, marker[key], want)
+			}
+		}
+	})
+
+	t.Run("Should remove a provisioned runtime when provenance publication fails", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := mustTestHomePaths(t)
+		source := filepath.Join(t.TempDir(), "bundled-compozy")
+		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		writeFile(t, source, "bundled-runtime")
+		cmd := &cobra.Command{}
+		cmd.Flags().StringP("output", "o", "jsonl", "")
+		cmd.SetOut(&bytes.Buffer{})
+		err := provisionBootstrapRuntime(cmd, bootstrapProvisionRequest{
+			resolution:    bootstrapResolutionProvision,
+			homePaths:     homePaths,
+			bundlePath:    source,
+			installedPath: installedPath,
+			provenance:    compozyupdate.DesktopProvenanceMetadata{Channel: "beta"},
+		})
+		assertErrorContains(t, err, "app version is required")
+		if _, statErr := os.Stat(installedPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(provisioned runtime) error = %v, want removed runtime", statErr)
+		}
+	})
+
 	t.Run("Should publish exactly one complete executable under concurrent first runs", func(t *testing.T) {
 		t.Parallel()
 
@@ -174,7 +267,11 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		t.Parallel()
 
 		target := filepath.Join(t.TempDir(), "home", "bin", "compozy")
-		assertErrorContains(t, provisionBundledRuntime(filepath.Join(t.TempDir(), "missing"), target), "bundled runtime payload")
+		assertErrorContains(
+			t,
+			provisionBundledRuntime(filepath.Join(t.TempDir(), "missing"), target),
+			"bundled runtime payload",
+		)
 		if _, err := os.Stat(target); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Stat(target) error = %v, want no partial executable", err)
 		}
@@ -308,6 +405,8 @@ func TestDaemonBootstrapEmitsAttachJSONL(t *testing.T) {
 			">=1.1.0",
 			"--app-version",
 			"v1.0.0",
+			"--channel",
+			"beta",
 			"-o",
 			"jsonl",
 		)

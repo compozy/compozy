@@ -14,6 +14,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
+	compozyversion "github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -71,6 +72,7 @@ type bootstrapOptions struct {
 	bundlePath     string
 	minimumRuntime string
 	appVersion     string
+	channel        string
 }
 
 var daemonBootstrapAttemptGate bootstrapAttemptGate
@@ -88,6 +90,7 @@ func newDaemonBootstrapCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&options.bundlePath, "bundle-path", "", "Bundled runtime payload path")
 	cmd.Flags().StringVar(&options.minimumRuntime, "minimum-runtime", ">=0.0.0", "Minimum compatible runtime version")
 	cmd.Flags().StringVar(&options.appVersion, "app-version", "", "Desktop app version for compatibility checks")
+	cmd.Flags().StringVar(&options.channel, "channel", "development", "Desktop app release channel")
 	return cmd
 }
 
@@ -147,7 +150,17 @@ func (e *bootstrapExecution) resolveAndStart() error {
 	runtimePath, owned := resolveBootstrapRuntime(e.deps, e.homePaths, e.installedPath)
 	installed := regularFileExists(runtimePath)
 	resolution := resolveBootstrapAction(bootstrapProbe{Installed: installed})
-	if err := provisionBootstrapRuntime(e.cmd, resolution, e.homePaths, e.bundlePath, e.installedPath); err != nil {
+	if err := provisionBootstrapRuntime(e.cmd, bootstrapProvisionRequest{
+		resolution:    resolution,
+		homePaths:     e.homePaths,
+		bundlePath:    e.bundlePath,
+		installedPath: e.installedPath,
+		provenance: compozyupdate.DesktopProvenanceMetadata{
+			AppVersion:     e.options.appVersion,
+			Channel:        e.options.channel,
+			RuntimeVersion: compozyversion.Current().Version,
+		},
+	}); err != nil {
 		return err
 	}
 	if resolution == bootstrapResolutionProvision {
@@ -184,38 +197,6 @@ func writeAttachedBootstrap(cmd *cobra.Command, options bootstrapOptions, status
 		Type: bootstrapEventType, Phase: bootstrapPhaseReady, Status: bootstrapStatusCompleted,
 		Resolution: bootstrapResolutionAttach, Message: "Attached to the running CompozyOS runtime.",
 		Daemon: daemon,
-	})
-}
-
-func provisionBootstrapRuntime(
-	cmd *cobra.Command,
-	resolution bootstrapResolution,
-	homePaths compozyconfig.HomePaths,
-	bundlePath string,
-	installedPath string,
-) error {
-	if resolution != bootstrapResolutionProvision {
-		return nil
-	}
-	if err := writeBootstrapEvent(cmd, bootstrapEvent{
-		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusStarted,
-		Resolution: resolution, Message: "Provisioning the bundled CompozyOS runtime.",
-	}); err != nil {
-		return err
-	}
-	if err := provisionBundledRuntime(bundlePath, installedPath); err != nil {
-		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
-	}
-	if err := compozyupdate.WriteDesktopProvenance(homePaths, installedPath); err != nil {
-		removeErr := os.Remove(installedPath)
-		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			err = errors.Join(err, fmt.Errorf("cli: remove unowned provisioned runtime: %w", removeErr))
-		}
-		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
-	}
-	return writeBootstrapEvent(cmd, bootstrapEvent{
-		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusCompleted,
-		Resolution: resolution, Message: "Provisioned the bundled CompozyOS runtime.",
 	})
 }
 

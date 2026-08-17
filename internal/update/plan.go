@@ -200,7 +200,10 @@ func (m *Manager) resolveAppReleaseAsset(release *Release) (ReleaseAsset, error)
 		name = "CompozyOS-" + version + "-mac-" + arch + ".zip"
 	case runtimeOSLinux:
 		if m.runtimeArch != runtimeArchAMD64 {
-			return ReleaseAsset{}, fmt.Errorf("update: desktop app auto-update is unsupported on linux/%s", m.runtimeArch)
+			return ReleaseAsset{}, fmt.Errorf(
+				"update: desktop app auto-update is unsupported on linux/%s",
+				m.runtimeArch,
+			)
 		}
 		name = "CompozyOS-" + version + "-linux-x64.AppImage"
 	default:

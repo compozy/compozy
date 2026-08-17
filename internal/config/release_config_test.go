@@ -495,6 +495,7 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}",
 		"RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}",
 		"RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}",
+		"COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}",
 		"GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}",
 		"GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}",
 		"NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}",
@@ -1738,7 +1739,7 @@ func workflowJobSection(t *testing.T, workflow string, job string, nextJob strin
 	if start == -1 {
 		t.Fatalf("release workflow job %q missing", job)
 	}
-	start += 1
+	start++
 	if nextJob == "" {
 		return workflow[start:]
 	}
