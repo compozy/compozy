@@ -6,13 +6,13 @@ persona: Dora
 journey: J-approve-compozy-beta-candidate
 expected: The README, rendered site, official Compozy skill, installer source, update guidance, release workflow, and generated package metadata agree on per-architecture Electron beta packages, immutable GitHub Release assets, signed `compat.json`, one audited ref-CAS `channel-beta` generation, npm @compozy/cli@beta, pinned github.com/compozy/compozy Go install, Sigstore provenance, and no Homebrew path before stable, without claiming that an unpublished candidate is live.
 entry_points: README Installation; packages/site install and desktop routes; skills/compozy/SKILL.md; scripts/install.sh; compozy update --check fixture/local contract; .github/workflows/release.yml desktop build/publish jobs; channel-beta desktop/generation.json and platform manifests; package metadata
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: blocked-decision
+bug_ids: BUG-20260817-explicit-release-web-assets-sync; BUG-20260817-macos-finalized-dmg-integrity-stale; BUG-20260817-macos-channel-manifest-includes-dmg; BUG-20260817-linux-channel-manifest-includes-deb
+fix_status: fixed
+retest_status: pending
+fix_commits: 800fbce; 7846f4b; bd5ecef; 361c785e; 437cea3d
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: REL-beta-install-paths; REL-beta-installer-provenance; REL-beta-self-update
 ---
 

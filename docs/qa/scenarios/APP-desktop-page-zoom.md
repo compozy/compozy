@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: In the daemon-served main desktop window, Command or Control plus, minus, and zero scale or reset the whole product page while the in-product single-window Zoom action remains separate and boot-window privileges do not expand.
 entry_points: native desktop main window keyboard shortcuts
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-open-issues-20260812-002435-338441-lab/qa-artifacts/desktop-zoom-in-pass.png;/Users/pedronauck/dev/qa-labs/compozy-open-issues-20260812-002435-338441-lab/qa-artifacts/desktop-zoom-out-pass.png;/Users/pedronauck/dev/qa-labs/compozy-open-issues-20260812-002435-338441-lab/qa-artifacts/desktop-zoom-reset-pass.png
-last_report: docs/qa/reports/2026-08-11-open-issues.md
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: ET-window-manager-layout-gestures
 ---
 

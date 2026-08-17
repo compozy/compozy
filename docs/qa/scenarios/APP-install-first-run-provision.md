@@ -6,13 +6,13 @@ persona: Lea
 journey: J-desktop-first-run
 expected: A machine with no runtime goes installer → guided offline provisioning with visible verify, install, and start phases for the bundled lockstep runtime → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy. A startup failure keeps the non-interactive boot window available for redacted diagnostics, local copy, and explicit local export.
 entry_points: CompozyOS installer (macOS dmg, Linux package); app first launch
-qa_status: untested
-bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable
+qa_status: pass
+bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable; BUG-20260817-desktop-release-channel-provenance; BUG-20260817-signed-macos-x64-digest-drift; BUG-20260817-desktop-smoke-local-isolation
 fix_status: fixed
 retest_status: pass
-fix_commits: 01a45c49; b415f24b; b3aa3d27; bd610cfa; 02b55a46; f081a1e; 107890a0; c38ba0fa
-evidence: https://github.com/compozy/compozy/actions/runs/31817112935/job/94855708220; https://github.com/compozy/compozy/actions/runs/31817112935/job/94855708350; https://github.com/compozy/compozy/actions/runs/31817112935/job/94856203430
-last_report: docs/qa/reports/2026-08-13-release-pipeline-recovery.md
+fix_commits: 01a45c49; b415f24b; b3aa3d27; bd610cfa; 02b55a46; f081a1e; 107890a0; c38ba0fa; 94e2ce7; 1a0b52d; 560cd17
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps:
 ---
 

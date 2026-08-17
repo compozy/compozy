@@ -6,13 +6,13 @@ persona: Dora
 journey: J-publish-compozy-beta
 expected: Repair verifies every immutable release asset, records one audit commit, and atomically restores both platform manifests without exposing a partial generation.
 entry_points: compozy-desktop-release repair -o json; channel-beta desktop manifests
-qa_status: untested
+qa_status: blocked-decision
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: REL-beta-channel-contract; REL-beta-self-update
 ---
 

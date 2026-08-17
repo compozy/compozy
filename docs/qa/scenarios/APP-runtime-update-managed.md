@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-update-moment
 expected: With a package-manager-owned runtime (e.g. homebrew) and a newer version available, the update surface shows availability plus the exact channel command, no binary is modified anywhere (mtime unchanged), and after the user updates through their channel the surface clears with no residual pending state.
 entry_points: Settings → General → Updates in Chrome or the app on a managed-install home; GET /api/settings/update; compozy update --check -o json
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status: blocked-verify
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/platform-capability-blockers.txt
-last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-runtime-update-app-owned
 ---
 

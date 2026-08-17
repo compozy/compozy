@@ -6,13 +6,13 @@ persona: Ada
 journey: J-publish-compozy-beta
 expected: Release notes direct each supported architecture to the current GitHub release, preserve the existing home and package identity, and tell portable Linux users when to delete the old AppImage.
 entry_points: RELEASE_BODY.md; RELEASE_NOTES.md; getting-started installation and desktop-app docs; operations desktop-app and desktop-release runbook docs
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: REL-release-note-signal; APP-install-first-run-provision
 ---
 

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-desktop-agent-headless
 expected: One `compozy update -o json` operation applies the runtime first, then updates a running app or stages a closed app, and reports both targets from the same verified release; the deleted app-scoped updater subcommand is unknown with no alias, write, or operation record.
 entry_points: compozy update -o json; compozy update --check -o json; compozy app status -o json; compozy app update --check (unknown command)
-qa_status: untested
+qa_status: blocked-decision
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: REL-beta-self-update; APP-agent-cli-app-verbs
 ---
 

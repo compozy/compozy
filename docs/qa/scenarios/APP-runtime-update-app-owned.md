@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-desktop-update-moment
 expected: On an app-provisioned home with agent work in flight, a ready runtime update asks for timing consent — "later" keeps everything working; "now" quiesces, stops, applies, restarts, reconnects — and both new versions appear in one update surface.
 entry_points: Settings → General → Updates in Chrome or the app; compozy update; settings update HTTP and UDS routes; signed compatibility catalog and immutable release assets
-qa_status: untested
+qa_status: blocked-decision
 bug_ids:
-fix_status:
-retest_status: blocked-verify
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/platform-capability-blockers.txt
-last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-runtime-update-managed
 ---
 

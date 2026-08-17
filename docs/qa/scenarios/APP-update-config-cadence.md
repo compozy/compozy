@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-agent-headless
 expected: The daemon, not the shell, owns `[app].update_check` and `[app].update_check_interval`; disabling checks produces zero channel requests, changing the bounded interval affects the next daemon cadence without restart, and every config surface reads the same persisted global values.
 entry_points: global config.toml [app]; compozy config get|set app.update_check and app.update_check_interval; config HTTP and UDS routes; compozy__config_get|set; configuration docs
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-app-auto-update; APP-web-update-two-track
 ---
 

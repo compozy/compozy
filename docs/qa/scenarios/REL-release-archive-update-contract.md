@@ -6,13 +6,13 @@ persona: Dora
 journey: J-publish-compozy-beta
 expected: Every Darwin and Linux archive passes the runtime-owned compressed-archive and extracted-binary policy after GoReleaser builds it and before the draft can be published; an incompatible archive stops publication with measured artifact details.
 entry_points: .goreleaser.yml before_publish; go run github.com/magefile/mage@v1.17.2 updateArchiveCheck <archive>
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: REL-beta-self-update
 ---
 

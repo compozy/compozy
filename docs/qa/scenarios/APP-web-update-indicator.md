@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-desktop-update-moment
 expected: A discreet menubar indicator exists only while the daemon reports an available update and no operation is running; it carries no count and opens no menu, disappears through applying, staged, and failed, and activating it by pointer or keyboard opens Settings → General with the Updates section in view.
 entry_points: product menubar in Chrome or the app; keyboard focus with Enter or Space; GET /api/settings/update
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-web-update-two-track; APP-app-auto-update
 ---
 

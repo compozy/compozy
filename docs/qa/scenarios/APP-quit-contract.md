@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: With agents/sessions working, closing the window ends only the app — the runtime and all in-flight work continue and are verifiable via `compozy status`; the same holds for runtimes the app itself started or provisioned, and after a force-kill the next launch attaches normally.
 entry_points: app window close/quit while agent work is in flight; force-kill of the app process
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260810-desktop-runtime-stalls
 fix_status: fixed
 retest_status: pass
 fix_commits: b415f24b; b3aa3d27; bd610cfa; 02b55a46
-evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/quit-contract.txt
-last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps:
 ---
 

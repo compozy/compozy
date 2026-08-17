@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-desktop-update-moment
 expected: With a newer verified release, the daemon reports the app track in Settings and the menubar points there; an accepted durable operation downloads and verifies the asset, then a running app enters installer handoff only with consent while a closed app stages for next launch. The boot window reports progress but never offers an update.
 entry_points: Settings → General → Updates in Chrome or the app; product menubar update indicator; compozy update; signed release channel
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status: blocked-verify
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/platform-capability-blockers.txt
-last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
+qa_status: blocked-decision
+bug_ids: BUG-20260817-macos-channel-manifest-includes-dmg; BUG-20260817-linux-channel-manifest-includes-deb
+fix_status: fixed
+retest_status: pending
+fix_commits: 361c785e; 437cea3d
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps:
 ---
 

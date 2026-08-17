@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: The main window restores its last usable normal bounds and maximized state after relaunch; saved bounds from a disconnected display recover fully inside a connected display without changing daemon ownership or app state.
 entry_points: packaged desktop main-window move, resize, maximize, quit, relaunch, and disconnected-display recovery
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-desktop-page-zoom
 ---
 

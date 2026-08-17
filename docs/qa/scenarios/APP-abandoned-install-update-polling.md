@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-update-moment
 expected: An old abandoned app records its scheduled update-check failure while no retired feed object or compatibility redirect is restored.
 entry_points: previous desktop app logs; retired distribution origin; current GitHub release
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-app-auto-update; REL-beta-channel-contract
 ---
 

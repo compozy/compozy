@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-desktop-update-moment
 expected: Settings → General → Updates shows one row per track the daemon reports, offers apply only where self-apply is possible, renders the daemon's named phases while an operation runs, and reports staged, blocked, and rolled-back outcomes without ever claiming success it cannot know.
 entry_points: Settings → General → Updates in Chrome or the app; GET /api/settings/update; POST /api/settings/update/apply; POST /api/settings/update/cancel over HTTP and UDS
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-single-command-multi-target-update; APP-runtime-update-managed; APP-cancel-dormant-update; APP-web-update-indicator
 ---
 

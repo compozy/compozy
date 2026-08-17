@@ -6,13 +6,13 @@ persona: Ada
 journey: J-desktop-agent-headless
 expected: The full lifecycle — status before install, open or focus, retry, schema-v2 transitional state, navigation, `compozy update` handoff, redacted diagnostics, consent-gated bundle export, and stopped state — is deterministic structured output with named errors; `compozy app update --check` is unknown and creates no operation.
 entry_points: compozy app status|open|retry|diagnose -o json; compozy update [--check|--cancel] -o json; compozy app update --check (unknown command); app.sock control socket
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260810-app-control-timeout; BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
-retest_status: blocked-verify
+retest_status: pass
 fix_commits: 0805f649; f081a1e
-evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-status-before-daemon.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-status-attached.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-control-product.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt; /Users/pedronauck/dev/qa-labs/compozy-desktop-startup-diagnostics-20260811-200336-439901-lab/qa-artifacts/qa/runtime-cli-walk.md; /Users/pedronauck/dev/qa-labs/compozy-desktop-startup-diagnostics-20260811-200336-439901-lab/qa-artifacts/qa/live-diagnostics.tar.gz
-last_report: docs/qa/reports/2026-08-11-desktop-startup-diagnostics.md
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-update-recovery-state
 ---
 

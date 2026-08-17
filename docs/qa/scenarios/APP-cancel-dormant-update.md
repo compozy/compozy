@@ -6,13 +6,13 @@ persona: Ada
 journey: J-desktop-agent-headless
 expected: `compozy update --cancel` cancels and archives a waiting-for-app or expired-lease dormant operation in `update-history.jsonl`, frees acquisition, and returns canceled; a live executor returns blocked with its holder and keeps the operation intact.
 entry_points: compozy update --cancel -o json; update-operation.json; update-history.jsonl
-qa_status: untested
+qa_status: pass
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: 
+retest_status: 
+fix_commits: 
+evidence: docs/qa/reports/2026-08-17-electron-shell.md
+last_report: docs/qa/reports/2026-08-17-electron-shell.md
 overlaps: APP-update-recovery-state
 ---
 
