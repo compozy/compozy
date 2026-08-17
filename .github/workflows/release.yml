@@ -471,7 +471,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: desktop-dry-run-smoke-${{ matrix.id }}-diagnostics
-          path: ${{ runner.temp }}/compozyqa-desktop-smoke.*/
+          path: ${{ runner.temp }}/compozyds.*/
           if-no-files-found: ignore
           retention-days: 14
 
@@ -1315,7 +1315,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: desktop-release-smoke-${{ matrix.id }}-diagnostics
-          path: ${{ runner.temp }}/compozyqa-desktop-smoke.*/
+          path: ${{ runner.temp }}/compozyds.*/
           if-no-files-found: ignore
           retention-days: 14
 
