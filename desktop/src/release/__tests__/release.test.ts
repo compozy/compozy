@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { shouldDisableDifferentialDownload } from "../cross-arch";
 import { assertMacZipSymlinks, parseZipInfoLongListing, requiredMacZipSymlinks } from "../mac-zip";
+import { appleIDNotaryArguments } from "../notary-auth";
 import {
   mergeMacUpdateManifests,
   parseUpdateManifest,
@@ -27,7 +28,7 @@ describe("desktop release policy", () => {
       })
     ).toMatchObject({
       extraMetadata: { version: "1.2.0-beta.1" },
-      mac: { notarize: true, target: ["dmg", "zip"] },
+      mac: { detectUpdateChannel: false, notarize: true, target: ["dmg", "zip"] },
       publish: {
         provider: "generic",
         url: "https://raw.githubusercontent.com/compozy/compozy/channel-beta/desktop/",
@@ -44,7 +45,15 @@ describe("desktop release policy", () => {
         platform: "linux",
         version: "1.2.0-beta.1+build.7",
       })
-    ).toMatchObject({ linux: { target: ["AppImage", "deb"] } });
+    ).toMatchObject({
+      linux: {
+        artifactName: "CompozyOS-${version}-linux-x64.${ext}",
+        detectUpdateChannel: false,
+        executableName: "compozyos",
+        syncDesktopName: true,
+        target: ["AppImage", "deb"],
+      },
+    });
     for (const input of [
       { arch: "x64", platform: "mac", notarize: false, version: "v1.2.0" },
       { arch: "x64", platform: "windows", notarize: false, version: "1.2.0" },
@@ -158,6 +167,25 @@ releaseDate: "${date}"
       )
     ).toThrow("Duplicate");
     expect(() => parseBooleanFlag("yes", "notarize")).toThrow("true or false");
+  });
+
+  it("Should fail closed while preparing Apple ID notarization", () => {
+    const environment = {
+      APPLE_APP_SPECIFIC_PASSWORD: "app-password",
+      APPLE_ID: "release@example.com",
+      APPLE_TEAM_ID: "ABCDE12345",
+    };
+    expect(appleIDNotaryArguments(environment)).toEqual([
+      "--apple-id",
+      "release@example.com",
+      "--password",
+      "app-password",
+      "--team-id",
+      "ABCDE12345",
+    ]);
+    for (const missing of Object.keys(environment)) {
+      expect(() => appleIDNotaryArguments({ ...environment, [missing]: "" })).toThrow(missing);
+    }
   });
 
   it("Should parse zipinfo metadata separately from paths", () => {

@@ -35,7 +35,9 @@ mac:
     - zip
 linux:
   category: Development
+  executableName: compozyos
   icon: build/icon.png
+  syncDesktopName: true
   target:
     - AppImage
     - deb

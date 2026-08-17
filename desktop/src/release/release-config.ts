@@ -41,7 +41,22 @@ export function buildReleaseConfig(input: ReleaseConfigInput): Record<string, un
       url: `https://raw.githubusercontent.com/compozy/compozy/channel-${input.channel}/desktop/`,
     },
     ...(input.platform === "mac"
-      ? { mac: { hardenedRuntime: true, notarize: input.notarize, target } }
-      : { linux: { target } }),
+      ? {
+          mac: {
+            detectUpdateChannel: false,
+            hardenedRuntime: true,
+            notarize: input.notarize,
+            target,
+          },
+        }
+      : {
+          linux: {
+            artifactName: "CompozyOS-${version}-linux-x64.${ext}",
+            detectUpdateChannel: false,
+            executableName: "compozyos",
+            syncDesktopName: true,
+            target,
+          },
+        }),
   };
 }
