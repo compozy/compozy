@@ -11,6 +11,7 @@ import { createElement, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
 import type { WindowManagerConfig } from "@/systems/os";
+import { windowManagerSettingsConfigToWire } from "../../lib/window-manager-layout-schema";
 import {
   applyTerminalShortcutPreset,
   previewTerminalShortcutPreset,
@@ -90,6 +91,14 @@ function fields(problems: ReadonlyArray<{ field: string }>) {
 }
 
 describe("useWindowManagerConfigEditor", () => {
+  it("Should preserve every daemon-required limit in the wire config", () => {
+    expect(windowManagerSettingsConfigToWire(CONFIG)).toMatchObject({
+      history_limit: 100,
+      nav_stack_limit: 50,
+      closed_entry_limit: 20,
+    });
+  });
+
   it("Should preserve a dirty draft when a newer baseline is rendered", () => {
     const { result, rerender } = renderEditor();
     act(() => {

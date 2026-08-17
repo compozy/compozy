@@ -23,7 +23,7 @@ func settingsAttentionPayload(cfg compozyconfig.AttentionConfig) contract.Settin
 		Toasts:          cfg.Toasts,
 		Sound:           cfg.Sound,
 		System:          cfg.System,
-		MutedWorkspaces: append([]string(nil), cfg.MutedWorkspaces...),
+		MutedWorkspaces: append([]string{}, cfg.MutedWorkspaces...),
 	}
 }
 
@@ -34,7 +34,7 @@ func attentionConfigFromPayload(
 		Toasts:          payload.Toasts,
 		Sound:           payload.Sound,
 		System:          payload.System,
-		MutedWorkspaces: append([]string(nil), payload.MutedWorkspaces...),
+		MutedWorkspaces: append([]string{}, payload.MutedWorkspaces...),
 	}
 	if err := value.Validate(); err != nil {
 		return compozyconfig.AttentionConfig{}, NewSettingsValidationError(err)

@@ -80,28 +80,48 @@ func (m *Manager) PendingInteractions(
 	return clonePendingInteractions(interactions), nil
 }
 
-func (m *Manager) orphanPendingInteractions(ctx context.Context, sessionID string) error {
-	if m.attentionStore == nil {
-		return nil
+// RecoverPendingInteractions marks requests from a dead turn as restart-orphaned.
+func (m *Manager) RecoverPendingInteractions(ctx context.Context, sessionID string) (int, error) {
+	if m == nil || m.attentionStore == nil {
+		return 0, nil
+	}
+	if ctx == nil {
+		return 0, errors.New("session: pending interaction recovery context is required")
+	}
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return 0, errors.New("session: pending interaction recovery session id is required")
+	}
+	if _, active := m.Get(target); active {
+		return 0, nil
 	}
 	interactions, err := m.attentionStore.ListPendingInteractions(
 		ctx,
-		sessionID,
+		target,
 		[]string{store.PendingInteractionStatusPending},
 	)
 	if err != nil {
-		return fmt.Errorf("session: list pending interactions before resume: %w", err)
+		return 0, fmt.Errorf("session: list pending interactions during restart recovery: %w", err)
 	}
+	orphaned := 0
 	for _, interaction := range interactions {
-		if _, err := m.transitionPendingInteraction(ctx, store.PendingInteractionTransition{
+		commit, err := m.transitionPendingInteraction(ctx, store.PendingInteractionTransition{
 			InteractionID: interaction.InteractionID,
 			Status:        store.PendingInteractionStatusOrphaned,
 			At:            m.now().UTC(),
-		}); err != nil {
-			return fmt.Errorf("session: orphan interaction %q before resume: %w", interaction.InteractionID, err)
+		})
+		if err != nil {
+			return orphaned, fmt.Errorf(
+				"session: orphan interaction %q during restart recovery: %w",
+				interaction.InteractionID,
+				err,
+			)
+		}
+		if commit.Interaction != nil && commit.Interaction.Status == store.PendingInteractionStatusOrphaned {
+			orphaned++
 		}
 	}
-	return nil
+	return orphaned, nil
 }
 
 func (m *Manager) hydrateSessionAttention(ctx context.Context, target *Session) error {
@@ -120,6 +140,18 @@ func (m *Manager) hydrateSessionAttention(ctx context.Context, target *Session) 
 	applyAttentionProjectionLocked(target, projection)
 	target.PendingInteractions = clonePendingInteractions(interactions)
 	target.mu.Unlock()
+	return nil
+}
+
+func (m *Manager) hydrateSessionInfoAttention(ctx context.Context, info *Info) error {
+	if m.attentionStore == nil || info == nil {
+		return nil
+	}
+	projection, err := m.attentionStore.GetSessionAttention(ctx, info.ID)
+	if err != nil {
+		return fmt.Errorf("session: hydrate attention projection for %q: %w", info.ID, err)
+	}
+	applyAttentionToInfo(info, projection)
 	return nil
 }
 

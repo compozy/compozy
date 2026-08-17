@@ -28,7 +28,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			Toasts:          false,
 			Sound:           false,
 			System:          true,
-			MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+			MutedWorkspaces: []string{"ws_0123456789abcdef"},
 		}
 		sessions := &attentionConfigSessionManager{fakeSessionManager: &fakeSessionManager{}}
 		daemonInstance := &Daemon{config: previous}

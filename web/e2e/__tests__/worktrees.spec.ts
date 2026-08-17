@@ -1,5 +1,7 @@
 import type { Page } from "@playwright/test";
+import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -13,10 +15,34 @@ import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktr
  */
 let repo: WorktreeRepoFixture;
 
+const worktreeSessionAgent = "browser-lifecycle-agent";
+const worktreeSessionFixture = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "internal",
+  "testutil",
+  "acpmock",
+  "testdata",
+  "browser_session_lifecycle_fixture.json"
+);
+
 // The daemon already gets an isolated HOME; clearing ambient token bindings
 // makes the zero-credential browser fallback deterministic as well.
 test.use({
-  runtimeOptions: { env: { ...process.env, GH_TOKEN: "", GITHUB_TOKEN: "" } },
+  runtimeOptions: {
+    env: { ...process.env, GH_TOKEN: "", GITHUB_TOKEN: "" },
+    seed: {
+      mockAgents: [
+        {
+          agentName: worktreeSessionAgent,
+          fixtureAgent: worktreeSessionAgent,
+          fixturePath: worktreeSessionFixture,
+        },
+      ],
+    },
+  },
 });
 
 test.beforeEach(async () => {
@@ -84,6 +110,17 @@ async function selectWorkspace(page: Page, workspaceId: string) {
   // A pointer click on the workspace row selects it and closes the menu.
   await page.getByTestId(`os-workspace-option-${workspaceId}`).click();
   await expect(page.getByTestId("os-workspace-menu")).toHaveCount(0);
+}
+
+async function openSessionCreate(page: Page) {
+  await page.getByRole("button", { name: "New session", exact: true }).click();
+  const dialog = page.getByTestId("session-create-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByTestId("session-create-agent-select").click();
+  await page.getByTestId(`agent-command-item-${worktreeSessionAgent}`).click();
+  await expect(dialog.getByTestId("session-create-agent-select")).toContainText(
+    worktreeSessionAgent
+  );
 }
 
 async function openOverviewMenu(page: Page, workspaceId: string) {
@@ -331,11 +368,12 @@ test("operator must pass the force doorway before a dirty worktree is removed", 
     .poll(
       async () => {
         const listing = await listWorktrees(runtime, workspace.id, true);
-        return listing.worktrees.some(entry => entry.id === worktree.id);
+        return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
       },
       { timeout: 30_000 }
     )
-    .toBe(false);
+    .toBe("removed");
+  await expect(appPage.getByTestId(`os-workspaces-worktree-row-${worktree.id}`)).toHaveCount(0);
 });
 
 test("operator dismisses a missing worktree record without losing its history", async ({
@@ -400,7 +438,7 @@ test("operator restores a missing worktree when its checkout comes back", async 
       { timeout: 30_000 }
     )
     .toBe("missing");
-  await repo.restoreWorktreeAt(worktree.path, "pedro/hotfix-cors");
+  await repo.restoreWorktreeAt(worktree.path, worktree.branch);
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   await openWorkspaceNest(appPage, workspace.id);
@@ -435,7 +473,7 @@ test("operator picks a session environment under Workspace", async ({ appPage, r
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await selectWorkspace(appPage, workspace.id);
 
-  await appPage.getByTestId("session-create-open").click();
+  await openSessionCreate(appPage);
   await appPage.getByTestId("session-create-mode-advanced").click();
 
   const environment = appPage.getByTestId("session-create-environment");
@@ -448,16 +486,24 @@ test("operator picks a session environment under Workspace", async ({ appPage, r
   await appPage.getByRole("option", { name: new RegExp(ready.name) }).click();
   await expect(environment).toContainText(ready.name);
 
-  // A non-git workspace has no environment control at all.
-  await appPage.getByTestId("session-create-workspace-select").click();
-  await appPage.getByTestId(`workspace-command-item-${nonGitWorkspace.id}`).click();
-  await expect(environment).toHaveCount(0);
+  // Session creation is scoped by the shell. A non-git workspace has no
+  // environment control at all, and reopening in the original workspace
+  // cannot retain a choice owned by the prior dialog.
+  const dialog = appPage.getByTestId("session-create-dialog");
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await selectWorkspace(appPage, nonGitWorkspace.id);
+  await openSessionCreate(appPage);
+  await appPage.getByTestId("session-create-mode-advanced").click();
+  await expect(appPage.getByTestId("session-create-environment")).toHaveCount(0);
 
   // Worktrees belong to one workspace, so switching back discards the choice.
-  await appPage.getByTestId("session-create-workspace-select").click();
-  await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
-  await expect(environment).toBeVisible();
-  await expect(environment).toContainText("Workspace root");
+  await appPage.getByTestId("session-create-dialog").getByRole("button", { name: "Close" }).click();
+  await selectWorkspace(appPage, workspace.id);
+  await openSessionCreate(appPage);
+  await appPage.getByTestId("session-create-mode-advanced").click();
+  const reopenedEnvironment = appPage.getByTestId("session-create-environment");
+  await expect(reopenedEnvironment).toBeVisible();
+  await expect(reopenedEnvironment).toContainText("Workspace root");
 });
 
 // E2E-009 (US-004 AC-2): sending the typed first message is what materializes a
@@ -471,7 +517,7 @@ test("operator sends a first message that materializes and binds its environment
   const workspace = await runtime.resolveWorkspace(repo.rootDir);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await selectWorkspace(appPage, workspace.id);
-  await appPage.getByTestId("session-create-open").click();
+  await openSessionCreate(appPage);
 
   const firstMessage = appPage.getByTestId("session-create-composer");
   await firstMessage.fill("Investigate the checkout latency regression");
@@ -543,7 +589,7 @@ test("operator forks a live session into a worktree", async ({ appPage, runtime 
   const target = await seedReadyWorktree(runtime, workspace.id, "payments-retry");
   await selectWorkspace(appPage, workspace.id);
 
-  await appPage.getByTestId("session-create-open").click();
+  await openSessionCreate(appPage);
   await appPage.getByRole("button", { name: /start session/i }).click();
 
   const sessionsBefore = await runtime.requestJSON<{
@@ -657,11 +703,12 @@ test("operator reads cleanup evidence before removing a finished worktree", asyn
     .poll(
       async () => {
         const listing = await listWorktrees(runtime, workspace.id, true);
-        return listing.worktrees.some(entry => entry.id === worktree.id);
+        return listing.worktrees.find(entry => entry.id === worktree.id)?.state;
       },
       { timeout: 30_000 }
     )
-    .toBe(false);
+    .toBe("removed");
+  await expect(appPage.getByTestId(`os-worktree-option-${worktree.id}`)).toHaveCount(0);
 });
 
 // E2E-017: zero-credential remote — PR affordances are absent, not disabled,

@@ -1,59 +1,17 @@
-import { AlertCircle, Check, Minus, TriangleAlert } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
-import { Alert, AlertDescription, Button, Icon, Spinner, Switch } from "@compozy/ui";
+import { Alert, AlertDescription, Button, Spinner, Switch } from "@compozy/ui";
 
 import {
+  AttentionSystemStateChip,
   SettingsGroup,
   SettingsPageFrame,
   SettingRow,
+  attentionSystemStateNote,
   useSettingsAttentionPage,
   useSettingsTopbar,
 } from "@/systems/settings";
-import type { SystemNotificationState } from "@/systems/os";
 import { useActiveWorkspace } from "@/systems/workspace";
-
-const SYSTEM_CHIP: Record<
-  SystemNotificationState,
-  { label: string; icon: typeof Check; className: string; note: string }
-> = {
-  granted: {
-    label: "Armed",
-    icon: Check,
-    className: "bg-success-tint text-success",
-    note: "Only while the app is in the background",
-  },
-  denied: {
-    label: "Denied",
-    icon: TriangleAlert,
-    className: "bg-warning-tint text-warning",
-    note: "Permission denied — allow Compozy in your system notification settings",
-  },
-  unsupported: {
-    label: "Unavailable",
-    icon: Minus,
-    className: "bg-neutral-tint text-muted",
-    note: "Not available in this browser",
-  },
-  default: {
-    label: "Not armed",
-    icon: Minus,
-    className: "bg-neutral-tint text-muted",
-    note: "Only while the app is in the background",
-  },
-};
-
-function SystemStateChip({ state }: { state: SystemNotificationState }) {
-  const chip = SYSTEM_CHIP[state];
-  return (
-    <span
-      data-testid={`settings-attention-system-${state}`}
-      className={`inline-flex h-5 items-center gap-1.5 rounded-full px-2 text-micro font-semibold ${chip.className}`}
-    >
-      <Icon as={chip.icon} size="xs" />
-      {chip.label}
-    </span>
-  );
-}
 
 function MutedWorkspaces({
   page,
@@ -150,7 +108,6 @@ export function AttentionSettingsPage() {
     );
   }
 
-  const systemChip = SYSTEM_CHIP[page.systemState];
   return (
     <SettingsPageFrame
       description="How CompozyOS tells you a session needs you. Changes apply immediately."
@@ -191,10 +148,10 @@ export function AttentionSettingsPage() {
         />
         <SettingRow
           label="System notifications"
-          description={systemChip.note}
+          description={attentionSystemStateNote(page.systemState)}
           control={
             <span className="flex items-center gap-2">
-              <SystemStateChip state={page.systemState} />
+              <AttentionSystemStateChip state={page.systemState} />
               <Switch
                 checked={page.config.system && page.systemState === "granted"}
                 disabled={page.isSaving || page.systemState === "unsupported"}

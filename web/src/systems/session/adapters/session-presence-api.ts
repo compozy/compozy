@@ -3,6 +3,8 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 import type { SessionPresenceRequest } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
 
+export type SessionPresenceRenewalResult = "renewed" | "lease-invalid" | "retryable-error";
+
 /**
  * The operator presence lease: how the daemon knows a session is being watched.
  *
@@ -44,20 +46,26 @@ export async function acquireSessionPresence(
   return requireResponseData(data, response, "Failed to report session presence").lease_id;
 }
 
-/** Renew keeps the lease alive well inside its TTL. Returns false if it is gone. */
+/** Renew keeps the lease alive well inside its TTL and classifies failures for the lease loop. */
 export async function renewSessionPresence(
   workspaceId: string,
   sessionId: string,
   leaseId: string,
   signal?: AbortSignal
-): Promise<boolean> {
-  const { error, response } = await postPresence(
-    workspaceId,
-    sessionId,
-    { visible: true, lease_id: leaseId },
-    signal
-  );
-  return !apiRequestFailed(response, error);
+): Promise<SessionPresenceRenewalResult> {
+  try {
+    const { error, response } = await postPresence(
+      workspaceId,
+      sessionId,
+      { visible: true, lease_id: leaseId },
+      signal
+    );
+    if (!apiRequestFailed(response, error)) return "renewed";
+    if (response.status === 404 || response.status === 409) return "lease-invalid";
+    return "retryable-error";
+  } catch {
+    return "retryable-error";
+  }
 }
 
 /** Release on blur so a backgrounded session can go `done` again. */

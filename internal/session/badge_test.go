@@ -52,9 +52,14 @@ func TestCanonicalBadgeAttentionPrecedence(t *testing.T) {
 			want:  BadgeFailed,
 		},
 		{
-			name:  "Should prefer stopped over authorization",
+			name:  "Should preserve pending authorization across a clean stop",
 			input: BadgeInputs{State: StateStopped, PendingAuth: true},
-			want:  BadgeStopped,
+			want:  BadgeWaitingForAuth,
+		},
+		{
+			name:  "Should preserve pending clarification across a clean stop",
+			input: BadgeInputs{State: StateStopped, PendingClarify: true},
+			want:  BadgeWaitingForInput,
 		},
 		{
 			name:  "Should prefer authorization over clarification at the adjacent boundary",

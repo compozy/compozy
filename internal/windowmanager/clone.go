@@ -217,15 +217,6 @@ func cloneSnapConfig(config SnapConfig) SnapConfig {
 	return config
 }
 
-func cloneStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-	cloned := make(map[string]string, len(values))
-	maps.Copy(cloned, values)
-	return cloned
-}
-
 func cloneChangeSet(changes ChangeSet) ChangeSet {
 	changes.DesktopIDs = append([]DesktopID(nil), changes.DesktopIDs...)
 	changes.WindowIDs = append([]WindowID(nil), changes.WindowIDs...)

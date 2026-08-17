@@ -149,7 +149,7 @@ export async function createWorktreeRepo(): Promise<WorktreeRepoFixture> {
       await git(worktreePath, "branch", "--set-upstream-to", `origin/${branch}`);
     },
     async cleanup() {
-      await rm(baseDir, { recursive: true, force: true });
+      await rm(baseDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     },
   };
 }

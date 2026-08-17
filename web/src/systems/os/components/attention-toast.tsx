@@ -35,7 +35,7 @@ function ToastFrame({
       role={onActivate ? "button" : undefined}
       tabIndex={onActivate ? 0 : undefined}
       data-testid={testId}
-      className="flex w-full items-start gap-2.5 text-left"
+      className="pointer-events-auto flex w-full items-start gap-2.5 text-left"
       onClick={onActivate}
       onKeyDown={event => {
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -87,7 +87,7 @@ export function AttentionToastOverflowLedge({
       type="button"
       variant="ghost"
       size="sm"
-      className="w-full justify-center border border-line-soft bg-canvas-soft font-mono text-micro text-muted hover:bg-canvas-tint hover:text-fg-strong"
+      className="pointer-events-auto w-full justify-center border border-line-soft bg-canvas-soft font-mono text-micro text-muted hover:bg-canvas-tint hover:text-fg-strong"
       data-testid="os-attention-toast-overflow"
       onClick={onActivate}
     >

@@ -35,6 +35,8 @@ const (
 	currentSkillsCatalogFinalLine = skillspkg.ManagedSkillLoadingInstructions
 	durableMemoryOpen             = "<turn-recall>"
 	durableMemoryClose            = "</turn-recall>"
+	workspaceKnowledgeOpen        = "<workspace-knowledge-snapshot>"
+	workspaceKnowledgeClose       = "</workspace-knowledge-snapshot>"
 	inboundBridgePromptPrefix     = "Inbound bridge message"
 )
 

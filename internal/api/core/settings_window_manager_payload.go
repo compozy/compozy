@@ -26,8 +26,8 @@ func settingsWindowManagerSectionResponse(
 		Config: settingsWindowManagerConfigPayload(
 			envelope.WindowManager.Config,
 		),
-		Defaults:  windowmanager.DefaultKeymap(),
-		Effective: effective,
+		Defaults:  requiredWindowManagerShortcutsPayload(windowmanager.DefaultKeymap()),
+		Effective: requiredWindowManagerShortcutsPayload(effective),
 	}, nil
 }
 
@@ -72,9 +72,11 @@ func settingsWindowManagerConfigPayload(
 func requiredWindowManagerShortcutsPayload(
 	src map[string]windowmanager.ShortcutBinding,
 ) map[string]windowmanager.ShortcutBinding {
-	shortcuts := windowmanager.CloneShortcutMap(src)
-	if shortcuts == nil {
-		return map[string]windowmanager.ShortcutBinding{}
+	shortcuts := make(map[string]windowmanager.ShortcutBinding, len(src))
+	for action, binding := range src {
+		cloned := make(windowmanager.ShortcutBinding, len(binding))
+		copy(cloned, binding)
+		shortcuts[action] = cloned
 	}
 	return shortcuts
 }

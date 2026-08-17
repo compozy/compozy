@@ -7691,7 +7691,7 @@ export interface components {
         new_window_policy?: string | null;
         raise_on_focus?: boolean | null;
         shortcuts?: {
-          [key: string]: string[];
+          [key: string]: string[] | string;
         };
         small_viewport_policy?: string | null;
         snap?: {
@@ -7900,7 +7900,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string[];
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8071,7 +8071,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string[];
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8348,7 +8348,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string[];
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8529,7 +8529,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string[];
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8733,7 +8733,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string[];
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -8907,7 +8907,7 @@ export interface components {
         new_window_policy?: string | null;
         raise_on_focus?: boolean | null;
         shortcuts?: {
-          [key: string]: string[];
+          [key: string]: string[] | string;
         };
         small_viewport_policy?: string | null;
         snap?: {
@@ -9092,7 +9092,7 @@ export interface components {
           new_window_policy?: string | null;
           raise_on_focus?: boolean | null;
           shortcuts?: {
-            [key: string]: string[];
+            [key: string]: string[] | string;
           };
           small_viewport_policy?: string | null;
           snap?: {
@@ -61741,7 +61741,7 @@ export interface operations {
               new_window_policy: "floating" | "beside_focus";
               raise_on_focus: boolean;
               shortcuts: {
-                [key: string]: string[];
+                [key: string]: string[] | string;
               };
               /** @enum {string} */
               small_viewport_policy: "stack" | "reject";
@@ -61755,10 +61755,10 @@ export interface operations {
               swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
             };
             defaults: {
-              [key: string]: string[];
+              [key: string]: string[] | string;
             };
             effective: {
-              [key: string]: string[];
+              [key: string]: string[] | string;
             };
             /** @enum {string} */
             scope: "global";
@@ -61851,7 +61851,7 @@ export interface operations {
             new_window_policy: "floating" | "beside_focus";
             raise_on_focus: boolean;
             shortcuts: {
-              [key: string]: string[];
+              [key: string]: string[] | string;
             };
             /** @enum {string} */
             small_viewport_policy: "stack" | "reject";
@@ -123444,7 +123444,7 @@ export interface operations {
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
-                [key: string]: string[];
+                [key: string]: string[] | string;
               };
               small_viewport_policy?: string | null;
               snap?: {
@@ -124301,7 +124301,7 @@ export interface operations {
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
-                  [key: string]: string[];
+                  [key: string]: string[] | string;
                 };
                 small_viewport_policy?: string | null;
                 snap?: {
@@ -124653,7 +124653,7 @@ export interface operations {
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
-                [key: string]: string[];
+                [key: string]: string[] | string;
               };
               small_viewport_policy?: string | null;
               snap?: {
@@ -124922,7 +124922,7 @@ export interface operations {
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
-                [key: string]: string[];
+                [key: string]: string[] | string;
               };
               small_viewport_policy?: string | null;
               snap?: {
@@ -125132,7 +125132,7 @@ export interface operations {
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
-                  [key: string]: string[];
+                  [key: string]: string[] | string;
                 };
                 small_viewport_policy?: string | null;
                 snap?: {
@@ -126435,7 +126435,7 @@ export interface operations {
               new_window_policy?: string | null;
               raise_on_focus?: boolean | null;
               shortcuts?: {
-                [key: string]: string[];
+                [key: string]: string[] | string;
               };
               small_viewport_policy?: string | null;
               snap?: {
@@ -126883,7 +126883,7 @@ export interface operations {
                 new_window_policy?: string | null;
                 raise_on_focus?: boolean | null;
                 shortcuts?: {
-                  [key: string]: string[];
+                  [key: string]: string[] | string;
                 };
                 small_viewport_policy?: string | null;
                 snap?: {
@@ -127257,7 +127257,7 @@ export interface operations {
                     new_window_policy?: string | null;
                     raise_on_focus?: boolean | null;
                     shortcuts?: {
-                      [key: string]: string[];
+                      [key: string]: string[] | string;
                     };
                     small_viewport_policy?: string | null;
                     snap?: {

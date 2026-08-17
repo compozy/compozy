@@ -817,35 +817,69 @@ func TestCancelPrompt(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		session := createSession(t, h)
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		session, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatalf("Get(%q) did not find accepted session", created.ID)
+		}
 		t.Cleanup(func() {
-			session.clearCurrentTurnSource()
-			session.clearCurrentPromptCancel()
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
 				!errors.Is(err, ErrSessionNotFound) {
 				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
 			}
 		})
 
-		promptCtx, cancelPrompt := context.WithCancel(testutil.Context(t))
-		session.setCurrentTurnID("turn-setup")
-		session.setCurrentTurnSource(TurnSourceUser)
-		session.setCurrentPromptCancel(cancelPrompt)
+		startEntered := make(chan struct{})
+		h.driver.startContextHook = func(startCtx context.Context, _ acp.StartOpts, _ int) (*fakeProcess, error) {
+			close(startEntered)
+			<-startCtx.Done()
+			return nil, startCtx.Err()
+		}
+		promptResult := make(chan error, 1)
+		go func() {
+			_, promptErr := h.manager.Prompt(testutil.Context(t), session.ID, "cancel during setup")
+			promptResult <- promptErr
+		}()
+		select {
+		case <-startEntered:
+		case <-testutil.Context(t).Done():
+			t.Fatal("runtime binding did not start")
+		}
+		if !session.IsPrompting() || strings.TrimSpace(session.CurrentTurnID()) == "" {
+			t.Fatalf(
+				"prompt setup state = prompting:%t turn:%q, want owned turn",
+				session.IsPrompting(),
+				session.CurrentTurnID(),
+			)
+		}
 
-		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		result, err := h.manager.CancelPrompt(testutil.Context(t), session.ID)
+		if err != nil {
 			t.Fatalf("CancelPrompt() error = %v", err)
 		}
+		if result.Outcome != PromptCancelOutcomeCanceled || strings.TrimSpace(result.TurnID) == "" {
+			t.Fatalf("CancelPrompt() = %#v, want canceled setup turn", result)
+		}
 		select {
-		case <-promptCtx.Done():
-		default:
-			t.Fatal("prompt setup context is still active after CancelPrompt()")
+		case promptErr := <-promptResult:
+			if !errors.Is(promptErr, context.Canceled) {
+				t.Fatalf("Prompt() error = %v, want context cancellation", promptErr)
+			}
+		case <-testutil.Context(t).Done():
+			t.Fatal("prompt setup did not stop after CancelPrompt()")
 		}
-		if got := h.driver.cancelCalls; got != 1 {
-			t.Fatalf("driver cancel calls = %d, want 1", got)
+		if session.IsPrompting() {
+			t.Fatal("session IsPrompting() = true after canceled setup")
 		}
-		if got := len(h.driver.interruptScopes); got != 1 {
-			t.Fatalf("driver interrupt calls = %d, want 1", got)
+		if got := len(h.driver.promptCalls); got != 0 {
+			t.Fatalf("driver prompt calls = %d, want 0", got)
 		}
+		requireTranscriptMarker(t, h.manager, session.ID, transcript.MarkerPromptCancel)
 	})
 
 	t.Run("Should no-op when a prompting session loses its process handle", func(t *testing.T) {

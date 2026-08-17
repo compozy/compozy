@@ -64,7 +64,7 @@ func (m *Manager) applyAttentionAgentEvent(
 	if interaction == nil {
 		return false, nil
 	}
-	resolvedBy := strings.TrimSpace(event.ResolvedBy)
+	resolvedBy := strings.TrimSpace(event.ResolvedByValue())
 	if resolvedBy == "" {
 		resolvedBy = "provider"
 	}

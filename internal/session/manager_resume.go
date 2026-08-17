@@ -77,7 +77,7 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 			errors.Join(validationErrs...),
 		)
 	}
-	if err := m.orphanPendingInteractions(ctx, target); err != nil {
+	if _, err := m.RecoverPendingInteractions(ctx, target); err != nil {
 		return nil, err
 	}
 

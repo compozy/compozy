@@ -121,7 +121,7 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 		}
 		_, inGit := gitPaths[canonicalComparablePath(row.Path)]
 		_, statErr := os.Stat(row.Path)
-		if !inGit && errors.Is(statErr, os.ErrNotExist) {
+		if !inGit || errors.Is(statErr, os.ErrNotExist) {
 			if err := s.store.SetState(ctx, workspaceID, row.ID, StateMissing, s.now().UTC()); err != nil {
 				return nil, fmt.Errorf("worktree: mark missing: %w", err)
 			}

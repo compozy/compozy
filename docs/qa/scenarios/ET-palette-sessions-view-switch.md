@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘E opens the palette already inside the Sessions view, and the root Views entry pushes the same view. Sessions list attention-first with their exact state word; typing narrows by title or agent; the needs-you / working / finished / idle chips narrow by state class with truthful counts, and a chip that matches nothing names its filter and clears with one Backspace. "All workspaces" widens the list through the operator's persisted session-list scope — the sessions sidebar follows, and `compozy config get shell.sessions.scope` reports the same value. Enter focuses the session window, restoring it when it was closed and switching workspace first when the session is foreign; landing on a done session clears its finished marker.
 entry_points: web desktop keyboard; ⌘E; command palette Views group; sessions sidebar scope; compozy config get/set shell.sessions.scope
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_06
+last_report: docs/qa/reports/2026-08-16-herdr-parity.md
 overlaps: ET-web-command-palette-shortcuts; ET-web-sessions-catalog-modal; ET-keyboard-navigation-actions
 ---
 
@@ -23,3 +23,5 @@ It consumes the shared badge dictionary, attention-first ordering, and the share
 path rather than deriving its own. Show all is the existing `shell.sessions.scope` setting, so the
 walk must confirm the round trip across the palette, the sidebar, and the CLI. Rows render bounded
 with an honest "showing N of M" note — confirm the note appears only when matches exceed the bound.
+
+QA 2026-08-16 Herdr parity: The full Web E2E and inspected visual bundles covered push/pop depth, collapsed breadcrumbs, backspace and Escape semantics, reopen-at-root, Sessions filters, empty state, zero match, and one-keystroke clear.

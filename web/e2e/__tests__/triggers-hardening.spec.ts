@@ -343,6 +343,9 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   expect(parity.observe.events.length).toBeGreaterThan(0);
 
   await assertTriggersViewportMatrix(appPage, browserArtifacts, runtime, updated.id);
+  await expect(ui.run(reenabledRun.id)).toBeVisible();
+  await ui.run(reenabledRun.id).click();
+  await expect(ui.runOpenLink(reenabledRun.id)).toBeVisible();
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
     invalidSignature: { status: invalidSignature.status },
     parity,
@@ -366,7 +369,6 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   });
   expect(Number(routeState.automation_run_count)).toBeGreaterThanOrEqual(2);
 
-  await ui.run(reenabledRun.id).click();
   await ui.runOpenLink(reenabledRun.id).click();
   const reenabledSessionId = reenabledRun.session_id;
   if (!reenabledSessionId) {
@@ -533,7 +535,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   await expect(ui.triggersShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
   await ui.itemLink(trigger.id).click();
-  await expect(ui.detailPanel).toContainText("1 fires / 1h");
+  await expect(ui.detailPanel).toContainText("No retry · 1 / hour");
 
   const accepted = await deliverWebhook(runtime, {
     deliveryID: uniqueName("delivery-fire-limit-first"),

@@ -45,16 +45,17 @@ function startPresenceLoop(workspaceId: string, sessionId: string): () => void {
         // `done`, which is the honest daemon-side outcome.
       }
     } else {
-      const alive = await renewSessionPresence(
+      const renewal = await renewSessionPresence(
         workspaceId,
         sessionId,
         leaseId,
         controller.signal
-      ).catch(() => false);
+      );
       if (cancelled) return;
       // A daemon restart or TTL expiry invalidates the lease. The next cycle
-      // acquires a new one instead of retrying a dead id.
-      if (!alive) leaseId = null;
+      // acquires a new one instead of retrying a dead id. Transient failures
+      // retain the lease and retry on the bounded five-second loop.
+      if (renewal === "lease-invalid") leaseId = null;
     }
     schedule(cycle);
   };

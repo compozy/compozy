@@ -49,13 +49,12 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 	}
 	turnID := "clarify:" + event.Request.RequestID
 	content, err := transcript.MarshalAgentEvent(acp.AgentEvent{
-		Type:       EventTypeClarify,
-		SessionID:  sessionID,
-		TurnID:     turnID,
-		Timestamp:  event.At.UTC(),
-		ResolvedBy: event.ResolvedBy,
-		Raw:        payload,
-	}.WithRequestID(event.Request.RequestID))
+		Type:      EventTypeClarify,
+		SessionID: sessionID,
+		TurnID:    turnID,
+		Timestamp: event.At.UTC(),
+		Raw:       payload,
+	}.WithRequestID(event.Request.RequestID).WithResolvedBy(event.ResolvedBy))
 	if err != nil {
 		return m.handleClarifyTranscriptFailure(ctx, active, event, attentionCommitted, err)
 	}

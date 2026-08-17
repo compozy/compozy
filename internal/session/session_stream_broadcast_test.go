@@ -352,6 +352,17 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("same-badge commit published %#v, want no attention edge", unexpected)
 		default:
 		}
+
+		unchanged := store.SessionAttention{PendingClarifyCount: 1, AttentionRevision: 3}
+		manager.publishAttentionCommit(ctx, "sess-attention", store.SessionAttentionCommit{
+			Before: unchanged,
+			After:  unchanged,
+		})
+		select {
+		case unexpected := <-events:
+			t.Fatalf("unchanged attention commit published %#v, want no catalog invalidation", unexpected)
+		default:
+		}
 	})
 }
 

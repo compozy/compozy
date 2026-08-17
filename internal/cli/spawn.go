@@ -71,7 +71,12 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 	cmd.Flags().StringVar(&flags.spawnRole, "role", "worker", "Child spawn role")
 	cmd.Flags().Int64Var(&flags.ttlSeconds, "ttl-seconds", 0, "Mandatory child TTL in seconds")
 	cmd.Flags().BoolVar(&flags.autoStopOnParent, "auto-stop-on-parent", true, "Stop the child when the parent stops")
-	cmd.Flags().BoolVar(&flags.noNotifyCreator, "no-notify-creator", false, "Do not wake this session when the child needs attention or stops")
+	cmd.Flags().BoolVar(
+		&flags.noNotifyCreator,
+		"no-notify-creator",
+		false,
+		"Do not wake this session when the child needs attention or stops",
+	)
 	cmd.Flags().StringArrayVar(&flags.tools, "tool", nil, "Allowed tool atom (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.skills, "skill", nil, "Allowed skill atom (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.mcpServers, "mcp-server", nil, "Allowed MCP server id (repeatable)")

@@ -839,7 +839,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			body: mustJSONBody(t, contract.UpdateSettingsAttentionRequest{
 				Config: contract.SettingsAttentionPayload{
 					Toasts: false, Sound: false, System: true,
-					MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+					MutedWorkspaces: []string{"ws_0123456789abcdef"},
 				},
 			}),
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
@@ -855,7 +855,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					request.Attention.Toasts || request.Attention.Sound || !request.Attention.System ||
 					!reflect.DeepEqual(
 						request.Attention.MutedWorkspaces,
-						[]string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+						[]string{"ws_0123456789abcdef"},
 					) {
 					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed attention config", request)
 				}
@@ -961,7 +961,10 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					request.WindowManager.HistoryLimit != 77 ||
 					request.WindowManager.NavStackLimit != 66 ||
 					request.WindowManager.ClosedEntryLimit != 18 ||
-					!slices.Equal(request.WindowManager.Shortcuts["desktop.switch.next"], windowmanager.ShortcutBinding{"Meta+ArrowRight"}) {
+					!slices.Equal(
+						request.WindowManager.Shortcuts["desktop.switch.next"],
+						windowmanager.ShortcutBinding{"Meta+ArrowRight"},
+					) {
 					t.Fatalf("LastUpdateSectionRequest = %#v, want parsed window-manager config", request)
 				}
 			},

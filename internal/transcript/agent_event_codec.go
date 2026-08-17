@@ -73,7 +73,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Action:            event.Action,
 		Resource:          event.Resource,
 		Decision:          event.Decision,
-		ResolvedBy:        event.ResolvedBy,
+		ResolvedBy:        event.ResolvedByValue(),
 		Error:             event.Error,
 		Failure:           store.CloneSessionFailure(event.Failure),
 		Synthetic:         clonePromptSyntheticMeta(event.Synthetic),
@@ -148,7 +148,6 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Action:           strings.TrimSpace(decoded.Action),
 		Resource:         strings.TrimSpace(decoded.Resource),
 		Decision:         strings.TrimSpace(decoded.Decision),
-		ResolvedBy:       strings.TrimSpace(decoded.ResolvedBy),
 		Error:            strings.TrimSpace(decoded.Error),
 		Failure:          store.CloneSessionFailure(decoded.Failure),
 		Synthetic:        clonePromptSyntheticMeta(decoded.Synthetic),
@@ -156,7 +155,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
-	}.WithRequestID(decoded.RequestID)
+	}.WithRequestID(decoded.RequestID).WithResolvedBy(decoded.ResolvedBy)
 	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)

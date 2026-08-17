@@ -6,6 +6,7 @@ package windowmanager
 // Boundary OUT: TOML decoding and transport DTO validation.
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -78,6 +79,30 @@ func TestEffectiveConfig(t *testing.T) {
 }
 
 func TestCanonicalShortcutsV2(t *testing.T) {
+	t.Run("Should decode scalar and array bindings from JSON [UT-035,UT-036]", func(t *testing.T) {
+		t.Parallel()
+
+		for raw, want := range map[string]ShortcutBinding{
+			`"meta+KeyW"`:              {"meta+KeyW"},
+			`["meta+KeyQ","alt+KeyQ"]`: {"meta+KeyQ", "alt+KeyQ"},
+		} {
+			var binding ShortcutBinding
+			if err := json.Unmarshal([]byte(raw), &binding); err != nil {
+				t.Fatalf("json.Unmarshal(%s) error = %v", raw, err)
+			}
+			if !slices.Equal(binding, want) {
+				t.Fatalf("json.Unmarshal(%s) = %#v, want %#v", raw, binding, want)
+			}
+		}
+
+		for _, raw := range []string{`42`, `["meta+KeyR",42]`} {
+			var binding ShortcutBinding
+			if err := json.Unmarshal([]byte(raw), &binding); err == nil {
+				t.Fatalf("json.Unmarshal(%s) error = nil", raw)
+			}
+		}
+	})
+
 	t.Run("Should canonicalize scalar and array bindings without aliasing [UT-035,UT-036]", func(t *testing.T) {
 		t.Parallel()
 		overrides := map[string]ShortcutBinding{
@@ -112,7 +137,12 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 			"window.close":    {"control+Digit1..9"},
 			"window.tab.jump": {"control+alt+Digit1..9"},
 		} {
-			if _, rangeErr := CanonicalShortcutsV2(map[string]ShortcutBinding{action: binding}); !errors.Is(rangeErr, ErrInvalidCommand) {
+			if _, rangeErr := CanonicalShortcutsV2(
+				map[string]ShortcutBinding{action: binding},
+			); !errors.Is(
+				rangeErr,
+				ErrInvalidCommand,
+			) {
 				t.Fatalf("CanonicalShortcutsV2(%s) error = %v", action, rangeErr)
 			}
 		}

@@ -296,17 +296,17 @@ func nativeMemoryTypeForScope(raw string, scope memcontract.Scope) memcontract.T
 func nativeMemoryDecisionResult(result memorypkg.DecisionApplyResult) (toolspkg.ToolResult, error) {
 	decision := redactNativeMemoryDecision(result.Decision)
 	return structuredResult(map[string]any{
-		"decision":         decision,
-		nativeAppliedValue: result.Applied,
+		watchEventsPayloadDecisionKey: decision,
+		nativeAppliedValue:            result.Applied,
 	}, fmt.Sprintf("memory decision %s", decision.Op.String()))
 }
 
 func nativeMemoryBatchResult(result memorypkg.BatchApplyResult) (toolspkg.ToolResult, error) {
 	decision := redactNativeMemoryDecision(result.Decision)
 	return structuredResult(map[string]any{
-		"decision":         decision,
-		nativeAppliedValue: result.Applied,
-		"operations":       result.Operations,
+		watchEventsPayloadDecisionKey: decision,
+		nativeAppliedValue:            result.Applied,
+		"operations":                  result.Operations,
 	}, fmt.Sprintf("memory batch decision %s", decision.Op.String()))
 }
 

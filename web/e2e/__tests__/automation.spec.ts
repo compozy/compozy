@@ -234,8 +234,15 @@ test("operator can accept and dismiss workspace suggestions through the real dae
   await expect(appPage).toHaveURL(/\/jobs$/);
   await expect(jobsUI.automationSuggestionsCard).toBeVisible();
 
+  const dismissedRow = jobsUI.suggestion(dismissTarget.id);
+  await dismissedRow.getByRole("button", { name: "Dismiss" }).click();
+  await expect(dismissedRow).toBeHidden();
+
   const acceptedRow = jobsUI.suggestion(acceptTarget.id);
-  await expect(acceptedRow).toContainText(acceptTarget.payload.prompt);
+  await acceptedRow.locator('[data-slot="collapsible-trigger"]').click();
+  await expect(acceptedRow.locator('[data-slot="collapsible-content"]')).toContainText(
+    acceptTarget.payload.prompt
+  );
   await acceptedRow.getByRole("button", { name: "Create job" }).click();
 
   await expect(acceptedRow).toBeHidden();
@@ -248,10 +255,6 @@ test("operator can accept and dismiss workspace suggestions through the real dae
     id: acceptTarget.payload.id,
     workspace_id: workspaceID,
   });
-
-  const dismissedRow = jobsUI.suggestion(dismissTarget.id);
-  await dismissedRow.getByRole("button", { name: "Dismiss" }).click();
-  await expect(dismissedRow).toBeHidden();
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(jobsUI.jobsShell).toBeVisible();

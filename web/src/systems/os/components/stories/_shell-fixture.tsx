@@ -95,11 +95,13 @@ function outcome(): WindowManagerCommandOutcome {
 export interface LiveStoryShellOptions {
   windows?: Record<string, OsWindow>;
   focusedWindowId?: string | null;
+  windowManagerConfig?: WindowManagerConfig;
 }
 
 export function createLiveStoryShell({
   windows: suppliedWindows,
   focusedWindowId: suppliedFocusedWindowId,
+  windowManagerConfig = CONFIG,
 }: LiveStoryShellOptions = {}): OsShellHandle {
   const focused = storyWindow("w-story-tasks", 2);
   const peer = storyWindow("w-story-agents", 1);
@@ -107,7 +109,7 @@ export function createLiveStoryShell({
   const focusedWindowId = suppliedFocusedWindowId ?? focused.id;
   const state: OsDesktopRuntimeStore = {
     snapshot: SNAPSHOT,
-    windowManagerConfig: CONFIG,
+    windowManagerConfig,
     client: {
       workspaceId: "workspace-compozy",
       clientId: "client:story",

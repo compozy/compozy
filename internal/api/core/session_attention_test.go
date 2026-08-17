@@ -179,7 +179,9 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/workspaces/ws-1/sessions/sess-attention/wait",
-			[]byte(`{"until":["waiting-for-input","idle","idle"],"timeout_ms":120000,"epoch":7,"resume_id":"resume-1"}`),
+			[]byte(
+				`{"until":["waiting-for-input","idle","idle"],"timeout_ms":120000,"epoch":7,"resume_id":"resume-1"}`,
+			),
 		)
 		if response.Code != http.StatusOK {
 			t.Fatalf("session wait status = %d, want 200; body=%s", response.Code, response.Body.String())
@@ -248,12 +250,15 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 			body string
 			code string
 		}{
-			{name: "Should reject an unknown state", body: `{"until":["sleeping"],"timeout_ms":1}`, code: "invalid_state"},
+			{
+				name: "Should reject an unknown state",
+				body: `{"until":["sleeping"],"timeout_ms":1}`,
+				code: "invalid_state",
+			},
 			{name: "Should reject an omitted timeout", body: `{}`, code: "invalid_wait"},
 			{name: "Should reject an oversized timeout", body: `{"timeout_ms":1800001}`, code: "invalid_wait"},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -285,11 +290,18 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 			err     error
 			code    string
 		}{
-			{name: "Should return session gone for identity loss", outcome: session.WaitOutcome{Outcome: session.WaitResultSessionGone}, code: "session_gone"},
-			{name: "Should return wait expired for a stale resume id", err: session.ErrWaitExpired, code: "wait_expired"},
+			{
+				name:    "Should return session gone for identity loss",
+				outcome: session.WaitOutcome{Outcome: session.WaitResultSessionGone},
+				code:    "session_gone",
+			},
+			{
+				name: "Should return wait expired for a stale resume id",
+				err:  session.ErrWaitExpired,
+				code: "wait_expired",
+			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -300,7 +312,14 @@ func TestBaseHandlersSessionWait(t *testing.T) {
 				) (session.WaitOutcome, error) {
 					return test.outcome, test.err
 				}
-				fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+				fixture := newHandlerFixture(
+					t,
+					manager,
+					testutil.StubObserver{},
+					testutil.StubWorkspaceService{},
+					nil,
+					nil,
+				)
 				response := performRequest(
 					t,
 					fixture.Engine,

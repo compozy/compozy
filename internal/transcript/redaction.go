@@ -31,7 +31,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted.Action = redactStructuralString(event.Action)
 	redacted.Resource = redactStructuralString(event.Resource)
 	redacted.Decision = redactStructuralString(event.Decision)
-	redacted.ResolvedBy = redactStructuralString(event.ResolvedBy)
+	redacted = redacted.WithResolvedBy(redactStructuralString(event.ResolvedByValue()))
 	redacted.Error = redactDisplayString(event.Error)
 	redacted.Failure = redactSessionFailure(event.Failure)
 	redacted.Synthetic = redactPromptSyntheticMeta(event.Synthetic)

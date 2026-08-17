@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘/Ctrl+K opens one global palette over any desktop or composer and filters real apps, sessions, workspaces, and actions; Enter performs the selected action; ⌘/Ctrl+J remains scoped to the session runtime picker; ⌘/Ctrl+N, ⇧⌘/Ctrl+S, ⌘/Ctrl+W, ⌘/Ctrl+M, ⇧⌘/Ctrl+G (Global scope), and Escape perform the documented shell actions with one-layer overlay unwinding. The palette lists "Turn on Global scope" / "Turn off Global scope" and "Switch to {name}" notes that switching a project turns Global off. Workspace rows never include `$HOME`.
 entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png
-last_report: docs/qa/reports/2026-08-13-pr-368-coderabbit.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/scope-global.png; docs/qa/reports/2026-08-16-herdr-parity.md; .compozy/tasks/herdr-parity/evidence/visual/task_05
+last_report: docs/qa/reports/2026-08-16-herdr-parity.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-web-window-routing-lifecycle; ET-palette-nested-views; ET-palette-sessions-view-switch
 ---
 
@@ -34,3 +34,5 @@ the Herdr parity QA tail.
 behaviour and the Sessions view are walked by `ET-palette-nested-views` and
 `ET-palette-sessions-view-switch`. Already `untested`, so no further reset — this walk still owns
 the flat root behaviour above.
+
+QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.

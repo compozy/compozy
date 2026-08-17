@@ -1,4 +1,6 @@
 export { SettingsEditorDialog } from "./settings-editor-dialog";
+export { AttentionSystemStateChip } from "./attention-system-state-chip";
+export { attentionSystemStateNote } from "./attention-system-state-note";
 export type { EditorMode } from "./settings-editor-dialog";
 export { MCPAuthorizeDialog } from "./mcp-authorize-dialog";
 export type { MCPAuthorizeDialogProps } from "./mcp-authorize-dialog";

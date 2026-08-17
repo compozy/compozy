@@ -564,6 +564,7 @@ type LoopConfig struct {
 	GateMaxRevisions    sql.NullInt64  `json:"gate_max_revisions"`
 	RuntimeDefaultsJson sql.NullString `json:"runtime_defaults_json"`
 	RuntimeRulesJson    sql.NullString `json:"runtime_rules_json"`
+	EnvironmentJson     sql.NullString `json:"environment_json"`
 }
 
 type LoopDefinitionSnapshot struct {

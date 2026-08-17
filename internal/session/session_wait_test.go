@@ -112,13 +112,18 @@ func TestWaitForBadgeRejectsInvalidRequests(t *testing.T) {
 		name string
 		req  WaitRequest
 	}{
-		{name: "Should reject an unknown badge", req: WaitRequest{SessionID: "sess", Until: []Badge{"sleeping"}, Timeout: time.Second}},
+		{
+			name: "Should reject an unknown badge",
+			req:  WaitRequest{SessionID: "sess", Until: []Badge{"sleeping"}, Timeout: time.Second},
+		},
 		{name: "Should reject a zero timeout", req: WaitRequest{SessionID: "sess", Timeout: 0}},
 		{name: "Should reject a negative timeout", req: WaitRequest{SessionID: "sess", Timeout: -time.Second}},
-		{name: "Should reject a timeout above the service cap", req: WaitRequest{SessionID: "sess", Timeout: WaitTimeoutMax + time.Nanosecond}},
+		{
+			name: "Should reject a timeout above the service cap",
+			req:  WaitRequest{SessionID: "sess", Timeout: WaitTimeoutMax + time.Nanosecond},
+		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -163,8 +168,16 @@ func TestWaitForBadgeHandlesIdentityConcurrencyAndCancellation(t *testing.T) {
 		t.Parallel()
 
 		h, session, _ := newWaitTestHarness(t)
-		first := startBadgeWait(t, h.manager, WaitRequest{SessionID: session.ID, Until: []Badge{BadgeWaitingForAuth}, Timeout: time.Minute})
-		second := startBadgeWait(t, h.manager, WaitRequest{SessionID: session.ID, Until: []Badge{BadgeWaitingForAuth}, Timeout: time.Minute})
+		first := startBadgeWait(
+			t,
+			h.manager,
+			WaitRequest{SessionID: session.ID, Until: []Badge{BadgeWaitingForAuth}, Timeout: time.Minute},
+		)
+		second := startBadgeWait(
+			t,
+			h.manager,
+			WaitRequest{SessionID: session.ID, Until: []Badge{BadgeWaitingForAuth}, Timeout: time.Minute},
+		)
 		awaitWaitRegistrationCount(t, h.manager, session.ID, 2)
 		h.manager.publishWaitBadgeEdge(session.Info(), BadgeWaitingForAuth)
 
@@ -182,7 +195,7 @@ func TestWaitForBadgeHandlesIdentityConcurrencyAndCancellation(t *testing.T) {
 
 		h, session, _ := newWaitTestHarness(t)
 		ctx, cancel := context.WithCancel(testutil.Context(t))
-		result := startBadgeWaitWithContext(t, ctx, h.manager, WaitRequest{
+		result := startBadgeWaitWithContext(ctx, t, h.manager, WaitRequest{
 			SessionID: session.ID,
 			Until:     []Badge{BadgeWaitingForInput},
 			Timeout:   time.Minute,
@@ -228,7 +241,7 @@ func TestWaitForBadgeEnforcesBoundsAndGaplessResume(t *testing.T) {
 		defer cancel()
 		results := make([]<-chan waitCallResult, 0, WaitMaxPerSession)
 		for range WaitMaxPerSession {
-			results = append(results, startBadgeWaitWithContext(t, ctx, h.manager, WaitRequest{
+			results = append(results, startBadgeWaitWithContext(ctx, t, h.manager, WaitRequest{
 				SessionID: session.ID,
 				Until:     []Badge{BadgeWaitingForInput},
 				Timeout:   time.Minute,
@@ -420,7 +433,7 @@ func TestWaitForBadgeEmitsCompletionObservability(t *testing.T) {
 		logs := newCaptureLogHandler()
 		h, session, _ := newWaitTestHarness(t, WithLogger(slog.New(logs)))
 		ctx, cancel := context.WithCancel(testutil.Context(t))
-		canceled := startBadgeWaitWithContext(t, ctx, h.manager, WaitRequest{
+		canceled := startBadgeWaitWithContext(ctx, t, h.manager, WaitRequest{
 			SessionID: session.ID,
 			Until:     []Badge{BadgeWaitingForInput},
 			Timeout:   time.Minute,
@@ -482,12 +495,12 @@ func newWaitTestHarness(t *testing.T, opts ...Option) (*harness, *Session, *wait
 
 func startBadgeWait(t *testing.T, manager *Manager, req WaitRequest) <-chan waitCallResult {
 	t.Helper()
-	return startBadgeWaitWithContext(t, testutil.Context(t), manager, req)
+	return startBadgeWaitWithContext(testutil.Context(t), t, manager, req)
 }
 
 func startBadgeWaitWithContext(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	manager *Manager,
 	req WaitRequest,
 ) <-chan waitCallResult {
@@ -508,15 +521,6 @@ func awaitWaitCall(t *testing.T, result <-chan waitCallResult) waitCallResult {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for badge wait result")
 		return waitCallResult{}
-	}
-}
-
-func assertWaitStillPending(t *testing.T, result <-chan waitCallResult) {
-	t.Helper()
-	select {
-	case got := <-result:
-		t.Fatalf("wait completed early: outcome = %#v, error = %v", got.outcome, got.err)
-	default:
 	}
 }
 

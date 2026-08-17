@@ -130,7 +130,12 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		"permissions":{"tools":["read"],"skills":["go"]}
 	}`)
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/agent/spawn", bytes.NewReader(body))
+	req = httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/agent/spawn",
+		bytes.NewReader(body),
+	)
 	req.Header.Set(agentidentity.HeaderSessionID, "sess-parent")
 	req.Header.Set(agentidentity.HeaderAgent, "coder")
 	router.ServeHTTP(rec, req)

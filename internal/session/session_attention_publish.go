@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -13,6 +14,9 @@ func (m *Manager) publishAttentionCommit(
 	sessionID string,
 	commit store.SessionAttentionCommit,
 ) {
+	if sessionAttentionProjectionEqual(commit.Before, commit.After) {
+		return
+	}
 	info, err := m.sessionInfoForAttentionEvent(ctx, sessionID)
 	if err != nil {
 		m.logger.WarnContext(
@@ -49,6 +53,23 @@ func (m *Manager) publishAttentionCommit(
 	m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
 	m.dispatchSessionAttentionChanged(ctx, &after, event)
 	m.dispatchSpawnWake(ctx, &after, to)
+}
+
+func sessionAttentionProjectionEqual(left, right store.SessionAttention) bool {
+	return left.PendingPermissionCount == right.PendingPermissionCount &&
+		left.PendingClarifyCount == right.PendingClarifyCount &&
+		left.AttentionRevision == right.AttentionRevision &&
+		left.LastSettledRevision == right.LastSettledRevision &&
+		left.LastSeenRevision == right.LastSeenRevision &&
+		timePointersEqual(left.LastSeenAt, right.LastSeenAt) &&
+		timePointersEqual(left.AttentionChangedAt, right.AttentionChangedAt)
+}
+
+func timePointersEqual(left, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Equal(*right)
 }
 
 func (m *Manager) sessionInfoForAttentionEvent(ctx context.Context, sessionID string) (*Info, error) {

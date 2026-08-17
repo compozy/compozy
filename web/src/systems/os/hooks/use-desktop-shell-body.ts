@@ -9,6 +9,7 @@ import {
   type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
+import { useWorktreeListings } from "@/systems/workspace";
 
 import { frameSeamEdits } from "../lib/frame-seams";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
@@ -111,6 +112,9 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const desktopRef = useRef<HTMLDivElement>(null);
   const desktop = useDesktopShellState();
   const overlays = useDesktopOverlays();
+  const worktreesByWorkspace = useWorktreeListings(model.workspaces, {
+    enabled: overlays.activeOverlay === "workspace-menu" || overlays.activeOverlay === "workspaces",
+  });
   const attention = useOsAttention(model.runtimeWorkspace, model.sessionCatalogStreamStatus);
   const jumpToSession = useAttentionJump();
   useDocumentTitleBadge(attention.notificationCount);
@@ -247,5 +251,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     shortcutLabels,
     transition,
     winLayer,
+    worktreesByWorkspace,
   };
 }

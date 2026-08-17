@@ -14,6 +14,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func existingCaseAlias(path string) (string, bool) {
@@ -67,7 +68,9 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	loadedConfig := validConfig(homePaths)
 	loadedConfig.WindowManager.HistoryLimit = 77
 	loadedConfig.WindowManager.Snap.RepeatRatios = []float64{0.5, 0.75, 0.25}
-	loadedConfig.WindowManager.Shortcuts = map[string]string{"window.focus.left": "alt+KeyH"}
+	loadedConfig.WindowManager.Shortcuts = map[string]windowmanager.ShortcutBinding{
+		"window.focus.left": {"alt+KeyH"},
+	}
 	loader := &countingConfigLoader{cfg: loadedConfig}
 	currentTime := time.Unix(1_700_000_000, 0).UTC()
 
@@ -86,11 +89,14 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 		t.Fatalf("config loader calls after first resolve = %d, want 1", got)
 	}
 	if first.Config.WindowManager.HistoryLimit != 77 ||
-		first.Config.WindowManager.Shortcuts["window.focus.left"] != "alt+KeyH" {
+		!slices.Equal(
+			first.Config.WindowManager.Shortcuts["window.focus.left"],
+			windowmanager.ShortcutBinding{"alt+KeyH"},
+		) {
 		t.Fatalf("Resolve(first) WindowManager = %#v, want loaded config", first.Config.WindowManager)
 	}
 	first.Config.WindowManager.Snap.RepeatRatios[0] = 0.4
-	first.Config.WindowManager.Shortcuts["window.focus.left"] = "meta+KeyH"
+	first.Config.WindowManager.Shortcuts["window.focus.left"] = windowmanager.ShortcutBinding{"meta+KeyH"}
 
 	currentTime = currentTime.Add(1 * time.Minute)
 	second, err := resolver.Resolve(ctx, ws.ID)
@@ -106,7 +112,10 @@ func runResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	if got := second.Config.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[0] != 0.5 {
 		t.Fatalf("Resolve(cache hit) repeat ratios = %#v, want isolated loaded ratios", got)
 	}
-	if got := second.Config.WindowManager.Shortcuts["window.focus.left"]; got != "alt+KeyH" {
+	if got := second.Config.WindowManager.Shortcuts["window.focus.left"]; !slices.Equal(
+		got,
+		windowmanager.ShortcutBinding{"alt+KeyH"},
+	) {
 		t.Fatalf("Resolve(cache hit) shortcut = %q, want isolated alt+KeyH", got)
 	}
 

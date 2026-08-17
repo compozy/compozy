@@ -184,6 +184,7 @@ type Manager struct {
 	modelCatalog                 modelcatalog.Service
 	skillRegistry                SkillRegistry
 	toolsetCatalog               toolspkg.ToolsetCatalog
+	toolUniverse                 []toolspkg.ToolID
 	mcpResolver                  MCPResolver
 	hostedMCP                    HostedMCPLauncher
 	soulStore                    SoulSnapshotStore

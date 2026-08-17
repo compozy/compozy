@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -46,30 +47,33 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.SettingsWindowManagerGapsPayload]():    customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsWindowManagerSnapPayload]():    customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsWindowManagerBindingPayload](): customizeClosedObjectSchema,
-	reflect.TypeFor[contract.UpdateSettingsAttentionRequest]():      customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsAttentionResponse]():           customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsAttentionPayload]():            customizeClosedObjectSchema,
-	reflect.TypeFor[contract.UpdateSettingsShellRequest]():          customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsShellResponse]():               customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsShellPayload]():                customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsShellSessionsPayload]():        customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SettingsMCPCatalogInputPayload]():      customizeSettingsMCPCatalogInputSchema,
-	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest]():      customizeSettingsMCPAuthExchangeRequestSchema,
-	reflect.TypeFor[contract.AttachSessionRequest]():                customizeAttachSessionRequestSchema,
-	reflect.TypeFor[contract.CreateAgentPayload]():                  customizeCreateAgentPayloadSchema,
-	reflect.TypeFor[contract.DuplicateAgentRequest]():               customizeDuplicateAgentRequestSchema,
-	reflect.TypeFor[contract.AgentSpawnRequest]():                   customizeAgentSpawnRequestSchema,
-	reflect.TypeFor[contract.AgentNotifyRequest]():                  customizeAgentNotifyRequestSchema,
-	reflect.TypeFor[contract.CreateSessionRequest]():                customizeCreateSessionRequestSchema,
-	reflect.TypeFor[contract.CreateWorkspaceRequest]():              customizeWorkspaceAgentNameSchema,
-	reflect.TypeFor[contract.UpdateWorkspaceRequest]():              customizeWorkspaceAgentNameSchema,
-	reflect.TypeFor[contract.CreateJobRequest]():                    customizeJobAgentNameSchema,
-	reflect.TypeFor[contract.CreateTriggerRequest]():                customizeTriggerAgentNameSchema,
-	reflect.TypeFor[contract.SettingsDefaultsPayload]():             customizeSettingsDefaultsSchema,
-	reflect.TypeFor[contract.SettingsRoleConfigPayload]():           customizeSettingsRoleSchema,
-	reflect.TypeFor[contract.ForkSessionWorktreeRequest]():          customizeClosedObjectSchema,
-	reflect.TypeFor[contract.NewSessionWorktreeRequest]():           customizeClosedObjectSchema,
-	reflect.TypeFor[contract.SchedulerDrainRequest]():               customizeSchedulerDrainRequestSchema,
+	reflect.TypeFor[windowmanager.ShortcutBinding](): func(schema *openapi3.Schema) {
+		schema.Type = &openapi3.Types{openapi3.TypeArray, openapi3.TypeString}
+	},
+	reflect.TypeFor[contract.UpdateSettingsAttentionRequest](): customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsAttentionResponse]():      customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsAttentionPayload]():       customizeClosedObjectSchema,
+	reflect.TypeFor[contract.UpdateSettingsShellRequest]():     customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsShellResponse]():          customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsShellPayload]():           customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsShellSessionsPayload]():   customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsMCPCatalogInputPayload](): customizeSettingsMCPCatalogInputSchema,
+	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest](): customizeSettingsMCPAuthExchangeRequestSchema,
+	reflect.TypeFor[contract.AttachSessionRequest]():           customizeAttachSessionRequestSchema,
+	reflect.TypeFor[contract.CreateAgentPayload]():             customizeCreateAgentPayloadSchema,
+	reflect.TypeFor[contract.DuplicateAgentRequest]():          customizeDuplicateAgentRequestSchema,
+	reflect.TypeFor[contract.AgentSpawnRequest]():              customizeAgentSpawnRequestSchema,
+	reflect.TypeFor[contract.AgentNotifyRequest]():             customizeAgentNotifyRequestSchema,
+	reflect.TypeFor[contract.CreateSessionRequest]():           customizeCreateSessionRequestSchema,
+	reflect.TypeFor[contract.CreateWorkspaceRequest]():         customizeWorkspaceAgentNameSchema,
+	reflect.TypeFor[contract.UpdateWorkspaceRequest]():         customizeWorkspaceAgentNameSchema,
+	reflect.TypeFor[contract.CreateJobRequest]():               customizeJobAgentNameSchema,
+	reflect.TypeFor[contract.CreateTriggerRequest]():           customizeTriggerAgentNameSchema,
+	reflect.TypeFor[contract.SettingsDefaultsPayload]():        customizeSettingsDefaultsSchema,
+	reflect.TypeFor[contract.SettingsRoleConfigPayload]():      customizeSettingsRoleSchema,
+	reflect.TypeFor[contract.ForkSessionWorktreeRequest]():     customizeClosedObjectSchema,
+	reflect.TypeFor[contract.NewSessionWorktreeRequest]():      customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SchedulerDrainRequest]():          customizeSchedulerDrainRequestSchema,
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()
 	},

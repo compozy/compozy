@@ -2,10 +2,45 @@ package session
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 )
+
+func (s *Session) beginExclusivePromptSetupForRequest(
+	req promptRequest,
+	cancel context.CancelFunc,
+) (*AgentProcess, error) {
+	if s == nil {
+		return nil, errors.New("session: session is required")
+	}
+
+	turnID := strings.TrimSpace(req.turnID)
+	turnSource := normalizeTurnSource(req.turnSource)
+	if turnID == "" || turnSource == "" || cancel == nil {
+		return nil, errors.New("session: prompt setup ownership is incomplete")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	proc, err := s.beginExclusivePromptSetupLocked()
+	if err != nil {
+		return nil, err
+	}
+	s.currentTurnID = turnID
+	s.currentTurnSource = turnSource
+	s.currentPromptMessage = strings.TrimSpace(req.authoredMessage)
+	s.currentPromptMeta = req.meta.Normalize()
+	s.currentSkillInvocations = cloneSkillInvocations(req.skillInvocations)
+	s.currentPromptCancel = cancel
+	s.currentPromptCancelTurn = ""
+	s.promptCancelRequested = false
+	if s.currentPromptDone == nil {
+		s.currentPromptDone = make(chan struct{})
+	}
+	return proc, nil
+}
 
 // CurrentTurnSource reports the provenance of the currently active prompt turn.
 func (s *Session) CurrentTurnSource() TurnSource {

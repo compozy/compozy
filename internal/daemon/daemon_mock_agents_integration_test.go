@@ -2138,7 +2138,12 @@ func callHostedMCPToolJSON(
 		t.Fatalf("CallTool(%s) error = %v", toolID, err)
 	}
 	if result == nil || result.IsError {
-		t.Fatalf("CallTool(%s) result = %#v, want successful result", toolID, result)
+		t.Fatalf(
+			"CallTool(%s) result = %#v, content = %q, want successful result",
+			toolID,
+			result,
+			sdkCallToolTextContent(result),
+		)
 	}
 	payload, err := json.Marshal(result.StructuredContent)
 	if err != nil {
@@ -2147,6 +2152,20 @@ func callHostedMCPToolJSON(
 	if err := json.Unmarshal(payload, destination); err != nil {
 		t.Fatalf("Unmarshal(CallTool(%s) structured content) error = %v; payload=%s", toolID, err, payload)
 	}
+}
+
+func sdkCallToolTextContent(result *sdkmcp.CallToolResult) []string {
+	if result == nil {
+		return nil
+	}
+	content := make([]string, 0, len(result.Content))
+	for _, item := range result.Content {
+		text, ok := item.(*sdkmcp.TextContent)
+		if ok {
+			content = append(content, text.Text)
+		}
+	}
+	return content
 }
 
 func providerModelPayloadExists(models []compozycontract.ProviderModelPayload, modelID string) bool {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -264,12 +265,7 @@ func NormalizeWaitBadges(input []Badge) ([]Badge, error) {
 }
 
 func validWaitBadge(candidate Badge) bool {
-	for _, badge := range waitBadgeVocabulary {
-		if candidate == badge {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(waitBadgeVocabulary, candidate)
 }
 
 func waitBadgeVocabularyText() string {

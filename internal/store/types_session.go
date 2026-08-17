@@ -72,31 +72,25 @@ type SessionInfo struct {
 	WorkspaceID              string
 	WorktreeID               string
 	*SessionNetworkState
-	SessionType            string
-	Lineage                *SessionLineage
-	State                  string
-	ACPSessionID           *string
-	StopReason             StopReason
-	StopDetail             string
-	Failure                *SessionFailure
-	Liveness               *SessionLivenessMeta
-	Sandbox                *SessionSandboxMeta
-	SoulSnapshotID         string
-	SoulDigest             string
-	ParentSoulDigest       string
-	AttachedTo             string
-	AttachExpiresAt        *time.Time
-	TranscriptEpoch        int64
-	PendingPermissionCount int
-	PendingClarifyCount    int
-	AttentionRevision      int64
-	LastSettledRevision    int64
-	LastSeenRevision       int64
-	LastSeenAt             *time.Time
-	AttentionChangedAt     *time.Time
-	ArchivedAt             *time.Time
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
+	SessionType      string
+	Lineage          *SessionLineage
+	State            string
+	ACPSessionID     *string
+	StopReason       StopReason
+	StopDetail       string
+	Failure          *SessionFailure
+	Liveness         *SessionLivenessMeta
+	Sandbox          *SessionSandboxMeta
+	SoulSnapshotID   string
+	SoulDigest       string
+	ParentSoulDigest string
+	AttachedTo       string
+	AttachExpiresAt  *time.Time
+	TranscriptEpoch  int64
+	Attention        *SessionAttention
+	ArchivedAt       *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 // SessionArchiveFilter controls whether archived rows participate in a catalog read.

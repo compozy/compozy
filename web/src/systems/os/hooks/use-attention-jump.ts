@@ -51,7 +51,9 @@ export function useAttentionJump(): AttentionJump {
   const queryClient = useQueryClient();
   const { coordinator } = useOsShell();
   const { runtimeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
-  const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
+  const commandWorkspaceId = useDesktop(state =>
+    windowManagerCommandsAvailable(state) ? state.snapshot?.workspaceId.trim() || null : null
+  );
   const pendingRef = useRef<ResolvedAttentionJumpTarget | null>(null);
   const activationRef = useRef(0);
 
@@ -61,7 +63,7 @@ export function useAttentionJump(): AttentionJump {
       setActiveWorkspaceId(target.workspaceId);
       return;
     }
-    if (!commandsAvailable) {
+    if (commandWorkspaceId !== target.workspaceId) {
       pendingRef.current = target;
       return;
     }
@@ -73,14 +75,14 @@ export function useAttentionJump(): AttentionJump {
     const pending = pendingRef.current;
     if (
       pending === null ||
-      !commandsAvailable ||
+      commandWorkspaceId !== pending.workspaceId ||
       pending.workspaceId !== runtimeWorkspaceId?.trim()
     ) {
       return;
     }
     pendingRef.current = null;
     openAttentionTarget(coordinator, pending);
-  }, [commandsAvailable, coordinator, runtimeWorkspaceId]);
+  }, [commandWorkspaceId, coordinator, runtimeWorkspaceId]);
 
   return target => {
     const sessionId = target.sessionId.trim();

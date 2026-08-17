@@ -93,7 +93,12 @@ func (r *sessionWaitRegistry) register(
 	}
 	registrations := r.bySession[sessionID]
 	if len(registrations) >= WaitMaxPerSession {
-		return nil, fmt.Errorf("%w: session %q permits at most %d concurrent waits", ErrWaitLimit, sessionID, WaitMaxPerSession)
+		return nil, fmt.Errorf(
+			"%w: session %q permits at most %d concurrent waits",
+			ErrWaitLimit,
+			sessionID,
+			WaitMaxPerSession,
+		)
 	}
 	id, err := r.newID()
 	if err != nil {

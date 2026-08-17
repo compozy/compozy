@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -844,6 +845,203 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 			seenSet[id] = struct{}{}
 		}
 	})
+
+	t.Run("Should preserve attention class order through the durable cursor", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-attention-page",
+			filepath.Join(t.TempDir(), "workspace-attention-page"),
+		)
+		baseAt := time.Date(2026, 8, 15, 22, 0, 0, 0, time.UTC)
+		type attentionSeed struct {
+			id                     string
+			state                  string
+			failureKind            store.FailureKind
+			liveness               *store.SessionLivenessMeta
+			pendingPermissionCount int
+			pendingClarifyCount    int
+			lastSettledRevision    int64
+			offset                 time.Duration
+		}
+		seeds := []attentionSeed{
+			{id: "sess-quiet-newest", state: globalDBSessionStateActive, offset: 7 * time.Minute},
+			{
+				id:    "sess-prompting-unseen",
+				state: globalDBSessionStateActive,
+				liveness: &store.SessionLivenessMeta{
+					Activity: &store.SessionActivityMeta{TurnID: "turn-active"},
+				},
+				lastSettledRevision: 1,
+				offset:              6 * time.Minute,
+			},
+			{
+				id:    "sess-stalled-unseen",
+				state: globalDBSessionStateActive,
+				liveness: &store.SessionLivenessMeta{
+					StallState:  store.SessionStallStateDetected,
+					StallReason: "stalled",
+				},
+				lastSettledRevision: 1,
+				offset:              5 * time.Minute,
+			},
+			{id: "sess-finished", state: globalDBSessionStateActive, lastSettledRevision: 1, offset: 4 * time.Minute},
+			{
+				id:                  "sess-needs-input",
+				state:               globalDBSessionStateActive,
+				pendingClarifyCount: 1,
+				offset:              3 * time.Minute,
+			},
+			{
+				id:                     "sess-needs-auth",
+				state:                  globalDBSessionStateActive,
+				pendingPermissionCount: 1,
+				offset:                 2 * time.Minute,
+			},
+			{
+				id:          "sess-failed",
+				state:       globalDBSessionStateStopped,
+				failureKind: store.FailurePrompt,
+				offset:      time.Minute,
+			},
+		}
+		for _, seed := range seeds {
+			info := sessionInfoForWorkspaceStateIndexTest(seed.id, workspaceID, seed.state, baseAt)
+			info.UpdatedAt = baseAt.Add(seed.offset)
+			info.Liveness = seed.liveness
+			if seed.failureKind != "" {
+				info.Failure = &store.SessionFailure{Kind: seed.failureKind}
+			}
+			if err := globalDB.RegisterSession(ctx, info); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", seed.id, err)
+			}
+			changedAt := store.FormatTimestamp(baseAt.Add(seed.offset))
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET pending_permission_count = ?, pending_clarify_count = ?,
+last_settled_revision = ?, attention_changed_at = ? WHERE id = ?`,
+				seed.pendingPermissionCount,
+				seed.pendingClarifyCount,
+				seed.lastSettledRevision,
+				changedAt,
+				seed.id,
+			); err != nil {
+				t.Fatalf("seed attention for %q error = %v", seed.id, err)
+			}
+		}
+		rankRows, err := globalDB.db.QueryContext(
+			ctx,
+			"SELECT id, "+sessionCatalogAttentionRankExpression+
+				" FROM sessions WHERE workspace_id = ? ORDER BY id",
+			workspaceID,
+		)
+		if err != nil {
+			t.Fatalf("query durable attention ranks error = %v", err)
+		}
+		defer func() {
+			if closeErr := rankRows.Close(); closeErr != nil {
+				t.Errorf("close durable attention rank rows error = %v", closeErr)
+			}
+		}()
+		gotRanks := make(map[string]store.SessionCatalogAttentionRank, len(seeds))
+		for rankRows.Next() {
+			var id string
+			var rank store.SessionCatalogAttentionRank
+			if scanErr := rankRows.Scan(&id, &rank); scanErr != nil {
+				t.Fatalf("scan durable attention rank error = %v", scanErr)
+			}
+			gotRanks[id] = rank
+		}
+		if err := rankRows.Err(); err != nil {
+			t.Fatalf("iterate durable attention ranks error = %v", err)
+		}
+		wantRanks := map[string]store.SessionCatalogAttentionRank{
+			"sess-needs-input":      store.SessionCatalogAttentionRankNeedsYou,
+			"sess-needs-auth":       store.SessionCatalogAttentionRankNeedsYou,
+			"sess-failed":           store.SessionCatalogAttentionRankNeedsYou,
+			"sess-finished":         store.SessionCatalogAttentionRankFinished,
+			"sess-quiet-newest":     store.SessionCatalogAttentionRankNone,
+			"sess-prompting-unseen": store.SessionCatalogAttentionRankNone,
+			"sess-stalled-unseen":   store.SessionCatalogAttentionRankNone,
+		}
+		if !reflect.DeepEqual(gotRanks, wantRanks) {
+			t.Fatalf("durable attention ranks = %#v, want %#v", gotRanks, wantRanks)
+		}
+
+		query := store.SessionCatalogPageQuery{
+			WorkspaceID: workspaceID,
+			Sort:        sessionCatalogSortAttention,
+			Limit:       3,
+		}
+		first, err := globalDB.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatalf("PageSessions(first attention) error = %v", err)
+		}
+		if got, want := sessionIDsForWorkspaceStateIndexTest(
+			first.Sessions,
+		), []string{
+			"sess-needs-input",
+			"sess-needs-auth",
+			"sess-failed",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("PageSessions(first attention) ids = %#v, want %#v", got, want)
+		}
+		anchor := first.Sessions[len(first.Sessions)-1]
+		anchorAttention := anchor.AttentionSnapshot()
+		query.After = &store.SessionCatalogPosition{
+			AttentionRank: store.SessionCatalogAttentionRankNeedsYou,
+			PrimaryAt:     *anchorAttention.AttentionChangedAt,
+			SecondaryAt:   anchor.UpdatedAt,
+			CreatedAt:     anchor.CreatedAt,
+			ID:            anchor.ID,
+		}
+		second, err := globalDB.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatalf("PageSessions(second attention) error = %v", err)
+		}
+		if got, want := sessionIDsForWorkspaceStateIndexTest(
+			second.Sessions,
+		), []string{
+			"sess-finished",
+			"sess-quiet-newest",
+			"sess-prompting-unseen",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("PageSessions(second attention) ids = %#v, want %#v", got, want)
+		}
+		anchor = second.Sessions[len(second.Sessions)-1]
+		anchorAttention = anchor.AttentionSnapshot()
+		query.After = &store.SessionCatalogPosition{
+			AttentionRank: store.SessionCatalogAttentionRankNone,
+			PrimaryAt:     *anchorAttention.AttentionChangedAt,
+			SecondaryAt:   anchor.UpdatedAt,
+			CreatedAt:     anchor.CreatedAt,
+			ID:            anchor.ID,
+		}
+		third, err := globalDB.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatalf("PageSessions(third attention) error = %v", err)
+		}
+		if got, want := sessionIDsForWorkspaceStateIndexTest(
+			third.Sessions,
+		), []string{
+			"sess-stalled-unseen",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("PageSessions(third attention) ids = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func TestSessionCatalogPagingIndexesFreshDB(t *testing.T) {
@@ -1129,14 +1327,9 @@ func registerAttentionSession(
 		ID: sessionID, Name: "Attention", AgentName: "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID,
 		SessionType: "user", State: globalDBSessionStateActive,
-		PendingPermissionCount: attention.PendingPermissionCount,
-		PendingClarifyCount:    attention.PendingClarifyCount,
-		AttentionRevision:      attention.AttentionRevision,
-		LastSettledRevision:    attention.LastSettledRevision,
-		LastSeenRevision:       attention.LastSeenRevision,
-		LastSeenAt:             attention.LastSeenAt,
-		AttentionChangedAt:     attention.AttentionChangedAt,
-		CreatedAt:              now, UpdatedAt: now,
+		Attention: store.CloneSessionAttention(&attention),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}

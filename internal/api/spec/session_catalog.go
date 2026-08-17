@@ -33,7 +33,7 @@ func sessionPromptCancelOperation() OperationSpec {
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Cancellation result", Body: contract.SessionPromptCancelResponse{}},
-			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

@@ -254,7 +254,7 @@ func sessionCatalogOrderClause(sortKey string) (string, error) {
 	case sessionListSortActivity:
 		return " ORDER BY COALESCE(last_update_at, updated_at) DESC, updated_at DESC, created_at DESC, id DESC", nil
 	case sessionCatalogSortAttention:
-		return " ORDER BY COALESCE(attention_changed_at, updated_at) DESC, updated_at DESC, created_at DESC, id DESC", nil
+		return sessionCatalogAttentionOrderClause, nil
 	default:
 		return "", fmt.Errorf("store: unsupported session catalog sort %q", sortKey)
 	}
@@ -280,16 +280,7 @@ func sessionCatalogCursorClause(
 		}
 	}
 	if strings.TrimSpace(sortKey) == sessionCatalogSortAttention {
-		clause := `(COALESCE(attention_changed_at, updated_at) < ? OR
-			(COALESCE(attention_changed_at, updated_at) = ? AND updated_at < ?) OR
-			(COALESCE(attention_changed_at, updated_at) = ? AND updated_at = ? AND created_at < ?) OR
-			(COALESCE(attention_changed_at, updated_at) = ? AND updated_at = ? AND created_at = ? AND id < ?))`
-		return clause, []any{
-			primary,
-			primary, secondary,
-			primary, secondary, created,
-			primary, secondary, created, strings.TrimSpace(position.ID),
-		}
+		return sessionCatalogAttentionCursorClause(position, primary, secondary, created)
 	}
 	clause := `(updated_at < ? OR (updated_at = ? AND created_at < ?) OR
 		(updated_at = ? AND created_at = ? AND id < ?))`

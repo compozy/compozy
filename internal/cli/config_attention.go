@@ -56,6 +56,6 @@ func settingsAttentionPayloadFromConfig(
 		Toasts:          cfg.Toasts,
 		Sound:           cfg.Sound,
 		System:          cfg.System,
-		MutedWorkspaces: append([]string(nil), cfg.MutedWorkspaces...),
+		MutedWorkspaces: append([]string{}, cfg.MutedWorkspaces...),
 	}
 }

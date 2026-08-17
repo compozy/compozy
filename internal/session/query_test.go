@@ -782,6 +782,168 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should keep attention classes ordered across cursor pages", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 8, 15, 21, 0, 0, 0, time.UTC)
+		changed := func(offset time.Duration) *time.Time {
+			value := base.Add(offset)
+			return &value
+		}
+		catalog := &multiPagedRecordingSessionCatalog{
+			recordingSessionCatalog: newRecordingSessionCatalog(),
+			durable: []store.SessionInfo{
+				{
+					ID: "sess-quiet-newest", AgentName: "coder", WorkspaceID: "ws-a",
+					SessionType: string(SessionTypeUser), State: string(StateActive),
+					Attention: &store.SessionAttention{AttentionChangedAt: changed(7 * time.Minute)},
+					CreatedAt: base, UpdatedAt: base.Add(7 * time.Minute),
+				},
+				{
+					ID:          "sess-prompting-unseen",
+					AgentName:   "coder",
+					WorkspaceID: "ws-a",
+					SessionType: string(SessionTypeUser),
+					State:       string(StateActive),
+					Liveness: &store.SessionLivenessMeta{
+						Activity: &store.SessionActivityMeta{TurnID: "turn-active"},
+					},
+					Attention: &store.SessionAttention{
+						LastSettledRevision: 1,
+						AttentionChangedAt:  changed(6 * time.Minute),
+					},
+					CreatedAt: base,
+					UpdatedAt: base.Add(6 * time.Minute),
+				},
+				{
+					ID:          "sess-stalled-unseen",
+					AgentName:   "coder",
+					WorkspaceID: "ws-a",
+					SessionType: string(SessionTypeUser),
+					State:       string(StateActive),
+					Liveness: &store.SessionLivenessMeta{
+						StallState:  store.SessionStallStateDetected,
+						StallReason: "stalled",
+					},
+					Attention: &store.SessionAttention{
+						LastSettledRevision: 1,
+						AttentionChangedAt:  changed(5 * time.Minute),
+					},
+					CreatedAt: base,
+					UpdatedAt: base.Add(5 * time.Minute),
+				},
+				{
+					ID:          "sess-finished",
+					AgentName:   "coder",
+					WorkspaceID: "ws-a",
+					SessionType: string(SessionTypeUser),
+					State:       string(StateActive),
+					Attention: &store.SessionAttention{
+						LastSettledRevision: 1,
+						AttentionChangedAt:  changed(4 * time.Minute),
+					},
+					CreatedAt: base,
+					UpdatedAt: base.Add(4 * time.Minute),
+				},
+				{
+					ID:          "sess-needs-input",
+					AgentName:   "coder",
+					WorkspaceID: "ws-a",
+					SessionType: string(SessionTypeUser),
+					State:       string(StateActive),
+					Attention: &store.SessionAttention{
+						PendingClarifyCount: 1,
+						AttentionChangedAt:  changed(3 * time.Minute),
+					},
+					CreatedAt: base,
+					UpdatedAt: base.Add(3 * time.Minute),
+				},
+				{
+					ID:          "sess-needs-auth",
+					AgentName:   "coder",
+					WorkspaceID: "ws-a",
+					SessionType: string(SessionTypeUser),
+					State:       string(StateActive),
+					Attention: &store.SessionAttention{
+						PendingPermissionCount: 1,
+						AttentionChangedAt:     changed(2 * time.Minute),
+					},
+					CreatedAt: base,
+					UpdatedAt: base.Add(2 * time.Minute),
+				},
+				{
+					ID: "sess-failed", AgentName: "coder", WorkspaceID: "ws-a",
+					SessionType: string(SessionTypeUser), State: string(StateStopped),
+					Failure:   &store.SessionFailure{Kind: store.FailurePrompt},
+					Attention: &store.SessionAttention{AttentionChangedAt: changed(time.Minute)},
+					CreatedAt: base, UpdatedAt: base.Add(time.Minute),
+				},
+			},
+		}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		query := ListQuery{Sort: ListSortAttention, Limit: 3}
+		ids := func(infos []*Info) []string {
+			result := make([]string, 0, len(infos))
+			for _, info := range infos {
+				result = append(result, info.ID)
+			}
+			return result
+		}
+
+		first, err := h.manager.ListPage(testutil.Context(t), query)
+		if err != nil {
+			t.Fatalf("ListPage(first) error = %v", err)
+		}
+		if got, want := ids(
+			first.Sessions,
+		), []string{
+			"sess-needs-input",
+			"sess-needs-auth",
+			"sess-failed",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("ListPage(first) ids = %#v, want %#v", got, want)
+		}
+		if !first.HasMore || first.NextCursor == "" {
+			t.Fatalf("ListPage(first) = %#v, want continuation", first)
+		}
+
+		query.Cursor = first.NextCursor
+		second, err := h.manager.ListPage(testutil.Context(t), query)
+		if err != nil {
+			t.Fatalf("ListPage(second) error = %v", err)
+		}
+		if got, want := ids(
+			second.Sessions,
+		), []string{
+			"sess-finished",
+			"sess-quiet-newest",
+			"sess-prompting-unseen",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("ListPage(second) ids = %#v, want %#v", got, want)
+		}
+		if !second.HasMore || second.NextCursor == "" {
+			t.Fatalf("ListPage(second) = %#v, want continuation", second)
+		}
+
+		query.Cursor = second.NextCursor
+		third, err := h.manager.ListPage(testutil.Context(t), query)
+		if err != nil {
+			t.Fatalf("ListPage(third) error = %v", err)
+		}
+		if got, want := ids(third.Sessions), []string{"sess-stalled-unseen"}; !slices.Equal(got, want) {
+			t.Fatalf("ListPage(third) ids = %#v, want %#v", got, want)
+		}
+		if third.HasMore || third.NextCursor != "" {
+			t.Fatalf("ListPage(third) = %#v, want final page", third)
+		}
+	})
 }
 
 type multiPagedRecordingSessionCatalog struct {
@@ -842,24 +1004,24 @@ func attentionCatalogFixtures(count int) []store.SessionInfo {
 		workspaceID := []string{"ws-a", "ws-b", "ws-c"}[index%3]
 		changedAt := base.Add(time.Duration(index/2) * time.Second)
 		info := store.SessionInfo{
-			ID:                 fmt.Sprintf("sess-attention-%03d", index),
-			Name:               fmt.Sprintf("Attention %03d", index),
-			AgentName:          "coder",
-			WorkspaceID:        workspaceID,
-			SessionType:        string(SessionTypeUser),
-			State:              string(StateActive),
-			AttentionChangedAt: &changedAt,
-			CreatedAt:          base.Add(-time.Duration(index) * time.Minute),
-			UpdatedAt:          base.Add(time.Duration(index) * time.Second),
+			ID:          fmt.Sprintf("sess-attention-%03d", index),
+			Name:        fmt.Sprintf("Attention %03d", index),
+			AgentName:   "coder",
+			WorkspaceID: workspaceID,
+			SessionType: string(SessionTypeUser),
+			State:       string(StateActive),
+			Attention:   &store.SessionAttention{AttentionChangedAt: &changedAt},
+			CreatedAt:   base.Add(-time.Duration(index) * time.Minute),
+			UpdatedAt:   base.Add(time.Duration(index) * time.Second),
 		}
 		switch {
 		case index < 40:
-			info.PendingPermissionCount = 1
+			info.Attention.PendingPermissionCount = 1
 		case index < 50:
-			info.PendingClarifyCount = 1
+			info.Attention.PendingClarifyCount = 1
 		case index < 75:
-			info.AttentionRevision = 1
-			info.LastSettledRevision = 1
+			info.Attention.AttentionRevision = 1
+			info.Attention.LastSettledRevision = 1
 		}
 		infos = append(infos, info)
 	}
@@ -963,6 +1125,51 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	if _, err := h.manager.Status(testutil.Context(t), "missing"); !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("Status(missing) error = %v, want ErrSessionNotFound", err)
 	}
+}
+
+func TestManagerStatusReturnsDurableAttentionForStoppedSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain pending permission attention after the runtime stops", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatalf("Shutdown(initial manager) error = %v", err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+
+		target := createSession(t, h)
+		if _, err := h.manager.createPendingInteraction(ctx, store.PendingInteractionCreate{
+			InteractionID:     "interaction-status-restart",
+			SessionID:         target.ID,
+			Kind:              store.PendingInteractionKindPermission,
+			ProviderRequestID: "request-status-restart",
+			TurnID:            "turn-status-restart",
+			Title:             "Allow the command?",
+			CreatedAt:         time.Date(2026, 8, 16, 15, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("createPendingInteraction() error = %v", err)
+		}
+		if err := h.manager.Stop(ctx, target.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		info, err := h.manager.Status(ctx, target.ID)
+		if err != nil {
+			t.Fatalf("Status(stopped with attention) error = %v", err)
+		}
+		if got := info.PendingPermissionCount; got != 1 {
+			t.Fatalf("Status(stopped with attention).PendingPermissionCount = %d, want 1", got)
+		}
+		if got := BadgeForInfo(info); got != BadgeWaitingForAuth {
+			t.Fatalf("BadgeForInfo(Status(stopped with attention)) = %q, want %q", got, BadgeWaitingForAuth)
+		}
+	})
 }
 
 func TestManagerStatusRejectsTraversalSessionID(t *testing.T) {

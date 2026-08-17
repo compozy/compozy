@@ -319,8 +319,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if stoppingCatalog.State != string(StateStopping) {
 			t.Fatalf("catalog state after request stop = %q, want %q", stoppingCatalog.State, StateStopping)
 		}
-		if stoppingCatalog.AttentionRevision != 1 || stoppingCatalog.AttentionChangedAt == nil ||
-			!stoppingCatalog.AttentionChangedAt.Equal(stoppingCatalog.UpdatedAt) {
+		stoppingAttention := stoppingCatalog.AttentionSnapshot()
+		if stoppingAttention.AttentionRevision != 1 || stoppingAttention.AttentionChangedAt == nil ||
+			!stoppingAttention.AttentionChangedAt.Equal(stoppingCatalog.UpdatedAt) {
 			t.Fatalf("catalog attention after request stop = %#v, want revision 1 at updated_at", stoppingCatalog)
 		}
 		if stoppingCatalog.Provider != stoppingMeta.Provider || stoppingCatalog.Model != stoppingMeta.Model ||
@@ -424,7 +425,8 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if stoppedCatalog.State != string(StateStopped) {
 			t.Fatalf("catalog state after stop = %q, want %q", stoppedCatalog.State, StateStopped)
 		}
-		if stoppedCatalog.AttentionRevision == 0 || stoppedCatalog.AttentionChangedAt == nil {
+		stoppedAttention := stoppedCatalog.AttentionSnapshot()
+		if stoppedAttention.AttentionRevision == 0 || stoppedAttention.AttentionChangedAt == nil {
 			t.Fatalf("catalog attention after stop = %#v, want durable lifecycle edge", stoppedCatalog)
 		}
 	})
@@ -968,13 +970,6 @@ func newOrphanResolutionHarness(
 	}); err != nil {
 		t.Fatalf("CreatePendingInteraction() error = %v", err)
 	}
-	if _, err := catalog.TransitionPendingInteraction(ctx, store.PendingInteractionTransition{
-		InteractionID: "interaction-orphan",
-		Status:        store.PendingInteractionStatusOrphaned,
-		At:            time.Date(2026, 8, 16, 12, 1, 0, 0, time.UTC),
-	}); err != nil {
-		t.Fatalf("TransitionPendingInteraction(orphaned) error = %v", err)
-	}
 	restarted := newManagerWithHarness(
 		t,
 		h,
@@ -982,6 +977,13 @@ func newOrphanResolutionHarness(
 		WithSessionInputQueueStore(catalog),
 	)
 	cleanupTestManager(t, restarted)
+	orphaned, err := restarted.RecoverPendingInteractions(ctx, target.ID)
+	if err != nil {
+		t.Fatalf("RecoverPendingInteractions() error = %v", err)
+	}
+	if orphaned != 1 {
+		t.Fatalf("RecoverPendingInteractions() = %d, want 1", orphaned)
+	}
 	return h, restarted, catalog, target.ID
 }
 
@@ -1073,9 +1075,11 @@ func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update s
 		current.Failure = store.CloneSessionFailure(update.Failure)
 	}
 	if update.AttentionTransition {
-		current.AttentionRevision++
+		attention := current.AttentionSnapshot()
+		attention.AttentionRevision++
 		changedAt := update.UpdatedAt.UTC()
-		current.AttentionChangedAt = &changedAt
+		attention.AttentionChangedAt = &changedAt
+		current.Attention = &attention
 	}
 	current.Liveness = store.CloneSessionLivenessMeta(update.Liveness)
 	current.Sandbox = cloneSessionSandboxMeta(update.Sandbox)

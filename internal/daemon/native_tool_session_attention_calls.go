@@ -62,7 +62,7 @@ func (n *daemonNativeTools) notifyOperator(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{
-		"outcome":        result.Outcome,
-		"retry_after_ms": result.RetryAfterMS,
+		nativePayloadOutcomeKey: result.Outcome,
+		"retry_after_ms":        result.RetryAfterMS,
 	}, string(result.Outcome))
 }

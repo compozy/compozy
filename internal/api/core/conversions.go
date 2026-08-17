@@ -86,6 +86,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 // SessionPayloadFromStoreInfo converts the persisted session index row into the shared payload.
 func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayload {
 	state := session.State(strings.TrimSpace(info.State))
+	attention := info.AttentionSnapshot()
 	converted := &session.Info{
 		ID:                       strings.TrimSpace(info.ID),
 		Name:                     strings.TrimSpace(info.Name),
@@ -118,13 +119,13 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		AttachedTo:               strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAt),
 		TranscriptEpoch:          info.TranscriptEpoch,
-		PendingPermissionCount:   info.PendingPermissionCount,
-		PendingClarifyCount:      info.PendingClarifyCount,
-		AttentionRevision:        info.AttentionRevision,
-		LastSettledRevision:      info.LastSettledRevision,
-		LastSeenRevision:         info.LastSeenRevision,
-		LastSeenAt:               cloneTimePtr(info.LastSeenAt),
-		AttentionChangedAt:       cloneTimePtr(info.AttentionChangedAt),
+		PendingPermissionCount:   attention.PendingPermissionCount,
+		PendingClarifyCount:      attention.PendingClarifyCount,
+		AttentionRevision:        attention.AttentionRevision,
+		LastSettledRevision:      attention.LastSettledRevision,
+		LastSeenRevision:         attention.LastSeenRevision,
+		LastSeenAt:               cloneTimePtr(attention.LastSeenAt),
+		AttentionChangedAt:       cloneTimePtr(attention.AttentionChangedAt),
 		ArchivedAt:               cloneTimePtr(info.ArchivedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,

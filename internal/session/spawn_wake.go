@@ -174,7 +174,7 @@ func (m *Manager) dispatchSpawnWake(ctx context.Context, info *Info, badge Badge
 		"creator_session_id", creatorSessionID,
 		"child_session_id", event.ChildSessionID,
 		"wake_event_id", event.WakeEventID,
-		"reason", event.Reason,
+		jsonReasonFieldReason, event.Reason,
 		"badge", event.Badge,
 	)
 }
@@ -230,7 +230,7 @@ func (m *Manager) logSpawnWakeSuppressed(
 		"creator_session_id", strings.TrimSpace(creatorSessionID),
 		"child_session_id", event.ChildSessionID,
 		"wake_event_id", event.WakeEventID,
-		"reason", event.Reason,
+		jsonReasonFieldReason, event.Reason,
 		"badge", event.Badge,
 		"detail", event.Detail,
 	}

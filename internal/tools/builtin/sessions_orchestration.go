@@ -74,7 +74,17 @@ const sessionWaitInputSchema = `{
 	"required":["session_id"],
 	"properties":{
 		"session_id":{"type":"string","minLength":1},
-		"until":{"type":"array","items":{"type":"string","enum":["waiting-for-input","waiting-for-auth","idle","done","running","stopped","failed","hung","unhealthy"]},"uniqueItems":true},
+		"until":{
+			"type":"array",
+			"items":{
+				"type":"string",
+				"enum":[
+					"waiting-for-input","waiting-for-auth","idle","done","running",
+					"stopped","failed","hung","unhealthy"
+				]
+			},
+			"uniqueItems":true
+		},
 		"timeout_ms":{"type":"integer","minimum":1,"maximum":1800000}
 	},
 	"additionalProperties":false

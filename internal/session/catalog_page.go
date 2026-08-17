@@ -27,7 +27,7 @@ const (
 	ArchiveOnly    = store.SessionArchiveOnly
 	ArchiveInclude = store.SessionArchiveInclude
 
-	sessionListCursorVersion = 1
+	sessionListCursorVersion = 2
 	sessionListCursorKind    = "sessions"
 )
 
@@ -316,50 +316,6 @@ func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) 
 	}
 }
 
-func sessionCatalogPosition(info store.SessionInfo, sortKey string) store.SessionCatalogPosition {
-	position := store.SessionCatalogPosition{
-		PrimaryAt:   info.UpdatedAt.UTC(),
-		SecondaryAt: info.CreatedAt.UTC(),
-		CreatedAt:   info.CreatedAt.UTC(),
-		ID:          strings.TrimSpace(info.ID),
-	}
-	if sortKey == ListSortLastActivity {
-		position.SecondaryAt = info.UpdatedAt.UTC()
-		if info.Liveness != nil && info.Liveness.LastUpdateAt != nil && !info.Liveness.LastUpdateAt.IsZero() {
-			position.PrimaryAt = info.Liveness.LastUpdateAt.UTC()
-		}
-	}
-	if sortKey == ListSortAttention {
-		if info.AttentionChangedAt != nil && !info.AttentionChangedAt.IsZero() {
-			position.PrimaryAt = info.AttentionChangedAt.UTC()
-		}
-		position.SecondaryAt = info.UpdatedAt.UTC()
-	}
-	return position
-}
-
-func compareSessionCatalogPosition(left store.SessionCatalogPosition, right store.SessionCatalogPosition) int {
-	if !left.PrimaryAt.Equal(right.PrimaryAt) {
-		if left.PrimaryAt.After(right.PrimaryAt) {
-			return -1
-		}
-		return 1
-	}
-	if !left.SecondaryAt.Equal(right.SecondaryAt) {
-		if left.SecondaryAt.After(right.SecondaryAt) {
-			return -1
-		}
-		return 1
-	}
-	if !left.CreatedAt.Equal(right.CreatedAt) {
-		if left.CreatedAt.After(right.CreatedAt) {
-			return -1
-		}
-		return 1
-	}
-	return strings.Compare(strings.TrimSpace(right.ID), strings.TrimSpace(left.ID))
-}
-
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
 		WorkspaceID:     query.WorkspaceID,
@@ -435,6 +391,7 @@ func projectSessionCatalogPage(
 }
 
 func sessionInfoFromCatalog(info store.SessionInfo) *Info {
+	attention := info.AttentionSnapshot()
 	return &Info{
 		ID:                     strings.TrimSpace(info.ID),
 		Name:                   strings.TrimSpace(info.Name),
@@ -465,13 +422,13 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		AttachedTo:             strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:        cloneTimePointer(info.AttachExpiresAt),
 		TranscriptEpoch:        info.TranscriptEpoch,
-		PendingPermissionCount: info.PendingPermissionCount,
-		PendingClarifyCount:    info.PendingClarifyCount,
-		AttentionRevision:      info.AttentionRevision,
-		LastSettledRevision:    info.LastSettledRevision,
-		LastSeenRevision:       info.LastSeenRevision,
-		LastSeenAt:             cloneTimePointer(info.LastSeenAt),
-		AttentionChangedAt:     cloneTimePointer(info.AttentionChangedAt),
+		PendingPermissionCount: attention.PendingPermissionCount,
+		PendingClarifyCount:    attention.PendingClarifyCount,
+		AttentionRevision:      attention.AttentionRevision,
+		LastSettledRevision:    attention.LastSettledRevision,
+		LastSeenRevision:       attention.LastSeenRevision,
+		LastSeenAt:             cloneTimePointer(attention.LastSeenAt),
+		AttentionChangedAt:     cloneTimePointer(attention.AttentionChangedAt),
 		ArchivedAt:             cloneTimePointer(info.ArchivedAt),
 		CreatedAt:              info.CreatedAt,
 		UpdatedAt:              info.UpdatedAt,

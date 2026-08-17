@@ -672,7 +672,7 @@ func TestUpdateSectionAttention(t *testing.T) {
 			Toasts:          false,
 			Sound:           false,
 			System:          true,
-			MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+			MutedWorkspaces: []string{"ws_0123456789abcdef"},
 		}
 
 		result, err := service.UpdateSection(ctx, SectionUpdateRequest{

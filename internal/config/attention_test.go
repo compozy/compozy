@@ -39,17 +39,28 @@ func TestAttentionConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("Should name malformed muted workspace entries", func(t *testing.T) {
+	t.Run("Should accept public workspace registration IDs", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultAttentionConfig()
-		cfg.MutedWorkspaces = []string{"not-a-workspace-id"}
-		err := cfg.Validate()
-		var validationErr ValidationError
-		if !errors.As(err, &validationErr) {
-			t.Fatalf("Validate() error = %v, want ValidationError", err)
+		cfg.MutedWorkspaces = []string{"ws_0123456789abcdef"}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate(public workspace registration ID) error = %v", err)
 		}
-		if validationErr.Path != attentionMutedPath {
-			t.Fatalf("ValidationError.Path = %q, want %q", validationErr.Path, attentionMutedPath)
+	})
+
+	t.Run("Should name malformed muted workspace entries", func(t *testing.T) {
+		t.Parallel()
+		for _, value := range []string{"not-a-workspace-id", "01ARZ3NDEKTSV4RRFFQ69G5FAV"} {
+			cfg := DefaultAttentionConfig()
+			cfg.MutedWorkspaces = []string{value}
+			err := cfg.Validate()
+			var validationErr ValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("Validate(%q) error = %v, want ValidationError", value, err)
+			}
+			if validationErr.Path != attentionMutedPath {
+				t.Fatalf("ValidationError.Path = %q, want %q", validationErr.Path, attentionMutedPath)
+			}
 		}
 	})
 }

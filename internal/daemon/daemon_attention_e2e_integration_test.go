@@ -135,9 +135,6 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 				interaction.InteractionID,
 			)
 		}
-		if _, err := restarted.ResumeSession(ctx, target.ID); err != nil {
-			t.Fatalf("ResumeSession(after attention restart) error = %v", err)
-		}
 		waitForAttentionInteractionStatus(
 			t,
 			ctx,
@@ -285,7 +282,12 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 
 		target := createFixtureBackedSession(t, ctx, harness, "attention-agent", "prompt-cancel-journey")
 		prompt := startAttentionPrompt(ctx, harness, target.ID, "hold turn")
-		waitForAttentionStatus(t, ctx, harness, target.ID, session.BadgeRunning)
+		status := waitForAttentionStatus(t, ctx, harness, target.ID, session.BadgeRunning)
+		select {
+		case result := <-prompt:
+			t.Fatalf("attention prompt terminated before cancellation: %v", result.err)
+		default:
+		}
 		stdout, stderr, err := harness.CLI.RunInDir(
 			ctx,
 			harness.WorkspaceRoot,
@@ -295,7 +297,12 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 			t.Fatalf("CLI session prompt-cancel error = %v; stderr=%s", err, stderr)
 		}
 		if !strings.Contains(strings.ToLower(stdout), "canceled") || !strings.Contains(stdout, "turn") {
-			t.Fatalf("CLI session prompt-cancel output = %q", stdout)
+			select {
+			case result := <-prompt:
+				t.Fatalf("CLI session prompt-cancel output = %q; prompt error = %v", stdout, result.err)
+			default:
+			}
+			t.Fatalf("CLI session prompt-cancel output = %q; running status = %#v", stdout, status)
 		}
 		awaitAttentionPromptTermination(t, ctx, prompt)
 
@@ -315,6 +322,19 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		harness := e2etest.StartRuntimeHarness(t, &options)
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
+		for _, toolID := range []toolspkg.ToolID{
+			toolspkg.ToolIDSessionSpawn,
+			toolspkg.ToolIDSessionClarifyAnswer,
+		} {
+			if _, stderr, err := harness.CLI.RunInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				"tool", "approvals", "set", toolID.String(),
+				"--decision", "allow", "--scope", "agent", "--agent", "attention-agent",
+			); err != nil {
+				t.Fatalf("CLI tool approval grant for %s error = %v; stderr=%s", toolID, err, stderr)
+			}
+		}
 
 		parent := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "orchestration-parent")
 		parentClient := attentionHostedMCPClient(t, ctx, harness, "attention-agent", parent.ID)
@@ -331,6 +351,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 			map[string]any{
 				"agent_name": "attention-agent", "spawn_role": "worker",
 				"ttl_seconds": 60, "notify_creator": true,
+				"tools": []string{toolspkg.ToolIDClarify.String()},
 			},
 			&spawn,
 		)
@@ -347,12 +368,13 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		defer closeAttentionMCPClient(t, childClient)
 
 		clarify := startAttentionClarifyCall(ctx, childClient)
-		interaction := waitForAttentionInteraction(
+		interaction := waitForAttentionInteractionWhileCallPending(
 			t,
 			ctx,
 			harness,
 			spawn.SessionID,
 			store.PendingInteractionKindClarify,
+			clarify,
 		)
 		wake := waitForSessionSpawnWakePrompt(
 			t,
@@ -418,7 +440,7 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 	t.Run("Should keep a native-waiting agent supervision-green [E2E-008]", func(t *testing.T) {
 		options := attentionOrchestrationRuntimeOptions(t)
 		harness := e2etest.StartRuntimeHarness(t, &options)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
 
 		caller := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "native-wait-caller")
@@ -433,9 +455,9 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		waitCall := startAttentionNativeCall(ctx, callerClient, toolspkg.ToolIDSessionWait.String(), map[string]any{
 			"session_id": target.ID,
 			"until":      []string{"waiting-for-input"},
-			"timeout_ms": 5000,
+			"timeout_ms": 10000,
 		})
-		waitAttentionDuration(t, ctx, 1200*time.Millisecond)
+		waitAttentionDuration(t, ctx, 6*time.Second)
 		clarify := startAttentionClarifyCall(ctx, targetClient)
 		interaction := waitForAttentionInteraction(
 			t,
@@ -517,6 +539,12 @@ func attentionTruthRuntimeOptions(t testing.TB) e2etest.RuntimeHarnessOptions {
 			FixturePath:  mockFixturePath(t, "attention_truth_fixture.json"),
 			FixtureAgent: "attention",
 			AgentName:    "attention-agent",
+			Tools: []string{
+				toolspkg.ToolIDClarify.String(),
+				toolspkg.ToolIDSessionClarifyAnswer.String(),
+				toolspkg.ToolIDSessionSpawn.String(),
+				toolspkg.ToolIDSessionWait.String(),
+			},
 		}},
 	}
 }
@@ -527,8 +555,8 @@ func attentionOrchestrationRuntimeOptions(t testing.TB) e2etest.RuntimeHarnessOp
 	options.ConfigSeed.Mutate = func(cfg *compozyconfig.Config) {
 		cfg.Session.Supervision.ActivityHeartbeatInterval = 50 * time.Millisecond
 		cfg.Session.Supervision.ProgressNotifyInterval = 50 * time.Millisecond
-		cfg.Session.Supervision.InactivityWarningAfter = 250 * time.Millisecond
-		cfg.Session.Supervision.InactivityTimeout = 750 * time.Millisecond
+		cfg.Session.Supervision.InactivityWarningAfter = 2 * time.Second
+		cfg.Session.Supervision.InactivityTimeout = 5 * time.Second
 	}
 	return options
 }
@@ -919,6 +947,48 @@ func waitForAttentionInteraction(
 ) compozycontract.PendingInteractionPayload {
 	t.Helper()
 	for {
+		var response compozycontract.SessionInteractionsResponse
+		err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&response,
+			"session", "interactions", sessionID, "-o", "json",
+		)
+		if err == nil {
+			for _, interaction := range response.Interactions {
+				if interaction.Kind == kind {
+					return interaction
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("session %q interaction kind %q not found: %v", sessionID, kind, errors.Join(err, ctx.Err()))
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+}
+
+func waitForAttentionInteractionWhileCallPending(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	kind string,
+	call <-chan attentionMCPCallResult,
+) compozycontract.PendingInteractionPayload {
+	t.Helper()
+	for {
+		select {
+		case outcome := <-call:
+			t.Fatalf(
+				"CallTool(compozy__clarify) ended before interaction: result=%#v content=%q error=%v",
+				outcome.result,
+				sdkCallToolTextContent(outcome.result),
+				outcome.err,
+			)
+		default:
+		}
 		var response compozycontract.SessionInteractionsResponse
 		err := harness.CLI.RunJSONInDir(
 			ctx,

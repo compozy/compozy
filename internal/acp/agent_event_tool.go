@@ -11,6 +11,7 @@ type agentEventPayload struct {
 	eventID          string
 	messageID        string
 	requestID        string
+	resolvedBy       string
 	toolName         string
 	toolKind         string
 	toolInput        json.RawMessage
@@ -49,6 +50,7 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
+		payload.resolvedBy == "" &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
 		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
 		return nil

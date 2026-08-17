@@ -24,19 +24,13 @@ type promptMessageDispatchState struct {
 	lastRaw json.RawMessage
 }
 
-func claimPromptState(session *Session, req promptRequest) func() {
-	session.setCurrentTurnID(req.turnID)
-	session.setCurrentTurnSource(req.turnSource)
-	session.setCurrentPromptMessage(req.authoredMessage)
-	session.setCurrentPromptMeta(req.meta)
-	session.setCurrentSkillInvocations(req.skillInvocations)
-	return func() {
-		session.clearPromptCancellation(req.turnID)
-		session.clearCurrentTurnID()
-		session.clearCurrentTurnSource()
-		session.clearCurrentPromptMessage()
-		session.clearCurrentPromptMeta()
-		session.clearCurrentSkillInvocations()
-		session.finishCurrentPromptCompletion()
-	}
+func clearPromptState(session *Session, turnID string) {
+	session.clearPromptCancellation(turnID)
+	session.clearCurrentTurnID()
+	session.clearCurrentTurnSource()
+	session.clearCurrentPromptMessage()
+	session.clearCurrentPromptMeta()
+	session.clearCurrentSkillInvocations()
+	session.clearCurrentPromptCancel()
+	session.finishCurrentPromptCompletion()
 }

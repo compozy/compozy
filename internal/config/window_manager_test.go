@@ -130,7 +130,10 @@ right = 14
 			t.Fatalf("window manager gaps = %#v, want workspace right and active left", got.Gaps)
 		}
 		if len(got.Shortcuts) != 2 ||
-			!slices.Equal(got.Shortcuts["desktop.switch.next"], windowmanager.ShortcutBinding{"alt+ArrowRight", "alt+KeyL"}) ||
+			!slices.Equal(
+				got.Shortcuts["desktop.switch.next"],
+				windowmanager.ShortcutBinding{"alt+ArrowRight", "alt+KeyL"},
+			) ||
 			!slices.Equal(got.Shortcuts["window.focus.left"], windowmanager.ShortcutBinding{"alt+KeyH"}) {
 			t.Fatalf("window manager shortcuts = %#v, want workspace replacement", got.Shortcuts)
 		}

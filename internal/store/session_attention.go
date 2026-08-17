@@ -53,6 +53,31 @@ type SessionAttention struct {
 	AttentionChangedAt     *time.Time
 }
 
+// CloneSessionAttention returns an isolated copy of an optional attention projection.
+func CloneSessionAttention(attention *SessionAttention) *SessionAttention {
+	if attention == nil {
+		return nil
+	}
+	cloned := *attention
+	if attention.LastSeenAt != nil {
+		lastSeenAt := *attention.LastSeenAt
+		cloned.LastSeenAt = &lastSeenAt
+	}
+	if attention.AttentionChangedAt != nil {
+		attentionChangedAt := *attention.AttentionChangedAt
+		cloned.AttentionChangedAt = &attentionChangedAt
+	}
+	return &cloned
+}
+
+// AttentionSnapshot returns an isolated zero-safe attention projection.
+func (s *SessionInfo) AttentionSnapshot() SessionAttention {
+	if s == nil || s.Attention == nil {
+		return SessionAttention{}
+	}
+	return *CloneSessionAttention(s.Attention)
+}
+
 // Unseen reports whether the latest settled turn has not been observed.
 func (a SessionAttention) Unseen() bool {
 	return a.LastSettledRevision > a.LastSeenRevision

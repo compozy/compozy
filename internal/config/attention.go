@@ -2,15 +2,15 @@ package config
 
 import (
 	"fmt"
-	"strings"
-
-	"github.com/oklog/ulid"
+	"regexp"
 )
 
 const (
 	attentionConfigInvalidCode = "attention_config_invalid"
 	attentionMutedPath         = "attention.muted_workspaces"
 )
+
+var attentionWorkspaceRegistrationIDPattern = regexp.MustCompile(`^ws_[0-9a-f]{16}$`)
 
 // AttentionConfig controls operator-facing attention delivery.
 type AttentionConfig struct {
@@ -29,17 +29,13 @@ func DefaultAttentionConfig() AttentionConfig {
 func (c AttentionConfig) Validate() error {
 	seen := make(map[string]struct{}, len(c.MutedWorkspaces))
 	for index, value := range c.MutedWorkspaces {
-		workspaceID := strings.TrimSpace(value)
-		if workspaceID == "" {
-			return attentionValidationError(index, "must be a canonical workspace id")
+		if !attentionWorkspaceRegistrationIDPattern.MatchString(value) {
+			return attentionValidationError(index, "must be a public workspace registration id")
 		}
-		if _, err := ulid.ParseStrict(workspaceID); err != nil {
-			return attentionValidationError(index, "must be a canonical workspace id")
-		}
-		if _, exists := seen[workspaceID]; exists {
+		if _, exists := seen[value]; exists {
 			return attentionValidationError(index, "must not contain duplicates")
 		}
-		seen[workspaceID] = struct{}{}
+		seen[value] = struct{}{}
 	}
 	return nil
 }

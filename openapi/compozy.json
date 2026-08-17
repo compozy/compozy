@@ -3984,7 +3984,10 @@
                   "items": {
                     "type": "string"
                   },
-                  "type": "array"
+                  "type": [
+                    "array",
+                    "string"
+                  ]
                 },
                 "type": "object"
               },
@@ -4766,7 +4769,10 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "string"
+                      ]
                     },
                     "type": "object"
                   },
@@ -5401,7 +5407,10 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "string"
+                      ]
                     },
                     "type": "object"
                   },
@@ -6433,7 +6442,10 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "string"
+                      ]
                     },
                     "type": "object"
                   },
@@ -7105,7 +7117,10 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "string"
+                      ]
                     },
                     "type": "object"
                   },
@@ -7874,7 +7889,10 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "string"
+                      ]
                     },
                     "type": "object"
                   },
@@ -8521,7 +8539,10 @@
                   "items": {
                     "type": "string"
                   },
-                  "type": "array"
+                  "type": [
+                    "array",
+                    "string"
+                  ]
                 },
                 "type": "object"
               },
@@ -9204,7 +9225,10 @@
                       "items": {
                         "type": "string"
                       },
-                      "type": "array"
+                      "type": [
+                        "array",
+                        "string"
+                      ]
                     },
                     "type": "object"
                   },
@@ -150177,7 +150201,10 @@
                             "items": {
                               "type": "string"
                             },
-                            "type": "array"
+                            "type": [
+                              "array",
+                              "string"
+                            ]
                           },
                           "type": "object"
                         },
@@ -150253,7 +150280,10 @@
                         "items": {
                           "type": "string"
                         },
-                        "type": "array"
+                        "type": [
+                          "array",
+                          "string"
+                        ]
                       },
                       "type": "object"
                     },
@@ -150262,7 +150292,10 @@
                         "items": {
                           "type": "string"
                         },
-                        "type": "array"
+                        "type": [
+                          "array",
+                          "string"
+                        ]
                       },
                       "type": "object"
                     },
@@ -150513,7 +150546,10 @@
                           "items": {
                             "type": "string"
                           },
-                          "type": "array"
+                          "type": [
+                            "array",
+                            "string"
+                          ]
                         },
                         "type": "object"
                       },
@@ -309080,7 +309116,10 @@
                             "items": {
                               "type": "string"
                             },
-                            "type": "array"
+                            "type": [
+                              "array",
+                              "string"
+                            ]
                           },
                           "type": "object"
                         },
@@ -311277,7 +311316,10 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "type": "array"
+                                "type": [
+                                  "array",
+                                  "string"
+                                ]
                               },
                               "type": "object"
                             },
@@ -312297,7 +312339,10 @@
                             "items": {
                               "type": "string"
                             },
-                            "type": "array"
+                            "type": [
+                              "array",
+                              "string"
+                            ]
                           },
                           "type": "object"
                         },
@@ -313133,7 +313178,10 @@
                               "items": {
                                 "type": "string"
                               },
-                              "type": "array"
+                              "type": [
+                                "array",
+                                "string"
+                              ]
                             },
                             "type": "object"
                           },
@@ -313904,7 +313952,10 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "type": "array"
+                                "type": [
+                                  "array",
+                                  "string"
+                                ]
                               },
                               "type": "object"
                             },
@@ -317355,7 +317406,10 @@
                               "items": {
                                 "type": "string"
                               },
-                              "type": "array"
+                              "type": [
+                                "array",
+                                "string"
+                              ]
                             },
                             "type": "object"
                           },
@@ -318640,7 +318694,10 @@
                                 "items": {
                                   "type": "string"
                                 },
-                                "type": "array"
+                                "type": [
+                                  "array",
+                                  "string"
+                                ]
                               },
                               "type": "object"
                             },
@@ -319739,7 +319796,10 @@
                                     "items": {
                                       "type": "string"
                                     },
-                                    "type": "array"
+                                    "type": [
+                                      "array",
+                                      "string"
+                                    ]
                                   },
                                   "type": "object"
                                 },

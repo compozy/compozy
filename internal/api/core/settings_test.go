@@ -1337,6 +1337,12 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			},
 		},
 		{
+			Section:         settingspkg.SectionAttention,
+			Scope:           settingspkg.ScopeGlobal,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+			Attention:       &settingspkg.AttentionSection{},
+		},
+		{
 			Section:         settingspkg.SectionObservability,
 			Scope:           settingspkg.ScopeGlobal,
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
@@ -1439,7 +1445,25 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			if err != nil {
 				t.Fatalf("SettingsSectionResponseFromEnvelope(%s) error = %v", envelope.Section, err)
 			}
-			if envelope.Section != settingspkg.SectionWindowManager {
+			switch envelope.Section {
+			case settingspkg.SectionAttention:
+				payload, ok := response.(contract.SettingsAttentionResponse)
+				if !ok {
+					t.Fatalf("attention response = %T, want SettingsAttentionResponse", response)
+				}
+				if payload.Config.MutedWorkspaces == nil {
+					t.Fatal("attention muted workspaces = nil, want an empty JSON array")
+				}
+				data, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatalf("json.Marshal(attention response) error = %v", err)
+				}
+				if !bytes.Contains(data, []byte(`"muted_workspaces":[]`)) {
+					t.Fatalf("attention response JSON = %s, want muted_workspaces as []", data)
+				}
+				return
+			case settingspkg.SectionWindowManager:
+			default:
 				return
 			}
 			payload, ok := response.(contract.SettingsWindowManagerResponse)
@@ -2103,7 +2127,10 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 					req.WindowManager.NavStackLimit != 66 ||
 					req.WindowManager.ClosedEntryLimit != 18 ||
 					!reflect.DeepEqual(req.WindowManager.Snap.RepeatRatios, []float64{0.4, 0.7, 0.3}) ||
-					!reflect.DeepEqual(req.WindowManager.Shortcuts["desktop.switch.next"], windowmanager.ShortcutBinding{"Meta+ArrowRight"}) {
+					!reflect.DeepEqual(
+						req.WindowManager.Shortcuts["desktop.switch.next"],
+						windowmanager.ShortcutBinding{"Meta+ArrowRight"},
+					) {
 					t.Fatalf("req.WindowManager = %#v, want complete window-manager config", req.WindowManager)
 				}
 			},
@@ -2980,6 +3007,20 @@ func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 		if payload.Defaults == nil || payload.Effective == nil ||
 			!reflect.DeepEqual(payload.Defaults, payload.Effective) {
 			t.Fatalf("defaults/effective = %#v/%#v, want equal daemon keymaps", payload.Defaults, payload.Effective)
+		}
+
+		var wire struct {
+			Defaults  map[string]json.RawMessage `json:"defaults"`
+			Effective map[string]json.RawMessage `json:"effective"`
+		}
+		decodeJSON(t, resp.Body.Bytes(), &wire)
+		for field, shortcuts := range map[string]map[string]json.RawMessage{
+			"defaults":  wire.Defaults,
+			"effective": wire.Effective,
+		} {
+			if got, want := string(shortcuts["layout.arrange.grid"]), "[]"; got != want {
+				t.Errorf("%s[layout.arrange.grid] = %s, want %s", field, got, want)
+			}
 		}
 	})
 

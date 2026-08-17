@@ -311,9 +311,19 @@ func TestDaemonNativeTools(t *testing.T) {
 		base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
 			switch strings.TrimSpace(id) {
 			case callerID:
-				return &session.Info{ID: callerID, AgentName: "creator", WorkspaceID: workspaceID, State: session.StateActive}, nil
+				return &session.Info{
+					ID:          callerID,
+					AgentName:   "creator",
+					WorkspaceID: workspaceID,
+					State:       session.StateActive,
+				}, nil
 			case targetID:
-				return &session.Info{ID: targetID, AgentName: "worker", WorkspaceID: workspaceID, State: session.StateActive}, nil
+				return &session.Info{
+					ID:          targetID,
+					AgentName:   "worker",
+					WorkspaceID: workspaceID,
+					State:       session.StateActive,
+				}, nil
 			default:
 				return nil, session.ErrSessionNotFound
 			}
@@ -379,11 +389,27 @@ func TestDaemonNativeTools(t *testing.T) {
 			input string
 			want  string
 		}{
-			{toolspkg.ToolIDSessionWait, `{"session_id":"sess-target","until":["idle"],"timeout_ms":120000}`, `"outcome":"state-reached"`},
-			{toolspkg.ToolIDSessionSpawn, `{"agent_name":"researcher","ttl_seconds":3600,"notify_creator":false}`, `"session_id":"sess-child"`},
+			{
+				toolspkg.ToolIDSessionWait,
+				`{"session_id":"sess-target","until":["idle"],"timeout_ms":120000}`,
+				`"outcome":"state-reached"`,
+			},
+			{
+				toolspkg.ToolIDSessionSpawn,
+				`{"agent_name":"researcher","ttl_seconds":3600,"notify_creator":false}`,
+				`"session_id":"sess-child"`,
+			},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target"}`, `"state":"stopped"`},
-			{toolspkg.ToolIDSessionApprove, `{"session_id":"sess-target","request_id":"perm-1","decision":"allow-once"}`, `"outcome":"applied"`},
-			{toolspkg.ToolIDSessionClarifyAnswer, `{"session_id":"sess-target","request_id":"clr-1","choice":2}`, `"outcome":"answered"`},
+			{
+				toolspkg.ToolIDSessionApprove,
+				`{"session_id":"sess-target","request_id":"perm-1","decision":"allow-once"}`,
+				`"outcome":"applied"`,
+			},
+			{
+				toolspkg.ToolIDSessionClarifyAnswer,
+				`{"session_id":"sess-target","request_id":"clr-1","choice":2}`,
+				`"outcome":"answered"`,
+			},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-target"}`, `"turn_id":"turn-1"`},
 		}
 		for _, call := range calls {
@@ -438,8 +464,16 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDSessionWait, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
-			{toolspkg.ToolIDSessionApprove, `{"session_id":"sess-self","request_id":"perm-1","decision":"allow-once"}`, toolspkg.ReasonApprovalSelfDenied},
-			{toolspkg.ToolIDSessionClarifyAnswer, `{"session_id":"sess-self","request_id":"clr-1","text":"answer"}`, toolspkg.ReasonApprovalSelfDenied},
+			{
+				toolspkg.ToolIDSessionApprove,
+				`{"session_id":"sess-self","request_id":"perm-1","decision":"allow-once"}`,
+				toolspkg.ReasonApprovalSelfDenied,
+			},
+			{
+				toolspkg.ToolIDSessionClarifyAnswer,
+				`{"session_id":"sess-self","request_id":"clr-1","text":"answer"}`,
+				toolspkg.ReasonApprovalSelfDenied,
+			},
 		}
 		for _, testCase := range cases {
 			_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
@@ -482,7 +516,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		}{
 			{toolspkg.ToolIDSessionWait, `{"session_id":"sess-foreign"}`},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-foreign"}`},
-			{toolspkg.ToolIDSessionApprove, `{"session_id":"sess-foreign","request_id":"perm-1","decision":"allow-once"}`},
+			{
+				toolspkg.ToolIDSessionApprove,
+				`{"session_id":"sess-foreign","request_id":"perm-1","decision":"allow-once"}`,
+			},
 			{toolspkg.ToolIDSessionClarifyAnswer, `{"session_id":"sess-foreign","request_id":"clr-1","text":"answer"}`},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-foreign"}`},
 		}

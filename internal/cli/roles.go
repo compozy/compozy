@@ -172,7 +172,7 @@ func roleBundle(role RoleRecord) outputBundle {
 				cliProviderKey,
 				agentModelKey,
 				"reasoning_effort",
-				"timeout",
+				cliTimeoutKey,
 			}, []string{
 				role.Role,
 				strconv.FormatBool(role.Enabled),

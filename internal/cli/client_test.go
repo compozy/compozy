@@ -780,7 +780,7 @@ func TestUnixSocketClientUpdateSettingsAttentionRoundTripsContract(t *testing.T)
 
 	want := UpdateSettingsAttentionRequest{Config: contract.SettingsAttentionPayload{
 		Toasts: false, Sound: false, System: true,
-		MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+		MutedWorkspaces: []string{"ws_0123456789abcdef"},
 	}}
 	client := &daemonClient{
 		target: LocalClientTarget("/tmp/compozy.sock"),

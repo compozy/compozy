@@ -40,7 +40,7 @@ const (
 	defaultProtocolVersion     = "1"
 	defaultHealthCheckInterval = 30 * time.Second
 	defaultHealthCheckTimeout  = 5 * time.Second
-	defaultInitializeTimeout   = 5 * time.Second
+	defaultInitializeTimeout   = 15 * time.Second
 	defaultHookTimeout         = 5 * time.Second
 	defaultShutdownTimeout     = 10 * time.Second
 	defaultRestartBackoffMax   = 60 * time.Second

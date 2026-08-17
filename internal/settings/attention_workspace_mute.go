@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
-	"github.com/oklog/ulid"
 )
 
 // SetAttentionWorkspaceMuted atomically changes one workspace mute without replacing concurrent settings.
@@ -18,10 +16,11 @@ func (s *service) SetAttentionWorkspaceMuted(
 	workspaceID string,
 	muted bool,
 ) (bool, error) {
-	normalizedID := strings.TrimSpace(workspaceID)
-	if _, err := ulid.ParseStrict(normalizedID); err != nil {
-		return false, fmt.Errorf("settings: attention workspace id must be canonical: %w", err)
+	identity := compozyconfig.AttentionConfig{MutedWorkspaces: []string{workspaceID}}
+	if err := identity.Validate(); err != nil {
+		return false, fmt.Errorf("settings: validate attention workspace registration id: %w", err)
 	}
+	normalizedID := workspaceID
 
 	s.applyMu.Lock()
 	defer s.applyMu.Unlock()

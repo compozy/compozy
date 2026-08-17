@@ -179,16 +179,18 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
 		TranscriptEpoch:          info.TranscriptEpoch,
-		PendingPermissionCount:   info.PendingPermissionCount,
-		PendingClarifyCount:      info.PendingClarifyCount,
-		AttentionRevision:        info.AttentionRevision,
-		LastSettledRevision:      info.LastSettledRevision,
-		LastSeenRevision:         info.LastSeenRevision,
-		LastSeenAt:               cloneTimePointer(info.LastSeenAt),
-		AttentionChangedAt:       cloneTimePointer(info.AttentionChangedAt),
-		ArchivedAt:               cloneTimePointer(info.ArchivedAt),
-		CreatedAt:                info.CreatedAt,
-		UpdatedAt:                info.UpdatedAt,
+		Attention: &store.SessionAttention{
+			PendingPermissionCount: info.PendingPermissionCount,
+			PendingClarifyCount:    info.PendingClarifyCount,
+			AttentionRevision:      info.AttentionRevision,
+			LastSettledRevision:    info.LastSettledRevision,
+			LastSeenRevision:       info.LastSeenRevision,
+			LastSeenAt:             cloneTimePointer(info.LastSeenAt),
+			AttentionChangedAt:     cloneTimePointer(info.AttentionChangedAt),
+		},
+		ArchivedAt: cloneTimePointer(info.ArchivedAt),
+		CreatedAt:  info.CreatedAt,
+		UpdatedAt:  info.UpdatedAt,
 	}
 	result.SetNetworkSpec(info.NetworkParticipation)
 	return result

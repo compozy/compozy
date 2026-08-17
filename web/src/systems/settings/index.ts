@@ -284,6 +284,8 @@ export {
 // Components
 export {
   MCPAuthorizeDialog,
+  AttentionSystemStateChip,
+  attentionSystemStateNote,
   MCPSelectionStrip,
   MCPServerDeleteDialog,
   MCPServerEditor,

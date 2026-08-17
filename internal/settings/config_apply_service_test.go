@@ -421,7 +421,10 @@ cost_reasoning_per_million = 30
 		if got, want := second.WindowManager.Snap.RepeatRatios[0], 0.4; got != want {
 			t.Fatalf("active repeat ratio = %v, want %v", got, want)
 		}
-		if got, want := second.WindowManager.Shortcuts["desktop.switch.next"], (windowmanager.ShortcutBinding{"Meta+ArrowRight"}); !slices.Equal(got, want) {
+		if got, want := second.WindowManager.Shortcuts["desktop.switch.next"], (windowmanager.ShortcutBinding{"Meta+ArrowRight"}); !slices.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf("active desktop.switch.next shortcut = %q, want %q", got, want)
 		}
 		if got, want := second.Defaults.Provider, initialActive.Defaults.Provider; got != want {
@@ -472,7 +475,7 @@ cost_reasoning_per_million = 30
 			Toasts:          false,
 			Sound:           false,
 			System:          true,
-			MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+			MutedWorkspaces: []string{"ws_0123456789abcdef"},
 		}
 
 		result, err := service.ApplySection(ctx, SectionUpdateRequest{
@@ -495,17 +498,17 @@ cost_reasoning_per_million = 30
 			t.Fatalf("runtime defaults.provider = %q, want pending restart value %q excluded", got, want)
 		}
 
-		desired.MutedWorkspaces[0] = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+		desired.MutedWorkspaces[0] = "ws_abcdef0123456789"
 		first, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(first) error = %v", err)
 		}
-		first.Attention.MutedWorkspaces[0] = "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+		first.Attention.MutedWorkspaces[0] = "ws_1111111111111111"
 		second, err := service.ActiveConfig(ctx)
 		if err != nil {
 			t.Fatalf("ActiveConfig(second) error = %v", err)
 		}
-		if got, want := second.Attention.MutedWorkspaces[0], "01ARZ3NDEKTSV4RRFFQ69G5FAV"; got != want {
+		if got, want := second.Attention.MutedWorkspaces[0], "ws_0123456789abcdef"; got != want {
 			t.Fatalf("active muted workspace = %q, want %q", got, want)
 		}
 	})
@@ -573,8 +576,8 @@ cost_reasoning_per_million = 30
 
 		ctx := WithMutationSource(context.Background(), "workspace.unregister")
 		homePaths := testHomePaths(t)
-		const removedID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
-		const retainedID = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+		const removedID = "ws_0123456789abcdef"
+		const retainedID = "ws_abcdef0123456789"
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+fmt.Sprintf(`
 [attention]
 toasts = true
@@ -651,9 +654,9 @@ muted_workspaces = ["%s", "%s"]
 			ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
 		})
 		candidates := []compozyconfig.AttentionConfig{
-			{Toasts: true, Sound: false, MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"}},
-			{Toasts: false, Sound: true, System: true, MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAW"}},
-			{Toasts: true, Sound: true, System: true, MutedWorkspaces: []string{"01ARZ3NDEKTSV4RRFFQ69G5FAX"}},
+			{Toasts: true, Sound: false, MutedWorkspaces: []string{"ws_0123456789abcdef"}},
+			{Toasts: false, Sound: true, System: true, MutedWorkspaces: []string{"ws_abcdef0123456789"}},
+			{Toasts: true, Sound: true, System: true, MutedWorkspaces: []string{"ws_1111111111111111"}},
 		}
 		errorsByWriter := make(chan error, len(candidates))
 		var writers sync.WaitGroup

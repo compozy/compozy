@@ -150,6 +150,9 @@ describe("captureRouteState", () => {
       <section data-testid="automation-run-history">
         <a data-testid="automation-run-run_001" href="/session/sess_001"></a>
         <article data-testid="automation-run-run_002"></article>
+        <div hidden>
+          <a data-testid="trigger-run-open-run_003" href="/session/sess_003"></a>
+        </div>
       </section>
       <form data-testid="automation-job-form"></form>
     `;

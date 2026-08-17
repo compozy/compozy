@@ -167,6 +167,7 @@ function DialogContent({
               ...(windowScoped
                 ? {
                     maxHeight: "calc(100% - 2rem)",
+                    overflowY: unframed ? undefined : "auto",
                   }
                 : undefined),
               ...style,

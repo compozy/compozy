@@ -22,7 +22,10 @@ func actingSessionID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	actorID, _ := ctx.Value(actingSessionContextKey{}).(string)
+	actorID, ok := ctx.Value(actingSessionContextKey{}).(string)
+	if !ok {
+		return ""
+	}
 	return strings.TrimSpace(actorID)
 }
 

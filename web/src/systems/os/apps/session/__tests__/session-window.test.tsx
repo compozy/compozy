@@ -1,5 +1,6 @@
 // Suite: OS session-window live ownership
-// Invariant: every visible session window on the active desktop owns a live tail, regardless of focus.
+// Invariant: every visible session window on the active desktop owns a live tail, while operator
+// presence additionally requires the shell window and browser document to hold focus.
 // Owning layer: the OS session-window controller.
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,6 +28,8 @@ const queryOptionsSpy = vi.fn((_options: Record<string, unknown>) => undefined);
 const userClose = vi.fn(() => Promise.resolve(true));
 const userOpen = vi.fn(() => Promise.resolve(null));
 const workspace = { runtimeWorkspaceId: "ws-1" as string | null };
+const documentActivity = vi.hoisted(() => ({ active: true }));
+const useSessionPresenceSpy = vi.hoisted(() => vi.fn());
 const queryState: {
   data: typeof session | undefined;
   error: Error | null;
@@ -54,6 +57,14 @@ vi.mock("@/systems/session/lib/query-options", () => ({
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1", ...workspace }),
+}));
+
+vi.mock("@/hooks/use-document-active", () => ({
+  useDocumentActive: () => documentActivity.active,
+}));
+
+vi.mock("@/systems/session/hooks/use-session-presence", () => ({
+  useSessionPresence: (...args: unknown[]) => useSessionPresenceSpy(...args),
 }));
 
 vi.mock("../../../hooks/use-desktop", () => ({
@@ -88,11 +99,13 @@ describe("SessionWindow", () => {
     queryState.error = null;
     queryState.isLoading = false;
     workspace.runtimeWorkspaceId = "ws-1";
+    documentActivity.active = true;
     sessionWindowViewSpy.mockClear();
     sessionWindowNoticeSpy.mockClear();
     queryOptionsSpy.mockClear();
     userClose.mockClear();
     userOpen.mockClear();
+    useSessionPresenceSpy.mockClear();
   });
 
   it.each([
@@ -134,6 +147,19 @@ describe("SessionWindow", () => {
     desktop.focusedId = "app:marketplace";
     view.rerender(<SessionWindow windowId="session:sess-1" />);
 
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ liveTailEnabled: true })
+    );
+  });
+
+  it("Should release operator presence when the browser document loses focus", () => {
+    const view = render(<SessionWindow windowId="session:sess-1" />);
+    expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", true);
+
+    documentActivity.active = false;
+    view.rerender(<SessionWindow windowId="session:sess-1" />);
+
+    expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", false);
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ liveTailEnabled: true })
     );

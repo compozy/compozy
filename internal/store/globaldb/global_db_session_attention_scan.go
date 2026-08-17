@@ -8,24 +8,27 @@ import (
 )
 
 func populateSessionAttentionScanParts(session *store.SessionInfo, row *sessionInfoRow) error {
-	session.PendingPermissionCount = row.pendingPermissionCount
-	session.PendingClarifyCount = row.pendingClarifyCount
-	session.AttentionRevision = row.attentionRevision
-	session.LastSettledRevision = row.lastSettledRevision
-	session.LastSeenRevision = row.lastSeenRevision
+	attention := &store.SessionAttention{
+		PendingPermissionCount: row.pendingPermissionCount,
+		PendingClarifyCount:    row.pendingClarifyCount,
+		AttentionRevision:      row.attentionRevision,
+		LastSettledRevision:    row.lastSettledRevision,
+		LastSeenRevision:       row.lastSeenRevision,
+	}
 	if row.lastSeenAt.Valid && strings.TrimSpace(row.lastSeenAt.String) != "" {
 		lastSeenAt, err := store.ParseTimestamp(row.lastSeenAt.String)
 		if err != nil {
 			return fmt.Errorf("store: parse session last seen at: %w", err)
 		}
-		session.LastSeenAt = &lastSeenAt
+		attention.LastSeenAt = &lastSeenAt
 	}
 	if row.attentionChangedAt.Valid && strings.TrimSpace(row.attentionChangedAt.String) != "" {
 		attentionChangedAt, err := store.ParseTimestamp(row.attentionChangedAt.String)
 		if err != nil {
 			return fmt.Errorf("store: parse session attention changed at: %w", err)
 		}
-		session.AttentionChangedAt = &attentionChangedAt
+		attention.AttentionChangedAt = &attentionChangedAt
 	}
+	session.Attention = attention
 	return nil
 }

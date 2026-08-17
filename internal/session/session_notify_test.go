@@ -99,7 +99,7 @@ func TestPublishOperatorNotification(t *testing.T) {
 	t.Run("Should suppress muted workspaces while retaining the rate counter", func(t *testing.T) {
 		t.Parallel()
 		manager, advance := newNotifyTestManager()
-		const workspaceID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		const workspaceID = "ws_0123456789abcdef"
 		if err := manager.SetAttentionConfig(compozyconfig.AttentionConfig{
 			Toasts: true, Sound: true, MutedWorkspaces: []string{workspaceID},
 		}); err != nil {

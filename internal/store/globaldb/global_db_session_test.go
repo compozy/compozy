@@ -199,19 +199,20 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := info.ParentSoulDigest, "sha256:parent"; got != want {
 			t.Fatalf("info.ParentSoulDigest = %q, want %q", got, want)
 		}
-		if got, want := info.PendingPermissionCount, 2; got != want {
+		attention := info.AttentionSnapshot()
+		if got, want := attention.PendingPermissionCount, 2; got != want {
 			t.Fatalf("info.PendingPermissionCount = %d, want %d", got, want)
 		}
-		if got, want := info.PendingClarifyCount, 1; got != want {
+		if got, want := attention.PendingClarifyCount, 1; got != want {
 			t.Fatalf("info.PendingClarifyCount = %d, want %d", got, want)
 		}
-		if got, want := info.AttentionRevision, int64(7); got != want {
+		if got, want := attention.AttentionRevision, int64(7); got != want {
 			t.Fatalf("info.AttentionRevision = %d, want %d", got, want)
 		}
-		if got, want := info.LastSettledRevision, int64(6); got != want {
+		if got, want := attention.LastSettledRevision, int64(6); got != want {
 			t.Fatalf("info.LastSettledRevision = %d, want %d", got, want)
 		}
-		if got, want := info.LastSeenRevision, int64(5); got != want {
+		if got, want := attention.LastSeenRevision, int64(5); got != want {
 			t.Fatalf("info.LastSeenRevision = %d, want %d", got, want)
 		}
 		if info.Sandbox == nil {

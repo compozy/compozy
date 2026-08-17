@@ -46,26 +46,20 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	if terminal && terminalFailureKind(failure) {
 		return BadgeFailed
 	}
-	if terminal {
-		return BadgeStopped
-	}
 	if input.PendingAuth || failureKindIsAuth(failure) {
 		return BadgeWaitingForAuth
 	}
 	if input.PendingClarify {
 		return BadgeWaitingForInput
 	}
+	if terminal {
+		return BadgeStopped
+	}
 	if input.Stalled {
 		return BadgeHung
 	}
-	if input.IneligibilityReason == string(heartbeat.SessionHealthReasonHung) ||
-		input.Health == heartbeat.SessionHealthDead ||
-		input.Health == heartbeat.SessionHealthStale {
-		return BadgeHung
-	}
-	if input.IneligibilityReason == string(heartbeat.SessionHealthReasonUnhealthy) ||
-		input.Health == heartbeat.SessionHealthDegraded {
-		return BadgeUnhealthy
+	if badge, ok := degradedHealthBadge(input); ok {
+		return badge
 	}
 	if input.State == StateStarting || input.State == StateStopping || input.ActivePrompt ||
 		input.HealthState == heartbeat.SessionHealthStatePrompting {
@@ -78,6 +72,19 @@ func CanonicalBadge(input BadgeInputs) Badge {
 		return BadgeIdle
 	}
 	return BadgeUnknown
+}
+
+func degradedHealthBadge(input BadgeInputs) (Badge, bool) {
+	if input.IneligibilityReason == string(heartbeat.SessionHealthReasonHung) ||
+		input.Health == heartbeat.SessionHealthDead ||
+		input.Health == heartbeat.SessionHealthStale {
+		return BadgeHung, true
+	}
+	if input.IneligibilityReason == string(heartbeat.SessionHealthReasonUnhealthy) ||
+		input.Health == heartbeat.SessionHealthDegraded {
+		return BadgeUnhealthy, true
+	}
+	return BadgeUnknown, false
 }
 
 func terminalFailureKind(failure *store.SessionFailure) bool {

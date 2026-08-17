@@ -22,6 +22,12 @@ type nativeSessionSpawner interface {
 	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
 }
 
+const (
+	nativePayloadOutcomeKey   = "outcome"
+	nativePayloadRequestIDKey = "request_id"
+	nativePayloadStateKey     = "state"
+)
+
 func (n *daemonNativeTools) sessionWait(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -54,13 +60,13 @@ func (n *daemonNativeTools) sessionWait(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	payload := map[string]any{
-		"session_id": target,
-		"outcome":    outcome.Outcome,
-		"waited_ms":  outcome.Waited.Milliseconds(),
-		"revision":   outcome.Revision,
+		watchEventsPayloadSessionIDKey: target,
+		nativePayloadOutcomeKey:        outcome.Outcome,
+		"waited_ms":                    outcome.Waited.Milliseconds(),
+		"revision":                     outcome.Revision,
 	}
 	if outcome.State != "" {
-		payload["state"] = outcome.State
+		payload[nativePayloadStateKey] = outcome.State
 	}
 	return structuredResult(payload, string(outcome.Outcome))
 }
@@ -100,9 +106,14 @@ func (n *daemonNativeTools) sessionSpawn(
 		NotifyCreator:    input.NotifyCreator != nil && *input.NotifyCreator,
 		NotifyCreatorSet: input.NotifyCreator != nil,
 		PermissionPolicy: store.SessionPermissionPolicy{
-			Tools: trimNativeStrings(input.Tools), Skills: trimNativeStrings(input.Skills),
-			MCPServers: trimNativeStrings(input.MCPServers), WorkspacePaths: trimNativeStrings(input.WorkspacePaths),
-			NetworkChannels: trimNativeStrings(input.NetworkChannels), SandboxProfiles: trimNativeStrings(input.SandboxProfiles),
+			Tools:          trimNativeStrings(input.Tools),
+			Skills:         trimNativeStrings(input.Skills),
+			MCPServers:     trimNativeStrings(input.MCPServers),
+			WorkspacePaths: trimNativeStrings(input.WorkspacePaths),
+			NetworkChannels: trimNativeStrings(
+				input.NetworkChannels,
+			),
+			SandboxProfiles: trimNativeStrings(input.SandboxProfiles),
 		},
 		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
 	})
@@ -114,7 +125,7 @@ func (n *daemonNativeTools) sessionSpawn(
 		return toolspkg.ToolResult{}, errors.New("daemon: spawned session is missing lineage")
 	}
 	payload := map[string]any{
-		"session_id": info.ID, "spawn_role": info.Lineage.SpawnRole,
+		watchEventsPayloadSessionIDKey: info.ID, "spawn_role": info.Lineage.SpawnRole,
 		"spawn_depth": info.Lineage.SpawnDepth, "ttl_expires_at": info.Lineage.TTLExpiresAt.UTC(),
 	}
 	return structuredResult(payload, info.ID)
@@ -133,9 +144,12 @@ func (n *daemonNativeTools) sessionStop(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload := map[string]any{"session_id": target, "state": session.StateStopped}
+	payload := map[string]any{
+		watchEventsPayloadSessionIDKey: target,
+		nativePayloadStateKey:          session.StateStopped,
+	}
 	if info.State == session.StateStopped {
-		payload["outcome"] = "already-stopped"
+		payload[nativePayloadOutcomeKey] = "already-stopped"
 		return structuredResult(payload, "already-stopped")
 	}
 	if err := n.deps.Sessions.StopWithCause(
@@ -168,7 +182,9 @@ func (n *daemonNativeTools) sessionApprove(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	payload := map[string]any{
-		"outcome": result.Outcome, "request_id": result.RequestID, "decision": result.Decision,
+		nativePayloadOutcomeKey:       result.Outcome,
+		nativePayloadRequestIDKey:     result.RequestID,
+		watchEventsPayloadDecisionKey: result.Decision,
 	}
 	if result.ResolvedDecision != "" {
 		payload["resolved_decision"] = result.ResolvedDecision
@@ -206,7 +222,10 @@ func (n *daemonNativeTools) sessionClarifyAnswer(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
-	payload := map[string]any{"outcome": result.Outcome, "request_id": result.RequestID}
+	payload := map[string]any{
+		nativePayloadOutcomeKey:   result.Outcome,
+		nativePayloadRequestIDKey: result.RequestID,
+	}
 	if result.ResolvedAnswer != "" {
 		payload["resolved_answer"] = result.ResolvedAnswer
 	}
@@ -230,7 +249,10 @@ func (n *daemonNativeTools) sessionPromptCancel(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
-	payload := map[string]any{"session_id": target, "outcome": result.Outcome}
+	payload := map[string]any{
+		watchEventsPayloadSessionIDKey: target,
+		nativePayloadOutcomeKey:        result.Outcome,
+	}
 	if result.TurnID != "" {
 		payload["turn_id"] = result.TurnID
 	}
@@ -261,7 +283,7 @@ func (n *daemonNativeTools) nativeOrchestrationTarget(
 	}
 	info, err := n.nativeSessionInWorkspace(ctx, id, workspaceID, target)
 	if err != nil {
-		if _, ok := errors.AsType[*toolspkg.ToolError](err); ok {
+		if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok && toolErr != nil {
 			return "", nil, err
 		}
 		return "", nil, nativeSessionOrchestrationError(id, err)
@@ -292,18 +314,20 @@ func nativeSessionOrchestrationError(id toolspkg.ToolID, err error) error {
 		return nil
 	}
 	status := core.StatusForSessionError(err)
-	if errors.Is(err, toolspkg.ErrClarifyInvalid) {
+	switch {
+	case errors.Is(err, toolspkg.ErrClarifyInvalid):
 		status = 422
-	} else if errors.Is(err, toolspkg.ErrClarifyNotFound) {
+	case errors.Is(err, toolspkg.ErrClarifyNotFound):
 		status = 404
-	} else if errors.Is(err, toolspkg.ErrClarifyPending) || errors.Is(err, toolspkg.ErrClarifyCanceled) {
+	case errors.Is(err, toolspkg.ErrClarifyPending), errors.Is(err, toolspkg.ErrClarifyCanceled):
 		status = 409
-	} else if errors.Is(err, session.ErrSpawnPermissionDenied) {
+	case errors.Is(err, session.ErrSpawnPermissionDenied):
 		status = 403
-	} else if errors.Is(err, session.ErrSpawnLimitExceeded) {
+	case errors.Is(err, session.ErrSpawnLimitExceeded):
 		status = 409
-	} else if errors.Is(err, session.ErrSpawnValidation) || errors.Is(err, session.ErrWaitValidation) ||
-		errors.Is(err, session.ErrWaitStateInvalid) {
+	case errors.Is(err, session.ErrSpawnValidation),
+		errors.Is(err, session.ErrWaitValidation),
+		errors.Is(err, session.ErrWaitStateInvalid):
 		status = 422
 	}
 	return nativeHTTPStatusToolError(id, err, status)

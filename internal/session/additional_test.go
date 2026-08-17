@@ -974,20 +974,20 @@ func TestMarshalAgentEvent(t *testing.T) {
 	}
 
 	totalTokens := int64(4)
-	payload, err := marshalAgentEvent(acp.AgentEvent{
-		Type:       acp.EventTypeDone,
-		SessionID:  "acp-1",
-		TurnID:     "turn-1",
-		Timestamp:  time.Now().UTC(),
-		Text:       "done",
-		Error:      "none",
-		ResolvedBy: "agent_session:sess-creator",
+	structuredEvent := acp.AgentEvent{
+		Type:      acp.EventTypeDone,
+		SessionID: "acp-1",
+		TurnID:    "turn-1",
+		Timestamp: time.Now().UTC(),
+		Text:      "done",
+		Error:     "none",
 		Usage: &acp.TokenUsage{
 			TurnID:      "turn-1",
 			TotalTokens: &totalTokens,
 			Timestamp:   time.Now().UTC(),
 		},
-	})
+	}.WithResolvedBy("agent_session:sess-creator")
+	payload, err := marshalAgentEvent(structuredEvent)
 	if err != nil {
 		t.Fatalf("marshalAgentEvent(structured) error = %v", err)
 	}
@@ -1012,8 +1012,8 @@ func TestMarshalAgentEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UnmarshalAgentEvent() error = %v", err)
 	}
-	if replayed.ResolvedBy != "agent_session:sess-creator" {
-		t.Fatalf("replayed.ResolvedBy = %q, want acting session", replayed.ResolvedBy)
+	if replayed.ResolvedByValue() != "agent_session:sess-creator" {
+		t.Fatalf("replayed.ResolvedByValue() = %q, want acting session", replayed.ResolvedByValue())
 	}
 
 	var rawDecoded map[string]any

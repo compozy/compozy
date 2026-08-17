@@ -468,7 +468,6 @@ export {
 } from "./components/session-inspector";
 export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
 
-// Worktree environment surfaces (Task 07)
 export { SessionEnvironmentField } from "./components/session-environment-field";
 export { SessionEnvironmentChip } from "./components/session-environment-chip";
 export type { SessionEnvironmentChipState } from "./components/session-environment-chip";

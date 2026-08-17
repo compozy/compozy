@@ -1,6 +1,7 @@
 import { useDesktop } from "../../../hooks/use-desktop";
 import { matchSessionInstance } from "../../../lib/app-catalog";
 import { useSessionWindowDesktopState } from "./use-session-window-desktop-state";
+import { useDocumentActive } from "@/hooks/use-document-active";
 import { useSessionPresence } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -27,10 +28,11 @@ export function useSessionWindowRuntime(windowId: string): SessionWindowRuntime 
   const activeWorkspace = useActiveWorkspace();
   const { liveTailEnabled, pathname } = useSessionWindowDesktopState(windowId);
   const focused = useDesktop(state => state.focusedId === windowId);
+  const documentActive = useDocumentActive();
   const runtimeWorkspaceId = activeWorkspace.runtimeWorkspaceId?.trim() || null;
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
-  useSessionPresence(runtimeWorkspaceId, sessionId, focused && liveTailEnabled);
+  useSessionPresence(runtimeWorkspaceId, sessionId, focused && liveTailEnabled && documentActive);
   return {
     runtimeWorkspaceId,
     liveTailEnabled,

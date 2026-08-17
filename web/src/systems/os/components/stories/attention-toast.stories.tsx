@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
+import { Toaster } from "@compozy/ui";
+
+import { notifyUser } from "@/lib/user-feedback";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { AttentionToast, AttentionToastOverflowLedge } from "../attention-toast";
@@ -188,5 +191,18 @@ export const SingleCompletion: Story = {
         ],
       },
     ],
+  },
+};
+
+/** A stale click lands safely and explains that the attention already cleared. */
+export const ResolvedBeforeClick: Story = {
+  args: { deliveries: [] },
+  render: () => <Toaster duration={60_000} position="top-right" />,
+  play: async ({ canvasElement }) => {
+    notifyUser({ message: "This session no longer needs attention.", tone: "info" });
+    const notice = await within(canvasElement.ownerDocument.body).findByText(
+      "This session no longer needs attention."
+    );
+    await expect(notice).toBeInTheDocument();
   },
 };

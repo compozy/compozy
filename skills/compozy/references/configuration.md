@@ -159,8 +159,8 @@ ranges and validates the full map atomically; a collision stores nothing.
 ## Attention
 
 `[attention]` controls operator notification delivery. `toasts` and `sound` default to `true`,
-`system` defaults to `false`, and `muted_workspaces` defaults to an empty array of canonical workspace
-IDs. Every `attention.*` path applies live as one validated candidate. A muted workspace receives no
+`system` defaults to `false`, and `muted_workspaces` defaults to an empty array of workspace
+registration IDs returned by workspace list surfaces. Every `attention.*` path applies live as one validated candidate. A muted workspace receives no
 notification event, but its attention rows and counts remain unchanged. Workspace removal prunes its
 ID from `muted_workspaces`.
 

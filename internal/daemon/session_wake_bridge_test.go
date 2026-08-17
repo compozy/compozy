@@ -90,7 +90,12 @@ func TestSessionWakeBridge(t *testing.T) {
 			t.Fatalf("delivery context error = %v, want detached context", ctxErr)
 		}
 		if promptCalls != 1 || promptID != "parent-1" || promptOpts.SkipIfBusy {
-			t.Fatalf("prompt delivery = calls %d id %q opts %#v, want one queued wake", promptCalls, promptID, promptOpts)
+			t.Fatalf(
+				"prompt delivery = calls %d id %q opts %#v, want one queued wake",
+				promptCalls,
+				promptID,
+				promptOpts,
+			)
 		}
 		if got := len([]rune(promptOpts.Message)); got > 240 {
 			t.Fatalf("wake prompt runes = %d, want <= 240", got)
@@ -155,7 +160,12 @@ func TestSessionWakeBridge(t *testing.T) {
 		if err := bridge.shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("shutdown() error = %v", err)
 		}
-		if err := bridge.WakeSpawnCreator(testutil.Context(t), "parent-1", validSessionWakeEvent()); err == nil || !strings.Contains(err.Error(), "stopping") {
+		if err := bridge.WakeSpawnCreator(
+			testutil.Context(t),
+			"parent-1",
+			validSessionWakeEvent(),
+		); err == nil ||
+			!strings.Contains(err.Error(), "stopping") {
 			t.Fatalf("WakeSpawnCreator() error = %v, want stopping rejection", err)
 		}
 	})

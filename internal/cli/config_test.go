@@ -154,7 +154,10 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if got := configured.WindowManager.Snap.RepeatRatios; len(got) != 3 || got[1] != 0.75 {
 			t.Fatalf("WindowManager.Snap.RepeatRatios = %#v, want [0.5 0.75 0.25]", got)
 		}
-		if got, want := configured.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(got, want) {
+		if got, want := configured.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf("WindowManager.Shortcuts[window.focus.left] = %q, want %q", got, want)
 		}
 		discoveryOut, _, err := executeRootCommand(
@@ -191,7 +194,10 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadGlobalConfig(after rejected shortcut array) error = %v", err)
 		}
-		if got, want := unchanged.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(got, want) {
+		if got, want := unchanged.WindowManager.Shortcuts["window.focus.left"], (windowmanager.ShortcutBinding{"alt+KeyH", "control+alt+shift+KeyH"}); !slices.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf("shortcut after atomic rejection = %q, want %q", got, want)
 		}
 
@@ -199,7 +205,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			{"attention.toasts", "false"},
 			{"attention.sound", "false"},
 			{"attention.system", "true"},
-			{"attention.muted_workspaces", `["01ARZ3NDEKTSV4RRFFQ69G5FAV"]`},
+			{"attention.muted_workspaces", `["ws_0123456789abcdef"]`},
 		} {
 			if _, _, err := executeRootCommand(t, deps, "config", "set", mutation[0], mutation[1]); err != nil {
 				t.Fatalf("config set %s error = %v", mutation[0], err)
@@ -210,7 +216,7 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			t.Fatalf("LoadGlobalConfig(attention) error = %v", err)
 		}
 		if configured.Attention.Toasts || configured.Attention.Sound || !configured.Attention.System ||
-			!slices.Equal(configured.Attention.MutedWorkspaces, []string{"01ARZ3NDEKTSV4RRFFQ69G5FAV"}) {
+			!slices.Equal(configured.Attention.MutedWorkspaces, []string{"ws_0123456789abcdef"}) {
 			t.Fatalf("Attention = %#v, want false/false/true with one muted workspace", configured.Attention)
 		}
 
@@ -710,6 +716,16 @@ func TestConfigSetAttentionUsesDaemonSettingsWhenRunning(t *testing.T) {
 	if !captured.Config.System || !captured.Config.Toasts || !captured.Config.Sound ||
 		len(captured.Config.MutedWorkspaces) != 0 {
 		t.Fatalf("daemon attention payload = %#v, want complete defaults with system=true", captured.Config)
+	}
+	if captured.Config.MutedWorkspaces == nil {
+		t.Fatal("daemon attention muted_workspaces = nil, want a non-null empty array")
+	}
+	payload, err := json.Marshal(captured.Config)
+	if err != nil {
+		t.Fatalf("json.Marshal(daemon attention payload) error = %v", err)
+	}
+	if !bytes.Contains(payload, []byte(`"muted_workspaces":[]`)) {
+		t.Fatalf("daemon attention payload JSON = %s, want muted_workspaces:[]", payload)
 	}
 
 	homePaths, err := deps.resolveHome()

@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
 
@@ -17,6 +18,11 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 		toolsets, err := builtintools.ToolsetCatalog()
 		if err != nil {
 			return nil, fmt.Errorf("daemon: build session toolset catalog: %w", err)
+		}
+		descriptors := builtintools.NativeDescriptors()
+		toolUniverse := make([]toolspkg.ToolID, 0, len(descriptors))
+		for _, descriptor := range descriptors {
+			toolUniverse = append(toolUniverse, descriptor.ID)
 		}
 		return session.NewManager(
 			session.WithHomePaths(deps.HomePaths),
@@ -33,6 +39,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithAgentResolver(deps.AgentResolver),
 			session.WithSkillRegistry(deps.SkillRegistry),
 			session.WithToolsetCatalog(toolsets),
+			session.WithToolUniverse(toolUniverse),
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithWorktreeResolver(deps.WorktreeResolver),

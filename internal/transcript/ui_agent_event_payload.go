@@ -39,7 +39,7 @@ func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 		Type: event.Type, SessionID: event.SessionID, TurnID: event.TurnID, RequestID: event.RequestIDValue(),
 		Text: event.Text, Title: event.Title, ToolCallID: event.ToolCallID, StopReason: event.StopReason,
 		PromptStopReason: event.PromptStopReason, Action: event.Action, Resource: event.Resource,
-		Decision: event.Decision, ResolvedBy: event.ResolvedBy,
+		Decision: event.Decision, ResolvedBy: event.ResolvedByValue(),
 		Error: event.Error, Failure: store.CloneSessionFailure(event.Failure),
 		Goal:  acp.CloneGoalPromptMeta(event.Goal),
 		Usage: uiTokenUsagePayloadFromUsage(event.Usage), Runtime: cloneRuntimeActivity(event.Runtime),

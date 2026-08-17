@@ -80,24 +80,28 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		return
 	}
 	defer session.finishPromptSetup()
-	proc, err := m.ensurePromptRuntime(setup.leaseCtx, session, setup.request.runtime, setup.process)
+	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(setup.leaseCtx, true)
+	setManagedInputPromptState(session, setup.request)
+	session.setCurrentPromptCancel(cancelPromptExecution)
+	stateOwned := true
+	defer func() {
+		if stateOwned {
+			cancelPromptExecution()
+			clearManagedInputPromptState(session, setup.request.turnID)
+		}
+	}()
+	proc, err := m.ensurePromptRuntime(promptExecutionCtx, session, setup.request.runtime, setup.process)
 	if err != nil {
 		m.failManagedInputPrompt(setup, err)
 		return
 	}
-	resolvedAttachments, err := m.resolvePromptAttachments(
-		setup.leaseCtx,
-		session.WorkspaceID,
-		session.ID,
-		setup.request.attachments,
-		proc.CapsSnapshot(),
-	)
+	resolvedAttachments, err := m.resolveManagedInputAttachments(promptExecutionCtx, session, setup, proc)
 	if err != nil {
 		m.failManagedInputPrompt(setup, err)
 		return
 	}
 	message, err := m.dispatchInputPreSubmit(
-		setup.leaseCtx,
+		promptExecutionCtx,
 		session,
 		setup.request.turnID,
 		setup.request.turnSource,
@@ -108,14 +112,7 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		m.failManagedInputPrompt(setup, err)
 		return
 	}
-	setManagedInputPromptState(session, setup.request)
-	stateOwned := true
-	defer func() {
-		if stateOwned {
-			clearManagedInputPromptState(session, setup.request.turnID)
-		}
-	}()
-	dispatchMessage, err := m.promptDispatchMessage(setup.leaseCtx, session, message)
+	dispatchMessage, err := m.promptDispatchMessage(promptExecutionCtx, session, message)
 	if err != nil {
 		m.failManagedInputPrompt(setup, err)
 		return
@@ -127,12 +124,15 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		message,
 	)
 	turnState.managed = setup.execution
-	if err := m.dispatchTurnStart(setup.leaseCtx, turnState); err != nil {
+	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
 		m.failManagedInputPrompt(setup, err)
 		return
 	}
+	if setup.request.deliveryCtx == nil {
+		setup.request.deliveryCtx = setup.leaseCtx
+	}
 	events, err := m.submitPromptInReservedSlot(
-		setup.leaseCtx,
+		promptExecutionCtx,
 		session,
 		proc,
 		setup.request,
@@ -140,6 +140,7 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		dispatchMessage,
 		resolvedAttachments,
 		turnState,
+		cancelPromptExecution,
 	)
 	if err != nil {
 		m.failManagedInputPrompt(setup, err)
@@ -149,6 +150,21 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 	m.startTrackedPromptTask(func() {
 		drainPromptSource(events)
 	})
+}
+
+func (m *Manager) resolveManagedInputAttachments(
+	ctx context.Context,
+	session *Session,
+	setup *managedInputPromptSetup,
+	proc *AgentProcess,
+) ([]acp.PromptAttachment, error) {
+	return m.resolvePromptAttachments(
+		ctx,
+		session.WorkspaceID,
+		session.ID,
+		setup.request.attachments,
+		proc.CapsSnapshot(),
+	)
 }
 
 func (m *Manager) prepareManagedInputPrompt(
@@ -283,6 +299,7 @@ func clearManagedInputPromptState(session *Session, turnID string) {
 	session.clearCurrentPromptMessage()
 	session.clearCurrentPromptMeta()
 	session.clearCurrentSkillInvocations()
+	session.clearCurrentPromptCancel()
 	session.finishCurrentPromptCompletion()
 }
 

@@ -117,21 +117,24 @@ func NewManager(opts ...Option) (*Manager, error) {
 	if err := manager.applyRuntimeDefaults(); err != nil {
 		return nil, err
 	}
-	manager.waitRegistry = newSessionWaitRegistry(
-		manager.newWaitID,
-		manager.now,
-		manager.newWaitAfterFunc,
-	)
-	if err := compozyconfig.EnsureHomeLayout(manager.homePaths); err != nil {
-		return nil, fmt.Errorf("session: ensure home layout: %w", err)
-	}
-	if err := manager.startRuntimeOwners(); err != nil {
+	if err := manager.initializeRuntime(); err != nil {
 		return nil, err
 	}
-	manager.cleanupDeleteTombstones()
-	manager.cleanupWorkspaceAttachmentDeleteTombstones()
 
 	return manager, nil
+}
+
+func (m *Manager) initializeRuntime() error {
+	m.waitRegistry = newSessionWaitRegistry(m.newWaitID, m.now, m.newWaitAfterFunc)
+	if err := compozyconfig.EnsureHomeLayout(m.homePaths); err != nil {
+		return fmt.Errorf("session: ensure home layout: %w", err)
+	}
+	if err := m.startRuntimeOwners(); err != nil {
+		return err
+	}
+	m.cleanupDeleteTombstones()
+	m.cleanupWorkspaceAttachmentDeleteTombstones()
+	return nil
 }
 
 // Get returns the active in-memory session by id.

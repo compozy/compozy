@@ -36,9 +36,9 @@ func newSessionWaitCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringSliceVar(&until, "until", nil, "Session states to wait for")
-	cmd.Flags().DurationVar(&timeout, "timeout", session.WaitTimeoutDefault, "Maximum wait duration")
+	cmd.Flags().DurationVar(&timeout, cliTimeoutKey, session.WaitTimeoutDefault, "Maximum wait duration")
 	cmd.Flags().BoolVar(&unbounded, "unbounded", false, "Keep waiting through bounded server requests")
-	cmd.MarkFlagsMutuallyExclusive("timeout", "unbounded")
+	cmd.MarkFlagsMutuallyExclusive(cliTimeoutKey, "unbounded")
 	return cmd
 }
 
@@ -50,11 +50,7 @@ func runSessionWait(
 	timeout time.Duration,
 	unbounded bool,
 ) error {
-	badges := make([]session.Badge, 0, len(until))
-	for _, value := range until {
-		badges = append(badges, session.Badge(value))
-	}
-	normalized, err := session.NormalizeWaitBadges(badges)
+	normalized, err := normalizeSessionWaitUntil(until)
 	if err != nil {
 		return withCommandExitCode(sessionWaitExitInvalid, err)
 	}
@@ -124,6 +120,14 @@ func runSessionWait(
 			)
 		}
 	}
+}
+
+func normalizeSessionWaitUntil(until []string) ([]session.Badge, error) {
+	badges := make([]session.Badge, 0, len(until))
+	for _, value := range until {
+		badges = append(badges, session.Badge(value))
+	}
+	return session.NormalizeWaitBadges(badges)
 }
 
 func sessionWaitAPIErrorCode(err error) string {

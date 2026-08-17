@@ -620,7 +620,7 @@ test("Herdr E2E-016: ⌘E lands on a session while the shared chords keep their 
   await expect(sidebar).toBeVisible({ visible: !sidebarVisible });
 
   // `?` opens the cheatsheet outside editables and types normally inside one.
-  await appPage.keyboard.press("?");
+  await appPage.keyboard.press("Shift+Slash");
   const cheatsheet = appPage.getByTestId("os-shortcuts-dialog");
   await expect(cheatsheet).toBeVisible();
   await appPage.keyboard.press("Escape");
@@ -631,14 +631,15 @@ test("Herdr E2E-016: ⌘E lands on a session while the shared chords keep their 
   });
   await composer.focus();
   await appPage.keyboard.press("?");
-  await expect(composer).toHaveValue("?");
+  await expect(composer).toHaveText("?");
   await expect(appPage.getByTestId("os-shortcuts-dialog")).toHaveCount(0);
 
   // ⌘K still fires from inside an editable after the keymap migration.
   await appPage.keyboard.press("ControlOrMeta+K");
   await expect(palette).toBeVisible();
   await expect(palette).not.toHaveAttribute("data-palette-view", "sessions");
-  await appPage.keyboard.press("Escape");
+  await appPage.keyboard.press("ControlOrMeta+K");
+  await expect(palette).toHaveCount(0);
 
   // Jump-to-attention no-ops calmly when nothing needs the operator.
   await appPage.keyboard.press("Control+Alt+KeyA");
@@ -3726,7 +3727,7 @@ test("operator sees one nested worktree tree across all three workspace-listing 
     await expect(palette).toBeVisible();
     const paletteRow = palette.getByTestId(`os-palette-worktree-${worktree.id}`);
     await expect(paletteRow).toContainText("payments-retry");
-    await paletteRow.press("Enter");
+    await paletteRow.click();
     await expect(palette).toHaveCount(0);
 
     // Surface 3 — the overview's vertical worktree menu, always visible for

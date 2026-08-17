@@ -303,7 +303,7 @@ func newMemoryExtractorDrainCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, memoryObjectBundle("Memory Extractor Drain", response))
 		},
 	}
-	cmd.Flags().StringVar(&timeoutRaw, "timeout", "60s", "Maximum drain wait duration")
+	cmd.Flags().StringVar(&timeoutRaw, cliTimeoutKey, "60s", "Maximum drain wait duration")
 	return cmd
 }
 

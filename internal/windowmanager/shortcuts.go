@@ -2,15 +2,32 @@ package windowmanager
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 )
 
 const (
-	shortcutWindowMinimizeAction  = "window.minimize"
-	shortcutWindowTabNewAction    = "window.tab.new"
-	shortcutWindowTabReopenAction = "window.tab.reopen"
+	shortcutPaletteOpenAction            = "palette.open"
+	shortcutPaletteViewSessionsAction    = "palette.view.sessions"
+	shortcutSessionNewAction             = "session.new"
+	shortcutScopeGlobalToggleAction      = "scope.global.toggle"
+	shortcutWindowNavBackAction          = "window.nav.back"
+	shortcutSessionCycleNextAction       = "session.cycle.next"
+	shortcutSessionCyclePreviousAction   = "session.cycle.previous"
+	shortcutSessionFocusAttentionAction  = "session.focus.attention"
+	shortcutWorkspacePickerAction        = "workspace.picker"
+	shortcutWorkspaceCycleNextAction     = "workspace.cycle.next"
+	shortcutWorkspaceCyclePreviousAction = "workspace.cycle.previous"
+	shortcutSidebarToggleAction          = "sidebar.toggle"
+	shortcutWindowFocusLastAction        = "window.focus.last"
+	shortcutWindowTileTopAction          = "window.tile.top"
+	shortcutWindowTileBottomAction       = "window.tile.bottom"
+	shortcutCheatsheetAction             = "shortcuts.cheatsheet"
+	shortcutWindowMinimizeAction         = "window.minimize"
+	shortcutWindowTabNewAction           = "window.tab.new"
+	shortcutWindowTabReopenAction        = "window.tab.reopen"
 )
 
 type shortcutRangeFamily struct {
@@ -19,7 +36,7 @@ type shortcutRangeFamily struct {
 }
 
 var shortcutRangeFamilies = []shortcutRangeFamily{
-	{action: "desktop.switch", max: 9},
+	{action: string(CommandDesktopSwitch), max: 9},
 	{action: "window.tab.jump", max: 8},
 }
 
@@ -309,8 +326,8 @@ func validShortcutAction(action string) bool {
 		string(CommandWindowToggleFloating),
 		"window.tile.left",
 		"window.tile.right",
-		"window.tile.top",
-		"window.tile.bottom",
+		shortcutWindowTileTopAction,
+		shortcutWindowTileBottomAction,
 		"window.tile.top-left",
 		"window.tile.top-right",
 		"window.tile.bottom-left",
@@ -319,24 +336,24 @@ func validShortcutAction(action string) bool {
 		"window.focus.right",
 		"window.focus.up",
 		"window.focus.down",
-		"window.focus.last",
-		"window.nav.back",
-		"desktop.create",
+		shortcutWindowFocusLastAction,
+		shortcutWindowNavBackAction,
+		string(CommandDesktopCreate),
 		"desktop.switch.previous",
 		"desktop.switch.next",
 		"desktop.overview",
-		"workspace.picker",
-		"workspace.cycle.previous",
-		"workspace.cycle.next",
-		"session.cycle.previous",
-		"session.cycle.next",
-		"session.focus.attention",
-		"sidebar.toggle",
-		"palette.open",
-		"palette.view.sessions",
-		"session.new",
-		"scope.global.toggle",
-		"shortcuts.cheatsheet",
+		shortcutWorkspacePickerAction,
+		shortcutWorkspaceCyclePreviousAction,
+		shortcutWorkspaceCycleNextAction,
+		shortcutSessionCyclePreviousAction,
+		shortcutSessionCycleNextAction,
+		shortcutSessionFocusAttentionAction,
+		shortcutSidebarToggleAction,
+		shortcutPaletteOpenAction,
+		shortcutPaletteViewSessionsAction,
+		shortcutSessionNewAction,
+		shortcutScopeGlobalToggleAction,
+		shortcutCheatsheetAction,
 		"layout.arrange.two-up",
 		"layout.arrange.grid",
 		string(CommandLayoutBalance),
@@ -397,10 +414,5 @@ func validShortcutCode(code string) bool {
 }
 
 func slicesContain(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }

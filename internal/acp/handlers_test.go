@@ -501,8 +501,8 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	if len(finalEvents) != 1 || finalEvents[0].Decision != string(decisionAllowAlways) {
 		t.Fatalf("final permission events = %#v, want allow-always decision", finalEvents)
 	}
-	if finalEvents[0].ResolvedBy != "agent_session:sess-creator" {
-		t.Fatalf("final permission resolved_by = %q, want acting session", finalEvents[0].ResolvedBy)
+	if finalEvents[0].ResolvedByValue() != "agent_session:sess-creator" {
+		t.Fatalf("final permission resolved_by = %q, want acting session", finalEvents[0].ResolvedByValue())
 	}
 }
 

@@ -113,7 +113,10 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		notifierErr error
 		wantReason  string
 	}{
-		{name: "Should audit creator opt out", notify: false, parentID: "parent-1", wantReason: "wake_creator_disabled"},
+		{
+			name: "Should audit creator opt out", notify: false,
+			parentID: "parent-1", wantReason: "wake_creator_disabled",
+		},
 		{name: "Should audit self wake", notify: true, parentID: "child-1", wantReason: "self_wake"},
 		{
 			name: "Should audit a creator that is not live", notify: true, parentID: "parent-1",

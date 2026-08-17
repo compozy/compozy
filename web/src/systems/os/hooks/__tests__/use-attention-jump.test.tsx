@@ -10,7 +10,7 @@ const { ensureQueryData, notifyUser } = vi.hoisted(() => ({
   notifyUser: vi.fn(),
 }));
 let runtimeWorkspaceId = "ws-alpha";
-let commandsAvailable = true;
+let commandWorkspaceId: string | null = "ws-alpha";
 const setActiveWorkspaceId = vi.fn();
 const userOpen = vi.fn(() => Promise.resolve("window-session"));
 
@@ -36,7 +36,13 @@ vi.mock("@/systems/workspace", () => ({
 }));
 
 vi.mock("../use-desktop", () => ({
-  useDesktop: () => commandsAvailable,
+  useDesktop: (selector: (state: unknown) => unknown) =>
+    selector({
+      snapshot: commandWorkspaceId === null ? null : { workspaceId: commandWorkspaceId },
+      client: commandWorkspaceId === null ? null : {},
+      hydration: commandWorkspaceId === null ? "pending" : "live",
+      connectionStatus: commandWorkspaceId === null ? "disconnected" : "connected",
+    }),
 }));
 
 vi.mock("../use-os-shell", () => ({
@@ -48,7 +54,7 @@ import { useAttentionJump } from "../use-attention-jump";
 describe("useAttentionJump", () => {
   beforeEach(() => {
     runtimeWorkspaceId = "ws-alpha";
-    commandsAvailable = true;
+    commandWorkspaceId = "ws-alpha";
     vi.clearAllMocks();
     ensureQueryData.mockResolvedValue({ agent_name: "claude" });
   });
@@ -68,11 +74,10 @@ describe("useAttentionJump", () => {
     expect(userOpen).not.toHaveBeenCalled();
 
     runtimeWorkspaceId = "ws-beta";
-    commandsAvailable = false;
     rerender();
     expect(userOpen).not.toHaveBeenCalled();
 
-    commandsAvailable = true;
+    commandWorkspaceId = "ws-beta";
     rerender();
 
     await waitFor(() => {

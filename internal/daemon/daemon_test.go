@@ -6709,6 +6709,7 @@ type fakeSessionManager struct {
 	stopCalls                []string
 	deleteCalls              []string
 	repairCalls              []session.RepairOpts
+	pendingRecoveryCalls     []string
 	stopWithCauseCalls       []fakeStopWithCauseCall
 	requestStopCalls         []fakeStopWithCauseCall
 	waitFinalizationsRelease <-chan struct{}
@@ -6896,6 +6897,13 @@ func (f *fakeSessionManager) List() []*session.Info {
 
 func (f *fakeSessionManager) ListAll(context.Context) ([]*session.Info, error) {
 	return f.List(), nil
+}
+
+func (f *fakeSessionManager) RecoverPendingInteractions(_ context.Context, sessionID string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pendingRecoveryCalls = append(f.pendingRecoveryCalls, sessionID)
+	return 1, nil
 }
 
 func (f *fakeSessionManager) Status(_ context.Context, id string) (*session.Info, error) {
@@ -7288,6 +7296,16 @@ func TestBootSessionRepair(t *testing.T) {
 		}
 		if manager.repairCalls[0].SessionID != "sess-crash" || manager.repairCalls[1].SessionID != "sess-error" {
 			t.Fatalf("repair calls = %#v, want crash then error sessions", manager.repairCalls)
+		}
+		if got, want := manager.pendingRecoveryCalls, []string{
+			"sess-crash",
+			"sess-error",
+			"sess-complete",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("pending recovery calls = %#v, want %#v", got, want)
 		}
 	})
 }

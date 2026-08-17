@@ -6,13 +6,13 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: A live session derives `waiting-for-input`, exposes one sanitized clarification through status and interaction discovery, accepts an offered choice or free text through Web, CLI, HTTP, or UDS, resumes the live tool with `answered`, resolves a restart-orphaned request with `resolved-after-restart`, returns the original winner on duplicate resolution, and keeps all evidence workspace-isolated.
 entry_points: Web session timeline; compozy__clarify; compozy session clarify pending/answer; GET/POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa; docs/qa/reports/2026-08-16-herdr-parity.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260816-141901-835450-lab/qa-artifacts/qa/bootstrap-manifest.json
+last_report: docs/qa/reports/2026-08-16-herdr-parity.md
 overlaps: RT-021
 ---
 
@@ -50,3 +50,5 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
   probe returning nothing.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-003-human-clarification-during-agent-work
+
+QA 2026-08-16 Herdr parity: The full runtime E2E exercised the public HTTP, UDS, CLI, and native-tool paths, including matching persisted projections, restart recovery, scoped denials, bounded wait/notify/cancel/stop races, and stable negative outcomes (65/66/69/75/78, agent_scope_denied, and queue-full).

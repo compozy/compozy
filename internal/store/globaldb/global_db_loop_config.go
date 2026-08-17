@@ -20,6 +20,7 @@ type loopConfigPatchFlags struct {
 	GateMaxRevisions bool
 	RuntimeDefaults  bool
 	RuntimeRules     bool
+	Environment      bool
 }
 
 func loopConfigPatchFlagsForStore(original looppkg.LoopConfig, normalized looppkg.LoopConfig) loopConfigPatchFlags {
@@ -36,6 +37,7 @@ func loopConfigPatchFlagsForStore(original looppkg.LoopConfig, normalized looppk
 		GateMaxRevisions: normalized.GateMaxRevisions != nil,
 		RuntimeDefaults:  normalized.RuntimeDefaults != nil,
 		RuntimeRules:     original.RuntimeRules != nil,
+		Environment:      normalized.Environment != nil,
 	}
 }
 
@@ -59,6 +61,10 @@ func upsertLoopConfigWithExecutor(
 	if err != nil {
 		return err
 	}
+	environmentJSON, err := nullableLoopConfigJSON(normalized.Environment)
+	if err != nil {
+		return err
+	}
 	insert := sqlcgen.InsertLoopConfigIfMissingParams{
 		WorkspaceID:         workspaceID,
 		LoopName:            loopName,
@@ -74,6 +80,7 @@ func upsertLoopConfigWithExecutor(
 		GateMaxRevisions:    nullIntPtr(normalized.GateMaxRevisions),
 		RuntimeDefaultsJson: runtimeDefaultsJSON,
 		RuntimeRulesJson:    runtimeRulesJSON,
+		EnvironmentJson:     environmentJSON,
 	}
 	queries := sqlcgen.New(exec)
 	if err := queries.InsertLoopConfigIfMissing(ctx, insert); err != nil {
