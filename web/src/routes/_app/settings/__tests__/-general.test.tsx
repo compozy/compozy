@@ -4,7 +4,11 @@ import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { createElement, type ReactNode, type SetStateAction } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SettingsUpdateApplyResult, SettingsUpdateStatus } from "@/systems/settings";
+import type {
+  SettingsUpdateApplyResult,
+  SettingsUpdateCancelResult,
+  SettingsUpdateStatus,
+} from "@/systems/settings";
 import {
   settingsUpdateApplyingFixture,
   settingsUpdateBlockedFixture,
@@ -45,6 +49,7 @@ type UpdateActions = {
   pendingTarget: "runtime" | "app" | null;
   isCanceling: boolean;
   result: SettingsUpdateApplyResult | null;
+  cancelResult: SettingsUpdateCancelResult | null;
   error: string | null;
 };
 
@@ -222,6 +227,7 @@ beforeEach(() => {
       pendingTarget: null,
       isCanceling: false,
       result: null,
+      cancelResult: null,
       error: null,
     },
     applyRecords: {
@@ -543,8 +549,7 @@ describe("GeneralSettingsPage — Updates section", () => {
     pageState.updateActions.result = {
       target: "runtime",
       status: "blocked",
-      message:
-        "A runtime update is already in progress (holder pid 4242). Retry after it completes.",
+      message: "A runtime update is already in progress. Retry after it completes.",
       holder: {
         pid: 4242,
         pid_start_time: "2026-08-20T14:02:10Z",
@@ -556,7 +561,7 @@ describe("GeneralSettingsPage — Updates section", () => {
     render(<GeneralSettingsPage />);
 
     expect(screen.getByTestId("settings-page-general-update-blocked")).toHaveTextContent(
-      "holder pid 4242"
+      "cli · PID 4242"
     );
     expect(within(track("runtime")).getByText("Blocked")).toBeInTheDocument();
     expect(screen.queryByText("Updated")).toBeNull();
@@ -569,11 +574,50 @@ describe("GeneralSettingsPage — Updates section", () => {
     render(<GeneralSettingsPage />);
 
     const applyButton = screen.getByTestId("settings-page-general-update-apply-runtime");
-    applyButton.focus();
+    screen.getByTestId("settings-page-general-update-release-runtime").focus();
+    await user.tab({ shift: true });
     expect(applyButton).toHaveFocus();
 
     await user.keyboard("{Enter}");
     expect(pageState.updateActions.apply).toHaveBeenCalledWith("runtime");
+  });
+
+  it("Should acknowledge a canceled dormant update", () => {
+    pageState.update.data = settingsUpdateStagedFixture;
+    pageState.updateActions.cancelResult = {
+      status: "canceled",
+      operation_id: "op-7f3a2c",
+      message: "Canceled dormant update operation; the update channel is free.",
+      holder: null,
+    };
+    render(<GeneralSettingsPage />);
+
+    const result = screen.getByTestId("settings-page-general-update-cancel-result");
+    expect(result).toHaveTextContent("Update canceled");
+    expect(result).toHaveTextContent("the update channel is free");
+    expect(result).toHaveTextContent("Canceled");
+  });
+
+  it("Should explain a declined cancellation with the active holder", () => {
+    pageState.update.data = settingsUpdateStagedFixture;
+    pageState.updateActions.cancelResult = {
+      status: "blocked",
+      operation_id: "op-7f3a2c",
+      message: "The update operation became active before cancellation.",
+      holder: {
+        pid: 5150,
+        pid_start_time: "2026-08-20T14:02:10Z",
+        surface: "daemon",
+        executor_generation: "gen-2",
+        lease_expires_at: "2026-08-20T14:07:11Z",
+      },
+    };
+    render(<GeneralSettingsPage />);
+
+    const result = screen.getByTestId("settings-page-general-update-cancel-result");
+    expect(result).toHaveTextContent("Cancel declined");
+    expect(result).toHaveTextContent("became active before cancellation");
+    expect(result).toHaveTextContent("daemon · PID 5150");
   });
 
   it("Should report rollback truth as the restored version plus the daemon's error", () => {

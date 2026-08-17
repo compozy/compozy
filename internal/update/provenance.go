@@ -9,10 +9,21 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+// WriteDesktopProvenance records that the desktop app installed the runtime binary.
+func WriteDesktopProvenance(paths compozyconfig.HomePaths, binaryPath string) error {
+	return rewriteDesktopProvenance(paths, binaryPath)
+}
+
+// RuntimeOwnedByDesktopApp verifies the desktop ownership marker against the runtime bytes.
+func RuntimeOwnedByDesktopApp(paths compozyconfig.HomePaths, binaryPath string) bool {
+	return isDesktopAppInstall(paths.HomeDir, binaryPath, runtime.GOOS)
+}
 
 func rewriteDesktopProvenance(paths compozyconfig.HomePaths, binaryPath string) (returnErr error) {
 	cleanBinaryPath := strings.TrimSpace(binaryPath)

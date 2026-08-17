@@ -17,11 +17,11 @@ overlaps:
 ---
 
 PRD stories: US-009 (AC-1/AC-2 focus per convention; EC-1 link forwarded; EC-2 stale
-single-instance state after crash recovers). BR-3. Test IDs: E2E-007; IT-020 (Linux/Windows
-runner; macOS via E2E-007/E2E-023 smoke); UT-048, UT-082. During first-run provisioning a second
+single-instance state after crash recovers). BR-3. Test IDs: E2E-004; IT-020; UT-048, UT-082.
+During first-run provisioning a second
 launch focuses and never starts a parallel provisioning (US-002.EC-1).
 
-Per-OS evidence (N-004): all three OSes capture the focus/unminimize behavior with process-count
+Per-OS evidence: macOS and Linux capture the focus/unminimize behavior with process-count
 proof before/after the second launch, plus one second-launch-with-link forwarding walk. The
 stale-lock crash recovery (EC-2) is walked on at least one scripted OS. macOS is scripted-manual
 (screen recording + `ps` transcript).

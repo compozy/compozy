@@ -22,8 +22,14 @@ A publish workspace contains:
   `checksums.txt`;
 - a channel directory with `latest-mac.yml`, `latest-linux.yml`, and `generation.json`.
 
-The six package names are architecture-specific: macOS arm64 and x64 each have `.dmg` and `.zip`
-artifacts; Linux x64 has `.AppImage` and `.deb`.
+The authority directory must contain these exact versioned names:
+
+- `CompozyOS-<version>-mac-arm64.dmg`
+- `CompozyOS-<version>-mac-arm64.zip`
+- `CompozyOS-<version>-mac-x64.dmg`
+- `CompozyOS-<version>-mac-x64.zip`
+- `CompozyOS-<version>-linux-x64.AppImage`
+- `CompozyOS-<version>-linux-x64.deb`
 
 ## Publish a generation
 
@@ -105,6 +111,6 @@ The branch SHA must equal the command's `channel_ref_after` and `audit_commit`. 
 must name one version and point only to immutable
 `https://github.com/<owner>/<repo>/releases/download/v<version>/...` assets.
 
-After a cutover release, remove the retired distribution bucket and DNS record. Do not keep old feed
-objects as a fallback; abandoned installs fail their own checks until the operator downloads the
-current GitHub release.
+The one-time Electron cutover already removed the retired distribution bucket and DNS record. They
+are not part of recurring release operations and must not be recreated as a fallback. Abandoned
+installs fail their own checks until the operator downloads the current GitHub release.

@@ -1,6 +1,7 @@
 package update
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -23,7 +24,7 @@ func TestOperationAcquisitionAndFencing(t *testing.T) {
 
 		store, paths, events := newOperationTestStore(t)
 		request := operationTestRequest(testOperationNow)
-		operation, err := store.Acquire(context.Background(), request)
+		operation, err := store.Acquire(t.Context(), request)
 		if err != nil {
 			t.Fatalf("Acquire() error = %v", err)
 		}
@@ -31,7 +32,7 @@ func TestOperationAcquisitionAndFencing(t *testing.T) {
 			t.Fatalf("Acquire() operation = %#v, want complete revision 1 runtime identity", operation)
 		}
 
-		_, err = store.Acquire(context.Background(), request)
+		_, err = store.Acquire(t.Context(), request)
 		var blocked *BlockedError
 		if !errors.As(err, &blocked) || blocked.Operation.ID != operation.ID {
 			t.Fatalf("second Acquire() error = %v, want BlockedError for %q", err, operation.ID)
@@ -54,7 +55,7 @@ func TestOperationAcquisitionAndFencing(t *testing.T) {
 		t.Parallel()
 
 		store, _, _ := newOperationTestStore(t)
-		operation, err := store.Acquire(context.Background(), operationTestRequest(testOperationNow))
+		operation, err := store.Acquire(t.Context(), operationTestRequest(testOperationNow))
 		if err != nil {
 			t.Fatalf("Acquire() error = %v", err)
 		}
@@ -65,13 +66,64 @@ func TestOperationAcquisitionAndFencing(t *testing.T) {
 			Phase:   PhaseDownloading,
 			Percent: 0,
 		}
-		_, err = store.Transition(context.Background(), operation.ID, "generation-1", operation.Revision+1, transition)
+		_, err = store.Transition(t.Context(), operation.ID, "generation-1", operation.Revision+1, transition)
 		if !errors.Is(err, ErrOperationConflict) {
 			t.Fatalf("Transition(stale revision) error = %v, want ErrOperationConflict", err)
 		}
-		_, err = store.Transition(context.Background(), operation.ID, "generation-2", operation.Revision, transition)
+		_, err = store.Transition(t.Context(), operation.ID, "generation-2", operation.Revision, transition)
 		if !errors.Is(err, ErrExecutorFenced) {
 			t.Fatalf("Transition(stale generation) error = %v, want ErrExecutorFenced", err)
+		}
+	})
+
+	t.Run("Should reject trailing and oversized operation journals", func(t *testing.T) {
+		t.Parallel()
+
+		store, paths, _ := newOperationTestStore(t)
+		if _, err := store.Acquire(t.Context(), operationTestRequest(testOperationNow)); err != nil {
+			t.Fatalf("Acquire() error = %v", err)
+		}
+		valid, err := os.ReadFile(paths.UpdateOperationFile)
+		if err != nil {
+			t.Fatalf("ReadFile(operation) error = %v", err)
+		}
+		if err := os.WriteFile(paths.UpdateOperationFile, append(valid, []byte("{}")...), 0o600); err != nil {
+			t.Fatalf("WriteFile(trailing operation) error = %v", err)
+		}
+		if _, err := store.Read(t.Context()); err == nil || !strings.Contains(err.Error(), "multiple JSON values") {
+			t.Fatalf("Read(trailing operation) error = %v, want trailing-value refusal", err)
+		}
+		if err := os.WriteFile(
+			paths.UpdateOperationFile,
+			bytes.Repeat([]byte("x"), int(maxOperationBytes+1)),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(oversized operation) error = %v", err)
+		}
+		if _, err := store.Read(t.Context()); err == nil || !strings.Contains(err.Error(), "limit is") {
+			t.Fatalf("Read(oversized operation) error = %v, want size-limit refusal", err)
+		}
+	})
+
+	t.Run("Should reject a journal whose target state is missing", func(t *testing.T) {
+		t.Parallel()
+
+		store, paths, _ := newOperationTestStore(t)
+		operation, err := store.Acquire(t.Context(), operationTestRequest(testOperationNow))
+		if err != nil {
+			t.Fatalf("Acquire() error = %v", err)
+		}
+		operation.Runtime = nil
+		data, err := json.Marshal(operation)
+		if err != nil {
+			t.Fatalf("Marshal(operation) error = %v", err)
+		}
+		if err := os.WriteFile(paths.UpdateOperationFile, data, 0o600); err != nil {
+			t.Fatalf("WriteFile(operation) error = %v", err)
+		}
+		if _, err := store.Read(t.Context()); err == nil ||
+			!strings.Contains(err.Error(), "target state does not match") {
+			t.Fatalf("Read(incomplete operation) error = %v, want target-state refusal", err)
 		}
 	})
 }
@@ -112,7 +164,7 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 		t.Parallel()
 
 		store, _, _ := newOperationTestStore(t)
-		operation, err := store.Acquire(context.Background(), operationTestRequest(testOperationNow))
+		operation, err := store.Acquire(t.Context(), operationTestRequest(testOperationNow))
 		if err != nil {
 			t.Fatalf("Acquire() error = %v", err)
 		}
@@ -122,7 +174,7 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 		holder.Surface = ActorDaemon
 		holder.LeaseExpiresAt = testOperationNow.Add(2 * time.Hour)
 		transferred, err := store.Transition(
-			context.Background(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+			t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
 			Transition{
 				Kind: TransitionRenewLease, Actor: ActorDaemon, Target: TargetRuntime,
 				Holder: &holder, Percent: operation.Percent,
@@ -144,12 +196,12 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 		request := operationTestRequest(testOperationNow)
 		request.Targets = []Target{TargetApp}
 		request.Runtime = nil
-		operation, err := store.Acquire(context.Background(), request)
+		operation, err := store.Acquire(t.Context(), request)
 		if err != nil {
 			t.Fatalf("Acquire() error = %v", err)
 		}
 		staged, err := store.Transition(
-			context.Background(),
+			t.Context(),
 			operation.ID,
 			"generation-1",
 			operation.Revision,
@@ -161,7 +213,7 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 			t.Fatalf("Transition(staged) error = %v", err)
 		}
 		waiting, err := store.Transition(
-			context.Background(),
+			t.Context(),
 			operation.ID,
 			"generation-1",
 			staged.Revision,
@@ -179,12 +231,19 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 		resumeRequest := request
 		resumeRequest.RequestedBy = ActorShell
 		resumeRequest.Holder = operationTestHolder("generation-2", testOperationNow.Add(time.Minute))
-		resumed, err := store.Acquire(context.Background(), resumeRequest)
+		resumed, err := store.Acquire(t.Context(), resumeRequest)
 		if err != nil {
 			t.Fatalf("Acquire(resume) error = %v", err)
 		}
 		if resumed.ID != operation.ID || resumed.Revision != waiting.Revision+1 || resumed.ActiveTarget != TargetApp {
 			t.Fatalf("resumed operation = %#v, want same id and next revision", resumed)
+		}
+		competingRequest := resumeRequest
+		competingRequest.Holder = operationTestHolder("generation-3", testOperationNow.Add(2*time.Minute))
+		_, err = store.Acquire(t.Context(), competingRequest)
+		var blocked *BlockedError
+		if !errors.As(err, &blocked) || blocked.Operation.ID != resumed.ID {
+			t.Fatalf("second resumed Acquire() error = %v, want BlockedError for %q", err, resumed.ID)
 		}
 	})
 
@@ -195,11 +254,11 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 		request := operationTestRequest(testOperationNow)
 		request.Targets = []Target{TargetApp}
 		request.Runtime = nil
-		operation, err := store.Acquire(context.Background(), request)
+		operation, err := store.Acquire(t.Context(), request)
 		if err != nil {
 			t.Fatalf("Acquire() error = %v", err)
 		}
-		_, err = store.Transition(context.Background(), operation.ID, "", operation.Revision, Transition{
+		_, err = store.Transition(t.Context(), operation.ID, "", operation.Revision, Transition{
 			Kind: TransitionCancel, Actor: ActorCLI, Target: TargetApp,
 		})
 		if !errors.Is(err, ErrOperationNotCancelable) {
@@ -207,7 +266,7 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 		}
 
 		store.now = func() time.Time { return testOperationNow.Add(2 * time.Hour) }
-		canceled, err := store.Transition(context.Background(), operation.ID, "", operation.Revision, Transition{
+		canceled, err := store.Transition(t.Context(), operation.ID, "", operation.Revision, Transition{
 			Kind: TransitionCancel, Actor: ActorCLI, Target: TargetApp,
 		})
 		if err != nil {
@@ -299,15 +358,15 @@ func TestOperationPhaseMatrix(t *testing.T) {
 		t.Parallel()
 
 		store, _, _ := newOperationTestStore(t)
-		operation, err := store.Acquire(context.Background(), operationTestRequest(testOperationNow))
+		operation, err := store.Acquire(t.Context(), operationTestRequest(testOperationNow))
 		if err != nil {
 			t.Fatalf("Acquire() error = %v", err)
 		}
-		_, err = store.Transition(context.Background(), operation.ID, "generation-1", operation.Revision, Transition{
+		_, err = store.Transition(t.Context(), operation.ID, "generation-1", operation.Revision, Transition{
 			Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp, Phase: PhaseStaged, Percent: 100,
 		})
-		if err == nil {
-			t.Fatal("Transition(app before runtime) error = nil, want active-target rejection")
+		if err == nil || !strings.Contains(err.Error(), "phase transition does not match the active target") {
+			t.Fatalf("Transition(app before runtime) error = %v, want active-target rejection", err)
 		}
 	})
 
@@ -323,16 +382,18 @@ func TestOperationPhaseMatrix(t *testing.T) {
 			t.Fatalf("Acquire() error = %v", err)
 		}
 		for _, phase := range []OperationPhase{PhaseStaged, PhaseApplying, PhaseInstallerHandoff} {
-			operation, err = store.Transition(
-				t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
-				Transition{
-					Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp,
-					Phase: phase, Percent: -1,
-				},
-			)
-			if err != nil {
-				t.Fatalf("Transition(%s) error = %v", phase, err)
-			}
+			t.Run("Should enter "+string(phase), func(t *testing.T) {
+				operation, err = store.Transition(
+					t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+					Transition{
+						Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp,
+						Phase: phase, Percent: -1,
+					},
+				)
+				if err != nil {
+					t.Fatalf("Transition(%s) error = %v", phase, err)
+				}
+			})
 		}
 		store.now = func() time.Time { return testOperationNow.Add(2 * time.Hour) }
 		_, err = store.Transition(t.Context(), operation.ID, "", operation.Revision, Transition{
@@ -343,46 +404,65 @@ func TestOperationPhaseMatrix(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a canceled outcome on a live phase transition", func(t *testing.T) {
+		t.Parallel()
+
+		store, _, _ := newOperationTestStore(t)
+		request := operationTestRequest(testOperationNow)
+		request.Targets = []Target{TargetApp}
+		request.Runtime = nil
+		operation, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Acquire() error = %v", err)
+		}
+		_, err = store.Transition(t.Context(), operation.ID, "generation-1", operation.Revision, Transition{
+			Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp,
+			Phase: PhaseStaged, Percent: 100, Outcome: operationOutcomeCanceled,
+		})
+		if err == nil || !strings.Contains(err.Error(), "only a cancel transition") {
+			t.Fatalf("Transition(canceled phase) error = %v, want canceled-outcome refusal", err)
+		}
+	})
+
 	t.Run("Should emit the canonical event for every allowed journaled phase transition", func(t *testing.T) {
 		t.Parallel()
 
-		expectedByTargetAndPhase := map[Target]map[OperationPhase]OperationEventName{
-			TargetRuntime: {
-				PhaseDownloading:    EventDownloadProgress,
-				PhaseVerifying:      EventVerifyCompleted,
-				PhaseSwapping:       EventSwapCompleted,
-				PhaseRestarting:     EventRestartCompleted,
-				PhaseHealthChecking: EventHealthCompleted,
-				PhaseFinalized:      EventFinalized,
-				PhaseRolledBack:     EventRolledBack,
-				PhaseFailed:         EventFinalized,
-			},
-			TargetApp: {
-				PhaseStaged:           EventAppStaged,
-				PhaseApplying:         EventAppApplying,
-				PhaseInstallerHandoff: EventAppInstallerHandoff,
-				PhaseRestarted:        EventRestartCompleted,
-				PhaseVerified:         EventAppVerified,
-				PhaseFailed:           EventAppFailed,
-			},
+		cases := []struct {
+			name   string
+			target Target
+			phase  OperationPhase
+			want   OperationEventName
+		}{
+			{name: "Should map runtime downloading", target: TargetRuntime, phase: PhaseDownloading, want: EventDownloadProgress},
+			{name: "Should map runtime verifying", target: TargetRuntime, phase: PhaseVerifying, want: EventVerifyCompleted},
+			{name: "Should map runtime swapping", target: TargetRuntime, phase: PhaseSwapping, want: EventSwapCompleted},
+			{name: "Should map runtime restarting", target: TargetRuntime, phase: PhaseRestarting, want: EventRestartCompleted},
+			{name: "Should map runtime health checking", target: TargetRuntime, phase: PhaseHealthChecking, want: EventHealthCompleted},
+			{name: "Should map runtime finalized", target: TargetRuntime, phase: PhaseFinalized, want: EventFinalized},
+			{name: "Should map runtime rolled back", target: TargetRuntime, phase: PhaseRolledBack, want: EventRolledBack},
+			{name: "Should map runtime failed", target: TargetRuntime, phase: PhaseFailed, want: EventFinalized},
+			{name: "Should map app staged", target: TargetApp, phase: PhaseStaged, want: EventAppStaged},
+			{name: "Should map app applying", target: TargetApp, phase: PhaseApplying, want: EventAppApplying},
+			{name: "Should map app installer handoff", target: TargetApp, phase: PhaseInstallerHandoff, want: EventAppInstallerHandoff},
+			{name: "Should map app restarted", target: TargetApp, phase: PhaseRestarted, want: EventRestartCompleted},
+			{name: "Should map app verified", target: TargetApp, phase: PhaseVerified, want: EventAppVerified},
+			{name: "Should map app failed", target: TargetApp, phase: PhaseFailed, want: EventAppFailed},
 		}
-
-		for target, currentPhases := range allowedPhaseTransitions {
-			for current, nextPhases := range currentPhases {
-				for _, next := range nextPhases {
-					transition := Transition{
-						Kind: TransitionPhase, Actor: ActorCLI, Target: target,
-						Phase: next, Percent: -1,
-					}
-					got, err := eventNameForTransition(transition, nil)
-					if err != nil {
-						t.Fatalf("eventNameForTransition(%q %q -> %q) error = %v", target, current, next, err)
-					}
-					if want := expectedByTargetAndPhase[target][next]; got != want {
-						t.Fatalf("eventNameForTransition(%q %q -> %q) = %q, want %q", target, current, next, got, want)
-					}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				transition := Transition{
+					Kind: TransitionPhase, Actor: ActorCLI, Target: tc.target,
+					Phase: tc.phase, Percent: -1,
 				}
-			}
+				got, err := eventNameForTransition(transition, nil)
+				if err != nil {
+					t.Fatalf("eventNameForTransition(%q, %q) error = %v", tc.target, tc.phase, err)
+				}
+				if got != tc.want {
+					t.Fatalf("eventNameForTransition(%q, %q) = %q, want %q", tc.target, tc.phase, got, tc.want)
+				}
+			})
 		}
 	})
 
@@ -500,6 +580,14 @@ func TestAppAttemptDigestBinding(t *testing.T) {
 		if _, err := os.Stat(paths.UpdateOperationFile); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Stat(operation) error = %v, want terminal journal archived", err)
 		}
+		archived, err := store.ReadArchived(t.Context(), operation.ID)
+		if err != nil {
+			t.Fatalf("ReadArchived() error = %v", err)
+		}
+		if archived == nil || archived.App == nil || archived.App.Phase != PhaseFailed ||
+			archived.Outcome != operationOutcomeFailed || !strings.Contains(archived.LastError, "digest does not match") {
+			t.Fatalf("ReadArchived() = %#v, want terminal digest failure", archived)
+		}
 	})
 
 	t.Run("Should accept only the digest and attempt recorded by acquisition", func(t *testing.T) {
@@ -524,6 +612,45 @@ func TestAppAttemptDigestBinding(t *testing.T) {
 			t.Context(), operation.ID, "generation-1", operation.Revision, "attempt-1", artifactPath,
 		); err != nil {
 			t.Fatalf("VerifyAppArtifact() error = %v", err)
+		}
+		verified, err := store.Read(t.Context())
+		if err != nil {
+			t.Fatalf("Read() error = %v", err)
+		}
+		if verified == nil || verified.App == nil || !verified.App.DigestVerified {
+			t.Fatalf("verified operation = %#v, want durable digest proof", verified)
+		}
+	})
+
+	t.Run("Should refuse the verified phase before digest proof", func(t *testing.T) {
+		t.Parallel()
+
+		store, _, _ := newOperationTestStore(t)
+		request := operationTestRequest(testOperationNow)
+		request.Targets = []Target{TargetApp}
+		request.Runtime = nil
+		operation, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Acquire() error = %v", err)
+		}
+		for _, phase := range []OperationPhase{
+			PhaseStaged,
+			PhaseApplying,
+			PhaseInstallerHandoff,
+			PhaseRestarted,
+		} {
+			operation, err = store.Transition(t.Context(), operation.ID, "generation-1", operation.Revision, Transition{
+				Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp, Phase: phase, Percent: -1,
+			})
+			if err != nil {
+				t.Fatalf("Transition(%s) error = %v", phase, err)
+			}
+		}
+		_, err = store.Transition(t.Context(), operation.ID, "generation-1", operation.Revision, Transition{
+			Kind: TransitionPhase, Actor: ActorShell, Target: TargetApp, Phase: PhaseVerified, Percent: -1,
+		})
+		if err == nil || !strings.Contains(err.Error(), "digest must be verified") {
+			t.Fatalf("Transition(verified) error = %v, want digest-proof refusal", err)
 		}
 	})
 }
@@ -622,20 +749,4 @@ func splitNonEmptyLines(value string) []string {
 		}
 	}
 	return lines
-}
-
-func TestOperationPathsUseCanonicalHomeLayout(t *testing.T) {
-	t.Run("Should keep every update datum host-global under one home", func(t *testing.T) {
-		t.Parallel()
-
-		paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		if filepath.Dir(paths.UpdateOperationFile) != paths.HomeDir ||
-			filepath.Dir(paths.UpdateHistoryFile) != paths.LogsDir ||
-			filepath.Dir(paths.DesktopProvenanceFile) != paths.BinDir {
-			t.Fatalf("update paths = %#v, want host-global home/logs/bin ownership", paths)
-		}
-	})
 }

@@ -30,17 +30,23 @@ func errorWithCode(code ErrorCode, err error) error {
 	if err == nil {
 		return nil
 	}
-	var operatorError *OperatorError
-	if errors.As(err, &operatorError) {
+	if _, ok := operatorErrorFrom(err); ok {
 		return err
 	}
 	return &OperatorError{Code: code, Err: err}
 }
 
 func CodeOf(err error) ErrorCode {
-	var operatorError *OperatorError
-	if errors.As(err, &operatorError) {
+	if operatorError, ok := operatorErrorFrom(err); ok {
 		return operatorError.Code
 	}
 	return ErrorVerificationFailed
+}
+
+func operatorErrorFrom(err error) (*OperatorError, bool) {
+	var operatorError *OperatorError
+	if !errors.As(err, &operatorError) {
+		return nil, false
+	}
+	return operatorError, true
 }

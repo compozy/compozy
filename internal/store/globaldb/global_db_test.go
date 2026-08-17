@@ -23,6 +23,7 @@ import (
 
 	"github.com/compozy/compozy/internal/extensionenv"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	memorypkg "github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -382,6 +383,93 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should preserve loop config rows while adding environment storage", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: migration 00068 preserves prior loop config rows, initializes the
+		// new environment column empty, and persists it across reopen.
+		// Owning layer: GlobalDB migration stream. Canonical suite: global_db_test.go.
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00068_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open prior global migration prefix error = %v", err)
+		}
+		prefixClosed := false
+		t.Cleanup(func() {
+			if !prefixClosed {
+				if closeErr := prefixDB.Close(); closeErr != nil {
+					t.Errorf("Close(prior prefix cleanup) error = %v", closeErr)
+				}
+			}
+		})
+		ctx := testutil.Context(t)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_config (
+			workspace_id, loop_name, human_gate_enabled, enabled_checks_json, iteration_cap
+		) VALUES ('ws-loop-environment', 'delivery', 0, '{}', 7)`); err != nil {
+			t.Fatalf("seed prior loop config error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("Close(prior prefix) error = %v", err)
+		}
+		prefixClosed = true
+
+		upgraded, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
+		}
+		upgradedClosed := false
+		t.Cleanup(func() {
+			if !upgradedClosed {
+				if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+					t.Errorf("Close(upgraded cleanup) error = %v", closeErr)
+				}
+			}
+		})
+		preserved, err := upgraded.GetLoopConfig(ctx, "ws-loop-environment", "delivery")
+		if err != nil {
+			t.Fatalf("GetLoopConfig(preserved) error = %v", err)
+		}
+		if preserved.IterationCap == nil || *preserved.IterationCap != 7 || preserved.Environment != nil {
+			t.Fatalf("preserved loop config = %#v, want iteration cap 7 and no environment", preserved)
+		}
+		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
+		if err := upgraded.UpsertLoopConfig(ctx, "ws-loop-environment", "delivery", looppkg.LoopConfig{
+			Environment: &environment,
+		}); err != nil {
+			t.Fatalf("UpsertLoopConfig(environment) error = %v", err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("Close(upgraded) error = %v", err)
+		}
+		upgradedClosed = true
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
+			}
+		})
+		stored, err := reopened.GetLoopConfig(ctx, "ws-loop-environment", "delivery")
+		if err != nil {
+			t.Fatalf("GetLoopConfig(reopened) error = %v", err)
+		}
+		if stored.Environment == nil || *stored.Environment != environment {
+			t.Fatalf("Environment(after reopen) = %#v, want %#v", stored.Environment, environment)
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(reopened) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
+
 	t.Run("Should preserve rows and migration status across reopen", func(t *testing.T) {
 		t.Parallel()
 

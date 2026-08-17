@@ -17,5 +17,5 @@ overlaps: APP-desktop-page-zoom
 ---
 
 Added 2026-08-16 for the Electron shell cutover. The macOS and Linux safety sessions own the
-packaged-app walk; `desktop/e2e/_electron/__tests__/shell.spec.ts` owns the deterministic automation
-for bounds persistence, maximized-state persistence, and off-screen recovery.
+packaged-app walk. `desktop/e2e/_electron/__tests__/shell.spec.ts` automates maximized-state
+persistence and off-screen recovery; the recorded walk owns exact normal-bounds restoration.

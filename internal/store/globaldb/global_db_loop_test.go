@@ -1791,6 +1791,8 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Run("Should round trip loop config by workspace and loop name", func(t *testing.T) {
 		t.Parallel()
 
+		// Invariant: every loop config field round-trips within its workspace and loop key.
+		// Owning layer: GlobalDB loop config repository. Canonical suite: global_db_loop_test.go.
 		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		humanGate := true
@@ -1887,11 +1889,14 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Run("Should preserve omitted overrides on partial update", func(t *testing.T) {
 		t.Parallel()
 
+		// Invariant: a partial loop config update changes only fields present in the patch.
+		// Owning layer: GlobalDB loop config repository. Canonical suite: global_db_loop_test.go.
 		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		humanGate := true
 		reattempt := looppkg.ReattemptFullBody
 		workerModel := "stored-worker"
+		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
 		if err := globalDB.UpsertLoopConfig(ctx, "ws-1", "delivery", looppkg.LoopConfig{
 			HumanGateEnabled:  &humanGate,
 			ReattemptStrategy: &reattempt,
@@ -1901,6 +1906,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 			RuntimeDefaults: &looppkg.RuntimeDefaults{
 				Worker: looppkg.RuntimeSpec{Model: workerModel},
 			},
+			Environment: &environment,
 		}); err != nil {
 			t.Fatalf("UpsertLoopConfig(initial) error = %v", err)
 		}
@@ -1931,6 +1937,9 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		}
 		if got.RuntimeDefaults == nil || got.RuntimeDefaults.Worker.Model != "stored-worker" {
 			t.Fatalf("RuntimeDefaults.Worker = %#v, want preserved stored-worker", got.RuntimeDefaults)
+		}
+		if got.Environment == nil || *got.Environment != environment {
+			t.Fatalf("Environment = %#v, want preserved %#v", got.Environment, environment)
 		}
 	})
 }

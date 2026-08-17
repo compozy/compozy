@@ -51,12 +51,10 @@ test-e2e-runtime:
 test-e2e-web:
 	@$(MAGE_RUN) testE2EWeb
 
-test-e2e-desktop: desktop-build
-	@if [ "$$(uname -s)" = "Linux" ]; then \
-		xvfb-run -a bun run --cwd desktop test:e2e; \
-	else \
-		bun run --cwd desktop test:e2e; \
-	fi
+test-e2e-desktop: web-build desktop-build
+	@runner=""; \
+	if [ "$$(uname -s)" = "Linux" ]; then runner="xvfb-run -a"; fi; \
+	$$runner bun run --cwd desktop test:e2e
 
 test-e2e:
 	@$(MAGE_RUN) testE2E

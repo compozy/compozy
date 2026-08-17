@@ -22,7 +22,7 @@ charter:
   guidance:
     must_try:
       - "Disconnect before first launch, install the signed/notarized beta package, and record verify → install → start progress for the embedded lockstep runtime with zero release-feed request."
-      - "Interrupt once before the first install write, relaunch, and retry; an invalid embedded digest must fail before ~/.compozy/bin changes, while a valid bundle converges to one healthy daemon."
+      - "Interrupt once before the first install write, relaunch, and retry; an invalid embedded digest must fail before `$COMPOZY_HOME/bin` changes, while a valid bundle converges to one healthy daemon."
       - "Keep the boot window non-interactive through startup, version skew, and one typed failure; it may offer retry/diagnostics where contracted but never an update decision."
       - "Quit and relaunch online and offline; both land directly in the same product, preserve beta branding, and do not re-provision or spawn a second daemon."
     must_avoid:

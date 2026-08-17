@@ -1,21 +1,4 @@
-:root {
-  color-scheme: dark;
-  --canvas: #131211;
-  --fg: #ececef;
-  --strong: #f6f6f8;
-  --muted: oklch(0.663 0.009 286.106);
-  --action: #e8572a;
-  --action-hover: #d14e25;
-  --success: #5fbf85;
-  --danger: #e0635a;
-  --warning: #d6a647;
-  --info: #8e8eb5;
-  --line: rgb(255 255 255 / 6%);
-  --surface: rgb(255 255 255 / 4%);
-  --surface-hover: rgb(255 255 255 / 7%);
-  --sans: "Geist Variable", -apple-system, BlinkMacSystemFont, sans-serif;
-  --mono: "JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace;
-}
+@import "./boot-tokens.css";
 
 * {
   box-sizing: border-box;

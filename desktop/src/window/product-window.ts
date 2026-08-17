@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, screen } from "electron";
 
-import type { DeepLinkQueue } from "../deep-links/deep-link";
+import { productDeepLink, productNavigationURL, type DeepLinkQueue } from "../deep-links/deep-link";
 import { writeWindowState, readWindowState, type StoredWindowState } from "./window-state-store";
 import { CrashRecoveryBudget } from "./crash-recovery-policy";
 import { guardWindowNavigation } from "./security";
@@ -9,6 +9,20 @@ import { nextZoomLevel } from "./zoom-policy";
 
 const REVEAL_DEADLINE_MS = 10_000;
 const SAVE_DEBOUNCE_MS = 250;
+
+async function showCrashLoopDialog(window: BrowserWindow): Promise<void> {
+  const observer = Reflect.get(globalThis, "__compozyCrashDialogObserver");
+  if (process.env.COMPOZY_DESKTOP_E2E === "1" && typeof observer === "function") {
+    observer();
+    return;
+  }
+  await dialog.showMessageBox(window, {
+    type: "error",
+    title: "CompozyOS",
+    message: "CompozyOS keeps closing unexpectedly.",
+    detail: "Quit and reopen the app. Your sessions remain in the runtime.",
+  });
+}
 
 export class ProductWindow {
   readonly #origin: string;
@@ -38,7 +52,7 @@ export class ProductWindow {
     this.#onError = options.onError;
   }
 
-  async create(): Promise<BrowserWindow> {
+  async create(initialURL = this.#origin): Promise<BrowserWindow> {
     if (this.#window && !this.#window.isDestroyed()) return this.#window;
     const saved = await readWindowState(this.#windowStatePath);
     const displays = screen.getAllDisplays().map(display => display.workArea);
@@ -73,7 +87,7 @@ export class ProductWindow {
     }, REVEAL_DEADLINE_MS);
     deadline.unref();
     window.webContents.once("did-finish-load", () => clearTimeout(deadline));
-    await window.loadURL(this.#origin);
+    await window.loadURL(initialURL);
     return window;
   }
 
@@ -87,7 +101,7 @@ export class ProductWindow {
   }
 
   navigate(path: string): void {
-    this.#links.push(`compozyos://open${path}`);
+    this.#links.push(productDeepLink(path));
     this.focus();
   }
 
@@ -97,6 +111,19 @@ export class ProductWindow {
     this.#zoomLevel = nextZoomLevel(this.#zoomLevel, direction);
     window.webContents.setZoomLevel(this.#zoomLevel);
     this.#scheduleSave();
+  }
+
+  async flushState(): Promise<void> {
+    if (this.#saveTimer) clearTimeout(this.#saveTimer);
+    this.#saveTimer = null;
+    await this.#save();
+  }
+
+  async close(): Promise<void> {
+    await this.flushState();
+    const window = this.#window;
+    if (window && !window.isDestroyed()) window.destroy();
+    this.#window = null;
   }
 
   #wireLifecycle(window: BrowserWindow): void {
@@ -130,22 +157,30 @@ export class ProductWindow {
     window.on("unmaximize", () => this.#scheduleSave());
     window.webContents.on("render-process-gone", (_event, details) => {
       this.#onError(new Error(`Product renderer exited: ${details.reason}.`));
-      if (this.#crashes.record(Date.now()) === "reload") window.reload();
-      else
-        void dialog.showMessageBox(window, {
-          type: "error",
-          title: "CompozyOS",
-          message: "CompozyOS keeps closing unexpectedly.",
-          detail: "Quit and reopen the app. Your sessions remain in the runtime.",
-        });
+      const decision = this.#crashes.record(Date.now());
+      const observer = Reflect.get(globalThis, "__compozyCrashDecisionObserver");
+      if (process.env.COMPOZY_DESKTOP_E2E === "1" && typeof observer === "function") {
+        observer(decision);
+      }
+      if (decision === "reload") void this.#recoverRenderer(window).catch(this.#onError);
+      else void showCrashLoopDialog(window).catch(this.#onError);
     });
     window.on("unresponsive", () =>
       this.#onError(new Error("Product renderer became unresponsive."))
     );
     window.on("closed", () => {
+      if (this.#window !== window) return;
       this.#links.reset();
       this.#window = null;
     });
+  }
+
+  async #recoverRenderer(window: BrowserWindow): Promise<void> {
+    if (this.#window !== window || window.isDestroyed()) return;
+    const recoveryURL = window.webContents.getURL() || this.#origin;
+    this.#window = null;
+    await this.create(recoveryURL);
+    if (!window.isDestroyed()) window.destroy();
   }
 
   #navigatePending(): void {
@@ -153,13 +188,16 @@ export class ProductWindow {
     if (!window || window.isDestroyed()) return;
     const path = this.#links.setReady();
     if (!path) return;
-    const target = path === "/" ? this.#origin : new URL(path, this.#origin).toString();
+    const target = productNavigationURL(this.#origin, path);
     if (window.webContents.getURL() !== target) void window.loadURL(target).catch(this.#onError);
   }
 
   #scheduleSave(): void {
     if (this.#saveTimer) clearTimeout(this.#saveTimer);
-    this.#saveTimer = setTimeout(() => void this.#save().catch(this.#onError), SAVE_DEBOUNCE_MS);
+    this.#saveTimer = setTimeout(() => {
+      this.#saveTimer = null;
+      void this.#save().catch(this.#onError);
+    }, SAVE_DEBOUNCE_MS);
     this.#saveTimer.unref();
   }
 

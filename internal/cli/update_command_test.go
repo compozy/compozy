@@ -2,18 +2,23 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/procutil"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
+// Invariant: update commands preserve the frozen multi-format and mutation contract.
+// Owning layer: CLI update command boundary.
+// Canonical suite: TestUpdateCommandContract.
 func TestUpdateCommandContract(t *testing.T) {
 	t.Run("Should reproduce the frozen multi-target check transcript byte for byte", func(t *testing.T) {
 		t.Parallel()
@@ -77,9 +82,12 @@ func TestUpdateCommandContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand(toon) error = %v", err)
 		}
-		for _, output := range []string{human, toon} {
-			assertOrderedSubstrings(t, output, []string{"available", "0.5.0", "0.5.1", "desktop-app", "running"})
-		}
+		assertOrderedSubstrings(t, human, []string{
+			"Status", "available", "Runtime", "0.5.0", "0.5.1", "desktop-app", "App", "running", "Release",
+		})
+		assertOrderedSubstrings(t, toon, []string{
+			"update{status,runtime,app,release}", "available", "0.5.0", "0.5.1", "desktop-app", "running",
+		})
 	})
 
 	t.Run("Should emit the nested multi-target check record", func(t *testing.T) {
@@ -120,9 +128,7 @@ func TestUpdateCommandContract(t *testing.T) {
 		t.Parallel()
 
 		_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "update", "--check", "--cancel")
-		if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
-			t.Fatalf("executeRootCommand() error = %v, want mutually exclusive flags", err)
-		}
+		assertErrorContains(t, err, "cannot be combined")
 	})
 
 	t.Run("Should decline cancel while an executor lease is live", func(t *testing.T) {
@@ -136,8 +142,8 @@ func TestUpdateCommandContract(t *testing.T) {
 		}
 
 		stdout, _, err := executeRootCommand(t, deps, "update", "--cancel", "-o", "json")
-		if err == nil {
-			t.Fatal("executeRootCommand() error = nil, want live-executor refusal")
+		if !errors.Is(err, compozyupdate.ErrOperationNotCancelable) {
+			t.Fatalf("executeRootCommand() error = %v, want ErrOperationNotCancelable", err)
 		}
 		var record updateCancelRecord
 		if decodeErr := json.Unmarshal([]byte(stdout), &record); decodeErr != nil {
@@ -193,6 +199,9 @@ func TestUpdateCommandContract(t *testing.T) {
 	})
 }
 
+// Invariant: terminal update records report the actual affected track and outcome.
+// Owning layer: CLI update projection.
+// Canonical suite: TestUpdateTerminalProjection.
 func TestUpdateTerminalProjection(t *testing.T) {
 	t.Run("Should report runtime-first success and a staged closed app", func(t *testing.T) {
 		t.Parallel()
@@ -244,11 +253,72 @@ func TestUpdateTerminalProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("Should derive planning failures and live blocks from the actual app target", func(t *testing.T) {
+		t.Parallel()
+
+		base := updateRecord{
+			Runtime: compozyupdate.RuntimeTrackState{Status: compozyupdate.StatusAvailable},
+			App:     &compozyupdate.AppTrackState{Status: compozyupdate.StatusAvailable},
+		}
+		failed := failedUpdateRecord(
+			base,
+			&compozyupdate.TargetError{Target: compozyupdate.TargetApp, Err: errors.New("app asset is unavailable")},
+			compozyupdate.TargetRuntime,
+			compozyupdate.TargetApp,
+		)
+		if failed.Runtime.Status != compozyupdate.StatusAvailable || failed.App == nil ||
+			failed.App.Status != compozyupdate.StatusFailed {
+			t.Fatalf("targeted failure = %#v, want app-only failure", failed)
+		}
+
+		blocked := blockedUpdateRecord(base, &compozyupdate.Operation{
+			ActiveTarget: compozyupdate.TargetApp,
+			Holder:       &compozyupdate.Holder{PID: 4242},
+		}, compozyupdate.TargetRuntime, compozyupdate.TargetApp)
+		if blocked.Runtime.Status != compozyupdate.StatusAvailable || blocked.App == nil ||
+			blocked.App.Status != compozyupdate.StatusBlocked {
+			t.Fatalf("targeted block = %#v, want app-only block", blocked)
+		}
+	})
+
+	t.Run("Should emit a terminal app failure when completion times out without an archive", func(t *testing.T) {
+		t.Parallel()
+
+		base := updateRecord{
+			Runtime: compozyupdate.RuntimeTrackState{Status: compozyupdate.StatusUpdated},
+			App: &compozyupdate.AppTrackState{
+				Status: compozyupdate.StatusAvailable, Running: true,
+				CurrentVersion: "v1.0.0", LatestVersion: "v1.1.0",
+			},
+		}
+		record, err := finalizeUpdateRecord(
+			base,
+			compozyupdate.OperationRequest{App: &compozyupdate.AppOperationState{
+				ArtifactIdentity: compozyupdate.ArtifactIdentity{ToVersion: "v1.1.0"}, AttemptID: "attempt-1",
+			}},
+			nil,
+			nil,
+			errors.New("desktop app update did not complete before its deadline"),
+		)
+		assertErrorContains(t, err, "did not complete before its deadline")
+		if record.Status != compozyupdate.StatusFailed || record.App == nil ||
+			record.App.Status != compozyupdate.StatusFailed || record.Operation != nil {
+			t.Fatalf("timeout record = %#v, want terminal app failure", record)
+		}
+	})
+
 	t.Run("Should wait for a running app and report its archived verified outcome", func(t *testing.T) {
 		t.Parallel()
 
+		artifact := []byte("verified app installer")
+		digest := sha256.Sum256(artifact)
 		store := newCLIUpdateOperationStore(t)
-		operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{compozyupdate.TargetApp})
+		operation := acquireCLIUpdateOperationWithAppDigest(
+			t,
+			store,
+			[]compozyupdate.Target{compozyupdate.TargetApp},
+			"sha256:"+hex.EncodeToString(digest[:]),
+		)
 		staged, err := store.Transition(
 			t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
 			compozyupdate.Transition{
@@ -270,40 +340,60 @@ func TestUpdateTerminalProjection(t *testing.T) {
 			t.Fatalf("Transition(waiting) error = %v", err)
 		}
 
-		done := make(chan error, 1)
-		go func() {
-			appRequest := *waiting.App
-			appRequest.Phase = compozyupdate.PhasePending
-			request := compozyupdate.OperationRequest{
-				RequestedBy: compozyupdate.ActorShell,
-				Targets:     []compozyupdate.Target{compozyupdate.TargetApp},
-				App:         &appRequest,
-				Holder: compozyupdate.Holder{
-					PID: os.Getpid(), PIDStartTime: mustProcessStartedAt(t), Surface: compozyupdate.ActorShell,
-					ExecutorGeneration: "shell-generation", LeaseExpiresAt: time.Now().UTC().Add(time.Minute),
+		appRequest := *waiting.App
+		appRequest.Phase = compozyupdate.PhasePending
+		request := compozyupdate.OperationRequest{
+			RequestedBy: compozyupdate.ActorShell,
+			Targets:     []compozyupdate.Target{compozyupdate.TargetApp},
+			App:         &appRequest,
+			Holder: compozyupdate.Holder{
+				PID: os.Getpid(), PIDStartTime: mustProcessStartedAt(t), Surface: compozyupdate.ActorShell,
+				ExecutorGeneration: "shell-generation", LeaseExpiresAt: time.Now().UTC().Add(time.Minute),
+			},
+			Deadline: time.Now().UTC().Add(time.Minute),
+		}
+		current, transitionErr := store.Acquire(t.Context(), request)
+		for _, phase := range []compozyupdate.OperationPhase{
+			compozyupdate.PhaseApplying,
+			compozyupdate.PhaseInstallerHandoff,
+			compozyupdate.PhaseRestarted,
+		} {
+			if transitionErr != nil {
+				break
+			}
+			current, transitionErr = store.Transition(
+				t.Context(), current.ID, current.Holder.ExecutorGeneration, current.Revision,
+				compozyupdate.Transition{
+					Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorShell,
+					Target: compozyupdate.TargetApp, Phase: phase, Percent: 100,
 				},
-				Deadline: time.Now().UTC().Add(time.Minute),
-			}
-			current, transitionErr := store.Acquire(t.Context(), request)
-			for _, phase := range []compozyupdate.OperationPhase{
-				compozyupdate.PhaseApplying,
-				compozyupdate.PhaseInstallerHandoff,
-				compozyupdate.PhaseRestarted,
-				compozyupdate.PhaseVerified,
-			} {
-				if transitionErr != nil {
-					break
-				}
-				current, transitionErr = store.Transition(
-					t.Context(), current.ID, current.Holder.ExecutorGeneration, current.Revision,
-					compozyupdate.Transition{
-						Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorShell,
-						Target: compozyupdate.TargetApp, Phase: phase, Percent: 100,
-					},
-				)
-			}
-			done <- transitionErr
-		}()
+			)
+		}
+		if transitionErr != nil {
+			t.Fatalf("shell simulator error = %v", transitionErr)
+		}
+		artifactPath := filepath.Join(t.TempDir(), "app.zip")
+		if err := os.WriteFile(artifactPath, artifact, 0o600); err != nil {
+			t.Fatalf("WriteFile(app artifact) error = %v", err)
+		}
+		if err := store.VerifyAppArtifact(
+			t.Context(), current.ID, current.Holder.ExecutorGeneration, current.Revision, "attempt-1", artifactPath,
+		); err != nil {
+			t.Fatalf("VerifyAppArtifact() error = %v", err)
+		}
+		current, transitionErr = store.Read(t.Context())
+		if transitionErr == nil {
+			current, transitionErr = store.Transition(
+				t.Context(), current.ID, current.Holder.ExecutorGeneration, current.Revision,
+				compozyupdate.Transition{
+					Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorShell,
+					Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseVerified, Percent: 100,
+				},
+			)
+		}
+		if transitionErr != nil {
+			t.Fatalf("Transition(verified) error = %v", transitionErr)
+		}
 
 		deps := newTestDeps(t, &stubClient{})
 		deps.pollInterval = time.Millisecond
@@ -313,9 +403,6 @@ func TestUpdateTerminalProjection(t *testing.T) {
 		)
 		if err != nil {
 			t.Fatalf("waitForAppUpdateCompletion() error = %v", err)
-		}
-		if transitionErr := <-done; transitionErr != nil {
-			t.Fatalf("shell simulator error = %v", transitionErr)
 		}
 		record := applyArchivedAppOutcome(updateRecord{
 			Runtime: compozyupdate.RuntimeTrackState{Status: compozyupdate.StatusUpdated},
@@ -349,67 +436,6 @@ func TestSettingsRestartTimeout(t *testing.T) {
 			t.Fatalf("settingsRestartTimeout() = %s, want 55s", timeout)
 		}
 	})
-}
-
-func newCLIUpdateOperationStore(t *testing.T) *compozyupdate.OperationStore {
-	t.Helper()
-	store, err := compozyupdate.NewOperationStore(compozyconfig.HomePaths{HomeDir: t.TempDir()}, nil)
-	if err != nil {
-		t.Fatalf("NewOperationStore() error = %v", err)
-	}
-	return store
-}
-
-func acquireCLIUpdateOperation(
-	t *testing.T,
-	store *compozyupdate.OperationStore,
-	targets []compozyupdate.Target,
-) *compozyupdate.Operation {
-	t.Helper()
-	now := time.Now().UTC()
-	request := compozyupdate.OperationRequest{
-		RequestedBy: compozyupdate.ActorCLI,
-		Targets:     targets,
-		Holder: compozyupdate.Holder{
-			PID: os.Getpid(), PIDStartTime: mustProcessStartedAt(t), Surface: compozyupdate.ActorCLI,
-			ExecutorGeneration: "generation-1", LeaseExpiresAt: now.Add(time.Hour),
-		},
-		Deadline: now.Add(time.Hour),
-	}
-	for _, target := range targets {
-		switch target {
-		case compozyupdate.TargetRuntime:
-			request.Runtime = &compozyupdate.RuntimeOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{
-					FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-					Asset: "runtime.tar.gz", Digest: "sha256:runtime",
-				},
-				InstallMethod: compozyupdate.InstallMethodDirectBinary, Phase: compozyupdate.PhasePending,
-			}
-		case compozyupdate.TargetApp:
-			request.App = &compozyupdate.AppOperationState{
-				ArtifactIdentity: compozyupdate.ArtifactIdentity{
-					FromVersion: "v1.0.0", ToVersion: "v1.1.0", ReleaseTag: "v1.1.0",
-					Asset: "app.zip", Digest: "sha256:app",
-				},
-				AttemptID: "attempt-1", Phase: compozyupdate.PhasePending,
-			}
-		}
-	}
-	operation, err := store.Acquire(t.Context(), request)
-	if err != nil {
-		t.Fatalf("Acquire() error = %v", err)
-	}
-	return operation
-}
-
-func mustProcessStartedAt(t *testing.T) time.Time {
-	t.Helper()
-	startedAt, err := procutil.StartedAt(os.Getpid())
-	if err != nil {
-		t.Fatalf("procutil.StartedAt() error = %v", err)
-	}
-	return startedAt
 }
 
 func assertOrderedSubstrings(t *testing.T, output string, values []string) {

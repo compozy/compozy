@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/gin-gonic/gin"
@@ -248,14 +249,12 @@ func (h *BaseHandlers) ApplySettingsUpdate(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errSettingsUpdateUnavailable)
 		return
 	}
-	var request struct {
-		Target string `json:"target" binding:"required"`
-	}
+	var request contract.SettingsUpdateApplyRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	target := compozyupdate.Target(strings.TrimSpace(request.Target))
+	target := compozyupdate.Target(strings.TrimSpace(string(request.Target)))
 	if target != compozyupdate.TargetRuntime && target != compozyupdate.TargetApp {
 		h.respondError(c, http.StatusBadRequest, errors.New("settings: update target must be runtime or app"))
 		return

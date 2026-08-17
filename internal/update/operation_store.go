@@ -102,13 +102,6 @@ func (s *OperationStore) HolderLive(holder *Holder) bool {
 	return s != nil && s.holderLive != nil && s.holderLive(holder, s.now())
 }
 
-func firstPath(primary string, fallback string) string {
-	if value := strings.TrimSpace(primary); value != "" {
-		return value
-	}
-	return strings.TrimSpace(fallback)
-}
-
 // Read returns the validated live operation, or nil when no operation exists.
 func (s *OperationStore) Read(ctx context.Context) (*Operation, error) {
 	var operation *Operation
@@ -178,15 +171,8 @@ func (s *OperationStore) Acquire(ctx context.Context, request OperationRequest) 
 }
 
 func validateOperationRequest(request OperationRequest) error {
-	if !request.RequestedBy.valid() {
-		return fmt.Errorf("update: invalid requester %q", request.RequestedBy)
-	}
-	if err := validateTargets(request.Targets); err != nil {
+	if err := validateOperationRequestIdentity(request.RequestedBy, request.Targets, request.Holder); err != nil {
 		return err
-	}
-	if request.Holder.PID <= 0 || request.Holder.PIDStartTime.IsZero() || !request.Holder.Surface.valid() ||
-		strings.TrimSpace(request.Holder.ExecutorGeneration) == "" || request.Holder.LeaseExpiresAt.IsZero() {
-		return errors.New("update: valid initial holder is required")
 	}
 	for _, target := range request.Targets {
 		switch target {
@@ -203,6 +189,20 @@ func validateOperationRequest(request OperationRequest) error {
 	return nil
 }
 
+func validateOperationRequestIdentity(requestedBy Actor, targets []Target, holder Holder) error {
+	if !requestedBy.valid() {
+		return fmt.Errorf("update: invalid requester %q", requestedBy)
+	}
+	if err := validateTargets(targets); err != nil {
+		return err
+	}
+	if holder.PID <= 0 || holder.PIDStartTime.IsZero() || !holder.Surface.valid() ||
+		strings.TrimSpace(holder.ExecutorGeneration) == "" || holder.LeaseExpiresAt.IsZero() {
+		return errors.New("update: valid initial holder is required")
+	}
+	return nil
+}
+
 func (s *OperationStore) withLock(ctx context.Context, fn func() error) (returnErr error) {
 	if err := os.MkdirAll(filepath.Dir(s.lockPath), operationDirMode); err != nil {
 		return fmt.Errorf("update: create operation lock directory: %w", err)
@@ -214,7 +214,14 @@ func (s *OperationStore) withLock(ctx context.Context, fn func() error) (returnE
 		return errors.Join(fmt.Errorf("update: acquire operation lock: %w", err), closeErr)
 	}
 	if !locked {
+		operation, readErr := s.readUnlocked()
 		closeErr := fileLock.Close()
+		if readErr != nil {
+			return errors.Join(ErrOperationBlocked, readErr, closeErr)
+		}
+		if operation != nil {
+			return errors.Join(&BlockedError{Operation: *operation}, closeErr)
+		}
 		return errors.Join(ErrOperationBlocked, closeErr)
 	}
 	defer func() {
@@ -236,11 +243,29 @@ func (s *OperationStore) readUnlocked() (operationResult *Operation, returnErr e
 	defer func() {
 		returnErr = errors.Join(returnErr, file.Close())
 	}()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("update: stat operation journal: %w", err)
+	}
+	if info.Size() > maxOperationBytes {
+		return nil, fmt.Errorf(
+			"update: operation journal is %d bytes; limit is %d",
+			info.Size(),
+			maxOperationBytes,
+		)
+	}
 	decoder := json.NewDecoder(io.LimitReader(file, maxOperationBytes+1))
 	decoder.DisallowUnknownFields()
 	var operation Operation
 	if err := decoder.Decode(&operation); err != nil {
 		return nil, fmt.Errorf("update: decode operation journal: %w", err)
+	}
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, errors.New("update: operation journal contains multiple JSON values")
+		}
+		return nil, fmt.Errorf("update: decode trailing operation journal data: %w", err)
 	}
 	if err := validateOperation(&operation); err != nil {
 		return nil, err

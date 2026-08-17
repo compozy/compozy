@@ -242,14 +242,14 @@ func (r *RealGitRunner) run(
 }
 
 func gitEnvironment(parent []string) []string {
-	filtered := make([]string, 0, len(parent)+2)
+	filtered := make([]string, 0, len(parent)+3)
 	for _, entry := range parent {
 		name, _, ok := strings.Cut(entry, "=")
 		if !ok {
 			continue
 		}
 		switch strings.ToUpper(strings.TrimSpace(name)) {
-		case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_TERMINAL_PROMPT", "GCM_INTERACTIVE":
+		case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OPTIONAL_LOCKS", "GIT_TERMINAL_PROMPT", "GCM_INTERACTIVE":
 			continue
 		default:
 			if redact.IsSensitiveKey(name) || redact.String(entry) != entry {
@@ -258,7 +258,7 @@ func gitEnvironment(parent []string) []string {
 			filtered = append(filtered, entry)
 		}
 	}
-	return append(filtered, "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never")
+	return append(filtered, "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never")
 }
 
 func gitCommandError(args []string, stderr string, cause error) error {

@@ -37,8 +37,9 @@ function TrackVersion({ track }: { track: SettingsUpdateTrackView }) {
 
 /**
  * One update track (runtime or app) as a settings row: label, the daemon's
- * consequence sentence where it adds truth, the version lane, and a single
- * control cluster that is either the live phase, the apply action, or nothing.
+ * consequence sentence where it adds truth, the version lane, and the controls
+ * the projected track truth allows. Status, action, cancel, and release notes may
+ * coexist when each communicates a distinct fact.
  *
  * The apply affordance is absent — never disabled — whenever the daemon says this
  * track is not ours to mutate (SD-007): a managed install, a track with nothing

@@ -622,13 +622,81 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"install_method",
 			"managed",
 			"current_version",
+			"latest_version",
+			"release_url",
+			"recommendation",
+			"restored_version",
 			"daemon_restarted",
 			"message",
+			"last_error",
+		)
+		assertEnumValues(t, propertySchema(t, runtimeSchema, "status"),
+			"accepted", "applying", "available", "blocked", "canceled", "failed",
+			"staged", "unsupported", "up-to-date", "updated",
+		)
+		assertEnumValues(t, propertySchema(t, runtimeSchema, "install_method"),
+			"apt", "desktop-app", "direct-binary", "dnf", "go-install",
+			"homebrew", "npm", "rpm", "scoop", "unknown",
+		)
+		operationSchema := propertySchema(t, updateStatusSchema, "operation")
+		assertRequired(
+			t,
+			operationSchema,
+			"id",
+			"revision",
+			"targets",
+			"phase",
+			"percent",
+			"holder",
+			"waiting",
+			"started_at",
+			"last_error",
+		)
+		assertNotRequired(t, operationSchema, "active_target")
+		assertEnumValues(t, propertySchema(t, operationSchema, "active_target"), "app", "runtime")
+		assertEnumValues(t, propertySchema(t, operationSchema, "phase"),
+			"applying", "downloading", "failed", "finalized", "health-checking",
+			"installer-handoff", "pending", "restarted", "restarting", "rolled-back",
+			"staged", "swapping", "verified", "verifying",
+		)
+		assertEnumValues(t, propertySchema(t, operationSchema, "waiting"), "", "waiting-for-app")
+		holderSchema := propertySchema(t, operationSchema, "holder")
+		assertRequired(
+			t,
+			holderSchema,
+			"pid",
+			"pid_start_time",
+			"surface",
+			"executor_generation",
+			"lease_expires_at",
+		)
+		assertEnumValues(t, propertySchema(t, holderSchema, "surface"), "cli", "daemon", "shell", "web")
+		appSchema := propertySchema(t, updateStatusSchema, "app")
+		assertRequired(
+			t,
+			appSchema,
+			"status",
+			"running",
+			"current_version",
+			"latest_version",
+			"release_url",
+			"attempt_id",
+			"last_error",
+			"message",
+		)
+		assertEnumValues(t, propertySchema(t, appSchema, "status"),
+			"accepted", "applying", "available", "blocked", "canceled", "failed",
+			"staged", "unsupported", "up-to-date", "updated",
 		)
 
 		applyUpdate := operationFor(t, doc, "/api/settings/update/apply", "POST")
-		assertRequired(t, jsonRequestSchema(t, applyUpdate), "target")
-		assertRequired(t, jsonResponseSchema(t, applyUpdate, 200), "target", "status", "message")
+		applyRequestSchema := jsonRequestSchema(t, applyUpdate)
+		assertRequired(t, applyRequestSchema, "target")
+		assertEnumValues(t, propertySchema(t, applyRequestSchema, "target"), "app", "runtime")
+		applyResponseSchema := jsonResponseSchema(t, applyUpdate, 200)
+		assertRequired(t, applyResponseSchema, "target", "status", "message")
+		assertEnumValues(t, propertySchema(t, applyResponseSchema, "target"), "app", "runtime")
+		assertEnumValues(t, propertySchema(t, applyResponseSchema, "status"), "accepted", "blocked", "failed")
 
 		cancelUpdate := operationFor(t, doc, "/api/settings/update/cancel", "POST")
 		assertRequired(t, jsonResponseSchema(t, cancelUpdate, 200), "status", "message")

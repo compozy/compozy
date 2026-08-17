@@ -680,8 +680,11 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
 	gitignore := readTextFile(t, root, ".gitignore")
-	goreleaserText := readTextFile(t, root, ".goreleaser.yml")
-	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
+	goreleaserData, err := os.ReadFile(filepath.Join(root, ".goreleaser.yml"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(.goreleaser.yml) error = %v", err)
+	}
+	goreleaser := parseYAMLMap(t, goreleaserData, ".goreleaser.yml")
 	release := mapAt(t, goreleaser, "release")
 	checksum := mapAt(t, goreleaser, "checksum")
 
@@ -691,44 +694,70 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		if got, ok := release["draft"].(bool); !ok || !got {
 			t.Fatalf("release.draft = %#v, want true", release["draft"])
 		}
+		releaseJob := workflowJobSection(t, workflow, "release", "desktop-compatibility")
 		for _, required := range []string{
 			"needs: [release-plan, desktop-compatibility, desktop-build, desktop-smoke]",
 			"name: Download exact desktop release inventory",
 			"name: Produce and validate desktop compatibility assets",
 			"cp \".artifacts/desktop-build/${artifact}\" \".artifacts/desktop/${artifact}\"",
 			"name: Stage GitHub draft without publishing npm",
-			"needs: [release-plan, release]",
-			"name: Publish GitHub release before downstream package managers",
-			"needs: [release-plan, release, desktop-build, desktop-finalize]",
-			"needs: [release-plan, release, desktop-finalize, desktop-publish]",
-			"name: Publish verified CLI package",
 			"GORELEASER_PUBLISH_NPM: \"false\"",
-			"smoke-public-cli-package.sh",
 		} {
-			assertContainsText(t, "release custody graph", workflow, required)
+			assertContainsText(t, "release job custody graph", releaseJob, required)
 		}
-		assertContainsText(t, "GitHub finalizer", workflow, "-F draft=false")
+		publisherJob := workflowJobSection(t, workflow, "desktop-publish", "desktop-smoke")
+		assertContainsText(
+			t,
+			"desktop publisher dependencies",
+			publisherJob,
+			"needs: [release-plan, release, desktop-build, desktop-finalize]",
+		)
+		finalizerJob := workflowJobSection(t, workflow, "desktop-finalize", "cli-public-install-smoke")
+		assertContainsText(
+			t,
+			"desktop finalizer dependencies",
+			finalizerJob,
+			"needs: [release-plan, release]",
+		)
+		assertContainsText(
+			t,
+			"GitHub finalizer",
+			finalizerJob,
+			"name: Publish GitHub release before downstream package managers",
+		)
+		assertContainsText(t, "GitHub finalizer", finalizerJob, "-F draft=false")
+		cliSmokeJob := workflowJobSection(t, workflow, "cli-public-install-smoke", "npm-publish")
+		assertContainsText(
+			t,
+			"public CLI smoke",
+			cliSmokeJob,
+			"needs: [release-plan, release, desktop-finalize, desktop-publish]",
+		)
+		assertContainsText(t, "public CLI smoke", cliSmokeJob, "smoke-public-cli-package.sh")
+		npmPublishJob := workflowJobSection(t, workflow, "npm-publish", "")
+		assertContainsText(t, "npm publisher", npmPublishJob, "name: Publish verified CLI package")
 		assertContainsText(t, "isolated release staging ignore", gitignore, ".release-dist/")
-		assertContainsText(t, "checksum algorithm", fmt.Sprint(checksum["algorithm"]), "sha256")
+		assertEqualString(t, "checksum.algorithm", stringAt(t, checksum, "algorithm"), "sha256")
 
-		checksumFiles, ok := checksum["extra_files"].([]any)
-		if !ok || len(checksumFiles) != 7 {
-			t.Fatalf("checksum.extra_files = %#v, want seven desktop compatibility inputs", checksum["extra_files"])
+		checksumFiles := sliceAt(t, checksum, "extra_files")
+		if len(checksumFiles) != 7 {
+			t.Fatalf("checksum.extra_files length = %d, want seven desktop compatibility inputs", len(checksumFiles))
 		}
-		releaseFiles, ok := release["extra_files"].([]any)
-		if !ok || len(releaseFiles) != 8 {
-			t.Fatalf("release.extra_files = %#v, want installer plus seven desktop inputs", release["extra_files"])
+		releaseFiles := sliceAt(t, release, "extra_files")
+		if len(releaseFiles) != 8 {
+			t.Fatalf("release.extra_files length = %d, want installer plus seven desktop inputs", len(releaseFiles))
 		}
 		for _, required := range []string{
-			"CompozyOS-*-mac-arm64.dmg",
-			"CompozyOS-*-mac-arm64.zip",
-			"CompozyOS-*-mac-x64.dmg",
-			"CompozyOS-*-mac-x64.zip",
-			"CompozyOS-*-linux-x64.AppImage",
-			"CompozyOS-*-linux-x64.deb",
-			".artifacts/desktop/compat.json",
+			"./.artifacts/desktop/CompozyOS-*-mac-arm64.dmg",
+			"./.artifacts/desktop/CompozyOS-*-mac-arm64.zip",
+			"./.artifacts/desktop/CompozyOS-*-mac-x64.dmg",
+			"./.artifacts/desktop/CompozyOS-*-mac-x64.zip",
+			"./.artifacts/desktop/CompozyOS-*-linux-x64.AppImage",
+			"./.artifacts/desktop/CompozyOS-*-linux-x64.deb",
+			"./.artifacts/desktop/compat.json",
 		} {
-			assertContainsText(t, "signed desktop inventory", goreleaserText, required)
+			assertExtraFileGlob(t, "checksum.extra_files", checksumFiles, required)
+			assertReleaseExtraFile(t, releaseFiles, required, "")
 		}
 	})
 
@@ -742,14 +771,25 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		if err := os.MkdirAll(binDir, 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(bin) error = %v", err)
 		}
-		packageJSON := fmt.Sprintf(
-			"{\"name\":\"@compozy/cli\",\"version\":%q,\"bin\":{\"compozy\":\"bin/compozy\"}}",
+		packageJSON := fmt.Sprintf(`{
+  "name": "@compozy/cli",
+  "version": %q,
+  "bin": { "compozy": "bin/compozy" }
+}
+`,
 			releaseVersion,
 		)
 		if err := os.WriteFile(filepath.Join(packageRoot, "package.json"), []byte(packageJSON), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(package.json) error = %v", err)
 		}
-		fixtureCLI := "#!/usr/bin/env bash\nset -euo pipefail\nprintf '%s\\n' \"$*\" >\"${FAKE_COMPOZY_CALLS:?}\"\nif [[ \"$#\" != \"1\" || \"$1\" != \"version\" ]]; then\n  exit 1\nfi\nprintf 'CompozyOS %s\\n' \"${FAKE_COMPOZY_VERSION:?}\"\n"
+		fixtureCLI := `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >"${FAKE_COMPOZY_CALLS:?}"
+if [[ "$#" != "1" || "$1" != "version" ]]; then
+  exit 1
+fi
+printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
+`
 		if err := os.WriteFile(filepath.Join(binDir, "compozy"), []byte(fixtureCLI), 0o755); err != nil {
 			t.Fatalf("os.WriteFile(compozy fixture) error = %v", err)
 		}
@@ -806,6 +846,9 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		if got := strings.Count(workflow, "bunx --cwd desktop electron-builder"); got != 2 {
 			t.Fatalf("electron-builder invocation count = %d, want dry-run and production", got)
 		}
+		productionBuild := workflowJobSection(t, workflow, "desktop-build", "desktop-publish")
+		assertContainsText(t, "production Electron builder", productionBuild, "bunx --cwd desktop electron-builder")
+		assertContainsText(t, "production Electron publish suppression", productionBuild, "--publish never")
 		for _, forbidden := range []string{
 			"runner: windows-latest",
 		} {
@@ -1669,11 +1712,38 @@ func readYAMLMap(t *testing.T, root string, rel string) map[string]any {
 	if err != nil {
 		t.Fatalf("os.ReadFile(%s) error = %v", rel, err)
 	}
+	return parseYAMLMap(t, data, rel)
+}
+
+func parseYAMLMap(t *testing.T, data []byte, label string) map[string]any {
+	t.Helper()
+
 	var cfg map[string]any
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("yaml.Unmarshal(%s) error = %v", rel, err)
+		t.Fatalf("yaml.Unmarshal(%s) error = %v", label, err)
 	}
 	return cfg
+}
+
+func workflowJobSection(t *testing.T, workflow string, job string, nextJob string) string {
+	t.Helper()
+
+	startMarker := "\n  " + job + ":\n"
+	start := strings.Index(workflow, startMarker)
+	if start == -1 {
+		t.Fatalf("release workflow job %q missing", job)
+	}
+	start += 1
+	if nextJob == "" {
+		return workflow[start:]
+	}
+
+	endMarker := "\n  " + nextJob + ":\n"
+	endOffset := strings.Index(workflow[start:], endMarker)
+	if endOffset == -1 {
+		t.Fatalf("release workflow job %q missing after %q", nextJob, job)
+	}
+	return workflow[start : start+endOffset]
 }
 
 func mapAt(t *testing.T, src map[string]any, key string) map[string]any {
@@ -1855,10 +1925,30 @@ func assertReleaseExtraFile(t *testing.T, extraFiles []any, glob string, nameTem
 
 	for _, entry := range extraFiles {
 		extraFile := asMap(t, entry, "release.extra_files[]")
-		if stringAt(t, extraFile, "glob") == glob &&
-			stringAt(t, extraFile, "name_template") == nameTemplate {
+		if stringAt(t, extraFile, "glob") != glob {
+			continue
+		}
+		if nameTemplate == "" {
+			if _, hasNameTemplate := extraFile["name_template"]; !hasNameTemplate {
+				return
+			}
+			continue
+		}
+		if stringAt(t, extraFile, "name_template") == nameTemplate {
 			return
 		}
 	}
 	t.Fatalf("release.extra_files = %#v, want glob %q with name_template %q", extraFiles, glob, nameTemplate)
+}
+
+func assertExtraFileGlob(t *testing.T, label string, extraFiles []any, glob string) {
+	t.Helper()
+
+	for _, entry := range extraFiles {
+		extraFile := asMap(t, entry, label+"[]")
+		if stringAt(t, extraFile, "glob") == glob {
+			return
+		}
+	}
+	t.Fatalf("%s = %#v, want glob %q", label, extraFiles, glob)
 }

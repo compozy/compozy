@@ -21,9 +21,9 @@ squatter; EC-3 unhealthy), US-020 (browser coexistence AC-1/AC-2, EC-1 different
 mixed). Test IDs: E2E-003, E2E-018; IT-001, IT-004, IT-026, IT-027, IT-028; UT-013–UT-023,
 UT-089–UT-091.
 
-Per-OS evidence (N-004): all three OSes capture process-table before/after app open (no spawn),
+Per-OS evidence: macOS and Linux capture process-table before/after app open (no spawn),
 same-origin proof (session + local UI state parity with the tab), and the live two-way sync walk
-(E2E-018). macOS via scripted-manual smoke; Windows/Linux via Playwright _electron plus manual sync check.
+(E2E-011). Both use Playwright `_electron` plus the recorded manual sync check.
 Isolated-home labs only: the lab manifest's `COMPOZY_HOME` must be the one resolved — never the
 operator default home.
 

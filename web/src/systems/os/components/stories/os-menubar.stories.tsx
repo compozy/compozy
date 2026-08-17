@@ -1,13 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
-import { HttpResponse } from "msw";
-
 import { AgentCreateHostProvider } from "@/systems/agent";
-import { compozyApiMock } from "@/storybook/openapi-msw";
-import { storybookMswParameters } from "@/storybook/msw";
 import type { SettingsUpdateStatus } from "@/systems/settings";
+import { settingsUpdateIndicatorAvailable } from "@/systems/settings";
 import {
   settingsUpdateApplyingFixture,
   settingsUpdateBothAvailableFixture,
@@ -94,6 +91,7 @@ function MenubarFixture({
   toggleLocked,
   worktreeSelection,
   listing = MENUBAR_WORKTREE_LISTING,
+  updateAvailable = false,
 }: {
   overlay?: DesktopOverlay | null;
   live?: boolean;
@@ -103,6 +101,7 @@ function MenubarFixture({
   toggleLocked?: boolean;
   worktreeSelection?: ActiveWorktreeSelection;
   listing?: WorktreesResponse;
+  updateAvailable?: boolean;
 }) {
   const [shell] = useState(() => (live ? createLiveStoryShell() : createStoryShell()));
   const [active, setActive] = useState<DesktopOverlay | null>(overlay);
@@ -129,6 +128,7 @@ function MenubarFixture({
               setActive(current => (open ? id : current === id ? null : current))
             }
             attention={ATTENTION}
+            updateAvailable={updateAvailable}
             worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
             userHomeDir="/Users/ada"
             worktreeSelection={worktreeSelection}
@@ -333,11 +333,18 @@ export const DegradedSync: Story = {
 function updateIndicatorStory(snapshot: SettingsUpdateStatus): Story {
   return {
     args: { workspace: { name: "compozy", monogram: "CO" } },
-    parameters: storybookMswParameters({
-      settings: [compozyApiMock.get("/api/settings/update", () => HttpResponse.json(snapshot))],
-    }),
-    render: () => <MenubarFixture />,
+    render: () => <MenubarFixture updateAvailable={settingsUpdateIndicatorAvailable(snapshot)} />,
   };
+}
+
+function FocusUpdateIndicatorSetup() {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-testid='os-menubar-update']")?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return null;
 }
 
 /**
@@ -347,6 +354,17 @@ function updateIndicatorStory(snapshot: SettingsUpdateStatus): Story {
 export const UpdateIndicatorAvailable: Story = updateIndicatorStory(
   settingsUpdateBothAvailableFixture
 );
+
+/** Keyboard focus exposes the indicator's visible focus treatment. */
+export const UpdateIndicatorFocused: Story = {
+  ...updateIndicatorStory(settingsUpdateBothAvailableFixture),
+  render: () => (
+    <>
+      <MenubarFixture updateAvailable />
+      <FocusUpdateIndicatorSetup />
+    </>
+  ),
+};
 
 /** The calm default: nothing is offered, so the indicator is absent from the DOM. */
 export const UpdateIndicatorHidden: Story = updateIndicatorStory(settingsUpdateStatusFixture);

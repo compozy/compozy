@@ -2,29 +2,14 @@ import type { BootstrapEvent } from "../bootstrap/bootstrap-event";
 import type { ShellSnapshot } from "../state/app-state";
 import { publicSafeText } from "../state/public-safe-text";
 
-const RUNTIME_BELOW_MINIMUM = /runtime\s+(\S+)\s+does not satisfy\s+([^;]+);/u;
-const APP_BELOW_MINIMUM = /runtime\s+(\S+)\s+requires CompozyOS app\s+(\S+)\s+or newer;/u;
-
-function skewSnapshot(message: string): ShellSnapshot | null {
-  const runtimeBelowMinimum = RUNTIME_BELOW_MINIMUM.exec(message);
-  if (runtimeBelowMinimum?.[1] && runtimeBelowMinimum[2]) {
-    return {
-      state: "skew",
-      runtime: runtimeBelowMinimum[1],
-      needed: runtimeBelowMinimum[2],
-      newer: false,
-    };
-  }
-  const appBelowMinimum = APP_BELOW_MINIMUM.exec(message);
-  if (appBelowMinimum?.[1] && appBelowMinimum[2]) {
-    return {
-      state: "skew",
-      runtime: appBelowMinimum[1],
-      needed: appBelowMinimum[2],
-      newer: true,
-    };
-  }
-  return null;
+function skewSnapshot(event: BootstrapEvent): ShellSnapshot | null {
+  if (!event.compatibility) return null;
+  return {
+    state: "skew",
+    runtime: event.compatibility.runtime,
+    needed: event.compatibility.needed,
+    newer: event.compatibility.reason === "app_below_minimum",
+  };
 }
 
 function failureCode(event: BootstrapEvent): string {
@@ -44,7 +29,7 @@ export function bootstrapSnapshot(
   logPath = "desktop-bootstrap.jsonl"
 ): ShellSnapshot {
   if (event.status === "failed" || event.phase === "failed") {
-    const skew = skewSnapshot(event.message);
+    const skew = skewSnapshot(event);
     if (skew) return skew;
     return {
       state: "error",

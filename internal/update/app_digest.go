@@ -41,7 +41,10 @@ func (s *OperationStore) VerifyAppArtifact(
 	if !strings.EqualFold(digest, want) {
 		return s.failAppDigest(ctx, operation, executorGeneration, "app artifact digest does not match the operation")
 	}
-	return nil
+	_, err = s.Transition(ctx, operation.ID, executorGeneration, operation.Revision, Transition{
+		Kind: TransitionVerifyApp, Actor: ActorShell, Target: TargetApp, Percent: operation.Percent,
+	})
+	return err
 }
 
 func (s *OperationStore) failAppDigest(

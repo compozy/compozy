@@ -177,6 +177,34 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 	if got, want := paths.LogFile, filepath.Join(paths.LogsDir, "compozy.log"); got != want {
 		t.Fatalf("ResolveHomePathsFrom() LogFile = %q, want %q", got, want)
 	}
+	pathContracts := map[string]string{
+		"BinDir":                filepath.Join(paths.HomeDir, BinDirName),
+		"AppStateFile":          filepath.Join(paths.HomeDir, AppStateFileName),
+		"UpdateOperationFile":   filepath.Join(paths.HomeDir, UpdateOperationFileName),
+		"UpdateOperationLock":   filepath.Join(paths.HomeDir, UpdateOperationLockName),
+		"UpdateHistoryFile":     filepath.Join(paths.LogsDir, UpdateHistoryFileName),
+		"DesktopProvenanceFile": filepath.Join(paths.HomeDir, BinDirName, DesktopProvenanceFileName),
+	}
+	for label, want := range pathContracts {
+		var got string
+		switch label {
+		case "BinDir":
+			got = paths.BinDir
+		case "AppStateFile":
+			got = paths.AppStateFile
+		case "UpdateOperationFile":
+			got = paths.UpdateOperationFile
+		case "UpdateOperationLock":
+			got = paths.UpdateOperationLock
+		case "UpdateHistoryFile":
+			got = paths.UpdateHistoryFile
+		case "DesktopProvenanceFile":
+			got = paths.DesktopProvenanceFile
+		}
+		if got != want {
+			t.Fatalf("ResolveHomePathsFrom() %s = %q, want %q", label, got, want)
+		}
+	}
 
 	for _, dir := range []string{
 		paths.HomeDir,
@@ -185,10 +213,14 @@ func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 		paths.LoopsDir,
 		paths.MemoryDir,
 		paths.SessionsDir,
+		paths.ToolArtifactsDir,
 		paths.SessionAttachmentsDir,
 		paths.RestartsDir,
 		paths.LogsDir,
 		paths.ExtensionDataRoot,
+		paths.GatewayDir,
+		paths.GatewayCredentialsDir,
+		paths.BinDir,
 	} {
 		info, err := os.Stat(dir)
 		if err != nil {

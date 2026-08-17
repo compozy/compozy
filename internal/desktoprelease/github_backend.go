@@ -17,6 +17,8 @@ import (
 	"strings"
 )
 
+const DefaultGitHubAPIURL = "https://api.github.com"
+
 const githubObjectSHAKey = "sha"
 
 type HTTPDoer interface {
@@ -36,7 +38,7 @@ func NewGitHubBackend(client HTTPDoer, apiURL, repository, token string) (*GitHu
 		return nil, fmt.Errorf("desktop release: GitHub HTTP client is required")
 	}
 	if apiURL == "" {
-		apiURL = "https://api.github.com"
+		apiURL = DefaultGitHubAPIURL
 	}
 	if repository == "" || !strings.Contains(repository, "/") {
 		return nil, fmt.Errorf("desktop release: GitHub repository must be owner/name")
@@ -45,14 +47,25 @@ func NewGitHubBackend(client HTTPDoer, apiURL, repository, token string) (*GitHu
 		return nil, fmt.Errorf("desktop release: GitHub token is required")
 	}
 	apiURL = strings.TrimRight(apiURL, "/")
+	parsedAPIURL, err := url.Parse(apiURL)
+	if err != nil {
+		return nil, fmt.Errorf("desktop release: parse GitHub API URL: %w", err)
+	}
+	if parsedAPIURL.Scheme != "https" || parsedAPIURL.Host == "" || parsedAPIURL.User != nil {
+		return nil, fmt.Errorf("desktop release: GitHub API URL must be an HTTPS origin without user info")
+	}
 	uploadURL := apiURL
-	if apiURL == "https://api.github.com" {
+	if apiURL == DefaultGitHubAPIURL {
 		uploadURL = "https://uploads.github.com"
 	}
 	return &GitHubBackend{
 		client: client, apiURL: apiURL, uploadURL: uploadURL,
 		repository: repository, token: token,
 	}, nil
+}
+
+func (b *GitHubBackend) Repository() string {
+	return b.repository
 }
 
 func (b *GitHubBackend) ChannelRef(ctx context.Context, branch string) (string, error) {
@@ -69,33 +82,6 @@ func (b *GitHubBackend) ChannelRef(ctx context.Context, branch string) (string, 
 		return "", err
 	}
 	return response.Object.SHA, nil
-}
-
-func (b *GitHubBackend) FindOperation(
-	ctx context.Context,
-	branch, operationID string,
-) (*ChannelCommit, error) {
-	var commits []struct {
-		SHA    string `json:"sha"`
-		Commit struct {
-			Message string `json:"message"`
-		} `json:"commit"`
-	}
-	err := b.get(ctx, "/repos/"+b.repository+"/commits?sha="+url.QueryEscape(branch)+"&per_page=100", &commits)
-	if isGitHubStatus(err, http.StatusNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	needle := "operation_id=" + operationID
-	for _, commit := range commits {
-		if hasAuditLine(commit.Commit.Message, needle) {
-			resolved, readErr := b.ReadCommit(ctx, commit.SHA)
-			return &resolved, readErr
-		}
-	}
-	return nil, nil
 }
 
 func (b *GitHubBackend) Commit(ctx context.Context, request CommitRequest) (string, error) {
@@ -266,47 +252,6 @@ func (b *GitHubBackend) ReadCommit(ctx context.Context, sha string) (ChannelComm
 	return ChannelCommit{SHA: sha, Generation: generation, Files: files}, nil
 }
 
-func (b *GitHubBackend) KnownGood(
-	ctx context.Context,
-	branch, version string,
-) (ChannelCommit, error) {
-	var commits []struct {
-		SHA    string `json:"sha"`
-		Commit struct {
-			Message string `json:"message"`
-		} `json:"commit"`
-	}
-	if err := b.get(
-		ctx,
-		"/repos/"+b.repository+"/commits?sha="+url.QueryEscape(branch)+"&per_page=100",
-		&commits,
-	); err != nil {
-		return ChannelCommit{}, err
-	}
-	for _, candidate := range commits {
-		if !hasAuditLine(candidate.Commit.Message, "known_good=true") {
-			continue
-		}
-		commit, err := b.ReadCommit(ctx, candidate.SHA)
-		if err != nil {
-			return ChannelCommit{}, fmt.Errorf("desktop release: inspect known-good commit %s: %w", candidate.SHA, err)
-		}
-		if commit.Generation.Version == version {
-			return commit, nil
-		}
-	}
-	return ChannelCommit{}, fmt.Errorf("desktop release: no known-good generation for %s", version)
-}
-
-func hasAuditLine(message, want string) bool {
-	for line := range strings.SplitSeq(message, "\n") {
-		if strings.TrimSpace(line) == want {
-			return true
-		}
-	}
-	return false
-}
-
 type githubRelease struct {
 	ID     int64 `json:"id"`
 	Assets []struct {
@@ -456,7 +401,9 @@ func (b *GitHubBackend) request(
 }
 
 func (b *GitHubBackend) authorize(request *http.Request) {
-	request.Header.Set("Accept", "application/vnd.github+json")
+	if request.Header.Get("Accept") == "" {
+		request.Header.Set("Accept", "application/vnd.github+json")
+	}
 	request.Header.Set("Authorization", "Bearer "+b.token)
 	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 }

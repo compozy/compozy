@@ -1,18 +1,21 @@
 import { spawn } from "node:child_process";
-import { appendFile, chmod, mkdir } from "node:fs/promises";
+import { appendFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 
-import { parseBootstrapEvent, type BootstrapEvent } from "./bootstrap-event";
+import {
+  parseBootstrapEvent,
+  type BootstrapEvent,
+  type BootstrapResolution,
+} from "./bootstrap-event";
 import { verifyRuntimeBundle } from "./bundle-integrity";
+import { ensurePrivateDirectory } from "../files/private-directory";
 
 const MAXIMUM_STDERR_BYTES = 64 * 1024;
 
-export interface BootstrapResult {
-  readonly origin: string;
-  readonly version: string;
-  readonly pid: number;
-}
+export type BootstrapResult = NonNullable<BootstrapEvent["daemon"]> & {
+  readonly resolution: BootstrapResolution;
+};
 
 export class BootstrapRunner {
   readonly #bundlePath: string;
@@ -20,6 +23,7 @@ export class BootstrapRunner {
   readonly #logPath: string;
   readonly #minimumRuntime: string;
   readonly #appVersion: string;
+  readonly #bootId: string;
   readonly #environment: NodeJS.ProcessEnv;
   #running: Promise<BootstrapResult> | null = null;
 
@@ -29,6 +33,7 @@ export class BootstrapRunner {
     logPath: string;
     minimumRuntime: string;
     appVersion: string;
+    bootId: string;
     environment?: NodeJS.ProcessEnv;
   }) {
     this.#bundlePath = options.bundlePath;
@@ -36,6 +41,7 @@ export class BootstrapRunner {
     this.#logPath = options.logPath;
     this.#minimumRuntime = options.minimumRuntime;
     this.#appVersion = options.appVersion;
+    this.#bootId = options.bootId;
     this.#environment = options.environment ?? process.env;
   }
 
@@ -52,8 +58,7 @@ export class BootstrapRunner {
 
   async #execute(onEvent: (event: BootstrapEvent) => Promise<void>): Promise<BootstrapResult> {
     await verifyRuntimeBundle(this.#bundlePath, this.#manifestPath);
-    await mkdir(dirname(this.#logPath), { recursive: true, mode: 0o700 });
-    await chmod(dirname(this.#logPath), 0o700);
+    await ensurePrivateDirectory(dirname(this.#logPath));
     const child = spawn(
       this.#bundlePath,
       [
@@ -88,12 +93,26 @@ export class BootstrapRunner {
     });
     const output = createInterface({ input: child.stdout, crlfDelay: Infinity });
     for await (const line of output) {
-      await appendFile(this.#logPath, `${line}\n`, { encoding: "utf8", mode: 0o600 });
       const event = parseBootstrapEvent(line);
       if (!event) throw new Error("The runtime bootstrap returned an invalid event.");
+      await appendFile(
+        this.#logPath,
+        `${JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: event.status === "failed" ? "ERROR" : "INFO",
+          boot_id: this.#bootId,
+          message: event.message,
+          phase: event.phase,
+          status: event.status,
+          ...(event.resolution ? { resolution: event.resolution } : {}),
+          ...(event.daemon ? { daemon: event.daemon } : {}),
+        })}\n`,
+        { encoding: "utf8", mode: 0o600 }
+      );
       await onEvent(event);
       if (event.phase === "ready" && event.status === "completed" && event.daemon) {
-        ready = event.daemon;
+        if (!event.resolution) throw new Error("The runtime bootstrap omitted its resolution.");
+        ready = { ...event.daemon, resolution: event.resolution };
       }
     }
     const exitCode = await exit;

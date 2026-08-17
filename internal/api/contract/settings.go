@@ -194,3 +194,53 @@ const (
 	SettingsUpdateApplyBlocked  SettingsUpdateApplyStatus = "blocked"
 	SettingsUpdateApplyFailed   SettingsUpdateApplyStatus = "failed"
 )
+
+type SettingsUpdatePhase string
+
+const (
+	SettingsUpdatePhasePending          SettingsUpdatePhase = "pending"
+	SettingsUpdatePhaseDownloading      SettingsUpdatePhase = "downloading"
+	SettingsUpdatePhaseVerifying        SettingsUpdatePhase = "verifying"
+	SettingsUpdatePhaseSwapping         SettingsUpdatePhase = "swapping"
+	SettingsUpdatePhaseRestarting       SettingsUpdatePhase = "restarting"
+	SettingsUpdatePhaseHealthChecking   SettingsUpdatePhase = "health-checking"
+	SettingsUpdatePhaseFinalized        SettingsUpdatePhase = "finalized"
+	SettingsUpdatePhaseRolledBack       SettingsUpdatePhase = "rolled-back"
+	SettingsUpdatePhaseFailed           SettingsUpdatePhase = "failed"
+	SettingsUpdatePhaseStaged           SettingsUpdatePhase = "staged"
+	SettingsUpdatePhaseApplying         SettingsUpdatePhase = "applying"
+	SettingsUpdatePhaseInstallerHandoff SettingsUpdatePhase = "installer-handoff"
+	SettingsUpdatePhaseRestarted        SettingsUpdatePhase = "restarted"
+	SettingsUpdatePhaseVerified         SettingsUpdatePhase = "verified"
+)
+
+type SettingsUpdateWaitingState string
+
+const (
+	SettingsUpdateWaitingNone   SettingsUpdateWaitingState = ""
+	SettingsUpdateWaitingForApp SettingsUpdateWaitingState = "waiting-for-app"
+)
+
+type SettingsUpdateActor string
+
+const (
+	SettingsUpdateActorCLI    SettingsUpdateActor = "cli"
+	SettingsUpdateActorDaemon SettingsUpdateActor = "daemon"
+	SettingsUpdateActorWeb    SettingsUpdateActor = "web"
+	SettingsUpdateActorShell  SettingsUpdateActor = "shell"
+)
+
+type SettingsUpdateInstallMethod string
+
+const (
+	SettingsUpdateInstallDirectBinary SettingsUpdateInstallMethod = "direct-binary"
+	SettingsUpdateInstallHomebrew     SettingsUpdateInstallMethod = "homebrew"
+	SettingsUpdateInstallNPM          SettingsUpdateInstallMethod = "npm"
+	SettingsUpdateInstallAPT          SettingsUpdateInstallMethod = "apt"
+	SettingsUpdateInstallDNF          SettingsUpdateInstallMethod = "dnf"
+	SettingsUpdateInstallRPM          SettingsUpdateInstallMethod = "rpm"
+	SettingsUpdateInstallScoop        SettingsUpdateInstallMethod = "scoop"
+	SettingsUpdateInstallGo           SettingsUpdateInstallMethod = "go-install"
+	SettingsUpdateInstallDesktopApp   SettingsUpdateInstallMethod = "desktop-app"
+	SettingsUpdateInstallUnknown      SettingsUpdateInstallMethod = "unknown"
+)

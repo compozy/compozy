@@ -300,6 +300,7 @@ test("operator can distinguish skills actions that apply now from policy changes
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/marketplace/skills");
     await expect.poll(() => new URL(appPage.url()).search).toBe("");
     await openAppWindow(appPage, "Settings", "settings");
+    await settingsUI.shell.sectionLink("skills").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/skills");
 
     await settingsWin

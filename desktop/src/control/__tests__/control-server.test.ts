@@ -15,7 +15,7 @@ interface WireResponse {
   readonly error?: { readonly code: string; readonly message: string };
 }
 
-async function request(path: string, payload: unknown): Promise<WireResponse> {
+async function sendRawRequest(path: string, payload: string): Promise<string> {
   return await new Promise((resolve, reject) => {
     const socket = createConnection(path);
     let response = "";
@@ -23,26 +23,14 @@ async function request(path: string, payload: unknown): Promise<WireResponse> {
     socket.once("error", reject);
     socket.on("data", chunk => (response += chunk));
     socket.once("end", () => {
-      try {
-        resolve(JSON.parse(response) as WireResponse);
-      } catch (error) {
-        reject(error);
-      }
+      resolve(response);
     });
-    socket.once("connect", () => socket.end(`${JSON.stringify(payload)}\n`));
+    socket.once("connect", () => socket.end(payload));
   });
 }
 
-async function rawRequest(path: string, payload: string): Promise<WireResponse> {
-  return await new Promise((resolve, reject) => {
-    const socket = createConnection(path);
-    let response = "";
-    socket.setEncoding("utf8");
-    socket.once("error", reject);
-    socket.on("data", chunk => (response += chunk));
-    socket.once("end", () => resolve(JSON.parse(response) as WireResponse));
-    socket.once("connect", () => socket.end(payload));
-  });
+async function request(path: string, payload: unknown): Promise<WireResponse> {
+  return JSON.parse(await sendRawRequest(path, `${JSON.stringify(payload)}\n`)) as WireResponse;
 }
 
 // Invariant: the control channel accepts only the current owner token and keeps files, messages, and methods bounded.
@@ -83,7 +71,7 @@ describe("control server", () => {
           params: {},
         });
         expect(unauthorized.error?.code).toBe(
-          candidate === undefined ? "app_control_invalid_request" : "app_control_unauthorized"
+          candidate === undefined ? "app_control_invalid_request" : "app_control_unavailable"
         );
       }
       expect((await stat(tokenPath)).mode & 0o777).toBe(0o600);
@@ -94,6 +82,34 @@ describe("control server", () => {
     } finally {
       if (server) await server.close();
       await deleteControlToken(tokenPath);
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("Should keep a valid long-running diagnostic request connected", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-control-long-"));
+    const socketPath = join(home, "app.sock");
+    const token = await rotateControlToken(join(home, "app.token"));
+    const server = await ControlServer.start(
+      socketPath,
+      token,
+      async () => {
+        await new Promise(resolve => setTimeout(resolve, 2_100));
+        return { bundle_path: "/tmp/diagnostics.tar.gz", bytes: 12 };
+      },
+      () => undefined
+    );
+    try {
+      const response = await request(socketPath, {
+        schema_version: 1,
+        id: 12,
+        token,
+        method: "export_diagnostics",
+        params: { consent: true },
+      });
+      expect(response.result).toEqual({ bundle_path: "/tmp/diagnostics.tar.gz", bytes: 12 });
+    } finally {
+      await server.close();
       await rm(home, { recursive: true, force: true });
     }
   });
@@ -128,9 +144,9 @@ describe("control server", () => {
       expect(oversized.error?.code).toBe("app_control_invalid_request");
 
       const duplicate = `${JSON.stringify({ schema_version: 1, id: 11, token, method: "diagnose" })}\n${JSON.stringify({ schema_version: 1, id: 12, token, method: "diagnose" })}\n`;
-      expect((await rawRequest(socketPath, duplicate)).error?.code).toBe(
-        "app_control_invalid_request"
-      );
+      expect(
+        (JSON.parse(await sendRawRequest(socketPath, duplicate)) as WireResponse).error?.code
+      ).toBe("app_control_invalid_request");
     } finally {
       await server.close();
       await rm(home, { recursive: true, force: true });

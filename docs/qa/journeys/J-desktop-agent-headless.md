@@ -20,14 +20,14 @@ flowchart TD
     J -->|yes| K[Consent semantics walk deterministically, restart, new version in status]
     J -->|no| P[App update stays staged for the next launch]
     H -->|dormant operation exists| Q[compozy update --cancel frees the update channel]
-    K -->|post-migration boot failure| L[status reports runtime_state recovery_required with typed error, diagnose returns a redacted report and consent-gated local export]
-    L --> M[Applying the fixed newer signed build clears the state]
+    K -->|post-swap health failure| L[update operation restores the previous runtime and records rolled-back with the typed failure]
+    L --> M[Status confirms the restored runtime is healthy; retry uses a newly verified candidate]
     K --> N[Kill the app process]
     P --> N
     Q --> N
     M --> N
     N --> O[True end: status running:false, every state seen was truthful and deterministic]
-    H --> R[Deleted app-scoped updater returns unknown command and no side effect]
+    H --> R[compozy app update --check returns unknown command and no side effect]
     R --> I
     H -.->|socket absent or unresponsive| X1[Abandon: app_not_running / app_control_unavailable named deterministically - the agent stops cleanly, no ambiguous retry]
 ```
@@ -56,10 +56,10 @@ journey:
       expected_observable: "Every read agrees; apply is runtime-first; a closed app stages; `--cancel` releases only a dormant operation"
     - step: 5
       verb: "Probe the retired app-scoped update verb"
-      expected_observable: "The deleted app-scoped updater subcommand is unknown, creates no operation, and offers no compatibility alias"
+      expected_observable: "`compozy app update --check` is unknown, creates no operation, and offers no compatibility alias"
     - step: 6
       verb: "Probe failure vocabulary"
-      expected_observable: "`app_not_installed`, `app_not_running`, `app_control_unavailable`, and `recovery_required` are named, typed, and stable"
+      expected_observable: "`app_not_installed`, `app_not_running`, and `app_control_unavailable` are named, typed, and stable; a failed runtime health check is reported separately as update outcome `rolled-back`"
   goal:
     observable: "Full desktop lifecycle driven and observed from a terminal alone"
     side_effects: [app-launched, update-applied, diagnostic-report-returned]
@@ -70,5 +70,5 @@ journey:
     - at_step: 4
       how: "The control socket is absent or unresponsive mid-operation."
       resume: "The deterministic error names the condition; a later retry against a healthy app proceeds with no residue from the aborted attempt."
-  crosses: [cli-app-verbs, control-socket, app-state-schema, update-feeds, quiesce-contract, platform-registration]
+  crosses: [cli-app-verbs, control-socket, app-state-schema, github-release-channel, quiesce-contract, platform-registration]
 ```

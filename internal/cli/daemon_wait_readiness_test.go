@@ -12,9 +12,10 @@ import (
 )
 
 type timeoutDaemonProcess struct {
-	waitCalls atomic.Int32
-	done      chan struct{}
-	waitErr   error
+	waitCalls      atomic.Int32
+	terminateCalls atomic.Int32
+	done           chan struct{}
+	waitErr        error
 }
 
 func (p *timeoutDaemonProcess) PID() int {
@@ -29,6 +30,16 @@ func (p *timeoutDaemonProcess) Wait() error {
 	p.waitCalls.Add(1)
 	<-p.done
 	return p.waitErr
+}
+
+func (p *timeoutDaemonProcess) Terminate() error {
+	p.terminateCalls.Add(1)
+	select {
+	case <-p.done:
+	default:
+		p.complete(nil)
+	}
+	return nil
 }
 
 func (p *timeoutDaemonProcess) complete(err error) {
@@ -52,7 +63,7 @@ func TestWaitForDaemonStartReadiness(t *testing.T) {
 		deps.startTimeout = 5 * time.Millisecond
 		deps.processAlive = func(int) bool { return true }
 
-		_, err := waitForDaemonStart(testutil.Context(t), deps, child)
+		_, err := waitForDaemonStart(context.Background(), deps, child)
 		if err == nil || !strings.Contains(err.Error(), "daemon did not become ready before timeout") {
 			t.Fatalf("waitForDaemonStart() error = %v, want readiness timeout", err)
 		}
@@ -60,6 +71,31 @@ func TestWaitForDaemonStartReadiness(t *testing.T) {
 			t.Fatalf("process.Wait() calls = %d, want 0 before child exit", calls)
 		}
 		child.complete(nil)
+	})
+
+	t.Run("Should terminate and reap an unready bootstrap child", func(t *testing.T) {
+		t.Parallel()
+
+		child := &timeoutDaemonProcess{done: make(chan struct{})}
+		deps := newTestDeps(t, &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{}, errors.New("daemon unavailable")
+			},
+		})
+		deps.pollInterval = time.Millisecond
+		deps.startTimeout = 5 * time.Millisecond
+		deps.processAlive = func(int) bool { return true }
+
+		_, err := waitForBootstrapDaemonStart(context.Background(), deps, child)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("waitForBootstrapDaemonStart() error = %v, want context.DeadlineExceeded", err)
+		}
+		if got := child.terminateCalls.Load(); got != 1 {
+			t.Fatalf("Terminate() calls = %d, want 1", got)
+		}
+		if got := child.waitCalls.Load(); got != 1 {
+			t.Fatalf("Wait() calls = %d, want 1", got)
+		}
 	})
 
 	t.Run("Should return child wait error when detached daemon exits before readiness", func(t *testing.T) {

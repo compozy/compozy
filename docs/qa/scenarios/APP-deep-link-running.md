@@ -19,8 +19,8 @@ overlaps:
 PRD stories: US-010 (AC-1 focus+navigate; EC-1 not-found; EC-2 hostile payload safe; EC-3 rapid
 links, last wins). BR-15/BR-16. Test IDs: E2E-008; IT-019, IT-020; UT-044–UT-047.
 
-Per-OS evidence (N-004): each OS registers the scheme differently — all three OSes walk one valid
+Per-OS evidence: macOS and Linux each walk one valid
 link (focus + correct view capture), one deleted-entity link (product not-found view), and one
-hostile payload (`compozyos://open/http://evil.com`-class → default view). macOS scripted-manual;
-Windows/Linux scripted via Playwright _electron where the harness supports scheme activation, otherwise
-manual activation with recorded transcripts.
+hostile payload (`compozyos://open/http://evil.com`-class → default view), scripted through
+Playwright `_electron` where the harness supports scheme activation and otherwise manually with
+recorded transcripts.

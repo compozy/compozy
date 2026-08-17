@@ -21,16 +21,16 @@ export class OperationWatcher {
   #rerun = false;
   #lastRevision = "";
 
-  constructor(
-    path: string,
-    pollIntervalMs: number,
-    onOperation: (operation: UpdateOperation | null) => Promise<void>,
-    onError: (error: Error) => void
-  ) {
-    this.#path = path;
-    this.#pollIntervalMs = pollIntervalMs;
-    this.#onOperation = onOperation;
-    this.#onError = onError;
+  constructor(options: {
+    path: string;
+    pollIntervalMs: number;
+    onOperation: (operation: UpdateOperation | null) => Promise<void>;
+    onError: (error: Error) => void;
+  }) {
+    this.#path = options.path;
+    this.#pollIntervalMs = options.pollIntervalMs;
+    this.#onOperation = options.onOperation;
+    this.#onError = options.onError;
   }
 
   start(): void {

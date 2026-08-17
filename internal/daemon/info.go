@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/compozy/compozy/internal/network"
 )
+
+const daemonInfoMaxBytes = 64 << 10
 
 // Info is the persisted daemon discovery record written to daemon.json.
 type Info struct {
@@ -67,15 +70,28 @@ func (n NetworkInfo) Validate() error {
 }
 
 // ReadInfo loads daemon.json from disk.
-func ReadInfo(path string) (Info, error) {
+func ReadInfo(path string) (_ Info, returnErr error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return Info{}, errors.New("daemon: daemon info path is required")
 	}
 
-	data, err := os.ReadFile(cleanPath)
+	file, err := os.Open(cleanPath)
 	if err != nil {
 		return Info{}, fmt.Errorf("daemon: read daemon info %q: %w", cleanPath, err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("daemon: close daemon info %q: %w", cleanPath, err))
+		}
+	}()
+
+	data, err := io.ReadAll(io.LimitReader(file, daemonInfoMaxBytes+1))
+	if err != nil {
+		return Info{}, fmt.Errorf("daemon: read daemon info %q: %w", cleanPath, err)
+	}
+	if len(data) > daemonInfoMaxBytes {
+		return Info{}, fmt.Errorf("daemon: daemon info %q exceeds %d bytes", cleanPath, daemonInfoMaxBytes)
 	}
 
 	var info Info

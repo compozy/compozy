@@ -21,12 +21,8 @@ type cliUpdateRuntime struct {
 
 var _ compozyupdate.CoordinatorRuntime = (*cliUpdateRuntime)(nil)
 
-func newCLIUpdateRuntime(deps commandDeps) (*cliUpdateRuntime, error) {
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		return nil, err
-	}
-	return &cliUpdateRuntime{deps: deps, homePaths: homePaths}, nil
+func newCLIUpdateRuntime(deps commandDeps, homePaths compozyconfig.HomePaths) *cliUpdateRuntime {
+	return &cliUpdateRuntime{deps: deps, homePaths: homePaths}
 }
 
 func newUpdateHolder(surface compozyupdate.Actor, now time.Time) (compozyupdate.Holder, error) {
@@ -40,7 +36,7 @@ func newUpdateHolder(surface compozyupdate.Actor, now time.Time) (compozyupdate.
 	}
 	return compozyupdate.Holder{
 		PID: os.Getpid(), PIDStartTime: startedAt, Surface: surface,
-		ExecutorGeneration: generation, LeaseExpiresAt: now.UTC().Add(2 * time.Minute),
+		ExecutorGeneration: generation, LeaseExpiresAt: now.UTC().Add(compozyupdate.DefaultLeaseDuration),
 	}, nil
 }
 
@@ -95,18 +91,18 @@ func (r *cliUpdateRuntime) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-func (r *cliUpdateRuntime) InstalledAppVersion(ctx context.Context) (string, error) {
+func (r *cliUpdateRuntime) InstalledApp(ctx context.Context) (compozyupdate.InstalledApp, error) {
 	if r.deps.resolveAppInstallation == nil {
-		return "", errors.New("cli: app installation resolver is required")
+		return compozyupdate.InstalledApp{}, errors.New("cli: app installation resolver is required")
 	}
 	installation, err := r.deps.resolveAppInstallation(ctx, r.homePaths)
 	if err != nil {
-		return "", err
+		return compozyupdate.InstalledApp{}, err
 	}
-	if !installation.Installed {
-		return "", nil
-	}
-	return strings.TrimSpace(installation.Version), nil
+	return compozyupdate.InstalledApp{
+		Present: installation.Installed,
+		Version: strings.TrimSpace(installation.Version),
+	}, nil
 }
 
 func waitForAppUpdateCompletion(
@@ -130,30 +126,41 @@ func waitForAppUpdateCompletion(
 		nil,
 		"cli: desktop app update did not complete before its deadline",
 		func(pollCtx context.Context, _ pollEvent) (*compozyupdate.Operation, bool, error) {
-			archived, err := store.ReadArchived(pollCtx, operationID)
-			if err != nil {
-				return nil, true, err
-			}
-			if archived != nil {
-				return archivedAppCompletion(archived)
+			if archived, done, err := readArchivedAppCompletion(pollCtx, store, operationID); done || err != nil {
+				return archived, done, err
 			}
 			live, err := store.Read(pollCtx)
 			if err != nil {
 				return nil, true, err
 			}
 			if live == nil || live.ID != operationID {
-				archived, archiveErr := store.ReadArchived(pollCtx, operationID)
-				if archiveErr != nil {
-					return nil, true, archiveErr
-				}
-				if archived != nil {
-					return archivedAppCompletion(archived)
+				if archived, done, archiveErr := readArchivedAppCompletion(
+					pollCtx,
+					store,
+					operationID,
+				); done || archiveErr != nil {
+					return archived, done, archiveErr
 				}
 				return nil, true, errors.New("cli: update operation disappeared before archival")
 			}
 			return nil, false, nil
 		},
 	)
+}
+
+func readArchivedAppCompletion(
+	ctx context.Context,
+	store *compozyupdate.OperationStore,
+	operationID string,
+) (*compozyupdate.Operation, bool, error) {
+	archived, err := store.ReadArchived(ctx, operationID)
+	if err != nil {
+		return nil, true, err
+	}
+	if archived == nil {
+		return nil, false, nil
+	}
+	return archivedAppCompletion(archived)
 }
 
 func archivedAppCompletion(operation *compozyupdate.Operation) (*compozyupdate.Operation, bool, error) {

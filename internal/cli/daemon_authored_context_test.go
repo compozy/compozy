@@ -33,6 +33,15 @@ func (p *contractDaemonProcess) Wait() error {
 	return p.waitErr
 }
 
+func (p *contractDaemonProcess) Terminate() error {
+	select {
+	case <-p.done:
+	default:
+		p.complete(nil)
+	}
+	return nil
+}
+
 func (p *contractDaemonProcess) complete(err error) {
 	p.waitErr = err
 	close(p.done)
@@ -50,9 +59,9 @@ func TestCLIDaemonLifecycleContracts(t *testing.T) {
 			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
 				statusCalls++
 				if statusCalls == 1 {
-					return DaemonStatus{Status: "ready", PID: 84}, nil
+					return DaemonStatus{Status: daemonRunningStatus, PID: 84}, nil
 				}
-				return DaemonStatus{Status: "ready", PID: 42}, nil
+				return DaemonStatus{Status: daemonRunningStatus, PID: 42}, nil
 			},
 		})
 		deps.pollInterval = time.Millisecond
@@ -64,8 +73,8 @@ func TestCLIDaemonLifecycleContracts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("waitForDaemonStart() error = %v", err)
 		}
-		if status.Status != "ready" || status.PID != 42 {
-			t.Fatalf("waitForDaemonStart() status = %#v, want ready pid 42", status)
+		if status.Status != daemonRunningStatus || status.PID != 42 {
+			t.Fatalf("waitForDaemonStart() status = %#v, want running pid 42", status)
 		}
 		if statusCalls < 2 {
 			t.Fatalf("DaemonStatus() calls = %d, want readiness retry after pid mismatch", statusCalls)

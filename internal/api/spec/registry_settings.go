@@ -118,6 +118,7 @@ func applySettingsUpdateOperationSpec() OperationSpec {
 			},
 			{Status: 400, Description: "Invalid update target", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -138,6 +139,7 @@ func cancelSettingsUpdateOperationSpec() OperationSpec {
 				Body:        contract.SettingsUpdateCancelResponse{},
 			},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}

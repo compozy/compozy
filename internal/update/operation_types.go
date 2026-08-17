@@ -10,9 +10,13 @@ import (
 const OperationSchemaVersion = 1
 
 const (
-	operationOutcomeCanceled = "canceled"
-	operationOutcomeFailed   = "failed"
-	operationOutcomeStarted  = "started"
+	operationOutcomeCanceled   = "canceled"
+	operationOutcomeFailed     = "failed"
+	operationOutcomeRolledBack = "rolled-back"
+	operationOutcomeStaged     = "staged"
+	operationOutcomeStarted    = "started"
+	operationOutcomeUpdated    = "updated"
+	operationOutcomeWaiting    = "waiting"
 )
 
 // Target identifies one install track in a host-global update operation.
@@ -82,9 +86,10 @@ type ArtifactIdentity struct {
 // RuntimeOperationState journals the runtime track.
 type RuntimeOperationState struct {
 	ArtifactIdentity
-	InstallMethod InstallMethod  `json:"install_method"`
-	BackupPath    string         `json:"backup_path,omitempty"`
-	Phase         OperationPhase `json:"phase"`
+	InstallMethod   InstallMethod  `json:"install_method"`
+	BackupPath      string         `json:"backup_path,omitempty"`
+	Phase           OperationPhase `json:"phase"`
+	DaemonRestarted bool           `json:"daemon_restarted"`
 }
 
 // AppOperationState journals the desktop app track.
@@ -92,6 +97,7 @@ type AppOperationState struct {
 	ArtifactIdentity
 	AttemptID           string         `json:"attempt_id"`
 	Phase               OperationPhase `json:"phase"`
+	DigestVerified      bool           `json:"digest_verified"`
 	ConsecutiveFailures int            `json:"consecutive_failures"`
 	WatchdogDeadline    time.Time      `json:"watchdog_deadline,omitzero"`
 }
@@ -133,16 +139,8 @@ func (a Actor) valid() bool {
 }
 
 func (p OperationPhase) validFor(target Target) bool {
-	switch target {
-	case TargetRuntime:
-		return p == PhasePending || p == PhaseDownloading || p == PhaseVerifying || p == PhaseSwapping ||
-			p == PhaseRestarting || p == PhaseHealthChecking || p == PhaseFinalized || p == PhaseRolledBack || p == PhaseFailed
-	case TargetApp:
-		return p == PhasePending || p == PhaseStaged || p == PhaseApplying || p == PhaseInstallerHandoff ||
-			p == PhaseRestarted || p == PhaseVerified || p == PhaseFailed
-	default:
-		return false
-	}
+	_, ok := allowedPhaseTransitions[target][p]
+	return ok
 }
 
 func validateOperation(operation *Operation) error {
@@ -164,6 +162,9 @@ func validateOperation(operation *Operation) error {
 	if operation.App != nil && !operation.App.Phase.validFor(TargetApp) {
 		return fmt.Errorf("update: invalid app phase %q", operation.App.Phase)
 	}
+	if err := validateOperationTargetState(operation); err != nil {
+		return err
+	}
 	if err := validateOperationHolder(operation); err != nil {
 		return err
 	}
@@ -172,6 +173,36 @@ func validateOperation(operation *Operation) error {
 	}
 	if operation.Percent < -1 || operation.Percent > 100 {
 		return fmt.Errorf("update: percent %d is outside -1..100", operation.Percent)
+	}
+	return nil
+}
+
+func validateOperationTargetState(operation *Operation) error {
+	targets := make(map[Target]struct{}, len(operation.Targets))
+	for _, target := range operation.Targets {
+		targets[target] = struct{}{}
+	}
+	_, hasRuntime := targets[TargetRuntime]
+	_, hasApp := targets[TargetApp]
+	if hasRuntime != (operation.Runtime != nil) || hasApp != (operation.App != nil) {
+		return errors.New("update: operation target state does not match its target list")
+	}
+	if operation.ActiveTarget != "" {
+		if _, ok := targets[operation.ActiveTarget]; !ok {
+			return errors.New("update: active target is not part of the operation")
+		}
+	}
+	if operation.Waiting == WaitingForApp {
+		if operation.ActiveTarget != "" || operation.Holder != nil || operation.App == nil ||
+			operation.App.Phase != PhaseStaged || !runtimeAllowsApp(operation.Runtime) {
+			return errors.New("update: waiting-for-app state is inconsistent")
+		}
+	}
+	if operation.Holder != nil && operation.ActiveTarget == "" {
+		return errors.New("update: a held operation requires an active target")
+	}
+	if operation.App != nil && operation.App.Phase == PhaseVerified && !operation.App.DigestVerified {
+		return errors.New("update: verified app phase requires a verified artifact digest")
 	}
 	return nil
 }

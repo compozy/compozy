@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { Page } from "@playwright/test";
 import path from "node:path";
 import process from "node:process";

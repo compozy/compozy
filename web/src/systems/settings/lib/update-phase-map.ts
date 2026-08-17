@@ -1,4 +1,4 @@
-import type { SettingsUpdateTarget } from "../types";
+import type { SettingsUpdateOperation, SettingsUpdateTarget } from "../types";
 
 /**
  * The fixed UI phase vocabulary an update operation can report. Closed and
@@ -15,21 +15,45 @@ export const UPDATE_UI_PHASES = [
 ] as const;
 
 export type UpdateUiPhase = (typeof UPDATE_UI_PHASES)[number];
+type SettingsUpdatePhase = SettingsUpdateOperation["phase"];
 
-const RUNTIME_PHASES: Record<string, UpdateUiPhase> = {
+const RUNTIME_PHASES: Record<SettingsUpdatePhase, UpdateUiPhase | null> = {
+  pending: null,
   downloading: "download",
   verifying: "verify",
   swapping: "install",
   restarting: "start",
   "health-checking": "ready-check",
   finalized: "ready",
+  "rolled-back": null,
+  failed: null,
+  staged: null,
+  applying: null,
+  "installer-handoff": null,
+  restarted: null,
+  verified: null,
 };
 
-const APP_PHASES: Record<string, UpdateUiPhase> = {
+const APP_PHASES: Record<SettingsUpdatePhase, UpdateUiPhase | null> = {
+  pending: null,
+  downloading: null,
+  verifying: null,
+  swapping: null,
+  restarting: null,
+  "health-checking": null,
+  finalized: null,
+  "rolled-back": null,
+  failed: null,
+  staged: null,
+  applying: null,
   "installer-handoff": "install",
   restarted: "start",
   verified: "ready",
 };
+
+function isSettingsUpdatePhase(phase: string): phase is SettingsUpdatePhase {
+  return phase in RUNTIME_PHASES;
+}
 
 /**
  * Maps a journaled operation phase onto the fixed UI vocabulary.
@@ -47,7 +71,7 @@ export function updateUiPhase(
   phase: string | undefined,
   percent: number
 ): UpdateUiPhase | null {
-  if (!phase) return null;
+  if (!phase || !isSettingsUpdatePhase(phase)) return null;
   if (target === "runtime") return RUNTIME_PHASES[phase] ?? null;
   if (target === "app") {
     // The app updater reports one `applying` phase whose progress events carry

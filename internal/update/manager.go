@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+var _ CoordinatorManager = (*Manager)(nil)
+
 // NewManager binds the update flow to the current CompozyOS runtime.
 func NewManager(cfg *Config) (*Manager, error) {
 	if cfg == nil {
@@ -237,18 +239,25 @@ type downloadedReleaseArtifacts struct {
 }
 
 func (m *Manager) resolveReleaseAssets(release *Release) (releaseAssets, error) {
-	archiveName, err := archiveAssetName(m.runtimeOS, m.runtimeArch)
-	if err != nil {
-		return releaseAssets{}, err
-	}
+	return m.resolvePlanReleaseAssets(release, true)
+}
 
-	archiveAsset, ok := release.findAsset(archiveName)
-	if !ok {
-		return releaseAssets{}, fmt.Errorf(
-			"update: release %q does not publish %s",
-			release.Version,
-			archiveName,
-		)
+func (m *Manager) resolvePlanReleaseAssets(release *Release, includeRuntime bool) (releaseAssets, error) {
+	var archiveAsset ReleaseAsset
+	if includeRuntime {
+		archiveName, err := archiveAssetName(m.runtimeOS, m.runtimeArch)
+		if err != nil {
+			return releaseAssets{}, err
+		}
+		var ok bool
+		archiveAsset, ok = release.findAsset(archiveName)
+		if !ok {
+			return releaseAssets{}, fmt.Errorf(
+				"update: release %q does not publish %s",
+				release.Version,
+				archiveName,
+			)
+		}
 	}
 	checksumsAsset, ok := release.findAsset(checksumsAssetName)
 	if !ok {
@@ -289,27 +298,29 @@ func (m *Manager) downloadReleaseArtifacts(
 	assets releaseAssets,
 ) (downloadedReleaseArtifacts, error) {
 	downloaded := downloadedReleaseArtifacts{
-		archivePath:       filepath.Join(tmpDir, assets.archive.Name),
 		checksumsPath:     filepath.Join(tmpDir, assets.checksums.Name),
 		bundlePath:        filepath.Join(tmpDir, assets.bundle.Name),
 		compatibilityPath: filepath.Join(tmpDir, assets.compat.Name),
 	}
 
-	if err := m.downloadFile(
-		ctx,
-		assets.archive.DownloadURL,
-		downloaded.archivePath,
-		m.artifactPolicy.MaxArchiveBytes,
-	); err != nil {
-		var downloadErr *downloadSizeError
-		if errors.As(err, &downloadErr) {
-			return downloadedReleaseArtifacts{}, &ArtifactSizeError{
-				Kind:  ArtifactKindArchive,
-				Size:  downloadErr.Size,
-				Limit: downloadErr.Limit,
+	if assets.archive.Name != "" {
+		downloaded.archivePath = filepath.Join(tmpDir, assets.archive.Name)
+		if err := m.downloadFile(
+			ctx,
+			assets.archive.DownloadURL,
+			downloaded.archivePath,
+			m.artifactPolicy.MaxArchiveBytes,
+		); err != nil {
+			var downloadErr *downloadSizeError
+			if errors.As(err, &downloadErr) {
+				return downloadedReleaseArtifacts{}, &ArtifactSizeError{
+					Kind:  ArtifactKindArchive,
+					Size:  downloadErr.Size,
+					Limit: downloadErr.Limit,
+				}
 			}
+			return downloadedReleaseArtifacts{}, err
 		}
-		return downloadedReleaseArtifacts{}, err
 	}
 	if err := m.downloadFile(
 		ctx,
@@ -348,12 +359,14 @@ func (m *Manager) verifyReleaseArtifacts(
 		return err
 	}
 
-	expectedChecksum, err := checksumForAsset(downloaded.checksumsPath, archiveName)
-	if err != nil {
-		return err
-	}
-	if err := verifySHA256(downloaded.archivePath, expectedChecksum); err != nil {
-		return err
+	if archiveName != "" {
+		expectedChecksum, err := checksumForAsset(downloaded.checksumsPath, archiveName)
+		if err != nil {
+			return err
+		}
+		if err := verifySHA256(downloaded.archivePath, expectedChecksum); err != nil {
+			return err
+		}
 	}
 	expectedCompatibilityChecksum, err := checksumForAsset(downloaded.checksumsPath, compatibilityAssetName)
 	if err != nil {

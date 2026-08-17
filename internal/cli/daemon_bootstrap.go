@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -30,25 +29,43 @@ const (
 	bootstrapEventType                      = "bootstrap"
 	bootstrapStatusStarted                  = "started"
 	bootstrapStatusCompleted                = "completed"
+	bootstrapStatusRetrying                 = "retrying"
+	bootstrapStatusFailed                   = "failed"
 	bootstrapBinaryName                     = "compozy"
 )
 
 type bootstrapDaemon struct {
 	DaemonStatus
 	Origin string `json:"origin"`
+	Owned  bool   `json:"owned"`
 }
 
 type bootstrapEvent struct {
-	Type           string              `json:"type"`
-	Phase          bootstrapPhase      `json:"phase"`
-	Status         string              `json:"status"`
-	Resolution     bootstrapResolution `json:"resolution,omitempty"`
-	Attempt        int                 `json:"attempt,omitempty"`
-	BackoffMS      int64               `json:"backoff_ms,omitempty"`
-	Classification bootstrapProbeClass `json:"classification,omitempty"`
-	Message        string              `json:"message"`
-	Daemon         *bootstrapDaemon    `json:"daemon,omitempty"`
+	Type           string                  `json:"type"`
+	Phase          bootstrapPhase          `json:"phase"`
+	Status         string                  `json:"status"`
+	Resolution     bootstrapResolution     `json:"resolution,omitempty"`
+	Attempt        int                     `json:"attempt,omitempty"`
+	BackoffMS      int64                   `json:"backoff_ms,omitempty"`
+	Classification bootstrapProbeClass     `json:"classification,omitempty"`
+	Message        string                  `json:"message"`
+	Daemon         *bootstrapDaemon        `json:"daemon,omitempty"`
+	Compatibility  *bootstrapCompatibility `json:"compatibility,omitempty"`
 }
+
+type bootstrapCompatibility struct {
+	Reason  string `json:"reason"`
+	Runtime string `json:"runtime"`
+	Needed  string `json:"needed"`
+}
+
+type bootstrapCompatibilityFailure struct {
+	bootstrapCompatibility
+	cause error
+}
+
+func (e *bootstrapCompatibilityFailure) Error() string { return e.cause.Error() }
+func (e *bootstrapCompatibilityFailure) Unwrap() error { return e.cause }
 
 type bootstrapOptions struct {
 	bundlePath     string
@@ -85,14 +102,14 @@ func runDaemonBootstrap(cmd *cobra.Command, deps commandDeps, options bootstrapO
 	defer finishAttempt()
 	homePaths, err := deps.resolveHome()
 	if err != nil {
-		return err
+		return writeBootstrapFailure(cmd, bootstrapPhaseResolve, bootstrapProbeUnavailable, err)
 	}
 	if err := deps.ensureHome(homePaths); err != nil {
-		return err
+		return writeBootstrapFailure(cmd, bootstrapPhaseResolve, bootstrapProbeUnavailable, err)
 	}
 	bundlePath, err := resolveBootstrapBundlePath(deps, options.bundlePath)
 	if err != nil {
-		return err
+		return writeBootstrapFailure(cmd, bootstrapPhaseResolve, bootstrapProbeUnavailable, err)
 	}
 	installedPath := bootstrapRuntimePath(homePaths)
 	if err := writeBootstrapEvent(cmd, bootstrapEvent{
@@ -127,19 +144,39 @@ func (e *bootstrapExecution) resolveAndStart() error {
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeStaleRecord, err)
 	}
 
-	installed := regularFileExists(e.installedPath)
+	runtimePath, owned := resolveBootstrapRuntime(e.deps, e.homePaths, e.installedPath)
+	installed := regularFileExists(runtimePath)
 	resolution := resolveBootstrapAction(bootstrapProbe{Installed: installed})
-	if err := provisionBootstrapRuntime(e.cmd, resolution, e.bundlePath, e.installedPath); err != nil {
+	if err := provisionBootstrapRuntime(e.cmd, resolution, e.homePaths, e.bundlePath, e.installedPath); err != nil {
 		return err
 	}
-	return e.start(resolution)
+	if resolution == bootstrapResolutionProvision {
+		runtimePath = e.installedPath
+		owned = true
+	}
+	return e.start(resolution, runtimePath, owned)
+}
+
+func resolveBootstrapRuntime(
+	deps commandDeps,
+	homePaths compozyconfig.HomePaths,
+	installedPath string,
+) (string, bool) {
+	if regularFileExists(installedPath) {
+		return installedPath, compozyupdate.RuntimeOwnedByDesktopApp(homePaths, installedPath)
+	}
+	operatorPath, err := deps.lookPath(bootstrapBinaryName)
+	if err == nil && regularFileExists(operatorPath) {
+		return operatorPath, false
+	}
+	return installedPath, false
 }
 
 func writeAttachedBootstrap(cmd *cobra.Command, options bootstrapOptions, status DaemonStatus) error {
 	if err := validateBootstrapCompatibility(status, options.minimumRuntime, options.appVersion); err != nil {
 		return writeBootstrapFailure(cmd, bootstrapPhaseAttach, bootstrapProbeListeningUnhealthy, err)
 	}
-	daemon, err := bootstrapDaemonFromStatus(status)
+	daemon, err := bootstrapDaemonFromStatus(status, false)
 	if err != nil {
 		return writeBootstrapFailure(cmd, bootstrapPhaseAttach, bootstrapProbeListeningUnhealthy, err)
 	}
@@ -153,6 +190,7 @@ func writeAttachedBootstrap(cmd *cobra.Command, options bootstrapOptions, status
 func provisionBootstrapRuntime(
 	cmd *cobra.Command,
 	resolution bootstrapResolution,
+	homePaths compozyconfig.HomePaths,
 	bundlePath string,
 	installedPath string,
 ) error {
@@ -168,13 +206,20 @@ func provisionBootstrapRuntime(
 	if err := provisionBundledRuntime(bundlePath, installedPath); err != nil {
 		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
 	}
+	if err := compozyupdate.WriteDesktopProvenance(homePaths, installedPath); err != nil {
+		removeErr := os.Remove(installedPath)
+		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			err = errors.Join(err, fmt.Errorf("cli: remove unowned provisioned runtime: %w", removeErr))
+		}
+		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
+	}
 	return writeBootstrapEvent(cmd, bootstrapEvent{
 		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusCompleted,
 		Resolution: resolution, Message: "Provisioned the bundled CompozyOS runtime.",
 	})
 }
 
-func (e *bootstrapExecution) start(resolution bootstrapResolution) error {
+func (e *bootstrapExecution) start(resolution bootstrapResolution, runtimePath string, owned bool) error {
 	var lastErr error
 	for attempt := 1; attempt <= bootstrapMaximumAttempts; attempt++ {
 		if err := writeBootstrapEvent(e.cmd, bootstrapEvent{
@@ -183,17 +228,17 @@ func (e *bootstrapExecution) start(resolution bootstrapResolution) error {
 		}); err != nil {
 			return err
 		}
-		status, startErr := runBootstrapDaemonDetached(e.cmd.Context(), e.deps, e.homePaths, e.installedPath)
+		status, startErr := runBootstrapDaemonDetached(e.cmd.Context(), e.deps, e.homePaths, runtimePath)
 		lastErr = startErr
 		if lastErr == nil {
-			return e.writeStarted(status, resolution, attempt)
+			return e.writeStarted(status, resolution, attempt, owned)
 		}
 		if bootstrapShouldGiveUp(attempt) {
 			break
 		}
 		delay := bootstrapBackoff(attempt)
 		if err := writeBootstrapEvent(e.cmd, bootstrapEvent{
-			Type: bootstrapEventType, Phase: bootstrapPhaseStart, Status: "retrying",
+			Type: bootstrapEventType, Phase: bootstrapPhaseStart, Status: bootstrapStatusRetrying,
 			Resolution: resolution, Attempt: attempt, BackoffMS: delay.Milliseconds(),
 			Classification: bootstrapProbeListeningUnhealthy,
 			Message:        "The runtime did not become ready; retrying with bounded backoff.",
@@ -212,11 +257,16 @@ func (e *bootstrapExecution) start(resolution bootstrapResolution) error {
 	)
 }
 
-func (e *bootstrapExecution) writeStarted(status DaemonStatus, resolution bootstrapResolution, attempt int) error {
+func (e *bootstrapExecution) writeStarted(
+	status DaemonStatus,
+	resolution bootstrapResolution,
+	attempt int,
+	owned bool,
+) error {
 	if err := validateBootstrapCompatibility(status, e.options.minimumRuntime, e.options.appVersion); err != nil {
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, err)
 	}
-	daemon, err := bootstrapDaemonFromStatus(status)
+	daemon, err := bootstrapDaemonFromStatus(status, owned)
 	if err != nil {
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, err)
 	}
@@ -227,7 +277,7 @@ func (e *bootstrapExecution) writeStarted(status DaemonStatus, resolution bootst
 	})
 }
 
-func bootstrapDaemonFromStatus(status DaemonStatus) (*bootstrapDaemon, error) {
+func bootstrapDaemonFromStatus(status DaemonStatus, owned bool) (*bootstrapDaemon, error) {
 	host := strings.TrimSpace(status.HTTPHost)
 	ip := net.ParseIP(host)
 	if (ip == nil || !ip.IsLoopback()) && !strings.EqualFold(host, "localhost") {
@@ -239,6 +289,7 @@ func bootstrapDaemonFromStatus(status DaemonStatus) (*bootstrapDaemon, error) {
 	return &bootstrapDaemon{
 		DaemonStatus: status,
 		Origin:       "http://" + net.JoinHostPort(status.HTTPHost, fmt.Sprintf("%d", status.HTTPPort)),
+		Owned:        owned,
 	}, nil
 }
 
@@ -261,13 +312,21 @@ func cleanupStaleBootstrapDaemonRecord(homePaths compozyconfig.HomePaths, deps c
 
 func resolveBootstrapBundlePath(deps commandDeps, override string) (string, error) {
 	if value := strings.TrimSpace(override); value != "" {
-		return filepath.Abs(value)
+		resolved, err := filepath.Abs(value)
+		if err != nil {
+			return "", fmt.Errorf("cli: resolve bootstrap bundle override %q: %w", value, err)
+		}
+		return resolved, nil
 	}
 	path, err := deps.executable()
 	if err != nil {
 		return "", fmt.Errorf("cli: resolve bundled runtime: %w", err)
 	}
-	return filepath.Abs(path)
+	resolved, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("cli: resolve bootstrap executable bundle path %q: %w", path, err)
+	}
+	return resolved, nil
 }
 
 func bootstrapRuntimePath(homePaths compozyconfig.HomePaths) string {
@@ -283,11 +342,11 @@ func probeBootstrapDaemon(
 	deps commandDeps,
 	homePaths compozyconfig.HomePaths,
 ) (DaemonStatus, bool, error) {
-	_, running, err := daemonInfo(homePaths, deps)
+	info, running, err := daemonInfo(homePaths, deps)
 	if err != nil || !running {
 		return DaemonStatus{}, false, err
 	}
-	client, err := clientFromDeps(deps)
+	client, err := deps.newClient(LocalClientTarget(homePaths.DaemonSocket))
 	if err != nil {
 		return DaemonStatus{}, false, err
 	}
@@ -297,6 +356,10 @@ func probeBootstrapDaemon(
 	}
 	if status.PID <= 0 || strings.TrimSpace(status.Status) != daemonRunningStatus {
 		return status, false, errors.New("cli: running daemon did not report healthy status")
+	}
+	if status.PID != info.PID || !status.StartedAt.Equal(info.StartedAt) ||
+		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(homePaths.DaemonSocket) {
+		return status, false, errors.New("cli: daemon status does not match the local discovery record")
 	}
 	return status, true, nil
 }
@@ -329,7 +392,27 @@ func runBootstrapDaemonDetached(
 	if err != nil {
 		return DaemonStatus{}, err
 	}
-	return waitForDaemonStart(ctx, deps, child)
+	return waitForBootstrapDaemonStart(ctx, deps, child)
+}
+
+func waitForBootstrapDaemonStart(
+	ctx context.Context,
+	deps commandDeps,
+	child daemonProcess,
+) (DaemonStatus, error) {
+	status, waitErr := waitForDaemonStart(ctx, deps, child)
+	if waitErr == nil {
+		return status, nil
+	}
+	terminateErr := child.Terminate()
+	reapErr := child.Wait()
+	if terminateErr != nil {
+		terminateErr = fmt.Errorf("cli: terminate unready detached daemon: %w", terminateErr)
+	}
+	if reapErr != nil {
+		reapErr = fmt.Errorf("cli: reap unready detached daemon: %w", reapErr)
+	}
+	return DaemonStatus{}, errors.Join(waitErr, terminateErr, reapErr)
 }
 
 func validateBootstrapCompatibility(status DaemonStatus, minimumRuntime string, appVersion string) error {
@@ -346,96 +429,33 @@ func validateBootstrapCompatibility(status DaemonStatus, minimumRuntime string, 
 		return fmt.Errorf("cli: minimum runtime constraint %q is invalid: %w", minimumRuntime, err)
 	}
 	if !constraint.Check(runtimeVersion) {
-		return fmt.Errorf(
+		cause := fmt.Errorf(
 			"cli: runtime %s does not satisfy %s; repair or update the runtime before attaching",
 			status.Version,
 			minimumRuntime,
 		)
+		return &bootstrapCompatibilityFailure{
+			bootstrapCompatibility: bootstrapCompatibility{
+				Reason: "runtime_below_minimum", Runtime: status.Version, Needed: minimumRuntime,
+			},
+			cause: cause,
+		}
 	}
 	if strings.TrimSpace(appVersion) == "" || strings.TrimSpace(status.MinAppVersion) == "" {
 		return nil
 	}
 	if err := compozyupdate.CheckRuntimeCompatibility(compozyupdate.Compatibility{
 		RuntimeVersion: status.Version, MinAppVersion: status.MinAppVersion,
-	}, appVersion); err != nil {
-		return fmt.Errorf("cli: %w; update or repair the desktop app before attaching", err)
+	}, compozyupdate.InstalledApp{Present: true, Version: appVersion}); err != nil {
+		cause := fmt.Errorf("cli: %w; update or repair the desktop app before attaching", err)
+		return &bootstrapCompatibilityFailure{
+			bootstrapCompatibility: bootstrapCompatibility{
+				Reason: "app_below_minimum", Runtime: status.Version, Needed: status.MinAppVersion,
+			},
+			cause: cause,
+		}
 	}
 	return nil
-}
-
-func provisionBundledRuntime(sourcePath string, targetPath string) (returnErr error) {
-	sourcePath = filepath.Clean(sourcePath)
-	targetPath = filepath.Clean(targetPath)
-	if sourcePath == targetPath {
-		return nil
-	}
-	if !regularFileExists(sourcePath) {
-		return fmt.Errorf("cli: bundled runtime payload %q is missing", sourcePath)
-	}
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o700); err != nil {
-		return fmt.Errorf("cli: create runtime bin directory: %w", err)
-	}
-	tempFile, err := os.CreateTemp(filepath.Dir(targetPath), ".compozy-bootstrap-*")
-	if err != nil {
-		return fmt.Errorf("cli: create runtime provision temp file: %w", err)
-	}
-	tempPath := tempFile.Name()
-	tempOpen := true
-	defer func() {
-		var closeErr error
-		if tempOpen {
-			closeErr = tempFile.Close()
-		}
-		removeErr := os.Remove(tempPath)
-		if errors.Is(removeErr, os.ErrNotExist) {
-			removeErr = nil
-		}
-		returnErr = errors.Join(returnErr, closeErr, removeErr)
-	}()
-	source, err := os.Open(sourcePath)
-	if err != nil {
-		return fmt.Errorf("cli: open bundled runtime payload: %w", err)
-	}
-	if _, err := io.Copy(tempFile, source); err != nil {
-		closeErr := source.Close()
-		return errors.Join(fmt.Errorf("cli: copy bundled runtime payload: %w", err), closeErr)
-	}
-	if err := source.Close(); err != nil {
-		return fmt.Errorf("cli: close bundled runtime payload: %w", err)
-	}
-	if err := tempFile.Chmod(0o700); err != nil {
-		return fmt.Errorf("cli: make provisioned runtime executable: %w", err)
-	}
-	if err := tempFile.Sync(); err != nil {
-		return fmt.Errorf("cli: sync provisioned runtime: %w", err)
-	}
-	if err := tempFile.Close(); err != nil {
-		return fmt.Errorf("cli: close provisioned runtime: %w", err)
-	}
-	tempOpen = false
-	if err := os.Link(tempPath, targetPath); err != nil {
-		if errors.Is(err, os.ErrExist) && regularFileExists(targetPath) {
-			return nil
-		}
-		return fmt.Errorf("cli: publish provisioned runtime: %w", err)
-	}
-	dir, err := os.Open(filepath.Dir(targetPath))
-	if err != nil {
-		return fmt.Errorf("cli: open runtime bin directory: %w", err)
-	}
-	if err := dir.Sync(); err != nil {
-		closeErr := dir.Close()
-		return errors.Join(fmt.Errorf("cli: sync runtime bin directory: %w", err), closeErr)
-	}
-	if err := dir.Close(); err != nil {
-		return fmt.Errorf("cli: close runtime bin directory: %w", err)
-	}
-	return nil
-}
-
-func regularFileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
 }
 
 func waitBootstrapBackoff(ctx context.Context, delay time.Duration) error {
@@ -447,31 +467,4 @@ func waitBootstrapBackoff(ctx context.Context, delay time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
-}
-
-func writeBootstrapEvent(cmd *cobra.Command, event bootstrapEvent) error {
-	mode, err := resolveOutputFormat(cmd)
-	if err != nil {
-		return err
-	}
-	if mode == OutputJSON || mode == OutputJSONL {
-		return writeJSONLineWithoutWorkspaceResolution(cmd, event)
-	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", event.Phase, event.Message)
-	return err
-}
-
-func writeBootstrapFailure(
-	cmd *cobra.Command,
-	phase bootstrapPhase,
-	classification bootstrapProbeClass,
-	cause error,
-) error {
-	if err := writeBootstrapEvent(cmd, bootstrapEvent{
-		Type: bootstrapEventType, Phase: phase, Status: string(bootstrapPhaseFailed), Classification: classification,
-		Message: cause.Error(),
-	}); err != nil {
-		return err
-	}
-	return cause
 }

@@ -5,7 +5,7 @@ title: Update runtime and app through one command
 persona: Ada
 journey: J-desktop-agent-headless
 expected: One `compozy update -o json` operation applies the runtime first, then updates a running app or stages a closed app, and reports both targets from the same verified release; the deleted app-scoped updater subcommand is unknown with no alias, write, or operation record.
-entry_points: compozy update; compozy update --check -o json; compozy app status -o json; rejected app-scoped updater invocation
+entry_points: compozy update -o json; compozy update --check -o json; compozy app status -o json; compozy app update --check (unknown command)
 qa_status: untested
 bug_ids:
 fix_status:
@@ -16,5 +16,5 @@ last_report:
 overlaps: REL-beta-self-update; APP-agent-cli-app-verbs
 ---
 
-Added 2026-08-16 for the Electron shell update-operation cutover. Task_07 owns the walk against a
-fixture release with running-app, closed-app, headless, and managed-runtime branches.
+Added 2026-08-16 for the Electron shell update-operation cutover. Task 07 owns the walk against a
+mock GitHub release/channel fixture with running-app, closed-app, headless, and managed-runtime branches.

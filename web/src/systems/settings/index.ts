@@ -432,7 +432,6 @@ export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
 export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
 export type { SettingsSaveBarState } from "./lib/save-state";
 export {
-  settingsUpdateCancelable,
   settingsUpdateIndicatorAvailable,
   settingsUpdateStatusLabel,
   settingsUpdateStatusTone,

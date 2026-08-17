@@ -82,6 +82,9 @@ An update checks the runtime and, when installed, the app. Apply runs runtime fi
 then installs its verified artifact; a closed app is staged for the next launch. Cancel succeeds
 only while the operation has no live executor lease.
 
+On Linux, automatic app-track installation is available only for the AppImage. A `.deb` install
+must be updated by downloading and installing the current `.deb` package over the existing app.
+
 The same host-global operation is available through `GET /api/settings/update`,
 `POST /api/settings/update/apply`, and `POST /api/settings/update/cancel` over HTTP and UDS.
 Status can report `available`, `applying`, `staged`, `blocked`, `failed`, `updated`, or
@@ -92,8 +95,7 @@ binary.
 
 ## Recover
 
-If status reports `recovery_required` or an update operation reports `failed`, read diagnostics
-before starting another mutation:
+If an update operation reports `failed`, read diagnostics before starting another mutation:
 
 ```bash
 compozy app diagnose -o json

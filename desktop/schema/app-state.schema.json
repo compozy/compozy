@@ -139,7 +139,6 @@
                 "channel": { "type": "string" },
                 "state": { "$ref": "#/$defs/state" },
                 "stage": { "enum": ["download", "verify", "install", "start", "ready"] },
-                "pct": { "type": "integer", "minimum": 0, "maximum": 100 },
                 "attempt": { "type": "integer", "minimum": 1, "maximum": 3 },
                 "origin": { "type": "string", "format": "uri", "pattern": "^https?://" },
                 "owned": { "type": "boolean" },

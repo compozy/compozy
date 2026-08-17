@@ -15,7 +15,8 @@ import { tokenMatches } from "./control-token";
 
 const MAXIMUM_REQUEST_BYTES = 64 * 1024;
 const MAXIMUM_CONNECTIONS = 64;
-const CONNECTION_TIMEOUT_MS = 2_000;
+const REQUEST_TIMEOUT_MS = 2_000;
+const STALE_SOCKET_PROBE_TIMEOUT_MS = 250;
 
 function errorCode(error: unknown): string | null {
   if (!error || typeof error !== "object" || !("code" in error)) return null;
@@ -24,6 +25,10 @@ function errorCode(error: unknown): string | null {
 
 function errorResponse(id: number, code: string, message: string): ControlResponse {
   return { schema_version: CONTROL_SCHEMA_VERSION, id, error: { code, message } };
+}
+
+function invalidRequestResponse(): ControlResponse {
+  return errorResponse(0, "app_control_invalid_request", "The app control request is invalid.");
 }
 
 function parseRequest(data: Buffer): ControlRequest | null {
@@ -59,15 +64,12 @@ async function serveConnection(
   token: string,
   handler: ControlHandler
 ): Promise<void> {
-  socket.setTimeout(CONNECTION_TIMEOUT_MS, () => socket.destroy());
+  socket.setTimeout(REQUEST_TIMEOUT_MS, () => socket.destroy());
   let bytes = Buffer.alloc(0);
   for await (const chunk of socket) {
     const next = Buffer.concat([bytes, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
     if (next.length > MAXIMUM_REQUEST_BYTES) {
-      await writeResponse(
-        socket,
-        errorResponse(0, "app_control_invalid_request", "The app control request is invalid.")
-      );
+      await writeResponse(socket, invalidRequestResponse());
       return;
     }
     const newline = next.indexOf(0x0a);
@@ -81,26 +83,21 @@ async function serveConnection(
         .toString("utf8")
         .trim() !== ""
     ) {
-      await writeResponse(
-        socket,
-        errorResponse(0, "app_control_invalid_request", "The app control request is invalid.")
-      );
+      await writeResponse(socket, invalidRequestResponse());
       return;
     }
     const request = parseRequest(next.subarray(0, newline));
     if (!request) {
-      await writeResponse(
-        socket,
-        errorResponse(0, "app_control_invalid_request", "The app control request is invalid.")
-      );
+      await writeResponse(socket, invalidRequestResponse());
       return;
     }
+    socket.setTimeout(0);
     if (!tokenMatches(token, request.token)) {
       await writeResponse(
         socket,
         errorResponse(
           request.id,
-          "app_control_unauthorized",
+          "app_control_unavailable",
           "The app control request is not authorized."
         )
       );
@@ -160,7 +157,7 @@ async function socketIsLive(path: string): Promise<boolean> {
     };
     probe.once("connect", () => settle(true));
     probe.once("error", () => settle(false));
-    probe.setTimeout(250, () => settle(false));
+    probe.setTimeout(STALE_SOCKET_PROBE_TIMEOUT_MS, () => settle(false));
   });
 }
 
@@ -197,7 +194,7 @@ export class ControlServer {
   ): Promise<ControlServer> {
     const canonicalPath = await canonicalSocketPath(path);
     await removeStaleSocket(canonicalPath);
-    const server = createServer(socket => {
+    const server = createServer({ allowHalfOpen: true }, socket => {
       void serveConnection(socket, token, handler).catch(error => {
         onError(error instanceof Error ? error : new Error(String(error)));
         socket.destroy();

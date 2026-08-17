@@ -6,7 +6,7 @@ import {
   type UpdateOperation,
 } from "./operation-contract";
 
-interface TransitionIdentity {
+export interface TransitionIdentity {
   readonly operationId: string;
   readonly revision: number;
   readonly executorGeneration: string;
@@ -22,10 +22,24 @@ export interface PhaseTransition extends TransitionIdentity {
   readonly resetFailures?: boolean;
 }
 
+export interface UpdateTransitionPort {
+  acquire(identity: TransitionIdentity): Promise<UpdateOperation>;
+  recover(identity: TransitionIdentity): Promise<UpdateOperation>;
+  renew(identity: TransitionIdentity): Promise<UpdateOperation>;
+  fence(identity: TransitionIdentity): Promise<UpdateOperation>;
+  progress(identity: TransitionIdentity, percent: number): Promise<UpdateOperation>;
+  phase(transition: PhaseTransition): Promise<UpdateOperation>;
+  verifyArtifact(
+    identity: TransitionIdentity,
+    attemptId: string,
+    artifactPath: string
+  ): Promise<UpdateOperation>;
+}
+
 const COMMAND_TIMEOUT_MS = 15_000;
 const MAXIMUM_OUTPUT_BYTES = 1024 * 1024;
 
-export class UpdateTransitionClient {
+export class UpdateTransitionClient implements UpdateTransitionPort {
   readonly #runtimePath: string;
 
   constructor(runtimePath: string) {

@@ -13,7 +13,7 @@ export interface UpdateManifest {
   readonly version: string;
 }
 
-function parseManifest(contents: string): UpdateManifest {
+export function parseUpdateManifest(contents: string): UpdateManifest {
   const value: unknown = parse(contents);
   if (!value || typeof value !== "object") throw new Error("Update manifest must be an object.");
   const version = Reflect.get(value, "version");
@@ -36,7 +36,7 @@ function parseManifest(contents: string): UpdateManifest {
 }
 
 export function rewriteUpdateManifestURLs(contents: string, downloadBase: string): string {
-  const manifest = parseManifest(contents);
+  const manifest = parseUpdateManifest(contents);
   const base = downloadBase.replace(/\/+$/u, "");
   if (!URL.canParse(`${base}/asset`))
     throw new Error("Release download base must be an absolute URL.");
@@ -50,8 +50,8 @@ export function rewriteUpdateManifestURLs(contents: string, downloadBase: string
 }
 
 export function mergeMacUpdateManifests(arm64: string, x64: string): string {
-  const first = parseManifest(arm64);
-  const second = parseManifest(x64);
+  const first = parseUpdateManifest(arm64);
+  const second = parseUpdateManifest(x64);
   if (first.version !== second.version) {
     throw new Error("macOS update manifests must describe the same version.");
   }

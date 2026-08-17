@@ -11,7 +11,12 @@ export interface DesktopPaths {
   readonly logs: string;
   readonly operation: string;
   readonly runtime: string;
+  readonly startupMarker: string;
   readonly windowState: string;
+}
+
+export function runtimeExecutableName(platform = process.platform): string {
+  return platform === "win32" ? "compozy.exe" : "compozy";
 }
 
 export function resolveDesktopPaths(environment: NodeJS.ProcessEnv = process.env): DesktopPaths {
@@ -22,7 +27,6 @@ export function resolveDesktopPaths(environment: NodeJS.ProcessEnv = process.env
       : resolve(process.cwd(), configured)
     : join(homedir(), ".compozy");
   const logs = join(home, "logs");
-  const runtimeName = process.platform === "win32" ? "compozy.exe" : "compozy";
   return {
     home,
     appRecord: join(home, "app.json"),
@@ -32,7 +36,8 @@ export function resolveDesktopPaths(environment: NodeJS.ProcessEnv = process.env
     desktopLog: join(logs, "desktop.log"),
     logs,
     operation: join(home, "update-operation.json"),
-    runtime: join(home, "bin", runtimeName),
+    runtime: join(home, "bin", runtimeExecutableName()),
+    startupMarker: join(home, "desktop-startup.json"),
     windowState: join(home, "desktop-window.json"),
   };
 }

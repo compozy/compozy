@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -84,11 +85,19 @@ func inspectArtifact(path string) (Artifact, error) {
 	digest := sha256.New()
 	size, copyErr := io.Copy(digest, file)
 	closeErr := file.Close()
+	var hashErr error
 	if copyErr != nil {
-		return Artifact{}, fmt.Errorf("desktop release: hash artifact %q: %w", filepath.Base(path), copyErr)
+		hashErr = fmt.Errorf("desktop release: hash artifact %q: %w", filepath.Base(path), copyErr)
 	}
+	var cleanupErr error
 	if closeErr != nil {
-		return Artifact{}, fmt.Errorf("desktop release: close artifact %q: %w", filepath.Base(path), closeErr)
+		cleanupErr = fmt.Errorf("desktop release: close artifact %q: %w", filepath.Base(path), closeErr)
+	}
+	if err := errors.Join(hashErr, cleanupErr); err != nil {
+		return Artifact{}, err
+	}
+	if size <= 0 {
+		return Artifact{}, fmt.Errorf("desktop release: artifact %q is empty", filepath.Base(path))
 	}
 	return Artifact{Name: filepath.Base(path), SHA256: hex.EncodeToString(digest.Sum(nil)), Size: size}, nil
 }

@@ -1,12 +1,11 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { chmod, readFile, rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 
 import { writeFileAtomic } from "../files/atomic-write";
 
 export async function rotateControlToken(path: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
   await writeFileAtomic(path, `${token}\n`, 0o600);
-  await chmod(path, 0o600);
   return token;
 }
 

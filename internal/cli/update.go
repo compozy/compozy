@@ -8,20 +8,20 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/spf13/cobra"
 )
 
 const (
-	updateUpdateKey                = "update"
-	updateOutcomeCanceled          = "canceled"
-	updateOutcomeFailed            = "failed"
-	updateReleaseField             = "release"
-	updateMessageLabel             = "Message"
-	defaultSettingsRestartTimeout  = 45 * time.Second
-	restartStatusReady             = "ready"
-	restartStatusFailed            = "failed"
-	defaultUpdateOperationDeadline = 30 * time.Minute
+	updateUpdateKey               = "update"
+	updateOutcomeCanceled         = "canceled"
+	updateOutcomeFailed           = "failed"
+	updateReleaseField            = "release"
+	updateMessageLabel            = "Message"
+	defaultSettingsRestartTimeout = 45 * time.Second
+	restartStatusReady            = "ready"
+	restartStatusFailed           = "failed"
 )
 
 type updateManager interface {
@@ -78,7 +78,7 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 }
 
 func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, cancel bool) error {
-	manager, err := resolveUpdateManager(deps)
+	manager, homePaths, err := resolveUpdateManager(deps)
 	if err != nil {
 		return err
 	}
@@ -115,12 +115,9 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 		return writeUpdateFailure(cmd, record, err)
 	}
 
-	runtime, err := newCLIUpdateRuntime(deps)
-	if err != nil {
-		return failAcquiredUpdate(cmd, manager, operation, record, err)
-	}
+	runtime := newCLIUpdateRuntime(deps, homePaths)
 	coordinator, err := compozyupdate.NewCoordinator(compozyupdate.CoordinatorConfig{
-		Store: manager.OperationStore(), Manager: manager, Runtime: runtime,
+		Store: manager.OperationStore(), ReleaseManager: manager, BinaryManager: manager, Runtime: runtime,
 	})
 	if err != nil {
 		return failAcquiredUpdate(cmd, manager, operation, record, err)
@@ -133,24 +130,23 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 			cmd.Context(), deps, manager.OperationStore(), operation.ID, request.Deadline,
 		)
 	}
-	record = completedUpdateRecord(record, request, runErr)
-	record = applyArchivedAppOutcome(record, archived)
-	runErr = errors.Join(runErr, appRunErr)
+	record, runErr = finalizeUpdateRecord(record, request, runErr, archived, appRunErr)
 	if runErr != nil {
 		return writeUpdateFailure(cmd, record, runErr)
 	}
 	return writeCommandOutput(cmd, updateBundle(record))
 }
 
-func resolveUpdateManager(deps commandDeps) (updateManager, error) {
+func resolveUpdateManager(deps commandDeps) (updateManager, compozyconfig.HomePaths, error) {
 	homePaths, err := deps.resolveHome()
 	if err != nil {
-		return nil, err
+		return nil, compozyconfig.HomePaths{}, err
 	}
 	if deps.newUpdateManager == nil {
-		return nil, errors.New("cli: update manager factory is required")
+		return nil, compozyconfig.HomePaths{}, errors.New("cli: update manager factory is required")
 	}
-	return deps.newUpdateManager(homePaths)
+	manager, err := deps.newUpdateManager(homePaths)
+	return manager, homePaths, err
 }
 
 func applicableUpdateTargets(state compozyupdate.MultiState) []compozyupdate.Target {
@@ -289,7 +285,7 @@ func updateBundle(record updateRecord) outputBundle {
 					appRunningLabel(record.App.Running),
 				))
 			}
-			return renderToonObject("update", fields, values), nil
+			return renderToonObject(updateUpdateKey, fields, values), nil
 		},
 	}
 }
@@ -306,7 +302,7 @@ func updateCancelBundle(record updateCancelRecord) outputBundle {
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("update", []string{automationStatusKey, "operation_id", "message"}, []string{
+			return renderToonObject(updateUpdateKey, []string{automationStatusKey, "operation_id", "message"}, []string{
 				string(record.Status), record.OperationID, record.Message,
 			}), nil
 		},

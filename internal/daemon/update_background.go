@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -116,7 +117,7 @@ func (r *backgroundUpdateRuntime) run(ctx context.Context, done chan<- struct{})
 
 func (r *backgroundUpdateRuntime) check(ctx context.Context) {
 	if _, _, err := r.manager.CheckAll(ctx, compozyupdate.CheckOptions{
-		ForceRefresh: false, AllowCachedOnFailure: true,
+		ForceRefresh: true, AllowCachedOnFailure: true,
 	}); err != nil {
 		r.logger.Warn("daemon: background update check failed", "error", err)
 	}
@@ -165,13 +166,14 @@ func recoverDaemonUpdateOperation(
 	if err != nil || operation == nil {
 		return err
 	}
-	if operation.Waiting == compozyupdate.WaitingForApp || operation.ActiveTarget != compozyupdate.TargetRuntime {
+	if operation.Waiting == compozyupdate.WaitingForApp || !daemonCanRecoverUpdate(operation) {
 		return nil
 	}
 	if manager.OperationStore().HolderLive(operation.Holder) {
 		return nil
 	}
-	holder, err := newDaemonUpdateHolder(compozyupdate.ActorDaemon)
+	expired := !operation.Deadline.IsZero() && !operation.Deadline.After(time.Now().UTC())
+	holder, err := newDaemonUpdateHolder(d, compozyupdate.ActorDaemon)
 	if err != nil {
 		return err
 	}
@@ -182,16 +184,34 @@ func recoverDaemonUpdateOperation(
 		operation.Revision,
 		compozyupdate.Transition{
 			Kind: compozyupdate.TransitionRecover, Actor: compozyupdate.ActorDaemon,
-			Target: compozyupdate.TargetRuntime, Holder: &holder, Percent: operation.Percent,
+			Target: operation.ActiveTarget, Holder: &holder, Percent: operation.Percent,
 			Outcome: "recovered",
 		},
 	)
 	if err != nil {
 		return err
 	}
-	if err := spawnDetachedUpdateCoordinator(ctx, d, recovered); err != nil {
+	detachedCtx := context.WithoutCancel(ctx)
+	if expired && updateCanFailWithoutRollback(recovered) {
+		activeTarget := recovered.ActiveTarget
 		_, transitionErr := manager.OperationStore().Transition(
-			ctx,
+			detachedCtx,
+			recovered.ID,
+			recovered.Holder.ExecutorGeneration,
+			recovered.Revision,
+			compozyupdate.Transition{
+				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
+				Target: activeTarget, Phase: compozyupdate.PhaseFailed,
+				Percent: -1, LastError: "update operation deadline expired",
+				Outcome:              string(compozyupdate.StatusFailed),
+				IncrementAppFailures: activeTarget == compozyupdate.TargetApp,
+			},
+		)
+		return transitionErr
+	}
+	if err := spawnDetachedUpdateCoordinator(detachedCtx, d, recovered); err != nil {
+		_, transitionErr := manager.OperationStore().Transition(
+			detachedCtx,
 			recovered.ID,
 			recovered.Holder.ExecutorGeneration,
 			recovered.Revision,
@@ -204,4 +224,34 @@ func recoverDaemonUpdateOperation(
 		return errors.Join(err, transitionErr)
 	}
 	return nil
+}
+
+func daemonCanRecoverUpdate(operation *compozyupdate.Operation) bool {
+	if operation == nil {
+		return false
+	}
+	switch operation.ActiveTarget {
+	case compozyupdate.TargetRuntime:
+		return operation.Runtime != nil
+	case compozyupdate.TargetApp:
+		return operation.App != nil && operation.App.Phase == compozyupdate.PhasePending
+	}
+	return false
+}
+
+func updateCanFailWithoutRollback(operation *compozyupdate.Operation) bool {
+	if operation == nil {
+		return false
+	}
+	if operation.ActiveTarget == compozyupdate.TargetApp {
+		return operation.App != nil && operation.App.Phase == compozyupdate.PhasePending
+	}
+	return operation.Runtime != nil && slices.Contains(
+		[]compozyupdate.OperationPhase{
+			compozyupdate.PhasePending,
+			compozyupdate.PhaseDownloading,
+			compozyupdate.PhaseVerifying,
+		},
+		operation.Runtime.Phase,
+	)
 }

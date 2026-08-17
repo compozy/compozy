@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  settingsUpdateAppAvailableFixture,
   settingsUpdateApplyingFixture,
   settingsUpdateBlockedFixture,
   settingsUpdateBothAvailableFixture,
   settingsUpdateManagedFixture,
   settingsUpdateNoAppFixture,
   settingsUpdateRolledBackFixture,
+  settingsUpdateRuntimeAvailableFixture,
   settingsUpdateStagedFixture,
   settingsUpdateStatusFixture,
 } from "../../mocks/settings-update-fixture";
 import {
-  settingsUpdateCancelable,
   settingsUpdateIndicatorAvailable,
   settingsUpdateTracks,
   settingsUpdateView,
@@ -77,6 +78,20 @@ describe("settingsUpdateTracks", () => {
     });
   });
 
+  it("Should preserve runtime-only and app-only offers as distinct track states", () => {
+    const runtimeOnly = settingsUpdateTracks(settingsUpdateRuntimeAvailableFixture);
+    const appOnly = settingsUpdateTracks(settingsUpdateAppAvailableFixture);
+
+    expect(runtimeOnly.map(track => [track.id, track.canApply])).toEqual([
+      ["runtime", true],
+      ["app", false],
+    ]);
+    expect(appOnly.map(track => [track.id, track.canApply])).toEqual([
+      ["runtime", false],
+      ["app", true],
+    ]);
+  });
+
   it("Should omit the app track entirely when no desktop app is installed", () => {
     const tracks = settingsUpdateTracks(settingsUpdateNoAppFixture);
 
@@ -113,9 +128,21 @@ describe("settingsUpdateTracks", () => {
       statusLabel: "Staged",
       message: "CompozyOS app update staged; applies on next launch.",
     });
-    // `active_target` is the app, but a dormant record is not mid-flight.
+    // Waiting clears `active_target`; the durable waiting state owns cancellation.
     expect(app?.progress).toBeNull();
     expect(app?.canCancel).toBe(true);
+  });
+
+  it("Should refuse cancel for a live holder and when no operation exists", () => {
+    expect(
+      settingsUpdateTracks(settingsUpdateApplyingFixture).every(track => !track.canCancel)
+    ).toBe(true);
+    expect(
+      settingsUpdateTracks(settingsUpdateBlockedFixture).every(track => !track.canCancel)
+    ).toBe(true);
+    expect(
+      settingsUpdateTracks(settingsUpdateBothAvailableFixture).every(track => !track.canCancel)
+    ).toBe(true);
   });
 
   it("Should refuse to render another holder's progress against a blocked track", () => {
@@ -142,6 +169,43 @@ describe("settingsUpdateTracks", () => {
     expect(runtime.canApply).toBe(true);
   });
 
+  it("Should not offer a failed track without release metadata", () => {
+    const snapshotWithoutOffer = {
+      ...settingsUpdateRolledBackFixture,
+      runtime: {
+        ...settingsUpdateRolledBackFixture.runtime,
+        latest_version: "",
+      },
+    };
+
+    const [runtime] = settingsUpdateTracks(snapshotWithoutOffer);
+
+    expect(runtime.status).toBe("failed");
+    expect(runtime.latestVersion).toBeNull();
+    expect(runtime.canApply).toBe(false);
+  });
+
+  it("Should render unsupported as a neutral state with no mutation", () => {
+    const unsupportedSnapshot = {
+      ...settingsUpdateStatusFixture,
+      runtime: {
+        ...settingsUpdateStatusFixture.runtime,
+        status: "unsupported" as const,
+        message: "This install method cannot update itself.",
+      },
+    };
+
+    const [runtime] = settingsUpdateTracks(unsupportedSnapshot);
+
+    expect(runtime).toMatchObject({
+      status: "unsupported",
+      tone: "neutral",
+      statusLabel: "Unsupported",
+      canApply: false,
+      canCancel: false,
+    });
+  });
+
   it("Should describe a track only where the message adds truth beyond version and pill", () => {
     const [settled] = settingsUpdateTracks(settingsUpdateStatusFixture);
     const [offered] = settingsUpdateTracks(settingsUpdateBothAvailableFixture);
@@ -154,18 +218,6 @@ describe("settingsUpdateTracks", () => {
       "CompozyOS 0.5.1 is available. Upgrade with your package manager."
     );
     expect(failed.description).toBe("Update failed; restored CompozyOS runtime 0.5.0.");
-  });
-});
-
-describe("settingsUpdateCancelable", () => {
-  it("Should offer cancel only for a dormant operation nobody is executing", () => {
-    expect(settingsUpdateCancelable(settingsUpdateStagedFixture)).toBe(true);
-  });
-
-  it("Should refuse cancel for a live executor lease and when no operation exists", () => {
-    expect(settingsUpdateCancelable(settingsUpdateApplyingFixture)).toBe(false);
-    expect(settingsUpdateCancelable(settingsUpdateBlockedFixture)).toBe(false);
-    expect(settingsUpdateCancelable(settingsUpdateBothAvailableFixture)).toBe(false);
   });
 });
 

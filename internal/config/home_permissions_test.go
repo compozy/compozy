@@ -84,9 +84,13 @@ func configRuntimeDirectories(paths HomePaths) []string {
 		paths.LoopsDir,
 		paths.MemoryDir,
 		paths.SessionsDir,
+		paths.ToolArtifactsDir,
 		paths.SessionAttachmentsDir,
 		paths.RestartsDir,
 		paths.LogsDir,
+		paths.GatewayDir,
+		paths.GatewayCredentialsDir,
+		paths.BinDir,
 	}
 }
 

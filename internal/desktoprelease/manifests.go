@@ -1,7 +1,11 @@
 package desktoprelease
 
 import (
+	"crypto/sha512"
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -68,18 +72,13 @@ func decodeUpdateManifest(contents []byte, name string) (updateManifest, error) 
 	return manifest, nil
 }
 
-func validateManifestInventory(manifest updateManifest, name, version string) error {
-	var expected []string
-	switch name {
-	case ManifestMac:
-		expected = []string{
-			"CompozyOS-" + version + "-mac-arm64.zip",
-			"CompozyOS-" + version + "-mac-x64.zip",
-		}
-	case ManifestLinux:
-		expected = []string{"CompozyOS-" + version + "-linux-x64.AppImage"}
-	default:
-		return fmt.Errorf("desktop release: unsupported channel manifest %s", name)
+func validateManifestInventory(
+	manifest updateManifest,
+	name, version, repository, assetDir string,
+) error {
+	expected, err := manifestArtifactNames(version, name)
+	if err != nil {
+		return err
 	}
 	actual := make([]string, 0, len(manifest.Files))
 	for _, file := range manifest.Files {
@@ -88,13 +87,24 @@ func validateManifestInventory(manifest updateManifest, name, version string) er
 			return fmt.Errorf("desktop release: parse manifest asset URL %q: %w", file.URL, err)
 		}
 		assetName := path.Base(parsed.Path)
-		expectedSuffix := "/releases/download/v" + version + "/" + assetName
-		if parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.RawQuery != "" || parsed.Fragment != "" ||
-			!strings.HasSuffix(parsed.Path, expectedSuffix) {
+		expectedPath := "/" + repository + "/releases/download/v" + version + "/" + assetName
+		if parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil ||
+			parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != expectedPath {
 			return fmt.Errorf(
 				"desktop release: manifest %s asset URL is not an immutable GitHub release URL: %s",
 				name,
 				file.URL,
+			)
+		}
+		sha512Digest, size, err := inspectManifestIntegrity(filepath.Join(assetDir, assetName))
+		if err != nil {
+			return err
+		}
+		if file.Size != size || file.SHA512 != sha512Digest {
+			return fmt.Errorf(
+				"desktop release: manifest %s integrity does not match %s",
+				name,
+				assetName,
 			)
 		}
 		actual = append(actual, assetName)
@@ -105,4 +115,55 @@ func validateManifestInventory(manifest updateManifest, name, version string) er
 		return fmt.Errorf("desktop release: manifest %s assets = %v, want %v", name, actual, expected)
 	}
 	return nil
+}
+
+func inspectManifestIntegrity(filePath string) (string, int64, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", 0, fmt.Errorf("desktop release: open manifest artifact %q: %w", filepath.Base(filePath), err)
+	}
+	digest := sha512.New()
+	size, copyErr := io.Copy(digest, file)
+	closeErr := file.Close()
+	var hashErr error
+	if copyErr != nil {
+		hashErr = fmt.Errorf("desktop release: hash manifest artifact %q: %w", filepath.Base(filePath), copyErr)
+	}
+	var cleanupErr error
+	if closeErr != nil {
+		cleanupErr = fmt.Errorf("desktop release: close manifest artifact %q: %w", filepath.Base(filePath), closeErr)
+	}
+	if err := errors.Join(hashErr, cleanupErr); err != nil {
+		return "", 0, err
+	}
+	if size <= 0 {
+		return "", 0, fmt.Errorf("desktop release: manifest artifact %q is empty", filepath.Base(filePath))
+	}
+	return base64.StdEncoding.EncodeToString(digest.Sum(nil)), size, nil
+}
+
+func manifestArtifactNames(version string, manifestName string) ([]string, error) {
+	all := DesktopArtifactNames(version)
+	wantedSuffixes := map[string][]string{
+		ManifestMac:   {"-mac-arm64.zip", "-mac-x64.zip"},
+		ManifestLinux: {"-linux-x64.AppImage"},
+	}
+	suffixes, ok := wantedSuffixes[manifestName]
+	if !ok {
+		return nil, fmt.Errorf("desktop release: unsupported channel manifest %s", manifestName)
+	}
+
+	artifacts := make([]string, 0, len(suffixes))
+	for _, artifact := range all {
+		for _, suffix := range suffixes {
+			if strings.HasSuffix(artifact, suffix) {
+				artifacts = append(artifacts, artifact)
+				break
+			}
+		}
+	}
+	if len(artifacts) != len(suffixes) {
+		return nil, fmt.Errorf("desktop release: canonical inventory does not define %s artifacts", manifestName)
+	}
+	return artifacts, nil
 }

@@ -32,11 +32,12 @@ func runDaemonAppDiagnosticBundle(cmd *cobra.Command, deps commandDeps) error {
 	if err != nil {
 		return err
 	}
-	outputPath, err := resolveAppDiagnosticBundlePath(homePaths, "", deps.now())
+	now := deps.now()
+	outputPath, err := resolveAppDiagnosticBundlePath(homePaths, "", now)
 	if err != nil {
 		return err
 	}
-	bundle, err := writeLocalAppDiagnosticBundle(homePaths, report, outputPath, deps.now(), true)
+	bundle, err := writeLocalAppDiagnosticBundle(homePaths, report, outputPath, now, true)
 	if err != nil {
 		return err
 	}

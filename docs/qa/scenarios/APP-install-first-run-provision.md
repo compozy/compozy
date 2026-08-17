@@ -21,10 +21,9 @@ EC-1 launch race, EC-3 external runtime appears → attach). Test IDs: E2E-001, 
 (reinstall over N-1: single app entry, single uninstall record); IT-003, IT-011, IT-012;
 UT-029–UT-038, UT-096–UT-098.
 
-Per-OS evidence (N-004 — verdict requires both shipping OSes; Windows is paused until Trusted
-Signing is restored): macOS = scripted-manual smoke (no WebDriver): screen recording of
-install→provision→product, Gatekeeper acceptance, `compozy status` transcript. Linux =
-Playwright _electron test + package install/reinstall transcript. All OSes: process-table capture
+Per-OS evidence requires both shipping OSes. macOS records install→provision→product, Gatekeeper
+acceptance, and the `compozy status` transcript. Linux uses Playwright `_electron` plus the package
+install/reinstall transcript. Both OSes retain a process-table capture
 proving exactly one daemon, and an airplane-mode first run (E2E-002) on both release-gate OSes;
 the packaged runtime must install without a feed request.
 
@@ -35,15 +34,15 @@ and Linux packages. No signed candidate exists for this branch, so both package 
 blocked; the dated report preserves the exact verification steps and prior reports retain their
 historical evidence.
 
-QA impact 2026-08-13: the live beta.13 runtime manifest predates canonical feed generation and is
-rejected by the packaged app before first-run provisioning. The signed feed repair preserves every
+QA impact 2026-08-13: the live beta.13 runtime manifest predates canonical channel generation and is
+rejected by the packaged app before first-run provisioning. The signed channel repair preserves every
 manifest value, canonicalizes and re-signs the exact live version, then verifies the published
 bytes. Reset to `untested` for the repaired live-feed macOS and Linux package walks.
 
-QA result 2026-08-14: the repaired beta.13 feed passed canonical signature verification, then the
+QA result 2026-08-14: the repaired beta.13 channel passed canonical signature verification, then the
 beta.16 DMG and AppImage each provisioned from an empty isolated home. The publication job rebuilt,
-signed, uploaded, and publicly re-read the beta.16 desktop feed and every referenced payload.
+signed, uploaded, and publicly re-read the beta.16 desktop channel and every referenced payload.
 
 QA impact 2026-08-16: Electron packages the lockstep runtime and verifies its embedded digest before
-the first write. Reset for offline bundled provisioning on macOS and Linux; the prior feed-backed
+the first write. Reset for offline bundled provisioning on macOS and Linux; the prior channel-backed
 first-run evidence no longer settles this behavior.

@@ -29,6 +29,8 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func newManagerWithExecutable(t *testing.T, cfg *Config) (*Manager, string) {
 	t.Helper()
+	config := *cfg
+	cfg = &config
 
 	homePaths := cfg.HomePaths
 	if strings.TrimSpace(homePaths.HomeDir) == "" {

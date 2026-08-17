@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/procutil"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/version"
 )
@@ -69,19 +69,24 @@ func (c settingsUpdateController) ApplyUpdate(
 			Target: target, Status: compozyupdate.ApplyStatusFailed, Message: err.Error(),
 		}, err
 	}
-	if err := c.spawn(ctx, operation); err != nil {
+	detachedCtx := context.WithoutCancel(ctx)
+	if err := c.spawn(detachedCtx, operation); err != nil {
 		_, transitionErr := c.manager.OperationStore().Transition(
-			ctx, operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+			detachedCtx, operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
 			compozyupdate.Transition{
 				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
 				Target: target, Phase: compozyupdate.PhaseFailed, Percent: -1,
 				LastError: err.Error(), Outcome: string(compozyupdate.StatusFailed),
 			},
 		)
-		return core.SettingsUpdateApply{
-			Target: target, Status: compozyupdate.ApplyStatusFailed, OperationID: operation.ID,
-			Message: err.Error(),
-		}, errors.Join(err, transitionErr)
+		result := core.SettingsUpdateApply{
+			Target: target, Status: compozyupdate.ApplyStatusAccepted, OperationID: operation.ID,
+			Message: "Update accepted.",
+		}
+		if transitionErr != nil {
+			return result, errors.Join(err, transitionErr)
+		}
+		return result, nil
 	}
 	return core.SettingsUpdateApply{
 		Target: target, Status: compozyupdate.ApplyStatusAccepted, OperationID: operation.ID,
@@ -109,7 +114,17 @@ func (c settingsUpdateController) CancelUpdate(ctx context.Context) (core.Settin
 			Target: operation.ActiveTarget, Percent: -1, Outcome: string(compozyupdate.StatusCanceled),
 		},
 	)
-	if errors.Is(err, compozyupdate.ErrOperationNotCancelable) || errors.Is(err, compozyupdate.ErrExecutorFenced) {
+	if errors.Is(err, compozyupdate.ErrOperationNotCancelable) {
+		return core.SettingsUpdateCancel{
+			Status: compozyupdate.StatusBlocked, OperationID: operation.ID,
+			Message: fmt.Sprintf(
+				"The update operation cannot be canceled during the %s phase.",
+				settingsUpdateOperationPhase(operation),
+			),
+			Holder: operation.Holder,
+		}, nil
+	}
+	if errors.Is(err, compozyupdate.ErrExecutorFenced) {
 		return core.SettingsUpdateCancel{
 			Status: compozyupdate.StatusBlocked, OperationID: operation.ID,
 			Message: "The update operation has a live executor and was not canceled.", Holder: operation.Holder,
@@ -124,8 +139,21 @@ func (c settingsUpdateController) CancelUpdate(ctx context.Context) (core.Settin
 	}, nil
 }
 
-func newSettingsUpdateManager(d *Daemon) (*compozyupdate.Manager, error) {
-	if d == nil {
+func settingsUpdateOperationPhase(operation *compozyupdate.Operation) compozyupdate.OperationPhase {
+	if operation == nil {
+		return ""
+	}
+	if operation.ActiveTarget == compozyupdate.TargetRuntime && operation.Runtime != nil {
+		return operation.Runtime.Phase
+	}
+	if operation.ActiveTarget == compozyupdate.TargetApp && operation.App != nil {
+		return operation.App.Phase
+	}
+	return ""
+}
+
+func newSettingsUpdateManager(d *Daemon, logger *slog.Logger) (*compozyupdate.Manager, error) {
+	if d == nil || logger == nil {
 		return nil, errors.New("daemon: settings update daemon is required")
 	}
 	return compozyupdate.NewManager(&compozyupdate.Config{
@@ -133,22 +161,28 @@ func newSettingsUpdateManager(d *Daemon) (*compozyupdate.Manager, error) {
 		CurrentVersion:  version.Current().Version,
 		ExecutablePath:  d.executable,
 		Getenv:          os.Getenv,
-		OperationEvents: compozyupdate.NewSlogOperationEventEmitter(d.logger),
+		OperationEvents: compozyupdate.NewSlogOperationEventEmitter(logger),
 	})
 }
 
 func newSettingsUpdateController(d *Daemon, manager settingsUpdateManager) settingsUpdateController {
 	return settingsUpdateController{
 		manager: manager,
-		holder:  newDaemonUpdateHolder,
+		holder: func(surface compozyupdate.Actor) (compozyupdate.Holder, error) {
+			return newDaemonUpdateHolder(d, surface)
+		},
 		spawn: func(ctx context.Context, operation *compozyupdate.Operation) error {
-			return spawnDetachedUpdateCoordinator(ctx, d, operation)
+			return spawnDetachedUpdateCoordinator(context.WithoutCancel(ctx), d, operation)
 		},
 	}
 }
 
-func newDaemonUpdateHolder(surface compozyupdate.Actor) (compozyupdate.Holder, error) {
-	startedAt, err := procutil.StartedAt(os.Getpid())
+func newDaemonUpdateHolder(d *Daemon, surface compozyupdate.Actor) (compozyupdate.Holder, error) {
+	if d == nil || d.pid == nil || d.processStartedAt == nil || d.now == nil {
+		return compozyupdate.Holder{}, errors.New("daemon: update executor identity dependencies are required")
+	}
+	pid := d.pid()
+	startedAt, err := d.processStartedAt(pid)
 	if err != nil {
 		return compozyupdate.Holder{}, fmt.Errorf("daemon: resolve update executor identity: %w", err)
 	}
@@ -157,8 +191,8 @@ func newDaemonUpdateHolder(surface compozyupdate.Actor) (compozyupdate.Holder, e
 		return compozyupdate.Holder{}, err
 	}
 	return compozyupdate.Holder{
-		PID: os.Getpid(), PIDStartTime: startedAt, Surface: surface,
-		ExecutorGeneration: generation, LeaseExpiresAt: time.Now().UTC().Add(2 * time.Minute),
+		PID: pid, PIDStartTime: startedAt, Surface: surface,
+		ExecutorGeneration: generation, LeaseExpiresAt: d.now().UTC().Add(2 * time.Minute),
 	}, nil
 }
 

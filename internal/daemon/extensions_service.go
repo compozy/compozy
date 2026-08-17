@@ -139,28 +139,29 @@ func newDaemonExtensionService(
 	if deps == nil || deps.Registry == nil {
 		return nil
 	}
-	if deps.Logger == nil {
-		deps.Logger = slog.Default()
+	normalized := *deps
+	if normalized.Logger == nil {
+		normalized.Logger = slog.Default()
 	}
-	if deps.Now == nil {
-		deps.Now = func() time.Time {
+	if normalized.Now == nil {
+		normalized.Now = func() time.Time {
 			return time.Now().UTC()
 		}
 	}
-	if deps.Getenv == nil {
-		deps.Getenv = os.Getenv
+	if normalized.Getenv == nil {
+		normalized.Getenv = os.Getenv
 	}
 	service := &daemonExtensionService{
-		registry:   deps.Registry,
-		runtime:    deps.Runtime,
-		hookBinds:  deps.HookBindings,
-		agentSkill: deps.AgentSkill,
-		toolMCP:    deps.ToolMCP,
-		loops:      deps.Loops,
-		homePaths:  deps.HomePaths,
-		logger:     deps.Logger,
-		now:        deps.Now,
-		getenv:     deps.Getenv,
+		registry:   normalized.Registry,
+		runtime:    normalized.Runtime,
+		hookBinds:  normalized.HookBindings,
+		agentSkill: normalized.AgentSkill,
+		toolMCP:    normalized.ToolMCP,
+		loops:      normalized.Loops,
+		homePaths:  normalized.HomePaths,
+		logger:     normalized.Logger,
+		now:        normalized.Now,
+		getenv:     normalized.Getenv,
 		lifecycle:  newExtensionLifecycleCoordinator(),
 	}
 	for _, opt := range opts {

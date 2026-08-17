@@ -70,9 +70,9 @@ compozy update --check -o json
 
 ## Recover a runtime update
 
-When status reports `recovery_required`:
+When an update operation reports `failed`:
 
-1. Save the recovery code from `compozy app diagnose -o json`.
+1. Save the reported error code from `compozy app diagnose -o json`.
 2. Follow the reported action without deleting the active runtime, staging directory, or home data.
 3. Run `compozy app retry` after resolving the cause.
 4. Confirm healthy state with `compozy app status -o json`.

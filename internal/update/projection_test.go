@@ -1,6 +1,9 @@
 package update
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestUpdateProjectionContracts(t *testing.T) {
 	t.Run("Should apply the frozen live and terminal aggregate precedence", func(t *testing.T) {
@@ -50,11 +53,45 @@ func TestUpdateProjectionContracts(t *testing.T) {
 			ReleaseURL: "https://example.test/v2", Message: "app message",
 		}, operation)
 
-		if state.Aggregate != StatusApplying || state.Operation == nil || state.Operation.Revision != 7 ||
-			state.Operation.Phase != PhaseDownloading || state.Operation.Percent != 42 ||
-			state.Runtime.RestoredVersion != "v0" || !state.Runtime.DaemonRestarted ||
-			state.Runtime.Message != "runtime message" || state.App == nil || state.App.Message != "app message" {
-			t.Fatalf("ProjectMultiState() = %#v, want complete applying projection", state)
+		want := MultiState{
+			Aggregate: StatusApplying,
+			Operation: &OperationView{
+				ID: "op-1", Revision: 7, Targets: []Target{TargetRuntime, TargetApp},
+				ActiveTarget: TargetRuntime, Phase: PhaseDownloading, Percent: 42,
+				Holder: cloneHolder(operation.Holder), Waiting: WaitingNone, StartedAt: testOperationNow,
+			},
+			Runtime: RuntimeTrackState{
+				Status: StatusApplying, InstallMethod: string(InstallMethodDesktopApp),
+				Managed: false, CurrentVersion: "v1", LatestVersion: "v2",
+				ReleaseURL: "https://example.test/v2", Recommendation: "recommendation",
+				RestoredVersion: "v0", DaemonRestarted: true,
+				Message: "runtime message", LastError: "runtime error",
+			},
+			App: &AppTrackState{
+				Status: StatusAvailable, Running: true, CurrentVersion: "v1", LatestVersion: "v2",
+				ReleaseURL: "https://example.test/v2", Message: "app message",
+			},
+		}
+		if !reflect.DeepEqual(state, want) {
+			t.Fatalf("ProjectMultiState() = %#v, want %#v", state, want)
+		}
+	})
+
+	t.Run("Should project archived runtime rollback truth", func(t *testing.T) {
+		t.Parallel()
+
+		runtime := State{Status: StatusAvailable, CurrentVersion: "v1.0.0"}
+		applyArchivedRuntimeOutcome(&runtime, &Operation{
+			LastError: "replacement health check failed",
+			Runtime: &RuntimeOperationState{
+				ArtifactIdentity: ArtifactIdentity{FromVersion: "v1.0.0", ToVersion: "v1.1.0"},
+				Phase:            PhaseRolledBack,
+				DaemonRestarted:  true,
+			},
+		})
+		if runtime.Status != StatusFailed || runtime.RestoredVersion != "v1.0.0" ||
+			!runtime.DaemonRestarted || runtime.LastError != "replacement health check failed" {
+			t.Fatalf("archived rollback projection = %#v, want complete rollback truth", runtime)
 		}
 	})
 }

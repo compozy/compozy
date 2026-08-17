@@ -61664,12 +61664,12 @@ export interface operations {
               | "failed"
               | "canceled";
             app: {
-              attempt_id?: string;
+              attempt_id: string;
               current_version: string;
-              last_error?: string;
-              latest_version?: string;
+              last_error: string;
+              latest_version: string;
               message: string;
-              release_url?: string;
+              release_url: string;
               running: boolean;
               /** @enum {string} */
               status:
@@ -61685,7 +61685,8 @@ export interface operations {
                 | "canceled";
             } | null;
             operation: {
-              active_target?: string;
+              /** @enum {string|null} */
+              active_target?: "runtime" | "app" | null;
               holder: {
                 executor_generation: string;
                 /** Format: date-time */
@@ -61693,30 +61694,58 @@ export interface operations {
                 pid: number;
                 /** Format: date-time */
                 pid_start_time: string;
-                surface: string;
+                /** @enum {string} */
+                surface: "cli" | "daemon" | "web" | "shell";
               } | null;
               id: string;
-              last_error?: string;
+              last_error: string;
               percent: number;
-              phase?: string;
+              /** @enum {string} */
+              phase:
+                | "pending"
+                | "downloading"
+                | "verifying"
+                | "swapping"
+                | "restarting"
+                | "health-checking"
+                | "finalized"
+                | "rolled-back"
+                | "failed"
+                | "staged"
+                | "applying"
+                | "installer-handoff"
+                | "restarted"
+                | "verified";
               /** Format: int64 */
               revision: number;
               /** Format: date-time */
               started_at: string;
-              targets: string[];
-              waiting: string;
+              targets: ("runtime" | "app")[];
+              /** @enum {string} */
+              waiting: "" | "waiting-for-app";
             } | null;
             runtime: {
               current_version: string;
               daemon_restarted: boolean;
-              install_method: string;
-              last_error?: string;
-              latest_version?: string;
+              /** @enum {string} */
+              install_method:
+                | "direct-binary"
+                | "homebrew"
+                | "npm"
+                | "apt"
+                | "dnf"
+                | "rpm"
+                | "scoop"
+                | "go-install"
+                | "desktop-app"
+                | "unknown";
+              last_error: string;
+              latest_version: string;
               managed: boolean;
               message: string;
-              recommendation?: string;
-              release_url?: string;
-              restored_version?: string;
+              recommendation: string;
+              release_url: string;
+              restored_version: string;
               /** @enum {string} */
               status:
                 | "up-to-date"
@@ -61804,7 +61833,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          target: string;
+          /** @enum {string} */
+          target: "runtime" | "app";
         };
       };
     };
@@ -61823,12 +61853,15 @@ export interface operations {
               pid: number;
               /** Format: date-time */
               pid_start_time: string;
-              surface: string;
+              /** @enum {string} */
+              surface: "cli" | "daemon" | "web" | "shell";
             } | null;
             message: string;
             operation_id?: string;
-            status: string;
-            target: string;
+            /** @enum {string} */
+            status: "accepted" | "blocked" | "failed";
+            /** @enum {string} */
+            target: "runtime" | "app";
           };
         };
       };
@@ -61863,6 +61896,35 @@ export interface operations {
       };
       /** @description Forbidden */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -61944,7 +62006,8 @@ export interface operations {
               pid: number;
               /** Format: date-time */
               pid_start_time: string;
-              surface: string;
+              /** @enum {string} */
+              surface: "cli" | "daemon" | "web" | "shell";
             } | null;
             message: string;
             operation_id?: string;
@@ -61965,6 +62028,35 @@ export interface operations {
       };
       /** @description Forbidden */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
         headers: {
           [name: string]: unknown;
         };

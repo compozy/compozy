@@ -3,6 +3,7 @@
 ## Contents
 
 - Desired state and apply lifecycle
+- Host update cadence
 - Gateway
 - Marketplace catalog
 - Autonomy scheduler
@@ -40,6 +41,11 @@ checks. The shell reads no update config. Read the host-global operation with
 `GET /api/settings/update`; mutate it through `POST /api/settings/update/apply` or
 `POST /api/settings/update/cancel` over HTTP or UDS. Use `compozy update --check -o json`,
 `compozy update -o json`, and `compozy update --cancel -o json` as the CLI paths.
+Read or change the cadence with `compozy config get|set|unset app.update_check -o json` and
+`app.update_check_interval`, or the matching `compozy__config_get|set` native tools. Setting
+`update_check` to `false` stops background checks on both tracks; manual `--check` remains
+available. Both keys apply live without a daemon restart, and an interval change governs the next
+background check. Read each key back from the same structured surface after mutation.
 
 ## Session Attachments
 

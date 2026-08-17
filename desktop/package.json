@@ -7,7 +7,7 @@
     "type": "module",
     "main": "dist/main.cjs",
     "scripts": {
-        "build": "bun run build:runtime && bun run build:main && electron-builder --config electron-builder.yml --dir",
+        "build": "bun run build:runtime && bun run build:main && bun run scripts/package-local.ts",
         "build:main": "bun run scripts/build-main.ts",
         "build:runtime": "bun run scripts/build-runtime.ts",
         "build:e2e-update": "bun run scripts/build-e2e-update.ts",
@@ -23,12 +23,14 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "electron-updater": "6.8.9"
+        "electron-updater": "6.8.9",
+        "tar": "^7.5.22"
     },
     "devDependencies": {
         "@playwright/test": "1.62.1",
         "@types/bun": "1.3.14",
         "@types/node": "26.2.0",
+        "@vitest/coverage-v8": "4.1.10",
         "electron": "43.4.0",
         "electron-builder": "26.15.3",
         "esbuild": "0.28.2",

@@ -11,6 +11,15 @@ export function requiredMacZipSymlinks(appBundle: string): readonly string[] {
   return frameworkSymlinks.map(entry => `${appBundle}/${entry}`);
 }
 
+export function parseZipInfoLongListing(listing: string): Map<string, string> {
+  const entries = new Map<string, string>();
+  for (const line of listing.split(/\r?\n/u)) {
+    const match = line.match(/^([dl-][rwx-]{9})(?:\s+\S+){8}\s+(.+)$/u);
+    if (match?.[1] && match[2]) entries.set(match[2], match[1]);
+  }
+  return entries;
+}
+
 export function assertMacZipSymlinks(
   appBundle: string,
   entries: ReadonlyMap<string, string>

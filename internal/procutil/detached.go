@@ -70,6 +70,17 @@ func (p *DetachedProcess) Done() <-chan struct{} {
 	return p.done
 }
 
+// Terminate stops the detached child when it has not exited yet.
+func (p *DetachedProcess) Terminate() error {
+	if p == nil || p.process == nil {
+		return nil
+	}
+	if err := p.process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return fmt.Errorf("procutil: terminate detached process: %w", err)
+	}
+	return nil
+}
+
 func newDetachedProcess(process *os.Process, logPath string, logOffset int64) *DetachedProcess {
 	detached := &DetachedProcess{
 		process:   process,

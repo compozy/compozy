@@ -63,17 +63,22 @@ export function useMenubarActions(): MenubarActionsModel {
     if (canOpenApps) void coordinator.userOpen({ app });
   };
   const openSettingsRoute = (pathname: string) => {
-    if (canOpenApps)
-      void coordinator.userOpen({ app: "settings", route: { pathname, search: {} } });
+    const route = { pathname, search: {} };
+    if (canOpenApps) {
+      void coordinator.userOpen({ app: "settings", route });
+      return;
+    }
+    coordinator.userNavigate(route);
   };
+  const openGeneralSettings = () => openSettingsRoute(settingsSectionPath("general"));
 
   return {
     menusVisible: !compact,
     canOpenApps,
     windowCommands,
     openApp,
-    openSettings: () => openApp("settings"),
-    openUpdates: () => openSettingsRoute(settingsSectionPath("general")),
+    openSettings: openGeneralSettings,
+    openUpdates: openGeneralSettings,
     openAppearance: () => openSettingsRoute("/settings/appearance"),
     openLayouts: () => openSettingsRoute("/settings/layouts"),
     openSupport: () => openSettingsRoute("/settings/observability"),

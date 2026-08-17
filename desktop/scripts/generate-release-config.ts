@@ -1,26 +1,27 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
+import { buildReleaseConfig } from "../src/release/release-config";
 import {
-  buildReleaseConfig,
-  type ReleaseArch,
-  type ReleasePlatform,
-} from "../src/release/release-config";
+  parseBooleanFlag,
+  parseReleaseArch,
+  parseReleasePlatform,
+  parseReleaseScriptFlags,
+  requiredReleaseFlag,
+} from "../src/release/release-script-flags";
 
-const values = new Map<string, string>();
-for (let index = 2; index < process.argv.length; index += 2) {
-  const key = process.argv[index];
-  const value = process.argv[index + 1];
-  if (!key?.startsWith("--") || !value) throw new Error("Release config flags require values.");
-  values.set(key.slice(2), value);
-}
+const values = parseReleaseScriptFlags(
+  process.argv.slice(2),
+  ["arch", "notarize", "output", "platform", "version"],
+  ["arch", "notarize", "platform", "version"]
+);
 const output = resolve(values.get("output") ?? ".artifacts/release-config.json");
 const config = buildReleaseConfig({
-  arch: values.get("arch") as ReleaseArch,
+  arch: parseReleaseArch(values.get("arch")),
   channel: "beta",
-  notarize: values.get("notarize") === "true",
-  platform: values.get("platform") as ReleasePlatform,
-  version: values.get("version") ?? "",
+  notarize: parseBooleanFlag(values.get("notarize"), "notarize"),
+  platform: parseReleasePlatform(values.get("platform")),
+  version: requiredReleaseFlag(values, "version"),
 });
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/appstatecontract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 )
@@ -32,6 +33,11 @@ func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, 
 	if err != nil {
 		return MultiState{}, release, err
 	}
+	archivedRuntime, err := m.operationStore.LatestArchivedRuntime(ctx)
+	if err != nil {
+		return MultiState{}, release, err
+	}
+	applyArchivedRuntimeOutcome(&runtimeState, archivedRuntime)
 	archivedApp, err := m.operationStore.LatestArchivedApp(ctx)
 	if err != nil {
 		return MultiState{}, release, err
@@ -44,13 +50,23 @@ func (m *Manager) CheckAll(ctx context.Context, opts CheckOptions) (MultiState, 
 	return ProjectMultiState(runtimeState, app, operation), release, checkErr
 }
 
-func applyArchivedAppFailure(app *AppTrackState, archived *Operation, forceRefresh bool) {
-	if forceRefresh || app == nil || archived == nil || archived.App == nil ||
-		archived.App.Phase != PhaseFailed || archived.App.ConsecutiveFailures < 1 {
+func applyArchivedRuntimeOutcome(runtime *State, archived *Operation) {
+	if runtime == nil || archived == nil || archived.Runtime == nil ||
+		archived.Runtime.Phase != PhaseRolledBack {
 		return
 	}
-	comparison, err := compareVersions(app.CurrentVersion, archived.App.ToVersion)
-	if err == nil && comparison >= 0 {
+	runtime.Status = StatusFailed
+	runtime.RestoredVersion = strings.TrimSpace(archived.Runtime.FromVersion)
+	runtime.DaemonRestarted = archived.Runtime.DaemonRestarted
+	runtime.LastError = strings.TrimSpace(archived.LastError)
+	if runtime.LastError == "" {
+		runtime.LastError = "The runtime update rolled back."
+	}
+	runtime.Message = "The runtime update failed and the previous version was restored."
+}
+
+func applyArchivedAppFailure(app *AppTrackState, archived *Operation, forceRefresh bool) {
+	if forceRefresh || app == nil || archivedAppFailureCount(app.CurrentVersion, archived) == 0 {
 		return
 	}
 	app.Status = StatusFailed
@@ -95,7 +111,7 @@ func (m *Manager) readAppTrack(release *Release, installMethod string) (*AppTrac
 	if err := json.Unmarshal(data, &snapshot); err != nil {
 		return nil, fmt.Errorf("update: decode desktop app state: %w", err)
 	}
-	if snapshot.SchemaVersion != 2 {
+	if snapshot.SchemaVersion != appstatecontract.SchemaVersion {
 		return nil, fmt.Errorf("update: unsupported desktop app state schema version %d", snapshot.SchemaVersion)
 	}
 	running := snapshot.PID > 0 && procutil.Alive(snapshot.PID) &&

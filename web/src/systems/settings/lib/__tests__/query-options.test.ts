@@ -10,6 +10,7 @@ import {
   settingsProviderDetailOptions,
   settingsProvidersListOptions,
   settingsRestartStatusOptions,
+  settingsUpdateOptions,
 } from "../query-options";
 import { SettingsApiError } from "../../adapters/settings-api";
 
@@ -109,5 +110,22 @@ describe("settings restart options", () => {
     );
     expect(refetchInterval({ state: { data: { status: "ready" } } })).toBe(false);
     expect(refetchInterval({ state: { data: { status: "failed" } } })).toBe(false);
+  });
+});
+
+describe("settings update options", () => {
+  it("uses the section cadence at rest and the live cadence while an operation exists", () => {
+    const options = settingsUpdateOptions();
+    const refetchInterval = options.refetchInterval as (query: {
+      state: { data?: { operation: object | null } };
+    }) => number;
+
+    expect(refetchInterval({ state: {} })).toBe(SETTINGS_QUERY_INTERVALS.sectionRefetchInterval);
+    expect(refetchInterval({ state: { data: { operation: null } } })).toBe(
+      SETTINGS_QUERY_INTERVALS.sectionRefetchInterval
+    );
+    expect(refetchInterval({ state: { data: { operation: {} } } })).toBe(
+      SETTINGS_QUERY_INTERVALS.updateOperationPollInterval
+    );
   });
 });

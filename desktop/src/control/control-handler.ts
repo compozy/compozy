@@ -1,15 +1,13 @@
 import { clipboard } from "electron";
 
+import type { DiagnosticBundleResult } from "../diagnostics/export-diagnostics";
 import type { AppStatePublisher } from "../state/app-state";
 import { ControlMethodError, type ControlHandler } from "./control-contract";
 
 interface ControlActions {
   readonly navigate: (path: string) => Promise<string>;
   readonly retry: () => Promise<void>;
-  readonly exportDiagnostics: () => Promise<{
-    readonly bundle_path: string;
-    readonly bytes: number;
-  }>;
+  readonly exportDiagnostics: () => Promise<DiagnosticBundleResult>;
 }
 
 function recordParams(params: unknown): Record<string, unknown> {

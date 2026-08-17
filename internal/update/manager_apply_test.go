@@ -567,8 +567,6 @@ func TestSelfBinaryApplierCleanup(t *testing.T) {
 }
 
 func TestManagerRestore(t *testing.T) {
-	t.Parallel()
-
 	t.Run("Should restore backup executable mode when target mode is broken", func(t *testing.T) {
 		t.Parallel()
 
@@ -595,6 +593,54 @@ func TestManagerRestore(t *testing.T) {
 		}
 		if applier.targetPath != executablePath || applier.backupPath != backupPath || applier.mode != 0o755 {
 			t.Fatalf("binary restore = %#v, want backup %q target %q mode 0755", applier, backupPath, executablePath)
+		}
+	})
+
+	t.Run("Should restore desktop provenance from the journaled install method", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		executablePath := filepath.Join(homePaths.BinDir, compozyBinaryName)
+		if err := os.MkdirAll(homePaths.BinDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(bin) error = %v", err)
+		}
+		if err := os.WriteFile(executablePath, []byte("replacement-binary"), 0o700); err != nil {
+			t.Fatalf("WriteFile(replacement) error = %v", err)
+		}
+		if err := rewriteDesktopProvenance(homePaths, executablePath); err != nil {
+			t.Fatalf("rewriteDesktopProvenance(replacement) error = %v", err)
+		}
+		backupPath := filepath.Join(homePaths.BinDir, ".compozy.backup")
+		if err := os.WriteFile(backupPath, []byte("original-binary"), 0o700); err != nil {
+			t.Fatalf("WriteFile(backup) error = %v", err)
+		}
+		manager, err := NewManager(&Config{
+			HomePaths:      homePaths,
+			CurrentVersion: "v1.1.0",
+			ExecutablePath: func() (string, error) { return executablePath, nil },
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
+		})
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		if err := manager.Restore(AppliedBinary{
+			TargetPath: executablePath, BackupPath: backupPath, InstallMethod: InstallMethodDesktopApp,
+		}); err != nil {
+			t.Fatalf("Restore() error = %v", err)
+		}
+		if !isDesktopAppInstall(homePaths.HomeDir, executablePath, runtimeOSLinux) {
+			t.Fatal("isDesktopAppInstall() = false after desktop rollback")
+		}
+		contents, err := os.ReadFile(executablePath)
+		if err != nil {
+			t.Fatalf("ReadFile(restored) error = %v", err)
+		}
+		if string(contents) != "original-binary" {
+			t.Fatalf("restored contents = %q, want original-binary", contents)
 		}
 	})
 }

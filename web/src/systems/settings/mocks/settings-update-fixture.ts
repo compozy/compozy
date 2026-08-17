@@ -20,8 +20,11 @@ export const settingsUpdateStatusFixture: SettingsUpdateStatus = {
     current_version: "0.5.1",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    recommendation: "",
+    restored_version: "",
     daemon_restarted: false,
     message: "CompozyOS runtime is up to date.",
+    last_error: "",
   },
   app: {
     status: "up-to-date",
@@ -29,7 +32,9 @@ export const settingsUpdateStatusFixture: SettingsUpdateStatus = {
     current_version: "0.5.1",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    attempt_id: "",
     message: "CompozyOS app is up to date.",
+    last_error: "",
   },
 };
 
@@ -44,8 +49,11 @@ export const settingsUpdateBothAvailableFixture: SettingsUpdateStatus = {
     current_version: "0.5.0",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    recommendation: "",
+    restored_version: "",
     daemon_restarted: false,
     message: "CompozyOS runtime 0.5.1 is available.",
+    last_error: "",
   },
   app: {
     status: "available",
@@ -53,7 +61,9 @@ export const settingsUpdateBothAvailableFixture: SettingsUpdateStatus = {
     current_version: "0.5.0",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    attempt_id: "",
     message: "CompozyOS app 0.5.1 is available.",
+    last_error: "",
   },
 };
 
@@ -66,7 +76,18 @@ export const settingsUpdateRuntimeAvailableFixture: SettingsUpdateStatus = {
     current_version: "0.5.1",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    attempt_id: "",
     message: "CompozyOS app is up to date.",
+    last_error: "",
+  },
+};
+
+/** The installed app offers an update; the runtime is already current. */
+export const settingsUpdateAppAvailableFixture: SettingsUpdateStatus = {
+  ...settingsUpdateBothAvailableFixture,
+  runtime: {
+    ...settingsUpdateStatusFixture.runtime,
+    install_method: "desktop-app",
   },
 };
 
@@ -82,8 +103,10 @@ export const settingsUpdateManagedFixture: SettingsUpdateStatus = {
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
     recommendation: "brew upgrade compozy",
+    restored_version: "",
     daemon_restarted: false,
     message: "CompozyOS 0.5.1 is available. Upgrade with your package manager.",
+    last_error: "",
   },
   app: null,
 };
@@ -99,8 +122,11 @@ export const settingsUpdateNoAppFixture: SettingsUpdateStatus = {
     current_version: "0.5.0",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    recommendation: "",
+    restored_version: "",
     daemon_restarted: false,
     message: "CompozyOS runtime 0.5.1 is available.",
+    last_error: "",
   },
   app: null,
 };
@@ -117,6 +143,7 @@ export const settingsUpdateApplyingFixture: SettingsUpdateStatus = {
     percent: 62,
     waiting: "",
     started_at: "2026-08-20T14:02:11Z",
+    last_error: "",
     holder: {
       pid: 4242,
       pid_start_time: "2026-08-20T14:02:10Z",
@@ -132,8 +159,11 @@ export const settingsUpdateApplyingFixture: SettingsUpdateStatus = {
     current_version: "0.5.0",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    recommendation: "",
+    restored_version: "",
     daemon_restarted: false,
     message: "Updating CompozyOS runtime to 0.5.1.",
+    last_error: "",
   },
   app: null,
 };
@@ -145,11 +175,11 @@ export const settingsUpdateStagedFixture: SettingsUpdateStatus = {
     id: "op-7f3a2c",
     revision: 9,
     targets: ["runtime", "app"],
-    active_target: "app",
     phase: "staged",
     percent: -1,
     waiting: "waiting-for-app",
     started_at: "2026-08-20T14:02:11Z",
+    last_error: "",
     holder: null,
   },
   runtime: {
@@ -159,8 +189,11 @@ export const settingsUpdateStagedFixture: SettingsUpdateStatus = {
     current_version: "0.5.1",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    recommendation: "",
+    restored_version: "",
     daemon_restarted: true,
     message: "Updated CompozyOS runtime to 0.5.1 and restarted the daemon.",
+    last_error: "",
   },
   app: {
     status: "staged",
@@ -170,6 +203,7 @@ export const settingsUpdateStagedFixture: SettingsUpdateStatus = {
     release_url: RELEASE_URL,
     attempt_id: "attempt-1",
     message: "CompozyOS app update staged; applies on next launch.",
+    last_error: "",
   },
 };
 
@@ -185,6 +219,7 @@ export const settingsUpdateBlockedFixture: SettingsUpdateStatus = {
     percent: 12,
     waiting: "",
     started_at: "2026-08-20T14:02:11Z",
+    last_error: "",
     holder: {
       pid: 4242,
       pid_start_time: "2026-08-20T14:02:10Z",
@@ -200,8 +235,11 @@ export const settingsUpdateBlockedFixture: SettingsUpdateStatus = {
     current_version: "0.5.0",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    recommendation: "",
+    restored_version: "",
     daemon_restarted: false,
     message: "A runtime update is already in progress (holder pid 4242). Retry after it completes.",
+    last_error: "",
   },
   app: null,
 };
@@ -217,6 +255,7 @@ export const settingsUpdateRolledBackFixture: SettingsUpdateStatus = {
     current_version: "0.5.0",
     latest_version: "0.5.1",
     release_url: RELEASE_URL,
+    recommendation: "",
     restored_version: "0.5.0",
     daemon_restarted: true,
     message: "Update failed; restored CompozyOS runtime 0.5.0.",

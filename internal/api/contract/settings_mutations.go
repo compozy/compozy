@@ -264,48 +264,48 @@ type SettingsUpdateApplyRequest struct {
 }
 
 type SettingsUpdateHolderPayload struct {
-	PID                int       `json:"pid"`
-	PIDStartTime       time.Time `json:"pid_start_time"`
-	Surface            string    `json:"surface"`
-	ExecutorGeneration string    `json:"executor_generation"`
-	LeaseExpiresAt     time.Time `json:"lease_expires_at"`
+	PID                int                 `json:"pid"`
+	PIDStartTime       time.Time           `json:"pid_start_time"`
+	Surface            SettingsUpdateActor `json:"surface"`
+	ExecutorGeneration string              `json:"executor_generation"`
+	LeaseExpiresAt     time.Time           `json:"lease_expires_at"`
 }
 
 type SettingsUpdateOperationPayload struct {
 	ID           string                       `json:"id"`
 	Revision     int64                        `json:"revision"`
 	Targets      []SettingsUpdateTarget       `json:"targets"`
-	ActiveTarget SettingsUpdateTarget         `json:"active_target,omitempty"`
-	Phase        string                       `json:"phase,omitempty"`
+	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitempty"`
+	Phase        SettingsUpdatePhase          `json:"phase"`
 	Percent      int                          `json:"percent"`
 	Holder       *SettingsUpdateHolderPayload `json:"holder"`
-	Waiting      string                       `json:"waiting"`
+	Waiting      SettingsUpdateWaitingState   `json:"waiting"`
 	StartedAt    time.Time                    `json:"started_at"`
-	LastError    string                       `json:"last_error,omitempty"`
+	LastError    string                       `json:"last_error"`
 }
 
 type SettingsUpdateRuntimePayload struct {
-	Status          SettingsUpdateStatusKind `json:"status"`
-	InstallMethod   string                   `json:"install_method"`
-	Managed         bool                     `json:"managed"`
-	CurrentVersion  string                   `json:"current_version"`
-	LatestVersion   string                   `json:"latest_version,omitempty"`
-	ReleaseURL      string                   `json:"release_url,omitempty"`
-	Recommendation  string                   `json:"recommendation,omitempty"`
-	RestoredVersion string                   `json:"restored_version,omitempty"`
-	DaemonRestarted bool                     `json:"daemon_restarted"`
-	Message         string                   `json:"message"`
-	LastError       string                   `json:"last_error,omitempty"`
+	Status          SettingsUpdateStatusKind    `json:"status"`
+	InstallMethod   SettingsUpdateInstallMethod `json:"install_method"`
+	Managed         bool                        `json:"managed"`
+	CurrentVersion  string                      `json:"current_version"`
+	LatestVersion   string                      `json:"latest_version"`
+	ReleaseURL      string                      `json:"release_url"`
+	Recommendation  string                      `json:"recommendation"`
+	RestoredVersion string                      `json:"restored_version"`
+	DaemonRestarted bool                        `json:"daemon_restarted"`
+	Message         string                      `json:"message"`
+	LastError       string                      `json:"last_error"`
 }
 
 type SettingsUpdateAppPayload struct {
 	Status         SettingsUpdateStatusKind `json:"status"`
 	Running        bool                     `json:"running"`
 	CurrentVersion string                   `json:"current_version"`
-	LatestVersion  string                   `json:"latest_version,omitempty"`
-	ReleaseURL     string                   `json:"release_url,omitempty"`
-	AttemptID      string                   `json:"attempt_id,omitempty"`
-	LastError      string                   `json:"last_error,omitempty"`
+	LatestVersion  string                   `json:"latest_version"`
+	ReleaseURL     string                   `json:"release_url"`
+	AttemptID      string                   `json:"attempt_id"`
+	LastError      string                   `json:"last_error"`
 	Message        string                   `json:"message"`
 }
 

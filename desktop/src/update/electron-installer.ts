@@ -5,6 +5,7 @@ import { type AppUpdater, autoUpdater, type ProgressInfo } from "electron-update
 
 import type { AppOperationState } from "./operation-contract";
 import { shouldDisableDifferentialDownload } from "../release/cross-arch";
+import { recordedUpdateAsset } from "./electron-installer-policy";
 
 export interface DownloadedAppUpdate {
   readonly artifactPath: string;
@@ -17,10 +18,6 @@ export interface AppUpdateInstaller {
     onProgress: (percent: number) => Promise<void>
   ): Promise<DownloadedAppUpdate>;
   quitAndInstall(): void;
-}
-
-function normalizedVersion(version: string): string {
-  return version.trim().replace(/^v/, "");
 }
 
 export class ElectronUpdateInstaller implements AppUpdateInstaller {
@@ -41,19 +38,8 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
     onProgress: (percent: number) => Promise<void>
   ): Promise<DownloadedAppUpdate> {
     const checked = await this.#updater.checkForUpdates();
-    if (
-      !checked ||
-      normalizedVersion(checked.updateInfo.version) !== normalizedVersion(operation.to_version)
-    ) {
-      throw new Error("The update feed does not match the recorded app release.");
-    }
-    const recordedAsset = operation.asset.trim();
-    const feedContainsAsset = checked.updateInfo.files.some(
-      file => basename(file.url) === recordedAsset
-    );
-    if (!feedContainsAsset) {
-      throw new Error("The update feed does not contain the recorded app asset.");
-    }
+    if (!checked) throw new Error("The update feed does not match the recorded app release.");
+    const recordedAsset = recordedUpdateAsset(checked.updateInfo, operation);
 
     let progressQueue = Promise.resolve();
     let progressError: unknown;

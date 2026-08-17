@@ -13,6 +13,11 @@ import (
 )
 
 const (
+	DefaultOperationDeadline = 30 * time.Minute
+	DefaultLeaseDuration     = 2 * time.Minute
+)
+
+const (
 	githubLatestReleaseAPIURL  = "https://api.github.com/repos/compozy/compozy/releases/latest"
 	githubReleasesAPIURL       = "https://api.github.com/repos/compozy/compozy/releases?per_page=100"
 	githubRepositorySlug       = "compozy/compozy"
@@ -119,9 +124,10 @@ type State struct {
 
 // AppliedBinary describes one on-disk binary swap that still retains a rollback backup.
 type AppliedBinary struct {
-	TargetPath string
-	BackupPath string
-	Version    string
+	TargetPath    string
+	BackupPath    string
+	Version       string
+	InstallMethod InstallMethod
 }
 
 // CheckOptions customize one update status query.

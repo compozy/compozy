@@ -1,13 +1,33 @@
 export const UPDATE_OPERATION_SCHEMA_VERSION = 1;
 
-export type AppOperationPhase =
-  | "pending"
-  | "staged"
-  | "applying"
-  | "installer-handoff"
-  | "restarted"
-  | "verified"
-  | "failed";
+const APP_OPERATION_PHASE_VALUES = [
+  "pending",
+  "staged",
+  "applying",
+  "installer-handoff",
+  "restarted",
+  "verified",
+  "failed",
+] as const;
+export type AppOperationPhase = (typeof APP_OPERATION_PHASE_VALUES)[number];
+
+const RUNTIME_OPERATION_PHASE_VALUES = [
+  "pending",
+  "downloading",
+  "verifying",
+  "installing",
+  "restarting",
+  "ready-check",
+  "completed",
+  "rolled-back",
+  "failed",
+] as const;
+export type RuntimeOperationPhase = (typeof RUNTIME_OPERATION_PHASE_VALUES)[number];
+
+const UPDATE_TARGET_VALUES = ["runtime", "app"] as const;
+export type UpdateTarget = (typeof UPDATE_TARGET_VALUES)[number];
+const WAITING_STATE_VALUES = ["", "waiting-for-app"] as const;
+export type WaitingState = (typeof WAITING_STATE_VALUES)[number];
 
 export interface UpdateHolder {
   readonly pid: number;
@@ -29,27 +49,35 @@ export interface AppOperationState {
   readonly watchdog_deadline?: string;
 }
 
-export interface UpdateOperation {
-  readonly schema_version: 1;
-  readonly operation_id: string;
-  readonly revision: number;
-  readonly targets: readonly ("runtime" | "app")[];
-  readonly active_target?: "runtime" | "app";
-  readonly percent: number;
-  readonly app?: AppOperationState;
-  readonly holder: UpdateHolder | null;
-  readonly waiting: "" | "waiting-for-app";
+export interface RuntimeOperationState {
+  readonly from_version: string;
+  readonly to_version: string;
+  readonly release_tag: string;
+  readonly asset: string;
+  readonly digest: string;
+  readonly install_method: string;
+  readonly backup_path?: string;
+  readonly phase: RuntimeOperationPhase;
+  readonly daemon_restarted: boolean;
 }
 
-const APP_PHASES = new Set<AppOperationPhase>([
-  "pending",
-  "staged",
-  "applying",
-  "installer-handoff",
-  "restarted",
-  "verified",
-  "failed",
-]);
+export interface UpdateOperation {
+  readonly schema_version: typeof UPDATE_OPERATION_SCHEMA_VERSION;
+  readonly operation_id: string;
+  readonly revision: number;
+  readonly targets: readonly UpdateTarget[];
+  readonly active_target?: UpdateTarget;
+  readonly percent: number;
+  readonly runtime?: RuntimeOperationState;
+  readonly app?: AppOperationState;
+  readonly holder: UpdateHolder | null;
+  readonly waiting: WaitingState;
+}
+
+const APP_PHASES = new Set<string>(APP_OPERATION_PHASE_VALUES);
+const RUNTIME_PHASES = new Set<string>(RUNTIME_OPERATION_PHASE_VALUES);
+const UPDATE_TARGETS = new Set<unknown>(UPDATE_TARGET_VALUES);
+const WAITING_STATES = new Set<unknown>(WAITING_STATE_VALUES);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -72,16 +100,42 @@ export function parseUpdateOperation(value: unknown): UpdateOperation {
     value.percent < -1 ||
     value.percent > 100 ||
     !Array.isArray(value.targets) ||
-    !value.targets.every(target => target === "runtime" || target === "app") ||
-    (value.waiting !== "" && value.waiting !== "waiting-for-app")
+    !value.targets.every(target => UPDATE_TARGETS.has(target)) ||
+    !WAITING_STATES.has(value.waiting)
   ) {
     throw new Error("The update operation is invalid.");
   }
-  if (value.app !== undefined) parseAppOperation(value.app);
+  if (value.runtime !== undefined) parseRuntimeOperation(value.runtime);
+  if (value.app !== undefined) validateAppOperation(value.app);
   return value as unknown as UpdateOperation;
 }
 
-function parseAppOperation(value: unknown): AppOperationState {
+function parseRuntimeOperation(value: unknown): RuntimeOperationState {
+  if (!isRecord(value)) throw new Error("The runtime update operation is invalid.");
+  for (const field of [
+    "from_version",
+    "to_version",
+    "release_tag",
+    "asset",
+    "digest",
+    "install_method",
+  ] as const) {
+    if (typeof value[field] !== "string" || value[field].trim() === "") {
+      throw new Error("The runtime update operation is invalid.");
+    }
+  }
+  if (
+    typeof value.phase !== "string" ||
+    !RUNTIME_PHASES.has(value.phase as RuntimeOperationPhase) ||
+    typeof value.daemon_restarted !== "boolean" ||
+    (value.backup_path !== undefined && typeof value.backup_path !== "string")
+  ) {
+    throw new Error("The runtime update operation is invalid.");
+  }
+  return value as unknown as RuntimeOperationState;
+}
+
+function validateAppOperation(value: unknown): void {
   if (!isRecord(value)) throw new Error("The app update operation is invalid.");
   for (const field of [
     "from_version",
@@ -105,5 +159,4 @@ function parseAppOperation(value: unknown): AppOperationState {
   ) {
     throw new Error("The app update operation is invalid.");
   }
-  return value as unknown as AppOperationState;
 }

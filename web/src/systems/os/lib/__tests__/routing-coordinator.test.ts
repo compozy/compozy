@@ -1,6 +1,7 @@
 // Suite: routing coordinator
 // Invariant: URL reconciliation mutates only the daemon-facing controller, route intent survives
-// hydration and in-flight authority races, and user causes produce exactly one history write.
+// hydration, command fences, and in-flight authority races, and user causes produce exactly one
+// history write.
 // Owning layer: the sole URL ↔ window-manager bridge.
 import { describe, expect, it, vi } from "vitest";
 
@@ -466,6 +467,29 @@ describe("RoutingCoordinator", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it("Should consume a desktop default-view intent and focus Home after hydration", async () => {
+    const settings = windowFixture("settings", "/settings/general");
+    const { coordinator, router, store } = createCoordinator([settings]);
+    store.setHydration("pending");
+
+    coordinator.reportRouteMatch(route("/", { _compozy_desktop_default: 1 }));
+    coordinator.completeHydration();
+    coordinator.reportRouteMatch(route("/"));
+    coordinator.beginWorkspaceSwitch();
+    coordinator.reportRouteMatch(route("/"));
+    coordinator.completeHydration();
+
+    expect(router.replace).toHaveBeenCalledTimes(2);
+    expect(router.replace).toHaveBeenLastCalledWith(route("/"));
+    expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+
+    store.setHydration("live");
+    coordinator.reportAuthoritativeState();
+
+    expect(store.spies.openOrFocus).toHaveBeenCalledWith({ app: "dashboard", route: route("/") });
+    await vi.waitFor(() => expect(store.getState().focusedId).toBe("w-dashboard"));
+  });
+
   it("Should push exactly once after a user opens an app", async () => {
     const { coordinator, router } = createCoordinator();
     coordinator.completeHydration();
@@ -475,6 +499,30 @@ describe("RoutingCoordinator", () => {
     expect(id).toBe("w-settings");
     expect(router.navigate).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledWith(route("/settings/layouts"));
+  });
+
+  it("Should hold user route intent until window commands become available", () => {
+    const { coordinator, router, store } = createCoordinator();
+    coordinator.completeHydration();
+    store.setClientConnected(false);
+    const settingsRoute = route("/settings/general");
+
+    coordinator.userNavigate(settingsRoute);
+    coordinator.reportRouteMatch(settingsRoute);
+
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(settingsRoute);
+    expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+
+    store.setClientConnected(true);
+    coordinator.reportAuthoritativeState();
+
+    expect(store.spies.openOrFocus).toHaveBeenCalledOnce();
+    expect(store.spies.openOrFocus).toHaveBeenCalledWith({
+      app: "settings",
+      instanceKey: undefined,
+      route: settingsRoute,
+    });
   });
 
   it("Should let a link route own the single focus transition and history write", async () => {

@@ -13,39 +13,50 @@ var (
 )
 
 type coordinatorState struct {
-	mu         sync.Mutex
-	store      *OperationStore
-	operation  *Operation
-	generation string
+	mu           sync.RWMutex
+	transitionMu sync.Mutex
+	store        *OperationStore
+	operation    *Operation
+	generation   string
 }
 
 func (s *coordinatorState) snapshot() *Operation {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return cloneOperation(s.operation)
 }
 
 func (s *coordinatorState) transition(ctx context.Context, transition Transition) (*Operation, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.transitionMu.Lock()
+	defer s.transitionMu.Unlock()
+	s.mu.RLock()
+	operationID := s.operation.ID
+	revision := s.operation.Revision
+	s.mu.RUnlock()
 	updated, err := s.store.Transition(
 		ctx,
-		s.operation.ID,
+		operationID,
 		s.generation,
-		s.operation.Revision,
+		revision,
 		transition,
 	)
 	if err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
 	s.operation = cloneOperation(updated)
+	s.mu.Unlock()
 	return cloneOperation(updated), nil
 }
 
 func (s *coordinatorState) fence(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.store.Fence(ctx, s.operation.ID, s.generation, s.operation.Revision)
+	s.transitionMu.Lock()
+	defer s.transitionMu.Unlock()
+	s.mu.RLock()
+	operationID := s.operation.ID
+	revision := s.operation.Revision
+	s.mu.RUnlock()
+	return s.store.Fence(ctx, operationID, s.generation, revision)
 }
 
 func (c *Coordinator) renewLease(

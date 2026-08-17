@@ -53,5 +53,5 @@ func OverrideVersionForTesting(current string) func() {
 
 // String returns a readable single-line build summary.
 func (i Info) String() string {
-	return i.Version + " (" + i.Commit + ", " + i.BuildDate + ")"
+	return i.Version + " (" + i.Commit + ", " + i.BuildDate + ", min app " + i.MinAppVersion + ")"
 }

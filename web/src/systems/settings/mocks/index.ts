@@ -33,6 +33,7 @@ export {
   settingsRolesSectionWithFallbackFixture,
 } from "./roles-fixtures";
 export {
+  settingsUpdateAppAvailableFixture,
   settingsUpdateApplyingFixture,
   settingsUpdateBlockedFixture,
   settingsUpdateBothAvailableFixture,

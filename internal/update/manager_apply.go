@@ -40,9 +40,20 @@ func (m *Manager) applyRelease(
 	ctx context.Context,
 	release *Release,
 	observer ApplyObserver,
-) (applied AppliedBinary, err error) {
+) (_ AppliedBinary, returnErr error) {
 	if release == nil {
 		return AppliedBinary{}, errors.New("update: release metadata is required")
+	}
+	comparison, err := compareVersions(m.currentVersion, release.Version)
+	if err != nil {
+		return AppliedBinary{}, fmt.Errorf("update: compare release before apply: %w", err)
+	}
+	if comparison >= 0 {
+		return AppliedBinary{}, fmt.Errorf(
+			"update: release %q is not newer than running version %q",
+			strings.TrimSpace(release.Version),
+			strings.TrimSpace(m.currentVersion),
+		)
 	}
 	install, err := m.detectInstall(ctx)
 	if err != nil {
@@ -63,11 +74,20 @@ func (m *Manager) applyRelease(
 	}
 	defer func() {
 		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			err = errors.Join(err, fmt.Errorf("update: remove temp directory %q: %w", tempDir, removeErr))
+			returnErr = errors.Join(
+				returnErr,
+				fmt.Errorf("update: remove temp directory %q: %w", tempDir, removeErr),
+			)
 		}
 	}()
 
-	binaryPath, binaryMode, compatibility, err := m.prepareReleaseBinary(ctx, tempDir, assets, observer)
+	binaryPath, binaryMode, compatibility, err := m.prepareReleaseBinary(
+		ctx,
+		tempDir,
+		assets,
+		release.Version,
+		observer,
+	)
 	if err != nil {
 		return AppliedBinary{}, err
 	}
@@ -85,9 +105,10 @@ func (m *Manager) applyRelease(
 		return AppliedBinary{}, err
 	}
 	return AppliedBinary{
-		TargetPath: m.executablePath,
-		BackupPath: backupPath,
-		Version:    strings.TrimSpace(release.Version),
+		TargetPath:    m.executablePath,
+		BackupPath:    backupPath,
+		Version:       strings.TrimSpace(release.Version),
+		InstallMethod: InstallMethod(install.Method),
 	}, nil
 }
 
@@ -95,6 +116,7 @@ func (m *Manager) prepareReleaseBinary(
 	ctx context.Context,
 	tempDir string,
 	assets releaseAssets,
+	releaseVersion string,
 	observer ApplyObserver,
 ) (string, os.FileMode, Compatibility, error) {
 	if err := notifyApplyObserver(ctx, observer, ApplyStep{Phase: PhaseDownloading, Percent: 0}); err != nil {
@@ -112,6 +134,9 @@ func (m *Manager) prepareReleaseBinary(
 	}
 	compatibility, err := readCompatibility(downloaded.compatibilityPath)
 	if err != nil {
+		return "", 0, Compatibility{}, err
+	}
+	if err := validateCompatibilityRelease(compatibility, releaseVersion); err != nil {
 		return "", 0, Compatibility{}, err
 	}
 	binaryPath, binaryMode, err := extractBinaryFromTarGz(

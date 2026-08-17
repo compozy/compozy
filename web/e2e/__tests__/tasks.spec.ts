@@ -23,7 +23,6 @@ const browserLifecycleFixture = path.resolve(
   "testdata",
   "browser_session_lifecycle_fixture.json"
 );
-
 const tasksSessionAgentName = "browser-lifecycle-agent";
 const createdDraftDescription =
   "Use the shared browser lane to capture fresh Tasks evidence for task_19.";

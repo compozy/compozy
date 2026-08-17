@@ -30,11 +30,16 @@ func (c *Coordinator) Run(ctx context.Context, operationID string, executorGener
 	state := &coordinatorState{store: c.store, operation: operation, generation: executorGeneration}
 	heartbeatCtx, cancelHeartbeat := context.WithCancel(ctx)
 	done := make(chan struct{})
+	heartbeatExited := make(chan struct{})
 	heartbeatErrors := make(chan error, 1)
-	go c.renewLease(heartbeatCtx, state, done, heartbeatErrors)
+	go func() {
+		defer close(heartbeatExited)
+		c.renewLease(heartbeatCtx, state, done, heartbeatErrors)
+	}()
 	runErr := c.runOperation(ctx, state)
 	close(done)
 	cancelHeartbeat()
+	<-heartbeatExited
 	select {
 	case heartbeatErr := <-heartbeatErrors:
 		runErr = errors.Join(runErr, fmt.Errorf("update: renew coordinator lease: %w", heartbeatErr))
@@ -54,14 +59,14 @@ func (c *Coordinator) runOperation(ctx context.Context, state *coordinatorState)
 	if operation.App != nil && operation.App.Phase == PhasePending {
 		staged, err := state.transition(ctx, Transition{
 			Kind: TransitionPhase, Actor: operation.Holder.Surface, Target: TargetApp,
-			Phase: PhaseStaged, Percent: 100, Outcome: "staged",
+			Phase: PhaseStaged, Percent: 100, Outcome: operationOutcomeStaged,
 		})
 		if err != nil {
 			return err
 		}
 		_, err = state.transition(ctx, Transition{
 			Kind: TransitionWaitForApp, Actor: staged.Holder.Surface, Target: TargetApp,
-			Percent: -1, Outcome: "waiting",
+			Percent: -1, Outcome: operationOutcomeWaiting,
 		})
 		return err
 	}
@@ -110,8 +115,9 @@ func (c *Coordinator) recoverSwap(ctx context.Context, state *coordinatorState) 
 
 func (c *Coordinator) appliedFromOperation(operation *Operation) AppliedBinary {
 	return AppliedBinary{
-		TargetPath: c.manager.RuntimeTargetPath(),
-		BackupPath: operation.Runtime.BackupPath,
-		Version:    operation.Runtime.ToVersion,
+		TargetPath:    c.binaryManager.RuntimeTargetPath(),
+		BackupPath:    operation.Runtime.BackupPath,
+		Version:       operation.Runtime.ToVersion,
+		InstallMethod: operation.Runtime.InstallMethod,
 	}
 }

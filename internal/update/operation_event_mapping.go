@@ -23,6 +23,8 @@ func eventNameForTransition(transition Transition, operation *Operation) (Operat
 		return EventLeaseExpired, nil
 	case TransitionCancel:
 		return EventOperationCanceled, nil
+	case TransitionVerifyApp:
+		return EventVerifyCompleted, nil
 	case TransitionPhase:
 		return eventNameForPhase(transition)
 	}

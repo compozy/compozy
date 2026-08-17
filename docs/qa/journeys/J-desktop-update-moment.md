@@ -26,7 +26,7 @@ flowchart TD
     S --> J
     B -->|apply step fails - locked install dir| Y[Failed update reported + manual-download path opens the release page]
     Y --> L[App still launchable, install path permissions intact]
-    H -->|post-migration boot failure| M[recovery_required sticky, old binary not restarted, resolved by a later signed build]
+    H -->|post-swap health failure| M[previous runtime restored, operation records rolled-back, retry requires a newly verified candidate]
     C -.->|quit after the app track is staged| X1[Abandon: next launch consumes the recorded asset and verifies the new version]
     B -->|apply through Settings HTTP or UDS| O[Accepted operation id, runtime-first execution, live projection converges]
     O --> F
@@ -41,8 +41,10 @@ journey:
   value_statement: "I stay current without manual downloads, my agent work is never interrupted without consent, and a failed update always leaves me a way forward."
   personas: [Bruno, Dora]
   entry_points:
-    - url: "Settings → General → Updates; product menubar update indicator; compozy update"
+    - url: "Settings → General → Updates; product menubar update indicator"
       origin: in-app-nav
+    - url: "compozy update -o json"
+      origin: direct
   actions:
     - step: 1
       verb: "Keep working while the daemon reports a newer release"
@@ -65,7 +67,7 @@ journey:
   goal:
     observable: "One coherent update experience covering app and app-owned runtime"
     side_effects: [app-binary-replaced-on-restart, runtime-binary-swapped-under-lock, provenance-marker-updated]
-  true_end_state: "Both installed versions are visible in Settings with no residual pending state; every failure branch (failed apply, malformed feed, post-migration boot failure) leaves the app openable with diagnostics and a manual path."
+  true_end_state: "Both installed versions are visible in Settings with no residual pending state; every failure branch leaves the app openable, and a runtime health failure restores the previous version with a durable rolled-back outcome."
   exit:
     natural: "The user resumes work on the new versions."
   abandonment:

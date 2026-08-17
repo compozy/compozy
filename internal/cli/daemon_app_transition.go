@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	shellUpdateLeaseDuration          = 2 * time.Minute
 	appTransitionActionAcquire        = "acquire"
 	appTransitionActionRecover        = "recover"
 	appTransitionActionRenew          = "renew"
@@ -66,9 +65,7 @@ func newDaemonAppTransitionCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&options.incrementFailures, "increment-failures", false, "Increment app update failures")
 	cmd.Flags().BoolVar(&options.resetFailures, "reset-failures", false, "Reset app update failures")
 	for _, name := range []string{"action", "operation-id", "expected-revision"} {
-		if err := cmd.MarkFlagRequired(name); err != nil {
-			panic(err)
-		}
+		mustMarkFlagRequired(cmd, name)
 	}
 	return cmd
 }
@@ -201,7 +198,7 @@ func (e daemonAppTransitionExecution) renew() (*compozyupdate.Operation, error) 
 		return nil, compozyupdate.ErrOperationNotFound
 	}
 	holder := *operation.Holder
-	holder.LeaseExpiresAt = e.now.UTC().Add(shellUpdateLeaseDuration)
+	holder.LeaseExpiresAt = e.now.UTC().Add(compozyupdate.DefaultLeaseDuration)
 	return e.store.Transition(e.ctx, e.operationID, e.generation, e.options.expectedRevision, compozyupdate.Transition{
 		Kind: compozyupdate.TransitionRenewLease, Actor: compozyupdate.ActorShell,
 		Target: compozyupdate.TargetApp, Percent: operation.Percent, Holder: &holder,
@@ -271,7 +268,7 @@ func desktopAppUpdateHolder(parentPID int, generation string, now time.Time) (*c
 	}
 	return &compozyupdate.Holder{
 		PID: parentPID, PIDStartTime: startedAt, Surface: compozyupdate.ActorShell,
-		ExecutorGeneration: generation, LeaseExpiresAt: now.UTC().Add(shellUpdateLeaseDuration),
+		ExecutorGeneration: generation, LeaseExpiresAt: now.UTC().Add(compozyupdate.DefaultLeaseDuration),
 	}, nil
 }
 
@@ -294,7 +291,8 @@ func appOperationRecoverableByShell(
 ) bool {
 	if operation == nil || operation.ID != operationID || operation.Revision != expectedRevision ||
 		operation.ActiveTarget != compozyupdate.TargetApp || operation.App == nil ||
-		(operation.App.Phase != compozyupdate.PhaseApplying && operation.App.Phase != compozyupdate.PhaseInstallerHandoff) {
+		(operation.App.Phase != compozyupdate.PhaseStaged && operation.App.Phase != compozyupdate.PhaseApplying &&
+			operation.App.Phase != compozyupdate.PhaseInstallerHandoff) {
 		return false
 	}
 	return operation.Holder == nil || !store.HolderLive(operation.Holder)

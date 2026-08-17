@@ -1,27 +1,25 @@
 import { copyFile, mkdir, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
-type Platform = "linux" | "mac";
-type Arch = "arm64" | "x64";
+import { validateReleaseConfig } from "../src/release/release-config";
+import {
+  parseReleaseArch,
+  parseReleasePlatform,
+  parseReleaseScriptFlags,
+  requiredReleaseFlag,
+} from "../src/release/release-script-flags";
 
-const values = new Map<string, string>();
-for (let index = 2; index < process.argv.length; index += 2) {
-  const key = process.argv[index];
-  const value = process.argv[index + 1];
-  if (!key?.startsWith("--") || !value)
-    throw new Error("Artifact collection flags require values.");
-  values.set(key.slice(2), value);
-}
-
-const platform = values.get("platform") as Platform;
-const arch = values.get("arch") as Arch;
-const version = values.get("version") ?? "";
+const values = parseReleaseScriptFlags(
+  process.argv.slice(2),
+  ["platform", "arch", "version", "source", "output"],
+  ["platform", "arch", "version"]
+);
+const platform = parseReleasePlatform(values.get("platform"));
+const arch = parseReleaseArch(values.get("arch"));
+const version = requiredReleaseFlag(values, "version");
 const source = resolve(values.get("source") ?? ".artifacts/builder");
 const output = resolve(values.get("output") ?? ".artifacts/release");
-if (platform !== "mac" && platform !== "linux") throw new Error("Platform must be mac or linux.");
-if (arch !== "arm64" && arch !== "x64") throw new Error("Architecture must be arm64 or x64.");
-if (platform === "linux" && arch !== "x64")
-  throw new Error("Linux release artifacts support x64 only.");
+validateReleaseConfig({ arch, channel: "beta", notarize: false, platform, version });
 
 const packages =
   platform === "mac"

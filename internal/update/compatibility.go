@@ -1,7 +1,6 @@
 package update
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,9 +16,13 @@ type Compatibility struct {
 }
 
 // CheckRuntimeCompatibility enforces the coordinator's runtime-only backstop.
-func CheckRuntimeCompatibility(compatibility Compatibility, installedAppVersion string) error {
-	if strings.TrimSpace(installedAppVersion) == "" {
+func CheckRuntimeCompatibility(compatibility Compatibility, installedApp InstalledApp) error {
+	if !installedApp.Present {
 		return nil
+	}
+	installedAppVersion := strings.TrimSpace(installedApp.Version)
+	if installedAppVersion == "" {
+		return errors.New("update: installed CompozyOS app version is unavailable")
 	}
 	comparison, err := compareVersions(installedAppVersion, compatibility.MinAppVersion)
 	if err != nil {
@@ -36,35 +39,6 @@ func CheckRuntimeCompatibility(compatibility Compatibility, installedAppVersion 
 	return nil
 }
 
-// FetchCompatibility downloads and verifies the signed compatibility asset without mutating the install.
-func (m *Manager) FetchCompatibility(
-	ctx context.Context,
-	release *Release,
-) (compatibility Compatibility, returnErr error) {
-	if release == nil {
-		return Compatibility{}, errors.New("update: release metadata is required")
-	}
-	assets, err := m.resolveReleaseAssets(release)
-	if err != nil {
-		return Compatibility{}, err
-	}
-	tempDir, err := os.MkdirTemp("", "compozy-compatibility-*")
-	if err != nil {
-		return Compatibility{}, fmt.Errorf("update: create compatibility temp directory: %w", err)
-	}
-	defer func() {
-		returnErr = errors.Join(returnErr, os.RemoveAll(tempDir))
-	}()
-	downloaded, err := m.downloadReleaseArtifacts(ctx, tempDir, assets)
-	if err != nil {
-		return Compatibility{}, err
-	}
-	if err := m.verifyReleaseArtifacts(ctx, downloaded, assets.archive.Name); err != nil {
-		return Compatibility{}, err
-	}
-	return readCompatibility(downloaded.compatibilityPath)
-}
-
 func readCompatibility(path string) (compatibility Compatibility, returnErr error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -73,6 +47,17 @@ func readCompatibility(path string) (compatibility Compatibility, returnErr erro
 	defer func() {
 		returnErr = errors.Join(returnErr, file.Close())
 	}()
+	info, err := file.Stat()
+	if err != nil {
+		return Compatibility{}, fmt.Errorf("update: stat compatibility asset: %w", err)
+	}
+	if info.Size() > maxCompatibilityBytes {
+		return Compatibility{}, fmt.Errorf(
+			"update: compatibility asset is %d bytes; limit is %d",
+			info.Size(),
+			maxCompatibilityBytes,
+		)
+	}
 	decoder := json.NewDecoder(io.LimitReader(file, maxCompatibilityBytes+1))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&compatibility); err != nil {
@@ -81,11 +66,33 @@ func readCompatibility(path string) (compatibility Compatibility, returnErr erro
 	if strings.TrimSpace(compatibility.RuntimeVersion) == "" || strings.TrimSpace(compatibility.MinAppVersion) == "" {
 		return Compatibility{}, errors.New("update: compatibility asset requires runtime_version and min_app_version")
 	}
-	if _, err := compareVersions(compatibility.RuntimeVersion, compatibility.RuntimeVersion); err != nil {
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return Compatibility{}, errors.New("update: compatibility asset contains multiple JSON values")
+		}
+		return Compatibility{}, fmt.Errorf("update: decode trailing compatibility data: %w", err)
+	}
+	if _, err := parseVersion(compatibility.RuntimeVersion); err != nil {
 		return Compatibility{}, fmt.Errorf("update: invalid compatibility runtime version: %w", err)
 	}
-	if _, err := compareVersions(compatibility.MinAppVersion, compatibility.MinAppVersion); err != nil {
+	if _, err := parseVersion(compatibility.MinAppVersion); err != nil {
 		return Compatibility{}, fmt.Errorf("update: invalid compatibility app version: %w", err)
 	}
 	return compatibility, nil
+}
+
+func validateCompatibilityRelease(compatibility Compatibility, releaseVersion string) error {
+	comparison, err := compareVersions(compatibility.RuntimeVersion, releaseVersion)
+	if err != nil {
+		return fmt.Errorf("update: compare compatibility runtime version to release: %w", err)
+	}
+	if comparison != 0 {
+		return fmt.Errorf(
+			"update: compatibility runtime version %q does not match release %q",
+			compatibility.RuntimeVersion,
+			strings.TrimSpace(releaseVersion),
+		)
+	}
+	return nil
 }

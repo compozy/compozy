@@ -27,11 +27,7 @@ func (m *Manager) Restore(applied AppliedBinary) error {
 	); err != nil {
 		return err
 	}
-	install, err := m.detectInstall(context.Background())
-	if err != nil {
-		return err
-	}
-	if install.Method == string(InstallMethodDesktopApp) {
+	if applied.InstallMethod == InstallMethodDesktopApp {
 		return rewriteDesktopProvenance(m.homePaths, applied.TargetPath)
 	}
 	return nil

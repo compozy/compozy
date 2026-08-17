@@ -16,7 +16,7 @@ last_report:
 overlaps: APP-single-command-multi-target-update; APP-runtime-update-managed; APP-cancel-dormant-update; APP-web-update-indicator
 ---
 
-Added 2026-08-16 for the Electron shell web update surface (ADR-006 S1). Task_07 owns the walk.
+Added 2026-08-16 for the Electron shell web update surface (ADR-006 S1). Task 07 owns the walk.
 
 PRD stories: US-015, US-017, US-018, US-029 (AC-1 both tracks, AC-3 browser/app equivalence; EC-1
 managed install, EC-2 apply from browser, EC-3 no app installed, EC-5 post-update truth). Test ids:

@@ -43,7 +43,7 @@ Match the task to the row. Read the listed files in full before producing output
 ## Reference Index
 
 - references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
-- references/desktop.md - desktop app commands, attachment and ownership, unified host updates, diagnostics, and recovery.
+- references/desktop.md - desktop app commands, attachment and ownership, runtime and app updates, diagnostics, and recovery.
 - references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.
 - references/agent-definitions.md - AGENT.md structure, reserved builtin role identities, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.

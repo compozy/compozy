@@ -158,6 +158,80 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		}
 	})
 
+	t.Run("Should project representative live update phases through the shared mapper", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name        string
+			target      compozyupdate.Target
+			phase       compozyupdate.OperationPhase
+			percent     int
+			wantState   string
+			wantUIPhase string
+		}{
+			{
+				name: "Should project accepted runtime work", target: compozyupdate.TargetRuntime,
+				phase: compozyupdate.PhasePending, percent: 0, wantState: string(compozyupdate.StatusAccepted),
+			},
+			{
+				name: "Should project downloading runtime work", target: compozyupdate.TargetRuntime,
+				phase: compozyupdate.PhaseDownloading, percent: 25,
+				wantState: "applying", wantUIPhase: string(compozyupdate.UIPhaseDownload),
+			},
+			{
+				name: "Should project accepted app work", target: compozyupdate.TargetApp,
+				phase: compozyupdate.PhasePending, percent: 0, wantState: string(compozyupdate.StatusAccepted),
+			},
+			{
+				name: "Should project applying app work", target: compozyupdate.TargetApp,
+				phase: compozyupdate.PhaseApplying, percent: 25,
+				wantState: "applying", wantUIPhase: string(compozyupdate.UIPhaseDownload),
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				homePaths := appTestHome(t)
+				store, err := compozyupdate.NewOperationStore(homePaths, nil)
+				if err != nil {
+					t.Fatalf("NewOperationStore() error = %v", err)
+				}
+				operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{test.target})
+				if test.phase != compozyupdate.PhasePending {
+					phases := []compozyupdate.OperationPhase{test.phase}
+					if test.target == compozyupdate.TargetApp && test.phase == compozyupdate.PhaseApplying {
+						phases = []compozyupdate.OperationPhase{compozyupdate.PhaseStaged, test.phase}
+					}
+					for _, phase := range phases {
+						operation, err = store.Transition(
+							t.Context(), operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
+							compozyupdate.Transition{
+								Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI,
+								Target: test.target, Phase: phase, Percent: test.percent,
+							},
+						)
+						if err != nil {
+							t.Fatalf("Transition(%s) error = %v", phase, err)
+						}
+					}
+				}
+				report := AppStatusReport{Update: AppUpdateState{
+					AppState: appIdleState, RuntimeState: appIdleState,
+				}}
+				if err := overlayAppUpdateOperation(t.Context(), homePaths, &report); err != nil {
+					t.Fatalf("overlayAppUpdateOperation() error = %v", err)
+				}
+				gotState := report.Update.RuntimeState
+				if test.target == compozyupdate.TargetApp {
+					gotState = report.Update.AppState
+				}
+				if gotState != test.wantState || report.Update.Phase != test.wantUIPhase ||
+					report.Update.Percent == nil || *report.Update.Percent != test.percent {
+					t.Fatalf("update projection = %#v, want state=%q phase=%q percent=%d", report.Update, test.wantState, test.wantUIPhase, test.percent)
+				}
+			})
+		}
+	})
+
 	t.Run("Should preserve every nonterminal state shape written by Rust", func(t *testing.T) {
 		t.Parallel()
 		states := []struct {
@@ -1044,6 +1118,24 @@ func TestAppOpenUsesValidatedProductTargets(t *testing.T) {
 func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep long control deadlines for retry and diagnostics", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			name   string
+			method string
+		}{
+			{name: "Should extend retry", method: appRetryMethod},
+			{name: "Should extend diagnostics export", method: appExportDiagnosticsMethod},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				if got := appControlTimeoutForMethod(test.method); got != appControlLongTimeout {
+					t.Fatalf("appControlTimeoutForMethod(%q) = %s, want %s", test.method, got, appControlLongTimeout)
+				}
+			})
+		}
+	})
+
 	t.Run("Should report app_not_running when the socket is absent", func(t *testing.T) {
 		t.Parallel()
 		_, err := callAppControl(t.Context(), filepath.Join(t.TempDir(), "app.sock"), "retry", nil)
@@ -1052,7 +1144,10 @@ func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
 
 	t.Run("Should authenticate the request with the current control token", func(t *testing.T) {
 		t.Parallel()
-		directory, err := os.MkdirTemp("/tmp", "compozy-app-control-")
+		if runtime.GOOS == platformWindows {
+			t.Skip("Unix control sockets are not available on Windows")
+		}
+		directory, err := os.MkdirTemp("/tmp", "ca-")
 		if err != nil {
 			t.Fatalf("MkdirTemp(app control) error = %v", err)
 		}

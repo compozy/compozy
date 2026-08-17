@@ -40,6 +40,15 @@ func (p *stubDaemonProcess) Wait() error {
 	return p.waitErr
 }
 
+func (p *stubDaemonProcess) Terminate() error {
+	select {
+	case <-p.done:
+	default:
+		p.complete(nil)
+	}
+	return nil
+}
+
 func (p *stubDaemonProcess) complete(err error) {
 	p.waitErr = err
 	close(p.done)
@@ -223,7 +232,7 @@ func TestWaitForDaemonStartReturnsStatusWhenDaemonBecomesReady(t *testing.T) {
 		child := &stubDaemonProcess{done: make(chan struct{})}
 		deps := newTestDeps(t, &stubClient{
 			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{Status: "ready", PID: 42}, nil
+				return DaemonStatus{Status: daemonRunningStatus, PID: 42}, nil
 			},
 		})
 		deps.pollInterval = time.Millisecond
@@ -631,16 +640,16 @@ func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {
 	})
 }
 
-func TestRunDaemonDetachedReturnsReadyStatus(t *testing.T) {
+func TestRunDaemonDetachedReturnsRunningStatus(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return ready status when detached daemon becomes ready", func(t *testing.T) {
+	t.Run("Should return running status when detached daemon becomes ready", func(t *testing.T) {
 		t.Parallel()
 
 		child := &stubDaemonProcess{done: make(chan struct{})}
 		deps := newTestDeps(t, &stubClient{
 			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{Status: "ready", PID: 42}, nil
+				return DaemonStatus{Status: daemonRunningStatus, PID: 42}, nil
 			},
 		})
 		deps.pollInterval = time.Millisecond
@@ -657,8 +666,8 @@ func TestRunDaemonDetachedReturnsReadyStatus(t *testing.T) {
 		if err != nil {
 			t.Fatalf("runDaemonDetached() error = %v", err)
 		}
-		if status.Status != "ready" || status.PID != 42 {
-			t.Fatalf("runDaemonDetached() status = %#v, want ready pid 42", status)
+		if status.Status != daemonRunningStatus || status.PID != 42 {
+			t.Fatalf("runDaemonDetached() status = %#v, want running pid 42", status)
 		}
 	})
 }
@@ -672,7 +681,7 @@ func TestRunDaemonDetachedIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
 		child := &stubDaemonProcess{pid: 84, done: make(chan struct{})}
 		deps := newTestDeps(t, &stubClient{
 			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{Status: "ready", PID: 84}, nil
+				return DaemonStatus{Status: daemonRunningStatus, PID: 84}, nil
 			},
 		})
 		deps.pollInterval = time.Millisecond

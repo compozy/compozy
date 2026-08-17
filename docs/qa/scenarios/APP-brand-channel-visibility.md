@@ -22,8 +22,8 @@ CompozyOS-derived identity; product-language hard cut; `compozy` command identif
 Test IDs: E2E-016; UT-113 (brand-sweep occurrence gate owns the repo-wide sweep — this scenario is
 the desktop-surface spot-check, not a duplicate of that gate).
 
-Per-OS evidence (N-004): per OS, capture the installed identity (macOS bundle name/dock; Windows
-start-menu + uninstall record; Linux `.desktop` entry), the window title during provisioning and
+Per-OS evidence: capture the installed identity on macOS (bundle name/dock) and Linux (`.desktop`
+entry), the window title during provisioning and
 product states, and the About/update surface showing `beta` + versions with no stable selector.
 
 Dedup note: ET-compozy-public-brand-navigation (canonical) owns the public site/web/CLI/release

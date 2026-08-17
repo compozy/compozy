@@ -23,6 +23,7 @@ charter:
     must_try:
       - "Run the task_04 dry-run without secrets and prove fail-closed, then publish only after every macOS/Linux payload, checksum, signature, compat catalog, and platform manifest verifies through an independent public read."
       - "Race a stale channel ref and omit one referenced rollback asset in separate rehearsals; both operations must refuse before the ref moves or any partial generation is visible."
+      - "Run the release archive compatibility hook against one accepted and one rejected archive; record compressed size, extracted executable size, and the exact policy decision before publication."
       - "Repair both platform manifests to one known-good generation with a single operation id and audit commit, then retry that id and prove idempotent convergence rather than a second flip."
       - "Compare public release notes and installation/desktop/runbook docs with exact asset names, beta-only policy, manual cutover guidance, and the absence of the retired feed/domain."
     must_avoid:

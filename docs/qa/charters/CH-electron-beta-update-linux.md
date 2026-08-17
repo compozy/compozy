@@ -27,7 +27,8 @@ charter:
       - "Compare packaged `_electron`, plain Chrome, CLI, HTTP, and UDS throughout; the production CSP must block inline script, framing, and an unlisted connect origin on both UI doors."
     must_avoid:
       - "A deb package is recommendation-only for the app track; never reinterpret it as Linux self-apply evidence."
-      - "Never use production credentials outside the release authority, the operator home, or an unsigned local package for the real gate verdict."
+      - "Production credentials stay inside the release authority; never copy them into a QA home, operator home, or package."
+      - "The real gate accepts only isolated evidence from signed published packages; unsigned local packages cannot establish the verdict."
 ```
 
 <!-- Immutable charter: each run's debrief belongs in its dated report. -->

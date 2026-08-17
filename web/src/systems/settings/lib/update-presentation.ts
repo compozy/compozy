@@ -151,20 +151,26 @@ function canApplyTrack(input: {
   status: SettingsUpdateStatusKind;
   managed: boolean;
   operation: SettingsUpdateOperation | null;
+  latestVersion: string | null;
 }): boolean {
-  if (input.managed || input.operation !== null) return false;
+  if (input.managed || input.operation !== null || input.latestVersion === null) return false;
   return input.status === "available" || input.status === "failed";
 }
 
-/** The dormant operation, if any, belongs to exactly one track: its active target. */
+function dormantOperationTarget(
+  operation: SettingsUpdateOperation | null
+): SettingsUpdateTarget | null {
+  if (!operation || operation.holder !== null) return null;
+  if (operation.waiting === "waiting-for-app" && operation.targets.includes("app")) return "app";
+  return null;
+}
+
+/** The dormant operation, if any, belongs to exactly one waiting target. */
 function canCancelTrack(
   operation: SettingsUpdateOperation | null,
   target: SettingsUpdateTarget
 ): boolean {
-  if (!operation) return false;
-  return (
-    operation.holder === null && operation.waiting !== "" && operation.active_target === target
-  );
+  return dormantOperationTarget(operation) === target;
 }
 
 /**
@@ -183,6 +189,56 @@ function trackDescription(input: {
   return text(input.message);
 }
 
+interface SettingsUpdateTrackSource {
+  status: SettingsUpdateStatusKind;
+  current_version: string;
+  latest_version?: string;
+  release_url?: string;
+  message: string;
+  last_error?: string;
+}
+
+function buildTrackView(input: {
+  id: SettingsUpdateTarget;
+  label: string;
+  source: SettingsUpdateTrackSource;
+  managed: boolean;
+  recommendation: string | null;
+  restoredVersion: string | null;
+  operation: SettingsUpdateOperation | null;
+}): SettingsUpdateTrackView {
+  const latestVersion = text(input.source.latest_version);
+  const canApply = canApplyTrack({
+    status: input.source.status,
+    managed: input.managed,
+    operation: input.operation,
+    latestVersion,
+  });
+
+  return {
+    id: input.id,
+    label: input.label,
+    status: input.source.status,
+    tone: settingsUpdateStatusTone(input.source.status),
+    statusLabel: settingsUpdateStatusLabel(input.source.status),
+    currentVersion: input.source.current_version,
+    latestVersion,
+    releaseUrl: text(input.source.release_url),
+    recommendation: input.recommendation,
+    restoredVersion: input.restoredVersion,
+    message: input.source.message,
+    description: trackDescription({
+      status: input.source.status,
+      canApply,
+      message: input.source.message,
+    }),
+    lastError: text(input.source.last_error),
+    canApply,
+    canCancel: canCancelTrack(input.operation, input.id),
+    progress: trackProgress(input.operation, input.id, input.source.status),
+  };
+}
+
 /**
  * Ordered track render models. The runtime track always exists; the app track
  * exists exactly when a desktop app is installed on this host, so an absent app
@@ -191,60 +247,30 @@ function trackDescription(input: {
 export function settingsUpdateTracks(snapshot: SettingsUpdateStatus): SettingsUpdateTrackView[] {
   const operation = snapshot.operation ?? null;
   const runtime = snapshot.runtime;
-  const runtimeCanApply = canApplyTrack({
-    status: runtime.status,
-    managed: runtime.managed,
-    operation,
-  });
   const tracks: SettingsUpdateTrackView[] = [
-    {
+    buildTrackView({
       id: "runtime",
       label: "Runtime",
-      status: runtime.status,
-      tone: settingsUpdateStatusTone(runtime.status),
-      statusLabel: settingsUpdateStatusLabel(runtime.status),
-      currentVersion: runtime.current_version,
-      latestVersion: text(runtime.latest_version),
-      releaseUrl: text(runtime.release_url),
+      source: runtime,
+      managed: runtime.managed,
       recommendation: text(runtime.recommendation),
       restoredVersion: text(runtime.restored_version),
-      message: runtime.message,
-      description: trackDescription({
-        status: runtime.status,
-        canApply: runtimeCanApply,
-        message: runtime.message,
-      }),
-      lastError: text(runtime.last_error),
-      canApply: runtimeCanApply,
-      canCancel: canCancelTrack(operation, "runtime"),
-      progress: trackProgress(operation, "runtime", runtime.status),
-    },
+      operation,
+    }),
   ];
   const app = snapshot.app;
   if (app) {
-    const appCanApply = canApplyTrack({ status: app.status, managed: false, operation });
-    tracks.push({
-      id: "app",
-      label: "App",
-      status: app.status,
-      tone: settingsUpdateStatusTone(app.status),
-      statusLabel: settingsUpdateStatusLabel(app.status),
-      currentVersion: app.current_version,
-      latestVersion: text(app.latest_version),
-      releaseUrl: text(app.release_url),
-      recommendation: null,
-      restoredVersion: null,
-      message: app.message,
-      description: trackDescription({
-        status: app.status,
-        canApply: appCanApply,
-        message: app.message,
-      }),
-      lastError: text(app.last_error),
-      canApply: appCanApply,
-      canCancel: canCancelTrack(operation, "app"),
-      progress: trackProgress(operation, "app", app.status),
-    });
+    tracks.push(
+      buildTrackView({
+        id: "app",
+        label: "App",
+        source: app,
+        managed: false,
+        recommendation: null,
+        restoredVersion: null,
+        operation,
+      })
+    );
   }
   return tracks;
 }
@@ -258,19 +284,6 @@ export function settingsUpdateVersionTransition(
 ): string | null {
   if (!track.latestVersion || track.latestVersion === track.currentVersion) return null;
   return track.latestVersion;
-}
-
-/**
- * Whether the dormant-operation cancel affordance applies.
- *
- * Cancel frees a record nobody is executing — a `waiting-for-app` operation or an
- * expired lease. A live holder owns the record, so cancel is not offered for it
- * (ADR-009 B-013); the daemon would decline anyway.
- */
-export function settingsUpdateCancelable(snapshot: SettingsUpdateStatus): boolean {
-  const operation = snapshot.operation;
-  if (!operation) return false;
-  return operation.holder === null && operation.waiting !== "";
 }
 
 /**

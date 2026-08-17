@@ -4,6 +4,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import type {
   SettingsMutationResult,
   SettingsNotificationPresetCollection,
+  SettingsUpdateApplyRequest,
 } from "@/systems/settings";
 
 import {
@@ -104,7 +105,7 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/settings/update", () => HttpResponse.json(settingsUpdateStatusFixture)),
   // Apply acknowledges acquisition only; the GET above stays the terminal truth.
   compozyApiMock.post("/api/settings/update/apply", async ({ request }) => {
-    const body = (await request.json()) as { target: string };
+    const body = (await request.json()) as SettingsUpdateApplyRequest;
     return HttpResponse.json({
       target: body.target,
       status: "accepted",

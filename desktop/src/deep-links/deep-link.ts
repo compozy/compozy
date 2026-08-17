@@ -1,5 +1,22 @@
-const RELEASE_SCHEME = "compozyos:";
-const DEVELOPMENT_SCHEME = "compozyos-dev:";
+const RELEASE_SCHEME = "compozyos";
+const DEVELOPMENT_SCHEME = "compozyos-dev";
+const ACCEPTED_SCHEMES = new Set([RELEASE_SCHEME, DEVELOPMENT_SCHEME]);
+const DEFAULT_VIEW_INTENT_KEY = "_compozy_desktop_default";
+
+export function desktopProtocolName(packaged: boolean): string {
+  return packaged ? RELEASE_SCHEME : DEVELOPMENT_SCHEME;
+}
+
+export function productDeepLink(path: string, packaged = true): string {
+  return `${desktopProtocolName(packaged)}://open${path}`;
+}
+
+export function productNavigationURL(origin: string, path: string): string {
+  if (path !== "/") return new URL(path, origin).toString();
+  const target = new URL(origin);
+  target.searchParams.set(DEFAULT_VIEW_INTENT_KEY, "1");
+  return target.toString();
+}
 
 export type DeepLinkTarget =
   | { readonly kind: "default" }
@@ -27,7 +44,7 @@ export function parseDeepLink(raw: string): DeepLinkTarget {
     return { kind: "default" };
   }
   if (
-    (link.protocol !== RELEASE_SCHEME && link.protocol !== DEVELOPMENT_SCHEME) ||
+    !ACCEPTED_SCHEMES.has(link.protocol.slice(0, -1)) ||
     link.hostname !== "open" ||
     link.username !== "" ||
     link.password !== "" ||
@@ -55,8 +72,8 @@ export function parseDeepLink(raw: string): DeepLinkTarget {
 
 export function lastDeepLink(arguments_: readonly string[]): string | null {
   return (
-    arguments_.findLast(
-      argument => argument.startsWith("compozyos://") || argument.startsWith("compozyos-dev://")
+    arguments_.findLast(argument =>
+      [...ACCEPTED_SCHEMES].some(scheme => argument.startsWith(`${scheme}://`))
     ) ?? null
   );
 }

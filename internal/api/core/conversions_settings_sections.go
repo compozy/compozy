@@ -356,7 +356,7 @@ func SettingsUpdateResponseFromStatus(status compozyupdate.MultiState) contract.
 		Aggregate: contract.SettingsUpdateStatusKind(status.Aggregate),
 		Runtime: contract.SettingsUpdateRuntimePayload{
 			Status:          contract.SettingsUpdateStatusKind(status.Runtime.Status),
-			InstallMethod:   strings.TrimSpace(status.Runtime.InstallMethod),
+			InstallMethod:   settingsUpdateInstallMethodPayload(status.Runtime.InstallMethod),
 			Managed:         status.Runtime.Managed,
 			CurrentVersion:  strings.TrimSpace(status.Runtime.CurrentVersion),
 			LatestVersion:   strings.TrimSpace(status.Runtime.LatestVersion),
@@ -386,20 +386,31 @@ func SettingsUpdateResponseFromStatus(status compozyupdate.MultiState) contract.
 	return response
 }
 
+func settingsUpdateInstallMethodPayload(raw string) contract.SettingsUpdateInstallMethod {
+	method := contract.SettingsUpdateInstallMethod(strings.TrimSpace(raw))
+	if method == "" {
+		return contract.SettingsUpdateInstallUnknown
+	}
+	return method
+}
+
 func settingsUpdateOperationPayload(operation *compozyupdate.OperationView) *contract.SettingsUpdateOperationPayload {
 	payload := &contract.SettingsUpdateOperationPayload{
-		ID:           operation.ID,
-		Revision:     operation.Revision,
-		Targets:      make([]contract.SettingsUpdateTarget, 0, len(operation.Targets)),
-		ActiveTarget: contract.SettingsUpdateTarget(operation.ActiveTarget),
-		Phase:        string(operation.Phase),
-		Percent:      operation.Percent,
-		Waiting:      string(operation.Waiting),
-		StartedAt:    operation.StartedAt,
-		LastError:    operation.LastError,
+		ID:        operation.ID,
+		Revision:  operation.Revision,
+		Targets:   make([]contract.SettingsUpdateTarget, 0, len(operation.Targets)),
+		Phase:     contract.SettingsUpdatePhase(operation.Phase),
+		Percent:   operation.Percent,
+		Waiting:   contract.SettingsUpdateWaitingState(operation.Waiting),
+		StartedAt: operation.StartedAt,
+		LastError: operation.LastError,
 	}
 	for _, target := range operation.Targets {
 		payload.Targets = append(payload.Targets, contract.SettingsUpdateTarget(target))
+	}
+	if operation.ActiveTarget != "" {
+		activeTarget := contract.SettingsUpdateTarget(operation.ActiveTarget)
+		payload.ActiveTarget = &activeTarget
 	}
 	payload.Holder = settingsUpdateHolderPayload(operation.Holder)
 	return payload
@@ -412,7 +423,7 @@ func settingsUpdateHolderPayload(holder *compozyupdate.Holder) *contract.Setting
 	return &contract.SettingsUpdateHolderPayload{
 		PID:                holder.PID,
 		PIDStartTime:       holder.PIDStartTime,
-		Surface:            string(holder.Surface),
+		Surface:            contract.SettingsUpdateActor(holder.Surface),
 		ExecutorGeneration: holder.ExecutorGeneration,
 		LeaseExpiresAt:     holder.LeaseExpiresAt,
 	}

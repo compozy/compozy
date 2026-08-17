@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -534,9 +535,10 @@ func TestManagerCheck(t *testing.T) {
 		release := &Release{
 			Version: "v1.2.0",
 			Assets: []ReleaseAsset{
-				{Name: "CompozyOS-1.2.0-darwin-arm64.dmg"},
-				{Name: "CompozyOS-1.2.0-darwin-arm64.zip"},
-				{Name: "CompozyOS-1.2.0-linux-arm64.AppImage"},
+				{Name: "CompozyOS-1.2.0-mac-arm64-debug.zip"},
+				{Name: "CompozyOS-1.2.0-mac-arm64.dmg"},
+				{Name: "CompozyOS-1.2.0-mac-arm64.zip"},
+				{Name: "CompozyOS-1.2.0-linux-x64.AppImage"},
 			},
 		}
 		mac, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSDarwin, RuntimeArch: runtimeArchARM64})
@@ -544,22 +546,88 @@ func TestManagerCheck(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(macOS) error = %v", err)
 		}
-		if macAsset.Name != "CompozyOS-1.2.0-darwin-arm64.zip" {
+		if macAsset.Name != "CompozyOS-1.2.0-mac-arm64.zip" {
 			t.Fatalf("resolveAppReleaseAsset(macOS) = %q, want zip", macAsset.Name)
 		}
 
-		linux, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchARM64})
+		linux, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchAMD64})
 		linuxAsset, err := linux.resolveAppReleaseAsset(release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(Linux) error = %v", err)
 		}
-		if linuxAsset.Name != "CompozyOS-1.2.0-linux-arm64.AppImage" {
+		if linuxAsset.Name != "CompozyOS-1.2.0-linux-x64.AppImage" {
 			t.Fatalf("resolveAppReleaseAsset(Linux) = %q, want AppImage", linuxAsset.Name)
+		}
+
+		linuxARM, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchARM64})
+		if _, err := linuxARM.resolveAppReleaseAsset(release); err == nil ||
+			!strings.Contains(err.Error(), "unsupported on linux/arm64") {
+			t.Fatalf("resolveAppReleaseAsset(Linux ARM) error = %v, want unsupported", err)
 		}
 
 		windows, _ := newManagerWithExecutable(t, &Config{RuntimeOS: runtimeOSWindows, RuntimeArch: runtimeArchAMD64})
 		if _, err := windows.resolveAppReleaseAsset(release); err == nil {
 			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
+		}
+	})
+
+	t.Run("Should omit the runtime payload from app-only planning downloads", func(t *testing.T) {
+		t.Parallel()
+
+		var requested []string
+		manager, _ := newManagerWithExecutable(t, &Config{
+			RuntimeOS: runtimeOSLinux, RuntimeArch: runtimeArchAMD64,
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				requested = append(requested, request.URL.String())
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader("verified support artifact")),
+				}, nil
+			})},
+		})
+		release := &Release{Version: "v1.2.0", Assets: []ReleaseAsset{
+			{Name: checksumsAssetName, DownloadURL: "https://downloads.example/checksums"},
+			{Name: checksumsBundleAssetName, DownloadURL: "https://downloads.example/bundle"},
+			{Name: compatibilityAssetName, DownloadURL: "https://downloads.example/compatibility"},
+			{Name: "CompozyOS-1.2.0-linux-x64.AppImage", DownloadURL: "https://downloads.example/app"},
+		}}
+		assets, err := manager.resolvePlanReleaseAssets(release, false)
+		if err != nil {
+			t.Fatalf("resolvePlanReleaseAssets(app-only) error = %v", err)
+		}
+		if assets.archive.Name != "" {
+			t.Fatalf("app-only archive = %#v, want omitted", assets.archive)
+		}
+		if _, err := manager.downloadReleaseArtifacts(t.Context(), t.TempDir(), assets); err != nil {
+			t.Fatalf("downloadReleaseArtifacts(app-only) error = %v", err)
+		}
+		if len(requested) != 3 {
+			t.Fatalf("app-only download requests = %v, want three support artifacts", requested)
+		}
+		for _, requestURL := range requested {
+			if requestURL == "https://downloads.example/app" {
+				t.Fatalf("app-only planning downloaded install payload: %s", requestURL)
+			}
+		}
+	})
+
+	t.Run("Should reject invalid planner identity before network work", func(t *testing.T) {
+		t.Parallel()
+
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, &Config{
+			HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return nil, errors.New("unexpected network request")
+			})},
+		})
+		_, err := manager.PlanOperation(t.Context(), Actor("invalid"), []Target{TargetRuntime}, Holder{})
+		if err == nil || !strings.Contains(err.Error(), "invalid requester") {
+			t.Fatalf("PlanOperation(invalid identity) error = %v, want requester refusal", err)
+		}
+		if got := requests.Load(); got != 0 {
+			t.Fatalf("planner network requests = %d, want zero", got)
 		}
 	})
 }

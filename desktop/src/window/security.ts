@@ -12,18 +12,18 @@ export function guardWindowNavigation(
   allowedOrigin: string,
   onError: (error: Error) => void
 ): void {
+  const openExternal = (raw: string): void => {
+    const target = safeExternalURL(raw);
+    if (target) void shell.openExternal(target).catch(onError);
+  };
   window.webContents.on("will-navigate", event => {
     const decision = classifyNavigation(event.url, allowedOrigin);
     if (decision === "allow") return;
     event.preventDefault();
-    if (decision === "external") {
-      const target = safeExternalURL(event.url);
-      if (target) void shell.openExternal(target).catch(onError);
-    }
+    if (decision === "external") openExternal(event.url);
   });
   window.webContents.setWindowOpenHandler(details => {
-    const target = safeExternalURL(details.url);
-    if (target) void shell.openExternal(target).catch(onError);
+    openExternal(details.url);
     return { action: "deny" };
   });
   if (app.isPackaged) {

@@ -62,7 +62,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		}
 	}
 
-	updateManager, err := newSettingsUpdateManager(d)
+	updateManager, err := newSettingsUpdateManager(d, state.logger)
 	if err != nil {
 		return fmt.Errorf("daemon: create settings update manager: %w", err)
 	}

@@ -10,6 +10,19 @@ import { mruWindowInstance } from "./window-instance-lookup";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
+const DESKTOP_DEFAULT_VIEW_INTENT_KEY = "_compozy_desktop_default";
+
+function isDesktopDefaultViewIntent(route: OsWindowRoute): boolean {
+  const marker = route.search[DESKTOP_DEFAULT_VIEW_INTENT_KEY];
+  return route.pathname === "/" && (marker === "1" || marker === 1);
+}
+
+function withoutDesktopDefaultViewIntent(route: OsWindowRoute): OsWindowRoute {
+  if (!isDesktopDefaultViewIntent(route)) return route;
+  const { [DESKTOP_DEFAULT_VIEW_INTENT_KEY]: _intent, ...search } = route.search;
+  return { pathname: route.pathname, search };
+}
+
 /**
  * The routing coordinator is the ONLY URL↔WM bridge (Safety Invariant 13).
  * Every transition carries an explicit cause:
@@ -56,6 +69,7 @@ type RoutingManager = {
 interface RouteReconciliation {
   token: number;
   route: OsWindowRoute;
+  desktopDefaultView: boolean;
   inFlight: boolean;
 }
 
@@ -67,6 +81,7 @@ export class RoutingCoordinator {
   private initialIntent: OsWindowRoute | null = null;
   private currentRoute: OsWindowRoute | null = null;
   private heldRoute: OsWindowRoute | null = null;
+  private desktopDefaultViewIntentPending = false;
   private routeReconciliation: RouteReconciliation | null = null;
   private nextReconciliationToken = 0;
   private pendingNavigateMode: "push" | "pop" | null = null;
@@ -83,6 +98,7 @@ export class RoutingCoordinator {
    * win over the target workspace's restored focus (US-016.EC-2).
    */
   reportRouteMatch(route: OsWindowRoute): void {
+    if (isDesktopDefaultViewIntent(route)) this.desktopDefaultViewIntentPending = true;
     this.currentRoute = route;
     if (this.phase === "hydrating") {
       this.initialIntent = route;
@@ -106,6 +122,14 @@ export class RoutingCoordinator {
     this.initialIntent = null;
     if (this.heldRoute) {
       this.cycle = "boot";
+      return;
+    }
+    if ((intent && isDesktopDefaultViewIntent(intent)) || this.desktopDefaultViewIntentPending) {
+      this.cycle = "boot";
+      const defaultIntent =
+        intent && isDesktopDefaultViewIntent(intent) ? intent : { pathname: "/", search: {} };
+      this.replaceRoute(withoutDesktopDefaultViewIntent(defaultIntent));
+      this.queueRouteReconciliation(defaultIntent);
       return;
     }
     if (this.cycle === "workspace-switch") {
@@ -134,6 +158,14 @@ export class RoutingCoordinator {
    */
   reportAuthoritativeState(): void {
     if (this.phase !== "ready" || this.heldRoute) return;
+    if (this.desktopDefaultViewIntentPending) {
+      if (this.routeReconciliation === null) {
+        this.queueRouteReconciliation({ pathname: "/", search: {} });
+      } else if (!this.routeReconciliation.inFlight) {
+        this.reconcilePendingRoute();
+      }
+      return;
+    }
     if (this.routeReconciliation !== null) {
       if (!this.routeReconciliation.inFlight) this.reconcilePendingRoute();
       return;
@@ -172,6 +204,15 @@ export class RoutingCoordinator {
    */
   noteNavigateMode(mode: "push" | "pop"): void {
     this.pendingNavigateMode = mode;
+  }
+
+  /**
+   * User controls whose destination is safe without a live window-manager
+   * client can write URL intent immediately. Route reconciliation keeps that
+   * intent pending until the command fence becomes available.
+   */
+  userNavigate(route: OsWindowRoute): void {
+    this.pushRoute(route);
   }
 
   /** Dock, palette, rail, menubar: open-or-focus then one history entry. */
@@ -321,6 +362,7 @@ export class RoutingCoordinator {
   }
 
   private pushRoute(route: OsWindowRoute): void {
+    this.desktopDefaultViewIntentPending = false;
     this.currentRoute = route;
     this.router.navigate(route);
   }
@@ -337,6 +379,14 @@ export class RoutingCoordinator {
    */
   private queueRouteReconciliation(route: OsWindowRoute): void {
     const current = this.routeReconciliation;
+    const normalizedRoute = withoutDesktopDefaultViewIntent(route);
+    const preserveDesktopDefaultView =
+      current?.desktopDefaultView === true &&
+      sameOsWindowRoute(withoutDesktopDefaultViewIntent(current.route), normalizedRoute);
+    const desktopDefaultView =
+      isDesktopDefaultViewIntent(route) ||
+      (this.desktopDefaultViewIntentPending && normalizedRoute.pathname === "/") ||
+      preserveDesktopDefaultView;
     if (current && sameOsWindowRoute(current.route, route)) {
       if (!current.inFlight) this.reconcilePendingRoute();
       return;
@@ -345,6 +395,7 @@ export class RoutingCoordinator {
     this.routeReconciliation = {
       token: this.nextReconciliationToken,
       route,
+      desktopDefaultView,
       inFlight: false,
     };
     this.reconcilePendingRoute();
@@ -355,7 +406,8 @@ export class RoutingCoordinator {
     if (pending === null || pending.inFlight || this.phase !== "ready" || this.heldRoute) return;
     const state = this.manager.getState();
     if (state.client === null || state.hydration !== "live") return;
-    const route = pending.route;
+    const desktopDefaultView = pending.desktopDefaultView;
+    const route = withoutDesktopDefaultViewIntent(pending.route);
     const resolved = resolveAppForPath(route.pathname);
     const mode = this.pendingNavigateMode;
     this.pendingNavigateMode = null;
@@ -372,11 +424,12 @@ export class RoutingCoordinator {
       instanceKey,
     });
     if (route.pathname === "/") {
-      if (!existing) {
+      if (!existing && !desktopDefaultView) {
         this.routeReconciliation = null;
         return;
       }
       if (
+        existing &&
         state.focusedId === existing.id &&
         !existing.minimized &&
         sameOsWindowRoute(existing.route, route)
@@ -430,6 +483,7 @@ export class RoutingCoordinator {
         this.routeReconciliation = { ...pending, inFlight: false };
         return;
       }
+      if (pending.desktopDefaultView) this.desktopDefaultViewIntentPending = false;
       this.routeReconciliation = null;
       this.reportAuthoritativeState();
     });

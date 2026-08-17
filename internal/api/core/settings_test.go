@@ -1171,6 +1171,37 @@ func TestGetSettingsUpdateReturnsCurrentSnapshot(t *testing.T) {
 			t.Fatalf("GetCalls = %d, want 1", fixture.Update.GetCalls)
 		}
 	})
+
+	t.Run("Should publish unknown when the install method is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+		fixture.Update.GetFn = func(context.Context) (compozyupdate.MultiState, error) {
+			return compozyupdate.MultiState{
+				Aggregate: compozyupdate.StatusUpToDate,
+				Runtime: compozyupdate.RuntimeTrackState{
+					Status: compozyupdate.StatusUpToDate,
+				},
+			}, nil
+		}
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/update", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("GET /api/settings/update status = %d, want 200", resp.Code)
+		}
+
+		var payload contract.SettingsUpdateResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(update response) error = %v", err)
+		}
+		if payload.Runtime.InstallMethod != contract.SettingsUpdateInstallUnknown {
+			t.Fatalf(
+				"payload.Runtime.InstallMethod = %q, want %q",
+				payload.Runtime.InstallMethod,
+				contract.SettingsUpdateInstallUnknown,
+			)
+		}
+	})
 }
 
 func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
@@ -1228,6 +1259,13 @@ func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
 				fixture.Update.ApplyCalls,
 				resp.Body.String(),
 			)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error response) error = %v", err)
+		}
+		if payload.Error != "settings: update target must be runtime or app" {
+			t.Fatalf("invalid target error = %#v, want stable validation message", payload)
 		}
 	})
 
@@ -3922,26 +3960,55 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 
 	httpFixture := newSettingsHandlerFixture(t, "httpapi", serviceFactory(), restartFactory())
 	udsFixture := newSettingsHandlerFixture(t, "udsapi", serviceFactory(), restartFactory())
-
-	for _, path := range []string{
-		"/api/settings/observability",
-		"/api/settings/actions/restart",
-		"/api/settings/actions/restart/op-shared",
-	} {
-		var body []byte
-		method := http.MethodGet
-		if path == "/api/settings/actions/restart" {
-			method = http.MethodPost
-			body = []byte(`{}`)
+	for _, fixture := range []*settingsHandlerFixture{&httpFixture, &udsFixture} {
+		fixture.Update.GetFn = func(context.Context) (compozyupdate.MultiState, error) {
+			return compozyupdate.MultiState{
+				Aggregate: compozyupdate.StatusAvailable,
+				Runtime: compozyupdate.RuntimeTrackState{
+					Status: compozyupdate.StatusAvailable, CurrentVersion: "v1.0.0", LatestVersion: "v1.1.0",
+				},
+			}, nil
 		}
+		fixture.Update.ApplyFn = func(
+			_ context.Context,
+			target compozyupdate.Target,
+		) (core.SettingsUpdateApply, error) {
+			return core.SettingsUpdateApply{
+				Target: target, Status: compozyupdate.ApplyStatusAccepted,
+				OperationID: "update-op", Message: "Update accepted.",
+			}, nil
+		}
+		fixture.Update.CancelFn = func(context.Context) (core.SettingsUpdateCancel, error) {
+			return core.SettingsUpdateCancel{
+				Status: compozyupdate.StatusCanceled, OperationID: "update-op", Message: "Canceled.",
+			}, nil
+		}
+	}
 
-		httpResp := performRequest(t, httpFixture.Engine, method, path, body)
-		udsResp := performRequest(t, udsFixture.Engine, method, path, body)
+	for _, request := range []struct {
+		method string
+		path   string
+		body   []byte
+	}{
+		{method: http.MethodGet, path: "/api/settings/observability"},
+		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
+		{method: http.MethodGet, path: "/api/settings/actions/restart/op-shared"},
+		{method: http.MethodGet, path: "/api/settings/update"},
+		{method: http.MethodPost, path: "/api/settings/update/apply", body: []byte(`{"target":"runtime"}`)},
+		{method: http.MethodPost, path: "/api/settings/update/cancel", body: []byte(`{}`)},
+	} {
+		httpResp := performRequest(t, httpFixture.Engine, request.method, request.path, request.body)
+		udsResp := performRequest(t, udsFixture.Engine, request.method, request.path, request.body)
 		if httpResp.Code != udsResp.Code {
-			t.Fatalf("%s status mismatch: http=%d uds=%d", path, httpResp.Code, udsResp.Code)
+			t.Fatalf("%s status mismatch: http=%d uds=%d", request.path, httpResp.Code, udsResp.Code)
 		}
 		if httpResp.Body.String() != udsResp.Body.String() {
-			t.Fatalf("%s body mismatch:\nhttp=%s\nuds=%s", path, httpResp.Body.String(), udsResp.Body.String())
+			t.Fatalf(
+				"%s body mismatch:\nhttp=%s\nuds=%s",
+				request.path,
+				httpResp.Body.String(),
+				udsResp.Body.String(),
+			)
 		}
 	}
 

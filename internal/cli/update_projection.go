@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,6 +43,21 @@ func completedUpdateRecord(
 	return record
 }
 
+func finalizeUpdateRecord(
+	record updateRecord,
+	request compozyupdate.OperationRequest,
+	runErr error,
+	archived *compozyupdate.Operation,
+	appRunErr error,
+) (updateRecord, error) {
+	record = completedUpdateRecord(record, request, runErr)
+	record = applyArchivedAppOutcome(record, archived)
+	if appRunErr != nil && archived == nil {
+		record = failedUpdateRecord(record, appRunErr, compozyupdate.TargetApp)
+	}
+	return record, errors.Join(runErr, appRunErr)
+}
+
 func applyArchivedAppOutcome(record updateRecord, operation *compozyupdate.Operation) updateRecord {
 	if operation == nil || operation.App == nil || record.App == nil {
 		return record
@@ -74,7 +90,11 @@ func failedUpdateRecord(
 	}
 	record.Status = compozyupdate.StatusFailed
 	record.Operation = nil
-	switch firstUpdateTarget(targets) {
+	target := firstUpdateTarget(targets)
+	if errorTarget, ok := compozyupdate.ErrorTarget(cause); ok {
+		target = errorTarget
+	}
+	switch target {
 	case compozyupdate.TargetApp:
 		if record.App != nil {
 			record.App.Status = compozyupdate.StatusFailed
@@ -99,7 +119,7 @@ func blockedUpdateRecord(
 	record.Status = compozyupdate.StatusBlocked
 	record.Operation = nil
 	message := "An update operation is already in progress. Retry after it completes."
-	target := firstUpdateTarget(targets)
+	target := blockedOperationTarget(operation, targets)
 	if operation != nil && operation.Holder != nil {
 		if target == compozyupdate.TargetApp {
 			message = fmt.Sprintf(
@@ -121,6 +141,21 @@ func blockedUpdateRecord(
 	record.Runtime.Status = compozyupdate.StatusBlocked
 	record.Runtime.Message = message
 	return record
+}
+
+func blockedOperationTarget(
+	operation *compozyupdate.Operation,
+	targets []compozyupdate.Target,
+) compozyupdate.Target {
+	if operation != nil {
+		if operation.ActiveTarget != "" {
+			return operation.ActiveTarget
+		}
+		if operation.Waiting == compozyupdate.WaitingForApp {
+			return compozyupdate.TargetApp
+		}
+	}
+	return firstUpdateTarget(targets)
 }
 
 func firstUpdateTarget(targets []compozyupdate.Target) compozyupdate.Target {

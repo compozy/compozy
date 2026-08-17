@@ -10,7 +10,7 @@ function required(name: string): string {
 }
 
 function run(command: string, args: readonly string[]): void {
-  const result = spawnSync(command, [...args], { encoding: "utf8", stdio: "inherit" });
+  const result = spawnSync(command, [...args], { stdio: "inherit" });
   if (result.status !== 0) throw new Error(`${command} failed with exit code ${result.status}.`);
 }
 

@@ -7,6 +7,7 @@ import {
   StorybookGeneralDraftDirtySetup,
   StorybookGeneralSavingSetup,
   StorybookRestartPhaseSetup,
+  StorybookSettingsUpdateRefreshErrorSetup,
 } from "@/storybook/settings-state-helpers";
 import {
   StorybookRestartNoticeSetup,
@@ -18,12 +19,15 @@ import {
   settingsAppliedMutationFixture,
   settingsGeneralSectionFixture,
   settingsRestartStatusFixture,
+  settingsUpdateAppAvailableFixture,
   settingsUpdateApplyingFixture,
   settingsUpdateBlockedFixture,
   settingsUpdateBothAvailableFixture,
   settingsUpdateManagedFixture,
   settingsUpdateNoAppFixture,
   settingsUpdateRolledBackFixture,
+  settingsUpdateRuntimeAvailableFixture,
+  settingsUpdateStatusFixture,
   settingsUpdateStagedFixture,
 } from "@/systems/settings/mocks";
 import type { SettingsUpdateStatus } from "@/systems/settings";
@@ -300,8 +304,34 @@ function updateStory(snapshot: SettingsUpdateStatus): Story {
   };
 }
 
+/** Update membership is unresolved, so only the structural runtime row checks. */
+export const UpdatesChecking: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/general"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/update", async () => {
+          await delay("infinite");
+          return HttpResponse.json(settingsUpdateStatusFixture);
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Both tracks are current: the calm, explicit settled state. */
+export const UpdatesUpToDate: Story = updateStory(settingsUpdateStatusFixture);
+
 /** Both tracks offer a release: two rows, two actions, no combined "update all". */
 export const UpdatesBothAvailable: Story = updateStory(settingsUpdateBothAvailableFixture);
+
+/** Runtime only offers a release; the current app keeps its settled lane. */
+export const UpdatesRuntimeAvailable: Story = updateStory(settingsUpdateRuntimeAvailableFixture);
+
+/** App only offers a release; the current runtime keeps its settled lane. */
+export const UpdatesAppAvailable: Story = updateStory(settingsUpdateAppAvailableFixture);
 
 /** Package-managed runtime: the command is the action, so no apply button exists. */
 export const UpdatesManagedRuntime: Story = updateStory(settingsUpdateManagedFixture);
@@ -320,3 +350,24 @@ export const UpdatesBlocked: Story = updateStory(settingsUpdateBlockedFixture);
 
 /** Apply failed: the restored build is what runs, and the raw error gets its own row. */
 export const UpdatesRolledBack: Story = updateStory(settingsUpdateRolledBackFixture);
+
+/** A background refresh failed while the last-known snapshot remains visible. */
+export const UpdatesRefreshFailed: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/general"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/update", () =>
+          HttpResponse.json({ error: "The update status could not be refreshed." }, { status: 503 })
+        ),
+      ],
+    }),
+  },
+  render: () => (
+    <>
+      <StorybookWorkspaceSetup />
+      <StorybookSettingsUpdateRefreshErrorSetup snapshot={settingsUpdateRuntimeAvailableFixture} />
+    </>
+  ),
+};

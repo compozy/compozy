@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
@@ -40,6 +39,7 @@ type daemonProcess interface {
 	PID() int
 	Done() <-chan struct{}
 	Wait() error
+	Terminate() error
 }
 
 func newDaemonCommand(deps commandDeps) *cobra.Command {
@@ -72,12 +72,8 @@ func newDaemonUpdateCoordinatorCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&operationID, "operation-id", "", "Update operation id")
 	cmd.Flags().StringVar(&executorGeneration, "executor-generation", "", "Update executor generation")
-	if err := cmd.MarkFlagRequired("operation-id"); err != nil {
-		panic(err)
-	}
-	if err := cmd.MarkFlagRequired("executor-generation"); err != nil {
-		panic(err)
-	}
+	mustMarkFlagRequired(cmd, "operation-id")
+	mustMarkFlagRequired(cmd, "executor-generation")
 	return cmd
 }
 
@@ -87,7 +83,7 @@ func runDaemonUpdateCoordinator(
 	operationID string,
 	executorGeneration string,
 ) error {
-	manager, err := resolveUpdateManager(deps)
+	manager, homePaths, err := resolveUpdateManager(deps)
 	if err != nil {
 		return err
 	}
@@ -107,7 +103,7 @@ func runDaemonUpdateCoordinator(
 	holder.PID = os.Getpid()
 	holder.PIDStartTime = startedAt
 	holder.Surface = compozyupdate.ActorDaemon
-	holder.LeaseExpiresAt = deps.now().UTC().Add(2 * time.Minute)
+	holder.LeaseExpiresAt = deps.now().UTC().Add(compozyupdate.DefaultLeaseDuration)
 	transitionKind := compozyupdate.TransitionRenewLease
 	fenceGeneration := executorGeneration
 	if !manager.OperationStore().HolderLive(operation.Holder) {
@@ -127,12 +123,9 @@ func runDaemonUpdateCoordinator(
 	if err != nil {
 		return err
 	}
-	runtime, err := newCLIUpdateRuntime(deps)
-	if err != nil {
-		return err
-	}
+	runtime := newCLIUpdateRuntime(deps, homePaths)
 	coordinator, err := compozyupdate.NewCoordinator(compozyupdate.CoordinatorConfig{
-		Store: manager.OperationStore(), Manager: manager, Runtime: runtime,
+		Store: manager.OperationStore(), ReleaseManager: manager, BinaryManager: manager, Runtime: runtime,
 	})
 	if err != nil {
 		return err
@@ -399,7 +392,7 @@ func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProce
 			}
 
 			status, statusErr := client.DaemonStatus(pollCtx)
-			if statusErr == nil && status.PID == childPID {
+			if statusErr == nil && status.PID == childPID && strings.TrimSpace(status.Status) == daemonRunningStatus {
 				return status, true, nil
 			}
 			if !processAlive(childPID) {

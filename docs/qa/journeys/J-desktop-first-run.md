@@ -32,7 +32,7 @@ journey:
   value_statement: "My first contact with CompozyOS is download → open → working product, with no terminal and no broken half-installed state."
   personas: [Lea, Cora]
   entry_points:
-    - url: "platform installer (macOS dmg, Windows installer, Linux package) from the docs install page"
+    - url: "platform installer (macOS DMG or Linux package) from the docs install page"
       origin: direct
   actions:
     - step: 1

@@ -29,5 +29,6 @@ QA verdict 2026-08-12: an isolated fixed-source beta.8 candidate selected the re
 verified its signed checksum catalog, extracted the 135,516,530-byte binary, replaced only its lab
 executable, and reported beta.13. The final JSON cleared the completed update recommendation.
 
-QA impact 2026-08-16: the single-target updater was replaced by one durable runtime-first operation
-covering the runtime and installed desktop app. Reset for the task_07 release walk.
+QA impact 2026-08-16: this scenario owns the direct-binary runtime-only branch of the durable
+runtime-first operation. Installed-app targets belong to `APP-single-command-multi-target-update`.
+Reset for the Task 07 release walk.

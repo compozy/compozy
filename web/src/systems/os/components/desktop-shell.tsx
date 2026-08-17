@@ -34,7 +34,11 @@ import {
   useSessionLifecycleActions,
   useSessionListView,
 } from "@/systems/session";
-import { useSettingsSandboxes } from "@/systems/settings";
+import {
+  settingsUpdateIndicatorAvailable,
+  useSettingsSandboxes,
+  useSettingsUpdate,
+} from "@/systems/settings";
 import {
   selectWorktreeForScope,
   useWorkspaceSetupContent,
@@ -52,16 +56,27 @@ import {
 export function DesktopShell() {
   // Same cached query the gate reads — no extra fetch, one truth for first run.
   const onboarding = useOnboardingStatus();
+  // Same cached read the Updates section uses — one truth, one query key.
+  const update = useSettingsUpdate();
   const firstRun = onboarding.data?.completed === false;
 
   return (
     <DesktopGate>
-      <DesktopChrome firstRun={firstRun} />
+      <DesktopChrome
+        firstRun={firstRun}
+        updateAvailable={settingsUpdateIndicatorAvailable(update.data)}
+      />
     </DesktopGate>
   );
 }
 
-function DesktopChrome({ firstRun }: { firstRun: boolean }) {
+function DesktopChrome({
+  firstRun,
+  updateAvailable,
+}: {
+  firstRun: boolean;
+  updateAvailable: boolean;
+}) {
   const model = useDesktopShellModel();
   const chrome = useDesktopChrome(model.runtimeWorkspaceId);
   const agentsQuery = useAgents();
@@ -99,6 +114,7 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
             <DesktopShellBody
               firstRun={firstRun}
               model={model}
+              updateAvailable={updateAvailable}
               worktreeDialogs={worktreeDialogs}
               workspaceSetupDefaults={workspaceSetupDefaults}
             />
@@ -120,6 +136,7 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
 interface DesktopShellBodyProps {
   model: DesktopShellModel;
   firstRun: boolean;
+  updateAvailable: boolean;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
   worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
 }
@@ -139,6 +156,7 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
 function DesktopShellScopedBody({
   model,
   firstRun,
+  updateAvailable,
   workspaceSetupDefaults,
   worktreeDialogs,
   worktreeScopeId,
@@ -217,6 +235,7 @@ function DesktopShellScopedBody({
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
         attention={attention}
+        updateAvailable={updateAvailable}
         worktreesByWorkspace={worktreesByWorkspace}
         userHomeDir={model.userHomeDir}
         worktreeSelection={worktreeSelection}

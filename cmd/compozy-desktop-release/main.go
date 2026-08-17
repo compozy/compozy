@@ -52,26 +52,31 @@ func runPublish(ctx context.Context, args []string) error {
 	common := addAuthorityFlags(flags)
 	assetDir := flags.String("asset-dir", "", "directory containing the exact desktop release inventory")
 	channelDir := flags.String("channel-dir", "", "directory containing merged updater manifests")
-	if err := parseFlags(flags, args); err != nil {
-		return err
-	}
-	authority, err := newAuthority(common)
-	if err != nil {
-		return err
-	}
-	result, err := authority.Publish(ctx, desktoprelease.PublishRequest{
-		OperationID: common.operationID, Channel: common.channel, Version: common.version,
-		AssetDir: *assetDir, ChannelDir: *channelDir, PublishedAt: time.Now(),
+	return runAuthorityCommand(args, flags, common, func(authority *desktoprelease.Authority) (any, error) {
+		return authority.Publish(ctx, desktoprelease.PublishRequest{
+			OperationID: common.operationID, Channel: common.channel, Version: common.version,
+			AssetDir: *assetDir, ChannelDir: *channelDir, PublishedAt: time.Now(),
+		})
 	})
-	if err != nil {
-		return err
-	}
-	return writeJSON(result)
 }
 
 func runRepair(ctx context.Context, args []string) error {
 	flags := newFlagSet("repair")
 	common := addAuthorityFlags(flags)
+	return runAuthorityCommand(args, flags, common, func(authority *desktoprelease.Authority) (any, error) {
+		return authority.Repair(ctx, desktoprelease.RepairRequest{
+			OperationID: common.operationID, Channel: common.channel, Version: common.version,
+			PublishedAt: time.Now(),
+		})
+	})
+}
+
+func runAuthorityCommand(
+	args []string,
+	flags *flag.FlagSet,
+	common *authorityFlags,
+	action func(*desktoprelease.Authority) (any, error),
+) error {
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
@@ -79,10 +84,7 @@ func runRepair(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	result, err := authority.Repair(ctx, desktoprelease.RepairRequest{
-		OperationID: common.operationID, Channel: common.channel, Version: common.version,
-		PublishedAt: time.Now(),
-	})
+	result, err := action(authority)
 	if err != nil {
 		return err
 	}
@@ -106,7 +108,7 @@ func addAuthorityFlags(flags *flag.FlagSet) *authorityFlags {
 	flags.StringVar(&values.version, "version", "", "strict unprefixed release SemVer")
 	flags.StringVar(&values.repository, "repository", os.Getenv("GITHUB_REPOSITORY"), "GitHub owner/name")
 	flags.StringVar(&values.token, "token", os.Getenv("GITHUB_TOKEN"), "GitHub API token")
-	flags.StringVar(&values.apiURL, "api-url", "https://api.github.com", "GitHub API base URL")
+	flags.StringVar(&values.apiURL, "api-url", desktoprelease.DefaultGitHubAPIURL, "GitHub API base URL")
 	flags.StringVar(&values.output, "output", "json", "structured output format")
 	flags.StringVar(&values.output, "o", "json", "structured output format")
 	return values

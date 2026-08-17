@@ -21,7 +21,7 @@ charter:
     adrs: [ADR-002, ADR-006]
   guidance:
     must_try:
-      - "Disconnect before first launch, install the release package, and use packaged `_electron` evidence plus a screen recording to prove embedded verify → install → start with zero feed request."
+      - "Disconnect before first launch, install the release package, and exercise the packaged Electron app through Playwright `_electron`; pair the harness evidence with a screen recording to prove embedded verify → install → start with zero release-channel request."
       - "Interrupt once before the first install write, relaunch, and retry; corrupt the embedded bundle in a separate package fixture and prove no owned install is created before integrity passes."
       - "Walk boot progress, version skew, and one typed failure; the boot surface stays non-interactive for updates and cannot navigate, open windows, request permissions, or expose devtools."
       - "Quit and relaunch online and offline; the same product opens directly, beta identity stays truthful, and process/CLI evidence shows exactly one daemon."

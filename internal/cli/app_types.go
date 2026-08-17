@@ -11,12 +11,11 @@ import (
 	"time"
 
 	appschema "github.com/compozy/compozy/desktop/schema"
+	"github.com/compozy/compozy/internal/appstatecontract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
-
-const appStateSchemaVersion = 2
 
 // AppStatusReport is the stable machine-readable desktop app status projection.
 type AppStatusReport struct {
@@ -96,7 +95,7 @@ func resolveAppStatus(
 		return AppStatusReport{}, fmt.Errorf("app: resolve platform registration: %w", err)
 	}
 	report := AppStatusReport{
-		SchemaVersion: appStateSchemaVersion,
+		SchemaVersion: appstatecontract.SchemaVersion,
 		Installed:     installation.Installed,
 		AppVersion:    installation.Version,
 		Runtime:       AppRuntimeState{},
@@ -163,58 +162,39 @@ func overlayAppUpdateOperation(
 	if err != nil || operation == nil {
 		return err
 	}
-	report.Update.OperationID = operation.ID
-	percent := operation.Percent
+	projected := compozyupdate.ProjectMultiState(
+		compozyupdate.State{
+			Status:         compozyupdate.Status(report.Update.RuntimeState),
+			CurrentVersion: report.Runtime.Version,
+			LatestVersion:  report.Update.RuntimeAvailable,
+		},
+		&compozyupdate.AppTrackState{
+			Status:         compozyupdate.Status(report.Update.AppState),
+			Running:        report.Running,
+			CurrentVersion: report.AppVersion,
+			LatestVersion:  report.Update.AppAvailable,
+		},
+		operation,
+	)
+	report.Update.OperationID = projected.Operation.ID
+	percent := projected.Operation.Percent
 	report.Update.Percent = &percent
 	if phase, ok := compozyupdate.PhaseForUI(
-		operation.ActiveTarget,
-		activeOperationPhase(operation),
-		operation.Percent,
+		projected.Operation.ActiveTarget,
+		projected.Operation.Phase,
+		projected.Operation.Percent,
 	); ok {
 		report.Update.Phase = string(phase)
 	}
 	if operation.Runtime != nil {
 		report.Update.RuntimeAvailable = operation.Runtime.ToVersion
-		switch {
-		case operation.Runtime.Phase == compozyupdate.PhaseFailed || operation.Runtime.Phase == compozyupdate.PhaseRolledBack:
-			report.Update.RuntimeState = string(compozyupdate.StatusFailed)
-		case operation.ActiveTarget == compozyupdate.TargetRuntime:
-			if operation.Runtime.Phase == compozyupdate.PhasePending {
-				report.Update.RuntimeState = string(compozyupdate.StatusAccepted)
-			} else {
-				report.Update.RuntimeState = "applying"
-			}
-		}
+		report.Update.RuntimeState = string(projected.Runtime.Status)
 	}
 	if operation.App != nil {
 		report.Update.AppAvailable = operation.App.ToVersion
-		switch {
-		case operation.Waiting == compozyupdate.WaitingForApp || operation.App.Phase == compozyupdate.PhaseStaged:
-			report.Update.AppState = "staged"
-		case operation.App.Phase == compozyupdate.PhaseFailed:
-			report.Update.AppState = string(compozyupdate.StatusFailed)
-		case operation.ActiveTarget == compozyupdate.TargetApp:
-			if operation.App.Phase == compozyupdate.PhasePending {
-				report.Update.AppState = string(compozyupdate.StatusAccepted)
-			} else {
-				report.Update.AppState = "applying"
-			}
-		}
+		report.Update.AppState = string(projected.App.Status)
 	}
 	return nil
-}
-
-func activeOperationPhase(operation *compozyupdate.Operation) compozyupdate.OperationPhase {
-	if operation == nil {
-		return ""
-	}
-	if operation.ActiveTarget == compozyupdate.TargetRuntime && operation.Runtime != nil {
-		return operation.Runtime.Phase
-	}
-	if operation.ActiveTarget == compozyupdate.TargetApp && operation.App != nil {
-		return operation.App.Phase
-	}
-	return ""
 }
 
 func readAppStateRecord(homePaths compozyconfig.HomePaths) (appStateRecord, bool, error) {
@@ -235,7 +215,7 @@ func readAppStateRecord(homePaths compozyconfig.HomePaths) (appStateRecord, bool
 	if err := json.Unmarshal(raw, &version); err != nil {
 		return appStateRecord{}, false, fmt.Errorf("app: decode state version: %w", err)
 	}
-	if version.SchemaVersion != appStateSchemaVersion {
+	if version.SchemaVersion != appstatecontract.SchemaVersion {
 		return appStateRecord{}, false, newAppCommandError(
 			appStateSchemaUnknownCode,
 			fmt.Sprintf("unsupported app state schema version %d", version.SchemaVersion),

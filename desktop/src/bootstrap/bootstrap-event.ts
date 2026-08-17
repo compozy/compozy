@@ -1,27 +1,41 @@
-export type BootstrapPhase = "resolve" | "attach" | "provision" | "start" | "ready" | "failed";
-export type BootstrapStatus = "started" | "completed" | "retrying" | "failed";
-
-export interface BootstrapEvent {
-  readonly type: "bootstrap";
-  readonly phase: BootstrapPhase;
-  readonly status: BootstrapStatus;
-  readonly message: string;
-  readonly resolution?: "attach" | "start" | "provision";
-  readonly attempt?: number;
-  readonly backoff_ms?: number;
-  readonly daemon?: { readonly origin: string; readonly version: string; readonly pid: number };
-}
-
-const PHASES = new Set<BootstrapPhase>([
+const BOOTSTRAP_PHASE_VALUES = [
   "resolve",
   "attach",
   "provision",
   "start",
   "ready",
   "failed",
-]);
-const STATUSES = new Set<BootstrapStatus>(["started", "completed", "retrying", "failed"]);
-const RESOLUTIONS = new Set(["attach", "start", "provision"]);
+] as const;
+export type BootstrapPhase = (typeof BOOTSTRAP_PHASE_VALUES)[number];
+const BOOTSTRAP_STATUS_VALUES = ["started", "completed", "retrying", "failed"] as const;
+export type BootstrapStatus = (typeof BOOTSTRAP_STATUS_VALUES)[number];
+const BOOTSTRAP_RESOLUTION_VALUES = ["attach", "start", "provision"] as const;
+export type BootstrapResolution = (typeof BOOTSTRAP_RESOLUTION_VALUES)[number];
+
+export interface BootstrapEvent {
+  readonly type: "bootstrap";
+  readonly phase: BootstrapPhase;
+  readonly status: BootstrapStatus;
+  readonly message: string;
+  readonly resolution?: BootstrapResolution;
+  readonly attempt?: number;
+  readonly backoff_ms?: number;
+  readonly compatibility?: {
+    readonly reason: "runtime_below_minimum" | "app_below_minimum";
+    readonly runtime: string;
+    readonly needed: string;
+  };
+  readonly daemon?: {
+    readonly origin: string;
+    readonly version: string;
+    readonly pid: number;
+    readonly owned: boolean;
+  };
+}
+
+const PHASES = new Set<string>(BOOTSTRAP_PHASE_VALUES);
+const STATUSES = new Set<string>(BOOTSTRAP_STATUS_VALUES);
+const RESOLUTIONS = new Set<string>(BOOTSTRAP_RESOLUTION_VALUES);
 
 function validDaemonOrigin(value: unknown): value is string {
   if (typeof value !== "string") return false;
@@ -59,9 +73,40 @@ export function parseBootstrapEvent(line: string): BootstrapEvent | null {
   ) {
     return null;
   }
+  if (record.compatibility !== undefined) {
+    if (!record.compatibility || typeof record.compatibility !== "object") return null;
+    const compatibility = record.compatibility as Record<string, unknown>;
+    if (
+      (compatibility.reason !== "runtime_below_minimum" &&
+        compatibility.reason !== "app_below_minimum") ||
+      typeof compatibility.runtime !== "string" ||
+      compatibility.runtime.trim() === "" ||
+      typeof compatibility.needed !== "string" ||
+      compatibility.needed.trim() === ""
+    ) {
+      return null;
+    }
+  }
   if (
     record.resolution !== undefined &&
     (typeof record.resolution !== "string" || !RESOLUTIONS.has(record.resolution))
+  ) {
+    return null;
+  }
+  if (
+    record.attempt !== undefined &&
+    (typeof record.attempt !== "number" ||
+      !Number.isSafeInteger(record.attempt) ||
+      record.attempt < 1 ||
+      record.attempt > 5)
+  ) {
+    return null;
+  }
+  if (
+    record.backoff_ms !== undefined &&
+    (typeof record.backoff_ms !== "number" ||
+      !Number.isSafeInteger(record.backoff_ms) ||
+      record.backoff_ms < 0)
   ) {
     return null;
   }
@@ -73,7 +118,8 @@ export function parseBootstrapEvent(line: string): BootstrapEvent | null {
       typeof daemon.version !== "string" ||
       typeof daemon.pid !== "number" ||
       !Number.isSafeInteger(daemon.pid) ||
-      daemon.pid < 1
+      daemon.pid < 1 ||
+      typeof daemon.owned !== "boolean"
     ) {
       return null;
     }

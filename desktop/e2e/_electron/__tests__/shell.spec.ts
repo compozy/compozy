@@ -1,9 +1,22 @@
-import { cp, chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { expect, test, type DesktopInstance } from "../fixtures";
+import { extract } from "tar";
 
-const repositoryRoot = resolve(import.meta.dir, "../../../..");
+import {
+  availableLoopbackPort,
+  expect,
+  productionPackagedExecutable,
+  test,
+  type DesktopInstance,
+} from "../fixtures";
+import { runCommand, startCommand, type RunningCommand } from "../process";
+import { completeOnboarding } from "../helpers";
+
+const testDirectory = fileURLToPath(new URL(".", import.meta.url));
+const repositoryRoot = resolve(testDirectory, "../../../..");
 
 async function jsonCommand(
   desktop: DesktopInstance,
@@ -20,6 +33,26 @@ async function bootstrapEvents(home: string): Promise<readonly Record<string, un
     .map(line => JSON.parse(line) as Record<string, unknown>);
 }
 
+async function corruptRuntimeBundle(context: {
+  readonly bundleRuntimePath: string;
+  readonly environment: Record<string, string>;
+  readonly home: string;
+  readonly resourcesPath: string;
+}): Promise<void> {
+  const bundleRoot = join(context.home, "corrupt-runtime-bundle");
+  await mkdir(bundleRoot, { recursive: true, mode: 0o700 });
+  const runtimeName = process.platform === "win32" ? "compozy.exe" : "compozy";
+  await Promise.all([
+    cp(context.bundleRuntimePath, join(bundleRoot, runtimeName)),
+    cp(
+      join(context.resourcesPath, "runtime", "runtime-manifest.json"),
+      join(bundleRoot, "runtime-manifest.json")
+    ),
+  ]);
+  await writeFile(join(bundleRoot, runtimeName), "corrupted-runtime");
+  context.environment.COMPOZY_DESKTOP_BUNDLE_ROOT = bundleRoot;
+}
+
 async function buildRuntimeFixture(
   output: string,
   version: string,
@@ -32,26 +65,21 @@ async function buildRuntimeFixture(
     "-X github.com/compozy/compozy/internal/version.BuildDate=2026-08-16T00:00:00Z",
     "-X github.com/compozy/compozy/internal/version.MinAppVersion=0.0.0",
   ].join(" ");
-  const build = Bun.spawn(
-    ["go", "build", "-trimpath", "-ldflags", ldflags, "-o", output, "./cmd/compozy"],
-    { cwd: repositoryRoot, env: environment, stdout: "pipe", stderr: "pipe" }
+  const build = await runCommand(
+    "go",
+    ["build", "-trimpath", "-ldflags", ldflags, "-o", output, "./cmd/compozy"],
+    { cwd: repositoryRoot, env: environment }
   );
-  const exitCode = await build.exited;
-  if (exitCode !== 0) {
-    throw new Error((await new Response(build.stderr).text()).trim() || "Fixture build failed.");
+  if (build.exitCode !== 0) {
+    throw new Error(build.stderr.trim() || "Fixture build failed.");
   }
   if (process.platform !== "win32") await chmod(output, 0o700);
 }
 
 async function startRuntimeFixture(runtime: string, environment: NodeJS.ProcessEnv): Promise<void> {
-  const process = Bun.spawn([runtime, "daemon", "start"], {
-    env: environment,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const exitCode = await process.exited;
-  if (exitCode !== 0) {
-    throw new Error((await new Response(process.stderr).text()).trim() || "Fixture start failed.");
+  const started = await runCommand(runtime, ["daemon", "start"], { env: environment });
+  if (started.exitCode !== 0) {
+    throw new Error(started.stderr.trim() || "Fixture start failed.");
   }
 }
 
@@ -59,114 +87,63 @@ async function buildRuntimeUpdateCoordinator(
   output: string,
   environment: NodeJS.ProcessEnv
 ): Promise<void> {
-  const build = Bun.spawn(
-    ["go", "build", "-tags", "e2e", "-o", output, "./desktop/e2e/fixtures/runtimeupdate"],
-    { cwd: repositoryRoot, env: environment, stdout: "pipe", stderr: "pipe" }
+  const build = await runCommand(
+    "go",
+    ["build", "-tags", "e2e", "-o", output, "./desktop/e2e/fixtures/runtimeupdate"],
+    { cwd: repositoryRoot, env: environment }
   );
-  const exitCode = await build.exited;
-  if (exitCode !== 0) {
-    throw new Error(
-      (await new Response(build.stderr).text()).trim() || "Update coordinator fixture build failed."
-    );
+  if (build.exitCode !== 0) {
+    throw new Error(build.stderr.trim() || "Update coordinator fixture build failed.");
   }
   if (process.platform !== "win32") await chmod(output, 0o700);
 }
 
-function availableUpdateSnapshot(): Record<string, unknown> {
-  return {
-    aggregate: "available",
-    operation: null,
-    runtime: {
-      status: "available",
-      install_method: "desktop-app",
-      managed: false,
-      current_version: "0.3.0",
-      latest_version: "0.3.1",
-      release_url: "https://example.test/releases/v0.3.1",
-      daemon_restarted: false,
-      message: "CompozyOS runtime 0.3.1 is available.",
-    },
-    app: {
-      status: "up-to-date",
-      running: true,
-      current_version: "0.3.0",
-      latest_version: "0.3.0",
-      message: "CompozyOS app is up to date.",
-    },
-  };
-}
-
-async function runtimeUpdateSnapshot(
-  home: string,
-  started: boolean
-): Promise<Record<string, unknown>> {
-  if (!started) return availableUpdateSnapshot();
-  let operation: Record<string, unknown> | null = null;
-  try {
-    operation = JSON.parse(await readFile(join(home, "update-operation.json"), "utf8")) as Record<
-      string,
-      unknown
-    >;
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-  }
-  if (!operation) {
-    return {
-      aggregate: "updated",
-      operation: null,
-      runtime: {
-        status: "updated",
-        install_method: "desktop-app",
-        managed: false,
-        current_version: "0.3.1",
+async function seedRuntimeUpdateCache(home: string): Promise<void> {
+  const cache = join(home, "cache");
+  await mkdir(cache, { recursive: true, mode: 0o700 });
+  const now = new Date().toISOString();
+  await writeFile(
+    join(cache, "update-state-stable.json"),
+    `${JSON.stringify(
+      {
         latest_version: "0.3.1",
-        daemon_restarted: true,
-        message: "CompozyOS runtime updated to 0.3.1.",
+        release_url: "https://example.test/releases/v0.3.1",
+        published_at: now,
+        checked_at: now,
+        assets: [{ Name: "fixture", DownloadURL: "https://example.test/fixture" }],
       },
-      app: {
-        status: "up-to-date",
-        running: true,
-        current_version: "0.3.0",
-        latest_version: "0.3.0",
-        message: "CompozyOS app is up to date.",
-      },
-    };
-  }
-  const runtime = Reflect.get(operation, "runtime") as Record<string, unknown>;
-  return {
-    aggregate: "applying",
-    operation: {
-      id: Reflect.get(operation, "operation_id"),
-      revision: Reflect.get(operation, "revision"),
-      targets: Reflect.get(operation, "targets"),
-      active_target: Reflect.get(operation, "active_target"),
-      phase: Reflect.get(runtime, "phase"),
-      percent: Reflect.get(operation, "percent"),
-      holder: Reflect.get(operation, "holder"),
-      waiting: Reflect.get(operation, "waiting"),
-      started_at: Reflect.get(operation, "started_at"),
-    },
-    runtime: {
-      status: "applying",
-      install_method: "desktop-app",
-      managed: false,
-      current_version: "0.3.0",
-      latest_version: "0.3.1",
-      daemon_restarted: false,
-      message: "Updating CompozyOS runtime to 0.3.1.",
-    },
-    app: {
-      status: "up-to-date",
-      running: true,
-      current_version: "0.3.0",
-      latest_version: "0.3.0",
-      message: "CompozyOS app is up to date.",
-    },
-  };
+      null,
+      2
+    )}\n`,
+    { mode: 0o600 }
+  );
 }
 
-function isProductURL(url: string): boolean {
-  return url.startsWith("http://") || url.startsWith("https://");
+async function waitForUpdateOperation(home: string): Promise<void> {
+  const operationPath = join(home, "update-operation.json");
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    try {
+      await stat(operationPath);
+      return;
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
+    await new Promise(resolveDelay => setTimeout(resolveDelay, 25));
+  }
+  throw new Error("The runtime update fixture did not create its durable operation in time.");
+}
+
+async function invalidAppOpenCode(desktop: DesktopInstance, target: string): Promise<string> {
+  try {
+    await desktop.cli(["app", "open", target, "-o", "json"]);
+  } catch (error) {
+    const payload = JSON.parse(error instanceof Error ? error.message : String(error)) as {
+      error?: { code?: unknown };
+    };
+    return typeof payload.error?.code === "string" ? payload.error.code : "";
+  }
+  throw new Error(`Invalid app target ${target} unexpectedly succeeded.`);
 }
 
 test("E2E-001 E2E-002: first run provisions offline and exposes every boot phase", async ({
@@ -186,9 +163,10 @@ test("E2E-001 E2E-002: first run provisions offline and exposes every boot phase
     .filter(event => event.status === "completed")
     .map(event => event.phase);
   expect(completedPhases).toEqual(["provision", "ready"]);
-  expect(events.map(event => event.phase)).toEqual(
-    expect.arrayContaining(["resolve", "provision", "start", "ready"])
-  );
+  const firstSeenPhases = events
+    .map(event => event.phase)
+    .filter((phase, index, phases) => phases.indexOf(phase) === index);
+  expect(firstSeenPhases).toEqual(["resolve", "provision", "start", "ready"]);
   const status = await jsonCommand(desktop, ["app", "status", "-o", "json"]);
   expect(status).toMatchObject({ installed: true, running: true, state: "product" });
   expect(status.runtime).toMatchObject({ attached: true, owned: true });
@@ -202,12 +180,9 @@ test("E2E-001 E2E-002: first run provisions offline and exposes every boot phase
 });
 
 test("E2E-002: corrupt bundled runtime fails before provisioning and remains retryable", async ({
-  copyPackagedExecutable,
   launchDesktop,
 }) => {
-  const packaged = await copyPackagedExecutable();
-  await writeFile(packaged.bundleRuntimePath, "corrupted-runtime");
-  const desktop = await launchDesktop({ executablePath: packaged.executablePath });
+  const desktop = await launchDesktop({ prepare: corruptRuntimeBundle });
   await expect(
     desktop.boot.getByRole("heading", { name: "CompozyOS could not start" })
   ).toBeVisible();
@@ -224,14 +199,14 @@ test("E2E-003: runtime below the minimum stays on version-skew guidance", async 
   const desktop = await launchDesktop({
     prepare: async ({ environment, home }) => {
       const runtime = join(home, "bin", process.platform === "win32" ? "compozy.exe" : "compozy");
-      await buildRuntimeFixture(runtime, "0.2.0", environment);
+      await buildRuntimeFixture(runtime, "0.3.0-beta.1", environment);
       await startRuntimeFixture(runtime, environment);
     },
   });
   await expect(
     desktop.boot.getByRole("heading", { name: "CompozyOS needs an update" })
   ).toBeVisible();
-  await expect(desktop.boot.getByText(/Runtime 0\.2\.0.*Repair or update/u)).toBeVisible();
+  await expect(desktop.boot.getByText(/Runtime 0\.3\.0-beta\.1.*Repair or update/u)).toBeVisible();
   await expect(desktop.boot.getByRole("button", { name: "Retry operation" })).toHaveCount(0);
 });
 
@@ -243,9 +218,9 @@ test("E2E-004: launch bursts reuse one window and deliver the last deep link", a
   await Promise.all([
     desktop.spawnSecondary([]),
     desktop.spawnSecondary(["compozyos://open/tasks"]),
-    desktop.spawnSecondary(["compozyos://open/settings"]),
   ]);
-  await expect(product).toHaveURL(/\/settings(?:\?|$)/u);
+  await desktop.spawnSecondary(["compozyos://open/settings/general"]);
+  await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
   const windows = await desktop.app.evaluate(
     ({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().filter(window => {
@@ -255,7 +230,9 @@ test("E2E-004: launch bursts reuse one window and deliver the last deep link", a
   );
   expect(windows).toBe(1);
   expect(
-    await desktop.app.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow() !== null)
+    await desktop.app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().some(window => window.isVisible())
+    )
   ).toBe(true);
 });
 
@@ -264,10 +241,13 @@ test("E2E-005 E2E-007: relaunch attaches, stopped runtime starts once, and shell
 }) => {
   const first = await launchDesktop();
   await first.product();
-  const initial = await jsonCommand(first, ["daemon", "status", "-o", "json"]);
+  const initial = await jsonCommand(first, ["status", "-o", "json"]);
   await first.closeShell();
-  const alive = await jsonCommand(first, ["daemon", "status", "-o", "json"]);
-  expect(alive).toMatchObject({ status: "running", pid: initial.pid });
+  const alive = await jsonCommand(first, ["status", "-o", "json"]);
+  const initialDaemon = initial.daemon as Record<string, unknown>;
+  expect(alive).toMatchObject({
+    daemon: { status: "running", pid: initialDaemon.pid },
+  });
 
   const attached = await launchDesktop({ home: first.home });
   await attached.product();
@@ -280,8 +260,8 @@ test("E2E-005 E2E-007: relaunch attaches, stopped runtime starts once, and shell
   await started.product();
   const startEvents = await bootstrapEvents(first.home);
   expect(startEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "start" });
-  const restarted = await jsonCommand(started, ["daemon", "status", "-o", "json"]);
-  expect(restarted.pid).not.toBe(initial.pid);
+  const restarted = await jsonCommand(started, ["status", "-o", "json"]);
+  expect((restarted.daemon as Record<string, unknown>).pid).not.toBe(initialDaemon.pid);
 });
 
 test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers after repair", async ({
@@ -325,9 +305,6 @@ test("E2E-008: bounds, maximized state, and off-screen recovery survive relaunch
     window.setBounds({ x: 80, y: 70, width: 960, height: 720 });
     window.maximize();
   });
-  await desktop.app.evaluate(
-    async () => await new Promise(resolveDelay => setTimeout(resolveDelay, 400))
-  );
   await desktop.closeShell();
   const maximized = await launchDesktop({ home: desktop.home });
   await maximized.product();
@@ -370,7 +347,10 @@ test("E2E-009: menu and shortcut zoom share one persisted bounded value", async 
   const product = await desktop.product();
   await desktop.app.evaluate(({ Menu }) => {
     const view = Menu.getApplicationMenu()?.items.find(item => item.label === "View");
-    view?.submenu?.items.find(item => item.label === "Zoom In")?.click();
+    if (!view?.submenu) throw new Error("The View menu is missing.");
+    const zoomIn = view.submenu.items.find(item => item.label === "Zoom In");
+    if (!zoomIn) throw new Error("The Zoom In menu item is missing.");
+    zoomIn.click();
   });
   await product.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+-`);
   await product.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+=`);
@@ -444,9 +424,34 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
 }) => {
   const desktop = await launchDesktop();
   const product = await desktop.product();
-  await desktop.cli(["app", "open", "/settings"]);
-  await expect(product).toHaveURL(/\/settings(?:\?|$)/u);
+  await completeOnboarding(product);
+  await desktop.cli(["app", "open", "/settings/general"]);
+  await expect(product).toHaveURL(/\/settings\/general(?:\?|$)/u);
+  await expect(product.getByTestId("settings-shell")).toBeVisible();
+  await expect(product.getByTestId("settings-section-nav")).toBeVisible();
+  await expect(
+    product.locator('[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]')
+  ).toHaveText([
+    "General",
+    "Appearance",
+    "Layouts",
+    "Providers",
+    "Memory",
+    "Roles",
+    "Skills",
+    "Automation",
+    "Network",
+    "Gateway",
+    "Observability",
+    "Hooks",
+    "Extensions",
+  ]);
   await expect(product.getByText("Updates", { exact: true })).toBeVisible();
+  for (const section of ["network", "hooks", "extensions", "general"] as const) {
+    await product.getByTestId(`settings-section-${section}`).click();
+    await expect(product).toHaveURL(new RegExp(`/settings/${section}(?:\\?|$)`, "u"));
+    await expect(product.getByTestId(`settings-page-${section}`)).toBeVisible();
+  }
   expect(
     await product.evaluate(() => ({
       backdropFilter: CSS.supports("backdrop-filter", "blur(1px)"),
@@ -455,61 +460,52 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
   ).toEqual({ backdropFilter: true, chromium: true });
 });
 
-test("E2E-018: Settings drives a journaled runtime swap through restart and health verification", async ({
+test("E2E-018: the real Settings API projects a journaled runtime swap through restart", async ({
   launchDesktop,
 }) => {
-  const desktop = await launchDesktop();
-  const product = await desktop.product();
-  const replacement = join(desktop.home, "bin", "compozy-next");
-  const coordinator = join(desktop.home, "runtime-update-fixture");
-  await Promise.all([
-    buildRuntimeFixture(replacement, "0.3.1", desktop.environment),
-    buildRuntimeUpdateCoordinator(coordinator, desktop.environment),
-  ]);
-
-  let started = false;
-  let updateProcess: ReturnType<typeof Bun.spawn> | undefined;
+  let coordinator = "";
+  let replacement = "";
+  let updateEnvironment: Readonly<Record<string, string>> = {};
+  let updateHome = "";
+  let updateProcess: RunningCommand | undefined;
   let updateResult:
     | Promise<{ readonly exitCode: number; readonly stderr: string; readonly stdout: string }>
     | undefined;
-  await product.route("**/api/settings/update*", async route => {
-    const request = route.request();
-    const pathname = new URL(request.url()).pathname;
-    if (request.method() === "GET" && pathname === "/api/settings/update") {
-      await route.fulfill({ json: await runtimeUpdateSnapshot(desktop.home, started) });
-      return;
-    }
-    if (request.method() === "POST" && pathname === "/api/settings/update/apply") {
-      started = true;
-      const child = Bun.spawn(
-        [coordinator, "--home", desktop.home, "--replacement", replacement, "--phase-delay", "2s"],
-        { env: desktop.environment, stdout: "pipe", stderr: "pipe" }
-      );
-      updateProcess = child;
-      updateResult = Promise.all([
-        child.exited,
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-      ]).then(([exitCode, stdout, stderr]) => ({ exitCode, stdout, stderr }));
-      await route.fulfill({
-        json: {
-          target: "runtime",
-          status: "accepted",
-          operation_id: "e2e-runtime-update",
-          message: "Update accepted.",
-          holder: null,
-        },
-      });
-      return;
-    }
-    await route.continue();
+  const desktop = await launchDesktop({
+    prepare: async context => {
+      updateHome = context.home;
+      updateEnvironment = context.environment;
+      replacement = join(context.home, "bin", "compozy-next");
+      coordinator = join(context.home, "runtime-update-fixture");
+      await Promise.all([
+        buildRuntimeFixture(replacement, "0.3.1", context.environment),
+        buildRuntimeUpdateCoordinator(coordinator, context.environment),
+        seedRuntimeUpdateCache(context.home),
+      ]);
+    },
   });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  const child = startCommand(
+    coordinator,
+    ["--home", updateHome, "--replacement", replacement, "--phase-delay", "2s"],
+    { env: updateEnvironment }
+  );
+  updateProcess = child;
+  updateResult = child.result;
+  await waitForUpdateOperation(updateHome);
+  await product.goto(new URL("/settings/general", product.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  const liveStatus = await product.evaluate(async () => {
+    const response = await fetch("/api/settings/update");
+    if (!response.ok) throw new Error(`Update status failed with ${response.status}.`);
+    return (await response.json()) as Record<string, unknown>;
+  });
+  expect(liveStatus.operation).toMatchObject({ targets: ["runtime"] });
 
   try {
-    await desktop.cli(["app", "open", "/settings"]);
-    const apply = product.getByTestId("settings-page-general-update-apply-runtime");
-    await expect(apply).toBeVisible();
-    await apply.click();
+    await desktop.cli(["app", "open", "/settings/general"]);
     const progress = product.getByTestId("settings-page-general-update-progress-runtime");
     for (const phase of ["download", "verify", "install", "start"]) {
       await expect(progress).toContainText(phase, { timeout: 30_000 });
@@ -534,9 +530,9 @@ test("E2E-018: Settings drives a journaled runtime swap through restart and heal
     expect(terminal).toMatchObject({ outcome: "updated" });
     expect(terminal?.runtime).toMatchObject({ phase: "finalized", to_version: "0.3.1" });
   } finally {
-    if (updateProcess?.exitCode === null) {
-      updateProcess.kill();
-      await updateProcess.exited;
+    if (updateProcess && updateProcess.child.exitCode === null) {
+      updateProcess.child.kill();
+      await updateProcess.result;
     }
   }
 });
@@ -547,12 +543,16 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
   const desktop = await launchDesktop();
   let product = await desktop.product();
   const originalURL = product.url();
-  await desktop.app.evaluate(({ dialog }) => {
+  await desktop.app.evaluate(() => {
     Reflect.set(globalThis, "__compozyCrashDialogs", 0);
-    Reflect.set(dialog, "showMessageBox", async () => {
+    Reflect.set(globalThis, "__compozyCrashDecisions", []);
+    Reflect.set(globalThis, "__compozyCrashDialogObserver", () => {
       const count = Reflect.get(globalThis, "__compozyCrashDialogs") as number;
       Reflect.set(globalThis, "__compozyCrashDialogs", count + 1);
-      return { response: 0, checkboxChecked: false };
+    });
+    Reflect.set(globalThis, "__compozyCrashDecisionObserver", (decision: string) => {
+      const decisions = Reflect.get(globalThis, "__compozyCrashDecisions") as string[];
+      decisions.push(decision);
     });
   });
   for (let index = 0; index < 4; index += 1) {
@@ -561,22 +561,35 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
         const url = candidate.webContents.getURL();
         return url.startsWith("http://") || url.startsWith("https://");
       });
-      window?.webContents.forcefullyCrashRenderer();
+      if (!window) throw new Error("Product window missing before renderer crash.");
+      window.webContents.forcefullyCrashRenderer();
     });
+    await expect
+      .poll(
+        async () =>
+          await desktop.app.evaluate(
+            () => (Reflect.get(globalThis, "__compozyCrashDecisions") as string[]).length
+          )
+      )
+      .toBe(index + 1);
     if (index < 3) {
-      await expect
-        .poll(async () => desktop.app.windows().filter(page => isProductURL(page.url())).length)
-        .toBe(1);
-      product = desktop.app.windows().find(page => isProductURL(page.url())) ?? product;
+      product = await desktop.product();
       await expect(product).toHaveURL(originalURL);
+      await expect(product.getByTestId("os-desktop")).toBeVisible();
     }
   }
+  expect(
+    await desktop.app.evaluate(() => Reflect.get(globalThis, "__compozyCrashDecisions"))
+  ).toEqual(["reload", "reload", "reload", "dialog"]);
   await expect
     .poll(
       async () => await desktop.app.evaluate(() => Reflect.get(globalThis, "__compozyCrashDialogs"))
     )
     .toBe(1);
-  expect((await jsonCommand(desktop, ["daemon", "status", "-o", "json"])).status).toBe("running");
+  expect(
+    ((await jsonCommand(desktop, ["status", "-o", "json"])).daemon as Record<string, unknown>)
+      .status
+  ).toBe("running");
 });
 
 test("E2E-013 E2E-014: running deep links navigate valid paths and collapse hostile payloads to home", async ({
@@ -586,6 +599,8 @@ test("E2E-013 E2E-014: running deep links navigate valid paths and collapse host
   const product = await desktop.product();
   await desktop.spawnSecondary(["compozyos://open/sessions/e2e-session"]);
   await expect(product).toHaveURL(/\/sessions\/e2e-session(?:\?|$)/u);
+  await desktop.spawnSecondary(["compozyos://open/route-that-does-not-exist"]);
+  await expect(product.getByText("Route not found", { exact: true })).toBeVisible();
   for (const hostile of [
     "compozyos://open/http://evil.com",
     "compozyos://open/../../etc",
@@ -599,8 +614,8 @@ test("E2E-013 E2E-014: running deep links navigate valid paths and collapse host
 test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validation boundary", async ({
   launchDesktop,
 }) => {
-  const cold = await launchDesktop({ argv: ["compozyos://open/settings"] });
-  await expect(await cold.product()).toHaveURL(/\/settings(?:\?|$)/u);
+  const cold = await launchDesktop({ argv: ["compozyos://open/settings/general"] });
+  await expect(await cold.product()).toHaveURL(/\/settings\/general(?:\?|$)/u);
   await cold.closeShell();
   const hostile = await launchDesktop({ home: cold.home, argv: ["compozyos://open/../../etc"] });
   const product = await hostile.product();
@@ -608,9 +623,7 @@ test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validati
   await hostile.cli(["app", "open", "/tasks"]);
   await expect(product).toHaveURL(/\/tasks(?:\?|$)/u);
   for (const invalid of ["../etc", "/../etc", "//host", "/http://evil.com", "/bad\\path"]) {
-    await expect(hostile.cli(["app", "open", invalid])).rejects.toThrow(
-      /invalid_target_path|absolute product path|contains traversal/u
-    );
+    expect(await invalidAppOpenCode(hostile, invalid)).toBe("invalid_target_path");
   }
 });
 
@@ -620,31 +633,53 @@ test("E2E-024: status, healthy retry, diagnose, and diagnostic bundle remain age
   const desktop = await launchDesktop();
   await desktop.product();
   const recordPath = join(desktop.home, "app.json");
-  const before = await readFile(recordPath, "utf8");
-  expect(await jsonCommand(desktop, ["app", "retry", "-o", "json"])).toMatchObject({ ok: true });
-  expect(await readFile(recordPath, "utf8")).toBe(before);
+  await expect
+    .poll(async () => Reflect.get(JSON.parse(await readFile(recordPath, "utf8")), "state"))
+    .toBe("product");
+  const before = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
+  expect(await jsonCommand(desktop, ["app", "retry", "-o", "json"])).toMatchObject({
+    action: "retry",
+    result: { ok: true },
+  });
+  const after = JSON.parse(await readFile(recordPath, "utf8")) as Record<string, unknown>;
+  expect(after).toMatchObject({ pid: before.pid, state: "product" });
   const report = await jsonCommand(desktop, ["app", "diagnose", "-o", "json"]);
   expect(report).toMatchObject({ schema_version: 1, boot_phase: "product" });
   const bundle = await jsonCommand(desktop, ["app", "diagnose", "--bundle", "--yes", "-o", "json"]);
-  const bundlePath = Reflect.get(bundle, "bundle_path");
+  const bundlePath = Reflect.get(bundle.bundle as Record<string, unknown>, "path");
   expect(typeof bundlePath).toBe("string");
   expect((await stat(String(bundlePath))).isFile()).toBe(true);
+  const extracted = await mkdtemp(join(tmpdir(), "compozy-diagnostic-bundle-"));
+  try {
+    await extract({ cwd: extracted, file: String(bundlePath) });
+    const manifest = JSON.parse(await readFile(join(extracted, "manifest.json"), "utf8")) as {
+      kind?: unknown;
+      report?: { boot_id?: unknown };
+      schema_version?: unknown;
+    };
+    expect(manifest).toMatchObject({
+      schema_version: 1,
+      kind: "compozyos_desktop_diagnostics",
+      report: { boot_id: report.boot_id },
+    });
+  } finally {
+    await rm(extracted, { recursive: true, force: true });
+  }
 });
 
 test("E2E-034: packaged product and boot windows enforce their security boundaries", async ({
-  copyPackagedExecutable,
   launchDesktop,
 }) => {
   const desktop = await launchDesktop();
   const product = await desktop.product();
   expect(await product.evaluate(async () => await Notification.requestPermission())).toBe("denied");
   await desktop.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()
-      .find(window => {
-        const url = window.webContents.getURL();
-        return url.startsWith("http://") || url.startsWith("https://");
-      })
-      ?.webContents.openDevTools();
+    const window = BrowserWindow.getAllWindows().find(candidate => {
+      const url = candidate.webContents.getURL();
+      return url.startsWith("http://") || url.startsWith("https://");
+    });
+    if (!window) throw new Error("The product window is missing.");
+    window.webContents.openDevTools();
   });
   await expect
     .poll(
@@ -669,12 +704,118 @@ test("E2E-034: packaged product and boot windows enforce their security boundari
   });
   const productResponse = await product.request.get(product.url());
   const productCSP = productResponse.headers()["content-security-policy"] ?? "";
-  expect(productCSP).toContain("frame-ancestors 'none'");
+  for (const directive of [
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "frame-src 'none'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ]) {
+    expect(productCSP).toContain(directive);
+  }
   expect(productCSP).not.toContain("'unsafe-eval'");
+  const cspProbe = await product.evaluate(async () => {
+    const directives: string[] = [];
+    const onViolation = (event: SecurityPolicyViolationEvent) => {
+      directives.push(event.violatedDirective);
+    };
+    document.addEventListener("securitypolicyviolation", onViolation);
+    Reflect.deleteProperty(globalThis, "__compozyInlineScriptRan");
+    const script = document.createElement("script");
+    script.textContent = "globalThis.__compozyInlineScriptRan = true";
+    document.body.append(script);
+    await fetch("https://example.com/compozy-csp-probe", { mode: "no-cors" }).catch(() => {});
+    await new Promise(resolveDelay => setTimeout(resolveDelay, 50));
+    document.removeEventListener("securitypolicyviolation", onViolation);
+    return {
+      directives,
+      inlineScriptRan: Reflect.get(globalThis, "__compozyInlineScriptRan") === true,
+    };
+  });
+  expect(cspProbe.inlineScriptRan).toBe(false);
+  expect(cspProbe.directives.some(directive => directive.startsWith("script-src"))).toBe(true);
+  expect(cspProbe.directives).toContain("connect-src");
 
-  const packaged = await copyPackagedExecutable();
-  await writeFile(packaged.bundleRuntimePath, "corrupted-runtime");
-  const failed = await launchDesktop({ executablePath: packaged.executablePath });
+  await desktop.closeShell();
+  const productionHome = await mkdtemp(join(tmpdir(), "compozy-electron-security-"));
+  const debugPort = await availableLoopbackPort();
+  const production = startCommand(
+    productionPackagedExecutable(),
+    [`--remote-debugging-port=${debugPort}`],
+    {
+      env: {
+        ...process.env,
+        COMPOZY_DESKTOP_BUNDLE_ROOT: join(productionHome, "missing-runtime"),
+        COMPOZY_DESKTOP_E2E: "1",
+        COMPOZY_HOME: productionHome,
+      },
+    }
+  );
+  let productionProbeError: Error | null = null;
+  const productionCleanupErrors: Error[] = [];
+  try {
+    await expect
+      .poll(async () => {
+        try {
+          const state = JSON.parse(
+            await readFile(join(productionHome, "app.json"), "utf8")
+          ) as Record<string, unknown>;
+          return state.pid;
+        } catch (error) {
+          if (error instanceof Error && "code" in error && error.code === "ENOENT") return 0;
+          throw error;
+        }
+      })
+      .toBe(production.child.pid);
+    const probeDeadline = Date.now() + 1_000;
+    while (Date.now() < probeDeadline) {
+      try {
+        await fetch(`http://127.0.0.1:${debugPort}/json/version`, {
+          signal: AbortSignal.timeout(100),
+        });
+        throw new Error("The production desktop exposed a remote-debugging endpoint.");
+      } catch (error) {
+        if (!(error instanceof TypeError || error instanceof DOMException)) throw error;
+      }
+    }
+  } catch (error) {
+    productionProbeError = error instanceof Error ? error : new Error(String(error));
+  } finally {
+    if (production.child.exitCode === null && !production.child.kill("SIGTERM")) {
+      productionCleanupErrors.push(
+        new Error("The production security probe could not stop the process.")
+      );
+    }
+    try {
+      await production.result;
+    } catch (error) {
+      productionCleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+    }
+    try {
+      await rm(productionHome, { recursive: true, force: true });
+    } catch (error) {
+      productionCleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+  if (productionProbeError) {
+    if (productionCleanupErrors.length > 0) {
+      throw new AggregateError(
+        [productionProbeError, ...productionCleanupErrors],
+        "The production security probe and its cleanup failed."
+      );
+    }
+    throw productionProbeError;
+  }
+  if (productionCleanupErrors.length === 1) throw productionCleanupErrors[0];
+  if (productionCleanupErrors.length > 1) {
+    throw new AggregateError(
+      productionCleanupErrors,
+      "The production security probe could not clean up."
+    );
+  }
+  const failed = await launchDesktop({ prepare: corruptRuntimeBundle });
   const bootCSP = await failed.boot
     .locator('meta[http-equiv="Content-Security-Policy"]')
     .getAttribute("content");

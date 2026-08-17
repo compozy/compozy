@@ -16,8 +16,7 @@ export async function readWindowState(path: string): Promise<StoredWindowState |
     const zoom =
       value && typeof value === "object" ? (value as Record<string, unknown>).zoom_level : 0;
     return { ...state, zoom_level: typeof zoom === "number" ? clampZoomLevel(zoom) : 0 };
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
+  } catch {
     return null;
   }
 }

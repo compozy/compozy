@@ -1,15 +1,20 @@
 export const CONTROL_SCHEMA_VERSION = 1;
 
-export type ControlMethod =
-  | "navigate"
-  | "retry"
-  | "diagnose"
-  | "export_diagnostics"
-  | "copy_diagnostics";
+export const CONTROL_METHOD_VALUES = [
+  "navigate",
+  "retry",
+  "diagnose",
+  "export_diagnostics",
+  "copy_diagnostics",
+] as const;
+export type ControlMethod = (typeof CONTROL_METHOD_VALUES)[number];
 
-export interface ControlRequest {
-  readonly schema_version: 1;
+interface ControlEnvelope {
+  readonly schema_version: typeof CONTROL_SCHEMA_VERSION;
   readonly id: number;
+}
+
+export interface ControlRequest extends ControlEnvelope {
   readonly token: string;
   readonly method: string;
   readonly params?: unknown;
@@ -21,8 +26,8 @@ export interface ControlErrorPayload {
 }
 
 export type ControlResponse =
-  | { readonly schema_version: 1; readonly id: number; readonly result: unknown }
-  | { readonly schema_version: 1; readonly id: number; readonly error: ControlErrorPayload };
+  | (ControlEnvelope & { readonly result: unknown })
+  | (ControlEnvelope & { readonly error: ControlErrorPayload });
 
 export type ControlHandler = (method: ControlMethod, params: unknown) => Promise<unknown>;
 
@@ -36,13 +41,7 @@ export class ControlMethodError extends Error {
   }
 }
 
-const METHODS = new Set<ControlMethod>([
-  "navigate",
-  "retry",
-  "diagnose",
-  "export_diagnostics",
-  "copy_diagnostics",
-]);
+const METHODS = new Set<string>(CONTROL_METHOD_VALUES);
 
 export function parseControlMethod(value: string): ControlMethod | null {
   return METHODS.has(value as ControlMethod) ? (value as ControlMethod) : null;

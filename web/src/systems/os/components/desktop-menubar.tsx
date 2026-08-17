@@ -17,7 +17,6 @@ import { HelpMenu } from "./menubar/help-menu";
 import { SessionMenu } from "./menubar/session-menu";
 import { WindowMenu } from "./menubar/window-menu";
 import { WorkspaceMenu } from "./menubar/workspace-menu";
-import { settingsUpdateIndicatorAvailable, useSettingsUpdate } from "@/systems/settings";
 import {
   GLOBAL_SCOPE_COPY,
   globalScopeTooltipOn,
@@ -56,6 +55,8 @@ export interface DesktopMenubarProps {
   activeOverlay: DesktopOverlay | null;
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void;
   attention: OsAttentionModel;
+  /** Whether either update track currently offers an install. */
+  updateAvailable: boolean;
   /** Same worktree query the switcher reads; omitted, the menu stays flat. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
   userHomeDir?: string;
@@ -96,6 +97,7 @@ export function DesktopMenubar({
   activeOverlay,
   onOverlayOpenChange,
   attention,
+  updateAvailable,
   worktreesByWorkspace,
   userHomeDir,
   worktreeSelection,
@@ -109,8 +111,6 @@ export function DesktopMenubar({
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
   const jumpToSession = useAttentionJump();
-  // Same cached read the Updates section uses — one truth, one query key.
-  const update = useSettingsUpdate();
   const globalOn = scope === "global";
   if (rememberedWorkspaceName === undefined) {
     rememberedWorkspaceName = activeWorkspace ? activeWorkspace.name : null;
@@ -192,10 +192,7 @@ export function DesktopMenubar({
       // No workspace means no layout stream — there is nothing to be out of sync with.
       status={<OsHydrationStatus hydration={hydration} />}
       updateIndicator={
-        <MenubarUpdateIndicator
-          available={settingsUpdateIndicatorAvailable(update.data)}
-          onActivate={actions.openUpdates}
-        />
+        <MenubarUpdateIndicator available={updateAvailable} onActivate={actions.openUpdates} />
       }
       notifications={attention.notificationCount}
       onCommandClick={onOpenPalette}

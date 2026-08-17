@@ -1,12 +1,15 @@
-import { createHash } from "node:crypto";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+
+import { executableSha256File } from "../src/bootstrap/executable-digest";
+import { RUNTIME_BUNDLE_MANIFEST_SCHEMA_VERSION } from "../src/bootstrap/bundle-integrity";
 
 const desktopRoot = join(import.meta.dir, "..");
 const repositoryRoot = resolve(desktopRoot, "..");
 const output = join(desktopRoot, ".artifacts", "runtime");
 const runtimeName = process.platform === "win32" ? "compozy.exe" : "compozy";
 const runtimePath = join(output, runtimeName);
+const strictSemver = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 await mkdir(output, { recursive: true });
 
 const packageMetadata: unknown = JSON.parse(
@@ -16,17 +19,17 @@ if (
   !packageMetadata ||
   typeof packageMetadata !== "object" ||
   typeof Reflect.get(packageMetadata, "version") !== "string" ||
-  !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(Reflect.get(packageMetadata, "version"))
+  !strictSemver.test(Reflect.get(packageMetadata, "version"))
 ) {
   throw new Error("The desktop package version must be a semantic version.");
 }
 const version =
   process.env.COMPOZY_RELEASE_VERSION?.trim() || Reflect.get(packageMetadata, "version");
-if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(version)) {
+if (!strictSemver.test(version)) {
   throw new Error("COMPOZY_RELEASE_VERSION must be strict unprefixed SemVer.");
 }
 const minAppVersion = process.env.COMPOZY_MIN_APP_VERSION?.trim() || version;
-if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(minAppVersion)) {
+if (!strictSemver.test(minAppVersion)) {
   throw new Error("COMPOZY_MIN_APP_VERSION must be strict unprefixed SemVer.");
 }
 
@@ -64,11 +67,10 @@ const build = Bun.spawn(
 const exitCode = await build.exited;
 if (exitCode !== 0) throw new Error(`Bundled runtime build exited with status ${exitCode}.`);
 if (process.platform !== "win32") await chmod(runtimePath, 0o700);
-const payload = await readFile(runtimePath);
 const manifest = {
-  schema_version: 1,
+  schema_version: RUNTIME_BUNDLE_MANIFEST_SCHEMA_VERSION,
   asset: runtimeName,
-  sha256: createHash("sha256").update(payload).digest("hex"),
+  sha256: (await executableSha256File(runtimePath)).toString("hex"),
 };
 await writeFile(join(output, "runtime-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, {
   encoding: "utf8",

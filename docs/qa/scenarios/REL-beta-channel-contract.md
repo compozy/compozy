@@ -4,8 +4,8 @@ area: REL
 title: Inspect one truthful beta channel contract before publication
 persona: Dora
 journey: J-approve-compozy-beta-candidate
-expected: The README, locally rendered site, official Compozy skill, installer source, update guidance, release workflow, and generated package metadata agree on the hosted v0.3 beta installer, npm @compozy/cli@beta, pinned github.com/compozy/compozy Go install, compozy/compozy release ownership, Sigstore-only provenance, and no Homebrew path before stable, without claiming that any live artifact already exists.
-entry_points: README Installation; local packages/site install and runtime installation routes; skills/compozy/SKILL.md; scripts/install.sh; compozy update --check fixture/local contract; .github/workflows/release.yml; package metadata
+expected: The README, rendered site, official Compozy skill, installer source, update guidance, release workflow, and generated package metadata agree on per-architecture Electron beta packages, immutable GitHub Release assets, signed `compat.json`, one audited ref-CAS `channel-beta` generation, npm @compozy/cli@beta, pinned github.com/compozy/compozy Go install, Sigstore provenance, and no Homebrew path before stable, without claiming that an unpublished candidate is live.
+entry_points: README Installation; packages/site install and desktop routes; skills/compozy/SKILL.md; scripts/install.sh; compozy update --check fixture/local contract; .github/workflows/release.yml desktop build/publish jobs; channel-beta desktop/generation.json and platform manifests; package metadata
 qa_status: untested
 bug_ids:
 fix_status:

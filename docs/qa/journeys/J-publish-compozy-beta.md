@@ -47,7 +47,7 @@ journey:
       expected_observable: "Stale or missing dist-tags are re-read within a fixed deadline, while terminal query and policy errors stop immediately"
     - step: 4
       verb: "Observe the desktop release lane (added 2026-08-10, desktop-app workstream)"
-      expected_observable: "Incomplete signing material hard-fails before desktop builds; payloads publish before the no-cache manifests and are re-verified from the public origin; a partial platform failure publishes no feed and leaves the GitHub release a draft with explicit evidence; package managers remain unpublished"
+      expected_observable: "Incomplete signing material hard-fails before desktop builds; every immutable payload and signed compatibility catalog verifies before one audited channel-beta commit and ref CAS; a partial platform failure leaves the channel ref unchanged and the GitHub release draft with explicit evidence; package managers remain unpublished"
     - step: 5
       verb: "Confirm the release from a fresh public read"
       expected_observable: "A prepared CLI package installs against public GitHub archives on macOS and Linux before npm publication; both packages then expose the requested beta version, latest remains unchanged, and the production job is green"

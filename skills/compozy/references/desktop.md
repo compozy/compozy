@@ -30,9 +30,10 @@ compozy update -o json
 compozy update --cancel -o json
 ```
 
-The structured result always contains `runtime` and includes `app` only when the desktop app is
-installed. A managed runtime returns its exact package-manager recommendation without changing the
-binary. Apply and cancel are also available through `POST /api/settings/update/apply` and
+Check and apply results always contain `runtime` and include `app` only when the desktop app is
+installed. Cancel returns `status`, `operation_id`, `message`, and an optional `holder`. A managed
+runtime returns its exact package-manager recommendation without changing the binary. Apply and
+cancel are also available through `POST /api/settings/update/apply` and
 `POST /api/settings/update/cancel` over HTTP or UDS; read live state with `GET /api/settings/update`.
 Treat `available`, `applying`, `staged`, `blocked`, `failed`, `updated`, and
 `up-to-date` as the update statuses. A blocked result names the current holder. App status also
@@ -67,11 +68,12 @@ Treat attachment and ownership separately. Attaching to an existing daemon never
 ownership. Quitting the app never stops any runtime, including one the app started or provisioned.
 Use the runtime's own control surface for an intentional stop.
 
-App updates require consent and restart the desktop process. The runtime updates first, then a
-running app applies its verified artifact or a closed app stages it for the next launch. The app can
-replace an app-owned runtime after verification when durable provenance still proves ownership. For
-an operator-managed or inconclusively owned runtime, report the install method and its update
-command; never replace the binary through `compozy app`.
+App updates require consent and restart the desktop process. The runtime updates first. A running
+shell applies its verified app artifact; when the shell is absent, the daemon records a staged app
+operation for the shell to complete after its next launch. The app can replace an app-owned runtime
+after verification when durable provenance still proves ownership. For an operator-managed or
+inconclusively owned runtime, report the install method and its update command; never replace the
+binary through `compozy app`.
 
 ## Shell facts
 
@@ -85,9 +87,9 @@ Other browsers can open the daemon-served UI on a best-effort basis.
 
 ## Recovery
 
-When status reports `recovery_required`, do not start another mutation. Run
-`compozy app diagnose -o json`, preserve the reported recovery code and report, follow its recovery
-action, then run `compozy app retry`. Confirm the result with `compozy app status -o json`.
+When an update reports `failed`, do not start another mutation. Run `compozy app diagnose -o json`,
+preserve the reported error code and report, follow its recovery action, then run
+`compozy app retry`. Confirm the result with `compozy app status -o json`.
 
 Automatic repair is limited to disposable desktop metadata and a runtime process proven to be
 desktop-owned. Never stop an operator-managed runtime or delete `compozy.db`, `config.toml`,

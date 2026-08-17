@@ -220,9 +220,17 @@ func TestServiceDiscovery(t *testing.T) {
 	t.Run("Should mark a vanished registry row missing exactly once", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDiscoveryTestFixture(t)
-		fixture.listOutput = worktreeListFixture(fixture.workspace.Root, "main")
 		now := fixture.now
 		vanished := filepath.Join(t.TempDir(), "vanished")
+		fixture.listOutput = append(
+			worktreeListFixture(fixture.workspace.Root, "main"),
+			[]byte(
+				"worktree "+vanished+"\x00"+
+					"HEAD vanished\x00"+
+					"branch refs/heads/vanished\x00"+
+					"prunable gitdir file points to non-existent location\x00\x00",
+			)...,
+		)
 		if err := fixture.store.Insert(context.Background(), Worktree{
 			ID: "wt-vanished", WorkspaceID: fixture.workspace.ID, Name: "vanished", Path: vanished,
 			State: StateReady, Origin: OriginManual, SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,

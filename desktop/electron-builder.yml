@@ -1,6 +1,12 @@
 appId: com.compozy.os
 productName: CompozyOS
 asar: true
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
 directories:
   output: .artifacts/builder
   buildResources: build

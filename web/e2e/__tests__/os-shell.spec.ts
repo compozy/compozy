@@ -1760,7 +1760,9 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
   await expect(sessionWindow(appPage, session.id)).toHaveCount(0);
   await expect(appPage.getByText("cross-workspace-session", { exact: true })).toHaveCount(0);
 
-  // Only the owner projection resolved the miss: no foreign-workspace read, no session payload.
+  // Only the owner projection resolves the session miss. The shell may refresh B's
+  // workspace-scoped worktree listing for the authorized global workspace switcher,
+  // but no foreign session or other workspace payload is read before confirmation.
   expect(new Set(apiRequests.filter(pathname => pathname.includes(session.id)))).toEqual(
     new Set([
       `/api/workspaces/${workspace.id}/sessions/${session.id}`,
@@ -1768,8 +1770,10 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
     ])
   );
   expect(
-    apiRequests.filter(pathname => pathname.startsWith(`/api/workspaces/${secondWorkspace.id}/`))
-  ).toEqual([]);
+    new Set(
+      apiRequests.filter(pathname => pathname.startsWith(`/api/workspaces/${secondWorkspace.id}/`))
+    )
+  ).toEqual(new Set([`/api/workspaces/${secondWorkspace.id}/worktrees`]));
 
   // Cancel keeps A active with its arrangement intact and falls back to today's not-found.
   await confirmSwitch.cancel.click();
@@ -3805,19 +3809,23 @@ test("E2E-021: the menubar update indicator appears only while an update is offe
 
   // Offered: the indicator appears, with no count and no dropdown.
   updatePayload = settingsUpdateBothAvailableFixture;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(indicator).toBeVisible({ timeout: 20_000 });
   await expect(indicator).not.toHaveAttribute("aria-haspopup", "true");
 
   // Applying: progress belongs to Settings, so the menubar goes quiet again.
   updatePayload = settingsUpdateApplyingFixture;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(indicator).toHaveCount(0, { timeout: 20_000 });
 
   // Failed: still no menubar error surface.
   updatePayload = settingsUpdateRolledBackFixture;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(indicator).toHaveCount(0, { timeout: 20_000 });
 
   // Offered again: activation lands on the Updates section.
   updatePayload = settingsUpdateBothAvailableFixture;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(indicator).toBeVisible({ timeout: 20_000 });
   await indicator.click();
 

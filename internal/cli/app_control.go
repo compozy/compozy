@@ -16,7 +16,7 @@ import (
 const (
 	appControlSchemaVersion = 1
 	appControlTimeout       = 2 * time.Second
-	appControlUpdateTimeout = 2 * time.Minute
+	appControlLongTimeout   = 2 * time.Minute
 )
 
 type appControlCaller func(context.Context, string, string, any) (any, error)
@@ -59,10 +59,7 @@ func callAppControl(ctx context.Context, socketPath string, method string, param
 		)
 	}
 
-	timeout := appControlTimeout
-	if method == appExportDiagnosticsMethod {
-		timeout = appControlUpdateTimeout
-	}
+	timeout := appControlTimeoutForMethod(method)
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	connection, err := (&net.Dialer{}).DialContext(callCtx, "unix", socketPath)
@@ -90,6 +87,13 @@ func callAppControl(ctx context.Context, socketPath string, method string, param
 		Params:        params,
 	}
 	return exchangeAppControl(connection, request)
+}
+
+func appControlTimeoutForMethod(method string) time.Duration {
+	if method == appExportDiagnosticsMethod || method == appRetryMethod {
+		return appControlLongTimeout
+	}
+	return appControlTimeout
 }
 
 func readAppControlToken(socketPath string) (string, error) {

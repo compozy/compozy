@@ -11,6 +11,8 @@ import {
 } from "@/systems/settings";
 import type {
   SettingsUpdateApplyResult,
+  SettingsUpdateCancelResult,
+  SettingsUpdateHolder,
   SettingsUpdateStatus,
   SettingsUpdateTarget,
 } from "@/systems/settings";
@@ -22,6 +24,8 @@ export interface GeneralUpdateActions {
   isCanceling: boolean;
   /** The daemon's own answer to the last apply — `accepted` or `blocked`. */
   result: SettingsUpdateApplyResult | null;
+  /** The daemon's own answer to the last cancel — `canceled` or declined. */
+  cancelResult: SettingsUpdateCancelResult | null;
   error: string | null;
 }
 
@@ -49,6 +53,10 @@ function RetryButton({ isFetching, onRetry }: { isFetching: boolean; onRetry: ()
       Retry
     </Button>
   );
+}
+
+function UpdateHolderValue({ holder }: { holder: SettingsUpdateHolder }) {
+  return <SettingValue mono>{`${holder.surface} · PID ${holder.pid}`}</SettingValue>;
 }
 
 /**
@@ -109,6 +117,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
   const runtime = tracks[0];
   // A blocked apply is a 200 whose body refuses; it never reads as success.
   const blocked = props.actions.result?.status === "blocked" ? props.actions.result : null;
+  const cancelResult = props.actions.cancelResult;
 
   return (
     <SettingsGroup
@@ -152,6 +161,23 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
           data-testid="settings-page-general-update-blocked"
           description={blocked.message}
           label="Update channel busy"
+          control={blocked.holder ? <UpdateHolderValue holder={blocked.holder} /> : undefined}
+        />
+      ) : null}
+      {cancelResult ? (
+        <SettingRow
+          data-testid="settings-page-general-update-cancel-result"
+          description={cancelResult.message}
+          label={cancelResult.status === "canceled" ? "Update canceled" : "Cancel declined"}
+          control={
+            cancelResult.holder ? (
+              <UpdateHolderValue holder={cancelResult.holder} />
+            ) : (
+              <Pill tone={cancelResult.status === "canceled" ? "neutral" : "warning"}>
+                {cancelResult.status === "canceled" ? "Canceled" : "Declined"}
+              </Pill>
+            )
+          }
         />
       ) : null}
       {props.actions.error ? (

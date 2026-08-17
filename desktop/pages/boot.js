@@ -1,3 +1,5 @@
+import { publicSafeText } from "./public-safe-text.js";
+
 (() => {
   "use strict";
 
@@ -42,19 +44,8 @@
   const copy = element("boot-copy");
   const exportButton = element("boot-export");
 
-  const safeText = value => {
-    if (typeof value !== "string") return "";
-    return Array.from(value, character => {
-      const codePoint = character.codePointAt(0) ?? 0;
-      return codePoint <= 31 || codePoint === 127 ? " " : character;
-    })
-      .join("")
-      .trim()
-      .slice(0, 512);
-  };
-
   const setResult = (message, level = "status") => {
-    const text = safeText(message);
+    const text = publicSafeText(message, "");
     result.textContent = text;
     result.hidden = text.length === 0;
     result.dataset.level = text ? level : "";
@@ -79,12 +70,8 @@
       progress.hidden = true;
       return;
     }
-    const percentage =
-      stage === "download" && Number.isInteger(input.pct) && input.pct >= 0 && input.pct <= 100
-        ? input.pct
-        : null;
     const label = stage ? stages[stage] : stages.start;
-    const labelText = percentage === null ? label : `${label}: ${percentage}%`;
+    const labelText = label;
     progress.hidden = false;
     progress.dataset.stage = stage;
     progress.setAttribute("aria-busy", stage === "ready" ? "false" : "true");
@@ -93,12 +80,11 @@
     progressAttempt.hidden = attempt === null;
     progressBar.hidden = stage === "ready";
     progressBar.setAttribute("aria-valuetext", labelText);
-    if (percentage === null) progressBar.removeAttribute("value");
-    else progressBar.value = percentage;
+    progressBar.removeAttribute("value");
   };
 
   const addDiagnostic = (label, value) => {
-    const text = safeText(value);
+    const text = publicSafeText(value, "");
     if (!text) return;
     const row = document.createElement("div");
     const term = document.createElement("dt");
@@ -128,6 +114,9 @@
           ? "External"
           : ""
     );
+    addDiagnostic("Previous crash phase", report.previous_crash?.boot_phase);
+    addDiagnostic("Previous crash boot ID", report.previous_crash?.boot_id);
+    addDiagnostic("Previous crash started", report.previous_crash?.started_at);
     technical.hidden = false;
     diagnosticControls.hidden = false;
   };
@@ -200,10 +189,11 @@
       state !== "skew"
         ? ""
         : input.newer === true
-          ? `Update CompozyOS to ${safeText(input.needed)} or newer before reconnecting to runtime ${safeText(input.runtime)}.`
-          : `Runtime ${safeText(input.runtime)} does not satisfy ${safeText(input.needed)}. Repair or update the runtime before reconnecting.`;
+          ? `Update CompozyOS to ${publicSafeText(input.needed, "")} or newer before reconnecting to runtime ${publicSafeText(input.runtime, "")}.`
+          : `Runtime ${publicSafeText(input.runtime, "")} does not satisfy ${publicSafeText(input.needed, "")}. Repair or update the runtime before reconnecting.`;
     const message =
-      safeText(input.message) || (isError ? safeText(input.error?.safe_message) : skewMessage);
+      publicSafeText(input.message, "") ||
+      (isError ? publicSafeText(input.error?.safe_message, "") : skewMessage);
     detail.textContent = message;
     detail.hidden = !message;
     detail.setAttribute("role", isError ? "alert" : "status");

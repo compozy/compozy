@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { DeepLinkQueue, lastDeepLink, parseDeepLink } from "../deep-link";
+import { DeepLinkQueue, lastDeepLink, parseDeepLink, productNavigationURL } from "../deep-link";
 
 // Invariant: only absolute, hostless product paths reach the renderer, and a pre-ready burst is last-wins exactly once.
+// Owner: desktop deep-link boundary. Canonical suite: deep-link.test.ts.
 describe("deep-link policy", () => {
   it("Should accept product paths and preserve their query", () => {
     expect(parseDeepLink("compozyos://open/sessions/abc?tab=logs")).toEqual({
@@ -29,6 +30,15 @@ describe("deep-link policy", () => {
     expect(queue.take()).toBeNull();
     expect(queue.setReady()).toBe("/sessions/last");
     expect(queue.take()).toBeNull();
+  });
+
+  it("Should carry an explicit default-view intent without changing product paths", () => {
+    expect(productNavigationURL("http://127.0.0.1:2123", "/")).toBe(
+      "http://127.0.0.1:2123/?_compozy_desktop_default=1"
+    );
+    expect(productNavigationURL("http://127.0.0.1:2123", "/tasks?state=open")).toBe(
+      "http://127.0.0.1:2123/tasks?state=open"
+    );
   });
 
   it("Should extract only the last deep-link argument", () => {

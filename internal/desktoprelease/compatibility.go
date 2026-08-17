@@ -5,10 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -43,18 +40,9 @@ func ReadCompatibility(path string) (Compatibility, error) {
 	if err != nil {
 		return Compatibility{}, fmt.Errorf("desktop release: read compatibility: %w", err)
 	}
-	var compatibility Compatibility
-	decoder := json.NewDecoder(strings.NewReader(string(contents)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&compatibility); err != nil {
-		return Compatibility{}, fmt.Errorf("desktop release: decode compatibility: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return Compatibility{}, fmt.Errorf("desktop release: compatibility contains multiple JSON documents")
-		}
-		return Compatibility{}, fmt.Errorf("desktop release: decode compatibility trailing data: %w", err)
+	compatibility, err := decodeStrictJSON[Compatibility](contents, "compatibility")
+	if err != nil {
+		return Compatibility{}, err
 	}
 	if err := ValidateVersion(compatibility.RuntimeVersion); err != nil {
 		return Compatibility{}, fmt.Errorf("desktop release: runtime_version: %w", err)

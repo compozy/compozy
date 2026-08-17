@@ -190,3 +190,68 @@ func settingsUpdateStatusValues() []string {
 		string(contract.SettingsUpdateStatusCanceled),
 	}
 }
+
+func settingsUpdateTargetValues() []string {
+	return []string{
+		string(contract.SettingsUpdateTargetRuntime),
+		string(contract.SettingsUpdateTargetApp),
+	}
+}
+
+func settingsUpdateApplyStatusValues() []string {
+	return []string{
+		string(contract.SettingsUpdateApplyAccepted),
+		string(contract.SettingsUpdateApplyBlocked),
+		string(contract.SettingsUpdateApplyFailed),
+	}
+}
+
+func settingsUpdatePhaseValues() []string {
+	return []string{
+		string(contract.SettingsUpdatePhasePending),
+		string(contract.SettingsUpdatePhaseDownloading),
+		string(contract.SettingsUpdatePhaseVerifying),
+		string(contract.SettingsUpdatePhaseSwapping),
+		string(contract.SettingsUpdatePhaseRestarting),
+		string(contract.SettingsUpdatePhaseHealthChecking),
+		string(contract.SettingsUpdatePhaseFinalized),
+		string(contract.SettingsUpdatePhaseRolledBack),
+		string(contract.SettingsUpdatePhaseFailed),
+		string(contract.SettingsUpdatePhaseStaged),
+		string(contract.SettingsUpdatePhaseApplying),
+		string(contract.SettingsUpdatePhaseInstallerHandoff),
+		string(contract.SettingsUpdatePhaseRestarted),
+		string(contract.SettingsUpdatePhaseVerified),
+	}
+}
+
+func settingsUpdateWaitingValues() []string {
+	return []string{
+		string(contract.SettingsUpdateWaitingNone),
+		string(contract.SettingsUpdateWaitingForApp),
+	}
+}
+
+func settingsUpdateActorValues() []string {
+	return []string{
+		string(contract.SettingsUpdateActorCLI),
+		string(contract.SettingsUpdateActorDaemon),
+		string(contract.SettingsUpdateActorWeb),
+		string(contract.SettingsUpdateActorShell),
+	}
+}
+
+func settingsUpdateInstallMethodValues() []string {
+	return []string{
+		string(contract.SettingsUpdateInstallDirectBinary),
+		string(contract.SettingsUpdateInstallHomebrew),
+		string(contract.SettingsUpdateInstallNPM),
+		string(contract.SettingsUpdateInstallAPT),
+		string(contract.SettingsUpdateInstallDNF),
+		string(contract.SettingsUpdateInstallRPM),
+		string(contract.SettingsUpdateInstallScoop),
+		string(contract.SettingsUpdateInstallGo),
+		string(contract.SettingsUpdateInstallDesktopApp),
+		string(contract.SettingsUpdateInstallUnknown),
+	}
+}

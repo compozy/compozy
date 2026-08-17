@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
-	"time"
 )
 
 // PlanOperation verifies release identities and builds a durable acquisition request.
@@ -16,7 +16,7 @@ func (m *Manager) PlanOperation(
 	targets []Target,
 	holder Holder,
 ) (request OperationRequest, returnErr error) {
-	if err := validateTargets(targets); err != nil {
+	if err := validateOperationRequestIdentity(actor, targets, holder); err != nil {
 		return OperationRequest{}, err
 	}
 	state, release, err := m.CheckAll(ctx, CheckOptions{ForceRefresh: true})
@@ -26,7 +26,10 @@ func (m *Manager) PlanOperation(
 	if release == nil {
 		return OperationRequest{}, errors.New("update: release metadata is unavailable")
 	}
-	assets, err := m.resolveReleaseAssets(release)
+	if err := validatePlanTargets(state, targets); err != nil {
+		return OperationRequest{}, err
+	}
+	assets, err := m.resolvePlanReleaseAssets(release, slices.Contains(targets, TargetRuntime))
 	if err != nil {
 		return OperationRequest{}, err
 	}
@@ -44,7 +47,11 @@ func (m *Manager) PlanOperation(
 	if err := m.verifyReleaseArtifacts(ctx, downloaded, assets.archive.Name); err != nil {
 		return OperationRequest{}, err
 	}
-	if _, err := readCompatibility(downloaded.compatibilityPath); err != nil {
+	compatibility, err := readCompatibility(downloaded.compatibilityPath)
+	if err != nil {
+		return OperationRequest{}, err
+	}
+	if err := validateCompatibilityRelease(compatibility, release.Version); err != nil {
 		return OperationRequest{}, err
 	}
 
@@ -52,7 +59,7 @@ func (m *Manager) PlanOperation(
 		RequestedBy: actor,
 		Targets:     append([]Target(nil), targets...),
 		Holder:      holder,
-		Deadline:    m.now().Add(30 * time.Minute),
+		Deadline:    m.now().Add(DefaultOperationDeadline),
 	}
 	archivedApp, err := m.operationStore.LatestArchivedApp(ctx)
 	if err != nil {
@@ -67,10 +74,28 @@ func (m *Manager) PlanOperation(
 	}
 	for _, target := range targets {
 		if err := m.addPlannedTarget(&request, target, plan); err != nil {
-			return OperationRequest{}, err
+			return OperationRequest{}, &TargetError{Target: target, Err: err}
 		}
 	}
 	return request, nil
+}
+
+func validatePlanTargets(state MultiState, targets []Target) error {
+	for _, target := range targets {
+		switch target {
+		case TargetRuntime:
+			if state.Runtime.Status != StatusAvailable || state.Runtime.Managed {
+				return errors.New("update: runtime is not eligible for in-place update")
+			}
+		case TargetApp:
+			if state.App == nil || state.App.Status != StatusAvailable {
+				return errors.New("update: desktop app update is not available")
+			}
+		default:
+			return fmt.Errorf("update: invalid target %q", target)
+		}
+	}
+	return nil
 }
 
 type operationPlan struct {
@@ -102,13 +127,12 @@ func plannedRuntimeState(plan operationPlan) (*RuntimeOperationState, error) {
 		return nil, err
 	}
 	return &RuntimeOperationState{
-		ArtifactIdentity: ArtifactIdentity{
-			FromVersion: plan.state.Runtime.CurrentVersion,
-			ToVersion:   plan.release.Version,
-			ReleaseTag:  plan.release.Version,
-			Asset:       plan.assets.archive.Name,
-			Digest:      "sha256:" + digest,
-		},
+		ArtifactIdentity: plannedArtifactIdentity(
+			plan.state.Runtime.CurrentVersion,
+			plan.release.Version,
+			plan.assets.archive.Name,
+			digest,
+		),
 		InstallMethod: InstallMethod(plan.state.Runtime.InstallMethod),
 		Phase:         PhasePending,
 	}, nil
@@ -131,29 +155,30 @@ func (m *Manager) plannedAppState(plan operationPlan) (*AppOperationState, error
 		return nil, err
 	}
 	return &AppOperationState{
-		ArtifactIdentity: ArtifactIdentity{
-			FromVersion: plan.state.App.CurrentVersion,
-			ToVersion:   plan.release.Version,
-			ReleaseTag:  plan.release.Version,
-			Asset:       appAsset.Name,
-			Digest:      "sha256:" + digest,
-		},
+		ArtifactIdentity: plannedArtifactIdentity(
+			plan.state.App.CurrentVersion,
+			plan.release.Version,
+			appAsset.Name,
+			digest,
+		),
 		AttemptID:           attemptID,
 		Phase:               PhasePending,
 		ConsecutiveFailures: consecutiveAppFailures(plan.state.App.CurrentVersion, plan.archivedApp),
 	}, nil
 }
 
+func plannedArtifactIdentity(fromVersion, toVersion, asset, digest string) ArtifactIdentity {
+	return ArtifactIdentity{
+		FromVersion: fromVersion,
+		ToVersion:   toVersion,
+		ReleaseTag:  toVersion,
+		Asset:       asset,
+		Digest:      "sha256:" + digest,
+	}
+}
+
 func consecutiveAppFailures(currentVersion string, archived *Operation) int {
-	if archived == nil || archived.App == nil || archived.App.Phase != PhaseFailed ||
-		archived.App.ConsecutiveFailures < 1 {
-		return 0
-	}
-	comparison, err := compareVersions(currentVersion, archived.App.ToVersion)
-	if err == nil && comparison >= 0 {
-		return 0
-	}
-	return archived.App.ConsecutiveFailures
+	return archivedAppFailureCount(currentVersion, archived)
 }
 
 // AcquireOperation publishes one verified update plan.
@@ -162,33 +187,32 @@ func (m *Manager) AcquireOperation(ctx context.Context, request OperationRequest
 }
 
 func (m *Manager) resolveAppReleaseAsset(release *Release) (ReleaseAsset, error) {
-	var suffix string
+	version := strings.TrimPrefix(strings.TrimSpace(release.Version), "v")
+	var name string
 	switch m.runtimeOS {
 	case runtimeOSDarwin:
-		suffix = ".zip"
+		arch := "arm64"
+		if m.runtimeArch == runtimeArchAMD64 {
+			arch = "x64"
+		} else if m.runtimeArch != runtimeArchARM64 {
+			return ReleaseAsset{}, fmt.Errorf("update: unsupported architecture %q", m.runtimeArch)
+		}
+		name = "CompozyOS-" + version + "-mac-" + arch + ".zip"
 	case runtimeOSLinux:
-		suffix = ".appimage"
+		if m.runtimeArch != runtimeArchAMD64 {
+			return ReleaseAsset{}, fmt.Errorf("update: desktop app auto-update is unsupported on linux/%s", m.runtimeArch)
+		}
+		name = "CompozyOS-" + version + "-linux-x64.AppImage"
 	default:
 		return ReleaseAsset{}, fmt.Errorf("update: desktop app auto-update is unsupported on %s", m.runtimeOS)
 	}
-	wantedArch := []string{strings.ToLower(m.runtimeArch)}
-	if m.runtimeArch == runtimeArchAMD64 {
-		wantedArch = append(wantedArch, "x64", "x86_64")
-	}
-	for _, asset := range release.Assets {
-		name := strings.ToLower(strings.TrimSpace(asset.Name))
-		if !strings.Contains(name, "compozy") || !strings.HasSuffix(name, suffix) {
-			continue
-		}
-		for _, arch := range wantedArch {
-			if strings.Contains(name, arch) {
-				return asset, nil
-			}
-		}
+	if asset, ok := release.findAsset(name); ok {
+		return asset, nil
 	}
 	return ReleaseAsset{}, fmt.Errorf(
-		"update: release %q has no desktop app asset for %s",
+		"update: release %q does not publish %s for %s",
 		release.Version,
+		name,
 		m.runtimeArch,
 	)
 }

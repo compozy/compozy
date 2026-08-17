@@ -3,33 +3,15 @@ import { randomUUID } from "node:crypto";
 import { decideAppUpdateAction } from "./consumer-policy";
 import type { AppUpdateInstaller } from "./electron-installer";
 import type { UpdateOperation } from "./operation-contract";
-import type { PhaseTransition, UpdateTransitionClient } from "./transition-client";
+import type { TransitionIdentity, UpdateTransitionPort } from "./transition-client";
 
 const APPLY_WATCHDOG_MS = 10 * 60 * 1000;
 const INSTALLER_WATCHDOG_MS = 5 * 60 * 1000;
 const LEASE_RENEWAL_MS = 30 * 1000;
 
-interface OperationIdentity {
-  readonly operationId: string;
-  readonly revision: number;
-  readonly executorGeneration: string;
-}
+export type AppUpdateTransitions = UpdateTransitionPort;
 
-export interface AppUpdateTransitions {
-  acquire(identity: OperationIdentity): Promise<UpdateOperation>;
-  recover(identity: OperationIdentity): Promise<UpdateOperation>;
-  renew(identity: OperationIdentity): Promise<UpdateOperation>;
-  fence(identity: OperationIdentity): Promise<UpdateOperation>;
-  progress(identity: OperationIdentity, percent: number): Promise<UpdateOperation>;
-  phase(transition: PhaseTransition): Promise<UpdateOperation>;
-  verifyArtifact(
-    identity: OperationIdentity,
-    attemptId: string,
-    artifactPath: string
-  ): Promise<UpdateOperation>;
-}
-
-function identity(operation: UpdateOperation, executorGeneration: string): OperationIdentity {
+function identity(operation: UpdateOperation, executorGeneration: string): TransitionIdentity {
   return {
     operationId: operation.operation_id,
     revision: operation.revision,
@@ -39,7 +21,7 @@ function identity(operation: UpdateOperation, executorGeneration: string): Opera
 
 export class AppUpdateConsumer {
   readonly #currentVersion: string;
-  readonly #transitions: AppUpdateTransitions;
+  readonly #transitions: UpdateTransitionPort;
   readonly #installer: AppUpdateInstaller;
   readonly #now: () => Date;
   readonly #onError: (error: Error) => void;
@@ -49,7 +31,7 @@ export class AppUpdateConsumer {
 
   constructor(options: {
     currentVersion: string;
-    transitions: UpdateTransitionClient | AppUpdateTransitions;
+    transitions: UpdateTransitionPort;
     installer: AppUpdateInstaller;
     now?: () => Date;
     onError: (error: Error) => void;
@@ -74,7 +56,10 @@ export class AppUpdateConsumer {
     try {
       switch (decision.kind) {
         case "install":
-          await this.#install(operation);
+          await this.#install(operation, false);
+          break;
+        case "recover-install":
+          await this.#install(operation, true);
           break;
         case "verify-restart":
           await this.#verifyRestart(operation);
@@ -94,10 +79,12 @@ export class AppUpdateConsumer {
     this.#clearDeadline();
   }
 
-  async #install(operation: UpdateOperation): Promise<void> {
+  async #install(operation: UpdateOperation, recover: boolean): Promise<void> {
     const appOperation = operation.app;
     if (!appOperation) return;
-    let current = await this.#transitions.acquire(identity(operation, this.#executorGeneration));
+    let current = recover
+      ? await this.#transitions.recover(identity(operation, this.#executorGeneration))
+      : await this.#transitions.acquire(identity(operation, this.#executorGeneration));
     current = await this.#transitions.phase({
       ...identity(current, this.#executorGeneration),
       phase: "applying",
@@ -215,7 +202,9 @@ export class AppUpdateConsumer {
   }
 
   #scheduleDeadline(operation: UpdateOperation): void {
-    const deadline = operation.app?.watchdog_deadline;
+    const deadline =
+      operation.app?.watchdog_deadline ??
+      (operation.app?.phase === "staged" ? operation.holder?.lease_expires_at : undefined);
     if (!deadline) return;
     const delay = Math.max(0, Date.parse(deadline) - this.#now().getTime() + 25);
     this.#deadlineTimer = setTimeout(() => void this.handle(operation), delay);

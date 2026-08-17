@@ -20,6 +20,7 @@ const (
 	TransitionRenewLease   TransitionKind = "renew-lease"
 	TransitionRecover      TransitionKind = "recover"
 	TransitionCancel       TransitionKind = "cancel"
+	TransitionVerifyApp    TransitionKind = "verify-app-artifact"
 )
 
 // Transition is the declarative input to the sole operation mutation API.
@@ -85,17 +86,18 @@ func (s *OperationStore) transitionLocked(
 	if operation.Revision != expectedRevision {
 		return nil, fmt.Errorf("%w: have %d, expected %d", ErrOperationConflict, operation.Revision, expectedRevision)
 	}
-	if err := validateExecutorFence(operation, executorGeneration, transition, s.now(), s.holderLive); err != nil {
+	now := s.now()
+	if err := validateExecutorFence(operation, executorGeneration, transition, now, s.holderLive); err != nil {
 		s.emitCancelDeclined(ctx, operation, transition)
 		return nil, err
 	}
 
 	updated := cloneOperation(operation)
-	if err := applyTransition(updated, transition, s.now()); err != nil {
+	if err := applyTransition(updated, transition, now); err != nil {
 		return nil, err
 	}
 	updated.Revision++
-	updated.UpdatedAt = s.now()
+	updated.UpdatedAt = now
 	if err := validateOperation(updated); err != nil {
 		return nil, err
 	}
@@ -239,6 +241,9 @@ func cancelAllowedForPhase(operation *Operation) bool {
 }
 
 func applyTransition(operation *Operation, transition Transition, now time.Time) error {
+	if transition.Outcome == operationOutcomeCanceled && transition.Kind != TransitionCancel {
+		return errors.New("update: only a cancel transition may set the canceled outcome")
+	}
 	if err := applyTransitionKind(operation, transition, now); err != nil {
 		return err
 	}
@@ -271,6 +276,13 @@ func applyTransitionKind(operation *Operation, transition Transition, now time.T
 		operation.Waiting = WaitingNone
 		operation.Outcome = operationOutcomeCanceled
 		operation.LastError = ""
+		return nil
+	case TransitionVerifyApp:
+		if transition.Target != TargetApp || operation.App == nil ||
+			operation.ActiveTarget != TargetApp {
+			return errors.New("update: app artifact verification requires the active app target")
+		}
+		operation.App.DigestVerified = true
 		return nil
 	default:
 		return fmt.Errorf("update: invalid transition kind %q", transition.Kind)
@@ -350,7 +362,14 @@ func applyPhaseTransition(operation *Operation, transition Transition) error {
 	if !allowedPhaseTransition(transition.Target, current, transition.Phase) {
 		return fmt.Errorf("update: phase transition %s -> %s is not allowed", current, transition.Phase)
 	}
+	if transition.Target == TargetApp && transition.Phase == PhaseVerified &&
+		(operation.App == nil || !operation.App.DigestVerified) {
+		return errors.New("update: app artifact digest must be verified before the verified phase")
+	}
 	setPhaseForTarget(operation, transition.Target, transition.Phase)
+	if transition.Target == TargetRuntime && transition.Phase == PhaseHealthChecking && operation.Runtime != nil {
+		operation.Runtime.DaemonRestarted = true
+	}
 	if transition.Target == TargetRuntime && transition.Phase == PhaseFinalized && operation.App != nil {
 		operation.ActiveTarget = TargetApp
 	}
@@ -373,6 +392,9 @@ var allowedPhaseTransitions = map[Target]map[OperationPhase][]OperationPhase{
 		PhaseSwapping:       {PhaseDownloading, PhaseRestarting, PhaseRolledBack, PhaseFailed},
 		PhaseRestarting:     {PhaseHealthChecking, PhaseRolledBack, PhaseFailed},
 		PhaseHealthChecking: {PhaseFinalized, PhaseRolledBack, PhaseFailed},
+		PhaseFinalized:      nil,
+		PhaseRolledBack:     nil,
+		PhaseFailed:         nil,
 	},
 	TargetApp: {
 		PhasePending:          {PhaseStaged, PhaseFailed},
@@ -380,6 +402,8 @@ var allowedPhaseTransitions = map[Target]map[OperationPhase][]OperationPhase{
 		PhaseApplying:         {PhaseInstallerHandoff, PhaseFailed},
 		PhaseInstallerHandoff: {PhaseRestarted, PhaseFailed},
 		PhaseRestarted:        {PhaseVerified, PhaseFailed},
+		PhaseVerified:         nil,
+		PhaseFailed:           nil,
 	},
 }
 

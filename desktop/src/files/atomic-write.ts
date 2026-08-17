@@ -1,6 +1,8 @@
-import { chmod, mkdir, open, rename, rm } from "node:fs/promises";
+import { chmod, open, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
+
+import { ensurePrivateDirectory } from "./private-directory";
 
 export async function writeFileAtomic(
   path: string,
@@ -8,8 +10,7 @@ export async function writeFileAtomic(
   mode: number
 ): Promise<void> {
   const parent = dirname(path);
-  await mkdir(parent, { recursive: true, mode: 0o700 });
-  await chmod(parent, 0o700);
+  await ensurePrivateDirectory(parent);
   const temporary = join(parent, `.${randomUUID()}.tmp`);
   const file = await open(temporary, "wx", mode);
   let failure: unknown;
@@ -32,6 +33,15 @@ export async function writeFileAtomic(
     }
     throw failure;
   }
-  await chmod(temporary, mode);
-  await rename(temporary, path);
+  try {
+    await chmod(temporary, mode);
+    await rename(temporary, path);
+  } catch (error) {
+    try {
+      await rm(temporary, { force: true });
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], "Atomic finalization and cleanup failed.");
+    }
+    throw error;
+  }
 }

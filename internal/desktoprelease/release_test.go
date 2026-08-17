@@ -2,6 +2,9 @@ package desktoprelease
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,8 +34,18 @@ func TestReleasePolicy(t *testing.T) {
 		if err := AssertStrictlyGreater("0.4.0-beta.10", "0.4.0-beta.9"); err != nil {
 			t.Fatalf("AssertStrictlyGreater(valid) error = %v", err)
 		}
-		for _, candidate := range []string{"0.4.0-beta.9", "0.4.0-beta.8", "0.3.99"} {
-			assertErrorContains(t, AssertStrictlyGreater(candidate, "0.4.0-beta.9"), "strictly greater")
+		for _, candidate := range []struct {
+			name    string
+			version string
+		}{
+			{name: "Should reject an equal version", version: "0.4.0-beta.9"},
+			{name: "Should reject an older prerelease", version: "0.4.0-beta.8"},
+			{name: "Should reject an older release", version: "0.3.99"},
+		} {
+			t.Run(candidate.name, func(t *testing.T) {
+				t.Parallel()
+				assertErrorContains(t, AssertStrictlyGreater(candidate.version, "0.4.0-beta.9"), "strictly greater")
+			})
 		}
 	})
 
@@ -67,18 +80,19 @@ func TestDesktopArtifactInventory(t *testing.T) {
 	}
 
 	for _, test := range []struct {
-		name   string
-		mutate func(*testing.T, string)
+		name        string
+		wantMessage string
+		mutate      func(*testing.T, string)
 	}{
-		{name: "Should reject a missing package", mutate: func(t *testing.T, dir string) {
+		{name: "Should reject a missing package", wantMessage: "artifact inventory", mutate: func(t *testing.T, dir string) {
 			t.Helper()
 			removeTestFile(t, filepath.Join(dir, want[0]))
 		}},
-		{name: "Should reject an extra package", mutate: func(t *testing.T, dir string) {
+		{name: "Should reject an extra package", wantMessage: "artifact inventory", mutate: func(t *testing.T, dir string) {
 			t.Helper()
 			writeTestFile(t, filepath.Join(dir, "unexpected.zip"), []byte("extra"))
 		}},
-		{name: "Should reject an empty package", mutate: func(t *testing.T, dir string) {
+		{name: "Should reject an empty package", wantMessage: "is not a non-empty regular file", mutate: func(t *testing.T, dir string) {
 			t.Helper()
 			writeTestFile(t, filepath.Join(dir, want[0]), nil)
 		}},
@@ -88,9 +102,7 @@ func TestDesktopArtifactInventory(t *testing.T) {
 			dir := t.TempDir()
 			writeDesktopArtifacts(t, dir, version)
 			test.mutate(t, dir)
-			if err := AssertExactDesktopInventory(t.Context(), dir, version); err == nil {
-				t.Fatal("AssertExactDesktopInventory() error = nil")
-			}
+			assertErrorContains(t, AssertExactDesktopInventory(t.Context(), dir, version), test.wantMessage)
 		})
 	}
 }
@@ -159,6 +171,78 @@ func TestCutoverReferenceScan(t *testing.T) {
 	}
 }
 
+func TestGitHubBackendSafety(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a plaintext GitHub API URL", func(t *testing.T) {
+		t.Parallel()
+		_, err := NewGitHubBackend(httpDoerFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("request should not be sent")
+		}), "http://api.github.test", "compozy/compozy", "secret")
+		assertErrorContains(t, err, "must be an HTTPS origin")
+	})
+
+	t.Run("Should preserve the binary accept header for asset verification", func(t *testing.T) {
+		t.Parallel()
+		contents := []byte("desktop-payload")
+		digest := sha256.Sum256(contents)
+		backend := &GitHubBackend{
+			client: httpDoerFunc(func(request *http.Request) (*http.Response, error) {
+				if got := request.Header.Get("Accept"); got != "application/octet-stream" {
+					t.Fatalf("Accept = %q, want application/octet-stream", got)
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(string(contents))),
+				}, nil
+			}),
+			apiURL: "https://api.github.test", repository: "compozy/compozy", token: "secret",
+		}
+		err := backend.verifyDownloadedAsset(t.Context(), 42, Artifact{
+			Name: "CompozyOS.zip", SHA256: hex.EncodeToString(digest[:]), Size: int64(len(contents)),
+		})
+		if err != nil {
+			t.Fatalf("verifyDownloadedAsset() error = %v", err)
+		}
+	})
+
+	t.Run("Should scan every GitHub audit page", func(t *testing.T) {
+		t.Parallel()
+		pages := 0
+		backend := &GitHubBackend{
+			client: httpDoerFunc(func(request *http.Request) (*http.Response, error) {
+				pages++
+				page := request.URL.Query().Get("page")
+				count := githubCommitPageSize
+				if page == "2" {
+					count = 1
+				}
+				commits := make([]githubAuditCommit, count)
+				for index := range commits {
+					commits[index].SHA = fmt.Sprintf("page-%s-commit-%d", page, index)
+				}
+				body, err := json.Marshal(commits)
+				if err != nil {
+					t.Fatalf("json.Marshal(commits) error = %v", err)
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(body)))}, nil
+			}),
+			apiURL: "https://api.github.test", repository: "compozy/compozy", token: "secret",
+		}
+		visited := 0
+		err := backend.walkAuditCommits(t.Context(), "channel-beta", func(githubAuditCommit) (bool, error) {
+			visited++
+			return false, nil
+		})
+		if err != nil {
+			t.Fatalf("walkAuditCommits() error = %v", err)
+		}
+		if pages != 2 || visited != githubCommitPageSize+1 {
+			t.Fatalf("pages = %d, visited = %d, want 2 and %d", pages, visited, githubCommitPageSize+1)
+		}
+	})
+}
+
 func TestChannelAuthority(t *testing.T) {
 	t.Parallel()
 
@@ -211,6 +295,63 @@ func TestChannelAuthority(t *testing.T) {
 		if CodeOf(err) != ErrorVerificationFailed || backend.head != before {
 			t.Fatalf("Publish() error = %v, head = %s, want verification failure at %s", err, backend.head, before)
 		}
+		assertErrorContains(t, err, "does not match generation")
+	})
+
+	t.Run("Should refuse manifest integrity that does not match the payload", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+		manifest := string(linuxManifestFixtureForAssets(t, assetDir, "1.0.0-beta.2"))
+		manifest = strings.Replace(manifest, "sha512: ", "sha512: tampered", 1)
+		writeTestFile(t, filepath.Join(channelDir, ManifestLinux), []byte(manifest))
+
+		_, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-wrong-integrity", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if CodeOf(err) != ErrorVerificationFailed {
+			t.Fatalf("CodeOf(Publish error) = %q, want %q; error = %v", CodeOf(err), ErrorVerificationFailed, err)
+		}
+		assertErrorContains(t, err, "integrity does not match")
+	})
+
+	t.Run("Should refuse manifest assets from another repository", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+		manifest := string(linuxManifestFixtureForAssets(t, assetDir, "1.0.0-beta.2"))
+		manifest = strings.Replace(manifest, "github.com/compozy/compozy", "github.com/attacker/repository", 1)
+		writeTestFile(t, filepath.Join(channelDir, ManifestLinux), []byte(manifest))
+
+		_, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-wrong-repository", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if CodeOf(err) != ErrorVerificationFailed {
+			t.Fatalf("CodeOf(Publish error) = %q, want %q; error = %v", CodeOf(err), ErrorVerificationFailed, err)
+		}
+		assertErrorContains(t, err, "not an immutable GitHub release URL")
+	})
+
+	t.Run("Should refuse an empty desktop payload", func(t *testing.T) {
+		t.Parallel()
+		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+		authority := mustAuthority(t, backend)
+		assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+		emptyName := DesktopArtifactNames("1.0.0-beta.2")[0]
+		writeTestFile(t, filepath.Join(assetDir, emptyName), nil)
+
+		_, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: "publish-empty-payload", Channel: ChannelBeta, Version: "1.0.0-beta.2",
+			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		})
+		if CodeOf(err) != ErrorInventoryIncomplete {
+			t.Fatalf("CodeOf(Publish error) = %q, want %q; error = %v", CodeOf(err), ErrorInventoryIncomplete, err)
+		}
+		assertErrorContains(t, err, "is empty")
 	})
 
 	t.Run("Should keep the provider on a complete generation across interruption and repair", func(t *testing.T) {
@@ -295,6 +436,45 @@ func TestChannelAuthority(t *testing.T) {
 		}
 	})
 
+	for _, mismatch := range []struct {
+		name      string
+		operation string
+		version   string
+	}{
+		{name: "Should reject an operation id reused for another version", operation: operationPublish, version: "1.0.0-beta.3"},
+		{name: "Should reject an operation id reused for another action", operation: operationRepair, version: "1.0.0-beta.2"},
+	} {
+		t.Run(mismatch.name, func(t *testing.T) {
+			t.Parallel()
+			backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
+			authority := mustAuthority(t, backend)
+			assetDir, channelDir := writeReleaseFixture(t, "1.0.0-beta.2", "1.0.0-beta.1")
+			operationID := "publish-reused"
+			_, err := authority.Publish(t.Context(), PublishRequest{
+				OperationID: operationID, Channel: ChannelBeta, Version: "1.0.0-beta.2",
+				AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+			})
+			if err != nil {
+				t.Fatalf("initial Publish() error = %v", err)
+			}
+			if mismatch.operation == operationPublish {
+				assetDir, channelDir = writeReleaseFixture(t, mismatch.version, "1.0.0-beta.2")
+				_, err = authority.Publish(t.Context(), PublishRequest{
+					OperationID: operationID, Channel: ChannelBeta, Version: mismatch.version,
+					AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+				})
+			} else {
+				_, err = authority.Repair(t.Context(), RepairRequest{
+					OperationID: operationID, Channel: ChannelBeta, Version: mismatch.version, PublishedAt: testTime(),
+				})
+			}
+			if CodeOf(err) != ErrorVerificationFailed {
+				t.Fatalf("CodeOf(reused operation error) = %q, want %q; error = %v", CodeOf(err), ErrorVerificationFailed, err)
+			}
+			assertErrorContains(t, err, "already belongs to publish 1.0.0-beta.2")
+		})
+	}
+
 	t.Run("Should repair from a known-good generation and refuse missing assets", func(t *testing.T) {
 		t.Parallel()
 		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
@@ -338,20 +518,23 @@ func TestCompatibilityBumpProtocol(t *testing.T) {
 	}
 
 	for _, release := range []struct {
+		name    string
 		version string
 		minimum string
 	}{
-		{version: "1.0.0-beta.2", minimum: "1.0.0-beta.1"},
-		{version: "1.0.0-beta.3", minimum: "1.0.0-beta.2"},
+		{name: "Should publish the first compatible bump", version: "1.0.0-beta.2", minimum: "1.0.0-beta.1"},
+		{name: "Should publish the next compatible bump", version: "1.0.0-beta.3", minimum: "1.0.0-beta.2"},
 	} {
-		assetDir, channelDir := writeReleaseFixture(t, release.version, release.minimum)
-		_, err := authority.Publish(t.Context(), PublishRequest{
-			OperationID: "publish-" + release.version, Channel: ChannelBeta, Version: release.version,
-			AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+		t.Run(release.name, func(t *testing.T) {
+			assetDir, channelDir := writeReleaseFixture(t, release.version, release.minimum)
+			_, err := authority.Publish(t.Context(), PublishRequest{
+				OperationID: "publish-" + release.version, Channel: ChannelBeta, Version: release.version,
+				AssetDir: assetDir, ChannelDir: channelDir, PublishedAt: testTime(),
+			})
+			if err != nil {
+				t.Fatalf("Publish(%s) error = %v", release.version, err)
+			}
 		})
-		if err != nil {
-			t.Fatalf("Publish(%s) error = %v", release.version, err)
-		}
 	}
 }
 
@@ -364,6 +547,10 @@ type fakeAuthorityBackend struct {
 	nextCommit       int
 	casConflict      bool
 	failVerification bool
+}
+
+func (b *fakeAuthorityBackend) Repository() string {
+	return "compozy/compozy"
 }
 
 func newFakeAuthorityBackend(t *testing.T, version string) *fakeAuthorityBackend {
@@ -616,13 +803,15 @@ func writeReleaseFixture(t *testing.T, version, minAppVersion string) (string, s
 	artifacts = append(artifacts, compatibility)
 	var catalog strings.Builder
 	for _, artifact := range artifacts {
-		fmt.Fprintf(&catalog, "%s  %s\n", artifact.SHA256, artifact.Name)
+		if _, err := fmt.Fprintf(&catalog, "%s  %s\n", artifact.SHA256, artifact.Name); err != nil {
+			t.Fatalf("fmt.Fprintf(checksums catalog) error = %v", err)
+		}
 	}
 	writeTestFile(t, filepath.Join(assetDir, ChecksumsFile), []byte(catalog.String()))
 
 	channelDir := t.TempDir()
-	writeTestFile(t, filepath.Join(channelDir, ManifestMac), macManifestFixture(version))
-	writeTestFile(t, filepath.Join(channelDir, ManifestLinux), linuxManifestFixture(version))
+	writeTestFile(t, filepath.Join(channelDir, ManifestMac), macManifestFixtureForAssets(t, assetDir, version))
+	writeTestFile(t, filepath.Join(channelDir, ManifestLinux), linuxManifestFixtureForAssets(t, assetDir, version))
 	return assetDir, channelDir
 }
 
@@ -645,6 +834,27 @@ func macManifestFixture(version string) []byte {
 	)
 }
 
+func macManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {
+	t.Helper()
+	arm64Name := "CompozyOS-" + version + "-mac-arm64.zip"
+	x64Name := "CompozyOS-" + version + "-mac-x64.zip"
+	arm64Digest, arm64Size := manifestIntegrityFixture(t, assetDir, arm64Name)
+	x64Digest, x64Size := manifestIntegrityFixture(t, assetDir, x64Name)
+	return fmt.Appendf(
+		nil,
+		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/%s\n    sha512: %s\n    size: %d\n  - url: https://github.com/compozy/compozy/releases/download/v%s/%s\n    sha512: %s\n    size: %d\nreleaseDate: '2026-08-16T12:00:00Z'\n",
+		version,
+		version,
+		arm64Name,
+		arm64Digest,
+		arm64Size,
+		version,
+		x64Name,
+		x64Digest,
+		x64Size,
+	)
+}
+
 func linuxManifestFixture(version string) []byte {
 	return fmt.Appendf(
 		nil,
@@ -653,6 +863,30 @@ func linuxManifestFixture(version string) []byte {
 		version,
 		version,
 	)
+}
+
+func linuxManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {
+	t.Helper()
+	name := "CompozyOS-" + version + "-linux-x64.AppImage"
+	digest, size := manifestIntegrityFixture(t, assetDir, name)
+	return fmt.Appendf(
+		nil,
+		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/%s\n    sha512: %s\n    size: %d\nreleaseDate: '2026-08-16T12:00:00Z'\n",
+		version,
+		version,
+		name,
+		digest,
+		size,
+	)
+}
+
+func manifestIntegrityFixture(t *testing.T, assetDir, name string) (string, int64) {
+	t.Helper()
+	digest, size, err := inspectManifestIntegrity(filepath.Join(assetDir, name))
+	if err != nil {
+		t.Fatalf("inspectManifestIntegrity(%s) error = %v", name, err)
+	}
+	return digest, size
 }
 
 func writeTestFile(t *testing.T, path string, contents []byte) {
@@ -756,6 +990,12 @@ func removeTestFile(t *testing.T, path string) {
 
 func testTime() time.Time {
 	return time.Date(2026, time.August, 16, 12, 0, 0, 0, time.UTC)
+}
+
+type httpDoerFunc func(*http.Request) (*http.Response, error)
+
+func (do httpDoerFunc) Do(request *http.Request) (*http.Response, error) {
+	return do(request)
 }
 
 func assertErrorContains(t *testing.T, err error, expected string) {

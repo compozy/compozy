@@ -7,15 +7,15 @@ import (
 
 func (c *Coordinator) applyRuntime(ctx context.Context, state *coordinatorState) (returnErr error) {
 	operation := state.snapshot()
-	release, err := c.manager.ResolveReleaseByTag(ctx, operation.Runtime.ReleaseTag)
+	release, err := c.releaseManager.ResolveReleaseByTag(ctx, operation.Runtime.ReleaseTag)
 	if err != nil {
 		return c.failRuntime(ctx, state, err)
 	}
 	var mutationLock MutationLock
-	applied, err := c.manager.ApplyReleaseObserved(ctx, release, func(stepCtx context.Context, step ApplyStep) error {
+	applied, err := c.releaseManager.ApplyReleaseObserved(ctx, release, func(stepCtx context.Context, step ApplyStep) error {
 		current := state.snapshot()
 		if step.Phase == PhaseSwapping && len(current.Targets) == 1 {
-			installedAppVersion, versionErr := c.runtime.InstalledAppVersion(stepCtx)
+			installedApp, versionErr := c.runtime.InstalledApp(stepCtx)
 			if versionErr != nil {
 				return versionErr
 			}
@@ -24,7 +24,7 @@ func (c *Coordinator) applyRuntime(ctx context.Context, state *coordinatorState)
 			}
 			if compatibilityErr := CheckRuntimeCompatibility(
 				*step.Compatibility,
-				installedAppVersion,
+				installedApp,
 			); compatibilityErr != nil {
 				return c.failRuntime(stepCtx, state, compatibilityErr)
 			}
@@ -108,13 +108,13 @@ func (c *Coordinator) healthAndFinalize(
 	if err := state.fence(ctx); err != nil {
 		return err
 	}
-	if err := c.manager.Finalize(applied); err != nil {
+	if err := c.binaryManager.Finalize(applied); err != nil {
 		return c.rollback(ctx, state, applied, err)
 	}
 	operation := state.snapshot()
 	_, err := state.transition(ctx, Transition{
 		Kind: TransitionPhase, Actor: operation.Holder.Surface, Target: TargetRuntime,
-		Phase: PhaseFinalized, Percent: 100, Outcome: "updated",
+		Phase: PhaseFinalized, Percent: 100, Outcome: operationOutcomeUpdated,
 	})
 	return err
 }
@@ -128,13 +128,13 @@ func (c *Coordinator) rollback(
 	if err := state.fence(ctx); err != nil {
 		return errors.Join(cause, err)
 	}
-	if err := c.manager.Restore(applied); err != nil {
+	if err := c.binaryManager.Restore(applied); err != nil {
 		return c.failRuntime(ctx, state, errors.Join(cause, err))
 	}
 	operation := state.snapshot()
 	_, transitionErr := state.transition(ctx, Transition{
 		Kind: TransitionPhase, Actor: operation.Holder.Surface, Target: TargetRuntime,
-		Phase: PhaseRolledBack, Percent: -1, LastError: cause.Error(), Outcome: "rolled-back",
+		Phase: PhaseRolledBack, Percent: -1, LastError: cause.Error(), Outcome: operationOutcomeRolledBack,
 	})
 	return errors.Join(cause, transitionErr)
 }

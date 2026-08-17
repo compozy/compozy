@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-electron-install-docs-canary
-  mission: "As Cora, follow the public installation and desktop-app docs into one real beta package, then use the operator runbook to understand update and recovery without encountering a retired shell path or unsupported promise."
+  mission: "As Cora, follow the public installation and desktop-app docs into real beta packages for macOS and Linux, then use the operator runbook to understand update and recovery without encountering a retired shell path or unsupported promise."
   mode: scenario-based
   platform: macos and linux
   persona:
