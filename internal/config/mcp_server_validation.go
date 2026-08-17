@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/mcppolicy"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -21,26 +23,74 @@ func (s MCPServer) Validate(path string) error {
 	if err := s.Auth.Validate(path + ".auth"); err != nil {
 		return err
 	}
-	switch {
-	case transport == MCPServerTransportStdio && strings.TrimSpace(s.Command) == "":
-		return fmt.Errorf("%s.command is required", path)
-	case transport == MCPServerTransportStdio && strings.TrimSpace(s.URL) != "":
-		return fmt.Errorf("%s.url requires remote transport", path)
-	case transport != MCPServerTransportStdio && strings.TrimSpace(s.URL) == "":
-		return fmt.Errorf("%s.url is required for %s transport", path, transport)
-	case transport != MCPServerTransportStdio && strings.TrimSpace(s.Command) != "":
-		return fmt.Errorf("%s.command is only valid for stdio transport", path)
-	case transport != MCPServerTransportStdio && len(s.Args) > 0:
-		return fmt.Errorf("%s.args is only valid for stdio transport", path)
-	case transport != MCPServerTransportStdio && len(s.Env) > 0:
-		return fmt.Errorf("%s.env is only valid for stdio transport", path)
-	case transport == MCPServerTransportStdio && !s.Auth.IsZero():
-		return fmt.Errorf("%s.auth is only valid for remote MCP servers", path)
-	case transport != MCPServerTransportStdio && len(s.SecretEnv) > 0:
-		return fmt.Errorf("%s.secret_env is only valid for stdio transport", path)
-	default:
-		return validateStdioMCPEnv(path, transport, s.Env, s.SecretEnv)
+	if err := validateMCPServerTransportFields(path, transport, s); err != nil {
+		return err
 	}
+	if err := validateStdioMCPEnv(path, transport, s.Env, s.SecretEnv); err != nil {
+		return err
+	}
+	if transport == MCPServerTransportStdio {
+		return nil
+	}
+	return validateRemoteMCPServer(path, s)
+}
+
+func validateMCPServerTransportFields(path string, transport MCPServerTransport, server MCPServer) error {
+	if transport == MCPServerTransportStdio {
+		return validateStdioMCPServerFields(path, server)
+	}
+	return validateRemoteMCPServerFields(path, transport, server)
+}
+
+func validateStdioMCPServerFields(path string, server MCPServer) error {
+	switch {
+	case strings.TrimSpace(server.Command) == "":
+		return fmt.Errorf("%s.command is required", path)
+	case strings.TrimSpace(server.URL) != "":
+		return fmt.Errorf("%s.url requires remote transport", path)
+	case strings.TrimSpace(server.CWD) != "" && !filepath.IsAbs(server.CWD):
+		return fmt.Errorf("%s.cwd must be absolute", path)
+	case !server.Auth.IsZero():
+		return fmt.Errorf("%s.auth is only valid for remote MCP servers", path)
+	case len(server.Headers) > 0:
+		return fmt.Errorf("%s.headers is only valid for remote MCP servers", path)
+	case len(server.SecretHeaders) > 0:
+		return fmt.Errorf("%s.secret_headers is only valid for remote MCP servers", path)
+	}
+	return nil
+}
+
+func validateRemoteMCPServerFields(path string, transport MCPServerTransport, server MCPServer) error {
+	switch {
+	case strings.TrimSpace(server.URL) == "":
+		return fmt.Errorf("%s.url is required for %s transport", path, transport)
+	case strings.TrimSpace(server.Command) != "":
+		return fmt.Errorf("%s.command is only valid for stdio transport", path)
+	case len(server.Args) > 0:
+		return fmt.Errorf("%s.args is only valid for stdio transport", path)
+	case len(server.Env) > 0:
+		return fmt.Errorf("%s.env is only valid for stdio transport", path)
+	case strings.TrimSpace(server.CWD) != "":
+		return fmt.Errorf("%s.cwd is only valid for stdio transport", path)
+	case len(server.SecretEnv) > 0:
+		return fmt.Errorf("%s.secret_env is only valid for stdio transport", path)
+	}
+	return nil
+}
+
+func validateRemoteMCPServer(path string, server MCPServer) error {
+	if err := mcppolicy.ValidateRemoteURL(server.URL); err != nil {
+		return fmt.Errorf("%s.url: %w", path, err)
+	}
+	if err := mcppolicy.ValidateHeaders(
+		server.Headers,
+		server.SecretHeaders,
+		mcppolicy.SourceOperatorSecret,
+		server.Auth.Enabled(),
+	); err != nil {
+		return fmt.Errorf("%s.headers: %w", path, err)
+	}
+	return nil
 }
 
 // Validate ensures remote MCP OAuth configuration has enough metadata to run

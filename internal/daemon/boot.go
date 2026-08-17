@@ -127,7 +127,9 @@ type bootState struct {
 	heartbeatCatalog      *resourceCatalog[heartbeat.ResourceSpec]
 	toolCatalog           *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog      *resourceCatalog[compozyconfig.MCPServer]
+	extensionEnvBindings  extensionpkg.EnvBindingStore
 	mcpAuthGeneration     *mcpauth.MutationGeneration
+	mcpRuntimeHealth      *mcppkg.RuntimeHealthRegistry
 	toolProjectionEpoch   *mcppkg.ProjectionEpoch
 	agentProbeConfig      *agentProbeConfigState
 	loopCatalog           *resourceCatalog[looppkg.ResourceSpec]

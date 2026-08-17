@@ -80,6 +80,25 @@ describe("marketplace catalog", () => {
     expect(mcpEntries.length).toBeGreaterThan(0);
   });
 
+  it("accepts and normalizes the optional extension format marker", () => {
+    const entry = extensionEntrySchema.parse({
+      entry_id: "agent-plugin",
+      name: "Agent Plugin",
+      description: "A portable extension package",
+      version: "1.0.0",
+      install_slug: "acme/agent-plugin",
+      artifact_url: "https://example.com/agent-plugin.tar.gz",
+      digest_sha256: "a".repeat(64),
+      tier: "official",
+      format: " AGENT-PLUGIN ",
+    });
+
+    expect(entry.format).toBe("agent-plugin");
+    expect(() => extensionEntrySchema.parse({ ...entry, format: "client-specific" })).toThrow(
+      /format/
+    );
+  });
+
   it("exposes exactly the three daemon catalog kinds (D9 — no bundles)", () => {
     expect([...MARKETPLACE_KINDS]).toEqual(["skills", "extensions", "mcp"]);
     expect(isMarketplaceKind("bundles")).toBe(false);

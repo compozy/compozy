@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
@@ -304,6 +305,20 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.ErrToolDenied,
 			toolspkg.ReasonExtensionSourceForbidden,
 		)
+	})
+
+	t.Run("Should preserve portable failure codes for agent branching", func(t *testing.T) {
+		t.Parallel()
+
+		err := nativeExtensionToolError(
+			toolspkg.ToolIDExtensionsInstall,
+			&extensionpkg.AgentPluginNotManifestError{Root: "/srv/npm"},
+		)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || string(toolErr.Code) != diagnosticcontract.CodeExtensionAgentPluginNotManifest ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonExtensionValidationFailed) {
+			t.Fatalf("nativeExtensionToolError(portable) = %#v, want branchable portable code", err)
+		}
 	})
 
 	t.Run("Should install local extension sources through managed install", func(t *testing.T) {

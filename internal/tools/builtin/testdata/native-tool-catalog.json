@@ -642,7 +642,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "efb5070490262704689907e79cc6d9db83eb12dcd096fb2d862217343c2f52af"
   },
   {
     "tool_id": "compozy__extensions_init",
@@ -668,7 +668,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "b142c74b9b820366b1bb3dd76aed6881401fde9848a42b227726679bf1ff12f5",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "efb5070490262704689907e79cc6d9db83eb12dcd096fb2d862217343c2f52af"
   },
   {
     "tool_id": "compozy__extensions_inventory",
@@ -681,7 +681,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "c70d2daf71667bd20bdb983d31b4f01657a3308970b3c3d0d7f3bcf3b5d9bf20",
-    "output_schema_digest": "8c26b3ea708bc228802bb417752fd1ae202e9818e8ead391a3ab006e4a8a87e6"
+    "output_schema_digest": "bded3995449545eab4608fc8e7789887452aec5e47db655a94b333ba73ff3c55"
   },
   {
     "tool_id": "compozy__extensions_list",
@@ -694,7 +694,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "b77a4c04e7b3b312f3df95d3843ca766cbfe36a114e46f1c95d8018ed5a6423f"
   },
   {
     "tool_id": "compozy__extensions_logs",
@@ -798,7 +798,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "eaf0724ffb49c53012afbefdc460cb50758878b28f8786cd95b557d70561b79e",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "3354ff3c6159df3c84e1e99f8c7ae84f0c9145f842c00f4f689338a37e8c2f70"
   },
   {
     "tool_id": "compozy__extensions_validate",
@@ -811,7 +811,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "fe84c056d57a34dde9e7f1e1aacf5ee9cf724dc231ec24f8acfc29b8cabce3dc",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "f71f16777a346e69e00738ed3fa7032d34b7dd4e238d32b1c1a12326f4e08acd"
   },
   {
     "tool_id": "compozy__gateway",

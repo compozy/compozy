@@ -6413,18 +6413,20 @@ export interface components {
       version: string;
     };
     ExtensionValidatePayload: {
-      consent_areas: {
+      consent_areas?: {
         access: string;
         area: string;
       }[];
+      format: string;
       issues: {
         column?: number;
         field?: string;
         line?: number;
         message: string;
         path: string;
+        scope?: string;
         /** @enum {string} */
-        severity: "error" | "warning";
+        severity: "error" | "warning" | "warn";
       }[];
       manifest?: {
         description?: string;
@@ -6434,9 +6436,17 @@ export interface components {
         provides: string[];
         version: string;
       } | null;
+      name?: string;
+      status: string;
+      version?: string;
+      would_ingest?: {
+        kind: string;
+        name: string;
+        transport?: string;
+      }[];
     };
     /** @enum {string} */
-    IssueSeverity: "error" | "warning";
+    IssueSeverity: "error" | "warning" | "warn";
     LoopGraph: {
       edges: ({
         from: string;
@@ -6702,8 +6712,9 @@ export interface components {
       line?: number;
       message: string;
       path: string;
+      scope?: string;
       /** @enum {string} */
-      severity: "error" | "warning";
+      severity: "error" | "warning" | "warn";
     };
     WindowManagerArrangeLayoutPayload: {
       /** @enum {string} */
@@ -30332,6 +30343,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -30341,6 +30353,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -30583,6 +30596,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -30592,6 +30606,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -30782,33 +30797,83 @@ export interface operations {
           };
         };
       };
-      /** @description Extension trust decision required */
+      /** @description Extension trust decision or package validation failure */
       422: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+          "application/json":
+            | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                agents?: string[];
+                code: string;
+                current_digest?: string;
+                declared_env?: string[];
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                env_name?: string;
+                error: string;
+              }
+            | {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+                issues: {
+                  column?: number;
+                  field?: string;
+                  line?: number;
+                  message: string;
+                  path: string;
+                  scope?: string;
+                  /** @enum {string} */
+                  severity: "error" | "warning" | "warn";
+                }[];
               };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
         };
       };
       /** @description Internal server error */
@@ -31035,6 +31100,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -31044,6 +31110,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -31310,6 +31377,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -31319,6 +31387,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -31838,8 +31907,10 @@ export interface operations {
         content: {
           "application/json": {
             extension: {
+              data_path?: string;
               name: string;
               path: string;
+              quarantine_path?: string;
               status: string;
               warnings?: {
                 category: string;
@@ -32048,6 +32119,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -32057,6 +32129,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -32357,6 +32430,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -32366,6 +32440,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -32665,8 +32740,23 @@ export interface operations {
         };
         content: {
           "application/json": {
+            diagnostics?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            }[];
             enabled: boolean;
             extension: string;
+            format: string;
             items: {
               id: string;
               kind: string;
@@ -33203,6 +33293,7 @@ export interface operations {
               digest_matched: boolean;
               enabled: boolean;
               failure_code?: string;
+              format: string;
               generation_hash?: string;
               health?: string;
               health_message?: string;
@@ -33212,6 +33303,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -33487,6 +33579,8 @@ export interface operations {
           "application/json": {
             bindings: {
               env_name: string;
+              header_name?: string;
+              mcp_server?: string;
               stale: boolean;
             }[];
             bound_env_keys: string[];
@@ -33571,12 +33665,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          secrets: {
-            [key: string]: {
-              value?: string | null;
-              vault_ref?: string | null;
-            };
-          };
+          bindings: {
+            env_name: string;
+            header_name?: string;
+            mcp_server?: string;
+            value?: string | null;
+            vault_ref?: string | null;
+          }[];
         };
       };
     };
@@ -33590,6 +33685,8 @@ export interface operations {
           "application/json": {
             bindings: {
               env_name: string;
+              header_name?: string;
+              mcp_server?: string;
               stale: boolean;
             }[];
             bound_env_keys: string[];
@@ -36751,6 +36848,7 @@ export interface operations {
                 description: string;
                 downloads?: number | null;
                 entry_id: string;
+                format?: string;
                 install_slug?: string;
                 installed: boolean;
                 installed_name?: string;
@@ -36925,6 +37023,7 @@ export interface operations {
               description: string;
               downloads?: number | null;
               entry_id: string;
+              format?: string;
               install_slug?: string;
               installed: boolean;
               installed_name?: string;
@@ -37122,6 +37221,7 @@ export interface operations {
               description: string;
               downloads?: number | null;
               entry_id: string;
+              format?: string;
               install_slug?: string;
               installed: boolean;
               installed_name?: string;

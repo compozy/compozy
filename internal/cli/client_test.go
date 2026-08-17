@@ -3303,8 +3303,10 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 						if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
 							t.Fatalf("decode extension secrets request error = %v", err)
 						}
-						secret := input.Secrets["API_KEY"]
-						if secret.Value == nil || *secret.Value != "planted-value" {
+						if len(input.Bindings) != 1 || input.Bindings[0].EnvName != "API_KEY" ||
+							input.Bindings[0].Value == nil || *input.Bindings[0].Value != "planted-value" ||
+							input.Bindings[0].MCPServer != "deployment-api" ||
+							input.Bindings[0].HeaderName != "X-Deployment-Key" {
 							t.Fatalf("extension secrets input = %#v, want API_KEY value", input)
 						}
 						return newHTTPResponse(
@@ -3422,8 +3424,11 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 			t.Context(),
 			" ext-a ",
 			" ws-alpha ",
-			SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"API_KEY": {Value: &value},
+			SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{
+					EnvName: "API_KEY", Value: &value,
+					MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+				},
 			}},
 		)
 		if err != nil || !reflect.DeepEqual(updated.BoundEnvKeys, []string{"API_KEY"}) {

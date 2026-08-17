@@ -91,6 +91,7 @@ const (
 	CodeExtensionInUse                 = "extension_in_use"
 	CodeExtensionNotFound              = "extension_not_found"
 	CodeExtensionRuntimeUnavailable    = "extension_runtime_unavailable"
+	CodeExtensionMCPServerUnhealthy    = "extension_mcp_server_unhealthy"
 	CodeFlagNotApplicable              = "flag_not_applicable"
 	CodeForbiddenOperatorAction        = "forbidden_operator_action"
 	CodeForceOpRateLimited             = "force_op_rate_limited"
@@ -172,6 +173,14 @@ const (
 )
 
 const (
+	CodeExtensionAgentPluginClientLayout      = "extension_agent_plugin_client_layout"
+	CodeExtensionAgentPluginComponentSkipped  = "extension_agent_plugin_component_skipped"
+	CodeExtensionAgentPluginManifestInvalid   = "extension_agent_plugin_manifest_invalid"
+	CodeExtensionAgentPluginNotManifest       = "extension_agent_plugin_not_manifest"
+	CodeExtensionAgentPluginSchemaUnsupported = "extension_agent_plugin_schema_unsupported"
+)
+
+const (
 	CodeExtensionArchiveDigestMismatch   = "extension_archive_digest_mismatch"
 	CodeExtensionAgentConflict           = "extension_agent_conflict"
 	CodeExtensionEnvBindingDangling      = "extension_env_binding_dangling"
@@ -236,6 +245,12 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionInUse, Category: CategoryExtension},
 	{Code: CodeExtensionNotFound, Category: CategoryExtension},
 	{Code: CodeExtensionRuntimeUnavailable, Category: CategoryExtension},
+	{Code: CodeExtensionMCPServerUnhealthy, Category: CategoryExtension},
+	{Code: CodeExtensionAgentPluginClientLayout, Category: CategoryExtension},
+	{Code: CodeExtensionAgentPluginComponentSkipped, Category: CategoryExtension},
+	{Code: CodeExtensionAgentPluginManifestInvalid, Category: CategoryExtension},
+	{Code: CodeExtensionAgentPluginNotManifest, Category: CategoryExtension},
+	{Code: CodeExtensionAgentPluginSchemaUnsupported, Category: CategoryExtension},
 	{Code: CodeFlagNotApplicable, Category: CategoryDaemon},
 	{Code: CodeForbiddenOperatorAction, Category: CategoryTask},
 	{Code: CodeForceOpRateLimited, Category: CategoryTask},

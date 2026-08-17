@@ -313,7 +313,7 @@ func (c *daemonClient) SendSessionPrompt(
 	request SessionPromptRequest,
 ) (SessionPromptRecord, error) {
 	query := url.Values{}
-	query.Set("format", "raw")
+	query.Set(cliFormatKey, "raw")
 	path, err := c.sessionScopedPath(ctx, id, "/prompt")
 	if err != nil {
 		return SessionPromptRecord{}, err

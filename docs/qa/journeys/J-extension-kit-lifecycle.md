@@ -11,7 +11,11 @@ flowchart TD
   B --> C[Install the extension]
   C --> D[Fresh inventory proves shipped resources exist but no resource or automation is live]
   D --> E[Set or bind each declared secret at the exact global or workspace instance]
-  E --> F[Preview through CLI, HTTP, UDS, and native tool]
+  E --> E2{Portable remote MCP header binding?}
+  E2 -->|yes| E3[Bind one Vault reference to one server and header; daemon resolves immediately before the request]
+  E3 --> E4[Managed session reaches the remote server; provider and every retained/public surface see names only]
+  E2 -->|no| F[Preview through CLI, HTTP, UDS, and native tool]
+  E4 --> F
   F -->|agent conflict or missing env| F1[Deterministic diagnostics; runtime and storage remain unchanged]
   F1 --> E
   F --> G{Current Network digest confirmed?}
@@ -39,6 +43,8 @@ journey:
       origin: external-share
     - url: compozy extension install|inventory|preview|secrets|enable|update|disable|remove -o json|jsonl|toon
       origin: direct
+    - url: compozy extension secrets bind <name> --remote-header <server>:<header> and GET|PUT /api/extensions/:name/secrets (HTTP + UDS)
+      origin: direct
     - url: /api/extensions/:name inventory, preview, secrets, enable, update, disable, and remove over HTTP and UDS
       origin: direct
     - url: compozy__extensions_inventory|preview|enable|update|disable|remove
@@ -51,7 +57,7 @@ journey:
       expected_observable: Static agents and sidecars, automation, layouts, env declarations, and Network requirement are discoverable while installation writes no live resources or runnable automation
     - step: 2
       verb: Bind declared secrets at the launching instance
-      expected_observable: Hidden values or existing Vault refs satisfy only that global or workspace instance; list, logs, events, and transcripts expose names only
+      expected_observable: Hidden values or existing Vault refs satisfy only that global or workspace instance; a portable remote-header binding reaches only its named server at request time; list, API, logs, events, diagnostics, provider input, and transcripts expose names only
     - step: 3
       verb: Preview the lifecycle change
       expected_observable: Every read plane agrees on publish set, conflicts, missing env, automation starting, and current digest while fresh persisted and runtime state remains byte-stable
@@ -77,7 +83,7 @@ journey:
     - at_step: 6
       how: Update presents a changed digest the operator does not accept
       resume: The prior version and running generation remain intact until an exact confirmed retry
-  crosses: [public-docs, cli, httpapi, udsapi, native-tools, vault, extension-registry, resources, automation, window-manager, web]
+  crosses: [public-docs, cli, httpapi, udsapi, native-tools, vault, extension-registry, resources, hosted-mcp, automation, window-manager, web]
 ```
 
 ## Coverage notes
@@ -90,3 +96,5 @@ journey:
   abandon-and-resume, and removal cleanup.
 - Cross-cutting coverage: global versus workspace-instance isolation, owner-attributed resources,
   deterministic structured output, restart persistence, and secret redaction.
+- Portable remote access adds the source-aware fixed-header policy and operator-only credential path;
+  remote servers stay daemon-side and never enter ACP provider configuration.

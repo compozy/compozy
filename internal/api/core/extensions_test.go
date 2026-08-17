@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
@@ -281,6 +282,103 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 		if len(payload.Issues) != 1 || payload.Issues[0].Field != "capabilities.provides" ||
 			!strings.Contains(payload.Issues[0].Message, "planned follow-up") {
 			t.Fatalf("validation issues = %#v", payload.Issues)
+		}
+	})
+
+	t.Run("Should return branchable portable layout errors", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name string
+			err  error
+			code string
+		}{
+			{
+				name: "Should classify a client-specific layout",
+				err: &extensionpkg.AgentPluginClientLayoutError{
+					Root: "/srv/aws-core", Layout: ".claude-plugin",
+				},
+				code: diagnosticcontract.CodeExtensionAgentPluginClientLayout,
+			},
+			{
+				name: "Should classify an unrelated root plugin manifest",
+				err:  &extensionpkg.AgentPluginNotManifestError{Root: "/srv/npm"},
+				code: diagnosticcontract.CodeExtensionAgentPluginNotManifest,
+			},
+			{
+				name: "Should classify an unsupported portable schema",
+				err: &extensionpkg.AgentPluginSchemaUnsupportedError{
+					Root: "/srv/future", Declared: "https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",
+				},
+				code: diagnosticcontract.CodeExtensionAgentPluginSchemaUnsupported,
+			},
+		}
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				service := extensionServiceStub{installFn: func(
+					context.Context,
+					contract.InstallExtensionRequest,
+					taskpkg.ActorContext,
+				) (contract.ExtensionPayload, error) {
+					return contract.ExtensionPayload{}, testCase.err
+				}}
+				handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+				engine := gin.New()
+				engine.POST("/extensions", handlers.InstallExtension)
+				response := performRequest(t, engine, http.MethodPost, "/extensions",
+					[]byte(`{"source":"local_path","ref":"/tmp/plugin","allow_unverified":true}`))
+				if response.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("status = %d, want 422; body=%s", response.Code, response.Body.String())
+				}
+				var payload contract.ExtensionOperationErrorPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("json.Unmarshal(portable error) error = %v", err)
+				}
+				if payload.Code != testCase.code {
+					t.Fatalf("portable error code = %q, want %q", payload.Code, testCase.code)
+				}
+			})
+		}
+	})
+
+	t.Run("Should return every fatal portable manifest issue", func(t *testing.T) {
+		t.Parallel()
+
+		service := extensionServiceStub{installFn: func(
+			context.Context,
+			contract.InstallExtensionRequest,
+			taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			return contract.ExtensionPayload{}, &extensionpkg.AgentPluginManifestValidationError{
+				Path: "/tmp/plugin/plugin.json",
+				Issues: []agentplugin.Issue{
+					{Path: "name", Message: "name contains compozy_claim_secret-123"},
+					{Path: "author.email", Message: "must be a string"},
+				},
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		response := performRequest(t, engine, http.MethodPost, "/extensions",
+			[]byte(`{"source":"local_path","ref":"/tmp/plugin","allow_unverified":true}`))
+		if response.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("status = %d, want 422; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(portable validation error) error = %v", err)
+		}
+		if payload.Diagnostic == nil ||
+			payload.Diagnostic.Code != diagnosticcontract.CodeExtensionAgentPluginManifestInvalid ||
+			len(payload.Issues) != 2 || payload.Issues[0].Field != "name" || payload.Issues[1].Field != "author.email" {
+			t.Fatalf("portable validation payload = %#v", payload)
+		}
+		if strings.Contains(response.Body.String(), "compozy_claim_secret-123") ||
+			!strings.Contains(payload.Issues[0].Message, "[REDACTED]") {
+			t.Fatalf("portable validation payload leaked claim token: %s", response.Body.String())
 		}
 	})
 }
@@ -576,6 +674,10 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map undeclared bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingUndeclared, want: http.StatusBadRequest},
 		{name: "Should map dangling bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingDangling, want: http.StatusBadRequest},
 		{name: "Should map missing local paths to bad request", err: os.ErrNotExist, want: http.StatusBadRequest},
+		{name: "Should map a client layout to unprocessable", err: extensionpkg.ErrAgentPluginClientLayout, want: http.StatusUnprocessableEntity},
+		{name: "Should map an unrelated plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginNotManifest, want: http.StatusUnprocessableEntity},
+		{name: "Should map an unsupported plugin schema to unprocessable", err: extensionpkg.ErrAgentPluginSchemaUnsupported, want: http.StatusUnprocessableEntity},
+		{name: "Should map an invalid plugin manifest to unprocessable", err: extensionpkg.ErrAgentPluginManifestInvalid, want: http.StatusUnprocessableEntity},
 		{name: "Should map unknown failures to internal error", err: errors.New("unknown"), want: http.StatusInternalServerError},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -839,7 +941,7 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 				engine,
 				http.MethodPut,
 				"/extensions/kit/secrets",
-				[]byte(`{"secrets":{"API_KEY":{"value":"planted-secret-value"}}}`),
+				[]byte(`{"bindings":[{"env_name":"API_KEY","value":"planted-secret-value"}]}`),
 			)
 			if response.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
@@ -1237,7 +1339,7 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 		{
 			method: http.MethodPut,
 			path:   "/extensions/parity/secrets",
-			body:   []byte(`{"secrets":{"API_KEY":{"value":"transport-secret"}}}`),
+			body:   []byte(`{"bindings":[{"env_name":"API_KEY","value":"transport-secret"}]}`),
 		},
 		{method: http.MethodDelete, path: "/extensions/parity/secrets/API_KEY"},
 	} {

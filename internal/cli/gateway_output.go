@@ -38,7 +38,7 @@ func gatewayStatusOutput(record contract.GatewayStatusPayload) outputBundle {
 		})
 	}, func() string {
 		return renderToonObject(clientTargetGateway, []string{
-			extensionEnabledKey, "tiers", "surfaces", "providers", "devices", "bindings", windowManagerChangedField,
+			extensionEnabledKey, "tiers", "surfaces", "providers", "devices", cliBindingsKey, windowManagerChangedField,
 		}, []string{
 			strconv.FormatBool(record.Enabled),
 			strconv.Itoa(len(record.Tiers)),

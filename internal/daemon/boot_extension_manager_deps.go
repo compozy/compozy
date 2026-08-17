@@ -11,12 +11,15 @@ func (d *Daemon) extensionManagerDeps(
 	state *bootState,
 	extRegistry *extensionpkg.Registry,
 ) extensionManagerDeps {
-	var envBindings extensionpkg.EnvBindingStore
-	if store, ok := any(state.registry).(extensionpkg.EnvBindingStore); ok {
-		envBindings = store
+	envBindings := state.extensionEnvBindings
+	if envBindings == nil {
+		if store, ok := any(state.registry).(extensionpkg.EnvBindingStore); ok {
+			envBindings = store
+		}
 	}
 	return extensionManagerDeps{
 		Registry:   extRegistry,
+		HomePaths:  d.homePaths,
 		Extensions: state.cfg.Extensions,
 		Sessions:   state.sessions,
 		Clarify:    state.clarify,
@@ -48,7 +51,8 @@ func (d *Daemon) extensionManagerDeps(
 			if state.resourceReconcile == nil {
 				return nil
 			}
-			return state.resourceReconcile.Trigger(ctx, kind, reason)
+			_, err := state.resourceReconcile.Trigger(ctx, kind, reason)
+			return err
 		},
 		SoulAuthoring:   state.deps.SoulAuthoring,
 		SoulRefresher:   state.deps.SoulRefresher,

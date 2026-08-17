@@ -133,6 +133,12 @@ func (m HookMatcher) MatchesPermissionResolution(payload PermissionResolutionPay
 		m.matchPermission(payload.ToolCall.Kind, payload.DecisionClass)
 }
 
+// MatchesPermissionDenied matches denied permission hooks without exposing raw tool input.
+func (m HookMatcher) MatchesPermissionDenied(payload PermissionDeniedPayload) bool {
+	return m.matchSessionContext(payload.SessionContext, false) &&
+		m.matchPermission(payload.ToolCall.Kind, payload.DecisionClass)
+}
+
 // MatchesContextCompact matches context-compaction hooks.
 func (m HookMatcher) MatchesContextCompact(payload ContextCompactPayload) bool {
 	compaction := m.compaction()

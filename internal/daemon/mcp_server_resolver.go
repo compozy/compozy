@@ -16,14 +16,18 @@ import (
 
 func newDaemonMCPServerResolver(state *bootState) mcppkg.ServerResolver {
 	return mcppkg.ServerResolverFunc(func(
-		_ context.Context,
+		ctx context.Context,
 		source toolspkg.SourceRef,
 	) (mcppkg.ResolvedServer, error) {
-		return resolveDaemonMCPServer(state, source)
+		return resolveDaemonMCPServer(ctx, state, source)
 	})
 }
 
-func resolveDaemonMCPServer(state *bootState, source toolspkg.SourceRef) (mcppkg.ResolvedServer, error) {
+func resolveDaemonMCPServer(
+	ctx context.Context,
+	state *bootState,
+	source toolspkg.SourceRef,
+) (mcppkg.ResolvedServer, error) {
 	if state == nil {
 		return mcppkg.ResolvedServer{}, errors.New("daemon: MCP runtime state is unavailable")
 	}
@@ -47,7 +51,13 @@ func resolveDaemonMCPServer(state *bootState, source toolspkg.SourceRef) (mcppkg
 			if err != nil {
 				return mcppkg.ResolvedServer{}, err
 			}
-			return mcppkg.ResolvedServer{Server: cloneDaemonMCPServer(record.Spec), Target: target}, nil
+			server, err := projectExtensionSecretHeaders(ctx, state, record)
+			if err != nil {
+				return mcppkg.ResolvedServer{}, err
+			}
+			return mcppkg.ResolvedServer{
+				Server: server, Target: target, HealthKey: extensionMCPHealthKey(state, record),
+			}, nil
 		}
 		return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP resource %q is unavailable", resourceID)
 	}
@@ -70,6 +80,40 @@ func resolveDaemonMCPServer(state *bootState, source toolspkg.SourceRef) (mcppkg
 		}
 	}
 	return mcppkg.ResolvedServer{}, fmt.Errorf("daemon: MCP server %q is unavailable", name)
+}
+
+func projectExtensionSecretHeaders(
+	ctx context.Context,
+	state *bootState,
+	record resources.Record[compozyconfig.MCPServer],
+) (compozyconfig.MCPServer, error) {
+	server := cloneDaemonMCPServer(record.Spec)
+	owner := record.Owner.Normalize()
+	if owner.Kind != extensionResourceOwnerKind || state.extensionEnvBindings == nil ||
+		server.EffectiveTransport() != compozyconfig.MCPServerTransportHTTP {
+		return server, nil
+	}
+	bindings, err := state.extensionEnvBindings.ListEnvBindings(ctx, owner.ID, record.Scope.ID)
+	if err != nil {
+		return compozyconfig.MCPServer{}, fmt.Errorf(
+			"daemon: list extension MCP header bindings for %q: %w",
+			owner.ID,
+			err,
+		)
+	}
+	for _, binding := range bindings {
+		if strings.TrimSpace(binding.MCPServer) != strings.TrimSpace(server.Name) {
+			continue
+		}
+		if server.SecretHeaders == nil {
+			server.SecretHeaders = make(map[string]string)
+		}
+		server.SecretHeaders[strings.TrimSpace(binding.HeaderName)] = strings.TrimSpace(binding.SecretRef)
+	}
+	if err := server.Validate("extension.mcp_server"); err != nil {
+		return compozyconfig.MCPServer{}, fmt.Errorf("daemon: validate extension MCP header bindings: %w", err)
+	}
+	return server, nil
 }
 
 func globalResolvedMCPServer(server compozyconfig.MCPServer) mcppkg.ResolvedServer {

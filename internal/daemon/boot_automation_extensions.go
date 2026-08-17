@@ -26,6 +26,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
+	if err := extensionpkg.ReconcileManagedExtensionArtifacts(d.homePaths, extRegistry); err != nil {
+		return fmt.Errorf("daemon: reconcile managed extension artifacts: %w", err)
+	}
 	if err := speccycle.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: enroll spec-cycle extension: %w", err)
 	}

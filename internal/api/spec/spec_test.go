@@ -2886,11 +2886,17 @@ func TestExtensionAuthoringComponentSchemas(t *testing.T) {
 		if severity == nil || severity.Value == nil {
 			t.Fatal("IssueSeverity component is missing")
 		}
-		if got, want := severity.Value.Enum, []any{"error", "warning"}; !reflect.DeepEqual(got, want) {
+		if got, want := severity.Value.Enum, []any{"error", "warning", "warn"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("IssueSeverity enum = %v, want %v", got, want)
 		}
-		if payload := document.Components.Schemas["ExtensionValidatePayload"]; payload == nil || payload.Value == nil {
+		payload := document.Components.Schemas["ExtensionValidatePayload"]
+		if payload == nil || payload.Value == nil {
 			t.Fatal("ExtensionValidatePayload component is missing")
+		}
+		for _, field := range []string{"status", "format", "issues"} {
+			if !slices.Contains(payload.Value.Required, field) {
+				t.Fatalf("ExtensionValidatePayload required = %v, want %q", payload.Value.Required, field)
+			}
 		}
 	})
 }

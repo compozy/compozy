@@ -25,7 +25,7 @@ func TestSplitValidDocument(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should split "+tt.name+" line endings", func(t *testing.T) {
 			t.Parallel()
 
 			parts, err := Split([]byte(strings.Join([]string{
@@ -64,7 +64,7 @@ func TestSplitErrors(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should report "+tt.name+" frontmatter", func(t *testing.T) {
 			t.Parallel()
 
 			_, err := Split([]byte(tt.content))
@@ -78,50 +78,88 @@ func TestSplitErrors(t *testing.T) {
 func TestDecodeValidDocument(t *testing.T) {
 	t.Parallel()
 
-	var meta testMeta
-	body, err := Decode([]byte(strings.Join([]string{
-		"---",
-		"name: shared",
-		"description: parser",
-		"---",
-		"Document body",
-	}, "\n")), func(data []byte) error {
-		return yaml.UnmarshalWithOptions(data, &meta, yaml.Strict())
-	})
-	if err != nil {
-		t.Fatalf("Decode() error = %v", err)
-	}
+	t.Run("Should decode metadata and return the document body", func(t *testing.T) {
+		t.Parallel()
 
-	if got, want := meta.Name, "shared"; got != want {
-		t.Fatalf("Decode() meta.Name = %q, want %q", got, want)
-	}
-	if got, want := body, "Document body"; got != want {
-		t.Fatalf("Decode() body = %q, want %q", got, want)
-	}
+		var meta testMeta
+		body, err := Decode([]byte(strings.Join([]string{
+			"---",
+			"name: shared",
+			"description: parser",
+			"---",
+			"Document body",
+		}, "\n")), func(data []byte) error {
+			return yaml.UnmarshalWithOptions(data, &meta, yaml.Strict())
+		})
+		if err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+
+		if got, want := meta.Name, "shared"; got != want {
+			t.Fatalf("Decode() meta.Name = %q, want %q", got, want)
+		}
+		if got, want := body, "Document body"; got != want {
+			t.Fatalf("Decode() body = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestDecodeReturnsDecoderError(t *testing.T) {
 	t.Parallel()
 
-	var meta testMeta
-	_, err := Decode([]byte(strings.Join([]string{
-		"---",
-		"name: [broken",
-		"---",
-	}, "\n")), func(data []byte) error {
-		return yaml.UnmarshalWithOptions(data, &meta, yaml.Strict())
+	t.Run("Should return the decoder error", func(t *testing.T) {
+		t.Parallel()
+
+		var meta testMeta
+		_, err := Decode([]byte(strings.Join([]string{
+			"---",
+			"name: [broken",
+			"---",
+		}, "\n")), func(data []byte) error {
+			return yaml.UnmarshalWithOptions(data, &meta, yaml.Strict())
+		})
+		if err == nil || !strings.Contains(err.Error(), "sequence end token") {
+			t.Fatalf("Decode() error = %v, want YAML syntax failure", err)
+		}
 	})
-	if err == nil {
-		t.Fatal("Decode() error = nil, want non-nil")
-	}
 }
 
 func TestDecodeRejectsNilCallback(t *testing.T) {
 	t.Parallel()
 
-	if _, err := Decode([]byte("---\nname: shared\n---\nbody"), nil); err == nil {
-		t.Fatal("Decode(nil callback) error = nil, want non-nil")
-	}
+	t.Run("Should reject a nil decoder callback", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := Decode([]byte("---\nname: shared\n---\nbody"), nil); err == nil ||
+			err.Error() != "frontmatter: decode callback is required" {
+			t.Fatalf("Decode(nil callback) error = %v, want callback-required failure", err)
+		}
+	})
+}
+
+func TestUnmarshalMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should decode metadata through the shared YAML authority", func(t *testing.T) {
+		t.Parallel()
+
+		var meta testMeta
+		if err := UnmarshalMetadata([]byte("name: shared\ndescription: parser\n"), &meta); err != nil {
+			t.Fatalf("UnmarshalMetadata() error = %v", err)
+		}
+		if got, want := meta.Name, "shared"; got != want {
+			t.Fatalf("UnmarshalMetadata() name = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a missing target", func(t *testing.T) {
+		t.Parallel()
+
+		if err := UnmarshalMetadata([]byte("name: shared\n"), nil); err == nil ||
+			err.Error() != "frontmatter: metadata target is required" {
+			t.Fatalf("UnmarshalMetadata(nil) error = %v, want metadata-target-required failure", err)
+		}
+	})
 }
 
 func TestFormatAndRewriteStringField(t *testing.T) {

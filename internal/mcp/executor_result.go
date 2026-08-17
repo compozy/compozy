@@ -10,6 +10,19 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func validateMCPToolResultCapabilities(id toolspkg.ToolID, result *mcpsdk.CallToolResult) error {
+	if result == nil || !result.NeedsInput() {
+		return nil
+	}
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeUnavailable,
+		id,
+		"mcp server requires an unsupported client capability",
+		&UnsupportedCapabilityError{Capability: "input_requests"},
+		toolspkg.ReasonMCPUnreachable,
+	)
+}
+
 func toolResultFromMCP(result *mcpsdk.CallToolResult) (toolspkg.ToolResult, error) {
 	if result == nil {
 		return toolspkg.ToolResult{}, nil

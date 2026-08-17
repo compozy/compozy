@@ -42,10 +42,16 @@ func (s *daemonExtensionService) Inventory(
 		live = nil
 	}
 	items := s.mergeExtensionKitInventory(ctx, desired, live)
+	projection, err := s.payloadFromExtension(ctx, ext)
+	if err != nil {
+		return contract.ExtensionInventoryPayload{}, err
+	}
 	return contract.ExtensionInventoryPayload{
-		Extension: ext.Info.Name,
-		Enabled:   ext.Info.Enabled,
-		Items:     contractExtensionKitItems(items),
+		Extension:   ext.Info.Name,
+		Format:      projection.Format,
+		Enabled:     ext.Info.Enabled,
+		Items:       contractExtensionKitItems(items),
+		Diagnostics: append([]contract.DiagnosticItem(nil), projection.Diagnostics...),
 	}, nil
 }
 

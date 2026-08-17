@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -28,6 +29,7 @@ import (
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -153,7 +155,8 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			mcpStore:       mcpStore, mcpCodec: mcpCodec,
 			actor: agentSkillSyncActor(), logger: discardLogger(),
 			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return driver.Trigger(ctx, kind, reason)
+				_, err := driver.Trigger(ctx, kind, reason)
+				return err
 			},
 			providers: []agentSkillDeclarationProvider{
 				daemonAgentSkillDeclarationProvider(
@@ -353,6 +356,224 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("ResolveAgent(ext-agent after disable) error = %v, want ErrAgentNotAvailable", err)
 		}
 	})
+
+	t.Run("Should publish portable skills and MCP servers without mutating a running snapshot", func(t *testing.T) {
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatalf("resources.NewKernel() error = %v", err)
+		}
+
+		agentCodec, err := compozyconfig.NewAgentResourceCodec()
+		if err != nil {
+			t.Fatalf("compozyconfig.NewAgentResourceCodec() error = %v", err)
+		}
+		agentStore, err := resources.NewStore(kernel, agentCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(agent) error = %v", err)
+		}
+		skillCodec, err := skillspkg.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("skillspkg.NewResourceCodec() error = %v", err)
+		}
+		skillStore, err := resources.NewStore(kernel, skillCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(skill) error = %v", err)
+		}
+		mcpCodec, err := compozyconfig.NewMCPServerResourceCodec()
+		if err != nil {
+			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
+		}
+		mcpStore, err := resources.NewStore(kernel, mcpCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(mcp) error = %v", err)
+		}
+		toolCodec, err := toolspkg.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
+		}
+		toolStore, err := resources.NewStore(kernel, toolCodec)
+		if err != nil {
+			t.Fatalf("resources.NewStore(tool) error = %v", err)
+		}
+		sidecars := newAgentSkillSourceSidecarStores(t, kernel)
+
+		homePaths := agentSkillIntegrationHome(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		portableName := installPortablePublisherIntegrationExtension(t, homePaths, registry)
+		manager := extensionpkg.NewManager(
+			registry,
+			extensionpkg.WithHomePaths(homePaths),
+			extensionpkg.WithLogger(discardLogger()),
+		)
+		if err := manager.Start(ctx); err != nil {
+			t.Fatalf("extension manager Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(context.Background()); err != nil {
+				t.Errorf("extension manager Stop() error = %v", err)
+			}
+		})
+
+		agentSkillSyncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+			raw: kernel, agentStore: agentStore, agentCodec: agentCodec,
+			soulStore: sidecars.soulStore, soulCodec: sidecars.soulCodec,
+			heartbeatStore: sidecars.heartbeatStore, heartbeatCodec: sidecars.heartbeatCodec,
+			skillStore: skillStore, skillCodec: skillCodec,
+			mcpStore: mcpStore, mcpCodec: mcpCodec,
+			actor: agentSkillSyncActor(), logger: discardLogger(),
+			providers: []agentSkillDeclarationProvider{
+				extensionAgentSkillDeclarationProvider(
+					registry,
+					func() extensionRuntime { return manager },
+					discardLogger(),
+				),
+			},
+		})
+		toolMCPSyncer := newToolMCPSourceSyncer(
+			kernel,
+			toolStore,
+			toolCodec,
+			mcpStore,
+			mcpCodec,
+			toolMCPSyncActor(),
+			discardLogger(),
+			nil,
+			extensionManifestToolMCPDeclarationProvider(
+				registry,
+				func() extensionRuntime { return manager },
+				nil,
+				discardLogger(),
+			),
+		)
+		if err := agentSkillSyncer.Sync(ctx); err != nil {
+			t.Fatalf("agentSkillSyncer.Sync() error = %v", err)
+		}
+		if err := toolMCPSyncer.Sync(ctx); err != nil {
+			t.Fatalf("toolMCPSyncer.Sync() error = %v", err)
+		}
+
+		owner := extensionOwner(portableName)
+		if got, want := countOwnedResourceRecords(t, ctx, skillStore, owner), 30; got != want {
+			t.Fatalf("owned portable skills = %d, want %d", got, want)
+		}
+		portableInfo, err := registry.Get(portableName)
+		if err != nil {
+			t.Fatalf("registry.Get(%q) error = %v", portableName, err)
+		}
+		if !hasExtensionIngestDiagnostic(
+			portableInfo.IngestDiagnostics,
+			"skill:skipped-skill",
+			"name must match the directory",
+		) {
+			t.Fatalf("portable ingest diagnostics = %#v, want skipped-skill name mismatch", portableInfo.IngestDiagnostics)
+		}
+		mcpRecords, err := mcpStore.List(ctx, toolMCPSyncActor(), resources.ResourceFilter{Owner: owner})
+		if err != nil {
+			t.Fatalf("mcpStore.List(portable owner) error = %v", err)
+		}
+		if got, want := len(mcpRecords), 1; got != want {
+			t.Fatalf("owned portable MCP servers = %d, want %d (%#v)", got, want, mcpRecords)
+		}
+		dataPath, err := homePaths.ExtensionDataPath(portableName, "")
+		if err != nil {
+			t.Fatalf("homePaths.ExtensionDataPath() error = %v", err)
+		}
+		canonicalHome, err := filepath.EvalSymlinks(homePaths.HomeDir)
+		if err != nil {
+			t.Fatalf("filepath.EvalSymlinks(home) error = %v", err)
+		}
+		wantPluginRoot := filepath.Join(canonicalHome, "extensions", portableName)
+		wantPluginData := filepath.Join(canonicalHome, "extension-data", portableName)
+		server := mcpRecords[0].Spec
+		if server.Env["PLUGIN_ROOT"] != wantPluginRoot ||
+			server.Env["PLUGIN_DATA"] != wantPluginData || server.Env["LITERAL"] != "${UNKNOWN}" {
+			t.Fatalf(
+				"portable MCP env = %#v, want absolute package/data roots and literal unknown placeholder",
+				server.Env,
+			)
+		}
+		if _, err := os.Stat(dataPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(portable data path) error = %v, want not-exist before first launch", err)
+		}
+		runningSnapshot, err := manager.Get(portableName)
+		if err != nil {
+			t.Fatalf("manager.Get(%q) error = %v", portableName, err)
+		}
+
+		if err := registry.Disable(portableName); err != nil {
+			t.Fatalf("registry.Disable(%q) error = %v", portableName, err)
+		}
+		if err := agentSkillSyncer.Sync(ctx); err != nil {
+			t.Fatalf("agentSkillSyncer.Sync(after disable) error = %v", err)
+		}
+		if err := toolMCPSyncer.Sync(ctx); err != nil {
+			t.Fatalf("toolMCPSyncer.Sync(after disable) error = %v", err)
+		}
+		if got := countOwnedResourceRecords(t, ctx, skillStore, owner); got != 0 {
+			t.Fatalf("owned portable skills after disable = %d, want 0", got)
+		}
+		if got := countOwnedResourceRecords(t, ctx, mcpStore, owner); got != 0 {
+			t.Fatalf("owned portable MCP servers after disable = %d, want 0", got)
+		}
+		if len(runningSnapshot.Skills) != 30 || len(runningSnapshot.Manifest.Resources.MCPServers) != 1 {
+			t.Fatalf("running snapshot changed after disable: %#v", runningSnapshot)
+		}
+
+		degradedName := installFullyDegradedPublisherIntegrationExtension(t, homePaths, registry)
+		if err := manager.Reload(ctx); err != nil {
+			t.Fatalf("extension manager Reload(degraded) error = %v", err)
+		}
+		if err := agentSkillSyncer.Sync(ctx); err != nil {
+			t.Fatalf("agentSkillSyncer.Sync(degraded) error = %v", err)
+		}
+		if err := toolMCPSyncer.Sync(ctx); err != nil {
+			t.Fatalf("toolMCPSyncer.Sync(degraded) error = %v", err)
+		}
+		degradedOwner := extensionOwner(degradedName)
+		if got := countOwnedResourceRecords(t, ctx, skillStore, degradedOwner); got != 0 {
+			t.Fatalf("owned degraded skills = %d, want 0", got)
+		}
+		if got := countOwnedResourceRecords(t, ctx, mcpStore, degradedOwner); got != 0 {
+			t.Fatalf("owned degraded MCP servers = %d, want 0", got)
+		}
+		degradedSnapshot, err := manager.Get(degradedName)
+		if err != nil {
+			t.Fatalf("manager.Get(%q) error = %v", degradedName, err)
+		}
+		if !degradedSnapshot.Status.Registered || !degradedSnapshot.Status.Enabled ||
+			len(degradedSnapshot.Skills) != 0 || len(degradedSnapshot.Manifest.Resources.MCPServers) != 0 {
+			t.Fatalf(
+				"degraded enabled snapshot = %#v, want registered zero-resource instance",
+				degradedSnapshot,
+			)
+		}
+		if !hasExtensionIngestDiagnostic(
+			degradedSnapshot.Info.IngestDiagnostics,
+			"mcp:legacy-events",
+			"sse transport is not supported",
+		) || !hasExtensionIngestDiagnostic(
+			degradedSnapshot.Info.IngestDiagnostics,
+			"skill:skipped",
+			"name must match the directory",
+		) {
+			t.Fatalf("degraded ingest diagnostics = %#v, want fixture-specific MCP and skill skips", degradedSnapshot.Info.IngestDiagnostics)
+		}
+	})
+}
+
+func hasExtensionIngestDiagnostic(
+	diagnostics []diagnosticcontract.DiagnosticItem,
+	scope string,
+	message string,
+) bool {
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Evidence["scope"] == scope && strings.Contains(diagnostic.Message, message) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
@@ -450,7 +671,8 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			mcpStore: mcpStore, mcpCodec: mcpCodec,
 			actor: agentSkillSyncActor(), logger: discardLogger(),
 			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return initialDriver.Trigger(ctx, kind, reason)
+				_, err := initialDriver.Trigger(ctx, kind, reason)
+				return err
 			},
 			providers: []agentSkillDeclarationProvider{
 				daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, discardLogger()),
@@ -671,7 +893,8 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 			mcpStore: mcpStore, mcpCodec: mcpCodec,
 			actor: agentSkillSyncActor(), logger: discardLogger(),
 			trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-				return driver.Trigger(ctx, kind, reason)
+				_, err := driver.Trigger(ctx, kind, reason)
+				return err
 			},
 			providers: []agentSkillDeclarationProvider{
 				daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),
@@ -1234,6 +1457,70 @@ Use extension skill context.
 			Registered: true,
 		},
 	}
+}
+
+func installPortablePublisherIntegrationExtension(
+	t *testing.T,
+	homePaths compozyconfig.HomePaths,
+	registry *extensionpkg.Registry,
+) string {
+	t.Helper()
+
+	const name = "portable-publisher"
+	sourceDir := filepath.Join(t.TempDir(), "source")
+	if err := os.CopyFS(
+		sourceDir,
+		os.DirFS(filepath.Join("..", "extension", "testdata", "agent-plugin-30-skills")),
+	); err != nil {
+		t.Fatalf("CopyFS(agent-plugin-30-skills) error = %v", err)
+	}
+	manifest, err := extensionpkg.LoadManifest(sourceDir)
+	if err != nil {
+		t.Fatalf("extensionpkg.LoadManifest(portable source) error = %v", err)
+	}
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(sourceDir)
+	if err != nil {
+		t.Fatalf("extensionpkg.ComputeDirectoryChecksum(portable source) error = %v", err)
+	}
+	if err := extensionpkg.InstallLocalManaged(homePaths, registry, manifest, sourceDir, checksum); err != nil {
+		t.Fatalf("extensionpkg.InstallLocalManaged(portable source) error = %v", err)
+	}
+	if err := registry.Enable(name); err != nil {
+		t.Fatalf("registry.Enable(%q) error = %v", name, err)
+	}
+	return name
+}
+
+func installFullyDegradedPublisherIntegrationExtension(
+	t *testing.T,
+	homePaths compozyconfig.HomePaths,
+	registry *extensionpkg.Registry,
+) string {
+	t.Helper()
+
+	const name = "portable-degraded"
+	sourceDir := filepath.Join(t.TempDir(), "source")
+	if err := os.CopyFS(
+		sourceDir,
+		os.DirFS(filepath.Join("..", "extension", "testdata", "agent-plugin-fully-degraded")),
+	); err != nil {
+		t.Fatalf("CopyFS(agent-plugin-fully-degraded) error = %v", err)
+	}
+	manifest, err := extensionpkg.LoadManifest(sourceDir)
+	if err != nil {
+		t.Fatalf("extensionpkg.LoadManifest(degraded source) error = %v", err)
+	}
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(sourceDir)
+	if err != nil {
+		t.Fatalf("extensionpkg.ComputeDirectoryChecksum(degraded source) error = %v", err)
+	}
+	if err := extensionpkg.InstallLocalManaged(homePaths, registry, manifest, sourceDir, checksum); err != nil {
+		t.Fatalf("extensionpkg.InstallLocalManaged(degraded source) error = %v", err)
+	}
+	if err := registry.Enable(name); err != nil {
+		t.Fatalf("registry.Enable(%q) error = %v", name, err)
+	}
+	return name
 }
 
 func agentSkillIntegrationSpecCycleExtension(

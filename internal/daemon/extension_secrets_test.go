@@ -28,30 +28,47 @@ func TestExtensionSecretsValidationIsMutationFree(t *testing.T) {
 	}{
 		{
 			name: "Should reject undeclared environment names",
-			req: contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"OTHER_KEY": {Value: new("value")},
+			req: contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "OTHER_KEY", Value: new("value")},
 			}},
 			want: extensionpkg.ErrExtensionEnvBindingUndeclared,
 		},
 		{
 			name: "Should reject an MCP Vault namespace",
-			req: contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"API_KEY": {VaultRef: new("vault:mcp/global/linear/env/API_KEY")},
+			req: contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "API_KEY", VaultRef: new("vault:mcp/global/linear/env/API_KEY")},
 			}},
 			want: extensionpkg.ErrExtensionEnvBindingInvalid,
 		},
 		{
 			name: "Should reject a dangling extension Vault ref",
-			req: contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"API_KEY": {VaultRef: new("vault:extensions/global/kit/env/missing")},
+			req: contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "API_KEY", VaultRef: new("vault:extensions/global/kit/env/missing")},
 			}},
 			want: extensionpkg.ErrExtensionEnvBindingDangling,
 		},
 		{
 			name: "Should reject value and ref together",
-			req: contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"API_KEY": {
+			req: contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "API_KEY",
 					Value: new("value"), VaultRef: new("vault:extensions/global/kit/env/API_KEY"),
+				},
+			}},
+			want: extensionpkg.ErrExtensionEnvBindingInvalid,
+		},
+		{
+			name: "Should reject a partial remote header mapping",
+			req: contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "API_KEY", Value: new("value"), MCPServer: "deployment-api"},
+			}},
+			want: extensionpkg.ErrExtensionEnvBindingInvalid,
+		},
+		{
+			name: "Should reject an undeclared remote MCP server",
+			req: contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{
+					EnvName: "API_KEY", Value: new("value"),
+					MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
 				},
 			}},
 			want: extensionpkg.ErrExtensionEnvBindingInvalid,
@@ -80,6 +97,55 @@ func TestExtensionSecretsValidationIsMutationFree(t *testing.T) {
 				t.Fatalf("validation mutated rows=%#v vault operations=%#v", rows, secretVault.operations())
 			}
 		})
+	}
+}
+
+func TestExtensionSecretsRemoteHeaderBinding(t *testing.T) {
+	t.Parallel()
+
+	secretVault := newExtensionSecretVaultFake()
+	service, bindings := newExtensionSecretsTestService(t, []string{"PROCESS_SECRET"}, secretVault)
+	runtime, ok := service.runtime.(*fakeExtensionRuntime)
+	if !ok {
+		t.Fatal("extension runtime is not a fakeExtensionRuntime")
+	}
+	runtime.getExt.Manifest.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{
+		"deployment-api": {
+			Transport: "http", URL: "https://deployment.example.test/mcp",
+			Headers: map[string]string{"X-Tenant": "acme"},
+		},
+	}
+
+	payload, err := service.setExtensionSecretsForInstance(
+		testutil.Context(t),
+		extensionpkg.GlobalInstanceKey("kit"),
+		contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{{
+			EnvName: "DEPLOYMENT_KEY", Value: new("secret-value"),
+			MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+		}}},
+	)
+	if err != nil {
+		t.Fatalf("setExtensionSecretsForInstance() error = %v", err)
+	}
+	if len(payload.Bindings) != 1 || payload.Bindings[0].EnvName != "DEPLOYMENT_KEY" ||
+		payload.Bindings[0].MCPServer != "deployment-api" ||
+		payload.Bindings[0].HeaderName != "X-Deployment-Key" || payload.Bindings[0].Stale {
+		t.Fatalf("remote binding payload = %#v, want presence-only current mapping", payload)
+	}
+	rows, err := bindings.ListEnvBindings(testutil.Context(t), "kit", "")
+	if err != nil {
+		t.Fatalf("ListEnvBindings() error = %v", err)
+	}
+	if len(rows) != 1 || rows[0].MCPServer != "deployment-api" ||
+		rows[0].HeaderName != "X-Deployment-Key" || rows[0].SecretRef == "" {
+		t.Fatalf("remote binding rows = %#v, want persisted mapping and opaque ref", rows)
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(payload) error = %v", err)
+	}
+	if bytes.Contains(encoded, []byte("secret-value")) || bytes.Contains(encoded, []byte(rows[0].SecretRef)) {
+		t.Fatalf("remote binding payload leaked secret material: %s", encoded)
 	}
 }
 
@@ -113,10 +179,10 @@ func TestExtensionSecretsRollbackUsesSortedForwardAndReverseOrder(t *testing.T) 
 				testutil.Context(t),
 				key,
 				contract.SetExtensionSecretsRequest{
-					Secrets: map[string]contract.ExtensionSecretInput{
-						"C_KEY": {Value: new("new-c")},
-						"A_KEY": {Value: new("new-a")},
-						"B_KEY": {Value: new("new-b")},
+					Bindings: []contract.ExtensionSecretBindingInput{
+						{EnvName: "C_KEY", Value: new("new-c")},
+						{EnvName: "A_KEY", Value: new("new-a")},
+						{EnvName: "B_KEY", Value: new("new-b")},
 					},
 				},
 			)
@@ -176,7 +242,7 @@ func TestExtensionSecretsRollbackUsesSortedForwardAndReverseOrder(t *testing.T) 
 		}
 		secretVault.failAfterPersistAt = 1
 		_, err := service.setExtensionSecretsForInstance(testutil.Context(t), key, contract.SetExtensionSecretsRequest{
-			Secrets: map[string]contract.ExtensionSecretInput{"API_KEY": {Value: new("new-value")}},
+			Bindings: []contract.ExtensionSecretBindingInput{{EnvName: "API_KEY", Value: new("new-value")}},
 		})
 		if err == nil || !strings.Contains(err.Error(), "injected post-persist put failure") {
 			t.Fatalf("setExtensionSecretsForInstance() error = %v, want post-persist failure", err)
@@ -212,8 +278,8 @@ func TestExtensionSecretsGarbageCollectionAndStaleProjection(t *testing.T) {
 			}
 		}
 		_, err := service.setExtensionSecretsForInstance(testutil.Context(t), extensionpkg.GlobalInstanceKey("kit"),
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"A_KEY": {Value: new("new-a")},
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "A_KEY", Value: new("new-a")},
 			}})
 		if err != nil {
 			t.Fatalf("setExtensionSecretsForInstance() error = %v", err)
@@ -240,8 +306,8 @@ func TestExtensionSecretsGarbageCollectionAndStaleProjection(t *testing.T) {
 			}
 		}
 		_, err := service.setExtensionSecretsForInstance(testutil.Context(t), extensionpkg.GlobalInstanceKey("kit"),
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"A_KEY": {VaultRef: &newRef},
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "A_KEY", VaultRef: &newRef},
 			}})
 		if err != nil {
 			t.Fatalf("setExtensionSecretsForInstance(first ref change) error = %v", err)
@@ -250,8 +316,8 @@ func TestExtensionSecretsGarbageCollectionAndStaleProjection(t *testing.T) {
 			t.Fatalf("shared old ref value = %q, want preserved", got)
 		}
 		_, err = service.setExtensionSecretsForInstance(testutil.Context(t), extensionpkg.GlobalInstanceKey("kit"),
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"B_KEY": {VaultRef: &newRef},
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "B_KEY", VaultRef: &newRef},
 			}})
 		if err != nil {
 			t.Fatalf("setExtensionSecretsForInstance(second ref change) error = %v", err)
@@ -281,8 +347,8 @@ func TestExtensionSecretsGarbageCollectionAndStaleProjection(t *testing.T) {
 		_, err := service.setExtensionSecretsForInstance(
 			testutil.Context(t),
 			extensionpkg.GlobalInstanceKey("kit"),
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"API_KEY": {VaultRef: &nextRef},
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "API_KEY", VaultRef: &nextRef},
 			}},
 		)
 		if err != nil {
@@ -393,9 +459,9 @@ func TestExtensionSecretsGarbageCollectionAndStaleProjection(t *testing.T) {
 				_, err := service.setExtensionSecretsForInstance(
 					testutil.Context(t),
 					extensionpkg.GlobalInstanceKey("kit"),
-					contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-						"A_KEY": {VaultRef: &newARef},
-						"B_KEY": {VaultRef: &newBRef},
+					contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+						{EnvName: "A_KEY", VaultRef: &newARef},
+						{EnvName: "B_KEY", VaultRef: &newBRef},
 					}},
 				)
 				if !errors.Is(err, testCase.primaryErr) {

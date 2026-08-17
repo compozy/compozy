@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type Request struct {
+	Mode            *Mode            `json:"mode,omitempty"`
+	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
+	ChannelID       *string          `json:"channel_id,omitempty"`
+	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
+}
+
 type Resolution struct {
 	Requested Speed            `json:"requested"`
 	Status    ResolutionStatus `json:"status"`
@@ -135,9 +142,4 @@ type Run struct {
 	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
 	NetworkParticipation *Request       `json:"network_participation,omitempty"`
 	Metadata             map[string]any `json:"metadata,omitempty"`
-}
-
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
 }

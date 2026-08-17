@@ -1,0 +1,86 @@
+---
+title: Agent Plugins Interoperability
+description: How CompozyOS detects, validates, and maps Agent Plugins packages into the extension lifecycle.
+---
+
+CompozyOS can ingest the Agent Plugins `1.0.0` package layout as an extension. Detection is automatic:
+a root `plugin.json` selects the portable format when no native `extension.toml` or `extension.json`
+is present. This is an interoperability path, not a second lifecycle. Install, trust, enable, inspect,
+update, dev reload, secret binding, and removal continue to use the extension surfaces.
+
+## Package mapping
+
+| Agent Plugins package                            | CompozyOS extension                                                                                               |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Root `plugin.json` identity                      | A synthesized resource-only manifest with `format: "agent-plugin"`.                                               |
+| Immediate child directories under `skills/`      | Extension-kit skills. Malformed immediate entries are recorded as skipped diagnostics; deeper nesting is ignored. |
+| `mcp.json` server with `type: "stdio"`           | A packaged stdio MCP server.                                                                                      |
+| `mcp.json` server with `type: "streamable-http"` | A packaged remote MCP server, normalized to the native `http` transport.                                          |
+| `PLUGIN_ROOT`                                    | Absolute package root for managed and dev instances.                                                              |
+| `PLUGIN_DATA`                                    | Stable absolute data directory at `<COMPOZY_HOME>/extension-data/<name>/`.                                        |
+
+## Provider delivery
+
+CompozyOS projects portable skills and MCP servers through the normal session resource path. The
+complete path is verified with managed Claude Code and Hermes sessions. The `openclaw acp` bridge
+currently rejects per-session MCP server configuration. When an enabled package requires hosted MCP,
+an OpenClaw-managed session fails before the provider launches instead of starting without its
+declared tools. OpenClaw's direct Agent Plugins support is separate from delivery through its ACP
+bridge.
+
+CompozyOS does not fetch a schema while detecting a package. Schema `1.0.0` is the accepted contract.
+Client-specific layouts are rejected, `sse` MCP servers are recorded as skipped, and sensitive
+package header values are never projected into runtime config. Bind remote credentials through the
+extension Vault flow instead.
+
+## Native manifest precedence
+
+When the package contains both a native manifest and `plugin.json`, the native manifest wins. Validate
+and install output includes a note about the unused portable manifest; status does not persist it as a
+runtime diagnostic. This gives one deterministic owner for identity, permissions, capabilities, and
+resources.
+
+```bash
+compozy extension validate ./acme-tools -o json
+compozy extension install ./acme-tools --allow-unverified --yes
+compozy extension status acme-tools -o json
+compozy extension inventory acme-tools -o json
+```
+
+Validation reports the detected `format`, the resources CompozyOS would ingest, and ordered issues.
+Status and inventory retain the format and ingest diagnostics after installation, including when
+every portable component was skipped.
+
+## Credentials for remote MCP servers
+
+Map a declared environment name to a remote request header without placing the credential in
+`plugin.json`, `mcp.json`, argv, logs, or API responses:
+
+```bash
+compozy extension secrets bind acme-tools \
+  --env DEPLOY_API_TOKEN \
+  --vault-ref vault:extensions/global/acme-tools/env/DEPLOY_API_TOKEN \
+  --remote-header deployment-api:Authorization
+```
+
+The binding is scoped to that extension instance. Reads show mapping presence and names only, never
+the Vault reference or value.
+
+## Data and removal
+
+`PLUGIN_DATA` survives updates and is deleted on `compozy extension remove acme-tools`. A failed
+deletion is quarantined before removal completes; if quarantine also fails, the operation aborts and
+the extension remains installed.
+
+## Marketplace metadata
+
+A catalog entry may carry `format: "agent-plugin"` for display. Runtime detection remains
+authoritative, so stale or missing catalog metadata cannot change how an acquired package is parsed.
+Marketplace cards use the normal extension trust and install flow.
+
+## Related
+
+- [Install and operate extensions](/docs/extensions/install)
+- [Extension manifest](/docs/extensions/manifest)
+- [Extension secret bindings](/docs/extensions/secrets)
+- [Develop extensions](/docs/extensions/develop)

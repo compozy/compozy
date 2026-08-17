@@ -1,5 +1,14 @@
 {
     "title": "Extensions",
     "icon": "Puzzle",
-    "pages": ["develop", "manifest", "permissions", "commands", "publish", "install", "secrets"]
+    "pages": [
+        "develop",
+        "manifest",
+        "permissions",
+        "commands",
+        "publish",
+        "install",
+        "agent-plugins",
+        "secrets"
+    ]
 }

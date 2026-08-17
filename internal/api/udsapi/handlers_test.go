@@ -2799,7 +2799,8 @@ func TestExtensionKitAndSecretsRoutesReachUDSService(t *testing.T) {
 			req contract.SetExtensionSecretsRequest,
 			actor taskpkg.ActorContext,
 		) (contract.ExtensionSecretsPayload, error) {
-			if name != "kit" || !actor.Authority.Write || req.Secrets["API_KEY"].Value == nil {
+			if name != "kit" || !actor.Authority.Write || len(req.Bindings) != 1 ||
+				req.Bindings[0].EnvName != "API_KEY" || req.Bindings[0].Value == nil {
 				t.Fatal("SetExtensionSecrets() did not receive trusted actor and write-only value")
 			}
 			secretWrites++
@@ -2871,7 +2872,7 @@ func TestExtensionKitAndSecretsRoutesReachUDSService(t *testing.T) {
 	}
 	t.Run("Should set a secret without returning its value", func(t *testing.T) {
 		setResponse := performRequest(t, engine, http.MethodPut, "/api/extensions/kit/secrets", []byte(
-			`{"secrets":{"API_KEY":{"value":"planted-secret-value"}}}`,
+			`{"bindings":[{"env_name":"API_KEY","value":"planted-secret-value"}]}`,
 		))
 		if setResponse.Code != http.StatusOK {
 			t.Fatalf("PUT secrets status=%d body=%s, want 200", setResponse.Code, setResponse.Body.String())

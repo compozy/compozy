@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
 )
 
@@ -54,6 +55,34 @@ type extensionUpdateOptions struct {
 	Version              string
 	AllowUnverified      bool
 	ConfirmNetworkDigest string
+}
+
+type extensionPortableUpdateOutput struct {
+	Update   extensionUpdateItem
+	Report   *extensionpkg.ValidationReport
+	DataPath string
+}
+
+func extensionPortableUpdatePresentation(
+	deps commandDeps,
+	item extensionUpdateItem,
+) (extensionPortableUpdateOutput, bool) {
+	report, err := extensionpkg.ValidateBundleReport(item.Path)
+	if err != nil {
+		return extensionPortableUpdateOutput{}, false
+	}
+	if report.Format != string(extensionpkg.FormatAgentPlugin) {
+		return extensionPortableUpdateOutput{}, false
+	}
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		return extensionPortableUpdateOutput{}, false
+	}
+	dataPath, err := homePaths.ExtensionDataPath(item.Name, "")
+	if err != nil {
+		return extensionPortableUpdateOutput{}, false
+	}
+	return extensionPortableUpdateOutput{Update: item, Report: report, DataPath: dataPath}, true
 }
 
 func searchExtensionsPage(
@@ -234,19 +263,38 @@ func extensionRemoveBundle(item extensionRemoveItem) outputBundle {
 			return writeJSONLine(cmd, item)
 		},
 		human: func() (string, error) {
-			return renderHumanSection("Extension Remove", []keyValue{
-				{Label: automationNameValue, Value: stringOrDash(item.Name)},
-				{Label: extensionMarketplacePathValue, Value: stringOrDash(item.Path)},
-				{Label: extensionMarketplaceStatusValue, Value: stringOrDash(item.Status)},
-			}), nil
+			blocks := []string{
+				fmt.Sprintf("✓ remove %s", strings.TrimSpace(item.Name)),
+				"removed: " + strings.TrimSpace(item.Path),
+			}
+			if strings.TrimSpace(item.DataPath) != "" && strings.TrimSpace(item.QuarantinePath) == "" {
+				blocks = append(blocks, "removed: "+strings.TrimSpace(item.DataPath))
+			}
+			if strings.TrimSpace(item.QuarantinePath) != "" {
+				blocks = append(blocks, fmt.Sprintf(
+					"warning: data directory could not be removed; quarantined as %s — "+
+						"a fresh install of %s starts empty",
+					strings.TrimSpace(item.QuarantinePath),
+					strings.TrimSpace(item.Name),
+				))
+			}
+			return renderHumanBlocks(blocks...), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"extension_remove",
-				[]string{automationNameKey, extensionMarketplacePathKey, automationStatusKey},
+				[]string{
+					automationNameKey,
+					extensionMarketplacePathKey,
+					"data_path",
+					"quarantine_path",
+					automationStatusKey,
+				},
 				[]string{
 					item.Name,
 					item.Path,
+					item.DataPath,
+					item.QuarantinePath,
 					item.Status,
 				},
 			), nil

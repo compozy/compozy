@@ -129,6 +129,10 @@ export const extensionEntrySchema = z
     tier: nonBlankString
       .transform(value => value.toLowerCase())
       .pipe(z.enum(["official", "community", "unverified"])),
+    format: nonBlankString
+      .transform(value => value.toLowerCase())
+      .pipe(z.enum(["compozy", "agent-plugin"]))
+      .optional(),
     author: trimmedString.optional(),
     repository: trimmedString.optional(),
   })

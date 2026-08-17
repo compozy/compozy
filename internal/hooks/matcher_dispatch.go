@@ -162,6 +162,10 @@ func matchPermissionResolution(matcher HookMatcher, payload PermissionResolution
 	return matcher.MatchesPermissionResolution(payload)
 }
 
+func matchPermissionDenied(matcher HookMatcher, payload PermissionDeniedPayload) bool {
+	return matcher.MatchesPermissionDenied(payload)
+}
+
 func matchContextCompact(matcher HookMatcher, payload ContextCompactPayload) bool {
 	return matcher.MatchesContextCompact(payload)
 }

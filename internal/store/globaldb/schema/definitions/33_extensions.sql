@@ -4,6 +4,8 @@ CREATE TABLE extensions (
 		source        TEXT NOT NULL,
 		enabled       BOOLEAN NOT NULL DEFAULT 1,
 		manifest_path TEXT NOT NULL,
+		format        TEXT NOT NULL DEFAULT 'compozy',
+		ingest_diagnostics_json TEXT NOT NULL DEFAULT '[]',
 		installed_at  TEXT NOT NULL,
 		provides_json TEXT NOT NULL DEFAULT '[]',
 		permissions_json TEXT NOT NULL DEFAULT '[]',
@@ -22,10 +24,13 @@ CREATE TABLE extension_env_bindings (
 		workspace_id TEXT NOT NULL DEFAULT '',
 		env_name TEXT NOT NULL,
 		secret_ref TEXT NOT NULL,
+		mcp_server TEXT NOT NULL DEFAULT '',
+		header_name TEXT NOT NULL DEFAULT '',
 		kind TEXT NOT NULL CHECK (kind = 'extension_env'),
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL,
-		PRIMARY KEY (extension_name, workspace_id, env_name)
+		PRIMARY KEY (extension_name, workspace_id, env_name),
+		CHECK ((mcp_server = '' AND header_name = '') OR (mcp_server <> '' AND header_name <> ''))
 	);
 
 CREATE INDEX idx_extension_env_bindings_secret_ref

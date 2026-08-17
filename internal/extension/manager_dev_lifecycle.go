@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 )
 
 const (
@@ -18,6 +20,8 @@ type DevelopmentGeneration struct {
 	OriginPath               string
 	GenerationHash           string
 	NetworkRequirementDigest string
+	Format                   ExtensionFormat
+	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
 }
 
 // InspectDevelopmentGeneration verifies a dev artifact without linking or starting it.
@@ -47,7 +51,7 @@ func (m *Manager) InspectDevelopmentGeneration(
 	if err != nil {
 		return DevelopmentGeneration{}, err
 	}
-	verified, err := verifyDevGeneration(canonicalOrigin, generationHash)
+	verified, err := m.verifyDevelopmentGeneration(canonicalOrigin, generationHash, workspaceID)
 	if err != nil {
 		return DevelopmentGeneration{}, err
 	}
@@ -56,6 +60,8 @@ func (m *Manager) InspectDevelopmentGeneration(
 		OriginPath:               verified.OriginPath,
 		GenerationHash:           verified.GenerationHash,
 		NetworkRequirementDigest: verified.NetworkRequirementDigest,
+		Format:                   verified.Manifest.Format,
+		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	}, nil
 }
 
@@ -155,6 +161,9 @@ func (m *Manager) ReloadExtension(
 	if err != nil {
 		return nil, err
 	}
+	if developmentLinkRequiresConfirmation(link, verified.NetworkRequirementDigest) {
+		return nil, &NetworkConfirmationRequiredError{CurrentDigest: verified.NetworkRequirementDigest}
+	}
 	candidate, activationErr := m.startVerifiedDevCandidate(ctx, key, verified)
 	if activationErr != nil {
 		if operationErr := operation.ensureActive(); operationErr != nil {
@@ -172,6 +181,8 @@ func (m *Manager) ReloadExtension(
 		OriginPath:               verified.OriginPath,
 		GenerationHash:           verified.GenerationHash,
 		NetworkRequirementDigest: verified.NetworkRequirementDigest,
+		Format:                   verified.Manifest.Format,
+		IngestDiagnostics:        cloneDiagnosticItems(verified.Manifest.IngestDiagnostics),
 	})
 	if err != nil {
 		m.discardDevCandidate(ctx, candidate)
@@ -251,8 +262,11 @@ func (m *Manager) startDevLinkOnBoot(ctx context.Context, link DevLink) {
 	if err != nil {
 		failureCode := devBootFailureCode(err)
 		ext := &managedExtension{
-			key:                key,
-			info:               ExtensionInfo{Name: key.Name, Source: SourceWorkspace, Enabled: true},
+			key: key,
+			info: ExtensionInfo{
+				Name: key.Name, Source: SourceWorkspace, Enabled: true,
+				Format: link.Format, IngestDiagnostics: cloneDiagnosticItems(link.IngestDiagnostics),
+			},
 			generationHash:     link.BundleGeneration,
 			lastGoodGeneration: link.BundleGeneration,
 			logRing:            m.logRingFor(key),
@@ -290,10 +304,13 @@ func (m *Manager) restoreDevLink(key InstanceKey, prior *DevLink) error {
 		return nil
 	}
 	if _, err := m.registry.LinkDev(DevLinkRequest{
-		Name:           prior.ExtensionName,
-		WorkspaceID:    prior.WorkspaceID,
-		OriginPath:     prior.OriginPath,
-		GenerationHash: prior.BundleGeneration,
+		Name:                     prior.ExtensionName,
+		WorkspaceID:              prior.WorkspaceID,
+		OriginPath:               prior.OriginPath,
+		GenerationHash:           prior.BundleGeneration,
+		NetworkRequirementDigest: prior.NetworkRequirementDigest,
+		Format:                   prior.Format,
+		IngestDiagnostics:        prior.IngestDiagnostics,
 	}); err != nil {
 		return fmt.Errorf("extension: restore development link %q: %w", key.runtimeID(), err)
 	}

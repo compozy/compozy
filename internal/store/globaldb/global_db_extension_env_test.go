@@ -15,6 +15,192 @@ import (
 )
 
 func TestExtensionEnvironmentMigration(t *testing.T) {
+	t.Run("Should append portable instance metadata and remote header mapping atomically", func(t *testing.T) {
+		// Keep this full-history fixture serial: migration helpers share a process-wide lock.
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		legacy, err := sql.Open(sqliteDriverName, path)
+		if err != nil {
+			t.Fatalf("sql.Open(v64 fixture) error = %v", err)
+		}
+		legacyClosed := false
+		t.Cleanup(func() {
+			if legacyClosed {
+				return
+			}
+			if closeErr := legacy.Close(); closeErr != nil {
+				t.Errorf("Close(v64 fixture cleanup) error = %v", closeErr)
+			}
+		})
+		if err := applyGlobalMigrationPrefix(
+			t,
+			legacy,
+			globalMigrationPrefixBefore(t, "00065_schema.sql"),
+		); err != nil {
+			t.Fatalf("Apply(v64 prefix) error = %v", err)
+		}
+		statements := []string{
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES ('ws-portable', '/tmp/ws-portable', 'portable',
+			 '2026-08-15T12:00:00Z', '2026-08-15T12:00:00Z')`,
+			`INSERT INTO extensions (
+			 name, version, source, enabled, manifest_path, installed_at,
+			 provides_json, permissions_json, checksum, provenance_json
+			 ) VALUES (
+			 'portable', '1.0.0', 'local', 0, '/tmp/portable/plugin.json',
+			 '2026-08-15T12:01:00Z', '[]', '[]', 'checksum-portable', '{}'
+			 )`,
+			`INSERT INTO extension_dev_links (
+			 extension_name, workspace_id, origin_path, bundle_generation, linked_at
+			 ) VALUES (
+			 'portable', 'ws-portable', '/tmp/portable-dev',
+			 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+			 '2026-08-15T12:02:00Z'
+			 )`,
+			`INSERT INTO extension_env_bindings (
+			 extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+			 ) VALUES (
+			 'portable', '', 'API_KEY', 'vault:extensions/global/portable/env/API_KEY',
+			 'extension_env', '2026-08-15T12:03:00Z', '2026-08-15T12:03:00Z'
+			 )`,
+			`INSERT INTO extension_env_bindings (
+			 extension_name, workspace_id, env_name, secret_ref, kind, created_at, updated_at
+			 ) VALUES (
+			 'portable', 'ws-portable', 'WS_KEY',
+			 'vault:extensions/ws/ws-portable/portable/env/WS_KEY',
+			 'extension_env', '2026-08-15T12:04:00Z', '2026-08-15T12:04:00Z'
+			 )`,
+		}
+		for idx, statement := range statements {
+			if _, err := legacy.ExecContext(testutil.Context(t), statement); err != nil {
+				t.Fatalf("seed v64 statement %d error = %v", idx+1, err)
+			}
+		}
+		if err := legacy.Close(); err != nil {
+			t.Fatalf("Close(v64 fixture) error = %v", err)
+		}
+		legacyClosed = true
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v64 fixture) error = %v", err)
+		}
+		closed := false
+		t.Cleanup(func() {
+			if closed {
+				return
+			}
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(upgraded v64 fixture cleanup) error = %v", closeErr)
+			}
+		})
+		assertTableHasColumns(t, upgraded.db, "extensions", []string{"format", "ingest_diagnostics_json"})
+		assertTableHasColumns(
+			t,
+			upgraded.db,
+			"extension_dev_links",
+			[]string{"format", "ingest_diagnostics_json"},
+		)
+		assertTableHasColumns(t, upgraded.db, "extension_env_bindings", []string{"mcp_server", "header_name"})
+		for table, where := range map[string]string{
+			"extensions":          "name = 'portable'",
+			"extension_dev_links": "extension_name = 'portable' AND workspace_id = 'ws-portable'",
+		} {
+			var format, diagnostics string
+			if err := upgraded.db.QueryRowContext(
+				testutil.Context(t),
+				`SELECT format, ingest_diagnostics_json FROM `+table+` WHERE `+where,
+			).Scan(&format, &diagnostics); err != nil {
+				t.Fatalf("query %s portable defaults error = %v", table, err)
+			}
+			if format != "compozy" || diagnostics != "[]" {
+				t.Fatalf("%s portable defaults = %q/%q, want compozy/[]", table, format, diagnostics)
+			}
+		}
+		var server, header string
+		if err := upgraded.db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT mcp_server, header_name FROM extension_env_bindings
+			 WHERE extension_name = 'portable' AND workspace_id = '' AND env_name = 'API_KEY'`,
+		).Scan(&server, &header); err != nil {
+			t.Fatalf("query binding mapping defaults error = %v", err)
+		}
+		if server != "" || header != "" {
+			t.Fatalf("binding mapping defaults = %q/%q, want empty/empty", server, header)
+		}
+		baseInsert := `INSERT INTO extension_env_bindings (
+		 extension_name, workspace_id, env_name, secret_ref, mcp_server, header_name,
+		 kind, created_at, updated_at
+		 ) VALUES ('portable', '', ?, ?, ?, ?, 'extension_env',
+		 '2026-08-15T12:05:00Z', '2026-08-15T12:05:00Z')`
+		for _, valid := range []struct {
+			envName string
+			server  string
+			header  string
+		}{
+			{envName: "PLAIN", server: "", header: ""},
+			{envName: "REMOTE", server: "api", header: "Authorization"},
+		} {
+			if _, err := upgraded.db.ExecContext(
+				testutil.Context(t), baseInsert, valid.envName,
+				"vault:extensions/global/portable/env/"+valid.envName, valid.server, valid.header,
+			); err != nil {
+				t.Fatalf("insert valid binding shape %#v error = %v", valid, err)
+			}
+		}
+		for _, invalid := range []struct {
+			envName string
+			server  string
+			header  string
+		}{
+			{envName: "SERVER_ONLY", server: "api"},
+			{envName: "HEADER_ONLY", header: "Authorization"},
+		} {
+			if _, err := upgraded.db.ExecContext(
+				testutil.Context(t), baseInsert, invalid.envName,
+				"vault:extensions/global/portable/env/"+invalid.envName, invalid.server, invalid.header,
+			); err == nil || !strings.Contains(err.Error(), "CHECK constraint failed") {
+				t.Fatalf("insert partial binding shape %#v error = %v, want SQLite CHECK rejection", invalid, err)
+			}
+		}
+		if _, err := upgraded.db.ExecContext(
+			testutil.Context(t),
+			`DELETE FROM workspaces WHERE id = 'ws-portable'`,
+		); err != nil {
+			t.Fatalf("delete workspace after binding table rebuild error = %v", err)
+		}
+		var workspaceBindingCount int
+		if err := upgraded.db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT COUNT(*) FROM extension_env_bindings WHERE workspace_id = 'ws-portable'`,
+		).Scan(&workspaceBindingCount); err != nil {
+			t.Fatalf("count workspace bindings after delete error = %v", err)
+		}
+		if workspaceBindingCount != 0 {
+			t.Fatalf("workspace binding count after delete = %d, want zero", workspaceBindingCount)
+		}
+		status, err := store.Status(testutil.Context(t), upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(upgraded v64 fixture) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+
+		if err := upgraded.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(upgraded v64 fixture) error = %v", err)
+		}
+		closed = true
+		reopened, err := OpenGlobalDB(testutil.Context(t), path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen upgraded v64 fixture) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened v64 fixture) error = %v", closeErr)
+			}
+		})
+		assertTableHasColumns(t, reopened.db, "extensions", []string{"format", "ingest_diagnostics_json"})
+		assertTableHasColumns(t, reopened.db, "extension_env_bindings", []string{"mcp_server", "header_name"})
+	})
+
 	t.Run("Should preserve valid extension environment bindings and enforce their ownership kind", func(t *testing.T) {
 		// Keep this full-history fixture serial: migration helpers share a process-wide
 		// lock, and parallel suite contention can exhaust its operation context under -race.
@@ -162,7 +348,8 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 		global := extensionenv.Binding{
 			ExtensionName: "kit", EnvName: "API_KEY",
 			SecretRef: vault.ExtensionSecretRef("kit", "", "API_KEY"),
-			Kind:      extensionenv.BindingKind, CreatedAt: createdAt, UpdatedAt: createdAt,
+			MCPServer: "deployment-api", HeaderName: "X-Deployment-Key",
+			Kind: extensionenv.BindingKind, CreatedAt: createdAt, UpdatedAt: createdAt,
 		}
 		workspace := extensionenv.Binding{
 			ExtensionName: "kit", WorkspaceID: "ws-1", EnvName: "API_KEY",
@@ -185,6 +372,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 			t.Fatalf("ListEnvBindings(global) error = %v", err)
 		}
 		if len(gotGlobal) != 1 || gotGlobal[0].SecretRef != global.SecretRef ||
+			gotGlobal[0].MCPServer != global.MCPServer || gotGlobal[0].HeaderName != global.HeaderName ||
 			!gotGlobal[0].CreatedAt.Equal(createdAt) || !gotGlobal[0].UpdatedAt.Equal(updatedAt) ||
 			gotGlobal[0].Kind != extensionenv.BindingKind {
 			t.Fatalf("global bindings = %#v, want upsert preserving created_at", gotGlobal)

@@ -163,13 +163,13 @@ func TestReconcileDriverWriteStormCoalescesIntegration(t *testing.T) {
 		}
 	})
 
-	if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+	if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 		t.Fatalf("Trigger(first) error = %v", err)
 	}
 	<-firstBuildStarted
 
 	for i := 0; i < 25; i++ {
-		if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+		if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 			t.Fatalf("Trigger(storm %d) error = %v", i, err)
 		}
 	}
@@ -216,7 +216,7 @@ func TestReconcileDriverCloseCancelsInFlightWorkIntegration(t *testing.T) {
 		t.Fatalf("NewReconcileDriver() error = %v", err)
 	}
 
-	if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
+	if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err != nil {
 		t.Fatalf("Trigger() error = %v", err)
 	}
 	<-buildStarted
@@ -227,7 +227,7 @@ func TestReconcileDriverCloseCancelsInFlightWorkIntegration(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	if err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err == nil {
+	if _, err := driver.Trigger(ctx, testResourceKind, ReconcileReasonWrite); err == nil {
 		t.Fatal("Trigger(after Close) error = nil, want non-nil")
 	}
 }

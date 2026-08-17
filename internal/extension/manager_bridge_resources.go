@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/fileutil"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 
@@ -118,9 +119,13 @@ func resolveResourcePath(rootDir string, value string) (string, error) {
 }
 
 func resolvePathWithinRoot(rootDir string, value string) (string, error) {
-	trimmedRoot := filepath.Clean(strings.TrimSpace(rootDir))
+	trimmedRoot := strings.TrimSpace(rootDir)
 	if trimmedRoot == "" {
 		return "", errors.New("extension: root directory is required")
+	}
+	resolvedRoot, err := fileutil.CanonicalPathWithExistingPrefix(trimmedRoot)
+	if err != nil {
+		return "", fmt.Errorf("extension: resolve root directory %q: %w", trimmedRoot, err)
 	}
 
 	resolved := strings.TrimSpace(value)
@@ -130,25 +135,29 @@ func resolvePathWithinRoot(rootDir string, value string) (string, error) {
 
 	var candidate string
 	if filepath.IsAbs(resolved) {
-		candidate = filepath.Clean(resolved)
+		candidate = resolved
 	} else {
-		candidate = filepath.Clean(filepath.Join(trimmedRoot, resolved))
+		candidate = filepath.Join(resolvedRoot, resolved)
 	}
-
-	rel, err := filepath.Rel(trimmedRoot, candidate)
+	resolvedCandidate, err := fileutil.CanonicalPathWithExistingPrefix(candidate)
 	if err != nil {
 		return "", fmt.Errorf("extension: resolve path %q: %w", resolved, err)
 	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+
+	contained, err := fileutil.PathWithinRoot(resolvedRoot, resolvedCandidate)
+	if err != nil {
+		return "", fmt.Errorf("extension: compare path %q to root: %w", resolved, err)
+	}
+	if !contained {
 		return "", fmt.Errorf(
 			"%w: path %q escapes extension root %q",
 			ErrPathEscapesExtensionRoot,
 			resolved,
-			trimmedRoot,
+			resolvedRoot,
 		)
 	}
 
-	return candidate, nil
+	return resolvedCandidate, nil
 }
 
 func collectSkillDefinitionFiles(root string) ([]string, error) {

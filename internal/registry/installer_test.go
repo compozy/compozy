@@ -19,8 +19,148 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/fileutil"
 )
+
+// Invariant: root layout selection is decided once, with native roots taking
+// precedence and client-owned nested manifests remaining inert.
+// Owner: registry installer root detection.
+// Canonical suite: registry installer lifecycle tests.
+func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should install a supported plugin root through a single wrapper", func(t *testing.T) {
+		t.Parallel()
+		archive := mustTarGz(t, []tarEntry{
+			{
+				name: "wrapper/plugin.json",
+				content: fmt.Sprintf(
+					`{"$schema":%q,"name":"portable.tools","version":"1.2.0"}`,
+					agentplugin.PluginSchemaID,
+				),
+			},
+		})
+		downloader := &stubDownloader{
+			downloadFunc: func(context.Context, string, DownloadOpts) (*DownloadResult, error) {
+				return &DownloadResult{
+					ContentType: "application/gzip",
+					Reader:      io.NopCloser(bytes.NewReader(archive)),
+				}, nil
+			},
+		}
+		target := filepath.Join(t.TempDir(), "portable.tools")
+		result, err := NewInstaller(downloader).Install(t.Context(), "portable.tools", DownloadOpts{}, target)
+		if err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		if result.Name != "portable.tools" || result.Version != "1.2.0" {
+			t.Fatalf("Install() result = %#v, want portable.tools@1.2.0", result)
+		}
+	})
+
+	t.Run("Should preserve the native conflict error when plugin json is also present", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeTestFile(t, filepath.Join(root, installerExtensionManifestName), "name = \"native\"")
+		writeTestFile(
+			t,
+			filepath.Join(root, installerSkillManifestName),
+			"---\nname: native\ndescription: Native\n---\n",
+		)
+		writeTestFile(t, filepath.Join(root, installerAgentPluginManifestName), fmt.Sprintf(
+			`{"$schema":%q,"name":"portable"}`,
+			agentplugin.PluginSchemaID,
+		))
+		_, err := manifestNameAtRoot(openArchiveTestRoot(t, root))
+		if err == nil {
+			t.Fatal("manifestNameAtRoot() error = nil, want native manifest conflict")
+		}
+		if got, want := err.Error(), "registry: archive root contains both extension.toml and SKILL.md"; got != want {
+			t.Fatalf("manifestNameAtRoot() error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should select the one native root before validating plugin json", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeTestFile(t, filepath.Join(root, installerExtensionManifestName), "not valid toml = [")
+		writeTestFile(t, filepath.Join(root, installerAgentPluginManifestName), fmt.Sprintf(
+			`{"$schema":%q,"name":"portable"}`,
+			agentplugin.PluginSchemaID,
+		))
+		name, err := manifestNameAtRoot(openArchiveTestRoot(t, root))
+		if err != nil || name != installerExtensionManifestName {
+			t.Fatalf("manifestNameAtRoot() = %q, %v; want %q", name, err, installerExtensionManifestName)
+		}
+	})
+
+	t.Run("Should reject an unrelated root plugin and name every accepted root", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeTestFile(
+			t,
+			filepath.Join(root, installerAgentPluginManifestName),
+			`{"$schema":"https://example.com/plugin.json","name":"other"}`,
+		)
+		_, err := manifestNameAtRoot(openArchiveTestRoot(t, root))
+		if !errors.Is(err, errInstallMissingManifest) {
+			t.Fatalf("manifestNameAtRoot() error = %v, want errInstallMissingManifest", err)
+		}
+		for _, name := range []string{installerExtensionManifestName, installerSkillManifestName, installerAgentPluginManifestName} {
+			if !strings.Contains(err.Error(), name) {
+				t.Fatalf("manifestNameAtRoot() error = %q, want %q", err, name)
+			}
+		}
+	})
+
+	t.Run("Should ignore a nested Claude manifest when the portable root is supported", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeTestFile(t, filepath.Join(root, installerAgentPluginManifestName), fmt.Sprintf(
+			`{"$schema":%q,"name":"portable"}`,
+			agentplugin.PluginSchemaID,
+		))
+		if err := os.MkdirAll(filepath.Join(root, ".claude-plugin"), 0o700); err != nil {
+			t.Fatalf("MkdirAll(.claude-plugin) error = %v", err)
+		}
+		writeTestFile(t, filepath.Join(root, ".claude-plugin", installerAgentPluginManifestName), `{}`)
+		name, err := manifestNameAtRoot(openArchiveTestRoot(t, root))
+		if err != nil || name != installerAgentPluginManifestName {
+			t.Fatalf("manifestNameAtRoot() = %q, %v; want %q", name, err, installerAgentPluginManifestName)
+		}
+	})
+
+	t.Run("Should reject a client-only manifest below the single archive wrapper", func(t *testing.T) {
+		t.Parallel()
+		archive := mustTarGz(t, []tarEntry{{
+			name: ".claude-plugin/plugin.json",
+			content: fmt.Sprintf(
+				`{"$schema":%q,"name":"client-only"}`,
+				agentplugin.PluginSchemaID,
+			),
+		}})
+		downloader := &stubDownloader{downloadFunc: func(
+			context.Context,
+			string,
+			DownloadOpts,
+		) (*DownloadResult, error) {
+			return &DownloadResult{
+				ContentType: "application/gzip",
+				Reader:      io.NopCloser(bytes.NewReader(archive)),
+			}, nil
+		}}
+		_, err := NewInstaller(downloader).Install(
+			t.Context(),
+			"client-only",
+			DownloadOpts{},
+			filepath.Join(t.TempDir(), "client-only"),
+		)
+		if !errors.Is(err, errInstallMissingManifest) {
+			t.Fatalf("Install(client-only) error = %v, want errInstallMissingManifest", err)
+		}
+	})
+}
 
 func TestInstallerVerifiesPinnedArchiveDigestBeforeExtraction(t *testing.T) {
 	t.Parallel()

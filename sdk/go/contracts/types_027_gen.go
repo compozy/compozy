@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type TriggerResult struct {
+	Matched int   `json:"matched"`
+	Runs    []Run `json:"runs,omitempty"`
+}
+
 type TurnContext struct {
 	TurnID string `json:"turn_id,omitempty"`
 }
@@ -91,6 +96,7 @@ type TurnStartPayload struct {
 
 type ValidationIssue struct {
 	Path     string        `json:"path"`
+	Scope    string        `json:"scope,omitempty"`
 	Line     int           `json:"line,omitempty"`
 	Column   int           `json:"column,omitempty"`
 	Field    string        `json:"field,omitempty"`
@@ -231,5 +237,3 @@ type WorktreeControlPatch struct {
 	Deny       bool   `json:"deny,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`
 }
-
-type WorktreeObservationPatch struct{}

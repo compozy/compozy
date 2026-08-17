@@ -63,6 +63,8 @@ func (r *ExtensionEnvRepo) PutEnvBinding(ctx context.Context, binding extensione
 		WorkspaceID:   normalized.WorkspaceID,
 		EnvName:       normalized.EnvName,
 		SecretRef:     normalized.SecretRef,
+		McpServer:     normalized.MCPServer,
+		HeaderName:    normalized.HeaderName,
 		Kind:          normalized.Kind,
 		CreatedAt:     store.FormatTimestamp(normalized.CreatedAt),
 		UpdatedAt:     store.FormatTimestamp(normalized.UpdatedAt),
@@ -154,6 +156,8 @@ func (r *ExtensionEnvRepo) normalizeExtensionEnvBinding(
 	binding.WorkspaceID = workspace
 	binding.EnvName = strings.TrimSpace(binding.EnvName)
 	binding.SecretRef = vault.NormalizeRef(binding.SecretRef)
+	binding.MCPServer = strings.TrimSpace(binding.MCPServer)
+	binding.HeaderName = strings.TrimSpace(binding.HeaderName)
 	binding.Kind = strings.TrimSpace(binding.Kind)
 	if !vault.EnvNamePattern.MatchString(binding.EnvName) {
 		return extensionenv.Binding{}, fmt.Errorf("store: invalid extension env name %q", binding.EnvName)
@@ -170,6 +174,11 @@ func (r *ExtensionEnvRepo) normalizeExtensionEnvBinding(
 		return extensionenv.Binding{}, fmt.Errorf(
 			"store: extension env binding kind must be %q",
 			extensionenv.BindingKind,
+		)
+	}
+	if (binding.MCPServer == "") != (binding.HeaderName == "") {
+		return extensionenv.Binding{}, errors.New(
+			"store: extension env binding mcp_server and header_name must both be set or both be empty",
 		)
 	}
 	now := r.now().UTC()
@@ -218,6 +227,7 @@ func extensionEnvBindingFromGenerated(row sqlcgen.ExtensionEnvBinding) (extensio
 	}
 	return extensionenv.Binding{
 		ExtensionName: row.ExtensionName, WorkspaceID: row.WorkspaceID, EnvName: row.EnvName,
-		SecretRef: row.SecretRef, Kind: row.Kind, CreatedAt: createdAt, UpdatedAt: updatedAt,
+		SecretRef: row.SecretRef, MCPServer: row.McpServer, HeaderName: row.HeaderName,
+		Kind: row.Kind, CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}, nil
 }

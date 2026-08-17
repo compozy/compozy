@@ -1085,7 +1085,11 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 
 		content := renderAgentDef(
 			"mock-alpha",
-			AgentFixture{Provider: "claude", ReasoningEffort: "max"},
+			AgentFixture{
+				Provider:        "claude",
+				ReasoningEffort: "max",
+				Tools:           []string{"mcp__local__echo_environment"},
+			},
 			"node driver.js",
 			"claude",
 		)
@@ -1094,6 +1098,9 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 		if !strings.Contains(content, "reasoning_effort: max") {
 			t.Fatalf("renderAgentDef() = %q, want reasoning effort", content)
+		}
+		if !strings.Contains(content, "tools:\n  - 'mcp__local__echo_environment'") {
+			t.Fatalf("renderAgentDef() = %q, want requested tool", content)
 		}
 	})
 

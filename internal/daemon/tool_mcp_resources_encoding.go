@@ -105,13 +105,16 @@ func cloneResourceRecord[T any](record resources.Record[T], cloneSpec func(T) T)
 
 func cloneDaemonMCPServer(src compozyconfig.MCPServer) compozyconfig.MCPServer {
 	return compozyconfig.MCPServer{
-		Name:      src.Name,
-		Transport: src.Transport,
-		Command:   src.Command,
-		Args:      slices.Clone(src.Args),
-		Env:       cloneStringMap(src.Env),
-		SecretEnv: cloneStringMap(src.SecretEnv),
-		URL:       src.URL,
+		Name:          src.Name,
+		Transport:     src.Transport,
+		Command:       src.Command,
+		CWD:           src.CWD,
+		Args:          slices.Clone(src.Args),
+		Env:           cloneStringMap(src.Env),
+		SecretEnv:     cloneStringMap(src.SecretEnv),
+		URL:           src.URL,
+		Headers:       cloneStringMap(src.Headers),
+		SecretHeaders: cloneStringMap(src.SecretHeaders),
 		Auth: compozyconfig.MCPAuthConfig{
 			Registration:    src.Auth.Registration,
 			IssuerURL:       src.Auth.IssuerURL,

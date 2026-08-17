@@ -63,7 +63,7 @@ func goalCommandBundle(prompt SessionPromptResultRecord, result contract.GoalCom
 func goalCommandRows(prompt SessionPromptResultRecord, result contract.GoalCommandResult) []keyValue {
 	rows := []keyValue{{Label: taskOutcomeValue, Value: stringOrDash(string(result.Outcome))}}
 	if result.ReasonCode != nil {
-		rows = append(rows, keyValue{Label: "Reason", Value: string(*result.ReasonCode)})
+		rows = append(rows, keyValue{Label: cliReasonValue, Value: string(*result.ReasonCode)})
 	}
 	if result.ReplacedRunID != nil {
 		rows = append(rows, keyValue{Label: "Replaced Run", Value: *result.ReplacedRunID})

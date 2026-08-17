@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type TaskTree struct {
+	Root        TaskTreeNodePayload   `json:"root"`
+	Descendants []TaskTreeNodePayload `json:"descendants,omitempty"`
+}
+
 type TaskTreeNodePayload struct {
 	Task           TaskReferencePayload   `json:"task"`
 	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
@@ -287,9 +292,4 @@ type Trigger struct {
 	Ingress              *GatewayIngressPayload `json:"ingress,omitempty"`
 	CreatedAt            time.Time              `json:"created_at"`
 	UpdatedAt            time.Time              `json:"updated_at"`
-}
-
-type TriggerResult struct {
-	Matched int   `json:"matched"`
-	Runs    []Run `json:"runs,omitempty"`
 }

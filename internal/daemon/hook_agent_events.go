@@ -181,7 +181,6 @@ func dispatchPermissionHookEvent(
 			Resource:       strings.TrimSpace(event.Resource),
 			Decision:       decision,
 			DecisionClass:  decisionClass,
-			ToolInput:      acp.CloneRawMessage(raw.ToolInput),
 			ToolCall:       clonePermissionToolCall(raw.ToolCall),
 		})
 		warnHookAgentDispatch(ctx, logger, hookspkg.HookPermissionDenied, err)

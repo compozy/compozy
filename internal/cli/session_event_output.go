@@ -98,7 +98,7 @@ func agentEventsBundle(events []AgentEventRecord) outputBundle {
 		events,
 		events,
 		"Prompt Events",
-		[]string{sessionTimestampValue, sessionTypeValue, "Detail", "Stop"},
+		[]string{sessionTimestampValue, sessionTypeValue, cliDetailValue, "Stop"},
 		"prompt_events",
 		[]string{networkTimestampKey, extensionTypeKey, "detail", "stop_reason"},
 		func(event AgentEventRecord) []string {

@@ -218,7 +218,7 @@ func sessionRepairBundle(record SessionRepairRecord) outputBundle {
 			return renderHumanSection("Session Repair", []keyValue{
 				{Label: sessionSessionValue, Value: stringOrDash(record.SessionID)},
 				{Label: "Persisted", Value: strconv.FormatBool(record.Persisted)},
-				{Label: "Issues", Value: stringOrDash(sessionRepairIssueSummary(record.Issues))},
+				{Label: cliIssuesValue, Value: stringOrDash(sessionRepairIssueSummary(record.Issues))},
 				{Label: "Actions", Value: stringOrDash(sessionRepairActionSummary(record.Actions))},
 			}), nil
 		},
@@ -226,7 +226,7 @@ func sessionRepairBundle(record SessionRepairRecord) outputBundle {
 			return renderToonObject("repair", []string{
 				sessionSessionIDKey,
 				"persisted",
-				"issues",
+				cliIssuesKey,
 				"actions",
 			}, []string{
 				record.SessionID,

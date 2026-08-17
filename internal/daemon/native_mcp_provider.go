@@ -22,6 +22,10 @@ func (d *Daemon) newDaemonMCPToolProvider(
 	if state.providerVault != nil {
 		options = append(options, mcppkg.WithSecretResolver(state.providerVault))
 	}
+	if state.mcpRuntimeHealth == nil {
+		state.mcpRuntimeHealth = mcppkg.NewRuntimeHealthRegistry()
+	}
+	options = append(options, mcppkg.WithRuntimeHealthRegistry(state.mcpRuntimeHealth))
 	if store, ok := state.registry.(mcpauth.TokenStore); ok {
 		options = append(
 			options,

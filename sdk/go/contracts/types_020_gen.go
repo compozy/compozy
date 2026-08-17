@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type SessionInputsListParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
 type SessionInspectResponse struct {
 	SessionID    string                             `json:"session_id"`
 	Health       SessionHealthPayload               `json:"health"`
@@ -283,19 +288,4 @@ type SessionSoulRefreshParams struct {
 type SessionSoulRefreshRequest struct {
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type SessionStatus struct {
-	SessionID   string                `json:"session_id"`
-	Name        string                `json:"name,omitempty"`
-	Agent       string                `json:"agent"`
-	Runtime     SessionRuntimePayload `json:"runtime"`
-	WorkspaceID string                `json:"workspace_id,omitempty"`
-	Workspace   string                `json:"workspace,omitempty"`
-	State       State                 `json:"state"`
-	ArchivedAt  *time.Time            `json:"archived_at"`
-	StopReason  StopReason            `json:"stop_reason,omitempty"`
-	StopDetail  string                `json:"stop_detail,omitempty"`
-	CreatedAt   time.Time             `json:"created_at"`
-	UpdatedAt   time.Time             `json:"updated_at"`
 }

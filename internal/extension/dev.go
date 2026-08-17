@@ -2,11 +2,13 @@ package extensionpkg
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -17,6 +19,8 @@ type DevLinkRequest struct {
 	OriginPath               string
 	GenerationHash           string
 	NetworkRequirementDigest string
+	Format                   ExtensionFormat
+	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
 }
 
 // DevLink is one workspace-local overlay row.
@@ -27,6 +31,8 @@ type DevLink struct {
 	BundleGeneration         string
 	LinkedAt                 time.Time
 	NetworkRequirementDigest string
+	Format                   ExtensionFormat
+	IngestDiagnostics        []diagnosticcontract.DiagnosticItem
 	NetworkConfirmedBy       string
 	NetworkConfirmedAt       time.Time
 }
@@ -64,15 +70,22 @@ func (r *Registry) LinkDev(req DevLinkRequest) (*DevLink, error) {
 	}
 	linkedAt := r.now().UTC()
 	networkRequirementDigest := strings.TrimSpace(req.NetworkRequirementDigest)
+	diagnosticsJSON, err := json.Marshal(req.IngestDiagnostics)
+	if err != nil {
+		return nil, fmt.Errorf("extension: marshal development ingest diagnostics for %q: %w", name, err)
+	}
 	_, err = r.db.ExecContext(registryContext(), `
 		INSERT INTO extension_dev_links (
 			extension_name, workspace_id, origin_path, bundle_generation, linked_at,
+			format, ingest_diagnostics_json,
 			network_requirement_digest, network_confirmed_by, network_confirmed_at
-		) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
 		ON CONFLICT(extension_name, workspace_id) DO UPDATE SET
 			origin_path = excluded.origin_path,
 			bundle_generation = excluded.bundle_generation,
 			linked_at = excluded.linked_at,
+			format = excluded.format,
+			ingest_diagnostics_json = excluded.ingest_diagnostics_json,
 			network_confirmed_by = CASE
 				WHEN extension_dev_links.network_requirement_digest = excluded.network_requirement_digest
 				THEN extension_dev_links.network_confirmed_by
@@ -84,7 +97,8 @@ func (r *Registry) LinkDev(req DevLinkRequest) (*DevLink, error) {
 				ELSE NULL
 			END,
 			network_requirement_digest = excluded.network_requirement_digest
-	`, name, workspaceID, originPath, generation, linkedAt, networkRequirementDigest)
+	`, name, workspaceID, originPath, generation, linkedAt,
+		string(normalizeExtensionFormat(req.Format)), string(diagnosticsJSON), networkRequirementDigest)
 	if err != nil {
 		return nil, fmt.Errorf("extension: link development extension %q: %w", name, err)
 	}
@@ -130,6 +144,7 @@ func (r *Registry) GetDevLink(name, workspaceID string) (*DevLink, error) {
 	}
 	row := r.db.QueryRowContext(registryContext(), `
 		SELECT extension_name, workspace_id, origin_path, bundle_generation, linked_at,
+		       format, ingest_diagnostics_json,
 		       network_requirement_digest, network_confirmed_by, network_confirmed_at
 		FROM extension_dev_links
 		WHERE extension_name = ? AND workspace_id = ?
@@ -148,6 +163,7 @@ func (r *Registry) ListDevLinks() (links []DevLink, resultErr error) {
 	}
 	rows, err := r.db.QueryContext(registryContext(), `
 		SELECT extension_name, workspace_id, origin_path, bundle_generation, linked_at,
+		       format, ingest_diagnostics_json,
 		       network_requirement_digest, network_confirmed_by, network_confirmed_at
 		FROM extension_dev_links
 		ORDER BY extension_name ASC, workspace_id ASC
@@ -261,12 +277,16 @@ func scanDevLink(scanner interface{ Scan(dest ...any) error }) (*DevLink, error)
 	var link DevLink
 	var confirmedBy sql.NullString
 	var confirmedAt sql.NullString
+	var formatText string
+	var diagnosticsRaw string
 	if err := scanner.Scan(
 		&link.ExtensionName,
 		&link.WorkspaceID,
 		&link.OriginPath,
 		&link.BundleGeneration,
 		&link.LinkedAt,
+		&formatText,
+		&diagnosticsRaw,
 		&link.NetworkRequirementDigest,
 		&confirmedBy,
 		&confirmedAt,
@@ -274,6 +294,10 @@ func scanDevLink(scanner interface{ Scan(dest ...any) error }) (*DevLink, error)
 		return nil, err
 	}
 	link.LinkedAt = link.LinkedAt.UTC()
+	link.Format = normalizeExtensionFormat(ExtensionFormat(strings.TrimSpace(formatText)))
+	if err := decodeRegistryJSONArray(diagnosticsRaw, &link.IngestDiagnostics); err != nil {
+		return nil, fmt.Errorf("extension: decode development ingest diagnostics for %q: %w", link.ExtensionName, err)
+	}
 	link.NetworkRequirementDigest = strings.TrimSpace(link.NetworkRequirementDigest)
 	link.NetworkConfirmedBy = strings.TrimSpace(confirmedBy.String)
 	if confirmedAt.Valid {

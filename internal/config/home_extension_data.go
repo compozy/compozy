@@ -1,0 +1,54 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+)
+
+// ExtensionDataDirName is the dedicated root for extension-owned runtime data.
+const ExtensionDataDirName = "extension-data"
+
+// ExtensionDataPath returns the deterministic data path for one global or
+// workspace-local extension instance without creating it.
+func (p HomePaths) ExtensionDataPath(name string, workspaceID string) (string, error) {
+	root := strings.TrimSpace(p.ExtensionDataRoot)
+	if root == "" {
+		return "", errors.New("config: extension data root is required")
+	}
+	instanceName := strings.TrimSpace(name)
+	if err := validateExtensionDataSegment("extension name", instanceName, false); err != nil {
+		return "", err
+	}
+	workspace := strings.TrimSpace(workspaceID)
+	segment := instanceName
+	if workspace != "" {
+		if err := validateExtensionDataSegment("workspace id", workspace, true); err != nil {
+			return "", err
+		}
+		segment += "@ws-" + workspace
+	}
+	path := filepath.Join(root, segment)
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return "", fmt.Errorf("config: resolve extension data path: %w", err)
+	}
+	if relative != segment || filepath.IsAbs(relative) {
+		return "", errors.New("config: extension data path must be one contained segment")
+	}
+	return path, nil
+}
+
+func validateExtensionDataSegment(field string, value string, allowAt bool) error {
+	if value == "" || value == "." || value == ".." {
+		return fmt.Errorf("config: %s is required", field)
+	}
+	if strings.ContainsAny(value, `/\`) {
+		return fmt.Errorf("config: %s must be one path segment", field)
+	}
+	if !allowAt && strings.Contains(value, "@") {
+		return fmt.Errorf("config: %s must not contain @", field)
+	}
+	return nil
+}

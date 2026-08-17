@@ -70,6 +70,7 @@ type HomePaths struct {
 	LogsDir               string
 	GatewayDir            string
 	GatewayCredentialsDir string
+	ExtensionDataRoot     string
 	LogFile               string
 	NetworkAuditFile      string
 	DatabaseFile          string
@@ -215,6 +216,7 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		LogsDir:               filepath.Join(root, LogsDirName),
 		GatewayDir:            filepath.Join(root, GatewayDirName),
 		GatewayCredentialsDir: filepath.Join(root, GatewayDirName, GatewayCredentialsDirName),
+		ExtensionDataRoot:     filepath.Join(root, ExtensionDataDirName),
 		LogFile:               filepath.Join(root, LogsDirName, LogFileName),
 		NetworkAuditFile:      filepath.Join(root, LogsDirName, NetworkAuditFileName),
 		DatabaseFile:          filepath.Join(root, DatabaseName),
@@ -239,6 +241,7 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.LogsDir,
 		paths.GatewayDir,
 		paths.GatewayCredentialsDir,
+		paths.ExtensionDataRoot,
 	} {
 		if strings.TrimSpace(dir) == "" {
 			return errors.New("config: home path is required")

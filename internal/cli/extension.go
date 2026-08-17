@@ -34,6 +34,10 @@ const (
 	extensionDevVerb                = "dev"
 	extensionReloadVerb             = "reload"
 	extensionConfirmNetworkFlagName = "confirm-network-requirement"
+	extensionAgentPluginValue       = "agent plugin"
+	extensionMCPKind                = "mcp"
+	extensionMCPServerKind          = "mcp_server"
+	extensionSkillKind              = "skill"
 	cliRemoveNameUse                = "remove <name>"
 	cliUseEnableName                = "enable <name>"
 	cliUseDisableName               = "disable <name>"
@@ -149,7 +153,8 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, extensionSuccessBundle(installCommandKey, item))
+			report := extensionInstallValidationReport(deps, plan, item)
+			return writeCommandOutput(cmd, extensionInstallSuccessBundle(item, report))
 		},
 	}
 	cmd.Flags().StringVar(&version, versionKey, "", "Install a specific registry version")
@@ -236,6 +241,18 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			})
 			if err != nil {
 				return err
+			}
+			if !checkOnly {
+				portable := make([]extensionPortableUpdateOutput, 0, len(items))
+				for _, item := range items {
+					presentation, ok := extensionPortableUpdatePresentation(deps, item)
+					if ok {
+						portable = append(portable, presentation)
+					}
+				}
+				if len(portable) > 0 {
+					return writeCommandOutput(cmd, extensionUpdatesSuccessBundle(items, portable))
+				}
 			}
 			if err := writeCommandOutput(cmd, extensionUpdateBundle(items)); err != nil {
 				return err

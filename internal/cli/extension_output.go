@@ -71,35 +71,18 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 			return writeJSONLine(cmd, item)
 		},
 		human: func() (string, error) {
-			return renderHumanSection("Extension", []keyValue{
-				{Label: automationNameValue, Value: stringOrDash(item.Name)},
-				{Label: versionValue, Value: stringOrDash(item.Version)},
-				{Label: sessionTypeValue, Value: stringOrDash(item.Type)},
-				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
-				{Label: extensionEnabledValue, Value: fmt.Sprintf("%t", item.Enabled)},
-				{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
-				{Label: "Daemon", Value: boolLabel(item.DaemonRunning, "running", "offline")},
-				{Label: cliPIDValue, Value: intOrDash(item.PID)},
-				{Label: cliUptimeValue, Value: stringOrDash(formatExtensionUptime(item.UptimeSeconds))},
-				{
-					Label: extensionHealthValue,
-					Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage)),
-				},
-				{Label: extensionCapabilitiesValue, Value: stringOrDash(strings.Join(item.Capabilities, ", "))},
-				{Label: installPermissionsValue, Value: stringOrDash(strings.Join(item.Permissions, ", "))},
-				{Label: "Requires Env", Value: stringOrDash(strings.Join(item.RequiresEnv, ", "))},
-				{Label: "Missing Env", Value: stringOrDash(strings.Join(item.MissingEnv, ", "))},
-				{Label: "Consecutive Failures", Value: fmt.Sprintf("%d", item.ConsecutiveFailures)},
-				{Label: "Restart Backoff", Value: formatExtensionBackoff(item.RestartBackoffMS)},
-				{Label: "Summary", Value: extensionRuntimeSummary(item)},
-				{Label: "Last Error", Value: stringOrDash(item.LastError)},
-			}), nil
+			return extensionHumanDetail(item, true), nil
 		},
 		toon: func() (string, error) {
+			diagnosticsJSON, err := json.Marshal(item.Diagnostics)
+			if err != nil {
+				return "", fmt.Errorf("cli: marshal extension diagnostics output: %w", err)
+			}
 			return renderToonObject(extensionExtensionKey, []string{
 				automationNameKey,
 				versionKey,
 				extensionTypeKey,
+				cliFormatKey,
 				automationSourceKey,
 				extensionEnabledKey,
 				stateKey,
@@ -115,10 +98,12 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				"consecutive_failures",
 				"restart_backoff_ms",
 				"summary",
+				"diagnostics",
 			}, []string{
 				item.Name,
 				item.Version,
 				item.Type,
+				item.Format,
 				item.Source,
 				fmt.Sprintf("%t", item.Enabled),
 				item.State,
@@ -134,9 +119,47 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 				fmt.Sprintf("%d", item.ConsecutiveFailures),
 				fmt.Sprintf("%d", item.RestartBackoffMS),
 				extensionRuntimeSummary(item),
+				string(diagnosticsJSON),
 			}), nil
 		},
 	}
+}
+
+func extensionHumanDetail(item ExtensionRecord, includeFormat bool) string {
+	rows := []keyValue{
+		{Label: automationNameValue, Value: stringOrDash(item.Name)},
+		{Label: versionValue, Value: stringOrDash(item.Version)},
+		{Label: sessionTypeValue, Value: stringOrDash(item.Type)},
+	}
+	if includeFormat {
+		rows = append(rows, keyValue{Label: cliFormatValue, Value: extensionFormatLabel(item.Format)})
+	}
+	rows = append(
+		rows,
+		keyValue{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
+		keyValue{Label: extensionEnabledValue, Value: fmt.Sprintf("%t", item.Enabled)},
+		keyValue{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
+		keyValue{Label: "Daemon", Value: boolLabel(item.DaemonRunning, "running", "offline")},
+		keyValue{Label: cliPIDValue, Value: intOrDash(item.PID)},
+		keyValue{Label: cliUptimeValue, Value: stringOrDash(formatExtensionUptime(item.UptimeSeconds))},
+		keyValue{
+			Label: extensionHealthValue,
+			Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage)),
+		},
+		keyValue{Label: extensionCapabilitiesValue, Value: stringOrDash(strings.Join(item.Capabilities, ", "))},
+		keyValue{Label: installPermissionsValue, Value: stringOrDash(strings.Join(item.Permissions, ", "))},
+		keyValue{Label: "Requires Env", Value: stringOrDash(strings.Join(item.RequiresEnv, ", "))},
+		keyValue{Label: "Missing Env", Value: stringOrDash(strings.Join(item.MissingEnv, ", "))},
+		keyValue{Label: "Consecutive Failures", Value: fmt.Sprintf("%d", item.ConsecutiveFailures)},
+		keyValue{Label: "Restart Backoff", Value: formatExtensionBackoff(item.RestartBackoffMS)},
+		keyValue{Label: "Summary", Value: extensionRuntimeSummary(item)},
+		keyValue{Label: "Last Error", Value: stringOrDash(item.LastError)},
+	)
+	blocks := []string{renderHumanSection("Extension", rows)}
+	if diagnostics := extensionDiagnosticsHuman("Diagnostics", item.Diagnostics); diagnostics != "" {
+		blocks = append(blocks, diagnostics)
+	}
+	return renderHumanBlocks(blocks...)
 }
 
 func extensionEnableBundle(result ExtensionEnableRecord) outputBundle {
@@ -241,6 +264,13 @@ func extensionRuntimeSummary(item ExtensionRecord) string {
 		return daemonDisabledKey
 	}
 	if item.DaemonRunning && strings.EqualFold(strings.TrimSpace(item.Health), "healthy") {
+		if skipped := extensionSkippedComponentCount(item.Diagnostics); skipped > 0 {
+			component := "components"
+			if skipped == 1 {
+				component = "component"
+			}
+			return fmt.Sprintf("running (%d %s skipped)", skipped, component)
+		}
 		return "running and healthy"
 	}
 	if state := strings.TrimSpace(item.State); state != "" {

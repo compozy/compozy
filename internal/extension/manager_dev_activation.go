@@ -31,7 +31,7 @@ func (m *Manager) resolveDevGeneration(
 	if err != nil {
 		return nil, err
 	}
-	verified, err := verifyDevGeneration(canonicalOrigin, generationHash)
+	verified, err := m.verifyDevelopmentGeneration(canonicalOrigin, generationHash, key.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +44,20 @@ func (m *Manager) resolveDevGeneration(
 		)
 	}
 	return verified, nil
+}
+
+func (m *Manager) verifyDevelopmentGeneration(
+	originPath string,
+	generationHash string,
+	workspaceID string,
+) (*verifiedDevGeneration, error) {
+	return verifyDevGeneration(originPath, generationHash, func(name string) (string, error) {
+		dataDir, err := m.homePaths.ExtensionDataPath(name, workspaceID)
+		if err != nil {
+			return "", fmt.Errorf("extension: resolve Agent Plugins development data path: %w", err)
+		}
+		return dataDir, nil
+	})
 }
 
 func managedDevExtension(
@@ -60,6 +74,8 @@ func managedDevExtension(
 			Source:                   SourceWorkspace,
 			Enabled:                  true,
 			ManifestPath:             verified.ManifestPath,
+			Format:                   manifest.Format,
+			IngestDiagnostics:        cloneDiagnosticItems(manifest.IngestDiagnostics),
 			Capabilities:             manifest.Capabilities,
 			Permissions:              manifest.Permissions,
 			Checksum:                 verified.GenerationHash,

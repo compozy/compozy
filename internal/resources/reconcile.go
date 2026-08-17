@@ -52,9 +52,20 @@ func (r ReconcileReason) Validate(path string) error {
 
 // ReconcileDriver drives boot-time and post-commit resource projection.
 type ReconcileDriver interface {
-	Trigger(ctx context.Context, kind ResourceKind, reason ReconcileReason) error
+	Trigger(ctx context.Context, kind ResourceKind, reason ReconcileReason) (ReconcileTicket, error)
+	WaitForIdle(ctx context.Context, ticket ReconcileTicket) error
 	RunBoot(ctx context.Context) error
 	Close(ctx context.Context) error
+}
+
+// ReconcileTicket identifies the exact passes scheduled by one trigger.
+type ReconcileTicket struct {
+	results []*reconcileTicketResult
+}
+
+type reconcileTicketResult struct {
+	done chan struct{}
+	err  error
 }
 
 // ReconcileEventType identifies one emitted reconcile event.
@@ -242,9 +253,16 @@ type reconcileKindState struct {
 	readyAt             time.Time
 	degradedUntil       time.Time
 	consecutiveFailures int
+	scheduledGeneration uint64
+	pendingGeneration   uint64
+	dirtyGeneration     uint64
+	runningGeneration   uint64
+	completedGeneration uint64
+	tickets             map[uint64]*reconcileTicketResult
 }
 
 type reconcilePassResult struct {
+	generation uint64
 	reason     ReconcileReason
 	revision   int64
 	operations int

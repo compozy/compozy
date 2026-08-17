@@ -12,13 +12,24 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/compozy/compozy/internal/extension/surfaces"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
-// LoadManifest reads one extension manifest from dir, preferring TOML over JSON.
+// LoadManifest reads one extension manifest from dir, preferring native
+// manifests over a supported Agent Plugins root.
 func LoadManifest(dir string) (*Manifest, error) {
+	return loadManifest(dir, "")
+}
+
+// LoadManifestWithAgentPluginDataDir loads a manifest with an explicit
+// instance-owned PLUGIN_DATA path for portable stdio server synthesis.
+func LoadManifestWithAgentPluginDataDir(dir string, dataDir string) (*Manifest, error) {
+	return loadManifest(dir, strings.TrimSpace(dataDir))
+}
+
+func loadManifest(dir string, dataDir string) (*Manifest, error) {
 	manifestDir := strings.TrimSpace(dir)
 	if manifestDir == "" {
 		return nil, &ManifestValidationError{
@@ -41,83 +52,52 @@ func LoadManifest(dir string) (*Manifest, error) {
 		return loadManifestJSON(jsonPath)
 	}
 
+	pluginPath := filepath.Join(manifestDir, agentPluginManifestFileName)
+	manifest, recognized, err := loadAgentPluginManifest(manifestDir, dataDir, pluginPath)
+	if err != nil {
+		return nil, err
+	}
+	if recognized {
+		return manifest, nil
+	}
+
 	return nil, &ManifestNotFoundError{
 		Dir:   manifestDir,
-		Paths: []string{tomlPath, jsonPath},
+		Paths: []string{tomlPath, jsonPath, pluginPath},
 	}
+}
+
+func defaultAgentPluginDataDir(manifestDir string, name string) (string, error) {
+	root := filepath.Clean(manifestDir)
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Dir(filepath.Dir(root)))
+	if err != nil {
+		return "", fmt.Errorf("extension: resolve Agent Plugins data home: %w", err)
+	}
+	dataDir, err := homePaths.ExtensionDataPath(name, "")
+	if err != nil {
+		return "", fmt.Errorf("extension: resolve Agent Plugins data path: %w", err)
+	}
+	return dataDir, nil
 }
 
 // Validate checks the manifest schema and daemon compatibility.
 func (m *Manifest) Validate() error {
-	if err := requireField(manifestNameKey, m.Name); err != nil {
+	if err := validateManifestIdentity(m); err != nil {
 		return err
 	}
-	if err := requireField("version", m.Version); err != nil {
+	if err := validateManifestRuntime(m); err != nil {
 		return err
 	}
-	if err := validateSemanticVersionField("version", m.Version); err != nil {
+	if err := validateManifestResources(m); err != nil {
 		return err
 	}
-	if err := requireField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
+	if err := validateManifestCapabilities(m); err != nil {
 		return err
 	}
-	if err := validateSemanticVersionField(manifestMinCompozyVersionKey, m.MinCompozyVersion); err != nil {
+	if err := validateManifestPermissions(m); err != nil {
 		return err
 	}
-	if err := validateDaemonCompatibility(m.MinCompozyVersion); err != nil {
-		return err
-	}
-	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
-		return err
-	}
-	if err := m.NetworkParticipation.Validate(manifestFieldNetworkParticipation); err != nil {
-		return err
-	}
-	if err := validateManifestEnvMaps(
-		"subprocess",
-		"extensions",
-		m.Subprocess.Env,
-		m.Subprocess.SecretEnv,
-	); err != nil {
-		return err
-	}
-	if err := validateManifestHookEnv(m.Resources.Hooks); err != nil {
-		return err
-	}
-	if err := validateManifestMCPServerEnv(m.Resources.MCPServers); err != nil {
-		return err
-	}
-	if err := validateManifestCommandResources(m); err != nil {
-		return err
-	}
-	if err := validateDottedIdentifiers(manifestFieldCapabilitiesProvides, m.Capabilities.Provides, false); err != nil {
-		return err
-	}
-	if err := validateProvideCapabilities(m.Capabilities.Provides); err != nil {
-		return err
-	}
-	if err := m.validateModelSourceCapability(); err != nil {
-		return err
-	}
-	if err := validateSlashIdentifiers("permissions.requires", m.Permissions.Requires); err != nil {
-		return err
-	}
-	if err := validatePermissionMethods(m.Permissions.Requires); err != nil {
-		return err
-	}
-	if err := m.validateBridgeAdapterCapability(); err != nil {
-		return err
-	}
-	if _, err := surfaces.ResolveManifestRequest(
-		m.Resources.Publish.Families,
-		m.Resources.Publish.MaxScope,
-	); err != nil {
-		return &ManifestValidationError{
-			Field:   manifestResourcesPublishPath,
-			Message: err.Error(),
-		}
-	}
-	return nil
+	return validateManifestPublication(m)
 }
 
 func (m *Manifest) validateModelSourceCapability() error {
@@ -252,6 +232,7 @@ func loadManifestTOMLContent(path string, data []byte) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	manifest.Format = FormatCompozy
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
@@ -282,6 +263,7 @@ func loadManifestJSONContent(path string, data []byte) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	manifest.Format = FormatCompozy
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}

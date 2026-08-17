@@ -65,11 +65,31 @@ func extensionOperationErrorPayload(
 			message,
 			"",
 		)
+	case extensionErrorAgentPluginClientLayout,
+		extensionErrorAgentPluginNotManifest,
+		extensionErrorAgentPluginSchemaUnsupported:
+		payload.Code = ExtensionAgentPluginErrorCode(err)
 	default:
 		return contract.ExtensionOperationErrorPayload{}, false
 	}
 	payload.Error = message
 	return payload, true
+}
+
+// ExtensionAgentPluginErrorCode returns the stable branch key for one portable-package failure.
+func ExtensionAgentPluginErrorCode(err error) string {
+	switch classifyExtensionError(err) {
+	case extensionErrorAgentPluginClientLayout:
+		return diagnosticcontract.CodeExtensionAgentPluginClientLayout
+	case extensionErrorAgentPluginNotManifest:
+		return diagnosticcontract.CodeExtensionAgentPluginNotManifest
+	case extensionErrorAgentPluginSchemaUnsupported:
+		return diagnosticcontract.CodeExtensionAgentPluginSchemaUnsupported
+	case extensionErrorAgentPluginManifestInvalid:
+		return diagnosticcontract.CodeExtensionAgentPluginManifestInvalid
+	default:
+		return ""
+	}
 }
 
 func extensionOperationDiagnostic(id, code, title, message, command string) *contract.DiagnosticItem {

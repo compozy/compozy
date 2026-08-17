@@ -20,8 +20,9 @@ const (
 )
 
 const (
-	installerSkillManifestName     = "SKILL.md"
-	installerExtensionManifestName = "extension.toml"
+	installerSkillManifestName       = "SKILL.md"
+	installerExtensionManifestName   = "extension.toml"
+	installerAgentPluginManifestName = "plugin.json"
 )
 
 var (
@@ -29,9 +30,11 @@ var (
 	ErrArchiveTooLargeCompressed = errors.New("registry: archive exceeds max compressed size")
 
 	errArchiveTooLargeCompressed = ErrArchiveTooLargeCompressed
-	errInstallMissingManifest    = errors.New("registry: archive missing extension.toml or SKILL.md at root")
-	errUnexpectedContentType     = errors.New("registry: unexpected download content type")
-	errVerificationBlocked       = errors.New("registry: install blocked by content verification")
+	errInstallMissingManifest    = errors.New(
+		"registry: archive missing extension.toml, SKILL.md, or Agent Plugins plugin.json at root",
+	)
+	errUnexpectedContentType = errors.New("registry: unexpected download content type")
+	errVerificationBlocked   = errors.New("registry: install blocked by content verification")
 )
 
 type installerVerificationRule struct {
@@ -133,6 +136,11 @@ type extensionManifestHeader struct {
 	} `toml:"extension"`
 	Name    string `toml:"name"`
 	Version string `toml:"version"`
+}
+
+type agentPluginManifestHeader struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 // NewInstaller constructs a new domain-agnostic install pipeline.

@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type TaskDashboardCardsPayload struct {
+	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
+	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
+	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
+	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
+}
+
 type TaskDashboardFailedCardPayload struct {
 	Tasks        int    `json:"tasks"`
 	FailedRuns   int    `json:"failed_runs"`
@@ -214,9 +221,4 @@ type TaskInboxParams struct {
 type TaskInboxPriorityFacetPayload struct {
 	Priority Priority `json:"priority"`
 	Count    int      `json:"count"`
-}
-
-type TaskInboxStatusFacetPayload struct {
-	Status Status `json:"status"`
-	Count  int    `json:"count"`
 }

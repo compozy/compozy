@@ -72,6 +72,8 @@ func (s *daemonExtensionService) restoreStagedDevLink(
 		OriginPath:               snapshot.OriginPath,
 		GenerationHash:           snapshot.BundleGeneration,
 		NetworkRequirementDigest: snapshot.NetworkRequirementDigest,
+		Format:                   snapshot.Format,
+		IngestDiagnostics:        snapshot.IngestDiagnostics,
 	}); err != nil {
 		return err
 	}

@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type SchedulerCatchUpPolicy string
+
 type Scope string
 
 type SessionActivityHealth struct {
@@ -203,9 +205,4 @@ type SessionInputTargetParams struct {
 	WorkspaceID  string `json:"workspace_id"`
 	SessionID    string `json:"session_id"`
 	QueueEntryID string `json:"queue_entry_id"`
-}
-
-type SessionInputsListParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
 }

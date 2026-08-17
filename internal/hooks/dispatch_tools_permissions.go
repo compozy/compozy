@@ -97,7 +97,7 @@ func (h *Hooks) DispatchPermissionDenied(
 		HookPermissionDenied,
 		payload,
 		dispatchConfig[PermissionDeniedPayload, PermissionDeniedPatch]{
-			match: matchPermissionResolution,
+			match: matchPermissionDenied,
 			apply: applyNoop[PermissionDeniedPayload, PermissionDeniedPatch],
 		},
 	)

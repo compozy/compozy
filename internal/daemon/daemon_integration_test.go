@@ -1615,7 +1615,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bridgeStore.Put(create) error = %v", err)
 	}
-	if err := first.resourceReconcile.Trigger(
+	if _, err := first.resourceReconcile.Trigger(
 		testutil.Context(t),
 		bridgepkg.BridgeInstanceResourceKind,
 		resources.ReconcileReasonWrite,
@@ -1634,7 +1634,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bridgeStore.Put(update) error = %v", err)
 	}
-	if err := first.resourceReconcile.Trigger(
+	if _, err := first.resourceReconcile.Trigger(
 		testutil.Context(t),
 		bridgepkg.BridgeInstanceResourceKind,
 		resources.ReconcileReasonWrite,
@@ -1646,7 +1646,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 	if err := bridgeStore.Delete(testutil.Context(t), operator, record.ID, record.Version); err != nil {
 		t.Fatalf("bridgeStore.Delete() error = %v", err)
 	}
-	if err := first.resourceReconcile.Trigger(
+	if _, err := first.resourceReconcile.Trigger(
 		testutil.Context(t),
 		bridgepkg.BridgeInstanceResourceKind,
 		resources.ReconcileReasonWrite,
@@ -1664,7 +1664,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bridgeStore.Put(boot) error = %v", err)
 	}
-	if err := first.resourceReconcile.Trigger(
+	if _, err := first.resourceReconcile.Trigger(
 		testutil.Context(t),
 		bridgepkg.BridgeInstanceResourceKind,
 		resources.ReconcileReasonWrite,

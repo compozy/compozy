@@ -142,6 +142,7 @@ function kitDetailHandlers(refuseEnable = false) {
         HttpResponse.json({
           enabled: false,
           extension: "dep-kit-ops",
+          format: "compozy",
           items: kitInventoryItems,
         })
       ),
@@ -359,6 +360,7 @@ export const DetailExtensionEnabledUpdate: Story = {
           HttpResponse.json({
             enabled: true,
             extension: "dep-kit-ops",
+            format: "compozy",
             items: kitInventoryItems.map(item => ({ ...item, live: true })),
           })
         ),

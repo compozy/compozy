@@ -28,7 +28,18 @@ const mocks = vi.hoisted(() => ({
   extensionConsecutiveFailures: 0,
   extensionDev: false,
   extensionEnableResult: null as { automation_started: string[] } | null,
+  extensionFormat: "compozy",
   extensionInventory: [] as Array<{ id: string; kind: string; live: boolean; name: string }>,
+  extensionInventoryDiagnostics: [] as Array<{
+    category: string;
+    code: string;
+    data_freshness: string;
+    evidence?: Record<string, unknown>;
+    id: string;
+    message: string;
+    severity: string;
+    title: string;
+  }>,
   extensionNetworkConfirm: null as { action: "enable" | "update"; digest: string } | null,
   extensionNetworkConfirmationRequired: false,
   extensionNetworkDigest: undefined as string | undefined,
@@ -245,8 +256,10 @@ function extensionDetailStateStub() {
     enableResult: mocks.extensionEnableResult,
     inventory: {
       data: {
+        diagnostics: mocks.extensionInventoryDiagnostics,
         enabled: true,
         extension: "ops-extension",
+        format: mocks.extensionFormat,
         items: mocks.extensionInventory,
       },
       error: null,
@@ -278,6 +291,7 @@ function extensionDetailStateStub() {
               daemon_running: true,
               dev: mocks.extensionDev,
               digest_matched: false,
+              format: mocks.extensionFormat,
               missing_env: ["PAGER_TOKEN"],
               name: "ops-extension",
               health: "healthy",
@@ -379,7 +393,9 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionRestartBackoffMs = 0;
     mocks.extensionBoundEnvKeys = [];
     mocks.extensionEnableResult = null;
+    mocks.extensionFormat = "compozy";
     mocks.extensionInventory = [];
+    mocks.extensionInventoryDiagnostics = [];
     mocks.extensionNetworkConfirm = null;
     mocks.extensionNetworkConfirmationRequired = false;
     mocks.extensionNetworkDigest = undefined;
@@ -460,6 +476,46 @@ describe("Marketplace installed-detail management", () => {
     render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.queryByTestId("extension-kit-inventory")).not.toBeInTheDocument();
+  });
+
+  // IT-015: the installed detail is where format and degradation have to agree — the badge comes
+  // from the instance's own format and the Skipped rows from its recorded diagnostics.
+  it("Should show the format badge and recorded skips for an ingested portable package", () => {
+    mocks.extensionFormat = "agent-plugin";
+    mocks.extensionInventory = [
+      { id: "acme.tools/deploy-check", kind: "skill", live: true, name: "deploy-check" },
+    ];
+    mocks.extensionInventoryDiagnostics = [
+      {
+        category: "extension",
+        code: "extension_agent_plugin_component_skipped",
+        data_freshness: "live",
+        evidence: { component: "mcp_server", scope: "mcp:legacy-events" },
+        id: "extension/acme.tools/agent-plugin/mcp:legacy-events",
+        message: 'mcp server "legacy-events": unsupported transport "sse"',
+        severity: "warn",
+        title: "Component skipped",
+      },
+    ];
+
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
+
+    const badges = screen.getByTestId("extension-trust-badges");
+    expect(within(badges).getByTestId("extension-format-badge")).toHaveTextContent("agent plugin");
+    const skipped = screen.getByTestId("extension-skipped-components");
+    expect(within(skipped).getByText("mcp: legacy-events")).toBeInTheDocument();
+    expect(within(skipped).getByText('unsupported transport "sse"')).toBeInTheDocument();
+  });
+
+  it("Should carry no format signal or Skipped section for a native extension", () => {
+    mocks.extensionInventory = [
+      { id: "agent:dep-reviewer", kind: "agent", live: true, name: "dep-reviewer" },
+    ];
+
+    render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
+
+    expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("extension-skipped-components")).not.toBeInTheDocument();
   });
 
   it("Should mark a declared environment name as bound when the daemon reports a binding", () => {

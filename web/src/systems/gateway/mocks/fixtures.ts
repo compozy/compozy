@@ -29,6 +29,7 @@ export function connectivityProviderFixture(
     update_available: false,
     version: "0.1.0",
     ...overrides,
+    format: overrides.format ?? "compozy",
   };
 }
 

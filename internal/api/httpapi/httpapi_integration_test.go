@@ -3538,18 +3538,17 @@ func (d *integrationDriver) Prompt(
 
 			raw := mustIntegrationJSON(tPermissionRaw(requestID))
 			ts := time.Now().UTC()
-			events <- acp.AgentEvent{
+			events <- (acp.AgentEvent{
 				Type:       "permission",
 				SessionID:  proc.SessionID,
 				TurnID:     req.TurnID,
-				RequestID:  requestID,
 				Timestamp:  ts,
 				Title:      "permission request",
 				ToolCallID: "tool-1",
 				Action:     "session/request_permission",
 				Resource:   "/tmp/demo.txt",
 				Raw:        raw,
-			}
+			}).WithRequestID(requestID)
 
 			var permissionTimeout <-chan time.Time
 			var permissionTimer *time.Timer
@@ -3569,11 +3568,10 @@ func (d *integrationDriver) Prompt(
 			}
 
 			ts = time.Now().UTC()
-			events <- acp.AgentEvent{
+			events <- (acp.AgentEvent{
 				Type:       "permission",
 				SessionID:  proc.SessionID,
 				TurnID:     req.TurnID,
-				RequestID:  requestID,
 				Timestamp:  ts,
 				Title:      "permission request",
 				ToolCallID: "tool-1",
@@ -3581,7 +3579,7 @@ func (d *integrationDriver) Prompt(
 				Resource:   "/tmp/demo.txt",
 				Decision:   finalDecision,
 				Raw:        mustIntegrationJSON(tPermissionRawWithDecision(requestID, finalDecision)),
-			}
+			}).WithRequestID(requestID)
 			events <- acp.AgentEvent{
 				Type:      "agent_message",
 				SessionID: proc.SessionID,

@@ -279,6 +279,12 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	}](err); ok {
 		return marshalExtensionOperationExecutionError(args, extensionErr.extensionOperationErrorPayload())
 	}
+	if validationErr, ok := errors.AsType[interface {
+		error
+		extensionValidationErrorPayload() contract.ExtensionValidationErrorPayload
+	}](err); ok {
+		return marshalExtensionValidationExecutionError(args, validationErr.extensionValidationErrorPayload())
+	}
 	if windowManagerErr, ok := errors.AsType[interface {
 		error
 		windowManagerErrorPayload() contract.WindowManagerErrorPayload

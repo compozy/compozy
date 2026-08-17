@@ -11,6 +11,7 @@ import {
   MARKETPLACE_KIND_SINGULAR,
   stripMarketplaceUrlScheme,
 } from "./marketplace-ui";
+import { ExtensionFormatBadge } from "@/systems/extensions";
 
 interface MarketplaceDetailLedeProps {
   data: MarketplaceEntryResponse;
@@ -49,6 +50,7 @@ function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
             {MARKETPLACE_KIND_SINGULAR[kind]}
           </Pill>
           {ledeSecondTag(data)}
+          <ExtensionFormatBadge format={entry.format} />
         </div>
         {meta.length > 0 ? (
           <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2 text-form-label text-subtle">

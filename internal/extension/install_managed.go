@@ -129,15 +129,8 @@ func InstallLocalManaged(
 		return err
 	}
 
-	actualSourceChecksum, err := ComputeDirectoryChecksum(sourceDir)
-	if err != nil {
-		return fmt.Errorf("extension: compute source checksum %q: %w", sourceDir, err)
-	}
-	if actualSourceChecksum != normalizedChecksum {
-		return &ExtensionChecksumMismatchError{
-			ExpectedChecksum: normalizedChecksum,
-			ActualChecksum:   actualSourceChecksum,
-		}
+	if err := verifyManagedInstallSource(sourceDir, normalizedChecksum); err != nil {
+		return err
 	}
 
 	stagingDir, err := NewManagedInstallStagingDir(homePaths)
@@ -161,6 +154,11 @@ func InstallLocalManaged(
 	if err := copyInstallTree(sourceDir, stagingDir); err != nil {
 		return err
 	}
+	installConfig := installConfig{}
+	applyInstallOptions(&installConfig, opts...)
+	if err := observeManagedInstallBoundary(installConfig.boundaryObserver, managedInstallBoundaryStaged); err != nil {
+		return err
+	}
 
 	moveResult, err := registrypkg.MoveInstalledDir(stagingDir, finalDir, false)
 	if err != nil {
@@ -168,6 +166,12 @@ func InstallLocalManaged(
 	}
 	logLocalInstallCleanupDiagnostics(moveResult.CleanupDiagnostics)
 	cleanupStaging = false
+	if err := observeManagedInstallBoundary(
+		installConfig.boundaryObserver,
+		managedInstallBoundaryFinalMoved,
+	); err != nil {
+		return removeManagedInstallOnError(finalDir, err, "after final move interruption")
+	}
 
 	installedChecksum, err := ComputeDirectoryChecksum(finalDir)
 	if err != nil {
@@ -188,6 +192,33 @@ func InstallLocalManaged(
 		)
 	}
 
+	return nil
+}
+
+func verifyManagedInstallSource(sourceDir string, expectedChecksum string) error {
+	actualChecksum, err := ComputeDirectoryChecksum(sourceDir)
+	if err != nil {
+		return fmt.Errorf("extension: compute source checksum %q: %w", sourceDir, err)
+	}
+	if actualChecksum != expectedChecksum {
+		return &ExtensionChecksumMismatchError{
+			ExpectedChecksum: expectedChecksum,
+			ActualChecksum:   actualChecksum,
+		}
+	}
+	return nil
+}
+
+func observeManagedInstallBoundary(
+	observer func(managedInstallBoundary) error,
+	boundary managedInstallBoundary,
+) error {
+	if observer == nil {
+		return nil
+	}
+	if err := observer(boundary); err != nil {
+		return fmt.Errorf("extension: managed install interrupted after %s: %w", boundary, err)
+	}
 	return nil
 }
 

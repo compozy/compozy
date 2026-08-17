@@ -7,6 +7,8 @@ export const EXTENSION_DEV_LABEL = "dev";
 export const EXTENSION_OVERRIDES_PUBLISHED_LABEL = "overrides published";
 export const EXTENSION_DIGEST_MATCHED_LABEL = "Digest matched";
 export const EXTENSION_CHECKSUM_VERIFIED_LABEL = "Checksum verified";
+export const EXTENSION_AGENT_PLUGIN_FORMAT = "agent-plugin";
+export const EXTENSION_AGENT_PLUGIN_LABEL = "agent plugin";
 
 const DIGEST_MATCHED_HINT =
   "Integrity only: the downloaded archive matches its published digest. It does not verify the publisher.";
@@ -34,6 +36,20 @@ function BadgeWithHint({
       />
       <TooltipContent>{hint}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/**
+ * The format identity, kept distinct from the trust badges above: it says which manifest format the
+ * daemon ingested, never whether the package is trusted. Native extensions render nothing — the
+ * badge marks the exception, not the rule.
+ */
+export function ExtensionFormatBadge({ format }: { format?: string | null }) {
+  if (format?.trim() !== EXTENSION_AGENT_PLUGIN_FORMAT) return null;
+  return (
+    <Pill data-testid="extension-format-badge" mono size="xs">
+      {EXTENSION_AGENT_PLUGIN_LABEL}
+    </Pill>
   );
 }
 

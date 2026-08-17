@@ -47,11 +47,18 @@ export {
 } from "./components/extension-dialogs";
 export { ExtensionKitInventoryPanel } from "./components/extension-kit-inventory-panel";
 export { ExtensionLogPanel } from "./components/extension-log-panel";
+export { ExtensionSkippedComponents } from "./components/extension-skipped-components";
+export type { ExtensionSkippedComponentsProps } from "./components/extension-skipped-components";
+export { selectExtensionSkippedDiagnostics } from "./lib/extension-skipped-diagnostics";
+export type { ExtensionInventoryDiagnostic } from "./lib/extension-skipped-diagnostics";
 export {
+  EXTENSION_AGENT_PLUGIN_FORMAT,
+  EXTENSION_AGENT_PLUGIN_LABEL,
   EXTENSION_CHECKSUM_VERIFIED_LABEL,
   EXTENSION_DEV_LABEL,
   EXTENSION_DIGEST_MATCHED_LABEL,
   EXTENSION_OVERRIDES_PUBLISHED_LABEL,
+  ExtensionFormatBadge,
   ExtensionTrustBadges,
 } from "./components/extension-trust-badges";
 export {

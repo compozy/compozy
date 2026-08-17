@@ -37,7 +37,7 @@ func (s *daemonExtensionService) Dev(
 	}
 	key := extensionpkg.InstanceKey{Name: generation.Name, WorkspaceID: workspaceID}
 	var item contract.ExtensionPayload
-	err = s.lifecycle.withName(ctx, generation.Name, func() error {
+	err = s.lifecycle.withInstance(ctx, key, func() error {
 		snapshot, snapshotErr := s.snapshotDevLink(key)
 		if snapshotErr != nil {
 			return snapshotErr
@@ -116,7 +116,7 @@ func (s *daemonExtensionService) ReloadDev(
 	}
 	key := extensionpkg.InstanceKey{Name: name, WorkspaceID: workspaceID}
 	var item contract.ExtensionPayload
-	err = s.lifecycle.withName(ctx, name, func() error {
+	err = s.lifecycle.withInstance(ctx, key, func() error {
 		var reloadErr error
 		item, reloadErr = s.reloadDevLocked(ctx, runtime, key, req, actor)
 		return reloadErr
@@ -212,6 +212,7 @@ func (s *daemonExtensionService) applyDevReload(
 	if err := s.recordDevReloadEvents(ctx, actor, key, item.GenerationHash, confirmation); err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
 	}
+	s.evictExtensionMCPHealth(key.Name, key.WorkspaceID)
 	return item, nil
 }
 
@@ -389,7 +390,7 @@ func (s *daemonExtensionService) RemoveScoped(
 		return s.Remove(ctx, name, actor)
 	}
 	var item contract.ManagedExtensionRemovePayload
-	err = s.lifecycle.withName(ctx, name, func() error {
+	err = s.lifecycle.withInstance(ctx, key, func() error {
 		snapshot, snapshotErr := s.snapshotDevLink(key)
 		if snapshotErr != nil {
 			return snapshotErr
@@ -416,6 +417,7 @@ func (s *daemonExtensionService) RemoveScoped(
 		}); eventErr != nil {
 			return s.rollbackDevRemoval(ctx, runtime, key, snapshot, retirement, eventErr)
 		}
+		s.evictExtensionMCPHealth(key.Name, key.WorkspaceID)
 		return nil
 	})
 	return item, err

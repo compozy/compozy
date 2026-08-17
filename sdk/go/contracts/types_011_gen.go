@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+type InboundMessageEnvelope struct {
+	BridgeInstanceID  string                  `json:"bridge_instance_id"`
+	Scope             BridgeScope             `json:"scope"`
+	WorkspaceID       string                  `json:"workspace_id,omitempty"`
+	PeerID            string                  `json:"peer_id,omitempty"`
+	ThreadID          string                  `json:"thread_id,omitempty"`
+	GroupID           string                  `json:"group_id,omitempty"`
+	PlatformMessageID string                  `json:"platform_message_id,omitempty"`
+	ReceivedAt        time.Time               `json:"received_at"`
+	Sender            MessageSender           `json:"sender"`
+	Content           MessageContent          `json:"content,omitzero"`
+	Attachments       []MessageAttachment     `json:"attachments,omitempty"`
+	EventFamily       InboundEventFamily      `json:"event_family"`
+	Command           *InboundCommand         `json:"command,omitempty"`
+	Action            *InboundAction          `json:"action,omitempty"`
+	Reaction          *InboundReaction        `json:"reaction,omitempty"`
+	Edit              *InboundEdit            `json:"edit,omitempty"`
+	ReplyToText       string                  `json:"reply_to_text,omitempty"`
+	ReplyToAuthorID   string                  `json:"reply_to_author_id,omitempty"`
+	ReplyToAuthorName string                  `json:"reply_to_author_name,omitempty"`
+	Conversation      *NetworkConversationRef `json:"conversation,omitempty"`
+	ProviderMetadata  json.RawMessage         `json:"provider_metadata,omitempty"`
+	IdempotencyKey    string                  `json:"idempotency_key"`
+}
+
 type InboundReaction struct {
 	MessageID string `json:"message_id"`
 	Emoji     string `json:"emoji"`
@@ -135,6 +160,7 @@ type IssueSeverity string
 const (
 	IssueSeverityError   IssueSeverity = "error"
 	IssueSeverityWarning IssueSeverity = "warning"
+	IssueSeverityWarn    IssueSeverity = "warn"
 )
 
 type Job struct {
@@ -239,9 +265,4 @@ type LoopGatePostPayload struct {
 	Details        json.RawMessage `json:"details,omitempty"`
 	Denied         bool            `json:"denied,omitempty"`
 	DenyReason     string          `json:"deny_reason,omitempty"`
-}
-
-type LoopGatePrePatch struct {
-	Deny       bool   `json:"deny,omitempty"`
-	DenyReason string `json:"deny_reason,omitempty"`
 }

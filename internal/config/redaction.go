@@ -28,5 +28,7 @@ func RedactedMCPServer(server MCPServer) MCPServer {
 	redacted := cloneMCPServer(server)
 	redacted.Env = RedactStringMap(server.Env)
 	redacted.SecretEnv = RedactStringMap(server.SecretEnv)
+	redacted.Headers = RedactStringMap(server.Headers)
+	redacted.SecretHeaders = RedactStringMap(server.SecretHeaders)
 	return redacted
 }

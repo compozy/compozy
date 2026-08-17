@@ -141,8 +141,8 @@ func TestExtensionEventCallSitesUseCanonicalSafePayloads(t *testing.T) {
 		_, err = service.SetExtensionSecrets(
 			testutil.Context(t),
 			"kit",
-			contract.SetExtensionSecretsRequest{Secrets: map[string]contract.ExtensionSecretInput{
-				"UNDECLARED": {Value: &value},
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "UNDECLARED", Value: &value},
 			}},
 			actor,
 		)

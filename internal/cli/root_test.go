@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -95,6 +96,71 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 		t.Fatalf("json.Marshal(payload) error = %v", err)
 	}
 	operationErr := readAPIErrorBody(http.StatusConflict, "409 Conflict", body)
+
+	t.Run("Should keep portable package failures on the documented exit code", func(t *testing.T) {
+		t.Parallel()
+
+		portablePayloads := []struct {
+			name    string
+			payload any
+		}{
+			{
+				name: "Should use exit one for a client-specific layout",
+				payload: contract.ExtensionOperationErrorPayload{
+					Error: "client-specific layout", Code: diagnosticcontract.CodeExtensionAgentPluginClientLayout,
+				},
+			},
+			{
+				name: "Should use exit one and preserve issues for an invalid manifest",
+				payload: contract.ExtensionValidationErrorPayload{
+					Error: "invalid portable manifest",
+					Diagnostic: &contract.DiagnosticItem{
+						ID:            "extension.agent_plugin.manifest_invalid",
+						Code:          diagnosticcontract.CodeExtensionAgentPluginManifestInvalid,
+						Category:      diagnosticcontract.CategoryExtension,
+						Severity:      diagnosticcontract.SeverityError,
+						DataFreshness: diagnosticcontract.FreshnessLive,
+					},
+					Issues: []contract.ValidationIssue{{Field: "name", Message: "name is invalid"}},
+				},
+			},
+		}
+		for _, test := range portablePayloads {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				portableBody, err := json.Marshal(test.payload)
+				if err != nil {
+					t.Fatalf("json.Marshal(portable error) error = %v", err)
+				}
+				portableErr := readAPIErrorBody(
+					http.StatusUnprocessableEntity,
+					"422 Unprocessable Entity",
+					portableBody,
+				)
+				if exitCode := cliExitCodeForError(portableErr); exitCode != 1 {
+					t.Fatalf("cliExitCodeForError(portable error) = %d, want 1", exitCode)
+				}
+				if _, ok := test.payload.(contract.ExtensionValidationErrorPayload); ok {
+					var stderr bytes.Buffer
+					if exitCode := writeExecutionError(
+						&stderr,
+						[]string{"extension", "install", "./plugin", "-o", "json"},
+						portableErr,
+					); exitCode != 1 {
+						t.Fatalf("writeExecutionError() exit code = %d, want 1", exitCode)
+					}
+					var rendered contract.ExtensionValidationErrorPayload
+					if err := json.Unmarshal(stderr.Bytes(), &rendered); err != nil {
+						t.Fatalf("json.Unmarshal(rendered validation error) error = %v", err)
+					}
+					if len(rendered.Issues) != 1 || rendered.Issues[0].Field != "name" {
+						t.Fatalf("rendered validation issues = %#v, want name issue", rendered.Issues)
+					}
+				}
+			})
+		}
+	})
 
 	t.Run("Should render the digest and retry command for humans", func(t *testing.T) {
 		t.Parallel()

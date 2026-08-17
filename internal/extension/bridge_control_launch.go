@@ -17,7 +17,7 @@ import (
 
 func (m *Manager) executeBridgeControl(
 	ctx context.Context,
-	extension bridgeControlExtension,
+	extension *bridgeControlExtension,
 	bridgeRuntime *subprocess.InitializeBridgeRuntime,
 	method bridgepkg.ControlMethod,
 	call bridgeControlProcessCall,
@@ -66,7 +66,7 @@ func (m *Manager) executeBridgeControl(
 
 func (m *Manager) bridgeControlLaunchConfig(
 	ctx context.Context,
-	extension bridgeControlExtension,
+	extension *bridgeControlExtension,
 	bridgeRuntime *subprocess.InitializeBridgeRuntime,
 ) (subprocess.LaunchConfig, subprocess.InitializeRuntime, []func(), error) {
 	command, err := m.resolveCommand(extension.rootDir, extension.manifest.Subprocess.Command)
@@ -121,7 +121,7 @@ func (m *Manager) bridgeControlLaunchConfig(
 }
 
 func (m *Manager) bridgeControlInitializeRequest(
-	extension bridgeControlExtension,
+	extension *bridgeControlExtension,
 	runtime subprocess.InitializeRuntime,
 	sessionNonce string,
 	method bridgepkg.ControlMethod,
