@@ -399,6 +399,10 @@ func transportHarnessSessionPath(
 }
 
 func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
+	t.Run("Should preserve extension behavior across HTTP, UDS, and CLI", testHTTPTransportExtensionParityMatchesUDS)
+}
+
+func testHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
@@ -614,6 +618,14 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	}
 	if !extensionSemanticallyEqual(httpEnable.Extension, cliEnable.Extension) {
 		t.Fatalf("HTTP enabled extension = %#v, want CLI parity %#v", httpEnable.Extension, cliEnable.Extension)
+	}
+	if !httpEnable.Extension.Enabled || !udsEnable.Extension.Enabled || !cliEnable.Extension.Enabled {
+		t.Fatalf(
+			"enabled states = HTTP:%t UDS:%t CLI:%t, want all true",
+			httpEnable.Extension.Enabled,
+			udsEnable.Extension.Enabled,
+			cliEnable.Extension.Enabled,
+		)
 	}
 
 	logsPath := "/api/extensions/" + url.PathEscape(extensionName) + "/logs"
