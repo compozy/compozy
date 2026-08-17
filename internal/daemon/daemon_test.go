@@ -2275,6 +2275,9 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	if err := d.bootHooks(testutil.Context(t), state, cleanup); err != nil {
 		t.Fatalf("bootHooks() error = %v", err)
 	}
+	if err := d.bootResourceWatchers(testutil.Context(t), state, cleanup); err != nil {
+		t.Fatalf("bootResourceWatchers() error = %v", err)
+	}
 	t.Cleanup(func() {
 		for i, v := range slices.Backward(cleanup.fns) {
 			if err := v(testutil.Context(t)); err != nil {
@@ -2310,6 +2313,19 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 	}
 	if len(records) == 0 {
 		t.Fatal("store.List() count = 0, want native hook bindings")
+	}
+}
+
+func TestBootResourceWatchersRequiresHookBindingsForSkillsWatcher(t *testing.T) {
+	t.Parallel()
+
+	state := &bootState{skillsRegistry: skills.NewRegistry(skills.RegistryConfig{})}
+	err := (&Daemon{}).bootResourceWatchers(testutil.Context(t), state, &bootCleanup{})
+	if err == nil {
+		t.Fatal("bootResourceWatchers() error = nil, want missing hook bindings error")
+	}
+	if got, want := err.Error(), "daemon: hook bindings are required before starting the skills watcher"; got != want {
+		t.Fatalf("bootResourceWatchers() error = %q, want %q", got, want)
 	}
 }
 
@@ -5208,7 +5224,7 @@ args = ["-c", "printf '{}'"]
 	})
 }
 
-func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.T) {
+func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
 
 	homePaths := testHomePaths(t)
@@ -5243,6 +5259,10 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 	if skillsDone == nil {
 		t.Fatal("boot() did not start the skills watcher")
 	}
+	loopsDone := d.loopsDone
+	if loopsDone == nil {
+		t.Fatal("boot() did not start the loops watcher after configuring extension publishers")
+	}
 
 	writeDaemonSkill(t, homePaths.SkillsDir, "watched-skill", "Global watched skill")
 	waitForCondition(t, "watcher refresh after boot", func() bool {
@@ -5257,6 +5277,11 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 	case <-skillsDone:
 	default:
 		t.Fatal("skills watcher was still running after shutdown")
+	}
+	select {
+	case <-loopsDone:
+	default:
+		t.Fatal("loops watcher was still running after shutdown")
 	}
 	versionAfterShutdown := registry.GlobalVersion()
 

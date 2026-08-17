@@ -41,39 +41,6 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 		return nil
 	})
 
-	if state.skillsRegistry != nil {
-		state.skillsCancel, state.skillsDone = startSkillsWatcher(
-			ctx,
-			state.skillsRegistry,
-			state.cfg.Skills.PollInterval,
-			workspaceSkillWatcherRoots(d.homePaths, state.registry),
-			func(refreshCtx context.Context) error {
-				if state.agentSkillResources != nil {
-					if err := state.agentSkillResources.Sync(refreshCtx); err != nil {
-						return err
-					}
-				}
-				return hookBindings.Sync(refreshCtx)
-			},
-		)
-		cleanup.add(func(cleanupCtx context.Context) error {
-			return stopSkillsWatcher(cleanupCtx, state.skillsCancel, state.skillsDone)
-		})
-	}
-	if state.loopResources != nil {
-		state.loopsCancel, state.loopsDone = startLoopWatcher(
-			ctx,
-			state.cfg.Skills.PollInterval,
-			[]string{d.homePaths.LoopsDir},
-			workspaceLoopWatcherRoots(d.homePaths, state.registry),
-			state.loopResources,
-			state.logger,
-		)
-		cleanup.add(func(cleanupCtx context.Context) error {
-			return stopLoopWatcher(cleanupCtx, state.loopsCancel, state.loopsDone)
-		})
-	}
-
 	state.hooks = hooks
 	state.hookDispatcher = hooks
 	state.hookBindings = hookBindings
