@@ -146,6 +146,7 @@ skills = ["skills"]
 			buildCmd  []string
 			resources bool
 			wantError string
+			wantField string
 		}{
 			{
 				name:      "Should explain how to author a source without a manifest or toolchain",
@@ -159,6 +160,7 @@ version = "0.1.0"
 min_compozy_version = "0.0.0"
 `,
 				wantError: "must declare at least one skill",
+				wantField: manifestResourcesKey,
 			},
 			{
 				name: "Should reject an authored subprocess",
@@ -175,6 +177,7 @@ command = "./bin/extension"
 `,
 				resources: true,
 				wantError: "requires package.json or go.mod",
+				wantField: manifestSubprocessKey,
 			},
 			{
 				name: "Should reject runtime capabilities",
@@ -191,6 +194,7 @@ provides = ["tool.provider"]
 `,
 				resources: true,
 				wantError: "requires package.json or go.mod",
+				wantField: manifestSubprocessKey,
 			},
 			{
 				name: "Should reject executable hooks",
@@ -211,6 +215,7 @@ executor.args = ["hook.js"]
 `,
 				resources: true,
 				wantError: "requires package.json or go.mod",
+				wantField: manifestSubprocessKey,
 			},
 			{
 				name: "Should reject static tool backends",
@@ -232,6 +237,7 @@ handler = "lookup"
 `,
 				resources: true,
 				wantError: "requires package.json or go.mod",
+				wantField: manifestSubprocessKey,
 			},
 			{
 				name: "Should reject MCP server declarations",
@@ -249,6 +255,7 @@ transport = "stdio"
 `,
 				resources: true,
 				wantError: "requires package.json or go.mod",
+				wantField: manifestSubprocessKey,
 			},
 			{
 				name: "Should reject a build command override",
@@ -263,6 +270,7 @@ skills = ["skills"]
 				buildCmd:  []string{"make", "extension"},
 				resources: true,
 				wantError: "requires package.json or go.mod",
+				wantField: "build_command",
 			},
 		}
 
@@ -291,6 +299,12 @@ skills = ["skills"]
 				}
 				if !strings.Contains(err.Error(), testCase.wantError) {
 					t.Fatalf("buildBundle() error = %v, want %q", err, testCase.wantError)
+				}
+				if testCase.wantField != "" {
+					var validationErr *ManifestValidationError
+					if !errors.As(err, &validationErr) || validationErr.Field != testCase.wantField {
+						t.Fatalf("buildBundle() error = %#v, want validation field %q", err, testCase.wantField)
+					}
 				}
 				generations, globErr := filepath.Glob(filepath.Join(dir, "dist", "gen-*"))
 				if globErr != nil {

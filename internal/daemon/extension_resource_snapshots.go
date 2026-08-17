@@ -58,10 +58,11 @@ func extensionResourceSnapshots(
 	}
 	scopedRuntime, ok := runtime.(scopedExtensionRuntime)
 	if !ok {
-		return nil, fmt.Errorf("daemon: extension runtime does not support workspace development resources")
+		logUnsupportedDevelopmentLinks(logger, len(links))
+		return snapshots, nil
 	}
 	for _, link := range links {
-		key := extensionpkg.InstanceKey{Name: link.ExtensionName, WorkspaceID: link.WorkspaceID}
+		key := (extensionpkg.InstanceKey{Name: link.ExtensionName, WorkspaceID: link.WorkspaceID}).Normalize()
 		ext, loadErr := scopedRuntime.GetForInstance(key)
 		if loadErr != nil {
 			if errors.Is(loadErr, extensionpkg.ErrExtensionNotFound) {
@@ -95,9 +96,15 @@ func extensionResourceSnapshots(
 			extension: ext,
 			scope: resources.ResourceScope{
 				Kind: resources.ResourceScopeKindWorkspace,
-				ID:   strings.TrimSpace(link.WorkspaceID),
+				ID:   key.WorkspaceID,
 			},
 		})
 	}
 	return snapshots, nil
+}
+
+func logUnsupportedDevelopmentLinks(logger *slog.Logger, count int) {
+	if logger != nil {
+		logger.Warn("extension.resource_sync.dev_links_unsupported", "dev_link_count", count)
+	}
 }

@@ -215,6 +215,10 @@ func testDaemonE2EResourceOnlyExtensionAuthoring(t *testing.T) {
 	if err == nil {
 		t.Fatalf("invalid resource-only reload error = nil; stdout=%s stderr=%s", stdout, stderr)
 	}
+	if strings.TrimSpace(stdout) != "" || !strings.Contains(stderr, "AGENT.md") ||
+		!strings.Contains(stderr, "decode agent frontmatter") {
+		t.Fatalf("invalid resource-only reload stdout=%q stderr=%q, want invalid AGENT.md diagnostic", stdout, stderr)
+	}
 	active := findWorkspaceExtension(t, ctx, harness, resourceOnlyExtensionAuthoringE2EName)
 	if active.GenerationHash != reloaded.GenerationHash || !active.Dev {
 		t.Fatalf("active extension after invalid edit = %#v, want generation %q", active, reloaded.GenerationHash)

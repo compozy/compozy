@@ -34,6 +34,51 @@ func (r *resourceSnapshotRuntime) GetForInstance(key extensionpkg.InstanceKey) (
 func TestExtensionResourceSnapshotsIncludesWorkspaceDevelopmentLinks(t *testing.T) {
 	t.Parallel()
 	t.Run("Should include development resources only in their workspace scope", testExtensionResourceSnapshots)
+	t.Run("Should normalize workspace IDs before resolving development resources", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		const (
+			extensionName = "normalized-resource-kit"
+			workspaceID   = "workspace-normalized"
+		)
+		if _, err := registry.LinkDev(extensionpkg.DevLinkRequest{
+			Name: extensionName, WorkspaceID: workspaceID, OriginPath: t.TempDir(),
+			GenerationHash: resourceSnapshotGeneration, Format: extensionpkg.FormatCompozy,
+		}); err != nil {
+			t.Fatalf("registry.LinkDev() error = %v", err)
+		}
+		if _, err := db.DB().ExecContext(
+			t.Context(),
+			`UPDATE extension_dev_links SET workspace_id = ? WHERE extension_name = ?`,
+			"  "+workspaceID+"  ",
+			extensionName,
+		); err != nil {
+			t.Fatalf("pad persisted workspace ID: %v", err)
+		}
+
+		key := extensionpkg.InstanceKey{Name: extensionName, WorkspaceID: workspaceID}
+		ext := &extensionpkg.Extension{
+			Info: extensionpkg.ExtensionInfo{Name: extensionName, Enabled: true},
+			Status: extensionpkg.ExtensionStatus{
+				Name: extensionName, Enabled: true, Registered: true, WorkspaceID: workspaceID,
+			},
+			Manifest: &extensionpkg.Manifest{Name: extensionName, Format: extensionpkg.FormatCompozy},
+		}
+		runtime := &resourceSnapshotRuntime{
+			fakeExtensionRuntime: &fakeExtensionRuntime{},
+			instances:            map[extensionpkg.InstanceKey]*extensionpkg.Extension{key: ext},
+		}
+
+		snapshots, err := extensionResourceSnapshots(registry, runtime, discardLogger())
+		if err != nil {
+			t.Fatalf("extensionResourceSnapshots() error = %v", err)
+		}
+		if len(snapshots) != 1 || snapshots[0].scope.ID != workspaceID {
+			t.Fatalf("extensionResourceSnapshots() = %#v, want normalized workspace snapshot", snapshots)
+		}
+	})
 }
 
 func testExtensionResourceSnapshots(t *testing.T) {
@@ -142,6 +187,47 @@ func TestExtensionResourceSnapshotsIgnoreInactiveDevelopmentLinks(t *testing.T) 
 					t.Fatalf("extensionResourceSnapshots() = %#v, want no inactive development snapshots", snapshots)
 				}
 			})
+		}
+	})
+}
+
+func TestExtensionResourceSnapshotsPreserveGlobalResourcesWithoutScopedRuntime(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep global snapshots when development lookup is unsupported", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		const (
+			extensionName = "global-resource-kit"
+			workspaceID   = "workspace-global-fallback"
+		)
+		installDaemonTestExtension(t, db, extensionName, daemonTestExtensionOptions{}, true)
+		registry := extensionpkg.NewRegistry(db.DB())
+		if _, err := registry.LinkDev(extensionpkg.DevLinkRequest{
+			Name: extensionName, WorkspaceID: workspaceID, OriginPath: t.TempDir(),
+			GenerationHash: resourceSnapshotGeneration, Format: extensionpkg.FormatCompozy,
+		}); err != nil {
+			t.Fatalf("registry.LinkDev() error = %v", err)
+		}
+		global := &extensionpkg.Extension{
+			Info: extensionpkg.ExtensionInfo{Name: extensionName, Enabled: true},
+			Status: extensionpkg.ExtensionStatus{
+				Name: extensionName, Enabled: true, Registered: true,
+			},
+			Manifest: &extensionpkg.Manifest{Name: extensionName, Format: extensionpkg.FormatCompozy},
+		}
+
+		snapshots, err := extensionResourceSnapshots(
+			registry,
+			&fakeExtensionRuntime{getExt: global},
+			discardLogger(),
+		)
+		if err != nil {
+			t.Fatalf("extensionResourceSnapshots() error = %v", err)
+		}
+		if len(snapshots) != 1 || snapshots[0].extension != global ||
+			snapshots[0].scope.Kind != resources.ResourceScopeKindGlobal {
+			t.Fatalf("extensionResourceSnapshots() = %#v, want preserved global snapshot", snapshots)
 		}
 	})
 }

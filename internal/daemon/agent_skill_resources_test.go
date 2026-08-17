@@ -20,89 +20,94 @@ import (
 
 func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	t.Parallel()
+	t.Run("Should list, get, and resolve agents by scope", func(t *testing.T) {
+		t.Parallel()
 
-	catalog := newResourceCatalog(cloneAgentDef)
-	catalog.Replace(5, []resources.Record[compozyconfig.AgentDef]{
-		{
-			ID:    "global:alpha",
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  compozyconfig.AgentDef{Name: "alpha", Prompt: "global alpha"},
-		},
-		{
-			ID:    "global:onboarding",
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  compozyconfig.AgentDef{Name: "onboarding", Prompt: "global onboarding"},
-		},
-		{
-			ID:    "global:coder",
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			Spec:  compozyconfig.AgentDef{Name: "coder", Prompt: "global coder"},
-		},
-		{
-			ID:    "workspace:coder",
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
-			Spec:  compozyconfig.AgentDef{Name: "coder", Prompt: "workspace coder", Tools: []string{"compozy__lookup"}},
-		},
-		{
-			ID:    "workspace:onboarding",
-			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
-			Spec:  compozyconfig.AgentDef{Name: "onboarding", Prompt: "workspace onboarding"},
-		},
+		catalog := newResourceCatalog(cloneAgentDef)
+		catalog.Replace(5, []resources.Record[compozyconfig.AgentDef]{
+			{
+				ID:    "global:alpha",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec:  compozyconfig.AgentDef{Name: "alpha", Prompt: "global alpha"},
+			},
+			{
+				ID:    "global:onboarding",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec:  compozyconfig.AgentDef{Name: "onboarding", Prompt: "global onboarding"},
+			},
+			{
+				ID:    "global:coder",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Spec:  compozyconfig.AgentDef{Name: "coder", Prompt: "global coder"},
+			},
+			{
+				ID:    "workspace:coder",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
+				Spec: compozyconfig.AgentDef{
+					Name: "coder", Prompt: "workspace coder", Tools: []string{"compozy__lookup"},
+				},
+			},
+			{
+				ID:    "workspace:onboarding",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
+				Spec:  compozyconfig.AgentDef{Name: "onboarding", Prompt: "workspace onboarding"},
+			},
+		})
+
+		dependency := agentCatalogDependency(catalog)
+		listed, err := dependency.ListAgents(context.Background())
+		if err != nil {
+			t.Fatalf("ListAgents() error = %v", err)
+		}
+		if got, want := len(listed), 3; got != want {
+			t.Fatalf("len(ListAgents()) = %d, want %d", got, want)
+		}
+		if listed[0].Def.Name != "alpha" || listed[1].Def.Name != "coder" || listed[2].Def.Name != "onboarding" {
+			t.Fatalf("ListAgents() = %#v, want global agents sorted by name", listed)
+		}
+		if listed[0].Origin != contract.AgentOriginGlobal || listed[0].WorkspaceID != "" {
+			t.Fatalf("ListAgents()[0] origin = %#v", listed[0])
+		}
+
+		got, err := dependency.GetAgent(context.Background(), "alpha")
+		if err != nil {
+			t.Fatalf("GetAgent(alpha) error = %v", err)
+		}
+		if got.Def.Prompt != "global alpha" {
+			t.Fatalf("GetAgent(alpha).Def.Prompt = %q, want global alpha", got.Def.Prompt)
+		}
+		if _, err := dependency.GetAgent(context.Background(), "missing"); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("GetAgent(missing) error = %v, want os.ErrNotExist", err)
+		}
+		onboardingEntry, err := dependency.GetAgent(context.Background(), "onboarding")
+		if err != nil || onboardingEntry.Def.Prompt != "global onboarding" {
+			t.Fatalf("GetAgent(onboarding) = %#v, %v", onboardingEntry, err)
+		}
+
+		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
+		workspaceEntries, err := dependency.ListAgentsForWorkspace(context.Background(), resolved)
+		if err != nil {
+			t.Fatalf("ListAgentsForWorkspace() error = %v", err)
+		}
+		if len(workspaceEntries) != 3 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
+			workspaceEntries[1].WorkspaceID != "ws-1" {
+			t.Fatalf("workspace entries = %#v", workspaceEntries)
+		}
+		coder, err := dependency.ResolveAgent("coder", resolved)
+		if err != nil {
+			t.Fatalf("ResolveAgent(coder) error = %v", err)
+		}
+		if coder.Prompt != "workspace coder" || len(coder.Tools) != 1 || coder.Tools[0] != "compozy__lookup" {
+			t.Fatalf("ResolveAgent(coder) = %#v, want workspace override", coder)
+		}
+		onboarding, err := dependency.ResolveAgent("onboarding", resolved)
+		if err != nil {
+			t.Fatalf("ResolveAgent(onboarding) error = %v", err)
+		}
+		if onboarding.Prompt != "workspace onboarding" {
+			t.Fatalf("ResolveAgent(onboarding).Prompt = %q, want workspace onboarding", onboarding.Prompt)
+		}
 	})
-
-	dependency := agentCatalogDependency(catalog)
-	listed, err := dependency.ListAgents(context.Background())
-	if err != nil {
-		t.Fatalf("ListAgents() error = %v", err)
-	}
-	if got, want := len(listed), 3; got != want {
-		t.Fatalf("len(ListAgents()) = %d, want %d", got, want)
-	}
-	if listed[0].Def.Name != "alpha" || listed[1].Def.Name != "coder" || listed[2].Def.Name != "onboarding" {
-		t.Fatalf("ListAgents() = %#v, want global agents sorted by name", listed)
-	}
-	if listed[0].Origin != contract.AgentOriginGlobal || listed[0].WorkspaceID != "" {
-		t.Fatalf("ListAgents()[0] origin = %#v", listed[0])
-	}
-
-	got, err := dependency.GetAgent(context.Background(), "alpha")
-	if err != nil {
-		t.Fatalf("GetAgent(alpha) error = %v", err)
-	}
-	if got.Def.Prompt != "global alpha" {
-		t.Fatalf("GetAgent(alpha).Def.Prompt = %q, want global alpha", got.Def.Prompt)
-	}
-	if _, err := dependency.GetAgent(context.Background(), "missing"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("GetAgent(missing) error = %v, want os.ErrNotExist", err)
-	}
-	onboardingEntry, err := dependency.GetAgent(context.Background(), "onboarding")
-	if err != nil || onboardingEntry.Def.Prompt != "global onboarding" {
-		t.Fatalf("GetAgent(onboarding) = %#v, %v", onboardingEntry, err)
-	}
-
-	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
-	workspaceEntries, err := dependency.ListAgentsForWorkspace(context.Background(), resolved)
-	if err != nil {
-		t.Fatalf("ListAgentsForWorkspace() error = %v", err)
-	}
-	if len(workspaceEntries) != 3 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
-		workspaceEntries[1].WorkspaceID != "ws-1" {
-		t.Fatalf("workspace entries = %#v", workspaceEntries)
-	}
-	coder, err := dependency.ResolveAgent("coder", resolved)
-	if err != nil {
-		t.Fatalf("ResolveAgent(coder) error = %v", err)
-	}
-	if coder.Prompt != "workspace coder" || len(coder.Tools) != 1 || coder.Tools[0] != "compozy__lookup" {
-		t.Fatalf("ResolveAgent(coder) = %#v, want workspace override", coder)
-	}
-	onboarding, err := dependency.ResolveAgent("onboarding", resolved)
-	if err != nil {
-		t.Fatalf("ResolveAgent(onboarding) error = %v", err)
-	}
-	if onboarding.Prompt != "workspace onboarding" {
-		t.Fatalf("ResolveAgent(onboarding).Prompt = %q, want workspace onboarding", onboarding.Prompt)
-	}
 }
 
 func TestAgentSkillSourceSyncerSerializesConvergence(t *testing.T) {
