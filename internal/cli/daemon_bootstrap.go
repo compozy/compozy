@@ -150,7 +150,7 @@ func (e *bootstrapExecution) resolveAndStart() error {
 	runtimePath, owned := resolveBootstrapRuntime(e.deps, e.homePaths, e.installedPath)
 	installed := regularFileExists(runtimePath)
 	resolution := resolveBootstrapAction(bootstrapProbe{Installed: installed})
-	if err := provisionBootstrapRuntime(e.cmd, bootstrapProvisionRequest{
+	if err := provisionBootstrapRuntime(e.cmd, &bootstrapProvisionRequest{
 		resolution:    resolution,
 		homePaths:     e.homePaths,
 		bundlePath:    e.bundlePath,

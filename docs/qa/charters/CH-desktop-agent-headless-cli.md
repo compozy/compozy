@@ -28,7 +28,6 @@ charter:
       - "E2E-024/E2E-025: status before install (installed:false, exit 0) → install → `compozy app open` → status through provisioning → attached → `open /settings` focuses and navigates → kill the app → running:false; validate every `-o json` payload against desktop/schema/app-state.schema.json."
       - "E2E-026/E2E-027: `compozy update --check -o json` reports the mock channel availability; the multi-target path runs runtime first and stages or hands off the app, while the headless path omits the app target."
       - "Force a post-swap runtime health failure and prove the operation archives `rolled-back`, the previous binary is restored byte-identically, and a retry requires a newly verified candidate."
-      - "Run `compozy app update --check` and prove unknown command plus no operation record."
       - "Probe the failure vocabulary: `app_not_installed`, `invalid_target_path`, socket absent → `app_not_running`, socket unresponsive → `app_control_unavailable`; assert socket permissions 0600."
     must_avoid:
       - "Never infer state from the UI — this session is terminal-only; screenshots are not evidence here, transcripts are."

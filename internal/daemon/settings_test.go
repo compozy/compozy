@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -658,13 +657,14 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 		if err := os.WriteFile(binaryPath, binary, 0o700); err != nil {
 			t.Fatalf("WriteFile(runtime binary) error = %v", err)
 		}
-		digest := sha256.Sum256(binary)
-		marker := fmt.Sprintf(
-			`{"installed_by":"desktop-app","binary_sha256":"%x"}`,
-			digest,
-		)
-		if err := os.WriteFile(filepath.Join(binDir, ".desktop-provenance.json"), []byte(marker), 0o600); err != nil {
-			t.Fatalf("WriteFile(desktop provenance) error = %v", err)
+		if err := compozyupdate.WriteDesktopProvenance(
+			homePaths,
+			binaryPath,
+			compozyupdate.DesktopProvenanceMetadata{
+				AppVersion: "1.0.0", Channel: "beta", RuntimeVersion: "1.0.0",
+			},
+		); err != nil {
+			t.Fatalf("WriteDesktopProvenance() error = %v", err)
 		}
 		releasePayload := `{
 			"tag_name":"v1.1.0",

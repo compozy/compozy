@@ -68,7 +68,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
-			modelcatalog.LiveProviderSourcesConfig{
+			&modelcatalog.LiveProviderSourcesConfig{
 				HomePaths:      homePaths,
 				CursorACPProbe: probe,
 				DefaultTimeout: 5 * time.Second,
@@ -235,7 +235,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
-			modelcatalog.LiveProviderSourcesConfig{
+			&modelcatalog.LiveProviderSourcesConfig{
 				HomePaths:      homePaths,
 				CursorACPProbe: probe,
 				DefaultTimeout: 5 * time.Second,
@@ -421,7 +421,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
-			modelcatalog.LiveProviderSourcesConfig{
+			&modelcatalog.LiveProviderSourcesConfig{
 				HomePaths:      homePaths,
 				CursorACPProbe: probe,
 				DefaultTimeout: 5 * time.Second,
@@ -636,7 +636,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
-			modelcatalog.LiveProviderSourcesConfig{
+			&modelcatalog.LiveProviderSourcesConfig{
 				HomePaths:      homePaths,
 				CursorACPProbe: probe,
 				DefaultTimeout: 5 * time.Second,

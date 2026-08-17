@@ -18,7 +18,7 @@ type bootstrapProvisionRequest struct {
 	provenance    compozyupdate.DesktopProvenanceMetadata
 }
 
-func provisionBootstrapRuntime(cmd *cobra.Command, request bootstrapProvisionRequest) error {
+func provisionBootstrapRuntime(cmd *cobra.Command, request *bootstrapProvisionRequest) error {
 	if request.resolution != bootstrapResolutionProvision {
 		return nil
 	}

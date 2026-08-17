@@ -249,7 +249,8 @@ func gitEnvironment(parent []string) []string {
 			continue
 		}
 		switch strings.ToUpper(strings.TrimSpace(name)) {
-		case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OPTIONAL_LOCKS", "GIT_TERMINAL_PROMPT", "GCM_INTERACTIVE":
+		case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OPTIONAL_LOCKS",
+			"GIT_TERMINAL_PROMPT", "GCM_INTERACTIVE":
 			continue
 		default:
 			if redact.IsSensitiveKey(name) || redact.String(entry) != entry {

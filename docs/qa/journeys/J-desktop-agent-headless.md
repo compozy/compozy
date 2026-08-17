@@ -2,8 +2,8 @@
 
 An agent drives the desktop capability through structured CLI and settings transports: `compozy app`
 owns app state, launch, retry, and diagnostics; `compozy update` exclusively owns runtime and
-app updates; HTTP and UDS expose the same update truth. The deleted app-scoped update verb stays
-absent. Every result is deterministic, machine-readable, schema-valid, and observable without the UI.
+app updates; HTTP and UDS expose the same update truth. Every result is deterministic,
+machine-readable, schema-valid, and observable without the UI.
 
 ```mermaid
 flowchart TD
@@ -27,8 +27,6 @@ flowchart TD
     Q --> N
     M --> N
     N --> O[True end: status running:false, every state seen was truthful and deterministic]
-    H --> R[compozy app update --check returns unknown command and no side effect]
-    R --> I
     H -.->|socket absent or unresponsive| X1[Abandon: app_not_running / app_control_unavailable named deterministically - the agent stops cleanly, no ambiguous retry]
 ```
 
@@ -55,9 +53,6 @@ journey:
       verb: "Drive app and runtime updates headlessly across CLI, HTTP, and UDS"
       expected_observable: "Every read agrees; apply is runtime-first; a closed app stages; `--cancel` releases only a dormant operation"
     - step: 5
-      verb: "Probe the retired app-scoped update verb"
-      expected_observable: "`compozy app update --check` is unknown, creates no operation, and offers no compatibility alias"
-    - step: 6
       verb: "Probe failure vocabulary"
       expected_observable: "`app_not_installed`, `app_not_running`, and `app_control_unavailable` are named, typed, and stable; a failed runtime health check is reported separately as update outcome `rolled-back`"
   goal:

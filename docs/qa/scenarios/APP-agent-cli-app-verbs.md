@@ -4,8 +4,8 @@ area: APP
 title: Drive the desktop surface end-to-end through compozy app
 persona: Ada
 journey: J-desktop-agent-headless
-expected: The full lifecycle — status before install, open or focus, retry, schema-v2 transitional state, navigation, `compozy update` handoff, redacted diagnostics, consent-gated bundle export, and stopped state — is deterministic structured output with named errors; `compozy app update --check` is unknown and creates no operation.
-entry_points: compozy app status|open|retry|diagnose -o json; compozy update [--check|--cancel] -o json; compozy app update --check (unknown command); app.sock control socket
+expected: The full lifecycle — status before install, open or focus, retry, schema-v2 transitional state, navigation, `compozy update` handoff, redacted diagnostics, consent-gated bundle export, and stopped state — is deterministic structured output with named errors.
+entry_points: compozy app status|open|retry|diagnose -o json; compozy update [--check|--cancel] -o json; app.sock control socket
 qa_status: pass
 bug_ids: BUG-20260810-app-control-timeout; BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
@@ -36,5 +36,5 @@ current-boot `desktop.log` and `desktop-bootstrap.jsonl` tails. The isolated mac
 and offline diagnose, consent, allowlist, permissions, stale-socket, and no-clobber legs. The full
 packaged status/open/update matrix and shipping OS coverage remain blocked for artifact verification.
 
-QA impact 2026-08-16: the retired app-scoped updater verb was deleted, app state moved to schema v2, and the
-runtime/app operation moved to `compozy update`. Reset for the Task 07 headless walk.
+QA impact 2026-08-16: app state moved to schema v2 and the runtime/app operation moved to
+`compozy update`. Reset for the Task 07 headless walk.

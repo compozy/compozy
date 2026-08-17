@@ -225,7 +225,10 @@ func TestGitHubBackendSafety(t *testing.T) {
 				if err != nil {
 					t.Fatalf("json.Marshal(commits) error = %v", err)
 				}
-				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(body)))}, nil
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(string(body))),
+				}, nil
 			}),
 			apiURL: "https://api.github.test", repository: "compozy/compozy", token: "secret",
 		}
@@ -469,7 +472,12 @@ func TestChannelAuthority(t *testing.T) {
 				})
 			}
 			if CodeOf(err) != ErrorVerificationFailed {
-				t.Fatalf("CodeOf(reused operation error) = %q, want %q; error = %v", CodeOf(err), ErrorVerificationFailed, err)
+				t.Fatalf(
+					"CodeOf(reused operation error) = %q, want %q; error = %v",
+					CodeOf(err),
+					ErrorVerificationFailed,
+					err,
+				)
 			}
 			assertErrorContains(t, err, "already belongs to publish 1.0.0-beta.2")
 		})

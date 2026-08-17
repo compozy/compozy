@@ -172,7 +172,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		cmd := &cobra.Command{}
 		cmd.Flags().StringP("output", "o", "jsonl", "")
 		cmd.SetOut(&bytes.Buffer{})
-		err := provisionBootstrapRuntime(cmd, bootstrapProvisionRequest{
+		err := provisionBootstrapRuntime(cmd, &bootstrapProvisionRequest{
 			resolution:    bootstrapResolutionProvision,
 			homePaths:     homePaths,
 			bundlePath:    source,
@@ -212,7 +212,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		cmd := &cobra.Command{}
 		cmd.Flags().StringP("output", "o", "jsonl", "")
 		cmd.SetOut(&bytes.Buffer{})
-		err := provisionBootstrapRuntime(cmd, bootstrapProvisionRequest{
+		err := provisionBootstrapRuntime(cmd, &bootstrapProvisionRequest{
 			resolution:    bootstrapResolutionProvision,
 			homePaths:     homePaths,
 			bundlePath:    source,
