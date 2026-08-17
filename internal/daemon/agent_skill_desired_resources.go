@@ -102,9 +102,14 @@ func (s *agentSkillSourceSyncer) appendDesiredAgents(
 		desired.agents[id] = desiredAgentResource{
 			id: id, scope: item.scope.Normalize(), owner: item.owner, spec: spec, encoded: encoded,
 		}
-		agentIDsBySourceKey[item.sourceKey] = id
+		agentIDsBySourceKey[scopedAgentSourceKey(item.scope, item.sourceKey)] = id
 	}
 	return nil
+}
+
+func scopedAgentSourceKey(scope resources.ResourceScope, sourceKey string) string {
+	normalized := scope.Normalize()
+	return string(normalized.Kind) + "\x00" + normalized.ID + "\x00" + strings.TrimSpace(sourceKey)
 }
 
 func (s *agentSkillSourceSyncer) appendDesiredSkills(

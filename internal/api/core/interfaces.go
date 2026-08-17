@@ -34,6 +34,7 @@ type AgentLoader func(name string, homePaths compozyconfig.HomePaths) (compozyco
 // AgentCatalog exposes projected resource-backed agent definitions.
 type AgentCatalog interface {
 	ListAgents(ctx context.Context) ([]AgentCatalogEntry, error)
+	ListAgentsForWorkspace(context.Context, *workspacepkg.ResolvedWorkspace) ([]AgentCatalogEntry, error)
 	GetAgent(ctx context.Context, name string) (AgentCatalogEntry, error)
 }
 

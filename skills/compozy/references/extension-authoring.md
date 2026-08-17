@@ -23,7 +23,10 @@ The SDK declaration is the single source of truth. `compozy extension build` sta
 with the `__describe` argument, reads the contract it prints, and generates
 `dist/gen-<hash>/extension.toml`. Never hand-write or hand-edit a manifest for a subprocess
 extension: the next build overwrites it. Hand-written manifests are for resource-only extensions,
-which run no code.
+which run no extension process. When a native resource-only manifest declares at least one skill,
+agent, Loop, automation, or layout path, `build` validates and copies those resources without running
+build or describe commands. Executable extension contracts — including hooks, tools, MCP servers,
+bridge metadata, and command groups — still require `package.json` or `go.mod`.
 
 There is no second place to declare identity, schemas, permissions, tools, hooks, or commands, so
 schema-digest drift cannot occur. Manifest generation is deterministic; identical source produces a
@@ -223,9 +226,11 @@ What `build` writes, for reading rather than editing: `[extension]` (`name`, `ve
 kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, optional `command`),
 `[[resources.hooks]]`, and `[[resources.command_groups]]`.
 
-Resource-only extensions additionally hand-write `resources.skills|agents|loops|automation|layouts|mcp_servers`
-and `[resources.publish]` (families plus `max_scope`). Resource paths resolve inside the extension
-root; `{{config_dir}}` is that root and `{{env:NAME}}` reads the daemon process environment.
+Resource-only extensions additionally hand-write `resources.skills|agents|loops|automation|layouts`
+and may declare `[resources.publish]` (families plus `max_scope`). Resource paths resolve inside the
+extension root; `{{config_dir}}` is that root and `{{env:NAME}}` reads the daemon process environment.
+Hooks, tools, command groups, MCP servers, bridge metadata, and subprocess behavior require a supported
+code toolchain.
 
 Static kit resources stay inert after install. Enable publishes the instance-owned resources; disable
 removes them. Use extension inventory to compare shipped and live resources, and preview to inspect
@@ -257,6 +262,10 @@ Pre-install review:
 compozy extension build <dir> -o json      -> generation_hash, generation_dir, manifest_path
 compozy extension validate <gen-dir> -o json -> issues[] (path/line/column/field/severity), consent_areas[]
 ```
+
+Resource-only development uses the same commands. Start from a handwritten native manifest with at
+least one `resources.skills|agents|loops|automation|layouts` path; `build`, `dev`, `reload`, and
+`dev --watch` publish changes without executing extension code.
 
 Iterate:
 

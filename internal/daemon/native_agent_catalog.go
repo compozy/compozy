@@ -26,7 +26,7 @@ func (n *daemonNativeTools) workspaceAgents(
 		}
 	}
 	if n.deps.AgentCatalog != nil {
-		catalogAgents, err := n.deps.AgentCatalog.ListAgents(ctx)
+		catalogAgents, err := n.deps.AgentCatalog.ListAgentsForWorkspace(ctx, resolved)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: list agent catalog entries: %w", err)
 		}

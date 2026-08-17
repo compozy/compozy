@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -156,29 +155,19 @@ func (s *extensionKitSourceSyncer) desired(
 	if manager == nil {
 		return jobs, triggers, layouts, nil
 	}
-	infos, err := s.registry.List()
+	snapshots, err := extensionResourceSnapshots(s.registry, manager, s.logger)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("daemon: list extensions for kit sync: %w", err)
+		return nil, nil, nil, err
 	}
-	slices.SortFunc(infos, func(left, right extensionpkg.ExtensionInfo) int {
-		return strings.Compare(left.Name, right.Name)
-	})
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-	for _, info := range infos {
-		if !info.Enabled {
-			continue
-		}
-		ext, err := loadExtensionSnapshot(s.registry, manager, s.logger, info.Name)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("daemon: load extension %q for kit sync: %w", info.Name, err)
-		}
+	for _, snapshot := range snapshots {
+		ext := snapshot.extension
 		if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 			continue
 		}
 		if err := s.collectDesiredExtensionKitResources(
 			ctx,
 			ext,
-			globalScope,
+			snapshot.scope,
 			jobs,
 			triggers,
 			layouts,
@@ -199,6 +188,7 @@ func (s *extensionKitSourceSyncer) collectDesiredExtensionKitResources(
 ) error {
 	owner := extensionOwner(ext.Info.Name)
 	for _, job := range ext.AutomationJobs {
+		job = bindExtensionJobScope(job, scope)
 		value, encoded, err := validateAndEncodeResource(ctx, s.jobCodec, scope, job)
 		if err != nil {
 			return fmt.Errorf(
@@ -208,19 +198,21 @@ func (s *extensionKitSourceSyncer) collectDesiredExtensionKitResources(
 				err,
 			)
 		}
-		id := value.ID
-		if strings.TrimSpace(id) == "" {
+		resourceID := value.ID
+		if strings.TrimSpace(resourceID) == "" {
 			return fmt.Errorf(
 				"daemon: extension %q job %q has an empty resource ID",
 				ext.Info.Name,
 				job.Name,
 			)
 		}
+		id := managedPublicationID("", scope, resourceID, encoded, owner)
 		jobs[id] = managedResourceValue[automationpkg.Job]{
 			id: id, scope: scope, owner: owner, spec: value, encoded: encoded,
 		}
 	}
 	for _, trigger := range ext.AutomationTriggers {
+		trigger = bindExtensionTriggerScope(trigger, scope)
 		value, encoded, err := validateAndEncodeResource(ctx, s.triggerCodec, scope, trigger)
 		if err != nil {
 			return fmt.Errorf(
@@ -230,22 +222,24 @@ func (s *extensionKitSourceSyncer) collectDesiredExtensionKitResources(
 				err,
 			)
 		}
-		id := value.ID
-		if strings.TrimSpace(id) == "" {
+		resourceID := value.ID
+		if strings.TrimSpace(resourceID) == "" {
 			return fmt.Errorf(
 				"daemon: extension %q trigger %q has an empty resource ID",
 				ext.Info.Name,
 				trigger.Name,
 			)
 		}
+		id := managedPublicationID("", scope, resourceID, encoded, owner)
 		triggers[id] = managedResourceValue[automationpkg.Trigger]{
 			id: id, scope: scope, owner: owner, spec: value, encoded: encoded,
 		}
 	}
 	for _, layout := range ext.Layouts {
 		id := "extension/" + ext.Info.Name + "/window_layout/" + strings.TrimSpace(layout.ID)
+		publicationID := managedPublicationID("", scope, id, nil, owner)
 		materialized := windowmanager.CloneLayoutResource(layout)
-		materialized.ID = id
+		materialized.ID = publicationID
 		value, encoded, err := validateAndEncodeResource(ctx, s.layoutCodec, scope, materialized)
 		if err != nil {
 			return fmt.Errorf(
@@ -255,9 +249,25 @@ func (s *extensionKitSourceSyncer) collectDesiredExtensionKitResources(
 				err,
 			)
 		}
-		layouts[id] = managedResourceValue[windowmanager.LayoutResource]{
-			id: id, scope: scope, owner: owner, spec: value, encoded: encoded,
+		layouts[publicationID] = managedResourceValue[windowmanager.LayoutResource]{
+			id: publicationID, scope: scope, owner: owner, spec: value, encoded: encoded,
 		}
 	}
 	return nil
+}
+
+func bindExtensionJobScope(job automationpkg.Job, scope resources.ResourceScope) automationpkg.Job {
+	if normalized := scope.Normalize(); normalized.Kind == resources.ResourceScopeKindWorkspace {
+		job.Scope = automationpkg.AutomationScopeWorkspace
+		job.WorkspaceID = normalized.ID
+	}
+	return job
+}
+
+func bindExtensionTriggerScope(trigger automationpkg.Trigger, scope resources.ResourceScope) automationpkg.Trigger {
+	if normalized := scope.Normalize(); normalized.Kind == resources.ResourceScopeKindWorkspace {
+		trigger.Scope = automationpkg.AutomationScopeWorkspace
+		trigger.WorkspaceID = normalized.ID
+	}
+	return trigger
 }

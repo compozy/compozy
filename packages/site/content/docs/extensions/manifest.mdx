@@ -11,7 +11,14 @@ describe mode and generates the manifest into an immutable generation directory.
 manifest by hand means editing a file the next build overwrites — change the code instead.
 
 You write `extension.toml` by hand only for **resource-only** extensions: packages that ship skills,
-agents, automation, layouts, hooks, or MCP servers and run no code of their own.
+agents, Loops, automation, or layouts and run no code of their own.
+
+A native resource-only source can use `extension build`, `dev`, `reload`, and `dev --watch` when it
+declares at least one skill, agent, Loop, automation, or layout path. Build validates the handwritten
+manifest and copies those resource trees without running a build or describe command. Top-level
+subprocess behavior, runtime capabilities, Host API permissions, hooks, tools, MCP servers, bridge
+metadata, command groups, and dynamic resource publication remain code-backed contracts and require
+`package.json` or `go.mod`.
 
 CompozyOS reads `extension.toml` first and `extension.json` second. Both formats carry the same schema.
 

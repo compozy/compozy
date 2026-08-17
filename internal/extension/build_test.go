@@ -80,6 +80,229 @@ func TestBuildBundle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should publish a resource-only generation without running commands", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		skillDir := filepath.Join(dir, "skills", "writer")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(skillDir) error = %v", err)
+		}
+		writeFile(t, filepath.Join(skillDir, "SKILL.md"), "# Writer\n")
+		writeFile(t, filepath.Join(dir, manifestTOMLFileName), `[extension]
+name = "resource-only"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+
+[resources]
+skills = ["skills"]
+`)
+		runner := newBuildTestRunner(validDescribePayload())
+
+		result, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
+		if err != nil {
+			t.Fatalf("buildBundle() error = %v", err)
+		}
+		copied, err := os.ReadFile(filepath.Join(result.GenerationDir, "skills", "writer", "SKILL.md"))
+		if err != nil {
+			t.Fatalf("os.ReadFile(copied skill) error = %v", err)
+		}
+		if string(copied) != "# Writer\n" {
+			t.Fatalf("copied skill = %q, want %q", copied, "# Writer\n")
+		}
+		if len(runner.Commands()) != 0 {
+			t.Fatalf("commands = %#v, want none", runner.Commands())
+		}
+		unchanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
+		if err != nil {
+			t.Fatalf("buildBundle(unchanged) error = %v", err)
+		}
+		if unchanged.GenerationHash != result.GenerationHash {
+			t.Fatalf(
+				"unchanged generation hash = %q, want %q",
+				unchanged.GenerationHash,
+				result.GenerationHash,
+			)
+		}
+		writeFile(t, filepath.Join(skillDir, "SKILL.md"), "# Editor\n")
+		changed, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
+		if err != nil {
+			t.Fatalf("buildBundle(changed) error = %v", err)
+		}
+		if changed.GenerationHash == result.GenerationHash {
+			t.Fatalf("changed generation hash = %q, want a new hash", changed.GenerationHash)
+		}
+		if len(runner.Commands()) != 0 {
+			t.Fatalf("commands after rebuild = %#v, want none", runner.Commands())
+		}
+	})
+
+	t.Run("Should reject resource-only sources that are not passive static kits", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name      string
+			manifest  string
+			buildCmd  []string
+			resources bool
+			wantError string
+		}{
+			{
+				name:      "Should explain how to author a source without a manifest or toolchain",
+				wantError: "expected package.json or go.mod, or a native extension.toml",
+			},
+			{
+				name: "Should reject a manifest without static resources",
+				manifest: `[extension]
+name = "empty"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+`,
+				wantError: "must declare at least one skill",
+			},
+			{
+				name: "Should reject an authored subprocess",
+				manifest: `[extension]
+name = "executable"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+
+[resources]
+skills = ["skills"]
+
+[subprocess]
+command = "./bin/extension"
+`,
+				resources: true,
+				wantError: "requires package.json or go.mod",
+			},
+			{
+				name: "Should reject runtime capabilities",
+				manifest: `[extension]
+name = "capability"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+
+[resources]
+skills = ["skills"]
+
+[capabilities]
+provides = ["tool.provider"]
+`,
+				resources: true,
+				wantError: "requires package.json or go.mod",
+			},
+			{
+				name: "Should reject executable hooks",
+				manifest: `[extension]
+name = "hook"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+
+[resources]
+skills = ["skills"]
+
+[[resources.hooks]]
+name = "observe"
+event = "prompt.post_assemble"
+executor.kind = "subprocess"
+executor.command = "node"
+executor.args = ["hook.js"]
+`,
+				resources: true,
+				wantError: "requires package.json or go.mod",
+			},
+			{
+				name: "Should reject static tool backends",
+				manifest: `[extension]
+name = "tool"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+
+[resources]
+skills = ["skills"]
+
+[resources.tools.lookup]
+description = "Look up content"
+read_only = true
+
+[resources.tools.lookup.backend]
+kind = "extension_host"
+handler = "lookup"
+`,
+				resources: true,
+				wantError: "requires package.json or go.mod",
+			},
+			{
+				name: "Should reject MCP server declarations",
+				manifest: `[extension]
+name = "mcp"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+
+[resources]
+skills = ["skills"]
+
+[resources.mcp_servers.local]
+command = "mcp-server"
+transport = "stdio"
+`,
+				resources: true,
+				wantError: "requires package.json or go.mod",
+			},
+			{
+				name: "Should reject a build command override",
+				manifest: `[extension]
+name = "custom-build"
+version = "0.1.0"
+min_compozy_version = "0.0.0"
+
+[resources]
+skills = ["skills"]
+`,
+				buildCmd:  []string{"make", "extension"},
+				resources: true,
+				wantError: "requires package.json or go.mod",
+			},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := t.TempDir()
+				if testCase.resources {
+					skillDir := filepath.Join(dir, "skills", "writer")
+					if err := os.MkdirAll(skillDir, 0o755); err != nil {
+						t.Fatalf("os.MkdirAll(skillDir) error = %v", err)
+					}
+					writeFile(t, filepath.Join(skillDir, "SKILL.md"), "# Writer\n")
+				}
+				if testCase.manifest != "" {
+					writeFile(t, filepath.Join(dir, manifestTOMLFileName), testCase.manifest)
+				}
+
+				result, err := buildBundle(testutil.Context(t), BuildRequest{
+					SourceDir: dir,
+					BuildCmd:  testCase.buildCmd,
+				}, newBuildTestRunner(validDescribePayload()))
+				if err == nil || result != nil {
+					t.Fatalf("buildBundle() = %#v, %v; want rejection", result, err)
+				}
+				if !strings.Contains(err.Error(), testCase.wantError) {
+					t.Fatalf("buildBundle() error = %v, want %q", err, testCase.wantError)
+				}
+				generations, globErr := filepath.Glob(filepath.Join(dir, "dist", "gen-*"))
+				if globErr != nil {
+					t.Fatalf("filepath.Glob(generations) error = %v", globErr)
+				}
+				if len(generations) != 0 {
+					t.Fatalf("published generations = %#v, want none", generations)
+				}
+			})
+		}
+	})
+
 	t.Run("Should Produce Byte Identical Immutable Generations", func(t *testing.T) {
 		t.Parallel()
 

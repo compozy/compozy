@@ -30,6 +30,25 @@ func (c *resourceAgentCatalog) ListAgents(ctx context.Context) ([]core.AgentCata
 	return c.agentEntriesForWorkspace(nil), nil
 }
 
+func (c *resourceAgentCatalog) ListAgentsForWorkspace(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+) ([]core.AgentCatalogEntry, error) {
+	if ctx == nil {
+		return nil, errors.New("daemon: list workspace agent catalog context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if resolved == nil {
+		return nil, errors.New("daemon: resolved workspace is required to list agent catalog")
+	}
+	if c == nil || c.catalog == nil {
+		return nil, nil
+	}
+	return c.agentEntriesForWorkspace(resolved), nil
+}
+
 func (c *resourceAgentCatalog) GetAgent(ctx context.Context, name string) (core.AgentCatalogEntry, error) {
 	if ctx == nil {
 		return core.AgentCatalogEntry{}, errors.New("daemon: get agent catalog context is required")

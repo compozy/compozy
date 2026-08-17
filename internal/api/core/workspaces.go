@@ -119,7 +119,7 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 	}
 
 	if h.AgentCatalog != nil {
-		catalogAgents, err := h.AgentCatalog.ListAgents(ctx)
+		catalogAgents, err := h.AgentCatalog.ListAgentsForWorkspace(ctx, resolved)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				return nil, err

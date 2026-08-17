@@ -25,7 +25,7 @@ func (s *agentSkillSourceSyncer) appendDesiredSidecars(
 		return errors.New("daemon: desired agent resources are required")
 	}
 	for _, item := range items.souls {
-		agentID, ok := agentIDsBySourceKey[item.agentSourceKey]
+		agentID, ok := agentIDsBySourceKey[scopedAgentSourceKey(item.scope, item.agentSourceKey)]
 		if !ok {
 			return fmt.Errorf("daemon: soul %q has no desired agent", item.sourceKey)
 		}
@@ -45,7 +45,7 @@ func (s *agentSkillSourceSyncer) appendDesiredSidecars(
 		}
 	}
 	for _, item := range items.heartbeats {
-		agentID, ok := agentIDsBySourceKey[item.agentSourceKey]
+		agentID, ok := agentIDsBySourceKey[scopedAgentSourceKey(item.scope, item.agentSourceKey)]
 		if !ok {
 			return fmt.Errorf("daemon: heartbeat %q has no desired agent", item.sourceKey)
 		}

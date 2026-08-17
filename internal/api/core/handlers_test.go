@@ -4118,6 +4118,13 @@ func (s stubAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry,
 	return entries, nil
 }
 
+func (s stubAgentCatalog) ListAgentsForWorkspace(
+	ctx context.Context,
+	_ *workspacepkg.ResolvedWorkspace,
+) ([]core.AgentCatalogEntry, error) {
+	return s.ListAgents(ctx)
+}
+
 func (s stubAgentCatalog) GetAgent(_ context.Context, name string) (core.AgentCatalogEntry, error) {
 	if s.getErr != nil {
 		return core.AgentCatalogEntry{}, s.getErr

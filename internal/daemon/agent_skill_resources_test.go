@@ -81,7 +81,10 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	}
 
 	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
-	workspaceEntries := dependency.agentEntriesForWorkspace(resolved)
+	workspaceEntries, err := dependency.ListAgentsForWorkspace(context.Background(), resolved)
+	if err != nil {
+		t.Fatalf("ListAgentsForWorkspace() error = %v", err)
+	}
 	if len(workspaceEntries) != 3 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
 		workspaceEntries[1].WorkspaceID != "ws-1" {
 		t.Fatalf("workspace entries = %#v", workspaceEntries)
