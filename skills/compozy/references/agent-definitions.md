@@ -14,7 +14,7 @@
 
 ## Files And Precedence
 
-CompozyOS agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $COMPOZY_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.compozy/agents/<name>/AGENT.md. Extension-provided agents participate as global candidates while keeping their extension-local AGENT.md as the effective authored definition.
+CompozyOS agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $COMPOZY_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.compozy/agents/<name>/AGENT.md. Agents from enabled published extensions participate as global candidates; agents from active development links participate only in the linked workspace. Both keep their extension-local AGENT.md as the effective authored definition.
 
 Runtime configuration starts from $COMPOZY_HOME/config.toml, then workspace configuration can overlay it with <workspace>/.compozy/config.toml. Agent-local skills and MCP sidecars are resolved after the effective agent definition is chosen.
 

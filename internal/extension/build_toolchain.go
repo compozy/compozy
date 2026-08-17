@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+var errBuildToolchainNotFound = errors.New("extension: build toolchain not found")
+
 type buildToolchain struct {
 	BuildArgv    []string
 	DescribeArgv []string
@@ -46,7 +48,7 @@ func detectBuildToolchain(req BuildRequest, runner buildCommandRunner) (buildToo
 	case goModExists:
 		detected, err = detectGoToolchain(req)
 	default:
-		err = errors.New("extension: unsupported source; expected package.json or go.mod")
+		err = errBuildToolchainNotFound
 	}
 	if err != nil {
 		return buildToolchain{}, err

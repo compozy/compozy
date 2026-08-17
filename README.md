@@ -167,8 +167,9 @@ compozy extension dev hello
 compozy tool invoke ext__hello__search --workspace . --input '{"query":"compozy"}'
 ```
 
-Authoring is code-first: you declare the tool once in code and `compozy extension build` generates
-the manifest. Walkthrough:
+Executable extensions are code-first: declare the tool once in code and `compozy extension build`
+generates the manifest. Resource-only extensions can instead hand-write `extension.toml` and use the
+same build, dev, reload, and watch loop without running extension code. Walkthrough:
 [Build your first extension](https://compozy.com/docs/guides/build-your-first-extension).
 
 ### SDK support

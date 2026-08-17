@@ -67,7 +67,8 @@ Discovery order is first-wins:
 If two definitions use the same `name`, CompozyOS keeps the first one it found. It does not merge or
 inherit from the lower-precedence definition.
 
-Extensions can also provide global agent candidates. Those agents keep their extension-local
+Enabled published extensions can also provide global agent candidates, while active development
+links provide candidates only in their linked workspace. Those agents keep their extension-local
 `AGENT.md` as the effective authored definition, so definition updates reconcile the extension file
 into the same catalog used by agent reads.
 

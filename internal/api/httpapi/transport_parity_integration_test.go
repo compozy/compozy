@@ -399,6 +399,10 @@ func transportHarnessSessionPath(
 }
 
 func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
+	t.Run("Should preserve extension behavior across HTTP, UDS, and CLI", testHTTPTransportExtensionParityMatchesUDS)
+}
+
+func testHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
@@ -556,6 +560,9 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 		)
 		httpBody := readAndCloseHTTPBody(t, httpResponse)
 		udsBody := readAndCloseHTTPBody(t, udsResponse)
+		if httpResponse.StatusCode < http.StatusBadRequest {
+			t.Fatalf("HTTP %s %s status = %d, want error; body=%s", method, path, httpResponse.StatusCode, httpBody)
+		}
 		if httpResponse.StatusCode != udsResponse.StatusCode || !reflect.DeepEqual(httpBody, udsBody) {
 			t.Fatalf(
 				"HTTP error = status %d body %s, want UDS parity status %d body %s",
@@ -588,11 +595,38 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 		missingBody,
 		"extension", "status", "missing-portable-package", "-o", "json",
 	)
-	consentBody := assertTransportErrorParity(
-		http.MethodPost,
-		"/api/extensions/"+url.PathEscape(extensionName)+"/enable",
-	)
-	assertCLIErrorParity(consentBody, "extension", "enable", extensionName, "-o", "json")
+	enablePath := "/api/extensions/" + url.PathEscape(extensionName) + "/enable"
+	var httpEnable compozycontract.ExtensionResponse
+	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, enablePath, nil, &httpEnable); err != nil {
+		t.Fatalf("HTTP enable extension error = %v", err)
+	}
+	var udsEnable compozycontract.ExtensionResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, enablePath, nil, &udsEnable); err != nil {
+		t.Fatalf("UDS enable extension error = %v", err)
+	}
+	if !extensionSemanticallyEqual(httpEnable.Extension, udsEnable.Extension) {
+		t.Fatalf("HTTP enabled extension = %#v, want UDS parity %#v", httpEnable.Extension, udsEnable.Extension)
+	}
+	var cliEnable compozycontract.ExtensionEnableResult
+	if err := clients.CLI.RunJSONInDir(
+		ctx,
+		runtimeHarness.WorkspaceRoot,
+		&cliEnable,
+		"extension", "enable", extensionName, "-o", "json",
+	); err != nil {
+		t.Fatalf("CLI enable extension error = %v", err)
+	}
+	if !extensionSemanticallyEqual(httpEnable.Extension, cliEnable.Extension) {
+		t.Fatalf("HTTP enabled extension = %#v, want CLI parity %#v", httpEnable.Extension, cliEnable.Extension)
+	}
+	if !httpEnable.Extension.Enabled || !udsEnable.Extension.Enabled || !cliEnable.Extension.Enabled {
+		t.Fatalf(
+			"enabled states = HTTP:%t UDS:%t CLI:%t, want all true",
+			httpEnable.Extension.Enabled,
+			udsEnable.Extension.Enabled,
+			cliEnable.Extension.Enabled,
+		)
+	}
 
 	logsPath := "/api/extensions/" + url.PathEscape(extensionName) + "/logs"
 	httpLogsResp := mustHTTPRequest(

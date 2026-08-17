@@ -82,7 +82,12 @@ func managedPublicationID(
 	if owner == nil || owner.Kind.Normalize() != extensionResourceOwnerKind {
 		return contentAddressedManagedPublicationID(prefix, scope, sourceKey, encoded)
 	}
-	return extensionSourceKeyPublicationID(sourceKey)
+	id := extensionSourceKeyPublicationID(sourceKey)
+	normalizedScope := scope.Normalize()
+	if normalizedScope.Kind == resources.ResourceScopeKindWorkspace {
+		return id + "/workspace/" + normalizedScope.ID
+	}
+	return id
 }
 
 func cloneResourceRecords[T any](records []resources.Record[T], cloneSpec func(T) T) []resources.Record[T] {

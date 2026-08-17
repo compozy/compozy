@@ -44,6 +44,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	repoRoot := extensionAuthoringE2ERepoRoot(t)
 	binaryPath := buildStampedExtensionAuthoringBinary(t, ctx, repoRoot)
 	configSeed := e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+		cfg.Marketplace.Catalog.BaseURL = githubServer.URL
 		cfg.Extensions.Trust.AllowUnverified = true
 		cfg.Extensions.Sources.GitHub.Enabled = true
 		cfg.Extensions.Sources.GitHub.BaseURL = githubServer.URL
@@ -534,6 +535,13 @@ func (s *distributionGitHubServer) handle(t *testing.T, writer http.ResponseWrit
 	}
 	path := request.URL.Path
 	switch {
+	case request.Method == http.MethodGet &&
+		(path == "/mcp.json" || path == "/extensions.json" || path == "/skills.json"):
+		writeDistributionGitHubJSON(t, writer, map[string]any{
+			"manifest_version": 2,
+			"generated_at":     "2026-08-17T00:00:00Z",
+			"entries":          []any{},
+		}, http.StatusOK)
 	case request.Method == http.MethodGet && path == "/repos/acme/hello/releases/latest":
 		s.writeLatest(t, writer)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/repos/acme/hello/releases/tags/"):

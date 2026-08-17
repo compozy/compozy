@@ -6,7 +6,6 @@ import (
 
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -211,28 +210,13 @@ func extensionAgentSkillDeclarationProvider(
 			return agentSkillDeclarations{}, nil
 		}
 
-		infos, err := registry.List()
-		if err != nil {
-			return agentSkillDeclarations{}, fmt.Errorf("daemon: list extensions for agent/skill sync: %w", err)
-		}
-		slices.SortFunc(infos, func(left, right extensionpkg.ExtensionInfo) int {
-			return strings.Compare(left.Name, right.Name)
-		})
-
 		desired := agentSkillDeclarations{}
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-		for _, info := range infos {
-			if !info.Enabled {
-				continue
-			}
-			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
-			if err != nil {
-				return agentSkillDeclarations{}, fmt.Errorf(
-					"daemon: load extension %q for agent/skill sync: %w",
-					info.Name,
-					err,
-				)
-			}
+		snapshots, err := extensionResourceSnapshots(registry, manager, logger)
+		if err != nil {
+			return agentSkillDeclarations{}, err
+		}
+		for _, snapshot := range snapshots {
+			ext := snapshot.extension
 			if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 				continue
 			}
@@ -244,8 +228,8 @@ func extensionAgentSkillDeclarationProvider(
 					err,
 				)
 			}
-			appendExtensionAgentResources(&desired, globalScope, ext.Info.Name, agents)
-			appendSkillResources(&desired, globalScope, skillPublicationSource{
+			appendExtensionAgentResources(&desired, snapshot.scope, ext.Info.Name, agents)
+			appendSkillResources(&desired, snapshot.scope, skillPublicationSource{
 				prefix: "extension/" + strings.TrimSpace(ext.Info.Name) + "/skills",
 				owner:  extensionOwner(ext.Info.Name),
 			}, ext.Skills)

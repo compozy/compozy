@@ -1,6 +1,6 @@
 # J-extension-dev-lifecycle: Operate a workspace-scoped extension generation safely
 
-An extension author moves from code-first build through dev, reload, watch, logs, and failure
+An extension author moves from a code-backed or passive resource-only build through dev, reload, watch, logs, and failure
 recovery. The journey concentrates the workspace isolation, immutable-generation, last-good, and
 redaction invariants shared by CLI, HTTP, UDS, native tools, and the Web logs panel.
 
@@ -40,7 +40,7 @@ journey:
       origin: in-app-nav
   actions:
     - step: 1
-      verb: Build and validate the code-first project
+      verb: Build and validate the code-backed project or passive resource kit
       expected_observable: Identical source yields a byte-identical manifest and immutable generation handle
     - step: 2
       verb: Link the generation to the current workspace

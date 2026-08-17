@@ -48,6 +48,9 @@ func buildBundle(ctx context.Context, req BuildRequest, runner buildCommandRunne
 	}
 	toolchain, err := detectBuildToolchain(normalized, runner)
 	if err != nil {
+		if errors.Is(err, errBuildToolchainNotFound) {
+			return buildResourceOnlyBundle(ctx, normalized)
+		}
 		return nil, err
 	}
 	if err := os.MkdirAll(normalized.OutputDir, 0o755); err != nil {

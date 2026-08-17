@@ -121,8 +121,14 @@ and risk flags live in `references/native-tools.md`; what goes in the code lives
 `POST /api/extensions/dev`, `POST /api/extensions/{name}/reload`, and
 `GET /api/extensions/{name}/logs`. Publish has no HTTP/UDS route.
 
-`build` compiles source, runs SDK describe mode, and publishes one immutable generation at
-`<origin>/dist/gen-<hash>`, where `generation_hash` is the 64-lowercase-hex checksum of that tree.
+`build` publishes one immutable generation at `<origin>/dist/gen-<hash>`, where `generation_hash` is
+the 64-lowercase-hex checksum of that tree. For a code-backed source it compiles and runs SDK describe
+mode. For a native resource-only source with at least one declared skill, agent, Loop, automation, or
+layout path, it validates the handwritten manifest and copies those trees without running a build or
+describe command. A resource-only source cannot use a build-command override or declare a top-level
+subprocess, runtime capabilities, Host API permissions, hooks, tools, MCP servers, bridge metadata,
+command groups, or dynamic resource publication; those contracts require `package.json` or `go.mod`.
+
 That hash is the only generation identity any surface accepts: `dev` takes
 `{origin_path, generation_hash}`, `reload` takes `{generation_hash}`, and the daemon reconstructs the
 directory, re-verifies the tree digest and manifest, and matches the manifest name before activation.
@@ -147,6 +153,11 @@ Every runtime extension surface is keyed by instance — extension name plus wor
 installation is the global instance (empty workspace); a dev link is a workspace instance. Subprocess,
 operation coordinator, last-good generation, log ring, status, and events are per instance, so two
 workspaces linking the same extension share no process, logs, or failure state.
+
+Declared agents, skills, Loops, automations, and layouts use the same scope. Enabled published
+instances populate global resource catalogs; active dev instances populate only the linked
+workspace's catalogs and workspace detail. Reload swaps that workspace snapshot atomically, and
+unlinking removes it without mutating the published installation.
 
 The workspace is bound server-side — from the operator's resolved workspace or the agent session's
 trusted scope — never from a request body or tool input. An agent caller that names a different

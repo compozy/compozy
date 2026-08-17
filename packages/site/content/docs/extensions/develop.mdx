@@ -1,9 +1,10 @@
 ---
 title: Develop Extensions
-description: The code-first authoring loop for CompozyOS extensions — init, build, validate, dev, reload, logs, publish — plus provide surfaces, Host API access, and resources.
+description: The authoring loop for code-backed and resource-only CompozyOS extensions — build, validate, dev, reload, logs, and publish.
 ---
 
-You write code. CompozyOS generates the manifest.
+Code-backed extensions declare behavior through an SDK. Resource-only extensions declare static kit
+resources in `extension.toml`. Both become immutable generations that use the same development loop.
 
 An extension is one installable unit of runtime behavior. A **subprocess extension** runs your code
 over JSON-RPC and can call the daemon through the Host API. A **resource-only extension** ships files
@@ -31,7 +32,7 @@ invoke --> publish["extension publish"]`}
 | Verb                         | Daemon required | What it does                                                          |
 | ---------------------------- | --------------- | --------------------------------------------------------------------- |
 | `compozy extension init`     | no              | Writes a project from an embedded template.                           |
-| `compozy extension build`    | no              | Compiles, runs describe mode, emits an immutable generation.          |
+| `compozy extension build`    | no              | Builds code or validates static resources, then emits a generation.   |
 | `compozy extension validate` | no              | Reads a bundle and reports issues plus derived consent. Runs no code. |
 | `compozy extension dev`      | yes             | Builds and links your source to the current workspace.                |
 | `compozy extension reload`   | yes             | Builds and atomically swaps the running generation.                   |
@@ -91,6 +92,43 @@ that a hand-written manifest allowed cannot occur.
 
 Registering a tool adds `tool.provider` to `capabilities.provides` automatically.
 
+## Start from a resource-only manifest
+
+A resource-only source has no `package.json` or `go.mod`. Write `extension.toml` and declare at least
+one skill, agent, Loop, automation, or layout path:
+
+```toml title="extension.toml"
+[extension]
+name = "hello-resources"
+version = "0.1.0"
+min_compozy_version = "0.3.0-beta.13"
+
+[resources]
+agents = ["agents"]
+```
+
+```md title="agents/hello/AGENT.md"
+---
+name: hello
+---
+
+You are hello.
+```
+
+Use the same loop as a code-backed extension:
+
+```bash
+compozy extension build .
+compozy extension dev .
+compozy extension reload hello-resources .
+compozy extension dev . --watch
+```
+
+This build reads and validates the manifest, copies the declared resource trees, and publishes the
+generation. It runs no build or describe command. A manifest that declares a subprocess, runtime
+capabilities, Host API permissions, hooks, tools, MCP servers, bridge metadata, command groups, or
+dynamic resource publication still needs `package.json` or `go.mod` and an SDK declaration.
+
 ## Build and validate
 
 ```bash
@@ -111,10 +149,11 @@ and is the only generation identity any surface accepts — no path, symlink, or
 substitutes for it. Builds never mutate a prior generation, and identical source produces a
 byte-identical manifest.
 
-Build detects the toolchain: a `package.json` `build` script runs through Bun or npm, a `go.mod` runs
-`go build`. Override with `--build-command`, raise the describe timeout with `--timeout`, and move the
-generation root with `--output-dir` (a custom output root is for standalone packaging — only
-`<source>/dist` can back a dev link).
+For code-backed sources, build detects the toolchain: a `package.json` `build` script runs through Bun
+or npm, and a `go.mod` runs `go build`. Override with `--build-command`, raise the describe timeout
+with `--timeout`, and move the generation root with `--output-dir` (a custom output root is for
+standalone packaging — only `<source>/dist` can back a dev link). Resource-only sources do not accept
+`--build-command` because their build never executes code.
 
 ```bash
 compozy extension validate ./dist/gen-cc1358…
@@ -130,7 +169,7 @@ compozy extension dev .
 ```
 
 `dev` builds, then links the generation to the current workspace. There is no trust prompt, no
-`allow_unverified` policy, and no marketplace vocabulary anywhere in the flow: it is your code, in
+`allow_unverified` policy, and no marketplace vocabulary anywhere in the flow: it is your source, in
 your workspace.
 
 A dev link is an **overlay**, not an install. It lives in its own side table and never displaces a
@@ -145,7 +184,8 @@ compozy extension logs my-ext --follow
 
 - `reload` builds a new generation and swaps atomically. If the new generation fails to activate, the
   **last-good** generation keeps serving and status reports `activation_failed` with the running
-  generation in `last_error`. A broken edit never takes the extension down.
+  generation in `last_error`. If local build or resource validation fails, reload is never sent and
+  the current generation stays active. A broken edit never takes the extension down.
 - `--watch` polls the source tree every `extensions.dev.watch_interval` (default `2s`), skipping
   `.git`, `dist`, and `node_modules`. The watcher is client-side; the daemon never watches author
   directories.
@@ -162,6 +202,11 @@ Every runtime surface is keyed by **instance** — extension name plus workspace
 installation is the global instance (empty workspace); each dev link is a workspace instance.
 Subprocess, coordinator, last-good generation, log ring, status, and events are per instance, so two
 workspaces linking the same extension share nothing.
+
+Declared agents, skills, Loops, automations, and layouts follow the same boundary. Resources from an
+enabled published installation enter the global catalogs; resources from an active dev link enter
+only the linked workspace's catalogs and workspace detail. Reload replaces that workspace snapshot
+atomically, and unlinking removes it without changing the published installation.
 
 The workspace is bound server-side from the operator's resolved workspace or an agent session's
 trusted scope — never from a request body or tool input. Global-instance logs are operator-transport

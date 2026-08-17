@@ -120,6 +120,13 @@ func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]core.AgentCatal
 	}}, nil
 }
 
+func (c packageOwnedAgentCatalog) ListAgentsForWorkspace(
+	ctx context.Context,
+	_ *workspacepkg.ResolvedWorkspace,
+) ([]core.AgentCatalogEntry, error) {
+	return c.ListAgents(ctx)
+}
+
 func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (core.AgentCatalogEntry, error) {
 	return core.AgentCatalogEntry{
 		Def:    compozyconfig.CloneAgentDef(c.artifacts.Agent),

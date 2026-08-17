@@ -132,9 +132,10 @@ Their `activation.active` field is `false`, and `activation.reasons` reports the
 `metadata.compozy.when` gates. The CLI and Skills UI present this runtime activation state separately
 from the administrative enabled switch.
 
-Enabled extensions can also register runtime-owned skills into the live registry. Those overlays
-are not filesystem-backed, so they are documented as runtime registry behavior rather than as one
-more scan root.
+Enabled published extensions can register global runtime-owned skills into the live registry, and
+active development links can register them only for the linked workspace. Those overlays are not
+filesystem-backed, so they are documented as runtime registry behavior rather than as one more scan
+root.
 
 ## Provenance And Shadow Audit
 

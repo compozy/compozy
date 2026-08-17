@@ -42,6 +42,7 @@ const (
 	manifestPermissionsKey              = "permissions"
 	manifestPublishKey                  = "publish"
 	manifestReadOnlyKey                 = "read_only"
+	manifestRequiredKey                 = "required"
 	manifestResourcesKey                = "resources"
 	manifestResourcesPublishPath        = "resources.publish"
 	manifestRiskKey                     = "risk"

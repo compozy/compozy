@@ -53,7 +53,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
 - references/extensions.md - extension kits, install trust, the authoring and dev loop, instance scoping, dev overlays, logs, and hook management.
-- references/extension-authoring.md - code-first extension authoring: templates, SDK declaration shape, closed permissions and derived consent, provide surfaces, contributed commands, generated manifest, and structured workflows.
+- references/extension-authoring.md - code-backed and resource-only extension authoring: templates, SDK declarations, static manifests, permissions, provide surfaces, contributed commands, and structured workflows.
 - references/configuration.md - config.toml desired state, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, compaction, role, and window-manager settings.
 - references/worktrees.md - workspace worktree lifecycle, session binding, exit plans and actions, forge integration, cleanup evidence, and public management surfaces.
 

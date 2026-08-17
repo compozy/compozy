@@ -13,14 +13,16 @@ provide surfaces, or a daemon-facing Host API service, an extension gives that p
 manifest, trust tier, enablement state, and operational lifecycle.
 
 <OperatorNote>
-  Resource-only extensions ship files CompozyOS already loads (skills, agents, hooks, MCP servers).
-  Subprocess extensions also run code over JSON-RPC and call the daemon through the Host API after
-  permission checks. The trust tier of the source determines which extensions are even eligible.
+  Resource-only extensions ship files CompozyOS already loads (skills, agents, Loops, automations,
+  and layouts) without executing extension code. Code-backed extensions can also provide hooks, MCP
+  servers, tools, and subprocess behavior over JSON-RPC after permission checks. The trust tier of
+  the source determines which extensions are even eligible.
 </OperatorNote>
 
-Authors start at [Build your first extension](/docs/guides/build-your-first-extension): three
-commands from an empty directory to a tool you can invoke. Authoring is code-first — you write code
-and `compozy extension build` generates the manifest.
+Authors of executable extensions start at
+[Build your first extension](/docs/guides/build-your-first-extension): three commands from an empty
+directory to a tool you can invoke. Executable authoring is code-first, while resource-only authors
+can hand-write `extension.toml` and use the same build and workspace development lifecycle.
 
 Operators start at the install page for adding, enabling, disabling, inspecting, updating, or
 removing an extension.

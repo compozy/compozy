@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -329,31 +328,20 @@ func extensionLoopDeclarationProvider(
 		if manager == nil {
 			return nil, nil
 		}
-		infos, err := registry.List()
-		if err != nil {
-			return nil, fmt.Errorf("daemon: list extensions for loop sync: %w", err)
-		}
-		slices.SortFunc(infos, func(left, right extensionpkg.ExtensionInfo) int {
-			return strings.Compare(left.Name, right.Name)
-		})
-
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
 		var desired []loopPublicationInput
-		for _, info := range infos {
-			if !info.Enabled {
-				continue
-			}
-			ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
-			if err != nil {
-				return nil, fmt.Errorf("daemon: load extension %q for loop sync: %w", info.Name, err)
-			}
+		snapshots, err := extensionResourceSnapshots(registry, manager, logger)
+		if err != nil {
+			return nil, err
+		}
+		for _, snapshot := range snapshots {
+			ext := snapshot.extension
 			if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 				continue
 			}
 			for _, spec := range ext.Loops {
 				desired = append(desired, loopPublicationInput{
 					sourceKey: "extension/" + ext.Info.Name + "/loops/" + strings.TrimSpace(spec.Name),
-					scope:     globalScope,
+					scope:     snapshot.scope,
 					owner:     extensionOwner(ext.Info.Name),
 					spec:      looppkg.CloneResourceSpec(spec),
 				})

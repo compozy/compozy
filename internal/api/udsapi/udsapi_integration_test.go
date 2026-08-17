@@ -3277,7 +3277,8 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		if resourceDriver == nil {
 			return nil
 		}
-		return resourceDriver.Trigger(ctx, kind, reason)
+		_, err := resourceDriver.Trigger(ctx, kind, reason)
+		return err
 	}
 
 	fanout := &integrationNotifierFanout{}

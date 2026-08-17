@@ -584,6 +584,8 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 			AgentCatalog: nativeAgentCatalogStub{agents: []compozyconfig.AgentDef{
 				{Name: "catalog-visible", Provider: "codex", Prompt: "Catalog visible."},
 				{Name: "onboarding", Provider: "codex", Prompt: "Catalog onboarding."},
+			}, workspaceAgents: []compozyconfig.AgentDef{
+				{Name: "dev-linked", Provider: "codex", Prompt: "Workspace extension agent."},
 			}},
 		}, nativeApproveAllPolicyInputs())
 
@@ -596,12 +598,14 @@ func TestNativeWorkspaceDescribeIncludesOrdinaryOnboardingAgent(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, result, []byte("\"general\""))
 		requireNativeStructuredContains(t, result, []byte("\"catalog-visible\""))
+		requireNativeStructuredContains(t, result, []byte("\"dev-linked\""))
 		requireNativeStructuredContains(t, result, []byte("\"onboarding\""))
 	})
 }
 
 type nativeAgentCatalogStub struct {
-	agents []compozyconfig.AgentDef
+	agents          []compozyconfig.AgentDef
+	workspaceAgents []compozyconfig.AgentDef
 }
 
 func (s nativeAgentCatalogStub) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
@@ -610,6 +614,24 @@ func (s nativeAgentCatalogStub) ListAgents(context.Context) ([]core.AgentCatalog
 		entries = append(entries, core.AgentCatalogEntry{
 			Def:    compozyconfig.CloneAgentDef(agent),
 			Origin: contract.AgentOriginGlobal,
+		})
+	}
+	return entries, nil
+}
+
+func (s nativeAgentCatalogStub) ListAgentsForWorkspace(
+	ctx context.Context,
+	workspace *workspacepkg.ResolvedWorkspace,
+) ([]core.AgentCatalogEntry, error) {
+	entries, err := s.ListAgents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, agent := range s.workspaceAgents {
+		entries = append(entries, core.AgentCatalogEntry{
+			Def:         compozyconfig.CloneAgentDef(agent),
+			Origin:      contract.AgentOriginWorkspace,
+			WorkspaceID: workspace.ID,
 		})
 	}
 	return entries, nil

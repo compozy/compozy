@@ -18,6 +18,8 @@ import (
 type daemonExtensionService struct {
 	marketplaceMu      sync.RWMutex
 	searchMu           sync.Mutex
+	consumerSyncOnce   sync.Once
+	consumerSyncGate   chan struct{}
 	searchCache        map[string]extensionSearchSnapshot
 	registry           *extensionpkg.Registry
 	runtime            extensionRuntime
@@ -169,6 +171,14 @@ func newDaemonExtensionService(
 		}
 	}
 	return service
+}
+
+func (s *daemonExtensionService) extensionConsumerSyncGate() chan struct{} {
+	s.consumerSyncOnce.Do(func() {
+		s.consumerSyncGate = make(chan struct{}, 1)
+		s.consumerSyncGate <- struct{}{}
+	})
+	return s.consumerSyncGate
 }
 
 func (s *daemonExtensionService) marketplaceConfig() compozyconfig.ExtensionsConfig {
