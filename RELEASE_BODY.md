@@ -112,6 +112,7 @@
 - Bound desktop runtime health checks (#414)
 - Preserve loop goal session lineage (#420)
 - Support resource-only extension development (#423)
+- Daemon path resolution
 
 ### 🧪 Testing
 
@@ -119,6 +120,7 @@
 - Align nightly runtime fixtures
 - Align dead session recovery coverage
 - Preserve loop claim tokens in daemon fixtures (#418)
+- Fix cases failing
 
 ### Release Notes
 
