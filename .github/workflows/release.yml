@@ -252,12 +252,17 @@ jobs:
         run: scripts/release-plan-contract.sh "${{ env.PR_RELEASE_MODULE }}"
 
       - name: Verify npm publish authentication
+        if: ${{ env.ACT != 'true' }}
         run: |
           if [ -z "${NPM_TOKEN:-}" ]; then
             echo "::error::NPM_TOKEN is required to publish @compozy/cli and @compozy/extension-sdk"
             exit 1
           fi
           npm whoami --registry=https://registry.npmjs.org
+
+      - name: Verify npm secret is available for local act
+        if: ${{ env.ACT == 'true' }}
+        run: test -n "${NPM_TOKEN:-}"
 
       - name: Validate TypeScript extension SDK package
         run: scripts/publish-extension-sdk.sh --dry-run 0.0.0-beta.0 beta
@@ -305,6 +310,18 @@ jobs:
       - &run-release-preflight
         name: Run release preflight
         run: bash "${RUNNER_TEMP}/release-preflight.sh"
+
+      - name: Stage dry-run desktop compatibility catalog
+        env:
+          DRY_RUN_VERSION: 0.0.0-beta.0
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/desktop
+          jq -cn \
+            --arg runtime_version "${DRY_RUN_VERSION}" \
+            --arg min_app_version "${DRY_RUN_VERSION}" \
+            '{runtime_version: $runtime_version, min_app_version: $min_app_version}' \
+            >.artifacts/desktop/compat.json
 
       - name: Run pr-release Dry-Run (goreleaser build validation)
         env:
