@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-08-14
+## 0.3.0 - 2026-08-18
 
 ### ♻️ Refactoring
 
@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modernize Go runtime packages (#293)
 - Use geist instead of inter (#334)
 - Add global workspace toggle (#368)
+- Unify PRD and TechSpec into a single spec pipeline (#397)
 
 ### 🎉 Features
 
@@ -40,7 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parent and child sessions (#327)
 - Add secure remote gateway access (#331)
 - Ship CompozyOS desktop app (#336)
-- Replace the desktop shell with Electron
+- Add first-class worktree support (#388)
+- Close the loops UI visual-contract parity gap (#406)
+- Unify zero-inventory empty states for jobs, triggers, and tasks (#409)
+- Redesign workspaces overview as command-tab switcher (#410)
+- Redesign trigger detail into the When/If/Then rule page (#411)
+- Session attachments — paste, drop, and picker to multimodal agents end to end (#412)
+- Add Agent Plugins ingestion to extensions (#419)
+- Add session attention and orchestration parity (#422)
+- Replace Tauri with Electron and unify updates (#424)
 
 ### 🐛 Bug Fixes
 
@@ -68,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Start absent SSH daemon
 - Make loop goals converge reliably (#335)
 - Desktop issues
-- Ship the complete desktop platform icon set
+- Ship the full desktop icon set required by Windows tauri-build
 - Pause the Windows desktop lane and ship macOS + Linux only
 - Adjust project copy
 - Publish staged GitHub release drafts
@@ -103,12 +112,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate desktop release smoke wiring
 - Validate public CLI version command
 - Clarify missing config path errors (#401)
+- Guard autonomous memory extractor writes (#396)
+- Write $ENV interpolation in pi runtime models.json apiKey (#404)
+- Authorize daemon-owned loop effects (#407)
+- Retain terminal loop effect results in web (#408)
+- Bound desktop runtime health checks (#414)
+- Preserve loop goal session lineage (#420)
+- Support resource-only extension development (#423)
 
 ### 🧪 Testing
 
 - Guard ACP initialize protocol version (#318)
 - Align nightly runtime fixtures
 - Align dead session recovery coverage
+- Preserve loop claim tokens in daemon fixtures (#418)
 
 ## 0.2.15 - 2026-07-17
 
