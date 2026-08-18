@@ -31,12 +31,12 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const migrationSchemaEquivalenceTimeout = 3 * time.Minute
+const migrationTestTimeout = 3 * time.Minute
 
-func migrationSchemaEquivalenceContext(t *testing.T) context.Context {
+func migrationTestContext(t *testing.T) context.Context {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(t.Context(), migrationSchemaEquivalenceTimeout)
+	ctx, cancel := context.WithTimeout(t.Context(), migrationTestTimeout)
 	t.Cleanup(cancel)
 	return ctx
 }
@@ -175,7 +175,7 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t)
+			ctx := migrationTestContext(t)
 			stream := item.stream
 			stream.Bootstrap = nil
 			versions := embeddedMigrationVersions(t, stream)
@@ -259,69 +259,71 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 }
 
 func TestGlobalExtensionManifestV2Migration(t *testing.T) {
-	t.Parallel()
+	t.Run("Should migrate extension manifests to the v2 contract", func(t *testing.T) {
+		t.Parallel()
 
-	ctx := testutil.Context(t)
-	db := openStreamTestDB(t, "extension-manifest-v2.db")
-	stream := globaldb.MigrationStream()
-	if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 27)); err != nil {
-		t.Fatalf("Apply(global prefix) error = %v", err)
-	}
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO extensions (
+		ctx := migrationTestContext(t)
+		db := openStreamTestDB(t, "extension-manifest-v2.db")
+		stream := globaldb.MigrationStream()
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 27)); err != nil {
+			t.Fatalf("Apply(global prefix) error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO extensions (
 			name, version, source, manifest_path, installed_at,
 			capabilities, actions, checksum, provenance_json
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"fixture-ext",
-		"0.1.0",
-		"user",
-		"/extensions/fixture-ext/extension.toml",
-		"2026-07-28T00:00:00Z",
-		`{"provides":["memory.backend","tool.provider"]}`,
-		`{"requires":["memory/store","sessions/list"]}`,
-		"sha256:fixture",
-		`{"source_kind":"local"}`,
-	); err != nil {
-		t.Fatalf("seed manifest v1 extension: %v", err)
-	}
+			"fixture-ext",
+			"0.1.0",
+			"user",
+			"/extensions/fixture-ext/extension.toml",
+			"2026-07-28T00:00:00Z",
+			`{"provides":["memory.backend","tool.provider"]}`,
+			`{"requires":["memory/store","sessions/list"]}`,
+			"sha256:fixture",
+			`{"source_kind":"local"}`,
+		); err != nil {
+			t.Fatalf("seed manifest v1 extension: %v", err)
+		}
 
-	stream.Bootstrap = nil
-	if err := store.Apply(ctx, db, stream); err != nil {
-		t.Fatalf("Apply(global) error = %v", err)
-	}
+		stream.Bootstrap = nil
+		if err := store.Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply(global) error = %v", err)
+		}
 
-	var providesJSON string
-	var permissionsJSON string
-	if err := db.QueryRowContext(
-		ctx,
-		`SELECT provides_json, permissions_json FROM extensions WHERE name = ?`,
-		"fixture-ext",
-	).Scan(&providesJSON, &permissionsJSON); err != nil {
-		t.Fatalf("query migrated extension: %v", err)
-	}
-	if got, want := providesJSON, `["memory.backend","tool.provider"]`; got != want {
-		t.Fatalf("provides_json = %q, want %q", got, want)
-	}
-	if got, want := permissionsJSON, `["memory/store","sessions/list"]`; got != want {
-		t.Fatalf("permissions_json = %q, want %q", got, want)
-	}
-	for _, table := range []string{"extensions", "extension_dev_links"} {
-		if !sqliteTableExists(t, db, table) {
-			t.Fatalf("table %q missing after manifest v2 migration", table)
+		var providesJSON string
+		var permissionsJSON string
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT provides_json, permissions_json FROM extensions WHERE name = ?`,
+			"fixture-ext",
+		).Scan(&providesJSON, &permissionsJSON); err != nil {
+			t.Fatalf("query migrated extension: %v", err)
 		}
-	}
-	columns := sqliteColumns(t, db, "extensions")
-	for _, removed := range []string{"capabilities", "actions"} {
-		if columns[removed] {
-			t.Fatalf("extensions column %q remains after manifest v2 migration", removed)
+		if got, want := providesJSON, `["memory.backend","tool.provider"]`; got != want {
+			t.Fatalf("provides_json = %q, want %q", got, want)
 		}
-	}
-	for _, added := range []string{"provides_json", "permissions_json"} {
-		if !columns[added] {
-			t.Fatalf("extensions column %q missing after manifest v2 migration", added)
+		if got, want := permissionsJSON, `["memory/store","sessions/list"]`; got != want {
+			t.Fatalf("permissions_json = %q, want %q", got, want)
 		}
-	}
+		for _, table := range []string{"extensions", "extension_dev_links"} {
+			if !sqliteTableExists(t, db, table) {
+				t.Fatalf("table %q missing after manifest v2 migration", table)
+			}
+		}
+		columns := sqliteColumns(t, db, "extensions")
+		for _, removed := range []string{"capabilities", "actions"} {
+			if columns[removed] {
+				t.Fatalf("extensions column %q remains after manifest v2 migration", removed)
+			}
+		}
+		for _, added := range []string{"provides_json", "permissions_json"} {
+			if !columns[added] {
+				t.Fatalf("extensions column %q missing after manifest v2 migration", added)
+			}
+		}
+	})
 }
 
 func migrationPrefixStream(t *testing.T, stream store.MigrationStream, head int) store.MigrationStream {
@@ -413,7 +415,7 @@ func TestMigrationSchemaEquivalence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := migrationSchemaEquivalenceContext(t)
+			ctx := migrationTestContext(t)
 			replayStream := item.stream
 			replayStream.Bootstrap = nil
 			migrationDB := openStreamTestDB(t, item.name+"-migration.db")

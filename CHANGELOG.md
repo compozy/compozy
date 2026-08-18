@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Session attachments — paste, drop, and picker to multimodal agents end to end (#412)
 - Add Agent Plugins ingestion to extensions (#419)
 - Add session attention and orchestration parity (#422)
-- Replace Tauri with Electron and unify updates (#424)
+- Replace the previous desktop framework with Electron and unify updates (#424)
 
 ### 🐛 Bug Fixes
 
@@ -77,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Start absent SSH daemon
 - Make loop goals converge reliably (#335)
 - Desktop issues
-- Ship the full desktop icon set required by Windows tauri-build
+- Ship the full desktop icon set required by the former Windows build
 - Pause the Windows desktop lane and ship macOS + Linux only
 - Adjust project copy
 - Publish staged GitHub release drafts
