@@ -8,8 +8,8 @@ expected: The OS attention badge adds exact pending Loop-request aggregates to e
 entry_points: web OS shell attention bell; web Loop runs list; web Loop run request form
 qa_status: untested
 bug_ids: ""
-fix_status: none
-retest_status: pending
+fix_status:
+retest_status:
 fix_commits: ""
 evidence: ""
 last_report: ""

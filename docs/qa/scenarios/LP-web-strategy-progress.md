@@ -3,13 +3,13 @@ id: LP-web-strategy-progress
 area: LP
 title: Read fan-out strategy progress and partial completion
 persona: Bruno
-journey: J-author-fanout-strategy
+journey: J-complete-partial-loop
 expected: The progress panel names the declared strategy and threshold, counts lanes canceled by the strategy apart from failures and never-materialized lanes apart from pending ones, shows the partial badge with coverage numbers whenever completion_state is partial, and reports aggregate counts instead of per-lane rows on a wide fan-out.
 entry_points: /loop-runs/$runId progress panel; outcome card
 qa_status: untested
 bug_ids: ""
-fix_status: none
-retest_status: pending
+fix_status:
+retest_status:
 fix_commits: ""
 evidence: ""
 last_report: ""

@@ -8,8 +8,8 @@ expected: The story timeline renders a row per graph-completion beat: request op
 entry_points: /loop-runs/$runId story timeline
 qa_status: untested
 bug_ids: ""
-fix_status: none
-retest_status: pending
+fix_status:
+retest_status:
 fix_commits: ""
 evidence: ""
 last_report: ""

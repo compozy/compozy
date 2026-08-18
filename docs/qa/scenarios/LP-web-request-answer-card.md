@@ -8,8 +8,8 @@ expected: The Needs-you card renders the daemon's prompt, redacted context previ
 entry_points: /loop-runs/$runId Needs-you card; parked panels; waits rail
 qa_status: untested
 bug_ids: ""
-fix_status: none
-retest_status: pending
+fix_status:
+retest_status:
 fix_commits: ""
 evidence: ""
 last_report: ""

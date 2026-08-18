@@ -4,12 +4,12 @@ area: LP
 title: Expire a parked Loop request exactly once
 persona: Bruno
 journey: J-supervise-loop-request
-expected: An unanswered ask follows its authored or configured expiry, emits each escalation once, closes as expired after a daemon restart, takes the declared route once, and rejects a late answer with `request_expired`.
-entry_points: loop ask runtime; scheduler due scan; daemon restart; compozy loop request; compozy loop respond
+expected: An unanswered ask follows its authored expiry or loops.defaults.<kind>.requests.expire_after, emits each escalation once, closes as expired after a daemon restart, takes the declared route once, rejects a late answer with request_expired, and preserves the config value through get, set, unset, show, and reload.
+entry_points: loop ask runtime; scheduler due scan; daemon restart; compozy loop request; compozy loop respond; compozy config get|set|unset|show; config.toml loops.defaults.delivery.requests.expire_after and loops.defaults.watch.requests.expire_after; /docs/loops/human-requests; site config reference
 qa_status: untested
 bug_ids: ""
-fix_status: none
-retest_status: pending
+fix_status:
+retest_status:
 fix_commits: ""
 evidence: ""
 last_report: ""

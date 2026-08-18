@@ -3,13 +3,13 @@ id: LP-web-editor-node-menu-selection
 area: LP
 title: Use the node context menu, multi-select and edge delete
 persona: Bruno
-journey: J-author-fanout-strategy
+journey: J-complete-partial-loop
 expected: Right-clicking a node offers duplicate, copy, paste, rename and delete on a workspace loop and hides or disables every mutating verb on a read-only source; marquee-selecting two nodes and deleting removes both nodes and all of their edges with no orphan edge left in the draft; a selected edge deletes from its midpoint affordance; and route edges carry their condition pill.
 entry_points: /loops/$name/editor node context menu; canvas marquee; edge affordance
 qa_status: untested
 bug_ids: ""
-fix_status: none
-retest_status: pending
+fix_status:
+retest_status:
 fix_commits: ""
 evidence: ""
 last_report: ""
