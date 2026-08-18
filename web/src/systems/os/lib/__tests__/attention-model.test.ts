@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 import type { TaskDashboardView, TaskListItem } from "@/systems/tasks";
+import { pendingAskRequest } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 
 import { dockBadgeFor } from "../../components/dock-badges";
 import { OS_APPS } from "../app-registry";
@@ -108,13 +109,14 @@ describe("OS attention badges", () => {
       summaryStale: false,
       dashboard: dashboard(4),
       tasksStale: false,
+      loopsPending: 7,
     });
 
-    expect(badges).toEqual({ sessions: 137, tasks: 4 });
+    expect(badges).toEqual({ sessions: 137, tasks: 4, loops: 7 });
     expect(dockBadgeFor(OS_APPS.session, badges)).toBe(137);
     expect(dockBadgeFor(OS_APPS.tasks, badges)).toBe(4);
     expect(dockBadgeFor(OS_APPS.dashboard, badges)).toBeUndefined();
-    expect(attentionCount(badges)).toBe(141);
+    expect(attentionCount(badges)).toBe(148);
   });
 
   it("Should keep finished-unseen work out of the badge (UT-052)", () => {
@@ -298,6 +300,33 @@ describe("OS attention sections", () => {
         sectionsInput({ loopWaitingPresent: true, loopAttentionPresent: true })
       ).needsYou
     ).toEqual(LOOP_NODE_ROWS);
+  });
+
+  it("Should project pending loop requests with their exact workspace and jump target", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({
+        loopRequests: [
+          {
+            request: pendingAskRequest,
+            workspaceId: "workspace-2",
+            workspaceLabel: "release",
+            stale: false,
+          },
+        ],
+      })
+    );
+
+    expect(sections.needsYou).toEqual([
+      expect.objectContaining({
+        kind: "loop-request",
+        workspaceId: "workspace-2",
+        workspaceLabel: "release",
+        runId: pendingAskRequest.loop_run_id,
+        nodeId: pendingAskRequest.node_id,
+        requestKind: "ask",
+        stale: false,
+      }),
+    ]);
   });
 });
 

@@ -25,7 +25,7 @@ func planOperatorRerun(
 			return nil, nil, reasonError(
 				ReasonCodeRerunNodeUnsettled,
 				ErrRerunNodeUnsettled,
-				map[string]string{"node_id": output.NodeID},
+				map[string]string{metadataNodeIDKey: output.NodeID},
 			)
 		}
 		rerun[generationOutputKey{nodeID: output.NodeID, itemIndex: output.ItemIndex}] = struct{}{}

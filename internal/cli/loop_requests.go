@@ -99,7 +99,7 @@ func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 func loopRespondPayload(decision string, payload string) (json.RawMessage, error) {
 	decision = strings.TrimSpace(decision)
 	payload = strings.TrimSpace(payload)
-	requiresPayload := decision == "" || decision == "edit" || decision == "respond"
+	requiresPayload := decision == "" || decision == loopEditKey || decision == "respond"
 	if payload == "" {
 		if requiresPayload {
 			return nil, errors.New("cli: --payload must be valid JSON")

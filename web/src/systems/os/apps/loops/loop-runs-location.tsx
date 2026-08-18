@@ -18,6 +18,7 @@ import {
   LOOP_NODE_INVENTORY_STATES,
   LoopNodeInventoryView,
   LoopRunsView,
+  useLoopRunPendingRequestCounts,
   useNowTick,
 } from "@/systems/loops";
 
@@ -42,6 +43,11 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const nowMs = useNowTick(inventoryState !== undefined);
 
   const runs = runsQuery.data?.runs ?? [];
+  const pendingRequestCounts = useLoopRunPendingRequestCounts(
+    workspaceId,
+    runs.map(run => run.id),
+    workspaceId !== ""
+  );
   const showToolbar = workspaceId !== "" && !runsQuery.isLoading && !runsQuery.error;
 
   useTopbarSlot({
@@ -194,7 +200,12 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
           title="No matching runs"
         />
       ) : (
-        <LoopRunsView onOutcomeChange={setOutcome} outcome={outcome} runs={runs} />
+        <LoopRunsView
+          onOutcomeChange={setOutcome}
+          outcome={outcome}
+          pendingRequestCounts={pendingRequestCounts}
+          runs={runs}
+        />
       )}
     </ListingPage>
   );

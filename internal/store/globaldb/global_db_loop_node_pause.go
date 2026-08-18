@@ -14,6 +14,12 @@ import (
 
 var _ looppkg.NodePauseStore = (*LoopRepo)(nil)
 
+const (
+	loopNextAttemptAtColumn = "next_attempt_at"
+	loopPendingSQLLiteral   = "'pending'"
+	sqlNullLiteral          = "NULL"
+)
+
 // PauseNode parks one authored node and fences every schedule it supersedes.
 func (g *LoopRepo) PauseNode(
 	ctx context.Context,
@@ -27,76 +33,96 @@ func (g *LoopRepo) PauseNode(
 	}
 	var result looppkg.NodePauseResult
 	err := g.withTaskImmediateTransaction(ctx, "pause Loop node", func(exec taskSQLExecutor) error {
-		run, err := nodePauseRun(ctx, exec, mutation.WorkspaceID, mutation.RunID)
-		if err != nil {
-			return err
-		}
-		if mutation.ItemIndex != nil {
-			return g.pauseNodeLane(ctx, exec, run, mutation, &result)
-		}
-		control, found, err := loadNodePauseControl(
-			ctx, exec, mutation.WorkspaceID, mutation.RunID, mutation.NodeID,
-		)
-		if err != nil {
-			return err
-		}
-		if mutation.ExpectedRevision != nil && (!found || control.Revision != *mutation.ExpectedRevision) {
-			actualState := nodeLifecycleActualState(control, found)
-			return loopLifecycleReasonError(
-				looppkg.ReasonCodeAlreadyDecided,
-				fmt.Errorf("%w: node %q revision changed", looppkg.ErrTransitionConflict, mutation.NodeID),
-				actualState,
-				nodeLifecycleAllowedTransitions(actualState),
-				nodeLifecycleWinner(control),
-			)
-		}
-		if found && control.Paused {
-			result.Control = control
-			if mutation.Mode == looppkg.NodePauseCancel {
-				result.SessionIDs, err = listNodeCancellationSessions(ctx, exec, looppkg.CancellationMutation{
-					WorkspaceID: mutation.WorkspaceID,
-					RunID:       mutation.RunID,
-					NodeID:      mutation.NodeID,
-				})
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-		if mutation.Mode == looppkg.NodePauseCancel {
-			result.SessionIDs, err = listNodeCancellationSessions(ctx, exec, looppkg.CancellationMutation{
-				WorkspaceID: mutation.WorkspaceID, RunID: mutation.RunID, NodeID: mutation.NodeID,
-			})
-			if err != nil {
-				return err
-			}
-		}
-		nextRevision := int64(1)
-		if found {
-			nextRevision = control.Revision + 1
-		}
-		if err := writeNodePauseControl(ctx, exec, mutation, found, control.Revision); err != nil {
-			return err
-		}
-		if err := parkNodeSchedules(ctx, exec, mutation); err != nil {
-			return err
-		}
-		if err := appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID, loopRunEventNodePaused,
-			nodePauseEventPayload(mutation, nextRevision), mutation.RequestedAt); err != nil {
-			return err
-		}
-		if err := appendManualNodePauseEffects(ctx, exec, run, mutation, nextRevision); err != nil {
-			return err
-		}
-		result.Control = pausedNodeControl(mutation, nextRevision)
-		result.Applied = true
-		return nil
+		return g.pauseNodeWithExecutor(ctx, exec, mutation, &result)
 	})
 	if err != nil {
 		return looppkg.NodePauseResult{}, err
 	}
 	return result, nil
+}
+
+func (g *LoopRepo) pauseNodeWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation looppkg.NodePauseMutation,
+	result *looppkg.NodePauseResult,
+) error {
+	run, err := nodePauseRun(ctx, exec, mutation.WorkspaceID, mutation.RunID)
+	if err != nil {
+		return err
+	}
+	if mutation.ItemIndex != nil {
+		return g.pauseNodeLane(ctx, exec, run, mutation, result)
+	}
+	control, found, err := loadNodePauseControl(ctx, exec, mutation.WorkspaceID, mutation.RunID, mutation.NodeID)
+	if err != nil {
+		return err
+	}
+	if mutation.ExpectedRevision != nil && (!found || control.Revision != *mutation.ExpectedRevision) {
+		actualState := nodeLifecycleActualState(control, found)
+		return loopLifecycleReasonError(
+			looppkg.ReasonCodeAlreadyDecided,
+			fmt.Errorf("%w: node %q revision changed", looppkg.ErrTransitionConflict, mutation.NodeID),
+			actualState,
+			nodeLifecycleAllowedTransitions(actualState),
+			nodeLifecycleWinner(control),
+		)
+	}
+	if found && control.Paused {
+		result.Control = control
+		return g.collectPauseCancellationSessions(ctx, exec, mutation, result)
+	}
+	if err := g.collectPauseCancellationSessions(ctx, exec, mutation, result); err != nil {
+		return err
+	}
+	nextRevision := int64(1)
+	if found {
+		nextRevision = control.Revision + 1
+	}
+	if err := writeNodePauseControl(ctx, exec, mutation, found, control.Revision); err != nil {
+		return err
+	}
+	if err := parkNodeSchedules(ctx, exec, mutation); err != nil {
+		return err
+	}
+	if err := appendLoopRunEventWithExecutor(
+		ctx,
+		exec,
+		run.ID,
+		run.WorkspaceID,
+		loopRunEventNodePaused,
+		nodePauseEventPayload(mutation, nextRevision),
+		mutation.RequestedAt,
+	); err != nil {
+		return err
+	}
+	if err := appendManualNodePauseEffects(ctx, exec, run, mutation, nextRevision); err != nil {
+		return err
+	}
+	result.Control = pausedNodeControl(mutation, nextRevision)
+	result.Applied = true
+	return nil
+}
+
+func (g *LoopRepo) collectPauseCancellationSessions(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation looppkg.NodePauseMutation,
+	result *looppkg.NodePauseResult,
+) error {
+	if mutation.Mode != looppkg.NodePauseCancel {
+		return nil
+	}
+	sessions, err := listNodeCancellationSessions(ctx, exec, looppkg.CancellationMutation{
+		WorkspaceID: mutation.WorkspaceID,
+		RunID:       mutation.RunID,
+		NodeID:      mutation.NodeID,
+	})
+	if err != nil {
+		return err
+	}
+	result.SessionIDs = sessions
+	return nil
 }
 
 // ResumeNode releases one paused node and reserves its coordinator wake atomically.
@@ -312,15 +338,15 @@ func restorePausedNodeCells(
 	}
 	statusExpression := "CASE WHEN next_attempt_at IS NOT NULL AND next_attempt_at > ? THEN 'retrying' ELSE 'pending' END"
 	attemptExpression := watchEventsPayloadAttemptKey
-	nextAttemptExpression := "next_attempt_at"
+	nextAttemptExpression := loopNextAttemptAtColumn
 	if mutation.Mode == looppkg.NodeResumeImmediate {
-		statusExpression = "'pending'"
-		nextAttemptExpression = "NULL"
+		statusExpression = loopPendingSQLLiteral
+		nextAttemptExpression = sqlNullLiteral
 	}
 	if mutation.Mode == looppkg.NodeResumeResetAttempts {
-		statusExpression = "'pending'"
+		statusExpression = loopPendingSQLLiteral
 		attemptExpression = "1"
-		nextAttemptExpression = "NULL"
+		nextAttemptExpression = sqlNullLiteral
 	}
 	args := make([]any, 0, 5)
 	if mutation.Mode == looppkg.NodeResumePlain {

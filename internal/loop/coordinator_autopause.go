@@ -56,7 +56,7 @@ func evaluateAutopause(
 			return autopauseDecision{}, fmt.Errorf("loop: build autopause rule %d: %w", index, err)
 		}
 		value, _, err := program.Eval(map[string]any{
-			"node_id": string(node.ID), "family": family, "target": target,
+			metadataNodeIDKey: string(node.ID), "family": family, "target": target,
 			"class": string(failure.Class), watchEventsPayloadAttempt: int64(attempt),
 		})
 		if err != nil {

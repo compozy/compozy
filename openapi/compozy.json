@@ -63895,7 +63895,6 @@
                               "canonical_route",
                               "capabilities",
                               "display_name",
-                              "last_seen_at",
                               "normalized",
                               "target_type",
                               "updated_at"
@@ -63945,7 +63944,6 @@
                             "canonical_route",
                             "capabilities",
                             "display_name",
-                            "last_seen_at",
                             "normalized",
                             "target_type",
                             "updated_at"
@@ -64142,7 +64140,6 @@
                               "canonical_route",
                               "capabilities",
                               "display_name",
-                              "last_seen_at",
                               "normalized",
                               "target_type",
                               "updated_at"
@@ -64192,7 +64189,6 @@
                             "canonical_route",
                             "capabilities",
                             "display_name",
-                            "last_seen_at",
                             "normalized",
                             "target_type",
                             "updated_at"
@@ -64316,7 +64312,6 @@
                               "canonical_route",
                               "capabilities",
                               "display_name",
-                              "last_seen_at",
                               "normalized",
                               "target_type",
                               "updated_at"
@@ -64366,7 +64361,6 @@
                             "canonical_route",
                             "capabilities",
                             "display_name",
-                            "last_seen_at",
                             "normalized",
                             "target_type",
                             "updated_at"
@@ -67269,7 +67263,6 @@
                           "canonical_route",
                           "capabilities",
                           "display_name",
-                          "last_seen_at",
                           "normalized",
                           "target_type",
                           "updated_at"

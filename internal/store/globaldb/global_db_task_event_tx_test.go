@@ -124,9 +124,13 @@ func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *te
 			Plan: taskpkg.CoordinatorCompletionPlan{
 				Snapshot: taskpkg.GenerationSnapshot{
 					LoopRunID: string(loopRun.ID), Generation: 1,
-					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
-						NodeID: "collect", Status: "partial", OutputRef: `{"total":3,"succeeded":2,"failed":0,"canceled":1,"coverage_rate":0.67,"partial":true}`,
-					}}},
+					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{
+						{
+							NodeID:    "collect",
+							Status:    "partial",
+							OutputRef: `{"total":3,"succeeded":2,"failed":0,"canceled":1,"coverage_rate":0.67,"partial":true}`,
+						},
+					}},
 				},
 				Terminal: &taskpkg.CoordinatorTerminal{
 					Status: string(looppkg.StatusDone), Cause: string(looppkg.TransitionCauseContract),
@@ -140,8 +144,8 @@ func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *te
 		if err != nil {
 			t.Fatalf("GetLoopRunByID() error = %v", err)
 		}
-		if stored.CompletionState != looppkg.CompletionPartial {
-			t.Fatalf("completion state = %q, want %q", stored.CompletionState, looppkg.CompletionPartial)
+		if stored.CompletionStateSnapshot() != looppkg.CompletionPartial {
+			t.Fatalf("completion state = %q, want %q", stored.CompletionStateSnapshot(), looppkg.CompletionPartial)
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
 			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,

@@ -11,7 +11,6 @@ import {
 
 const STORYBOOK_PORT = 6108;
 const STORY_MODULE_PATH = "/src/systems/loops/components/stories/loop-run-page.stories.tsx";
-
 const RUN_PAGE = "systems-loops-components-looprunpage";
 const RUN_DIFF = "systems-loops-components-looprundiff";
 const FORK_DIALOG = "systems-loops-components-loopforkdialog";
@@ -253,4 +252,26 @@ test("E2E-029: editor grammar round-trips and reports a missing route default", 
   await expect(page.getByTestId("loop-linter-error-count")).toBeVisible();
   await page.getByTestId("loop-linter-toggle").click();
   await expect(page.getByTestId("loop-linter-issue")).toContainText("route_default_missing");
+});
+
+test("E2E-030: loop requests compose into the bell count and jump to their form", async ({
+  page,
+}) => {
+  await openStory(page, `${RUN_ROUTES}--attention-requests`);
+
+  const bell = page.getByRole("button", { name: "Attention, 4 waiting" });
+  await expect(bell).toBeVisible();
+  await bell.click();
+
+  const requestRow = page.getByTestId(
+    "os-attention-loop-request-ws_launch_hq:looprun_release_train:confirm-rollout:0"
+  );
+  await expect(requestRow).toContainText("launch-hq");
+  await expect(requestRow).toContainText("release-train — ask");
+  await requestRow.click();
+  await expect(page.getByTestId("os-bell-popover")).toHaveCount(0);
+
+  await openStory(page, `${RUN_ROUTES}--attention-request-target`);
+  await expect(page.getByTestId("loop-run-detail-content")).toBeVisible();
+  await expect(page.getByTestId("loop-request-field-regions")).toBeFocused();
 });

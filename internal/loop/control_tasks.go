@@ -67,7 +67,7 @@ func appendCoordinatorDependenciesForOutputs(
 	topology controlTopology,
 	gatesEnabled bool,
 	outputs []GenerationOutput,
-) error {
+) {
 	existing := make(map[string]struct{}, len(plan.Dependencies))
 	for _, dependency := range plan.Dependencies {
 		existing[dependencyKey(dependency.TaskID, dependency.DependsOnTaskID)] = struct{}{}
@@ -125,7 +125,6 @@ func appendCoordinatorDependenciesForOutputs(
 			}
 		}
 	}
-	return nil
 }
 
 func isAuthoredErrorRouteDependency(source dsl.Node, target dsl.NodeID) bool {

@@ -65,7 +65,7 @@ func (s *service) hydrateRequestResponderPolicy(
 	if err != nil {
 		return err
 	}
-	node, found := graphNode(resolved.Definition.Graph, dsl.NodeID(request.NodeID))
+	node, found := graphNode(resolved.Definition.Graph, request.NodeID)
 	if !found {
 		return fmt.Errorf("%w: request node %q is not in the pinned definition", ErrValidation, request.NodeID)
 	}
@@ -97,9 +97,13 @@ func (s *service) Respond(ctx context.Context, input RespondInput) (RespondResul
 	if err != nil {
 		return RespondResult{}, err
 	}
-	node, found := graphNode(resolved.Definition.Graph, dsl.NodeID(input.NodeID))
+	node, found := graphNode(resolved.Definition.Graph, input.NodeID)
 	if !found {
-		return RespondResult{}, fmt.Errorf("%w: request node %q is not in the pinned definition", ErrValidation, input.NodeID)
+		return RespondResult{}, fmt.Errorf(
+			"%w: request node %q is not in the pinned definition",
+			ErrValidation,
+			input.NodeID,
+		)
 	}
 	input.RequestKind, input.RejectRoute, err = respondNodeContract(node, input.Decision)
 	if err != nil {
@@ -151,12 +155,12 @@ func respondNodeContract(node dsl.Node, decision string) (string, NodeID, error)
 		return "", "", NewRequestReasonError(
 			ReasonCodeRequestValidationFailed,
 			fmt.Errorf("%w: review decision is required", ErrRequestValidationFailed),
-			map[string]string{"decision": "required"},
+			map[string]string{"decision": jsonSchemaRequiredKey},
 		)
 	}
 	var route NodeID
 	if node.Review.OnReject != nil {
-		route = NodeID(node.Review.OnReject.Route)
+		route = node.Review.OnReject.Route
 	}
 	return RequestKindReview, route, nil
 }
@@ -170,7 +174,7 @@ func (s *service) requestAllowsAgentResponder(ctx context.Context, input Respond
 	if err != nil {
 		return false, err
 	}
-	node, found := graphNode(resolved.Definition.Graph, dsl.NodeID(input.NodeID))
+	node, found := graphNode(resolved.Definition.Graph, input.NodeID)
 	if !found {
 		return false, fmt.Errorf("%w: request node %q is not in the pinned definition", ErrValidation, input.NodeID)
 	}

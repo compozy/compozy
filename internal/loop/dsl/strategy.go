@@ -185,7 +185,11 @@ func (s *StrategySpec) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind != yaml.MappingNode {
 		return fmt.Errorf("strategy must be a string or object")
 	}
-	if err := rejectUnknownMappingKeys(value, map[string]struct{}{"kind": {}, "threshold": {}, "missing": {}}, "strategy"); err != nil {
+	if err := rejectUnknownMappingKeys(
+		value,
+		map[string]struct{}{"kind": {}, "threshold": {}, "missing": {}},
+		"strategy",
+	); err != nil {
 		return err
 	}
 	type wire StrategySpec

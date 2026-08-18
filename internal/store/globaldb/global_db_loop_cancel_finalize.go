@@ -76,59 +76,16 @@ func claimCancellationWaits(
 	mutation looppkg.CancellationMutation,
 	run looppkg.Run,
 ) error {
-	requestQuery := `SELECT generation, node_id, item_index FROM loop_requests
-		WHERE loop_run_id = ? AND state = 'pending'`
-	requestArgs := []any{mutation.RunID}
-	if mutation.NodeID != "" {
-		requestQuery += ` AND node_id = ?`
-		requestArgs = append(requestArgs, mutation.NodeID)
-	}
-	if mutation.ItemIndex != nil {
-		requestQuery += ` AND item_index = ?`
-		requestArgs = append(requestArgs, *mutation.ItemIndex)
-	}
-	rows, err := exec.QueryContext(ctx, requestQuery, requestArgs...)
+	requests, err := listCancellationRequests(ctx, exec, mutation)
 	if err != nil {
-		return fmt.Errorf("store: list requests for cancellation: %w", err)
-	}
-	type requestRef struct {
-		generation int
-		nodeID     string
-		itemIndex  int
-	}
-	requests := make([]requestRef, 0)
-	for rows.Next() {
-		var request requestRef
-		if err := rows.Scan(&request.generation, &request.nodeID, &request.itemIndex); err != nil {
-			return errors.Join(
-				fmt.Errorf("store: scan request for cancellation: %w", err),
-				closeRowsWithContext(rows, "requests for cancellation"),
-			)
-		}
-		requests = append(requests, request)
-	}
-	if err := rows.Err(); err != nil {
-		return errors.Join(
-			fmt.Errorf("store: iterate requests for cancellation: %w", err),
-			closeRowsWithContext(rows, "requests for cancellation"),
-		)
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("store: close requests for cancellation: %w", err)
+		return err
 	}
 	actorKind := mutation.Actor.Actor.Kind.Normalize()
 	actorID := strings.TrimSpace(mutation.Actor.Actor.Ref)
 	requestUpdate := `UPDATE loop_requests SET state = 'canceled', resolved_at = ?,
 		actor_kind = ?, actor_id = ? WHERE loop_run_id = ? AND state = 'pending'`
 	updateArgs := []any{mutation.RequestedAt.UTC(), actorKind, actorID, mutation.RunID}
-	if mutation.NodeID != "" {
-		requestUpdate += ` AND node_id = ?`
-		updateArgs = append(updateArgs, mutation.NodeID)
-	}
-	if mutation.ItemIndex != nil {
-		requestUpdate += ` AND item_index = ?`
-		updateArgs = append(updateArgs, *mutation.ItemIndex)
-	}
+	requestUpdate, updateArgs = appendCancellationScope(requestUpdate, updateArgs, mutation)
 	if _, err := exec.ExecContext(ctx, requestUpdate, updateArgs...); err != nil {
 		return fmt.Errorf("store: cancel Loop requests: %w", err)
 	}
@@ -144,6 +101,67 @@ func claimCancellationWaits(
 			return err
 		}
 	}
+	return claimCanceledNodeWaits(ctx, exec, mutation)
+}
+
+type cancellationRequestRef struct {
+	generation int
+	nodeID     string
+	itemIndex  int
+}
+
+func listCancellationRequests(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation looppkg.CancellationMutation,
+) ([]cancellationRequestRef, error) {
+	requestQuery := `SELECT generation, node_id, item_index FROM loop_requests
+		WHERE loop_run_id = ? AND state = 'pending'`
+	requestQuery, requestArgs := appendCancellationScope(requestQuery, []any{mutation.RunID}, mutation)
+	rows, err := exec.QueryContext(ctx, requestQuery, requestArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("store: list requests for cancellation: %w", err)
+	}
+	requests := make([]cancellationRequestRef, 0)
+	for rows.Next() {
+		var request cancellationRequestRef
+		if err := rows.Scan(&request.generation, &request.nodeID, &request.itemIndex); err != nil {
+			return nil, errors.Join(
+				fmt.Errorf("store: scan request for cancellation: %w", err),
+				closeRowsWithContext(rows, "requests for cancellation"),
+			)
+		}
+		requests = append(requests, request)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Join(
+			fmt.Errorf("store: iterate requests for cancellation: %w", err),
+			closeRowsWithContext(rows, "requests for cancellation"),
+		)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("store: close requests for cancellation: %w", err)
+	}
+	return requests, nil
+}
+
+func appendCancellationScope(
+	query string,
+	args []any,
+	mutation looppkg.CancellationMutation,
+) (string, []any) {
+	if mutation.NodeID != "" {
+		query += loopCancelNodeFilterSQL
+		args = append(args, mutation.NodeID)
+	}
+	if mutation.ItemIndex != nil {
+		query += loopCancelItemFilterSQL
+		args = append(args, *mutation.ItemIndex)
+	}
+	return query, args
+}
+
+func claimCanceledNodeWaits(ctx context.Context, exec taskSQLExecutor, mutation looppkg.CancellationMutation) error {
 	query := `UPDATE loop_node_waits SET claim_state = 'claimed', claimed_by_kind = ?,
 		claimed_by_id = ?, claimed_at = ?
 		WHERE loop_run_id = ? AND claim_state IN ('waiting','intervention_required')`
@@ -153,14 +171,7 @@ func claimCancellationWaits(
 		mutation.RequestedAt.UTC(),
 		mutation.RunID,
 	}
-	if mutation.NodeID != "" {
-		query += " AND node_id = ?"
-		args = append(args, mutation.NodeID)
-	}
-	if mutation.ItemIndex != nil {
-		query += " AND item_index = ?"
-		args = append(args, *mutation.ItemIndex)
-	}
+	query, args = appendCancellationScope(query, args, mutation)
 	if _, err := exec.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("store: claim canceled Loop node waits: %w", err)
 	}

@@ -537,8 +537,12 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		}, nativeApproveAllPolicyInputs())
 		result, err := registry.Call(t.Context(),
 			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDLoopNodeAmend,
-				Input: json.RawMessage(`{"run_id":"run-1","node_id":"repair","item_index":3,"payload":{"value":"fixed"}}`)},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopNodeAmend,
+				Input: json.RawMessage(
+					`{"run_id":"run-1","node_id":"repair","item_index":3,"payload":{"value":"fixed"}}`,
+				),
+			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(loop_node_amend) error = %v", err)

@@ -134,11 +134,12 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 			v.status,
 		)
 	}
-	run.CompletionState = looppkg.CompletionState(strings.TrimSpace(v.completionState))
-	if !run.CompletionState.Valid() {
+	completionState := looppkg.CompletionState(strings.TrimSpace(v.completionState))
+	if !completionState.Valid() {
 		return looppkg.Run{}, fmt.Errorf("%w: loop run %q completion state is invalid: %q",
 			looppkg.ErrValidation, run.ID, v.completionState)
 	}
+	run.SetCompletionState(completionState)
 	run.ReattemptStrategy = looppkg.ReattemptStrategy(v.reattempt)
 	run.BudgetOnExceeded = dsl.BudgetExceeded(v.budgetOnExceeded)
 	if err := applyLoopRunScanTimestamps(&run, v.createdAtRaw, v.startedAtRaw, v.lastProgressAtRaw); err != nil {
@@ -154,6 +155,13 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 	if err := applyLoopRunControlScan(&run, v); err != nil {
 		return looppkg.Run{}, err
 	}
+	if err := applyLoopRunPayloadScan(&run, v); err != nil {
+		return looppkg.Run{}, err
+	}
+	return run, nil
+}
+
+func applyLoopRunPayloadScan(run *looppkg.Run, v *loopRunScanValues) error {
 	run.StartedBy = taskpkg.ActorIdentity{
 		Kind: taskpkg.ActorKind(strings.TrimSpace(v.startedByKind)),
 		Ref:  strings.TrimSpace(v.startedByRef),
@@ -170,11 +178,11 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		CreationDigest:     strings.TrimSpace(v.originCreation.String),
 	}.Normalize()
 	if err := origin.Validate(); err != nil {
-		return looppkg.Run{}, err
+		return err
 	}
 	run.Origin = &origin
 	if err := json.Unmarshal([]byte(v.inputsRaw), &run.Inputs); err != nil {
-		return looppkg.Run{}, fmt.Errorf("store: decode loop run inputs: %w", err)
+		return fmt.Errorf("store: decode loop run inputs: %w", err)
 	}
 	if run.Inputs == nil {
 		run.Inputs = map[string]any{}
@@ -184,10 +192,10 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		run.ActiveHumanCriteria = json.RawMessage(`[]`)
 	}
 	if !json.Valid(run.ActiveHumanCriteria) {
-		return looppkg.Run{}, fmt.Errorf("store: decode loop run active human criteria: %w", looppkg.ErrValidation)
+		return fmt.Errorf("store: decode loop run active human criteria: %w", looppkg.ErrValidation)
 	}
 	if err := json.Unmarshal([]byte(v.startMetadataRaw), &run.StartMetadata); err != nil {
-		return looppkg.Run{}, fmt.Errorf("store: decode loop run start metadata: %w", err)
+		return fmt.Errorf("store: decode loop run start metadata: %w", err)
 	}
 	if run.StartMetadata == nil {
 		run.StartMetadata = map[string]any{}
@@ -200,22 +208,22 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 		v.networkSource,
 	)
 	if err != nil {
-		return looppkg.Run{}, err
+		return err
 	}
 	run.SetNetworkSpec(networkSpec)
-	if err := applyLoopRunBest(&run, v.bestGeneration, v.bestScore); err != nil {
-		return looppkg.Run{}, err
+	if err := applyLoopRunBest(run, v.bestGeneration, v.bestScore); err != nil {
+		return err
 	}
 	if v.forkedFromRunID.Valid != v.forkedFromGen.Valid {
-		return looppkg.Run{}, fmt.Errorf("%w: loop run %q fork lineage is incomplete", looppkg.ErrValidation, run.ID)
+		return fmt.Errorf("%w: loop run %q fork lineage is incomplete", looppkg.ErrValidation, run.ID)
 	}
 	if v.forkedFromRunID.Valid {
-		run.ForkedFrom = &looppkg.ForkRef{
+		run.SetForkedFrom(&looppkg.ForkRef{
 			RunID:      looppkg.RunID(strings.TrimSpace(v.forkedFromRunID.String)),
 			Generation: v.forkedFromGen.Int64,
-		}
+		})
 	}
-	return run, nil
+	return nil
 }
 
 func applyLoopRunCancellationScan(run *looppkg.Run, values *loopRunScanValues) error {

@@ -16,8 +16,8 @@ func fanOutProgressValue(
 		total = 0
 	}
 	progress := map[string]any{
-		"total": int64(total), "succeeded": int64(0), "failed": int64(0),
-		"canceled": int64(0), "running": int64(0), "pending": int64(total),
+		"total": int64(total), generationOutputSucceeded: int64(0), "failed": int64(0),
+		generationOutputCanceled: int64(0), "running": int64(0), string(joinSettlementPending): int64(total),
 		"settled": int64(0), "success_rate": float64(0), "failure_rate": float64(0),
 	}
 	collectID, ok := firstFanOutCollect(topology, fanOutID)

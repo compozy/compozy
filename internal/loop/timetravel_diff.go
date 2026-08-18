@@ -12,7 +12,10 @@ import (
 	"github.com/compozy/compozy/internal/loop/gate"
 )
 
-const diffInlinePayloadLimit = 16 * 1024
+const (
+	diffInlinePayloadLimit = 16 * 1024
+	diffKindGeneration     = "generation"
+)
 
 func (s *service) DiffRun(ctx context.Context, workspaceID WorkspaceID, query DiffQuery) (DiffResult, error) {
 	reader, ok := s.store.(GenerationOutputReader)
@@ -24,7 +27,7 @@ func (s *service) DiffRun(ctx context.Context, workspaceID WorkspaceID, query Di
 		return DiffResult{}, err
 	}
 	against := base
-	kind := "generation"
+	kind := diffKindGeneration
 	if query.AgainstRunID != "" {
 		against, err = s.store.GetLoopRun(ctx, workspaceID, query.AgainstRunID)
 		if err != nil {
@@ -135,83 +138,6 @@ func generationOutputsSettled(outputs []GenerationOutput) bool {
 type diffOutputKey struct {
 	node string
 	item int
-}
-
-func diffGenerationOutputs(
-	ctx context.Context,
-	reader GenerationOutputReader,
-	workspaceID WorkspaceID,
-	baseRunID RunID,
-	base []GenerationOutput,
-	againstRunID RunID,
-	against []GenerationOutput,
-	sharedOnly bool,
-) ([]DiffNodeRow, error) {
-	baseByKey := indexDiffOutputs(base)
-	againstByKey := indexDiffOutputs(against)
-	keys := make([]diffOutputKey, 0, len(baseByKey)+len(againstByKey))
-	seen := make(map[diffOutputKey]struct{}, len(baseByKey)+len(againstByKey))
-	for key := range baseByKey {
-		if sharedOnly {
-			if _, exists := againstByKey[key]; !exists {
-				continue
-			}
-		}
-		seen[key] = struct{}{}
-		keys = append(keys, key)
-	}
-	for key := range againstByKey {
-		if sharedOnly {
-			continue
-		}
-		if _, exists := seen[key]; !exists {
-			keys = append(keys, key)
-		}
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].node == keys[j].node {
-			return keys[i].item < keys[j].item
-		}
-		return keys[i].node < keys[j].node
-	})
-	rows := make([]DiffNodeRow, 0, len(keys))
-	for _, key := range keys {
-		left, leftOK := baseByKey[key]
-		right, rightOK := againstByKey[key]
-		if leftOK && rightOK && left.Status == right.Status && left.OutputRef == right.OutputRef {
-			if left.Generation != right.Generation || baseRunID != againstRunID {
-				rows = append(rows, DiffNodeRow{NodeID: key.node, ItemIndex: key.item, Change: "carried"})
-			}
-			continue
-		}
-		row := DiffNodeRow{NodeID: key.node, ItemIndex: key.item, Change: "changed"}
-		switch {
-		case !leftOK:
-			row.Change = "rerun"
-		case !rightOK:
-			row.Change = "skipped"
-		case generationOutputSettled(left.Status) && !generationOutputSettled(right.Status):
-			row.Change = "rerun"
-		case !generationOutputSettled(left.Status) && generationOutputSettled(right.Status):
-			row.Change = "skipped"
-		}
-		if leftOK {
-			value, valueErr := diffOutputValue(ctx, reader, workspaceID, baseRunID, left)
-			if valueErr != nil {
-				return nil, valueErr
-			}
-			row.Base = value
-		}
-		if rightOK {
-			value, valueErr := diffOutputValue(ctx, reader, workspaceID, againstRunID, right)
-			if valueErr != nil {
-				return nil, valueErr
-			}
-			row.Against = value
-		}
-		rows = append(rows, row)
-	}
-	return rows, nil
 }
 
 type diffVerdictKey struct {

@@ -10,8 +10,12 @@ import (
 
 var _ looppkg.CancellationStore = (*LoopRepo)(nil)
 
-const liveCancelOutputStatuses = "'pending','enqueued','running','retrying'," +
-	"'waiting','paused','awaiting_child','control_pending','awaiting_goal'"
+const (
+	liveCancelOutputStatuses = "'pending','enqueued','running','retrying'," +
+		"'waiting','paused','awaiting_child','control_pending','awaiting_goal'"
+	loopCancelNodeFilterSQL = " AND node_id = ?"
+	loopCancelItemFilterSQL = " AND item_index = ?"
+)
 
 // RequestRunCancellation records first-writer Run intent and fences every live node cell.
 func (g *LoopRepo) RequestRunCancellation(

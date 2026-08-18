@@ -11,7 +11,6 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
-	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 var _ looppkg.RequestStore = (*LoopRepo)(nil)
@@ -19,7 +18,7 @@ var _ looppkg.RequestStore = (*LoopRepo)(nil)
 type requestCursor struct {
 	NullExpiry bool      `json:"null_expiry,omitempty"`
 	Primary    time.Time `json:"primary"`
-	Secondary  time.Time `json:"secondary,omitempty"`
+	Secondary  time.Time `json:"secondary,omitzero"`
 	RowID      int64     `json:"row_id"`
 }
 
@@ -56,51 +55,11 @@ func (g *LoopRepo) ListRequests(
 	if workspaceID == "" {
 		return looppkg.RequestPage{}, fmt.Errorf("%w: workspace id is required", looppkg.ErrValidation)
 	}
-	state := strings.TrimSpace(query.State)
-	if state == "" {
-		state = looppkg.RequestStatePending
-	}
-	if state != looppkg.RequestStatePending && state != "resolved" {
-		return looppkg.RequestPage{}, fmt.Errorf("%w: request state must be pending or resolved", looppkg.ErrValidation)
-	}
-	limit := query.Limit
-	if limit == 0 {
-		limit = 50
-	}
-	if limit < 1 || limit > 200 {
-		return looppkg.RequestPage{}, fmt.Errorf("%w: request limit must be between 1 and 200", looppkg.ErrValidation)
-	}
-	cursor, err := decodeRequestCursor(query.Cursor)
+	state, limit, cursor, err := normalizeRequestQuery(query)
 	if err != nil {
 		return looppkg.RequestPage{}, err
 	}
-
-	where := `request.workspace_id = ?`
-	args := []any{workspaceID}
-	if query.RunID != "" {
-		where += ` AND request.loop_run_id = ?`
-		args = append(args, query.RunID)
-	}
-	order := ""
-	if state == looppkg.RequestStatePending {
-		where += ` AND request.state = 'pending'`
-		order = `request.expires_at IS NULL ASC, request.expires_at ASC, request.opened_at ASC, request.rowid ASC`
-		if cursor != nil {
-			where += ` AND (request.expires_at IS NULL, COALESCE(request.expires_at, ''), request.opened_at, request.rowid) > (?, ?, ?, ?)`
-			args = append(args, cursor.NullExpiry, nullableCursorTime(*cursor), cursor.Secondary, cursor.RowID)
-		}
-	} else {
-		where += ` AND request.state IN ('answered','expired','canceled')`
-		order = `request.resolved_at DESC, request.rowid DESC`
-		if cursor != nil {
-			where += ` AND (request.resolved_at, request.rowid) < (?, ?)`
-			args = append(args, cursor.Primary, cursor.RowID)
-		}
-	}
-	args = append(args, limit+1)
-	rows, err := g.db.QueryContext(ctx, `SELECT `+requestSelectColumns+`
-		FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id
-		WHERE `+where+` ORDER BY `+order+` LIMIT ?`, args...)
+	rows, err := g.queryRequestRows(ctx, workspaceID, query.RunID, state, cursor, limit+1)
 	if err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: list Loop requests: %w", err)
 	}
@@ -110,13 +69,44 @@ func (g *LoopRepo) ListRequests(
 		}
 	}()
 
+	page, err = scanRequestPage(rows, limit, state)
+	if err != nil {
+		return looppkg.RequestPage{}, err
+	}
+	if err := g.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_requests
+		WHERE workspace_id = ? AND state = 'pending'`, workspaceID).Scan(&page.Pending); err != nil {
+		return looppkg.RequestPage{}, fmt.Errorf("store: count pending Loop requests: %w", err)
+	}
+	return page, nil
+}
+
+func normalizeRequestQuery(query looppkg.RequestQuery) (string, int, *requestCursor, error) {
+	state := strings.TrimSpace(query.State)
+	if state == "" {
+		state = looppkg.RequestStatePending
+	}
+	if state != looppkg.RequestStatePending && state != "resolved" {
+		return "", 0, nil, fmt.Errorf("%w: request state must be pending or resolved", looppkg.ErrValidation)
+	}
+	limit := query.Limit
+	if limit == 0 {
+		limit = 50
+	}
+	if limit < 1 || limit > 200 {
+		return "", 0, nil, fmt.Errorf("%w: request limit must be between 1 and 200", looppkg.ErrValidation)
+	}
+	cursor, err := decodeRequestCursor(query.Cursor)
+	return state, limit, cursor, err
+}
+
+func scanRequestPage(rows *sql.Rows, limit int, state string) (looppkg.RequestPage, error) {
 	items := make([]looppkg.Request, 0, limit)
 	var lastIncluded storedRequest
 	hasMore := false
 	for rows.Next() {
-		stored, scanErr := scanStoredRequest(rows)
-		if scanErr != nil {
-			return looppkg.RequestPage{}, scanErr
+		stored, err := scanStoredRequest(rows)
+		if err != nil {
+			return looppkg.RequestPage{}, err
 		}
 		if len(items) == limit {
 			hasMore = true
@@ -128,16 +118,13 @@ func (g *LoopRepo) ListRequests(
 	if err := rows.Err(); err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: iterate Loop requests: %w", err)
 	}
-	page = looppkg.RequestPage{Items: items}
+	page := looppkg.RequestPage{Items: items}
 	if hasMore {
-		page.NextCursor, err = encodeRequestCursor(cursorForRequest(lastIncluded, state))
+		cursor, err := encodeRequestCursor(cursorForRequest(lastIncluded, state))
 		if err != nil {
 			return looppkg.RequestPage{}, err
 		}
-	}
-	if err := g.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_requests
-		WHERE workspace_id = ? AND state = 'pending'`, workspaceID).Scan(&page.Pending); err != nil {
-		return looppkg.RequestPage{}, fmt.Errorf("store: count pending Loop requests: %w", err)
+		page.NextCursor = cursor
 	}
 	return page, nil
 }
@@ -176,108 +163,7 @@ func (g *LoopRepo) RespondRequest(
 	}
 	var result looppkg.RespondResult
 	err := g.withTaskImmediateTransaction(ctx, "respond to Loop request", func(exec taskSQLExecutor) error {
-		stored, err := getStoredRequest(ctx, exec, input.WorkspaceID, looppkg.RequestRef{
-			RunID: input.RunID, NodeID: input.NodeID, ItemIndex: input.ItemIndex,
-		})
-		if err != nil {
-			return err
-		}
-		decision := strings.TrimSpace(input.Decision)
-		if decision == "" {
-			decision = looppkg.RequestDecisionRespond
-		}
-		if input.RequestKind != "" && stored.request.Kind != input.RequestKind {
-			return fmt.Errorf("%w: request kind changed", looppkg.ErrTransitionConflict)
-		}
-		actorKind := string(input.Actor.Actor.Kind.Normalize())
-		actorID := strings.TrimSpace(input.Actor.Actor.Ref)
-		decisionPayload, schema, err := requestDecisionPayload(ctx, exec, stored, decision, input.Payload)
-		if err != nil {
-			return err
-		}
-		if stored.request.State != looppkg.RequestStatePending {
-			return resolvedRequestOutcome(ctx, exec, stored, decision, decisionPayload, actorKind, actorID, &result)
-		}
-		if !requestAllowsDecision(stored.request.Decisions, decision) {
-			return looppkg.NewRequestReasonError(
-				looppkg.ReasonCodeRequestValidationFailed,
-				fmt.Errorf("%w: decision %q is not allowed", looppkg.ErrRequestValidationFailed, decision),
-				map[string]string{"decision": "not allowed"},
-			)
-		}
-		if len(schema) > 0 {
-			if err := looppkg.ValidateWaitPayload(schema, decisionPayload); err != nil {
-				return looppkg.NewRequestValidationError(err)
-			}
-		}
-		run, err := nodePauseRun(ctx, exec, input.WorkspaceID, input.RunID)
-		if err != nil {
-			return err
-		}
-		mutation := looppkg.WaitResumeMutation{
-			WorkspaceID: input.WorkspaceID, RunID: input.RunID,
-			Generation: stored.request.Generation, NodeID: input.NodeID, ItemIndex: input.ItemIndex,
-			Payload: decisionPayload, ClaimedByKind: actorKind, ClaimedByID: actorID,
-			AdmissionAttempts: 1, RequestedAt: g.now().UTC(),
-		}
-		wait, err := loadWaitForResume(ctx, exec, mutation)
-		if err != nil {
-			return err
-		}
-		if wait.Kind != looppkg.NodeWaitKindRequest {
-			return fmt.Errorf("%w: request wait kind changed", looppkg.ErrTransitionConflict)
-		}
-		if err := validateWaitResumeCell(ctx, exec, mutation, wait); err != nil {
-			return err
-		}
-		answerRef := looppkg.OutputRefForPayload(decisionPayload)
-		if err := storepkg.UpsertLoopOutputBlob(ctx, exec, answerRef, decisionPayload, mutation.RequestedAt); err != nil {
-			return err
-		}
-		update, err := exec.ExecContext(ctx, `UPDATE loop_requests SET state = 'answered',
-			answered_decision = ?, answered_payload_ref = ?, answered_note = ?, actor_kind = ?,
-			actor_id = ?, resolved_at = ? WHERE loop_run_id = ? AND generation = ? AND node_id = ?
-			AND item_index = ? AND state = 'pending'`, decision, answerRef, strings.TrimSpace(input.Note),
-			actorKind, actorID, mutation.RequestedAt, input.RunID, stored.request.Generation,
-			input.NodeID, input.ItemIndex)
-		if err != nil {
-			return fmt.Errorf("store: answer Loop request: %w", err)
-		}
-		if err := requireSingleWaitMutation(update); err != nil {
-			return err
-		}
-		if err := claimRequestDecision(ctx, exec, mutation, wait, stored.request.Kind, decision,
-			answerRef, input.RejectRoute); err != nil {
-			return err
-		}
-		parkedFor := max(mutation.RequestedAt.Sub(wait.CreatedAt.UTC()), 0)
-		if err := shiftLoopWallClockIfUnparked(ctx, exec, input.RunID, parkedFor); err != nil {
-			return err
-		}
-		if err := appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
-			loopRunEventRequestAnswered, requestResolutionEventPayload(stored, decision, actorKind, actorID),
-			mutation.RequestedAt); err != nil {
-			return err
-		}
-		if err := appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
-			loopRunEventNodeWaitResumed, waitResumeEventPayload(mutation, wait), mutation.RequestedAt); err != nil {
-			return err
-		}
-		coordinator, err := g.reserveOrReuseOpenLoopCoordinatorRunWithExecutor(
-			ctx, exec, run, waitResumeOrigin(mutation), mutation.RequestedAt,
-			waitResumeIdempotencyKey(mutation, wait.IssuedEpoch),
-		)
-		if err != nil {
-			return err
-		}
-		stored.request.State = looppkg.RequestStateAnswered
-		stored.request.AnsweredDecision = decision
-		stored.request.ActorKind = actorKind
-		stored.request.ActorID = actorID
-		resolvedAt := mutation.RequestedAt
-		stored.request.ResolvedAt = &resolvedAt
-		result = looppkg.RespondResult{Request: stored.request, Coordinator: &coordinator, Won: true}
-		return nil
+		return g.respondRequestWithExecutor(ctx, exec, input, &result)
 	})
 	if err != nil {
 		return looppkg.RespondResult{}, err

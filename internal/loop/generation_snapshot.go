@@ -91,6 +91,22 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 	if err != nil {
 		return err
 	}
+	if err := writeSnapshotOutputs(ctx, tx, loopRunID, snap.Generation, payload); err != nil {
+		return err
+	}
+	if err := writeSnapshotControls(ctx, tx, loopRunID, snap.Generation, payload); err != nil {
+		return err
+	}
+	return writeSnapshotWaitsAndRequests(ctx, tx, loopRunID, snap.Generation, payload)
+}
+
+func writeSnapshotOutputs(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	payload GenerationSnapshotPayload,
+) error {
 	for _, blob := range payload.OutputBlobs {
 		blob = blob.normalized()
 		if err := blob.validate(); err != nil {
@@ -109,32 +125,52 @@ func (f *StoreFinalizer) WriteGenerationSnapshot(
 		if err != nil {
 			return err
 		}
-		if err := writeGenerationOutput(ctx, tx, loopRunID, snap.Generation, output, resolvedRuntime); err != nil {
+		if err := writeGenerationOutput(ctx, tx, loopRunID, generation, output, resolvedRuntime); err != nil {
 			return err
 		}
 	}
 	for _, attempt := range payload.Attempts {
-		if err := writeGenerationAttempt(ctx, tx, loopRunID, snap.Generation, attempt); err != nil {
+		if err := writeGenerationAttempt(ctx, tx, loopRunID, generation, attempt); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func writeSnapshotControls(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	payload GenerationSnapshotPayload,
+) error {
 	for _, control := range payload.Controls {
 		if err := writeNodeControlMutation(ctx, tx, loopRunID, control); err != nil {
 			return err
 		}
 		if control.Kind == NodeControlMutationQuarantine {
-			if err := markQuarantinedNodeTasks(ctx, tx, loopRunID, snap.Generation, payload, control); err != nil {
+			if err := markQuarantinedNodeTasks(ctx, tx, loopRunID, generation, payload, control); err != nil {
 				return err
 			}
 		}
 	}
+	return nil
+}
+
+func writeSnapshotWaitsAndRequests(
+	ctx context.Context,
+	tx task.Tx,
+	loopRunID string,
+	generation int,
+	payload GenerationSnapshotPayload,
+) error {
 	for _, wait := range payload.Waits {
-		if err := writeNodeWaitIntent(ctx, tx, loopRunID, snap.Generation, wait); err != nil {
+		if err := writeNodeWaitIntent(ctx, tx, loopRunID, generation, wait); err != nil {
 			return err
 		}
 	}
 	for _, request := range payload.Requests {
-		if err := writeRequestIntent(ctx, tx, loopRunID, snap.Generation, request); err != nil {
+		if err := writeRequestIntent(ctx, tx, loopRunID, generation, request); err != nil {
 			return err
 		}
 	}

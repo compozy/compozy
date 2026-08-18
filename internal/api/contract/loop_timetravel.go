@@ -25,8 +25,8 @@ type LoopDiffNodeRow struct {
 	NodeID    string        `json:"node_id"`
 	ItemIndex int           `json:"item_index,omitempty"`
 	Change    string        `json:"change"`
-	Base      LoopDiffValue `json:"base,omitempty"`
-	Against   LoopDiffValue `json:"against,omitempty"`
+	Base      LoopDiffValue `json:"base,omitzero"`
+	Against   LoopDiffValue `json:"against,omitzero"`
 	Cause     string        `json:"cause,omitempty"`
 }
 

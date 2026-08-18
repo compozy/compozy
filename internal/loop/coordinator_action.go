@@ -81,39 +81,9 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
-	if actionCtx.meta.ReviewedParamsRef != "" {
-		payload, loadErr := r.outputs.GetGenerationOutputPayload(ctx, GenerationOutputPayloadKey{
-			WorkspaceID: actionCtx.loopRun.WorkspaceID, RunID: actionCtx.loopRun.ID,
-			Generation: actionCtx.meta.Generation, NodeID: actionCtx.node.ID,
-			ItemIndex: actionCtx.meta.ItemIndex, OutputRef: actionCtx.meta.ReviewedParamsRef,
-		})
-		if loadErr != nil {
-			return task.RunResult{}, fmt.Errorf("loop: load reviewed action params: %w", loadErr)
-		}
-		var params map[string]any
-		if err := json.Unmarshal(payload, &params); err != nil {
-			return task.RunResult{}, fmt.Errorf("loop: decode reviewed action params: %w", err)
-		}
-		input.AdmittedParams = dsl.NodeParams(params)
-	}
-	input.RetryFailure, err = r.actionRetryFailure(ctx, actionCtx.loopRun, actionCtx.meta)
-	if err != nil {
+	if err := r.configureActionExecutionInput(ctx, taskRun, &actionCtx, &input); err != nil {
 		return task.RunResult{}, err
 	}
-	input.UsageReporter = actionUsageReporterFromContext(ctx)
-	if input.RuntimeSelection == nil {
-		input.RuntimeSelection = &ActionRuntimeSelection{}
-	}
-	if r.runtimeCatalog != nil {
-		input.RuntimeSelection.Catalog, err = r.runtimeCatalog.ForWorkspace(ctx, actionCtx.loopRun.WorkspaceID)
-		if err != nil {
-			return task.RunResult{}, err
-		}
-	}
-	if recorder, ok := r.outputs.(ActionAppliedRuntimeRecorder); ok {
-		input.RuntimeSelection.Recorder = recorder
-	}
-	input.PersistedTaskTokensUsed = taskRun.TokensUsed
 	executor, err := r.resolvePinnedActionExecutor(ctx, input.ToolScope, &actionCtx)
 	if err != nil {
 		return task.RunResult{}, err

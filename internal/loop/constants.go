@@ -25,5 +25,11 @@ const (
 	namespaceBlockingIssuesKey = "blocking_issues"
 	namespaceCriteriaKey       = "criteria"
 	jsonSchemaItemsKey         = "items"
+	jsonSchemaDefaultKey       = "default"
+	payloadFieldKey            = "payload"
+	predicateEvaluationFailed  = "predicate_evaluation_failed"
+	predicateEvaluationJSON    = `{"code":"predicate_evaluation_failed"}`
+	routeDefaultCause          = "default"
+	timeTravelKindRerun        = "rerun"
 	transformValueKey          = "value"
 )

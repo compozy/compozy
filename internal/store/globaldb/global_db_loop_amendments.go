@@ -29,47 +29,9 @@ func (g *LoopRepo) AmendNodeOutput(
 	}
 	var amendment looppkg.NodeAmendment
 	err := g.withTaskImmediateTransaction(ctx, "amend Loop node output", func(exec taskSQLExecutor) error {
-		var recordedRef, status string
-		var paused, runPaused, lanePaused bool
-		err := exec.QueryRowContext(ctx, `SELECT COALESCE(output.output_ref, ''), output.status,
-			COALESCE(control.paused, 0), run.pause_requested, lane_pause.item_index IS NOT NULL
-			FROM loop_generation_outputs AS output
-			JOIN loop_runs AS run ON run.id = output.loop_run_id
-			LEFT JOIN loop_node_controls AS control
-				ON control.loop_run_id = output.loop_run_id AND control.node_id = output.node_id
-			LEFT JOIN loop_node_lane_pauses AS lane_pause
-				ON lane_pause.loop_run_id = output.loop_run_id AND lane_pause.node_id = output.node_id
-				AND lane_pause.item_index = output.item_index
-			WHERE run.workspace_id = ? AND output.loop_run_id = ? AND output.generation = ?
-				AND output.node_id = ? AND output.item_index = ?`, input.WorkspaceID, input.RunID,
-			input.Generation, input.NodeID, input.ItemIndex).Scan(
-			&recordedRef, &status, &paused, &runPaused, &lanePaused,
-		)
-		if errors.Is(err, sql.ErrNoRows) {
-			return looppkg.NewRequestReasonError(looppkg.ReasonCodeAmendNoOutput, looppkg.ErrAmendNoOutput, nil)
-		}
+		originalRef, sequence, err := loadAmendmentTarget(ctx, exec, input)
 		if err != nil {
-			return fmt.Errorf("store: load amendment target: %w", err)
-		}
-		if strings.TrimSpace(recordedRef) == "" || status != "succeeded" {
-			return looppkg.NewRequestReasonError(looppkg.ReasonCodeAmendNoOutput, looppkg.ErrAmendNoOutput, nil)
-		}
-		if !paused && !runPaused && !lanePaused && status != "paused" && status != "waiting" {
-			return looppkg.NewRequestReasonError(looppkg.ReasonCodeAmendNotParked, looppkg.ErrAmendNotParked, nil)
-		}
-		var sequence int
-		var previousRef sql.NullString
-		if err := exec.QueryRowContext(ctx, `SELECT COALESCE(MAX(amendment_seq), 0),
-			(SELECT amended_ref FROM loop_node_amendments WHERE loop_run_id = ? AND generation = ?
-				AND node_id = ? AND item_index = ? ORDER BY amendment_seq DESC LIMIT 1)
-			FROM loop_node_amendments WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
-			input.RunID, input.Generation, input.NodeID, input.ItemIndex,
-			input.RunID, input.Generation, input.NodeID, input.ItemIndex).Scan(&sequence, &previousRef); err != nil {
-			return fmt.Errorf("store: load amendment sequence: %w", err)
-		}
-		originalRef := recordedRef
-		if previousRef.Valid {
-			originalRef = previousRef.String
+			return err
 		}
 		amendedRef := looppkg.OutputRefForPayload(input.Payload)
 		if err := storepkg.UpsertLoopOutputBlob(ctx, exec, amendedRef, input.Payload, input.RequestedAt); err != nil {
@@ -89,8 +51,12 @@ func (g *LoopRepo) AmendNodeOutput(
 		}
 		if err := appendLoopRunEventWithExecutor(ctx, exec, input.RunID, input.WorkspaceID,
 			loopRunEventNodeAmended, map[string]any{
-				"generation": input.Generation, "node_id": input.NodeID, "item_index": input.ItemIndex,
-				"amendment_seq": sequence, "actor_kind": actorKind, "actor_id": actorID,
+				loopRunEventPayloadKeyGeneration: input.Generation,
+				loopRunEventPayloadKeyNodeID:     input.NodeID,
+				loopRunEventPayloadKeyItemIndex:  input.ItemIndex,
+				"amendment_seq":                  sequence,
+				loopRunEventPayloadKeyActorKind:  actorKind,
+				loopRunEventPayloadKeyActorID:    actorID,
 			}, input.RequestedAt); err != nil {
 			return err
 		}
@@ -108,6 +74,61 @@ func (g *LoopRepo) AmendNodeOutput(
 		return nil
 	})
 	return amendment, err
+}
+
+func loadAmendmentTarget(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	input looppkg.AmendInput,
+) (string, int, error) {
+	var recordedRef, status string
+	var paused, runPaused, lanePaused bool
+	err := exec.QueryRowContext(ctx, `SELECT COALESCE(output.output_ref, ''), output.status,
+		COALESCE(control.paused, 0), run.pause_requested, lane_pause.item_index IS NOT NULL
+		FROM loop_generation_outputs AS output
+		JOIN loop_runs AS run ON run.id = output.loop_run_id
+		LEFT JOIN loop_node_controls AS control
+			ON control.loop_run_id = output.loop_run_id AND control.node_id = output.node_id
+		LEFT JOIN loop_node_lane_pauses AS lane_pause
+			ON lane_pause.loop_run_id = output.loop_run_id AND lane_pause.node_id = output.node_id
+			AND lane_pause.item_index = output.item_index
+		WHERE run.workspace_id = ? AND output.loop_run_id = ? AND output.generation = ?
+			AND output.node_id = ? AND output.item_index = ?`, input.WorkspaceID, input.RunID,
+		input.Generation, input.NodeID, input.ItemIndex).Scan(
+		&recordedRef, &status, &paused, &runPaused, &lanePaused,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", 0, looppkg.NewRequestReasonError(
+			looppkg.ReasonCodeAmendNoOutput, looppkg.ErrAmendNoOutput, nil,
+		)
+	}
+	if err != nil {
+		return "", 0, fmt.Errorf("store: load amendment target: %w", err)
+	}
+	if strings.TrimSpace(recordedRef) == "" || status != loopNodeOutputSucceeded {
+		return "", 0, looppkg.NewRequestReasonError(
+			looppkg.ReasonCodeAmendNoOutput, looppkg.ErrAmendNoOutput, nil,
+		)
+	}
+	if !paused && !runPaused && !lanePaused && status != nodeLifecycleStatePaused && status != loopNodeOutputWaiting {
+		return "", 0, looppkg.NewRequestReasonError(
+			looppkg.ReasonCodeAmendNotParked, looppkg.ErrAmendNotParked, nil,
+		)
+	}
+	var sequence int
+	var previousRef sql.NullString
+	if err := exec.QueryRowContext(ctx, `SELECT COALESCE(MAX(amendment_seq), 0),
+		(SELECT amended_ref FROM loop_node_amendments WHERE loop_run_id = ? AND generation = ?
+			AND node_id = ? AND item_index = ? ORDER BY amendment_seq DESC LIMIT 1)
+		FROM loop_node_amendments WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
+		input.RunID, input.Generation, input.NodeID, input.ItemIndex,
+		input.RunID, input.Generation, input.NodeID, input.ItemIndex).Scan(&sequence, &previousRef); err != nil {
+		return "", 0, fmt.Errorf("store: load amendment sequence: %w", err)
+	}
+	if previousRef.Valid {
+		recordedRef = previousRef.String
+	}
+	return recordedRef, sequence, nil
 }
 
 func (g *LoopRepo) ListNodeAmendments(

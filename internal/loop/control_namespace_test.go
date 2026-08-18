@@ -191,7 +191,13 @@ func TestRuntimeNamespaceShouldProjectFanOutProgressAndIterationNames(t *testing
 
 	graph := dsl.Graph{
 		Nodes: []dsl.Node{
-			{ID: "fan", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut), BindAs: "file", IndexAs: "file_index"},
+			{
+				ID:      "fan",
+				Class:   dsl.NodeClassControl,
+				Kind:    string(dsl.ControlFanOut),
+				BindAs:  "file",
+				IndexAs: "file_index",
+			},
 			{ID: "body", Class: dsl.NodeClassAction, Kind: "run-agent"},
 			{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
 		},

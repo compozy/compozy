@@ -93,18 +93,11 @@ func (i RequestIntent) normalized() RequestIntent {
 }
 
 func (i RequestIntent) validate() error {
-	if i.WorkspaceID == "" || i.NodeID == "" || i.ItemIndex < 0 ||
-		(i.Kind != RequestKindAsk && i.Kind != RequestKindReview) ||
-		i.Prompt == "" || i.IssuedEpoch < 1 || i.OpenedAt.IsZero() {
+	if !i.hasValidIdentity() {
 		return fmt.Errorf("%w: request intent identity is incomplete", ErrValidation)
 	}
-	for name, raw := range map[string]json.RawMessage{
-		"context": i.Context, "context_preview": i.ContextPreview,
-		"decisions": i.Decisions,
-	} {
-		if len(raw) == 0 || !json.Valid(raw) {
-			return fmt.Errorf("%w: request %s must be valid JSON", ErrValidation, name)
-		}
+	if err := validateRequiredRequestJSON(i); err != nil {
+		return err
 	}
 	if i.Kind == RequestKindAsk && (len(i.AnswerSchema) == 0 || !json.Valid(i.AnswerSchema)) {
 		return fmt.Errorf("%w: ask answer_schema must be valid JSON", ErrValidation)
@@ -113,15 +106,39 @@ func (i RequestIntent) validate() error {
 		len(i.ProposedPreview) == 0 || !json.Valid(i.ProposedPreview)) {
 		return fmt.Errorf("%w: review proposal must be valid JSON", ErrValidation)
 	}
+	if err := validateOptionalRequestJSON(i); err != nil {
+		return err
+	}
+	if !i.Agents.Valid() {
+		return fmt.Errorf("%w: request agents policy is invalid", ErrValidation)
+	}
+	return nil
+}
+
+func (i RequestIntent) hasValidIdentity() bool {
+	return i.WorkspaceID != "" && i.NodeID != "" && i.ItemIndex >= 0 &&
+		(i.Kind == RequestKindAsk || i.Kind == RequestKindReview) &&
+		i.Prompt != "" && i.IssuedEpoch >= 1 && !i.OpenedAt.IsZero()
+}
+
+func validateRequiredRequestJSON(i RequestIntent) error {
+	for name, raw := range map[string]json.RawMessage{
+		"context": i.Context, "context_preview": i.ContextPreview, "decisions": i.Decisions,
+	} {
+		if len(raw) == 0 || !json.Valid(raw) {
+			return fmt.Errorf("%w: request %s must be valid JSON", ErrValidation, name)
+		}
+	}
+	return nil
+}
+
+func validateOptionalRequestJSON(i RequestIntent) error {
 	for name, raw := range map[string]json.RawMessage{
 		"edit_schema": i.EditSchema, "respond_schema": i.RespondSchema,
 	} {
 		if len(raw) > 0 && !json.Valid(raw) {
 			return fmt.Errorf("%w: request %s must be valid JSON", ErrValidation, name)
 		}
-	}
-	if !i.Agents.Valid() {
-		return fmt.Errorf("%w: request agents policy is invalid", ErrValidation)
 	}
 	return nil
 }

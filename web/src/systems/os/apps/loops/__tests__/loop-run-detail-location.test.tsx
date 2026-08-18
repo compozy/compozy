@@ -139,13 +139,20 @@ describe("LoopRunDetailLocation", () => {
   });
 
   it("Should bind a trigger deep link to its explicit target workspace", () => {
-    render(<LoopRunDetailLocation routeWorkspaceId="ws_target" runId="run-1" />);
+    const requestFocus = { nodeId: "publish", itemIndex: 2 };
+    render(
+      <LoopRunDetailLocation
+        requestFocus={requestFocus}
+        routeWorkspaceId="ws_target"
+        runId="run-1"
+      />
+    );
 
     expect(loopRunPageSpy).toHaveBeenCalledWith("ws_target", "run-1", {
       liveDataEnabled: true,
     });
     expect(loopRunPageBodySpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ workspaceLabel: "Target workspace" })
+      expect.objectContaining({ requestFocus, workspaceLabel: "Target workspace" })
     );
   });
 });

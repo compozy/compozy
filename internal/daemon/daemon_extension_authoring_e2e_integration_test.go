@@ -323,7 +323,12 @@ func assertResourceOnlyAuthoringAgent(
 			continue
 		}
 		if strings.TrimSpace(agent.Prompt) != wantPrompt || agent.WorkspaceID != harness.WorkspaceID {
-			t.Fatalf("resource-only agent = %#v, want prompt %q in workspace %q", agent, wantPrompt, harness.WorkspaceID)
+			t.Fatalf(
+				"resource-only agent = %#v, want prompt %q in workspace %q",
+				agent,
+				wantPrompt,
+				harness.WorkspaceID,
+			)
 		}
 		return
 	}

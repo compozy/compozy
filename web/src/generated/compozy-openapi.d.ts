@@ -28803,7 +28803,7 @@ export interface operations {
                 capabilities: string[];
                 display_name: string;
                 /** Format: date-time */
-                last_seen_at: string;
+                last_seen_at?: string;
                 normalized: string;
                 qualifier?: string;
                 target_type: string;
@@ -28816,7 +28816,7 @@ export interface operations {
                 capabilities: string[];
                 display_name: string;
                 /** Format: date-time */
-                last_seen_at: string;
+                last_seen_at?: string;
                 normalized: string;
                 qualifier?: string;
                 target_type: string;
@@ -28886,7 +28886,7 @@ export interface operations {
                 capabilities: string[];
                 display_name: string;
                 /** Format: date-time */
-                last_seen_at: string;
+                last_seen_at?: string;
                 normalized: string;
                 qualifier?: string;
                 target_type: string;
@@ -28899,7 +28899,7 @@ export interface operations {
                 capabilities: string[];
                 display_name: string;
                 /** Format: date-time */
-                last_seen_at: string;
+                last_seen_at?: string;
                 normalized: string;
                 qualifier?: string;
                 target_type: string;
@@ -28940,7 +28940,7 @@ export interface operations {
                 capabilities: string[];
                 display_name: string;
                 /** Format: date-time */
-                last_seen_at: string;
+                last_seen_at?: string;
                 normalized: string;
                 qualifier?: string;
                 target_type: string;
@@ -28953,7 +28953,7 @@ export interface operations {
                 capabilities: string[];
                 display_name: string;
                 /** Format: date-time */
-                last_seen_at: string;
+                last_seen_at?: string;
                 normalized: string;
                 qualifier?: string;
                 target_type: string;
@@ -30100,7 +30100,7 @@ export interface operations {
               capabilities: string[];
               display_name: string;
               /** Format: date-time */
-              last_seen_at: string;
+              last_seen_at?: string;
               normalized: string;
               qualifier?: string;
               target_type: string;

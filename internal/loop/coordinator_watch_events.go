@@ -81,7 +81,7 @@ func evaluateWatchEventsNode(
 		return GenerationOutput{}, nil, err
 	}
 	if terminal != nil {
-		if terminal.Status == string(StatusDone) && terminal.ReasonCode == "predicate_evaluation_failed" {
+		if terminal.Status == string(StatusDone) && terminal.ReasonCode == predicateEvaluationFailed {
 			output.Status = generationOutputSucceeded
 		}
 		return output, terminal, nil
@@ -118,11 +118,27 @@ func evaluateWatchEventsNode(
 	}
 	if terminal != nil {
 		if terminal.Status == string(StatusDone) &&
-			terminal.ReasonCode == "predicate_evaluation_failed" {
+			terminal.ReasonCode == predicateEvaluationFailed {
 			output.Status = generationOutputSucceeded
 		}
 		return output, terminal, nil
 	}
+	return finishWatchEventsEvaluation(evaluation, output, node, state, rows, matches, nextCursors, readCounts, query)
+}
+
+func finishWatchEventsEvaluation(
+	evaluation *watchEventsEvaluationContext,
+	output GenerationOutput,
+	node dsl.Node,
+	state watchpkg.EventsPendingState,
+	rows []WatchEvent,
+	matches []WatchEvent,
+	nextCursors map[string]int64,
+	readCounts map[string]int,
+	query WatchEventsQuery,
+) (GenerationOutput, *task.CoordinatorTerminal, error) {
+	control := evaluation.control
+	runtime := control.watchEventsRuntime
 	if watchEventsReadMayBeTruncated(readCounts, query.Limit) {
 		evaluation.plan.PostCommitWakes = append(evaluation.plan.PostCommitWakes, task.CoordinatorWakeSpec{
 			LoopRunID:      string(control.run.ID),

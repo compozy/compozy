@@ -49,7 +49,7 @@ func collectRequestValidationDetails(validation *jsonschema.ValidationError, det
 	}
 	field := strings.Join(validation.InstanceLocation, ".")
 	if field == "" {
-		field = "payload"
+		field = payloadFieldKey
 	}
 	details[field] = validation.Error()
 }

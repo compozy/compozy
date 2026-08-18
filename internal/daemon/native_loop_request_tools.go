@@ -9,7 +9,11 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func (n *daemonNativeTools) loopRequests(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) loopRequests(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	var input nativeLoopRequestsInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -24,10 +28,17 @@ func (n *daemonNativeTools) loopRequests(ctx context.Context, scope toolspkg.Sco
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	return structuredResult(response, fmt.Sprintf("%d requests; %d pending", len(response.Items), response.Aggregates.Pending))
+	return structuredResult(
+		response,
+		fmt.Sprintf("%d requests; %d pending", len(response.Items), response.Aggregates.Pending),
+	)
 }
 
-func (n *daemonNativeTools) loopRequest(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) loopRequest(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	var input nativeLoopRequestInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -43,7 +54,11 @@ func (n *daemonNativeTools) loopRequest(ctx context.Context, scope toolspkg.Scop
 	return structuredResult(response, fmt.Sprintf("request %s is %s", response.NodeID, response.State))
 }
 
-func (n *daemonNativeTools) loopRespond(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) loopRespond(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	var input nativeLoopRespondInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err

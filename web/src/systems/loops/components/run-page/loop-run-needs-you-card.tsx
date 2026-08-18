@@ -47,6 +47,7 @@ interface LoopRunNeedsYouCardProps {
   quarantinedNodes?: readonly LoopNodeLifecycle[];
 
   requests?: readonly LoopRequestView[];
+  requestFocus?: { nodeId: string; itemIndex: number };
   requestState?: LoopRunRequestState;
   onOpenQuarantine?: (nodeId: string) => void;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
@@ -105,6 +106,7 @@ export function LoopRunNeedsYouCard({
   showApproval = true,
   quarantinedNodes = [],
   requests = [],
+  requestFocus,
   requestState,
   onOpenQuarantine,
   onDecision,
@@ -137,6 +139,10 @@ export function LoopRunNeedsYouCard({
                 fullContext={isEngaged ? requestState?.fullContext : undefined}
                 isLoadingFullContext={isEngaged ? requestState?.isLoadingFullContext : false}
                 isPending={isEngaged && requestState?.isAnswerPending === true}
+                focusOnMount={
+                  requestFocus?.nodeId === view.request.node_id &&
+                  requestFocus.itemIndex === view.request.item_index
+                }
                 onRequestFullContext={() =>
                   requestState?.onRequestFullContext?.(
                     view.request.node_id,

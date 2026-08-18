@@ -3,6 +3,10 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func loopRequestAndTimeTravelOperations() []OperationSpec {
+	return append(loopRequestOperations(), loopTimeTravelOperations()...)
+}
+
+func loopRequestOperations() []OperationSpec {
 	return []OperationSpec{
 		loopOperation(
 			httpMethodGet,
@@ -54,6 +58,11 @@ func loopRequestAndTimeTravelOperations() []OperationSpec {
 			[]ResponseSpec{ok(contract.LoopNodeAmendResponse{}), badRequest(), forbidden(),
 				notFound(specLoopRunNotFound), conflict(), loopUnprocessable(), loopUnavailable(), internalError()},
 		),
+	}
+}
+
+func loopTimeTravelOperations() []OperationSpec {
+	return []OperationSpec{
 		loopOperation(
 			httpMethodGet,
 			loopRunPath()+"/diff",
@@ -86,8 +95,18 @@ func loopRequestAndTimeTravelOperations() []OperationSpec {
 			"Fork a linked Loop run from history",
 			contract.ForkLoopRequest{},
 			[]ParameterSpec{workspaceIDParam(), loopRunIDParam()},
-			[]ResponseSpec{created(contract.ForkLoopResponse{}), badRequest(), forbidden(),
-				notFound("Loop generation not found"), conflict(), loopUnprocessable(), loopUnavailable(), internalError()},
+			[]ResponseSpec{
+				created(contract.ForkLoopResponse{}),
+				badRequest(),
+				forbidden(),
+				notFound(
+					"Loop generation not found",
+				),
+				conflict(),
+				loopUnprocessable(),
+				loopUnavailable(),
+				internalError(),
+			},
 		),
 	}
 }

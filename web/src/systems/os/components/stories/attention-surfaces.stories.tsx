@@ -89,9 +89,12 @@ const WORKSPACE: WorkspacePayload = {
   updated_at: "2026-07-20T12:00:00Z",
 };
 
+const ATTENTION_STORY_NOW = Date.now();
+const ATTENTION_STORY_MINUTE = 60_000;
+
 const ATTENTION: OsAttentionModel = {
-  badges: { sessions: 1, tasks: 1 },
-  notificationCount: 2,
+  badges: { sessions: 1, tasks: 1, loops: 2 },
+  notificationCount: 4,
   sections: {
     needsYou: [
       {
@@ -112,6 +115,35 @@ const ATTENTION: OsAttentionModel = {
         id: "task-42",
         title: "Approve runtime contract",
         identifier: "CompozyOS-42",
+      },
+      {
+        kind: "loop-request",
+        id: "workspace-compozy:looprun-release:confirm-rollout:0",
+        title: "confirm-rollout",
+        workspaceId: "workspace-compozy",
+        workspaceLabel: "compozy",
+        runId: "looprun-release",
+        loopName: "release-train",
+        nodeId: "confirm-rollout",
+        itemIndex: 0,
+        requestKind: "ask",
+        openedAt: new Date(ATTENTION_STORY_NOW - 12 * ATTENTION_STORY_MINUTE).toISOString(),
+        stale: false,
+      },
+      {
+        kind: "loop-request",
+        id: "workspace-compozy:looprun-release:apply-migration:0",
+        title: "apply-migration",
+        workspaceId: "workspace-compozy",
+        workspaceLabel: "compozy",
+        runId: "looprun-release",
+        loopName: "release-train",
+        nodeId: "apply-migration",
+        itemIndex: 0,
+        requestKind: "review",
+        openedAt: new Date(ATTENTION_STORY_NOW - 6 * ATTENTION_STORY_MINUTE).toISOString(),
+        expiresAt: new Date(ATTENTION_STORY_NOW + 4 * ATTENTION_STORY_MINUTE).toISOString(),
+        stale: false,
       },
       {
         kind: "loop-node",
@@ -146,6 +178,7 @@ const ATTENTION: OsAttentionModel = {
   attentionSessionsDisconnected: false,
   sessionsDisconnected: false,
   tasksDisconnected: false,
+  loopRequestsDisconnected: false,
   loading: false,
 };
 
@@ -233,7 +266,6 @@ export const SessionsWorkspace: Story = {
   render: () => <SessionsModalFixture />,
 };
 
-/** Open attention bell with one waiting session and one task awaiting approval. */
 export const BellPopulated: Story = {
   args: {
     open: true,

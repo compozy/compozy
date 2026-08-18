@@ -78,13 +78,13 @@ func appendRequestOpenedEventsWithExecutor(
 			loopRunEventPayloadKeyGeneration: generation,
 			loopRunEventPayloadKeyNodeID:     request.NodeID,
 			loopRunEventPayloadKeyItemIndex:  request.ItemIndex,
-			"kind":                           request.Kind,
-			"prompt":                         request.Prompt,
+			loopRunEventPayloadKeyKind:       request.Kind,
+			loopRunEventPayloadKeyPrompt:     request.Prompt,
 			"context":                        request.ContextPreview,
 			"expect":                         request.AnswerSchema,
 			"decisions":                      request.Decisions,
 			"agents":                         request.Agents,
-			"expires_at":                     request.ExpiresAt,
+			loopRunEventPayloadKeyExpiresAt:  request.ExpiresAt,
 		}
 		if err := appendLoopRunEventWithExecutor(
 			ctx, exec, run.ID, run.WorkspaceID, loopRunEventRequestOpened, payload, request.OpenedAt,
@@ -298,28 +298,7 @@ func appendGenerationLifecycleEventWithExecutor(
 				"warning":                        event.Warning,
 			}, at)
 	case looppkg.GenerationLifecycleEventRouteTaken:
-		payload := map[string]any{
-			loopRunEventPayloadKeyGeneration: generation,
-			loopRunEventPayloadKeyNodeID:     event.NodeID,
-			loopRunEventPayloadKeyItemIndex:  event.ItemIndex,
-			loopRunEventPayloadKeyRoute:      event.SelectedRoute,
-			loopRunEventPayloadKeyCause:      event.Reason,
-		}
-		if event.MatchedWhen != "" {
-			payload[loopRunEventPayloadKeyMatchedWhen] = event.MatchedWhen
-		}
-		if event.DefaultRoute {
-			payload[loopRunEventPayloadKeyDefault] = true
-		}
-		return appendLoopRunEventWithExecutor(
-			ctx,
-			exec,
-			run.ID,
-			run.WorkspaceID,
-			loopRunEventRouteTaken,
-			payload,
-			at,
-		)
+		return appendGenerationRouteTakenEvent(ctx, exec, run, generation, event, at)
 	case looppkg.GenerationLifecycleEventBranchPruned:
 		return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID,
 			loopRunEventBranchPruned, map[string]any{
@@ -331,6 +310,32 @@ func appendGenerationLifecycleEventWithExecutor(
 	default:
 		return nil
 	}
+}
+
+func appendGenerationRouteTakenEvent(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	generation int,
+	event looppkg.GenerationLifecycleEventIntent,
+	at time.Time,
+) error {
+	payload := map[string]any{
+		loopRunEventPayloadKeyGeneration: generation,
+		loopRunEventPayloadKeyNodeID:     event.NodeID,
+		loopRunEventPayloadKeyItemIndex:  event.ItemIndex,
+		loopRunEventPayloadKeyRoute:      event.SelectedRoute,
+		loopRunEventPayloadKeyCause:      event.Reason,
+	}
+	if event.MatchedWhen != "" {
+		payload[loopRunEventPayloadKeyMatchedWhen] = event.MatchedWhen
+	}
+	if event.DefaultRoute {
+		payload[loopRunEventPayloadKeyDefault] = true
+	}
+	return appendLoopRunEventWithExecutor(
+		ctx, exec, run.ID, run.WorkspaceID, loopRunEventRouteTaken, payload, at,
+	)
 }
 
 func appendGenerationGateVerdictEvent(

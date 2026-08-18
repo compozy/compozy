@@ -18,10 +18,16 @@ type Story = StoryObj<typeof meta>;
 
 function RunsHarness() {
   const [outcome, setOutcome] = useState<LoopOutcomeValue>("all");
+  const pendingRequestCounts = new Map([[loopRunFixtures[0].id, 2]]);
   return (
     <StorySurface className="p-8">
       <div className="mx-auto max-w-[1320px]">
-        <LoopRunsView runs={loopRunFixtures} outcome={outcome} onOutcomeChange={setOutcome} />
+        <LoopRunsView
+          onOutcomeChange={setOutcome}
+          outcome={outcome}
+          pendingRequestCounts={pendingRequestCounts}
+          runs={loopRunFixtures}
+        />
       </div>
     </StorySurface>
   );

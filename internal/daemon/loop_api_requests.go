@@ -103,16 +103,29 @@ func (s *daemonLoopAPIService) RespondLoopRequest(
 
 func loopRequestPayload(request looppkg.Request) contract.LoopRequestPayload {
 	payload := contract.LoopRequestPayload{
-		LoopRunID: string(request.LoopRunID), LoopName: request.LoopName,
-		Generation: request.Generation, NodeID: string(request.NodeID), ItemIndex: request.ItemIndex,
-		Kind: request.Kind, State: request.State, Prompt: request.Prompt,
-		Context: append(json.RawMessage(nil), request.Context...), Expect: append(json.RawMessage(nil), request.Expect...),
-		EditSchema:      append(json.RawMessage(nil), request.EditSchema...),
-		RespondSchema:   append(json.RawMessage(nil), request.RespondSchema...),
-		ProposedPreview: append(json.RawMessage(nil), request.ProposedPreview...),
-		Decisions:       append([]string(nil), request.Decisions...), Agents: string(request.Agents),
-		AnsweredDecision: request.AnsweredDecision, ActorKind: request.ActorKind, ActorID: request.ActorID,
-		OpenedAt: request.OpenedAt, ResolvedAt: cloneOptional(request.ResolvedAt), ExpiresAt: cloneOptional(request.ExpiresAt),
+		LoopRunID:  string(request.LoopRunID),
+		LoopName:   request.LoopName,
+		Generation: request.Generation,
+		NodeID:     string(request.NodeID),
+		ItemIndex:  request.ItemIndex,
+		Kind:       request.Kind,
+		State:      request.State,
+		Prompt:     request.Prompt,
+		Context: append(
+			json.RawMessage(nil),
+			request.Context...),
+		Expect:           append(json.RawMessage(nil), request.Expect...),
+		EditSchema:       append(json.RawMessage(nil), request.EditSchema...),
+		RespondSchema:    append(json.RawMessage(nil), request.RespondSchema...),
+		ProposedPreview:  append(json.RawMessage(nil), request.ProposedPreview...),
+		Decisions:        append([]string(nil), request.Decisions...),
+		Agents:           string(request.Agents),
+		AnsweredDecision: request.AnsweredDecision,
+		ActorKind:        request.ActorKind,
+		ActorID:          request.ActorID,
+		OpenedAt:         request.OpenedAt,
+		ResolvedAt:       cloneOptional(request.ResolvedAt),
+		ExpiresAt:        cloneOptional(request.ExpiresAt),
 	}
 	if request.State == looppkg.RequestStateAnswered {
 		payload.AnsweredAt = cloneOptional(request.ResolvedAt)

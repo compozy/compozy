@@ -69,6 +69,12 @@ The list returns bounded previews and `aggregates.pending`; detail returns the f
 context. Fan-out requests use `--item` or `item_index`. Pending order is expiry first, with requests
 without expiry last; resolved order is newest first. Cursors preserve that order.
 
+Pending requests also appear under **Needs you** in the OS attention bell and carry a matching
+indicator in the Loop runs list. The bell badge uses the daemon's pending aggregate rather than the
+number of loaded rows. Selecting a request switches to its workspace, opens the run, and focuses the
+request form; the run indicator counts every pending page for that run. Answering, canceling, or
+expiring a request removes the live row.
+
 One transaction wins among answer, expiry, and cancellation. An identical retry by the recorded
 responder returns the durable answer without resuming twice. Other late writes return
 `request_already_answered`, `request_expired`, or `request_canceled`. A payload outside `expect`

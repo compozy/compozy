@@ -87,7 +87,8 @@ func TestApplyStrategyLaneCancellationsShouldRecordNeverStartedLanes(t *testing.
 		t.Fatalf("applyStrategyLaneCancellations() error = %v", err)
 	}
 	byItem := generationOutputMap(outputs)
-	if got := byItem[generationOutputKey{nodeID: "work", itemIndex: 0}]; got.Status != generationOutputCanceled || got.OutputRef != strategyCanceledReasonCode {
+	if got := byItem[generationOutputKey{nodeID: "work", itemIndex: 0}]; got.Status != generationOutputCanceled ||
+		got.OutputRef != strategyCanceledReasonCode {
 		t.Fatalf("materialized lane = %#v, want strategy cancellation", got)
 	}
 	for _, itemIndex := range []int{1, 2} {

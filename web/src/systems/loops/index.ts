@@ -30,6 +30,11 @@ export type {
 
 export type { LoopRequestKind } from "./lib/loop-request-vocabulary";
 export { LOOP_REQUEST_KIND_TITLE } from "./lib/loop-request-vocabulary";
+export {
+  loopRequestLocation,
+  loopRequestLocationPath,
+  type LoopRequestLocationTarget,
+} from "./lib/loop-request-location";
 
 // Adapters
 export {
@@ -72,7 +77,9 @@ export {
   loopAnnotationsOptions,
   loopConfigOptions,
   loopDetailOptions,
+  loopRequestAttentionOptions,
   loopRequestsOptions,
+  loopRunRequestCountsOptions,
   loopRunDetailOptions,
   loopRunDiffOptions,
   loopRunsOptions,
@@ -197,6 +204,12 @@ export {
   useLoops,
 } from "./hooks/use-loops";
 export { useLoopRequestDetail, useLoopRequests } from "./hooks/use-loop-requests";
+export {
+  useLoopRequestAttention,
+  useLoopRunPendingRequestCounts,
+  type LoopRequestAttention,
+  type LoopRequestAttentionItem,
+} from "./hooks/use-loop-request-attention";
 
 export { useAmendLoopNode, useRespondLoopRequest } from "./hooks/use-loop-request-actions";
 export {

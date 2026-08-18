@@ -63,8 +63,8 @@ type DiffNodeRow struct {
 	NodeID    string    `json:"node_id"`
 	ItemIndex int       `json:"item_index,omitempty"`
 	Change    string    `json:"change"`
-	Base      DiffValue `json:"base,omitempty"`
-	Against   DiffValue `json:"against,omitempty"`
+	Base      DiffValue `json:"base,omitzero"`
+	Against   DiffValue `json:"against,omitzero"`
 	Cause     string    `json:"cause,omitempty"`
 }
 
@@ -135,7 +135,7 @@ type TimeTravelOp struct {
 
 type RerunStoreRequest struct {
 	WorkspaceID    WorkspaceID
-	Source         Run
+	Source         *Run
 	NextOutputs    []GenerationOutput
 	Intent         GenerationIntent
 	Operation      TimeTravelOp
@@ -145,8 +145,8 @@ type RerunStoreRequest struct {
 }
 
 type ForkStoreRequest struct {
-	Source         Run
-	Child          Run
+	Source         *Run
+	Child          *Run
 	SeedOutputs    []GenerationOutput
 	Concurrency    dsl.ConcurrencyPolicy
 	Operation      TimeTravelOp

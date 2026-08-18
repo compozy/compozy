@@ -382,7 +382,7 @@ type LoopContract struct {
 	DefinitionOfDone string               `json:"definition_of_done"`
 	Constraints      []string             `json:"constraints,omitempty"`
 	Boundaries       []string             `json:"boundaries,omitempty"`
-	StopWhen         dsl.StopWhenSpec     `json:"stop_when,omitempty,omitzero"`
+	StopWhen         dsl.StopWhenSpec     `json:"stop_when,omitzero"`
 	Verification     []LoopGateCriterion  `json:"verification,omitempty"`
 	TerminalStates   []string             `json:"terminal_states,omitempty"`
 	IterationCap     int                  `json:"iteration_cap"`

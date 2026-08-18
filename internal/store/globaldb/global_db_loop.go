@@ -166,10 +166,10 @@ func insertLoopRun(
 	if err != nil {
 		return fmt.Errorf("store: insert loop run %q: %w", run.ID, err)
 	}
-	if run.ForkedFrom != nil {
+	if forkedFrom := run.ForkedFromSnapshot(); forkedFrom != nil {
 		if _, err := exec.ExecContext(ctx, `UPDATE loop_runs
 			SET forked_from_run_id = ?, forked_from_generation = ? WHERE id = ?`,
-			run.ForkedFrom.RunID, run.ForkedFrom.Generation, run.ID); err != nil {
+			forkedFrom.RunID, forkedFrom.Generation, run.ID); err != nil {
 			return fmt.Errorf("store: persist fork lineage for run %q: %w", run.ID, err)
 		}
 	}

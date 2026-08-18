@@ -24,9 +24,11 @@ import { useActiveWorkspace } from "@/systems/workspace";
 export function LoopRunDetailLocation({
   runId,
   routeWorkspaceId,
+  requestFocus,
 }: {
   runId: string;
   routeWorkspaceId?: string;
+  requestFocus?: { nodeId: string; itemIndex: number };
 }) {
   const navigate = useNavigate();
   const { activeWorkspace, runtimeWorkspaceId, workspaces } = useActiveWorkspace();
@@ -79,6 +81,7 @@ export function LoopRunDetailLocation({
       workspaceName={
         workspaceName ?? (activeWorkspace?.id === workspaceId ? activeWorkspace.name : undefined)
       }
+      requestFocus={requestFocus}
     />
   );
 }
@@ -90,6 +93,7 @@ interface LoopRunDetailProps {
   workspaceName?: string;
   liveDataEnabled: boolean;
   navigate: ReturnType<typeof useNavigate>;
+  requestFocus?: { nodeId: string; itemIndex: number };
 }
 
 function LoopRunDetail({
@@ -99,6 +103,7 @@ function LoopRunDetail({
   workspaceName,
   liveDataEnabled,
   navigate,
+  requestFocus,
 }: LoopRunDetailProps) {
   const { page, nodeControls, requests, timetravel, dialogs } = useLoopRunDetail(
     workspaceId,
@@ -246,6 +251,7 @@ function LoopRunDetail({
         onDecision={page.handleDecision}
         onStartNewRun={page.handleStartNewRun}
         requests={page.requests}
+        requestFocus={requestFocus}
         requestState={{
           ...requests,
           onAnswer: input => {

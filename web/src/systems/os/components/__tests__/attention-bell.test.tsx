@@ -5,7 +5,7 @@
 // supplied and hand their deep-link state to the host.
 // Boundary IN: AttentionBell props, section shape, and row union.
 // Boundary OUT: menubar navigation and the cross-workspace jump.
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,7 @@ import { Popover } from "@compozy/ui";
 import type {
   OsAttentionSections,
   OsLoopNodeAttentionRow,
+  OsLoopRequestAttentionRow,
   OsSessionAttentionRow,
 } from "../../lib/attention-model";
 import { AttentionBell } from "../attention-bell";
@@ -30,6 +31,22 @@ const ATTENTION: OsLoopNodeAttentionRow = {
   id: "attention",
   title: "Loop nodes needing attention",
   state: "attention",
+};
+
+const LOOP_REQUEST: OsLoopRequestAttentionRow = {
+  kind: "loop-request",
+  id: "ws-release:run-1:publish:0",
+  title: "publish",
+  workspaceId: "ws-release",
+  workspaceLabel: "release",
+  runId: "run-1",
+  loopName: "release-train",
+  nodeId: "publish",
+  itemIndex: 0,
+  requestKind: "review",
+  openedAt: "2026-07-20T12:00:00Z",
+  expiresAt: "2026-07-20T12:04:00Z",
+  stale: false,
 };
 
 function sessionRow(overrides: Partial<OsSessionAttentionRow> = {}): OsSessionAttentionRow {
@@ -141,7 +158,7 @@ describe("AttentionBell sections", () => {
     );
 
     expect(screen.getByTestId("os-bell-disconnected")).toHaveTextContent(
-      "Session attention is unavailable. Listed rows are frozen and do not count."
+      "Session attention is unavailable. Frozen rows do not count."
     );
   });
 
@@ -154,5 +171,19 @@ describe("AttentionBell sections", () => {
 
     await user.click(screen.getByTestId("os-attention-loop-node-attention"));
     expect(onSelect).toHaveBeenCalledWith(ATTENTION);
+  });
+
+  it("Should render and activate a workspace-labeled loop request with kind, loop, and age", async () => {
+    const user = userEvent.setup();
+    const onSelect = renderBell({ needsYou: [LOOP_REQUEST] });
+
+    const row = screen.getByTestId(`os-attention-loop-request-${LOOP_REQUEST.id}`);
+    expect(row).toHaveTextContent("publish");
+    expect(row).toHaveTextContent("release-train — review");
+    expect(row).toHaveTextContent("release");
+    expect(within(row).getAllByRole("time")).toHaveLength(2);
+
+    await user.click(row);
+    expect(onSelect).toHaveBeenCalledWith(LOOP_REQUEST);
   });
 });

@@ -48,8 +48,9 @@ func (c *lintContext) lintFanOutStrategy(node dsl.Node) {
 
 func (c *lintContext) lintFanOutIterationNames(node dsl.Node) {
 	reserved := map[string]struct{}{
-		"inputs": {}, "nodes": {}, "item": {}, "index": {}, "trigger": {},
-		"generation": {}, "event": {}, "previous": {}, "best": {}, "output": {}, "progress": {},
+		namespaceInputsKey: {}, namespaceNodesKey: {}, "item": {}, "index": {}, "trigger": {},
+		metadataGenerationKey: {}, "event": {}, namespacePreviousKey: {}, namespaceBestKey: {},
+		namespaceOutputKey: {}, "progress": {},
 	}
 	seen := make(map[string]struct{}, 2)
 	ancestorNames := map[string]struct{}{}

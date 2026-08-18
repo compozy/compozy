@@ -7,6 +7,7 @@ interface LoopRunsTableProps {
   title: string;
   runs: readonly LoopRun[];
   testId: string;
+  pendingRequestCounts?: ReadonlyMap<string, number>;
 }
 
 // The run projection exposes only `created_at` (no `ended_at`), so the time column
@@ -26,7 +27,7 @@ const COLUMNS: readonly string[] = [
  * Renders nothing when the section is empty so the outcome filter hides sections
  * with no matching runs.
  */
-export function LoopRunsTable({ title, runs, testId }: LoopRunsTableProps) {
+export function LoopRunsTable({ title, runs, testId, pendingRequestCounts }: LoopRunsTableProps) {
   if (runs.length === 0) return null;
   return (
     <section data-testid={testId}>
@@ -45,7 +46,11 @@ export function LoopRunsTable({ title, runs, testId }: LoopRunsTableProps) {
           ))}
         </div>
         {runs.map(run => (
-          <LoopRunRow key={run.id} run={run} />
+          <LoopRunRow
+            key={run.id}
+            pendingRequestCount={pendingRequestCounts?.get(run.id)}
+            run={run}
+          />
         ))}
       </div>
     </section>

@@ -27,6 +27,8 @@ const { LoopRunNowCard } = await import("../run-page/loop-run-now-card");
 const { LoopRunAttentionPanel, LoopRunWaitingPanel } =
   await import("../run-page/loop-run-parked-panels");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
+const { projectLoopRequest } = await import("../../lib/loop-request-model");
+const { pendingReviewRequest } = await import("../../mocks/fixture-graph-eng-requests");
 const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
 const { LoopNodeControlMenu } = await import("../run-page/loop-node-control-menu");
@@ -456,6 +458,27 @@ describe("LoopRunWaitingPanel", () => {
 });
 
 describe("LoopRunNeedsYouCard", () => {
+  it("Should focus the requested form when opened from an attention deep link", () => {
+    render(
+      <LoopRunNeedsYouCard
+        fallbackFacts={[]}
+        onDecision={vi.fn()}
+        request={null}
+        requestFocus={{ nodeId: pendingReviewRequest.node_id, itemIndex: 0 }}
+        requests={[
+          projectLoopRequest(pendingReviewRequest, {
+            nowMs: Date.parse("2026-08-17T10:00:00Z"),
+            runStatus: "running",
+          }),
+        ]}
+        run={run({ status: "running" })}
+        showApproval={false}
+      />
+    );
+
+    expect(screen.getByTestId("loop-request-decision-approve")).toHaveFocus();
+  });
+
   it("Should route each closed decision with the streamed gate id", () => {
     const onDecision = vi.fn();
     render(

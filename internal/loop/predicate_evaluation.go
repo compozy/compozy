@@ -106,21 +106,21 @@ func applyPredicateFailureDisposition(
 func predicateExitTerminal(diagnostic PredicateDiagnostic) *task.CoordinatorTerminal {
 	details, err := json.Marshal(diagnostic)
 	if err != nil {
-		details = json.RawMessage(`{"code":"predicate_evaluation_failed"}`)
+		details = json.RawMessage(predicateEvaluationJSON)
 	}
 	return &task.CoordinatorTerminal{
 		Status: string(StatusDone), Cause: string(TransitionCauseContract),
-		ReasonCode: "predicate_evaluation_failed", Details: details,
+		ReasonCode: predicateEvaluationFailed, Details: details,
 	}
 }
 
 func predicateFailureTerminal(diagnostic PredicateDiagnostic) *task.CoordinatorTerminal {
 	details, err := json.Marshal(diagnostic)
 	if err != nil {
-		details = json.RawMessage(`{"code":"predicate_evaluation_failed"}`)
+		details = json.RawMessage(predicateEvaluationJSON)
 	}
 	return &task.CoordinatorTerminal{
 		Status: string(StatusFailed), Cause: string(TransitionCauseContract),
-		ReasonCode: "predicate_evaluation_failed", Details: details,
+		ReasonCode: predicateEvaluationFailed, Details: details,
 	}
 }

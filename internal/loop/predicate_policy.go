@@ -63,7 +63,7 @@ func ApplyPredicateFailurePolicy(
 		return PredicateFailureDisposition{}, err
 	}
 	diagnostic := PredicateDiagnostic{
-		Code: "predicate_evaluation_failed", Predicate: name, Cause: cause.Error(), Outcome: policy,
+		Code: predicateEvaluationFailed, Predicate: name, Cause: cause.Error(), Outcome: policy,
 	}
 	result := PredicateFailureDisposition{Policy: policy, Diagnostic: diagnostic}
 	if policy == PredicateErrorExit {
@@ -72,7 +72,7 @@ func ApplyPredicateFailurePolicy(
 	}
 	classified := ClassifyNodeFailure(FailureEvidence{
 		Authoring: true,
-		Code:      "predicate_evaluation_failed",
+		Code:      predicateEvaluationFailed,
 		Cause:     fmt.Sprintf("predicate %s failed: %s", name, cause),
 	})
 	result.Failure = &classified

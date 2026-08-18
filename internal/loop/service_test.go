@@ -2228,9 +2228,14 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			t.Fatalf("DiffRun() error = %v", err)
 		}
 		if result.Base.Generation != 1 || result.Against.Generation != 1 || !result.Against.AsOf {
-			t.Fatalf("diff endpoints = %#v/%#v, want latest settled generation and live as-of", result.Base, result.Against)
+			t.Fatalf(
+				"diff endpoints = %#v/%#v, want latest settled generation and live as-of",
+				result.Base,
+				result.Against,
+			)
 		}
-		if result.Terminal == nil || result.Terminal.Base != loop.StatusDone || result.Terminal.Against != loop.StatusRunning {
+		if result.Terminal == nil || result.Terminal.Base != loop.StatusDone ||
+			result.Terminal.Against != loop.StatusRunning {
 			t.Fatalf("terminal diff = %#v", result.Terminal)
 		}
 		if len(result.Inputs) != 1 || result.Inputs[0].Key != "service" {
@@ -2245,7 +2250,9 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 				t.Fatalf("diff nodes = %#v, missing %s", result.Nodes, key)
 			}
 		}
-		if row := changes["large/skipped"]; row.Base.Size != len(large) || !strings.HasPrefix(row.Base.Hash, "sha256:") || row.Base.Inline != nil {
+		if row := changes["large/skipped"]; row.Base.Size != len(large) ||
+			!strings.HasPrefix(row.Base.Hash, "sha256:") ||
+			row.Base.Inline != nil {
 			t.Fatalf("large diff row = %#v, want bounded size/hash summary", row)
 		}
 
@@ -2344,9 +2351,14 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		svc := newTestServiceWithOptions(t, store, validDefinition(), loop.WithRunIDFactory(func() (loop.RunID, error) {
 			return "fork-child", nil
 		})).(loop.TimeTravelService)
-		starter := newTestServiceWithOptions(t, store, validDefinition(), loop.WithRunIDFactory(func() (loop.RunID, error) {
-			return "fork-source", nil
-		}))
+		starter := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithRunIDFactory(func() (loop.RunID, error) {
+				return "fork-source", nil
+			}),
+		)
 		source, err := starter.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
 			Values: map[string]any{"tasks": "source-ref"},
 		}, humanActor(t))
@@ -2382,8 +2394,9 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ForkRun() error = %v", err)
 		}
-		if result.Run.ID != "fork-child" || result.Run.Generation != 1 || result.Run.ForkedFrom == nil ||
-			result.Run.ForkedFrom.RunID != source.ID || result.Run.ForkedFrom.Generation != 1 {
+		forkedFrom := result.Run.ForkedFromSnapshot()
+		if result.Run.ID != "fork-child" || result.Run.Generation != 1 || forkedFrom == nil ||
+			forkedFrom.RunID != source.ID || forkedFrom.Generation != 1 {
 			t.Fatalf("fork result = %#v", result)
 		}
 		if result.Run.DefinitionDigest != source.DefinitionDigest || result.Run.Inputs["tasks"] != "override-ref" {
@@ -3387,8 +3400,8 @@ func (s *timeTravelFakeStore) CreateRerun(
 	_ context.Context,
 	request loop.RerunStoreRequest,
 ) (loop.RerunResult, bool, error) {
-	copy := request
-	s.rerunRequest = &copy
+	cloned := request
+	s.rerunRequest = &cloned
 	return loop.RerunResult{
 		RunID: request.Source.ID, Generation: request.Intent.Generation,
 		ParentGeneration: request.Intent.ParentGeneration,
@@ -3414,10 +3427,10 @@ func (s *timeTravelFakeStore) CreateFork(
 	_ context.Context,
 	request loop.ForkStoreRequest,
 ) (loop.Run, bool, error) {
-	copy := request
-	s.forkRequest = &copy
-	s.seed(request.Child)
-	return request.Child, false, nil
+	cloned := request
+	s.forkRequest = &cloned
+	s.seed(*request.Child)
+	return *request.Child, false, nil
 }
 
 func (s *timeTravelFakeStore) ListForks(

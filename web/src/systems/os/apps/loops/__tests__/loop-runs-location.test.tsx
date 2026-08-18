@@ -21,6 +21,11 @@ vi.mock("../use-loop-runs-route", () => ({
   useLoopRunsRoute: useLoopRunsRouteMock,
 }));
 
+vi.mock("@/systems/loops", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/loops")>();
+  return { ...actual, useLoopRunPendingRequestCounts: () => new Map() };
+});
+
 const { LoopRunsLocation } = await import("../loop-runs-location");
 
 describe("LoopRunsLocation", () => {

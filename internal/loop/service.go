@@ -232,10 +232,11 @@ func (s *service) Get(ctx context.Context, ws WorkspaceID, runID RunID) (*Run, e
 		return nil, err
 	}
 	if lineage, ok := s.store.(TimeTravelStore); ok {
-		run.Forks, err = lineage.ListForks(ctx, ws, runID)
+		forks, err := lineage.ListForks(ctx, ws, runID)
 		if err != nil {
 			return nil, err
 		}
+		run.SetForks(forks)
 	}
 	return &run, nil
 }

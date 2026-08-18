@@ -53,7 +53,7 @@ func evaluateRouteNode(
 	}
 	decision := routeDecision{
 		NodeID: node.ID, ItemIndex: output.ItemIndex, Target: node.Default,
-		Cause: "default", Default: true,
+		Cause: routeDefaultCause, Default: true,
 	}
 	for index, route := range node.Routes {
 		key := fmt.Sprintf("nodes.%s.routes.%d.when", node.ID, index)

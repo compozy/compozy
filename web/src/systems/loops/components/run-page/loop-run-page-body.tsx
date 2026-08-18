@@ -132,6 +132,7 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   onStartNewRun: () => void;
 
   requests?: readonly LoopRequestView[];
+  requestFocus?: { nodeId: string; itemIndex: number };
 
   requestState?: LoopRunRequestState;
 
@@ -202,6 +203,7 @@ export function LoopRunPageBody({
   onDecision,
   onStartNewRun,
   requests = NO_REQUESTS,
+  requestFocus,
   requestState,
   strategyProgress = NO_STRATEGY_PROGRESS,
   onOpenRun,
@@ -277,6 +279,7 @@ export function LoopRunPageBody({
                 quarantinedNodes={quarantinedNodes}
                 request={approvalRequest}
                 requestState={requestState}
+                requestFocus={requestFocus}
                 requests={requests}
                 run={run}
                 showApproval={status === "needs-approval"}

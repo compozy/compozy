@@ -1,4 +1,4 @@
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Info, Lock } from "lucide-react";
 
 import {
@@ -38,6 +38,7 @@ import { LoopReviewProposedArgs } from "./loop-review-proposed-args";
 export interface LoopRequestCardProps {
   view: LoopRequestView;
   isPending?: boolean;
+  focusOnMount?: boolean;
 
   fieldErrors?: Readonly<Record<string, string>>;
 
@@ -82,6 +83,7 @@ const EMPTY_DRAFT: LoopRequestDraft = { decision: null, values: {}, raw: "", not
 export function LoopRequestCard({
   view,
   isPending,
+  focusOnMount,
   fieldErrors,
   refusal,
   fullContext,
@@ -90,6 +92,7 @@ export function LoopRequestCard({
   onSubmit,
 }: LoopRequestCardProps) {
   const idPrefix = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<LoopRequestDraft>(EMPTY_DRAFT);
   const isReview = view.kind === "review";
 
@@ -100,6 +103,15 @@ export function LoopRequestCard({
 
   const isRaw = carriesPayload && !isLoopRequestFieldSchema(schema);
   const Glyph = view.signal.icon;
+
+  useEffect(() => {
+    if (!focusOnMount) return;
+    const root = rootRef.current;
+    root?.scrollIntoView?.({ block: "center" });
+    root
+      ?.querySelector<HTMLElement>("form input, form select, form textarea, form button")
+      ?.focus();
+  }, [focusOnMount]);
 
   function selectDecision(next: LoopRequestDecision) {
     const nextFields = loopRequestDecisionCarriesPayload(next)
@@ -118,7 +130,8 @@ export function LoopRequestCard({
 
   function changeField(name: string, value: string) {
     setDraft(previous => {
-      const { [name]: _cleared, ...errors } = previous.errors;
+      const errors = { ...previous.errors };
+      delete errors[name];
       return { ...previous, values: { ...previous.values, [name]: value }, errors };
     });
   }
@@ -147,6 +160,7 @@ export function LoopRequestCard({
     <div
       className="rounded-lg border border-line bg-canvas-soft px-4 py-3.5"
       data-testid="loop-request-card"
+      ref={rootRef}
     >
       <div className="flex items-start gap-3">
         <Glyph

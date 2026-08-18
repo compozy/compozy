@@ -41,8 +41,6 @@ const delivery = loopDetailByName.get("implement-tasks")!;
 
 type RawGraph = { nodes: Record<string, unknown>[]; edges: unknown[] };
 
-/** An implement-tasks detail whose fan-out node lacks a positive author bound, so the editor's
- *  auto-validate surfaces the fan_out_unbounded issue + node badge + gate. */
 function unboundedFanOutDetail(): LoopDetail {
   const graph = delivery.definition.graph as unknown as RawGraph;
   const nodes = graph.nodes.map(node =>
@@ -85,7 +83,6 @@ function goalDetail(): LoopDetail {
   };
 }
 
-/** Long tool kind + id so canvas cards prove ellipsis stays inside the fixed 188px width. */
 function longKindDetail(): LoopDetail {
   const graph = delivery.definition.graph as unknown as RawGraph;
   const nodes = graph.nodes.map(node =>
@@ -107,8 +104,6 @@ function longKindDetail(): LoopDetail {
 }
 
 function editorHandlers(detail: LoopDetail) {
-  // The override getLoop must win, but keep the loop handlers (validate lints the posted
-  // definition) so the auto-validate still surfaces the fan_out_unbounded issue.
   return [
     compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", () =>
       HttpResponse.json({ loop: detail })
@@ -140,13 +135,10 @@ const meta: Meta<typeof LoopEditor> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The clean editor over a workspace implement-tasks Loop: canvas, palette,
- *  inspector, linter dock (all invariants pass), and the read-only Start summary. */
 export const Editor: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
 };
 
-/** The same canonical Loop definition rendered through the read-only DSL view. */
 export const DslView: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   play: async ({ canvasElement }) => {
@@ -155,33 +147,26 @@ export const DslView: Story = {
   },
 };
 
-/** Goal authoring block selected in the inspector, including the closed judge,
- *  exhaustion, continuous-session, and pre-submit retry fields. */
 export const GoalBlock: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(goalDetail()) } },
   render: args => <EditorHarness {...args} heightClass="h-[1100px]" />,
 };
 
-/** A fan-out node without a positive author bound: the shared linter returns a per-node 422 —
- *  the fan-out chip fails, the node gets a danger ring + badge, and Publish is disabled. */
 export const FanOutError: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(unboundedFanOutDetail()) } },
 };
 
-/** Editing the packaged review Loop before a workspace fork exists. */
 export const PackagedFork: Story = {
   args: { workspaceId: WS, name: "review-and-fix" },
 };
 
-/** Canvas node id/kind ellipsis inside the fixed-width card (long extension tool ids). */
 export const LongKindLabels: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(longKindDetail()) } },
 };
 
-/** Opens the named inspector folds and scrolls the final one into view. */
 async function revealFolds(canvasElement: HTMLElement, labels: string[], scrollOffset = 0) {
   const triggers = Array.from(canvasElement.querySelectorAll("button, summary"));
   let last: HTMLElement | undefined;
@@ -204,7 +189,6 @@ async function revealFolds(canvasElement: HTMLElement, labels: string[], scrollO
   }
 }
 
-/** Selects one canvas node so its inspector fields render, then reveals the named folds. */
 function selectNode(id: string, folds: string[] = [], scrollOffset = 0) {
   return async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
@@ -219,7 +203,6 @@ function selectNode(id: string, folds: string[] = [], scrollOffset = 0) {
   };
 }
 
-/** VC-E1 — a custom Loop with unpublished edits: the dirty version pill at rest. */
 export const DirtyCustom: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
@@ -229,14 +212,12 @@ export const DirtyCustom: Story = {
   },
 };
 
-/** VC-E2 — the Node inspector: reliability envelope, on_error, and the six triggers. */
 export const NodeReliability: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: selectNode("execute_task", ["Reliability", "Reactions"], 72),
 };
 
-/** VC-E3 — the Contract lane's seven terminal reactions; unauthored lists stay calm. */
 export const ContractTerminals: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
@@ -247,34 +228,29 @@ export const ContractTerminals: Story = {
   },
 };
 
-/** VC-E4 — the wait inspector: mode XOR, expect, ahead_arrival, and the expiry fold. */
 export const WaitInspector: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: selectNode("await_deploy_ack", ["Expiry"]),
 };
 
-/** VC-E5 — the run-loop child close policy. */
 export const RunLoopParentClose: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: selectNode("release_notes"),
 };
 
-/** VC-E6 — the dock carrying one blocking error and one warning, expanded. */
 export const LintErrorAndWarning: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(lintErrorAndWarningDetail) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await canvas.findByTestId("loop-linter-error-count");
-    // Select the offending node so the rail matches the reference's Node lane.
     await selectNode("implement")({ canvasElement });
     await userEvent.click(canvas.getByTestId("loop-linter-toggle"));
   },
 };
 
-/** A warning-only verdict: visible, with Publish still enabled. */
 export const LintWarningOnly: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(waitWarningDetail) } },
@@ -285,7 +261,6 @@ export const LintWarningOnly: Story = {
   },
 };
 
-/** A clean verdict: the Validation eyebrow carries no counter at all. */
 export const LintClean: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   play: async ({ canvasElement }) => {
@@ -294,13 +269,11 @@ export const LintClean: Story = {
   },
 };
 
-/** VC-E7 — a read-only marketplace source: every edit path closed, Fork the one verb. */
 export const ReadOnlySource: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(readOnlySourceDetail) } },
 };
 
-/** VC-E8 — publish rejected: the danger strip lists the daemon's issues; the version holds. */
 export const PublishRejected: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: {
@@ -322,11 +295,6 @@ export const PublishRejected: Story = {
   },
 };
 
-/**
- * VC-31 — the one environment control on an agent-executing node, at the
- * workspace root. Non-agent nodes get no control at all, which is why the
- * inspector is opened on `execute_task` rather than the fan-out above it.
- */
 export const NodeEnvironmentRoot: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: { msw: { handlers: editorHandlers(nodeEnvironmentDetail({ mode: "root" })) } },
@@ -336,14 +304,11 @@ export const NodeEnvironmentRoot: Story = {
   },
 };
 
-/** VC-32 — Named worktree: the mode brings its ready worktree picker with it. */
 export const NodeEnvironmentWorktree: Story = {
   args: { workspaceId: storyWorkspaceIds.hq, name: "implement-tasks" },
   parameters: {
     msw: {
       handlers: [
-        // Story-level `handlers` arrays replace preview groups, so the git-backed
-        // listing must be served here — otherwise the picker resolves as missing.
         compozyApiMock.get("/api/workspaces/{workspace_id}/worktrees", () =>
           HttpResponse.json(worktreeListingFixture)
         ),
@@ -373,7 +338,6 @@ export const NodeEnvironmentWorktree: Story = {
   },
 };
 
-/** VC-33 — Directory, the escape hatch, holding a value templated over the namespace. */
 export const NodeEnvironmentDirectory: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: {
@@ -392,12 +356,6 @@ export const NodeEnvironmentDirectory: Story = {
   },
 };
 
-/**
- * VC-34 — the effective environment read back on the node card.
- *
- * The node declares nothing, so the card names the loop default it inherits and
- * marks the readout as coming from there rather than from the node.
- */
 export const NodeEnvironmentReadout: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: {
@@ -415,7 +373,6 @@ export const NodeEnvironmentReadout: Story = {
   },
 };
 
-/** VC-35 — a definition still carrying the retired `params.cwd`: the daemon refuses it. */
 export const RetiredCwdRejected: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: {
@@ -436,20 +393,17 @@ export const RetiredCwdRejected: Story = {
   },
 };
 
-/** Serves the release-train definition — the one fixture carrying the new grammar. */
 function releaseTrainHandlers() {
   return editorHandlers(releaseTrainDetail);
 }
 
 const releaseTrainArgs = { workspaceId: WS, name: RELEASE_TRAIN_LOOP_NAME };
 
-/** Both rails collapsed before any editor preference is stored. */
 export const ChromeCalmDefault: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },
 };
 
-/** The palette rail opened from the toolbar with a narrowed search. */
 export const ChromePaletteExpanded: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },
@@ -461,28 +415,24 @@ export const ChromePaletteExpanded: Story = {
   },
 };
 
-/** The route inspector with one row per branch and the default last. */
 export const RouteInspector: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },
   play: selectNode("triage"),
 };
 
-/** The ask inspector with prompt, answer shape, and deadline. */
 export const AskInspector: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },
   play: selectNode("confirm-rollout"),
 };
 
-/** The fan-out strategy inspector with its complete marshalled value. */
 export const StrategyInspector: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },
   play: selectNode("rollout"),
 };
 
-/** The review inspector beside the linter dock's code list. */
 export const ReviewInspectorWithDock: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },
@@ -493,7 +443,6 @@ export const ReviewInspectorWithDock: Story = {
   },
 };
 
-/** Quick-add over the canvas with kind and existing-node choices. */
 export const QuickAdd: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },
@@ -506,7 +455,6 @@ export const QuickAdd: Story = {
   },
 };
 
-/** The node context menu with an empty clipboard. */
 export const NodeContextMenu: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },
@@ -519,7 +467,6 @@ export const NodeContextMenu: Story = {
   },
 };
 
-/** The connection-drop picker mounted at a fixed anchor. */
 export const ConnectionDropPicker: Story = {
   args: releaseTrainArgs,
   parameters: { msw: { handlers: releaseTrainHandlers() } },

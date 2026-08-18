@@ -48,7 +48,7 @@ func (p daemonLoopResponderPolicy) DeniesSelfOperation(
 	}
 	visited := make(map[string]struct{}, maxResponderLineageDepth)
 	currentID := actorID
-	for depth := 0; depth < maxResponderLineageDepth; depth++ {
+	for range maxResponderLineageDepth {
 		if currentID == starterID && starterID != "" {
 			return true, nil
 		}

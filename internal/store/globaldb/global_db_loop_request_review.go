@@ -67,14 +67,14 @@ func claimRequestDecision(
 	if err := requireSingleWaitMutation(result); err != nil {
 		return err
 	}
-	status := "pending"
+	status := goalContextStatePending
 	outputRef := answerRef
 	if decision == looppkg.RequestDecisionReject {
 		if rejectRoute != "" {
-			status = "succeeded"
+			status = loopNodeOutputSucceeded
 			outputRef = reviewRejectedRouteOutputRefPrefix + strings.TrimSpace(string(rejectRoute))
 		} else {
-			status = "failed"
+			status = loopNodeOutputFailed
 			failure := looppkg.NewActionFailure(
 				string(looppkg.FailureQualityRejection),
 				"The action was rejected during review.",

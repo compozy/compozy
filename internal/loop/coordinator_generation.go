@@ -325,11 +325,22 @@ func (r *CoordinatorRunner) liveControlEvalContext(
 	history GenerationHistory,
 ) *controlEvalContext {
 	return &controlEvalContext{
-		ctx: ctx, run: run, generation: generation, resolved: resolved, topology: topology,
-		effective: effective, gateEvaluator: gateEvaluator, gateDecisions: r.store,
-		nodeControls: r.controls, runtimeCatalog: r.runtimeCatalog, fanOutWidth: fanOutWidth, watchRuntime: watchRuntime,
-		watchEventsRuntime: watchEventsRuntime, gateEvaluations: gateEvaluations, history: history,
-		now: r.now().UTC(),
+		ctx:                ctx,
+		run:                run,
+		generation:         generation,
+		resolved:           resolved,
+		topology:           topology,
+		effective:          effective,
+		gateEvaluator:      gateEvaluator,
+		gateDecisions:      r.store,
+		nodeControls:       r.controls,
+		runtimeCatalog:     r.runtimeCatalog,
+		fanOutWidth:        fanOutWidth,
+		watchRuntime:       watchRuntime,
+		watchEventsRuntime: watchEventsRuntime,
+		gateEvaluations:    gateEvaluations,
+		history:            history,
+		now:                r.now().UTC(),
 	}
 }
 

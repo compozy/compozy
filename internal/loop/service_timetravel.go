@@ -26,13 +26,7 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 	if err != nil {
 		return RerunResult{}, err
 	}
-	digest, err := timeTravelRequestDigest(struct {
-		Kind      string `json:"kind"`
-		RunID     RunID  `json:"run_id"`
-		FromNode  NodeID `json:"from_node"`
-		ItemIndex *int   `json:"item_index,omitempty"`
-		Reason    string `json:"reason,omitempty"`
-	}{"rerun", run.ID, input.FromNode, input.ItemIndex, strings.TrimSpace(input.Reason)})
+	digest, err := rerunRequestDigest(run, input)
 	if err != nil {
 		return RerunResult{}, err
 	}
@@ -57,7 +51,7 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 	}
 	if !run.Status.Terminal() {
 		return RerunResult{}, reasonError(ReasonCodeRerunBusy, ErrRerunBusy, map[string]string{
-			"run_id": string(run.ID), "status": string(run.Status),
+			"run_id": string(run.ID), namespaceStatusKey: string(run.Status),
 		})
 	}
 	nextGeneration := run.Generation + 1
@@ -67,13 +61,24 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 	if err != nil {
 		return RerunResult{}, err
 	}
-	op, err := newTimeTravelOp("rerun", input.RequestID, digest, run, input.Actor, input.Reason, input.FromNode,
-		input.ItemIndex, run.ID, int64Pointer(int64(nextGeneration)), s.now())
+	op, err := newTimeTravelOp(
+		timeTravelKindRerun,
+		input.RequestID,
+		digest,
+		run,
+		input.Actor,
+		input.Reason,
+		input.FromNode,
+		input.ItemIndex,
+		run.ID,
+		new(int64(nextGeneration)),
+		s.now(),
+	)
 	if err != nil {
 		return RerunResult{}, err
 	}
 	result, replayed, err := store.CreateRerun(ctx, RerunStoreRequest{
-		WorkspaceID: input.WorkspaceID, Source: run, NextOutputs: next,
+		WorkspaceID: input.WorkspaceID, Source: &run, NextOutputs: next,
 		Intent: GenerationIntent{Generation: int64(nextGeneration), ParentGeneration: int64(run.Generation),
 			Origin: OriginOperatorRerun},
 		Operation: op, RequestDigest: digest, IdempotencyKey: strings.TrimSpace(input.RequestID), At: s.now(),
@@ -85,6 +90,16 @@ func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunRes
 	result.Carried = len(outputs) - len(rerunNodes)
 	result.Replayed = replayed
 	return result, nil
+}
+
+func rerunRequestDigest(run Run, input RerunInput) (string, error) {
+	return timeTravelRequestDigest(struct {
+		Kind      string `json:"kind"`
+		RunID     RunID  `json:"run_id"`
+		FromNode  NodeID `json:"from_node"`
+		ItemIndex *int   `json:"item_index,omitempty"`
+		Reason    string `json:"reason,omitempty"`
+	}{timeTravelKindRerun, run.ID, input.FromNode, input.ItemIndex, strings.TrimSpace(input.Reason)})
 }
 
 func (s *service) planRerunGeneration(
@@ -104,7 +119,7 @@ func (s *service) planRerunGeneration(
 	for _, output := range outputs {
 		if !generationOutputSettled(output.Status) && !GenerationOutputStatusParked(output.Status) {
 			return nil, nil, nil, reasonError(ReasonCodeRerunBusy, ErrRerunBusy, map[string]string{
-				"node_id": output.NodeID, "status": output.Status,
+				metadataNodeIDKey: output.NodeID, namespaceStatusKey: output.Status,
 			})
 		}
 	}
@@ -152,9 +167,9 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 				ReasonCodeForkGenerationUnknown,
 				ErrForkGenerationUnknown,
 				map[string]string{
-					"generation": fmt.Sprintf("%d", input.Generation),
-					"node_id":    output.NodeID,
-					"status":     output.Status,
+					metadataGenerationKey: fmt.Sprintf("%d", input.Generation),
+					metadataNodeIDKey:     output.NodeID,
+					namespaceStatusKey:    output.Status,
 				},
 			)
 		}
@@ -179,13 +194,7 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 		return StartResult{}, err
 	}
 	seed := forkSeedOutputs(outputs)
-	digest, err := timeTravelRequestDigest(struct {
-		Kind       string         `json:"kind"`
-		RunID      RunID          `json:"run_id"`
-		Generation int64          `json:"generation"`
-		Inputs     map[string]any `json:"inputs"`
-		Reason     string         `json:"reason,omitempty"`
-	}{"fork", source.ID, input.Generation, input.Inputs, strings.TrimSpace(input.Reason)})
+	digest, err := forkRequestDigest(source, input)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -194,9 +203,9 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 	if err != nil {
 		return StartResult{}, err
 	}
-	op.SourceGeneration = int64Pointer(input.Generation)
+	op.SourceGeneration = new(input.Generation)
 	created, replayed, err := store.CreateFork(ctx, ForkStoreRequest{
-		Source: source, Child: child, SeedOutputs: seed, Concurrency: resolved.Defaults.Concurrency,
+		Source: &source, Child: &child, SeedOutputs: seed, Concurrency: resolved.Defaults.Concurrency,
 		Operation: op, RequestDigest: digest, IdempotencyKey: strings.TrimSpace(input.RequestID), At: s.now(),
 	})
 	if err != nil {
@@ -207,6 +216,16 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 		s.dispatchLoopStarted(ctx, created, input.Actor)
 	}
 	return StartResult{Run: created, Replayed: replayed}, nil
+}
+
+func forkRequestDigest(source Run, input ForkInput) (string, error) {
+	return timeTravelRequestDigest(struct {
+		Kind       string         `json:"kind"`
+		RunID      RunID          `json:"run_id"`
+		Generation int64          `json:"generation"`
+		Inputs     map[string]any `json:"inputs"`
+		Reason     string         `json:"reason,omitempty"`
+	}{"fork", source.ID, input.Generation, input.Inputs, strings.TrimSpace(input.Reason)})
 }
 
 func (s *service) forkChildRun(
@@ -221,9 +240,10 @@ func (s *service) forkChildRun(
 	}
 	now := s.now().UTC()
 	child := source
+	child.RunStartState = nil
 	child.ID = runID
 	child.Status = StatusRunning
-	child.CompletionState = CompletionComplete
+	child.SetCompletionState(CompletionComplete)
 	child.Generation = 1
 	child.CreatedAt, child.StartedAt, child.LastProgressAt = now, now, now
 	child.StartedBy, child.StartedOrigin = input.Actor.Actor, input.Actor.Origin
@@ -237,17 +257,16 @@ func (s *service) forkChildRun(
 	child.ActiveGateID = ""
 	child.ActiveHumanCriteria = json.RawMessage(`[]`)
 	child.BudgetApprovalSeq = 0
-	child.ForkedFrom = &ForkRef{RunID: source.ID, Generation: input.Generation}
-	child.Forks = nil
+	child.SetForkedFrom(&ForkRef{RunID: source.ID, Generation: input.Generation})
+	child.SetForks(nil)
 	child.ParentLoopRunID = ""
 	child.StartMetadata = map[string]any{}
 	if source.BestScore != nil {
-		child.BestGeneration = int64Pointer(1)
-		child.BestScore = float64Pointer(*source.BestScore)
+		child.BestGeneration = new(int64(1))
+		child.BestScore = new(*source.BestScore)
 	} else {
 		child.BestGeneration, child.BestScore = nil, nil
 	}
-	child.RunStartState = nil
 	child.Origin = &RunOrigin{Kind: RunOriginCatalog}
 	child.SetNetworkSpec(source.NetworkSpecSnapshot())
 	return child, nil
@@ -324,7 +343,8 @@ func validateForkInput(input ForkInput) error {
 	if err := input.Actor.Validate(); err != nil {
 		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
-	if strings.TrimSpace(string(input.WorkspaceID)) == "" || strings.TrimSpace(string(input.RunID)) == "" || input.Generation < 1 {
+	if strings.TrimSpace(string(input.WorkspaceID)) == "" || strings.TrimSpace(string(input.RunID)) == "" ||
+		input.Generation < 1 {
 		return fmt.Errorf("%w: fork workspace_id, run_id, and generation are required", ErrValidation)
 	}
 	return nil
@@ -356,11 +376,8 @@ func newTimeTravelOp(
 	}
 	return TimeTravelOp{
 		ID: id, Kind: kind, IdempotencyKey: strings.TrimSpace(requestID), RequestDigest: digest,
-		SourceRunID: source.ID, SourceGeneration: int64Pointer(int64(source.Generation)), FromNode: fromNode,
+		SourceRunID: source.ID, SourceGeneration: new(int64(source.Generation)), FromNode: fromNode,
 		ItemIndex: itemIndex, Actor: actor, Reason: strings.TrimSpace(reason), ResultRunID: resultRunID,
 		ResultGeneration: resultGeneration, CreatedAt: at.UTC(),
 	}, nil
 }
-
-func int64Pointer(value int64) *int64       { return &value }
-func float64Pointer(value float64) *float64 { return &value }

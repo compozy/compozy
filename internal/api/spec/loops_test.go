@@ -13,6 +13,33 @@ import (
 func TestLoopOpenAPIContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep zero-omitted Loop fields optional", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		loopOperation := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}", "GET")
+		loopSchema := jsonResponseSchema(t, loopOperation, 200)
+		definition := propertySchema(t, propertySchema(t, loopSchema, "loop"), "definition")
+		loopContract := propertySchema(t, definition, "contract")
+		assertNotRequired(t, loopContract, "stop_when")
+
+		diffOperation := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff",
+			"GET",
+		)
+		diffSchema := jsonResponseSchema(t, diffOperation, 200)
+		nodes := propertySchema(t, diffSchema, "nodes")
+		if nodes.Items == nil || nodes.Items.Value == nil {
+			t.Fatal("Loop diff nodes have no item schema")
+		}
+		assertNotRequired(t, nodes.Items.Value, "base", "against")
+	})
+
 	t.Run("Should expose every Loop route with expected status bodies", func(t *testing.T) {
 		t.Parallel()
 

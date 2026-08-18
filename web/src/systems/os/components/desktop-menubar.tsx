@@ -1,5 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
+import { loopRequestLocation } from "@/systems/loops";
+
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
@@ -164,6 +166,13 @@ export function DesktopMenubar({
       });
       return;
     }
+    if (row.kind === "loop-request") {
+      void coordinator.userOpen({
+        app: "loops",
+        route: loopRequestLocation(row),
+      });
+      return;
+    }
     void coordinator.userOpen({
       app: "tasks",
       route: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },
@@ -288,6 +297,7 @@ export function DesktopMenubar({
               sections={attention.sections}
               sessionsDisconnected={attention.attentionSessionsDisconnected}
               tasksDisconnected={attention.tasksDisconnected}
+              loopRequestsDisconnected={attention.loopRequestsDisconnected}
               loading={attention.loading}
               onSelect={focusAttentionRow}
             />

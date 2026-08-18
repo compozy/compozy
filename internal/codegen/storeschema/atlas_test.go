@@ -298,7 +298,7 @@ END;
 		dropTable := strings.Index(migrationSQL, "DROP TABLE `records`")
 		recreateTrigger := strings.LastIndex(migrationSQL, "CREATE TRIGGER trg_audit_records")
 		if dropTrigger < 0 || dropTable < 0 || recreateTrigger < 0 ||
-			!(dropTrigger < dropTable && dropTable < recreateTrigger) {
+			dropTrigger >= dropTable || dropTable >= recreateTrigger {
 			t.Fatalf("planned migration does not bracket the rebuilt table with trigger repair:\n%s", migrationSQL)
 		}
 	})

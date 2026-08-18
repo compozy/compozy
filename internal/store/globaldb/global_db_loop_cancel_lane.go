@@ -16,12 +16,9 @@ func (g *LoopRepo) requestNodeLaneCancellation(
 	result *looppkg.CancellationResult,
 ) error {
 	itemIndex := *mutation.ItemIndex
-	var live bool
-	if err := exec.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM loop_generation_outputs
-		WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		AND status IN (`+liveCancelOutputStatuses+`))`, mutation.RunID, run.Generation,
-		mutation.NodeID, itemIndex).Scan(&live); err != nil {
-		return fmt.Errorf("store: inspect live Loop node lane: %w", err)
+	live, err := nodeLaneLive(ctx, exec, mutation.RunID, run.Generation, mutation.NodeID, itemIndex)
+	if err != nil {
+		return err
 	}
 	if !live {
 		return nil
@@ -66,9 +63,12 @@ func (g *LoopRepo) requestNodeLaneCancellation(
 		kind = loopRunEventNodeKilled
 	}
 	eventID, _, err := appendLoopRunEventWithIdentity(ctx, exec, run.ID, run.WorkspaceID, kind, map[string]any{
-		"generation": run.Generation, "node_id": mutation.NodeID, "item_index": itemIndex,
-		"actor_kind": mutation.Actor.Actor.Kind.Normalize(), "actor_id": strings.TrimSpace(mutation.Actor.Actor.Ref),
-		"reason": strings.TrimSpace(mutation.Reason),
+		loopRunEventPayloadKeyGeneration: run.Generation,
+		loopRunEventPayloadKeyNodeID:     mutation.NodeID,
+		loopRunEventPayloadKeyItemIndex:  itemIndex,
+		loopRunEventPayloadKeyActorKind:  mutation.Actor.Actor.Kind.Normalize(),
+		loopRunEventPayloadKeyActorID:    strings.TrimSpace(mutation.Actor.Actor.Ref),
+		loopRunEventPayloadKeyReason:     strings.TrimSpace(mutation.Reason),
 	}, mutation.RequestedAt.UTC())
 	if err != nil {
 		return err
@@ -88,4 +88,22 @@ func (g *LoopRepo) requestNodeLaneCancellation(
 	result.Coordinator = coordinator
 	result.Applied = true
 	return nil
+}
+
+func nodeLaneLive(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID looppkg.RunID,
+	generation int,
+	nodeID looppkg.NodeID,
+	itemIndex int,
+) (bool, error) {
+	var live bool
+	err := exec.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM loop_generation_outputs
+		WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
+		AND status IN (`+liveCancelOutputStatuses+`))`, runID, generation, nodeID, itemIndex).Scan(&live)
+	if err != nil {
+		return false, fmt.Errorf("store: inspect live Loop node lane: %w", err)
+	}
+	return live, nil
 }

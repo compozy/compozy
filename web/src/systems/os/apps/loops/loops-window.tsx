@@ -64,10 +64,18 @@ export function LoopsWindow({ windowId }: { windowId: string }) {
 
   const runDetail = /^\/loop-runs\/([^/]+)$/.exec(location.pathname);
   if (runDetail) {
+    const requestNode =
+      typeof location.search.request_node === "string" ? location.search.request_node.trim() : "";
+    const requestItem = Number(location.search.request_item);
     return (
       <LoopRunDetailLocation
         routeWorkspaceId={routeWorkspaceId}
         runId={decodePathSegment(runDetail[1])}
+        requestFocus={
+          requestNode !== "" && Number.isInteger(requestItem) && requestItem >= 0
+            ? { nodeId: requestNode, itemIndex: requestItem }
+            : undefined
+        }
       />
     );
   }

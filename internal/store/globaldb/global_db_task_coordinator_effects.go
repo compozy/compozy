@@ -23,7 +23,7 @@ func appendRetryScheduledEffectEventWithExecutor(
 		loopRunEventPayloadKeyItemIndex:   event.ItemIndex,
 		watchEventsPayloadAttemptKey:      event.Attempt,
 		loopRunEventPayloadKeyIssuedEpoch: event.IssuedEpoch,
-		"next_attempt_at":                 event.NextAttemptAt,
+		loopNextAttemptAtColumn:           event.NextAttemptAt,
 		"failure_class":                   event.FailureClass,
 	}
 	eventID, _, err := appendLoopRunEventWithIdentity(

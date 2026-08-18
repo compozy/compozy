@@ -3,6 +3,7 @@ package loop_test
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -109,10 +110,7 @@ func TestLinterShouldValidateAskControls(t *testing.T) {
 			t.Parallel()
 			definition := valid
 			definition.Graph.Nodes = append([]dsl.Node(nil), valid.Graph.Nodes...)
-			definition.Graph.Nodes[0].Params = dsl.NodeParams{}
-			for key, value := range valid.Graph.Nodes[0].Params {
-				definition.Graph.Nodes[0].Params[key] = value
-			}
+			definition.Graph.Nodes[0].Params = maps.Clone(valid.Graph.Nodes[0].Params)
 			tt.edit(&definition)
 			requireLintDiagnostic(t, loop.NewLinter().Lint(definition), tt.code, loop.SeverityError)
 		})
@@ -145,7 +143,12 @@ func TestLinterShouldValidateActionReviews(t *testing.T) {
 		node := requireNode(t, &invalid, "agent")
 		delete(node.Params, "output_schema")
 		node.Review = &dsl.ReviewSpec{Decisions: []dsl.ReviewDecision{dsl.ReviewDecisionRespond}}
-		requireLintDiagnostic(t, loop.NewLinter().Lint(invalid), loop.CodeReviewRespondSchemaRequired, loop.SeverityError)
+		requireLintDiagnostic(
+			t,
+			loop.NewLinter().Lint(invalid),
+			loop.CodeReviewRespondSchemaRequired,
+			loop.SeverityError,
+		)
 	})
 
 	t.Run("Should reject a non-forward rejection route", func(t *testing.T) {

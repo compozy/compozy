@@ -104,6 +104,10 @@ export const loopsKeys = {
   requestsRoot: () => [...loopsKeys.all, "requests"] as const,
 
   requestsByWorkspace: (workspaceId: string) => [...loopsKeys.requestsRoot(), workspaceId] as const,
+  requestAttention: (workspaceId: string) =>
+    [...loopsKeys.requestsByWorkspace(workspaceId), "attention"] as const,
+  runRequestCounts: (workspaceId: string) =>
+    [...loopsKeys.requestsByWorkspace(workspaceId), "run-counts"] as const,
   requests: (workspaceId: string, filters: LoopRequestStableFilter = {}) =>
     [
       ...loopsKeys.requestsByWorkspace(workspaceId),

@@ -97,7 +97,7 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		WorkspaceID:                  string(run.WorkspaceID),
 		LoopName:                     run.LoopName,
 		Status:                       contract.LoopRunStatus(run.Status),
-		CompletionState:              contract.LoopCompletionState(run.CompletionState),
+		CompletionState:              contract.LoopCompletionState(run.CompletionStateSnapshot()),
 		Generation:                   int64(run.Generation),
 		ReattemptStrategy:            contract.LoopReattemptStrategy(run.ReattemptStrategy),
 		CreatedAt:                    run.CreatedAt,
@@ -124,15 +124,16 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 	}
 	payload.BestGeneration = cloneOptional(run.BestGeneration)
 	payload.BestScore = cloneOptional(run.BestScore)
-	payload.Forks = make([]contract.LoopForkRef, 0, len(run.Forks))
-	for _, fork := range run.Forks {
+	forks := run.ForksSnapshot()
+	payload.Forks = make([]contract.LoopForkRef, 0, len(forks))
+	for _, fork := range forks {
 		payload.Forks = append(payload.Forks, contract.LoopForkRef{
 			RunID: string(fork.RunID), Generation: fork.Generation,
 		})
 	}
-	if run.ForkedFrom != nil {
+	if forkedFrom := run.ForkedFromSnapshot(); forkedFrom != nil {
 		payload.ForkedFrom = &contract.LoopForkRef{
-			RunID: string(run.ForkedFrom.RunID), Generation: run.ForkedFrom.Generation,
+			RunID: string(forkedFrom.RunID), Generation: forkedFrom.Generation,
 		}
 	}
 	return payload, nil

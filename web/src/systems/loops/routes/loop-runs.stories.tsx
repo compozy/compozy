@@ -8,10 +8,23 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
-import { GRAPH_ENG_RUN_ID, loopRunAggregatesFixture } from "@/systems/loops/mocks";
+import {
+  GRAPH_ENG_RUN_ID,
+  graphEngPendingRequests,
+  loopRunAggregatesFixture,
+} from "@/systems/loops/mocks";
+import { taskDashboardFixture } from "@/systems/tasks/mocks";
+import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
+import { loopRequestLocationPath } from "@/systems/loops";
 
 const runningLoopRunRoute = "/loop-runs/looprun_running";
 const loopRunDiffRoute = `/loop-runs/${GRAPH_ENG_RUN_ID}/diff?generation=3&against_generation=2`;
+const attentionRequestTargetRoute = loopRequestLocationPath({
+  workspaceId: primaryWorkspaceFixture.id,
+  runId: GRAPH_ENG_RUN_ID,
+  nodeId: "confirm-rollout",
+  itemIndex: 0,
+});
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/loops/routes/LoopRuns",
@@ -45,6 +58,59 @@ export const RunDetail: Story = {
 export const RunRequests: Story = {
   args: {},
   parameters: appRouteParameters(`/loop-runs/${GRAPH_ENG_RUN_ID}`),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+export const AttentionRequests: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/loop-runs"),
+    ...storybookMswParameters({
+      workspace: [
+        compozyApiMock.get("/api/workspaces", () =>
+          HttpResponse.json({ workspaces: [primaryWorkspaceFixture] })
+        ),
+      ],
+      session: [
+        compozyApiMock.get("/api/sessions/attention-summary", () =>
+          HttpResponse.json({
+            needs_you: 2,
+            finished: 0,
+            by_workspace: [{ workspace_id: primaryWorkspaceFixture.id, needs_you: 2, finished: 0 }],
+          })
+        ),
+      ],
+      tasks: [
+        compozyApiMock.get("/api/observe/tasks/dashboard", () =>
+          HttpResponse.json({
+            dashboard: {
+              ...taskDashboardFixture,
+              totals: { ...taskDashboardFixture.totals, awaiting_approval_tasks: 0 },
+            },
+          })
+        ),
+      ],
+      loops: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-requests", ({ request }) => {
+          const runId = new URL(request.url).searchParams.get("run_id");
+          const items = runId
+            ? graphEngPendingRequests.filter(entry => entry.loop_run_id === runId)
+            : graphEngPendingRequests;
+          return HttpResponse.json({
+            items,
+            aggregates: { pending: graphEngPendingRequests.length },
+            next_cursor: "",
+          });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+export const AttentionRequestTarget: Story = {
+  args: {},
+  parameters: appRouteParameters(attentionRequestTargetRoute),
   render: () => <StorybookWorkspaceSetup />,
 };
 

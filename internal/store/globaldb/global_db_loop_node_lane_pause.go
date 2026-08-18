@@ -107,9 +107,7 @@ func (g *LoopRepo) resumeNodeLane(
 			nodeLifecycleAllowedTransitions(nodeLifecycleStateActive), nil)
 	}
 	pauseDuration := mutation.RequestedAt.UTC().Sub(pausedAt.UTC())
-	if pauseDuration < 0 {
-		pauseDuration = 0
-	}
+	pauseDuration = max(pauseDuration, 0)
 	shiftedAnchor, err := shiftedLoopCellFirstScheduledAt(
 		ctx, exec, mutation.RunID, run.Generation, mutation.NodeID, itemIndex, pauseDuration,
 	)
@@ -122,22 +120,7 @@ func (g *LoopRepo) resumeNodeLane(
 		run.Generation, mutation.NodeID, itemIndex); err != nil {
 		return fmt.Errorf("store: shift Loop node lane action clock: %w", err)
 	}
-	statusExpression := "CASE WHEN next_attempt_at IS NOT NULL AND next_attempt_at > ? THEN 'retrying' ELSE 'pending' END"
-	attemptExpression := watchEventsPayloadAttemptKey
-	nextAttemptExpression := "next_attempt_at"
-	args := []any{}
-	if mutation.Mode == looppkg.NodeResumePlain {
-		args = append(args, mutation.RequestedAt.UTC(), mutation.RequestedAt.UTC())
-	}
-	if mutation.Mode == looppkg.NodeResumeImmediate {
-		statusExpression = "'pending'"
-		nextAttemptExpression = "NULL"
-	}
-	if mutation.Mode == looppkg.NodeResumeResetAttempts {
-		statusExpression = "'pending'"
-		attemptExpression = "1"
-		nextAttemptExpression = "NULL"
-	}
+	statusExpression, attemptExpression, nextAttemptExpression, args := nodeLaneResumeExpressions(mutation)
 	args = append(args, mutation.RunID, run.Generation, mutation.NodeID, itemIndex)
 	if _, err := exec.ExecContext(ctx, `UPDATE loop_generation_outputs SET status = `+statusExpression+`,
 		attempt = `+attemptExpression+`, next_attempt_at = `+nextAttemptExpression+`, task_run_id = NULL,
@@ -161,4 +144,24 @@ func (g *LoopRepo) resumeNodeLane(
 	result.Coordinator = &coordinator
 	result.Applied = true
 	return nil
+}
+
+func nodeLaneResumeExpressions(mutation looppkg.NodeResumeMutation) (string, string, string, []any) {
+	statusExpression := "CASE WHEN next_attempt_at IS NOT NULL AND next_attempt_at > ? THEN 'retrying' ELSE 'pending' END"
+	attemptExpression := watchEventsPayloadAttemptKey
+	nextAttemptExpression := loopNextAttemptAtColumn
+	args := []any{}
+	if mutation.Mode == looppkg.NodeResumePlain {
+		args = append(args, mutation.RequestedAt.UTC(), mutation.RequestedAt.UTC())
+	}
+	if mutation.Mode == looppkg.NodeResumeImmediate {
+		statusExpression = loopPendingSQLLiteral
+		nextAttemptExpression = sqlNullLiteral
+	}
+	if mutation.Mode == looppkg.NodeResumeResetAttempts {
+		statusExpression = loopPendingSQLLiteral
+		attemptExpression = "1"
+		nextAttemptExpression = sqlNullLiteral
+	}
+	return statusExpression, attemptExpression, nextAttemptExpression, args
 }

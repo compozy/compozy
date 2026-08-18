@@ -101,7 +101,7 @@ func TestDaemonLoopResponderPolicyShouldEvaluateDurableSpawnChains(t *testing.T)
 	t.Parallel()
 
 	policy := daemonLoopResponderPolicy{
-		runs: responderRunReaderStub{run: looppkg.Run{
+		runs: &responderRunReaderStub{run: looppkg.Run{
 			ID: "run-1", WorkspaceID: "ws-1",
 			StartedBy: task.ActorIdentity{Kind: task.ActorKindAgentSession, Ref: "starter"},
 		}},
@@ -144,7 +144,7 @@ type responderRunReaderStub struct {
 	err error
 }
 
-func (s responderRunReaderStub) GetLoopRun(
+func (s *responderRunReaderStub) GetLoopRun(
 	context.Context,
 	looppkg.WorkspaceID,
 	looppkg.RunID,

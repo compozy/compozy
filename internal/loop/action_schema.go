@@ -186,7 +186,7 @@ func isFullJSONSchema(schema map[string]any) bool {
 		"contentEncoding":       {},
 		"contentMediaType":      {},
 		"const":                 {},
-		"default":               {},
+		jsonSchemaDefaultKey:    {},
 		"dependentRequired":     {},
 		"dependentSchemas":      {},
 		"description":           {},

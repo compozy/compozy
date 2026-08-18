@@ -58,6 +58,9 @@ const (
 	loopTokenTickMinInterval    = 5 * time.Second
 
 	loopRunEventPayloadKeyGeneration    = "generation"
+	loopRunEventPayloadKeyKind          = "kind"
+	loopRunEventPayloadKeyPrompt        = "prompt"
+	loopRunEventPayloadKeyExpiresAt     = "expires_at"
 	loopRunEventPayloadKeyAttentionFlag = "attention_flag"
 	loopRunEventPayloadKeyFrom          = "from"
 	loopRunEventPayloadKeyFailure       = "failure"

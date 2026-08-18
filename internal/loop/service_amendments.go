@@ -30,7 +30,7 @@ func (s *service) AmendNodeOutput(ctx context.Context, input AmendInput) (NodeAm
 	if err != nil {
 		return NodeAmendment{}, err
 	}
-	node, found := graphNode(resolved.Definition.Graph, dsl.NodeID(input.NodeID))
+	node, found := graphNode(resolved.Definition.Graph, input.NodeID)
 	if !found {
 		return NodeAmendment{}, fmt.Errorf("%w: node %q not found", ErrValidation, input.NodeID)
 	}

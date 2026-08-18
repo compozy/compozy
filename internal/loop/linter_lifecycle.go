@@ -124,7 +124,7 @@ func (c *lintContext) lintResultContract(node dsl.Node) {
 		if field == "" {
 			continue
 		}
-		path := append([]string{namespaceNodesKey, string(node.ID), "output"}, strings.Split(field, ".")...)
+		path := append([]string{namespaceNodesKey, string(node.ID), namespaceOutputKey}, strings.Split(field, ".")...)
 		if err := namespace.ValidatePath(path); err != nil {
 			c.add(node.ID, CodeResultContractInvalid, "result_contract field %q is invalid: %v", field, err)
 		}

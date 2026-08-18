@@ -53,10 +53,33 @@ func settleJoin(
 	}
 	ordered := append([]joinLaneState(nil), lanes...)
 	slices.SortFunc(ordered, func(left, right joinLaneState) int { return left.ItemIndex - right.ItemIndex })
+	settlement, terminal := initialJoinSettlement(total, ordered)
+	if total == 0 {
+		settlement.State = joinSettlementSucceeded
+		return settlement
+	}
+	settlement.Coverage.CoverageRate = coverageRate(settlement.Coverage.Succeeded, total)
+	kind := strategy.Kind
+	if kind == "" {
+		kind = dsl.StrategyWaitAll
+	}
+	switch kind {
+	case dsl.StrategyFailFast:
+		return settleFailFast(settlement, ordered, terminal, total)
+	case dsl.StrategyBestEffort:
+		return settleBestEffort(settlement, ordered, strategy.Threshold, terminal, total)
+	case dsl.StrategyRace:
+		return settleRace(settlement, ordered, terminal, total)
+	default:
+		return settleWaitAll(settlement, terminal, total)
+	}
+}
+
+func initialJoinSettlement(total int, lanes []joinLaneState) (joinSettlement, int) {
 	settlement := joinSettlement{State: joinSettlementPending}
 	settlement.Coverage.Total = max(total, 0)
 	terminal := 0
-	for _, lane := range ordered {
+	for _, lane := range lanes {
 		switch lane.Status {
 		case generationOutputSucceeded:
 			settlement.Coverage.Succeeded++
@@ -71,64 +94,71 @@ func settleJoin(
 			}
 		}
 	}
-	if total == 0 {
-		settlement.State = joinSettlementSucceeded
-		return settlement
-	}
-	settlement.Coverage.CoverageRate = coverageRate(settlement.Coverage.Succeeded, total)
-	kind := strategy.Kind
-	if kind == "" {
-		kind = dsl.StrategyWaitAll
-	}
-	switch kind {
-	case dsl.StrategyFailFast:
-		for _, lane := range ordered {
-			if lane.Status == generationOutputFailed && lane.Definitive {
-				settlement.State = joinSettlementFailed
-				settlement.TriggerItem = intPointer(lane.ItemIndex)
-				settlement.CancelItems = unsettledLaneItems(ordered, lane.ItemIndex)
-				return settlement
-			}
-		}
-		if settlement.Coverage.Succeeded == total {
-			settlement.State = joinSettlementSucceeded
-		} else if terminal == total {
+	return settlement, terminal
+}
+
+func settleFailFast(settlement joinSettlement, lanes []joinLaneState, terminal, total int) joinSettlement {
+	for _, lane := range lanes {
+		if lane.Status == generationOutputFailed && lane.Definitive {
 			settlement.State = joinSettlementFailed
-		}
-	case dsl.StrategyBestEffort:
-		required := requiredStrategySuccesses(strategy.Threshold, total)
-		if settlement.Coverage.Succeeded >= required {
-			settlement.State = joinSettlementSucceeded
-			if settlement.Coverage.Succeeded < total {
-				settlement.State = joinSettlementPartial
-				settlement.Coverage.Partial = true
-			}
-			settlement.CancelItems = unsettledLaneItems(ordered, -1)
-		} else if terminal == total {
-			settlement.State = joinSettlementFailed
-		}
-	case dsl.StrategyRace:
-		for _, lane := range ordered {
-			if lane.Status == generationOutputSucceeded {
-				settlement.State = joinSettlementSucceeded
-				settlement.WinnerItem = intPointer(lane.ItemIndex)
-				settlement.WinnerRef = lane.OutputRef
-				settlement.CancelItems = unsettledLaneItems(ordered, lane.ItemIndex)
-				return settlement
-			}
-		}
-		if terminal == total {
-			settlement.State = joinSettlementFailed
-		}
-	default:
-		if terminal != total {
+			settlement.TriggerItem = new(lane.ItemIndex)
+			settlement.CancelItems = unsettledLaneItems(lanes, lane.ItemIndex)
 			return settlement
 		}
-		if settlement.Coverage.Succeeded == total {
-			settlement.State = joinSettlementSucceeded
-		} else {
-			settlement.State = joinSettlementFailed
+	}
+	if settlement.Coverage.Succeeded == total {
+		settlement.State = joinSettlementSucceeded
+	} else if terminal == total {
+		settlement.State = joinSettlementFailed
+	}
+	return settlement
+}
+
+func settleBestEffort(
+	settlement joinSettlement,
+	lanes []joinLaneState,
+	threshold *dsl.StrategyThreshold,
+	terminal int,
+	total int,
+) joinSettlement {
+	required := requiredStrategySuccesses(threshold, total)
+	if settlement.Coverage.Succeeded >= required {
+		settlement.State = joinSettlementSucceeded
+		if settlement.Coverage.Succeeded < total {
+			settlement.State = joinSettlementPartial
+			settlement.Coverage.Partial = true
 		}
+		settlement.CancelItems = unsettledLaneItems(lanes, -1)
+	} else if terminal == total {
+		settlement.State = joinSettlementFailed
+	}
+	return settlement
+}
+
+func settleRace(settlement joinSettlement, lanes []joinLaneState, terminal, total int) joinSettlement {
+	for _, lane := range lanes {
+		if lane.Status == generationOutputSucceeded {
+			settlement.State = joinSettlementSucceeded
+			settlement.WinnerItem = new(lane.ItemIndex)
+			settlement.WinnerRef = lane.OutputRef
+			settlement.CancelItems = unsettledLaneItems(lanes, lane.ItemIndex)
+			return settlement
+		}
+	}
+	if terminal == total {
+		settlement.State = joinSettlementFailed
+	}
+	return settlement
+}
+
+func settleWaitAll(settlement joinSettlement, terminal, total int) joinSettlement {
+	if terminal != total {
+		return settlement
+	}
+	if settlement.Coverage.Succeeded == total {
+		settlement.State = joinSettlementSucceeded
+	} else {
+		settlement.State = joinSettlementFailed
 	}
 	return settlement
 }
@@ -163,15 +193,13 @@ func unsettledLaneItems(lanes []joinLaneState, exclude int) []int {
 	return items
 }
 
-func intPointer(value int) *int { return &value }
-
 func cloneJoinSettlement(value joinSettlement) joinSettlement {
 	value.CancelItems = append([]int(nil), value.CancelItems...)
 	if value.TriggerItem != nil {
-		value.TriggerItem = intPointer(*value.TriggerItem)
+		value.TriggerItem = new(*value.TriggerItem)
 	}
 	if value.WinnerItem != nil {
-		value.WinnerItem = intPointer(*value.WinnerItem)
+		value.WinnerItem = new(*value.WinnerItem)
 	}
 	return value
 }

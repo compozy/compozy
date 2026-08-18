@@ -171,6 +171,45 @@ export function loopRequestsOptions(
   });
 }
 
+export function loopRequestAttentionOptions(
+  workspaceId: string,
+  enabled = true,
+  refetchInterval: number | false = LIVE_REFETCH_INTERVAL
+) {
+  return queryOptions({
+    queryKey: loopsKeys.requestAttention(workspaceId),
+    queryFn: ({ signal }) => listLoopRequests(workspaceId, { state: "pending", limit: 50 }, signal),
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval,
+    enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
+export function loopRunRequestCountsOptions(workspaceId: string, enabled = true) {
+  return queryOptions({
+    queryKey: loopsKeys.runRequestCounts(workspaceId),
+    queryFn: async ({ signal }) => {
+      const counts: Record<string, number> = {};
+      let cursor: string | undefined;
+      do {
+        const page = await listLoopRequests(
+          workspaceId,
+          { state: "pending", limit: 200, cursor },
+          signal
+        );
+        for (const request of page.items) {
+          counts[request.loop_run_id] = (counts[request.loop_run_id] ?? 0) + 1;
+        }
+        cursor = page.next_cursor || undefined;
+      } while (cursor);
+      return counts;
+    },
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
 export function loopRequestDetailOptions(
   workspaceId: string,
   runId: string,

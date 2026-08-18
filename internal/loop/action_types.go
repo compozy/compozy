@@ -28,6 +28,11 @@ const (
 	jsonSchemaPropertiesKey    = "properties"
 	jsonSchemaRequiredKey      = "required"
 	jsonSchemaStringType       = "string"
+	jsonSchemaArrayType        = "array"
+	jsonSchemaBooleanType      = "boolean"
+	jsonSchemaNumberType       = "number"
+	jsonSchemaIntegerType      = "integer"
+	jsonSchemaNullType         = "null"
 	jsonSchemaTitleKey         = "title"
 )
 
@@ -84,7 +89,6 @@ type ActionExecutionInput struct {
 	CorrelationID             string
 	RuntimeSelection          *ActionRuntimeSelection
 	Environment               *dsl.EnvironmentSpec
-	AllowedTools              []string
 	OriginSessionID           string
 	ProvenanceParentSessionID string
 	OriginCreationProfileRef  string

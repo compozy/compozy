@@ -33,7 +33,7 @@ func newInitialControlCoordinatorPlan(
 	); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}
-	if err := appendCoordinatorDependenciesForOutputs(
+	appendCoordinatorDependenciesForOutputs(
 		&plan,
 		run,
 		generation,
@@ -41,8 +41,6 @@ func newInitialControlCoordinatorPlan(
 		topology,
 		gatesEnabled,
 		outputs,
-	); err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
+	)
 	return plan, nil
 }

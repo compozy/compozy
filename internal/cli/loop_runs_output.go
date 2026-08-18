@@ -51,7 +51,15 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse) outputBundle {
 		"Loop runs",
 		[]string{"ID", "LOOP", "STATUS", "COMPLETION", "GENERATION", "BEST GEN", "BEST SCORE"},
 		"loop_runs",
-		[]string{"id", "loop_name", automationStatusKey, "completion_state", "generation", "best_generation", "best_score"},
+		[]string{
+			"id",
+			"loop_name",
+			automationStatusKey,
+			"completion_state",
+			"generation",
+			"best_generation",
+			"best_score",
+		},
 		loopRunSummaryRow,
 		loopRunSummaryRow,
 	)

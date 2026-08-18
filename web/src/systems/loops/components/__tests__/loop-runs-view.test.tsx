@@ -88,4 +88,22 @@ describe("LoopRunsView", () => {
     // Done runs are terminal, so the Active table hides.
     expect(screen.queryByTestId("loop-runs-active")).not.toBeInTheDocument();
   });
+
+  it("Should show fully paged pending request counts only on their owning runs", () => {
+    const target = loopRunFixtures[0];
+    render(
+      <LoopRunsView
+        onOutcomeChange={() => undefined}
+        outcome="all"
+        pendingRequestCounts={new Map([[target.id, 3]])}
+        runs={loopRunFixtures}
+      />
+    );
+
+    const targetRow = screen
+      .getAllByTestId("loop-run-row")
+      .find(row => row.getAttribute("data-params")?.includes(target.id));
+    expect(within(targetRow!).getByLabelText("3 pending requests")).toBeInTheDocument();
+    expect(screen.getAllByTestId("loop-run-pending-requests")).toHaveLength(1);
+  });
 });

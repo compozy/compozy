@@ -10,9 +10,14 @@ import (
 )
 
 var gateResultKeys = map[string]struct{}{
-	"pass": {}, "approval": {}, "fail": {}, "blocked": {}, "error": {},
-	"timeout": {}, "invalid_output": {},
+	"pass": {}, gateResultApprovalKey: {}, "fail": {}, string(StatusBlocked): {}, "error": {},
+	gateResultTimeoutKey: {}, "invalid_output": {},
 }
+
+const (
+	gateResultApprovalKey = "approval"
+	gateResultTimeoutKey  = "timeout"
+)
 
 func (c *lintContext) lintRoute(node dsl.Node) {
 	if node.OnEvalError == dsl.EvalErrorExit {
@@ -118,7 +123,7 @@ func (c *lintContext) lintGateStringRoute(node dsl.Node, outcome, raw string) {
 		)
 		return
 	}
-	if !gateStringRouteAllowed(action) || outcome == "approval" &&
+	if !gateStringRouteAllowed(action) || outcome == string(TransitionCauseApproval) &&
 		action != gate.RouteEscalate && action != gate.RouteHalt {
 		c.add(node.ID, CodeRouteMappingInvalid, "on_result.%s action %q is not legal", outcome, raw)
 	}
@@ -141,7 +146,7 @@ func (c *lintContext) lintGateObjectRoute(node dsl.Node, outcome string, mapping
 		c.add(node.ID, CodeRouteMappingInvalid, "on_result.%s.route must be a node id", outcome)
 		return
 	}
-	if outcome == "approval" {
+	if outcome == gateResultApprovalKey {
 		c.add(node.ID, CodeRouteMappingInvalid, "on_result.approval cannot bypass a pending approval")
 		return
 	}

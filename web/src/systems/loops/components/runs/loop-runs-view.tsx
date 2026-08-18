@@ -12,6 +12,7 @@ interface LoopRunsViewProps {
   runs: readonly LoopRun[];
   outcome: LoopOutcomeValue;
   onOutcomeChange: (value: LoopOutcomeValue) => void;
+  pendingRequestCounts?: ReadonlyMap<string, number>;
 }
 
 /**
@@ -19,7 +20,12 @@ interface LoopRunsViewProps {
  * filter, and Active/Past tables. KPIs summarize every run; the tables reflect
  * the selected outcome and hide when empty.
  */
-export function LoopRunsView({ runs, outcome, onOutcomeChange }: LoopRunsViewProps) {
+export function LoopRunsView({
+  runs,
+  outcome,
+  onOutcomeChange,
+  pendingRequestCounts,
+}: LoopRunsViewProps) {
   const kpis = buildRunKpis(runs);
   const segments = buildOutcomeSegments(runs);
   const { active, past } = partitionRuns(runs, outcome);
@@ -37,8 +43,18 @@ export function LoopRunsView({ runs, outcome, onOutcomeChange }: LoopRunsViewPro
         />
       ) : (
         <div className="flex flex-col gap-5">
-          <LoopRunsTable testId="loop-runs-active" title="Active" runs={active} />
-          <LoopRunsTable testId="loop-runs-past" title="Past" runs={past} />
+          <LoopRunsTable
+            pendingRequestCounts={pendingRequestCounts}
+            runs={active}
+            testId="loop-runs-active"
+            title="Active"
+          />
+          <LoopRunsTable
+            pendingRequestCounts={pendingRequestCounts}
+            runs={past}
+            testId="loop-runs-past"
+            title="Past"
+          />
         </div>
       )}
     </div>

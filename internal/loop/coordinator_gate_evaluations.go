@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -10,7 +11,7 @@ import (
 )
 
 type gateEvaluation struct {
-	runtime        gate.Gate
+	runtime        *gate.Gate
 	itemIndex      int
 	verdict        gate.Verdict
 	control        NodeControl
@@ -30,7 +31,7 @@ type gateEvaluationCollector struct {
 }
 
 func (c *gateEvaluationCollector) record(runtime gate.Gate, itemIndex int, verdict gate.Verdict) {
-	c.recordEvaluation(gateEvaluation{runtime: runtime, itemIndex: itemIndex, verdict: verdict})
+	c.recordEvaluation(gateEvaluation{runtime: new(runtime), itemIndex: itemIndex, verdict: verdict})
 }
 
 func (c *gateEvaluationCollector) recordWithControl(
@@ -41,7 +42,7 @@ func (c *gateEvaluationCollector) recordWithControl(
 	evaluatedAt time.Time,
 ) {
 	c.recordEvaluation(gateEvaluation{
-		runtime: runtime, itemIndex: itemIndex, verdict: verdict, control: control,
+		runtime: new(runtime), itemIndex: itemIndex, verdict: verdict, control: control,
 		evaluatedAt: evaluatedAt.UTC(), tracksRevision: true,
 	})
 }
@@ -120,9 +121,9 @@ func (c *gateEvaluationCollector) gateRevisionMutations() []NodeControlMutation 
 		gateID := strings.TrimSpace(evaluation.runtime.ID)
 		state := states[gateID]
 		if state == nil {
-			counters := make(map[int]int, len(evaluation.control.GateRevisions)+1)
-			for itemIndex, revision := range evaluation.control.GateRevisions {
-				counters[itemIndex] = revision
+			counters := maps.Clone(evaluation.control.GateRevisions)
+			if counters == nil {
+				counters = make(map[int]int, 1)
 			}
 			state = &revisionState{control: evaluation.control, counters: counters, at: evaluation.evaluatedAt}
 			states[gateID] = state
@@ -154,8 +155,6 @@ func gateRouteAdvancesRevision(action gate.RouteAction) bool {
 }
 
 func routeCausesGeneration(action gate.RouteAction) bool {
-	// Escalation and halt verdicts remain durable route causes for history; only
-	// routeActionForCauses selects the subset that can produce a succession plan.
 	switch action {
 	case gate.RouteRevise, gate.RouteNextGeneration, gate.RouteEscalate, gate.RouteHalt:
 		return true
@@ -195,7 +194,7 @@ func (c *gateEvaluationCollector) intents(
 		}
 		intents = append(intents, intent)
 		candidate, err := gate.BestUpdateForVerdict(
-			evaluation.runtime,
+			*evaluation.runtime,
 			evaluation.verdict,
 			int64(generation),
 			currentBest,

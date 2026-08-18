@@ -41,7 +41,7 @@ func TestSettleJoinShouldApplyStrategySemantics(t *testing.T) {
 				{ItemIndex: 1, Status: generationOutputRunning},
 				{ItemIndex: 0, Status: generationOutputFailed, Definitive: true},
 			},
-			wantState: joinSettlementFailed, wantCancel: []int{1, 3}, wantTrigger: intPointer(0),
+			wantState: joinSettlementFailed, wantCancel: []int{1, 3}, wantTrigger: new(0),
 			wantCoverage: CollectOutput{Total: 4, Failed: 2},
 		},
 		{
@@ -71,7 +71,7 @@ func TestSettleJoinShouldApplyStrategySemantics(t *testing.T) {
 				{ItemIndex: 0, Status: generationOutputSucceeded, OutputRef: "zero", Definitive: true},
 				{ItemIndex: 1, Status: generationOutputRunning},
 			},
-			wantState: joinSettlementSucceeded, wantCancel: []int{1}, wantWinner: intPointer(0),
+			wantState: joinSettlementSucceeded, wantCancel: []int{1}, wantWinner: new(0),
 			wantCoverage: CollectOutput{Total: 3, Succeeded: 2, CoverageRate: 0.67},
 		},
 	} {

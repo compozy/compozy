@@ -30,7 +30,14 @@ func (c *daemonClient) DiffLoopRun(
 	if strings.TrimSpace(againstRunID) != "" {
 		values.Set("against_run", strings.TrimSpace(againstRunID))
 	}
-	if err := c.doJSON(ctx, http.MethodGet, loopRunPath(workspaceID, runID)+"/diff", values, nil, &response); err != nil {
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		loopRunPath(workspaceID, runID)+"/diff",
+		values,
+		nil,
+		&response,
+	); err != nil {
 		return contract.LoopDiffResponse{}, err
 	}
 	return response, nil

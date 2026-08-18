@@ -32,28 +32,9 @@ func evaluateActionReview(
 	if err != nil {
 		return GenerationOutput{}, err
 	}
-	if strings.TrimSpace(review.When) != "" {
-		key := fmt.Sprintf("nodes.%s.review.when", node.ID)
-		condition := eval.resolved.Conditions[key]
-		if condition == nil {
-			return GenerationOutput{}, fmt.Errorf("%w: compiled review condition %q is missing", ErrValidation, key)
-		}
-		evaluated, evalErr := evaluatePredicate(key, condition, namespace, PredicateRouting, dsl.EvalErrorFail)
-		if evalErr != nil {
-			return GenerationOutput{}, fmt.Errorf("loop: evaluate review %s: %w", node.ID, evalErr)
-		}
-		eval.gateEvaluations.recordPredicate(evaluated.Diagnostics...)
-		if evaluated.Disposition != nil {
-			failed, failureErr := applyPredicateFailureDisposition(
-				output, node, evaluated.Disposition.Failure, eval.resolved.Definition.Graph,
-				eval.topology, &outputs,
-			)
-			return failed, failureErr
-		}
-		if !evaluated.Value {
-			setGenerationOutputRef(&output, reviewBypassedOutputRef)
-			return output, nil
-		}
+	conditionOutput, proceed, err := evaluateReviewCondition(eval, output, node, namespace, &outputs)
+	if err != nil || !proceed {
+		return conditionOutput, err
 	}
 	rendered, err := materializeReviewProposal(node, namespace)
 	if err != nil {
@@ -78,7 +59,11 @@ func evaluateActionReview(
 		var ok bool
 		prompt, ok = renderedPrompt.(string)
 		if !ok || strings.TrimSpace(prompt) == "" {
-			return GenerationOutput{}, fmt.Errorf("%w: review prompt for %q must resolve to a string", ErrValidation, node.ID)
+			return GenerationOutput{}, fmt.Errorf(
+				"%w: review prompt for %q must resolve to a string",
+				ErrValidation,
+				node.ID,
+			)
 		}
 	}
 	decisions := review.EffectiveDecisions()
@@ -99,7 +84,31 @@ func evaluateActionReview(
 	if err != nil {
 		return GenerationOutput{}, fmt.Errorf("loop: review node %q: %w", node.ID, err)
 	}
-	contextRaw := json.RawMessage(`{}`)
+	return appendReviewRequest(plan, eval, output, node, reviewRequest{
+		prompt: prompt, proposed: proposed, proposedPreview: proposedPreview,
+		decisions: decisionsRaw, editSchema: editSchema, respondSchema: respondSchema,
+		expiresAt: expiresAt, openedAt: now,
+	})
+}
+
+type reviewRequest struct {
+	prompt          string
+	proposed        json.RawMessage
+	proposedPreview json.RawMessage
+	decisions       json.RawMessage
+	editSchema      json.RawMessage
+	respondSchema   json.RawMessage
+	expiresAt       *time.Time
+	openedAt        time.Time
+}
+
+func appendReviewRequest(
+	plan *task.CoordinatorCompletionPlan,
+	eval *controlEvalContext,
+	output GenerationOutput,
+	node dsl.Node,
+	request reviewRequest,
+) (GenerationOutput, error) {
 	output.Status = generationOutputWaiting
 	output.TaskRunID = ""
 	output.NextAttemptAt = nil
@@ -110,27 +119,69 @@ func evaluateActionReview(
 	}
 	payload.Waits = append(payload.Waits, NodeWaitIntent{
 		NodeID: NodeID(output.NodeID), ItemIndex: output.ItemIndex, Kind: NodeWaitKindRequest,
-		NextEscalationAt: expiresAt, IssuedEpoch: output.Epoch, CreatedAt: now,
+		NextEscalationAt: request.expiresAt, IssuedEpoch: output.Epoch, CreatedAt: request.openedAt,
 	})
 	agents := dsl.ResponderAgentsDeny
-	if review.Responders != nil && review.Responders.Agents != "" {
-		agents = review.Responders.Agents
+	if node.Review.Responders != nil && node.Review.Responders.Agents != "" {
+		agents = node.Review.Responders.Agents
 	}
 	payload.Requests = append(payload.Requests, RequestIntent{
 		WorkspaceID: eval.run.WorkspaceID, NodeID: node.ID, ItemIndex: output.ItemIndex,
-		Kind: RequestKindReview, Prompt: diagnostics.RedactAndBound(prompt, requestPreviewLimitBytes),
-		Context: contextRaw, ContextPreview: contextRaw, EditSchema: editSchema,
-		RespondSchema: respondSchema, Decisions: decisionsRaw, Proposed: proposed,
-		ProposedPreview: proposedPreview, Agents: agents, ExpiresAt: expiresAt,
-		IssuedEpoch: output.Epoch, OpenedAt: now,
+		Kind: RequestKindReview, Prompt: diagnostics.RedactAndBound(request.prompt, requestPreviewLimitBytes),
+		Context: json.RawMessage(`{}`), ContextPreview: json.RawMessage(`{}`), EditSchema: request.editSchema,
+		RespondSchema: request.respondSchema, Decisions: request.decisions, Proposed: request.proposed,
+		ProposedPreview: request.proposedPreview, Agents: agents, ExpiresAt: request.expiresAt,
+		IssuedEpoch: output.Epoch, OpenedAt: request.openedAt,
 	})
 	payload.Events = append(payload.Events, GenerationLifecycleEventIntent{
 		Kind: GenerationLifecycleEventNodeWaitStarted, NodeID: output.NodeID,
 		ItemIndex: output.ItemIndex, Attempt: output.Attempt, IssuedEpoch: output.Epoch,
-		WaitKind: NodeWaitKindRequest, NextAttemptAt: expiresAt,
+		WaitKind: NodeWaitKindRequest, NextAttemptAt: request.expiresAt,
 	})
 	plan.Snapshot.Payload = payload
 	return output, nil
+}
+
+func evaluateReviewCondition(
+	eval *controlEvalContext,
+	output GenerationOutput,
+	node dsl.Node,
+	namespace map[string]any,
+	outputs *[]GenerationOutput,
+) (GenerationOutput, bool, error) {
+	if strings.TrimSpace(node.Review.When) == "" {
+		return output, true, nil
+	}
+	key := fmt.Sprintf("nodes.%s.review.when", node.ID)
+	condition := eval.resolved.Conditions[key]
+	if condition == nil {
+		return GenerationOutput{}, false, fmt.Errorf(
+			"%w: compiled review condition %q is missing",
+			ErrValidation,
+			key,
+		)
+	}
+	evaluated, err := evaluatePredicate(key, condition, namespace, PredicateRouting, dsl.EvalErrorFail)
+	if err != nil {
+		return GenerationOutput{}, false, fmt.Errorf("loop: evaluate review %s: %w", node.ID, err)
+	}
+	eval.gateEvaluations.recordPredicate(evaluated.Diagnostics...)
+	if evaluated.Disposition != nil {
+		failed, failureErr := applyPredicateFailureDisposition(
+			output,
+			node,
+			evaluated.Disposition.Failure,
+			eval.resolved.Definition.Graph,
+			eval.topology,
+			outputs,
+		)
+		return failed, false, failureErr
+	}
+	if !evaluated.Value {
+		setGenerationOutputRef(&output, reviewBypassedOutputRef)
+		return output, false, nil
+	}
+	return output, true, nil
 }
 
 func materializeReviewProposal(node dsl.Node, namespace map[string]any) (map[string]any, error) {
@@ -226,7 +277,9 @@ func actionOutputSchemaRaw(resolved *ResolvedDefinition, node dsl.Node) (json.Ra
 		for key := range params.Map {
 			properties[key] = map[string]any{}
 		}
-		return json.Marshal(map[string]any{"type": "object", "properties": properties})
+		return json.Marshal(
+			map[string]any{jsonSchemaTypeKey: jsonSchemaObjectType, jsonSchemaPropertiesKey: properties},
+		)
 	default:
 		return nil, fmt.Errorf("%w: review output schema for %q is missing", ErrValidation, node.ID)
 	}
@@ -242,23 +295,26 @@ func inferredReviewSchema(value any) map[string]any {
 			required = append(required, key)
 		}
 		sort.Strings(required)
-		return map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false}
+		return map[string]any{
+			jsonSchemaTypeKey: jsonSchemaObjectType, jsonSchemaPropertiesKey: properties,
+			jsonSchemaRequiredKey: required, "additionalProperties": false,
+		}
 	case []any:
 		items := map[string]any{}
 		if len(typed) > 0 {
 			items = inferredReviewSchema(typed[0])
 		}
-		return map[string]any{"type": "array", "items": items}
+		return map[string]any{jsonSchemaTypeKey: jsonSchemaArrayType, jsonSchemaItemsKey: items}
 	case string:
-		return map[string]any{"type": "string"}
+		return map[string]any{jsonSchemaTypeKey: jsonSchemaStringType}
 	case bool:
-		return map[string]any{"type": "boolean"}
+		return map[string]any{jsonSchemaTypeKey: jsonSchemaBooleanType}
 	case float64, float32:
-		return map[string]any{"type": "number"}
+		return map[string]any{jsonSchemaTypeKey: jsonSchemaNumberType}
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		return map[string]any{"type": "integer"}
+		return map[string]any{jsonSchemaTypeKey: jsonSchemaIntegerType}
 	case nil:
-		return map[string]any{"type": "null"}
+		return map[string]any{jsonSchemaTypeKey: jsonSchemaNullType}
 	default:
 		return map[string]any{}
 	}

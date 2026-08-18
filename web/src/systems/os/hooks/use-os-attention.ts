@@ -1,6 +1,6 @@
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
-import { useLoopNodeExists } from "@/systems/loops";
+import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
 import {
   attentionCount,
   deriveAttentionBadges,
@@ -37,6 +37,7 @@ export interface OsAttentionModel {
   attentionSessionsDisconnected: boolean;
   sessionsDisconnected: boolean;
   tasksDisconnected: boolean;
+  loopRequestsDisconnected: boolean;
   loading: boolean;
 }
 
@@ -102,6 +103,7 @@ export function useOsAttention(
   const loopWorkspaceId = workspaceId ?? "";
   const loopWaitingPresent = useLoopNodeExists(loopWorkspaceId, "waiting", sessionsEnabled);
   const loopAttentionPresent = useLoopNodeExists(loopWorkspaceId, "attention", sessionsEnabled);
+  const loopRequests = useLoopRequestAttention(workspaces, true, documentVisible);
 
   const modalSessions = modalSessionsQuery.data ?? [];
   const dashboard = dashboardQuery.data ?? null;
@@ -128,6 +130,7 @@ export function useOsAttention(
     summaryStale: summary.stale,
     dashboard,
     tasksStale: tasksDisconnected,
+    loopsPending: loopRequests.pendingCount,
   });
   const sections = deriveAttentionSections({
     sessions: attention.sessions,
@@ -138,6 +141,7 @@ export function useOsAttention(
     taskRowsStale: taskRowsDisconnected,
     loopWaitingPresent,
     loopAttentionPresent,
+    loopRequests: loopRequests.items,
   });
   return {
     badges,
@@ -147,12 +151,14 @@ export function useOsAttention(
     attentionSessionsDisconnected,
     sessionsDisconnected,
     tasksDisconnected: taskRowsDisconnected,
+    loopRequestsDisconnected: loopRequests.disconnected,
     loading:
       (sessionsEnabled &&
         (!worktree.resolved ||
           summary.loading ||
           attention.loading ||
           modalSessionsQuery.isLoading)) ||
-      (tasksEnabled && (dashboardQuery.isLoading || tasksQuery.isLoading)),
+      (tasksEnabled && (dashboardQuery.isLoading || tasksQuery.isLoading)) ||
+      loopRequests.loading,
   };
 }

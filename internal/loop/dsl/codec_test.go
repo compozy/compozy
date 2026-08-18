@@ -176,7 +176,11 @@ contract:
 				}
 				if definition.Contract.StopWhen.Expr != "inputs.done == true" ||
 					definition.Contract.StopWhen.OnEvalError != tt.wantPolicy {
-					t.Fatalf("StopWhen = %#v, want expression and policy %q", definition.Contract.StopWhen, tt.wantPolicy)
+					t.Fatalf(
+						"StopWhen = %#v, want expression and policy %q",
+						definition.Contract.StopWhen,
+						tt.wantPolicy,
+					)
 				}
 				serialized, err := dsl.Serialize(definition)
 				if err != nil {
@@ -187,7 +191,11 @@ contract:
 					t.Fatalf("Parse(serialized) error = %v", err)
 				}
 				if !reflect.DeepEqual(reparsed.Contract.StopWhen, definition.Contract.StopWhen) {
-					t.Fatalf("round-trip StopWhen = %#v, want %#v", reparsed.Contract.StopWhen, definition.Contract.StopWhen)
+					t.Fatalf(
+						"round-trip StopWhen = %#v, want %#v",
+						reparsed.Contract.StopWhen,
+						definition.Contract.StopWhen,
+					)
 				}
 			})
 		}

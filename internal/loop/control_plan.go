@@ -46,24 +46,11 @@ func buildInitialControlAwareCoordinatorPlan(
 	outputBlobs := []GenerationOutputBlob{}
 	gateEvaluations := &gateEvaluationCollector{}
 	terminal, err := advanceControlNodes(
-		&controlEvalContext{
-			ctx:                ctx,
-			run:                run,
-			generation:         generation,
-			resolved:           resolved,
-			topology:           topology,
-			effective:          effective,
-			gateEvaluator:      gateEvaluator,
-			gateDecisions:      gateDecisions,
-			nodeControls:       nodeControls,
-			runtimeCatalog:     runtimeCatalog,
-			fanOutWidth:        fanOutWidth,
-			watchRuntime:       watchRuntime,
-			watchEventsRuntime: watchEventsRuntime,
-			gateEvaluations:    gateEvaluations,
-			history:            history,
-			now:                scheduledAt.UTC(),
-		},
+		newInitialControlEvalContext(
+			ctx, run, generation, resolved, topology, effective, gateEvaluator, gateDecisions,
+			nodeControls, runtimeCatalog, fanOutWidth, watchRuntime, watchEventsRuntime,
+			gateEvaluations, history, scheduledAt,
+		),
 		&plan,
 		&outputs,
 		&outputBlobs,
@@ -96,6 +83,33 @@ func buildInitialControlAwareCoordinatorPlan(
 		outputBlobs,
 		scheduledAt,
 	)
+}
+
+func newInitialControlEvalContext(
+	ctx context.Context,
+	run Run,
+	generation int,
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	effective EffectiveConfig,
+	gateEvaluator gate.GateEvaluator,
+	gateDecisions GateDecisionReader,
+	nodeControls NodeControlReader,
+	runtimeCatalog WorkspaceRuntimeCatalog,
+	fanOutWidth int,
+	watchRuntime coordinatorWatchRuntime,
+	watchEventsRuntime coordinatorWatchEventsRuntime,
+	gateEvaluations *gateEvaluationCollector,
+	history GenerationHistory,
+	scheduledAt time.Time,
+) *controlEvalContext {
+	return &controlEvalContext{
+		ctx: ctx, run: run, generation: generation, resolved: resolved, topology: topology,
+		effective: effective, gateEvaluator: gateEvaluator, gateDecisions: gateDecisions,
+		nodeControls: nodeControls, runtimeCatalog: runtimeCatalog, fanOutWidth: fanOutWidth,
+		watchRuntime: watchRuntime, watchEventsRuntime: watchEventsRuntime,
+		gateEvaluations: gateEvaluations, history: history, now: scheduledAt.UTC(),
+	}
 }
 
 func initialGenerationOutputs(
@@ -219,7 +233,7 @@ func evaluateControlNodeKind(
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	switch dsl.ControlKind(node.Kind) {
 	case dsl.ControlFanOut:
-		return evaluateFanOutNode(eval, plan, output, node, outputs, outputBlobs)
+		return evaluateFanOutNode(eval, output, node, outputs, outputBlobs)
 	case dsl.ControlCollect:
 		return evaluateCollectNode(eval, plan, output, node, outputs, outputBlobs)
 	case dsl.ControlBranch:
@@ -285,7 +299,6 @@ func evaluateControlNodeKind(
 
 func evaluateFanOutNode(
 	eval *controlEvalContext,
-	plan *task.CoordinatorCompletionPlan,
 	output GenerationOutput,
 	node dsl.Node,
 	outputs *[]GenerationOutput,

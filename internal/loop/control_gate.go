@@ -87,17 +87,38 @@ func evaluateGateNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	verdict, err := evaluator.Evaluate(ctx, runtimeGate, gateInput)
-	if err != nil {
-		return GenerationOutput{}, nil, err
-	}
-	verdict, err = gate.SanitizeVerdict(verdict)
+	verdict, err := evaluateGateVerdict(ctx, evaluator, runtimeGate, gateInput)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
 	if evaluations != nil {
 		evaluations.recordWithControl(runtimeGate, output.ItemIndex, verdict, control, evaluatedAt)
 	}
+	return applyGateVerdictRoute(resolved, topology, output, node, outputs, evaluations, verdict)
+}
+
+func evaluateGateVerdict(
+	ctx context.Context,
+	evaluator gate.GateEvaluator,
+	runtimeGate gate.Gate,
+	input gate.GateInput,
+) (gate.Verdict, error) {
+	verdict, err := evaluator.Evaluate(ctx, runtimeGate, input)
+	if err != nil {
+		return gate.Verdict{}, err
+	}
+	return gate.SanitizeVerdict(verdict)
+}
+
+func applyGateVerdictRoute(
+	resolved *ResolvedDefinition,
+	topology controlTopology,
+	output GenerationOutput,
+	node dsl.Node,
+	outputs *[]GenerationOutput,
+	evaluations *gateEvaluationCollector,
+	verdict gate.Verdict,
+) (GenerationOutput, *task.CoordinatorTerminal, error) {
 	updated, terminal, err := gateOutputFromVerdict(output, node.ID, verdict)
 	if err != nil || verdict.Route.Target == "" {
 		return updated, terminal, err
@@ -206,7 +227,7 @@ func loadGateRevisionControl(
 		return NodeControl{}, fmt.Errorf("loop: list gate revision controls: %w", err)
 	}
 	for _, control := range controls {
-		if control.NodeID == NodeID(gateID) {
+		if control.NodeID == gateID {
 			return control, nil
 		}
 	}
