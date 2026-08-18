@@ -22,7 +22,6 @@ import (
 	"github.com/compozy/compozy/internal/support"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
