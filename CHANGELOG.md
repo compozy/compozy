@@ -119,6 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bound desktop runtime health checks (#414)
 - Preserve loop goal session lineage (#420)
 - Support resource-only extension development (#423)
+- Daemon path resolution
 
 ### 🧪 Testing
 
@@ -126,6 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Align nightly runtime fixtures
 - Align dead session recovery coverage
 - Preserve loop claim tokens in daemon fixtures (#418)
+- Fix cases failing
 
 ## 0.2.15 - 2026-07-17
 
