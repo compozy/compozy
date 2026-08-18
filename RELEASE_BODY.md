@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-14
+## 0.3.0 - 2026-08-18
 
 ### ♻️ Refactoring
 
@@ -8,6 +8,7 @@
 - Modernize Go runtime packages (#293)
 - Use geist instead of inter (#334)
 - Add global workspace toggle (#368)
+- Unify PRD and TechSpec into a single spec pipeline (#397)
 
 ### 🎉 Features
 
@@ -33,7 +34,15 @@
 - Parent and child sessions (#327)
 - Add secure remote gateway access (#331)
 - Ship CompozyOS desktop app (#336)
-- Replace the desktop shell with Electron
+- Add first-class worktree support (#388)
+- Close the loops UI visual-contract parity gap (#406)
+- Unify zero-inventory empty states for jobs, triggers, and tasks (#409)
+- Redesign workspaces overview as command-tab switcher (#410)
+- Redesign trigger detail into the When/If/Then rule page (#411)
+- Session attachments — paste, drop, and picker to multimodal agents end to end (#412)
+- Add Agent Plugins ingestion to extensions (#419)
+- Add session attention and orchestration parity (#422)
+- Replace Tauri with Electron and unify updates (#424)
 
 ### 🐛 Bug Fixes
 
@@ -61,7 +70,7 @@
 - Start absent SSH daemon
 - Make loop goals converge reliably (#335)
 - Desktop issues
-- Ship the complete desktop platform icon set
+- Ship the full desktop icon set required by Windows tauri-build
 - Pause the Windows desktop lane and ship macOS + Linux only
 - Adjust project copy
 - Publish staged GitHub release drafts
@@ -96,29 +105,24 @@
 - Validate desktop release smoke wiring
 - Validate public CLI version command
 - Clarify missing config path errors (#401)
+- Guard autonomous memory extractor writes (#396)
+- Write $ENV interpolation in pi runtime models.json apiKey (#404)
+- Authorize daemon-owned loop effects (#407)
+- Retain terminal loop effect results in web (#408)
+- Bound desktop runtime health checks (#414)
+- Preserve loop goal session lineage (#420)
+- Support resource-only extension development (#423)
 
 ### 🧪 Testing
 
 - Guard ACP initialize protocol version (#318)
 - Align nightly runtime fixtures
 - Align dead session recovery coverage
+- Preserve loop claim tokens in daemon fixtures (#418)
 
 ### Release Notes
 
 #### Breaking Changes
-
-##### Desktop app moves to Electron
-
-The desktop app now ships as Electron packages for macOS arm64, macOS x64, and Linux x64. Existing
-desktop installs cannot cross from the previous update channel automatically.
-
-Download the package for your architecture from the current GitHub release and install it over the
-existing app. Quit the old app before opening the replacement. The app keeps the same name, package
-identity, `COMPOZY_HOME`, workspaces, sessions, configuration, and runtime state.
-
-If you used the previous portable Linux AppImage, the old file remains beside the new download.
-After `compozy app status -o json` reports the new app version, delete that old AppImage manually.
-An abandoned old app may continue logging failed update checks; no compatibility feed remains for it.
 
 ##### Extension kits replace Bundles
 
@@ -164,6 +168,16 @@ auto_commit = false
 auto_commit = false
 ```
 
+##### The desktop app is now Electron
+
+The Tauri/Rust desktop host is replaced by an Electron shell with a narrow preload boundary, and updating became one durable daemon-owned operation exposed identically through the CLI, HTTP, UDS, Settings, and the menubar. The app provisions the bundled daemon from an empty home, or attaches to a compatible daemon that is already running without taking ownership of it, keeping single-instance focus, deep links, safe navigation boundaries, page zoom, window geometry recovery, diagnostics, logs, and the owned-versus-attached quit contract. (#424)
+
+- Runtime and App are separate update tracks with operation progress, holder-aware blocked state, staged-next-launch state, apply and cancel actions, and truthful absence when a track is unsupported.
+- A keyboard-accessible menubar indicator appears only when an update is actionable and navigates to Settings. The renderer holds no desktop-only update authority, and the SPA behaves the same in a browser and in the app.
+- Desktop artifacts are planned, inventoried, and channel-checked as one release authority, with notarization and signing input checks and packaged smokes provisioned from empty isolated homes. On macOS the ZIP and on Linux the AppImage are the updater artifacts; DMG and DEB are install artifacts only.
+
+Migration notes: this is a hard cut with no compatibility bridge. The Tauri runtime, commands, permissions, capabilities, fixtures, generated bindings, Cargo dependencies, build configuration, scripts, config keys, docs, and tests are deleted rather than deprecated. Install the app from the artifacts published with this release. The installed-app update walk from one beta to the next was not verified for this build, so the App track must be proven by a release owner across a fresh beta pair before it is treated as delivered.
+
 ##### The OS Release
 
 CompozyOS v0.3 is a new operating system boundary for agent work. Sessions, tasks, loops, memory,
@@ -184,6 +198,23 @@ The repository was already MIT licensed. v0.3 corrects stale BSL-1.1 text in dis
 it does not relicense the code.
 
 #### Features
+
+##### Agent Plugins install as extensions
+
+CompozyOS ingests [Agent Plugins 1.0.0](https://agent-plugins.org/) packages as extensions with no Compozy-specific manifest. A portable plugin contributes skills plus local or remote MCP servers while keeping the existing extension lifecycle, trust, isolation, diagnostics, Marketplace, CLI, HTTP, UDS, native-tool, and Web management surfaces. (#419)
+
+- Manifest discovery and validation are strict: fixed-location skills and MCP configuration, closed schemas, deterministic diagnostics, native-manifest precedence, and safe rejection of unsupported components.
+- Portable skills and stdio or streamable-HTTP MCP servers are synthesized into the canonical extension model, with absolute `PLUGIN_ROOT` and `PLUGIN_DATA` expansion, single-token stdio commands, package-root working directories, remote-header bindings, URL policy, and secret redaction.
+
+Migration notes: end-to-end delivery is claimed only for the provider paths proven end to end, Claude Code and Hermes. OpenClaw's current ACP bridge advertises `session_mcp=false`, so CompozyOS fails closed instead of pretending to deliver session MCP servers.
+
+##### Attention: know which session needs you
+
+CompozyOS has one daemon-owned attention model. Pending input, permission requests, finished-unseen sessions, operator presence, notification delivery, and cross-workspace session discovery are runtime state instead of per-surface guesses. Orchestrator agents get structured wait, spawn, stop, approve, clarify-answer, prompt-cancel, and notify controls across native tools, CLI, HTTP, and UDS, so an agent supervising other agents no longer polls a shell or depends on the web UI to act. (#422)
+
+- The global catalog persists canonical attention revisions, pending interactions, seen and settled state, and cursor-stable attention ordering.
+- Presence leases, attention summaries and events, sanitized interaction discovery, generalized waits, prompt cancellation, operator notifications, and session wake propagation are available on every transport, with deterministic CLI exit behavior.
+- Desktop shortcuts moved to a daemon-owned, configurable keymap, and the command palette gained nested views including an attention-first Sessions view.
 
 ##### Bundled Tailscale connectivity extension
 
@@ -230,6 +261,16 @@ Cursor used to look curated in CompozyOS but was not truthful to the account tha
 
 Migration notes: the curated Cursor allowlist and its session preflight are deleted with no compatibility bridge. If a provider rejects an id, that provider's error is now the authority.
 
+##### First-class Git worktrees
+
+Git worktrees are runtime objects across the daemon, Web desktop, CLI, HTTP and UDS, native tools, extensions, configuration, generated contracts, and documentation: create, adopt, discover, inspect, reconcile, dismiss, and safely remove isolated checkouts. Sessions, Task runs, fan-out workers, and Loop environments bind to an exact worktree without losing the parent workspace's config, skills, agents, or memory. (#388, #410)
+
+- The new worktree domain owns Git capability detection, canonical repository identity, naming and placement, per-repository mutation locking, and durable lifecycle state.
+- Creation is a phased `pending → ready` operation with recorded ownership checkpoints, bootstrap copy and setup support, cancel-safe rollback, and boot recovery.
+- Adoption verifies the linked checkout, the common Git directory, main-checkout exclusion, and repository identity before registering it. Discovery merges Git-known checkouts with durable records without turning a discovered row into an adopted worktree.
+- Removal fences the record as removing, rechecks session activity and Git safety under the repository lock, preserves branches and history, and requires an explicit second step for dirty or unique-unpushed work.
+- Finishing work runs through a truthful assisted-exit ladder for commit, push, pull request, merged evidence, and cleanup. Dismissed tombstones release their reserved name, exit actions resolve caller references to canonical record ids, and CLI mutation output keeps worktree identity.
+
 ##### Grouped skill directories
 
 CompozyOS now discovers `SKILL.md` definitions at any depth below each skill root, so teams can organize capabilities under folders such as `marketing/content/` without changing frontmatter identity or normal precedence. `compozy skill create <name> --group <relative/path>` now scaffolds grouped workspace skills safely.
@@ -244,6 +285,13 @@ A rejected Loop generation no longer restarts blind. The rejection is carried in
 - `compozy extension list` and `compozy extension status` accept `--workspace`, so agents can inspect workspace dev overlays without dropping to raw HTTP.
 
 Migration notes: this is a greenfield hard cut that discards existing Loop run history. The migration clears Loop runs, run events, gate decisions, generation outputs, goal turns and checkpoints, session bindings, and output blobs, along with the task and automation runs that referenced them. Export anything you need before upgrading.
+
+##### Loops UI and empty catalogs match their design contract
+
+Every Loops surface adopts the approved visual contract's locked review decisions, collapse and section grammar, icon budget, and truthfulness rules, rendering only daemon-backed data and adding no helper copy. Jobs, Triggers, and Tasks share one zero-inventory empty state with the same composition, density, and icon grammar. (#406, #409)
+
+- Automation suggestions and task templates are empty-state affordances again: they render only in the unfiltered zero-inventory state instead of sitting above a populated Jobs catalog.
+- The three catalogs compose the same components and differ only in icon, title, support line, action, and panel content.
 
 ##### Remote gateway: reach your daemon from anywhere
 
@@ -291,6 +339,14 @@ You can now rewind an idle session back to one of your earlier messages instead 
 
 Migration notes: `session events` and `session history` now default to `archive=active`. They previously returned archived rows alongside active ones — pass `--archive all` to keep the old behavior.
 
+##### Session attachments: paste, drop, or pick
+
+The session composer accepts images (PNG, JPEG, WebP) and files (PDF, Markdown, plain text) by paste, drag-and-drop, or file picker. Attachments persist before the prompt is accepted, ride the prompt as provider-neutral references, and reach multimodal agents as protocol-conformant ACP content blocks gated by the capabilities that agent negotiated at initialization. Saving a screenshot to disk and describing its path is no longer the workaround. (#412)
+
+- The daemon keeps the agent's prompt capabilities from the initialize handshake instead of discarding them, so unsupported content is refused in place rather than sent to an agent that never advertised it.
+- Attachments render durably in the transcript across reload, live streaming, recap, and archive, and they are deleted with their session.
+- The capability gate lives inside the composer's attachment strip. Steering a running prompt stays text-only.
+
 ##### Session-aware slash commands
 
 Slash commands in the composer are now backed by a single daemon-owned catalog scoped to the exact session, and they work anywhere in a prompt rather than only at the start. Built-in and ACP control commands stay standalone, while a skill command can be dropped inline, repeated, and mixed with the text you already typed; the matched skill's full instructions are injected into that same turn. The same catalog is readable from the CLI, HTTP, UDS, and a native tool, so agents can discover what a session can actually run. (#311)
@@ -300,6 +356,18 @@ Slash commands in the composer are now backed by a single daemon-owned catalog s
 - What is effective respects global and workspace scope, agent activation and disable lists, runtime disable overlays, enabled and disabled extension resources, workspace and session ownership, and live resource revisions. A `session_commands_changed` stream frame refreshes only the affected session.
 - Injection is bounded at 24 KB per skill and 64 KB per turn, and repeating the same skill activates it once. Invocations persist through admission, queueing, replay, transcript storage, and the UI, and queued ones are revalidated against the exact source before dispatch.
 - Slash activation is limited to human operator input. Agent-authored prompts and `compozy__session_prompt` keep slash-shaped text literal, and hooks can remove an admitted invocation but never add one.
+
+##### The workspace switcher works like Command-Tab
+
+The fullscreen workspaces overview is rebuilt as a Command-Tab style switcher over the live shell: a glass tile strip, a frosted focus plate, an identity caption, an always-visible vertical worktree menu, a full keyboard model, and a registered `⇧⌘W` shortcut. It switches workspace identity only; window arrangements stay with the Desktops overview. (#410)
+
+Migration notes: the previous 264 px dossier grid, with its member stacks, path footers, and "Enter →" row, is deleted rather than kept behind a flag.
+
+##### Trigger detail is a rule page
+
+A trigger now reads as the rule it is, not as a job inspector with the cron stripped out: a plain-language sentence of what the trigger does, a labeled Enable switch opposite it as the only accent on the page, one When / If / Then card, a single-open Recent-runs accordion, a four-card rail, and an Inspect sheet for runtime internals. (#411)
+
+Migration notes: the shared automation detail panel is jobs-only again, and triggers render through their own component family.
 
 ##### Unified docs and Marketplace
 
@@ -331,6 +399,10 @@ When an agent process disconnected mid-answer, the stream simply ended — and e
 - CompozyOS does not replay a prompt automatically, because a prompt may already have caused external side effects. Sending the next prompt restarts the agent process and continues the same session and transcript.
 
 Migration notes: crash bundles move to `compozy.session_crash_bundle.v2` with structured `exit_code` and `signal`, with no v1 branch. Any consumer that treated a closed stream as success will now correctly see a failure unless a completion event was sent.
+
+##### Autonomous extraction stays out of curated memory
+
+The autonomous memory extractor could write operational chatter into curated memory, and a generated slug collision could overwrite an unrelated entry. The deterministic scanner now rejects Memory v2 operational identifiers — `memory_propose`, native `compozy__memory_*` tool names, controller event names, and scanner rule IDs — and extractor, provider, and dreaming candidates no longer update an existing memory solely because their generated slug collides. Explicit filename-collision updates from direct CLI or user writes keep working. (#396)
 
 ##### Dry-run proves the run you are about to submit
 
@@ -386,6 +458,14 @@ The changelog on `compozy.com` now reads published releases directly from GitHub
 
 Migration notes: the release workflow no longer publishes a site changelog receipt commit, and the generator scripts behind it are removed.
 
+##### Loop runs keep their lineage, permissions, and results
+
+Three Loop defects that broke supervision of long runs are fixed. (#420, #407, #408)
+
+- Loop-owned Goal sessions retain the trusted provenance of the session that started the current or nearest ancestor Loop Run, so session catalogs and the Web group Goal work below its originating session. The relationship stays informational: Goal sessions remain `type=system` with no inherited TTL, auto-stop, spawn budget, or permission narrowing, provenance is derived server-side within the same workspace, and spawn limits still count only contiguous spawned ancestry. (#420)
+- Daemon-owned terminal tool effects are authorized correctly. The native policy path treated the synthetic `loop-effect` audit label as an authored workspace agent and failed the lookup before the declared tool could run. The trusted daemon actor kind is now preserved through policy resolution, the label survives for attribution, and workspace policy still denies foreign targets. (#407)
+- Terminal effect results stay visible in run details. The Web hook closed its event stream as soon as it received the terminal status, so a later retained or live effect-results frame never reached the run timeline, and reloading repeated the race. Successful and denied effect results now arrive in order while replacement, deactivation, navigation, and unmount keep the normal cleanup path. (#408)
+
 ##### Loop runs you can debug from the run page
 
 A Loop run that failed used to be a dead end: every attempt died with "The agent output did not satisfy the action output schema", the node was quarantined, "Open quarantine entry" opened an empty sheet, "Open session" returned 404, the cell task sat in "Queued · attempt 1 of 10" forever, and Usage confidently reported `0 / ~$0.00`. The agent had actually answered correctly every time — the daemon joined streamed text fragments with a newline, which landed inside a JSON string and corrupted a valid reply. That joiner is fixed, and so is every surface that made the failure impossible to read. (#324)
@@ -418,6 +498,24 @@ Loop action runs now have exactly one daemon-owned worker, cancellation survives
 - Loop cancellation is durable: delivery state is persisted, delivery is idempotent, the run advances to draining once acknowledged, and anything still pending is retried from daemon boot and from scheduler sweeps — no restart required to converge.
 - Resuming a stopped session discards the stopped ledger projection first and restores it if provider startup or the clear rolls back, so forensic projections stop conflicting and the full history is rematerialized on the next stop.
 - Enablement of a bundled extension is a fresh-home default, not an override: generic local and marketplace installs stay disabled by default, and stored state survives restart and update.
+
+##### Pi providers receive the secret, not its variable name
+
+CompozyOS wrote a Pi credential slot's target environment name, such as `ZAI_API_KEY`, straight into the session `models.json` `apiKey` field. Pi reads a bare uppercase value as a literal API key, so the provider received the variable name instead of the secret, the upstream request failed, and the session could finish without an assistant message. The Pi runtime now writes `$ZAI_API_KEY`-style references, which Pi resolves from the secret CompozyOS already injects into the provider process. (#404)
+
+Migration notes: this covers the built-in `pi_acp` bound-secret providers — z.ai, OpenRouter, Moonshot/Kimi, xAI, MiniMax, Mistral, Groq, and Vercel AI Gateway.
+
+##### Resource-only extensions need no toolchain
+
+An extension that ships only declared resources — agents, skills, Loops, automations, layouts — can now use `build`, `dev`, `reload`, and `dev --watch` without installing a Go or TypeScript toolchain. The passive build path validates and publishes those resources without running build or describe subprocesses, and active development links project them into the linked workspace while preserving deterministic generations, atomic reload, and last-good fallback. The Go and TypeScript paths are unchanged, and the resource-only path fails closed. (#423)
+
+##### The desktop stays responsive with a large session catalog
+
+Long-running sessions with a large internal session catalog put the macOS desktop into a request-and-reload feedback loop that made it unusable. The two-second liveness probe now targets a bounded `GET /api/status/identity` surface over HTTP and UDS instead of the full status aggregate, and internal sessions stop inflating the public catalog. (#414)
+
+- Memory-extractor, auto-title, and dream sessions no longer publish wake events to the public session catalog.
+- Built-in background agents, including `dreaming-curator`, resolve through effective workspace configuration instead of being reported as missing workspace-authored agents.
+- The identity contract ships in OpenAPI and the generated TypeScript types.
 
 #### Highlights
 
