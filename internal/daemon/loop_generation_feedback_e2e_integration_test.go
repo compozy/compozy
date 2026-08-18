@@ -297,7 +297,7 @@ func feedbackMetricDefinition(
 		ID: "quality", Class: compozycontract.LoopNodeClassControl, Kind: "gate",
 		Criteria: []compozycontract.LoopGateCriterion{{
 			ID: criterionID, Type: "agent-judge", Agent: judgeAgent,
-			Rubric: "Score the completed candidate deterministically.",
+			Rubric: "Score generation {{ .generation }} deterministically.",
 			Metric: &compozycontract.LoopMetricSpec{Direction: compozycontract.LoopMetricMaximize},
 		}},
 		VerdictPolicy: "fixed_passes",

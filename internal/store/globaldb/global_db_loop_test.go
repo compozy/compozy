@@ -228,9 +228,13 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 		forkDigest := strings.Repeat("c", 64)
 		request := looppkg.ForkStoreRequest{
 			Source: &source, Child: &child,
-			SeedOutputs: []looppkg.GenerationOutput{{
-				Generation: 1, NodeID: "finish", Status: "succeeded", OutputRef: outputRef, Attempt: 1,
-			}},
+			SeedOutputs: []looppkg.GenerationOutput{
+				{Generation: 1, NodeID: "finish", Status: "succeeded", OutputRef: outputRef, Attempt: 1},
+				{
+					Generation: 1, NodeID: "select", Status: "succeeded",
+					OutputRef: `{"environment":"staging"}`, Attempt: 1,
+				},
+			},
 			Concurrency: dsl.ConcurrencyAllow,
 			Operation: looppkg.TimeTravelOp{
 				ID: "loopop-fork-atomic", Kind: "fork", IdempotencyKey: "fork-key",
@@ -263,7 +267,8 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 			t.Fatalf("fork generations = %#v", generations)
 		}
 		outputs, err := globalDB.ListGenerationOutputs(ctx, child.WorkspaceID, child.ID, 1)
-		if err != nil || len(outputs) != 1 || outputs[0].OutputRef != outputRef {
+		if err != nil || len(outputs) != 2 || outputs[0].OutputRef != outputRef ||
+			outputs[1].OutputRef != `{"environment":"staging"}` {
 			t.Fatalf("fork seed outputs = %#v error=%v", outputs, err)
 		}
 		if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, child.ID); got != 1 {
@@ -287,7 +292,8 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 		missing.Child.ID = "looprun-fork-missing-blob"
 		missing.Child.SetForkedFrom(&looppkg.ForkRef{RunID: source.ID, Generation: 1})
 		missing.SeedOutputs = []looppkg.GenerationOutput{{
-			Generation: 1, NodeID: "finish", Status: "succeeded", OutputRef: "sha256:missing", Attempt: 1,
+			Generation: 1, NodeID: "finish", Status: "succeeded",
+			OutputRef: "sha256:" + strings.Repeat("f", 64), Attempt: 1,
 		}}
 		missing.Operation.ID = "loopop-fork-missing-blob"
 		missing.Operation.IdempotencyKey = ""

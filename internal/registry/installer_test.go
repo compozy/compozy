@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -121,10 +122,10 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 			`{"$schema":%q,"name":"portable"}`,
 			agentplugin.PluginSchemaID,
 		))
-		if err := os.MkdirAll(filepath.Join(root, ".claude-plugin"), 0o700); err != nil {
+		if err := os.MkdirAll(filepath.Join(root, installerClaudePluginDirectory), 0o700); err != nil {
 			t.Fatalf("MkdirAll(.claude-plugin) error = %v", err)
 		}
-		writeTestFile(t, filepath.Join(root, ".claude-plugin", installerAgentPluginManifestName), `{}`)
+		writeTestFile(t, filepath.Join(root, installerClaudePluginDirectory, installerAgentPluginManifestName), `{}`)
 		name, err := manifestNameAtRoot(openArchiveTestRoot(t, root))
 		if err != nil || name != installerAgentPluginManifestName {
 			t.Fatalf("manifestNameAtRoot() = %q, %v; want %q", name, err, installerAgentPluginManifestName)
@@ -133,13 +134,18 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 
 	t.Run("Should reject a client-only manifest below the single archive wrapper", func(t *testing.T) {
 		t.Parallel()
-		archive := mustTarGz(t, []tarEntry{{
-			name: ".claude-plugin/plugin.json",
-			content: fmt.Sprintf(
-				`{"$schema":%q,"name":"client-only"}`,
-				agentplugin.PluginSchemaID,
-			),
-		}})
+		archive := mustTarGz(t, []tarEntry{
+			{name: "._.claude-plugin", content: "appledouble", format: tar.FormatPAX},
+			{name: installerClaudePluginDirectory, typeflag: tar.TypeDir, format: tar.FormatPAX},
+			{
+				name:   ".claude-plugin/plugin.json",
+				format: tar.FormatPAX,
+				content: fmt.Sprintf(
+					`{"$schema":%q,"name":"client-only"}`,
+					agentplugin.PluginSchemaID,
+				),
+			},
+		})
 		downloader := &stubDownloader{downloadFunc: func(
 			context.Context,
 			string,
@@ -156,8 +162,12 @@ func TestInstallerDetectsAgentPluginRootWithFixedPrecedence(t *testing.T) {
 			DownloadOpts{},
 			filepath.Join(t.TempDir(), "client-only"),
 		)
-		if !errors.Is(err, errInstallMissingManifest) {
-			t.Fatalf("Install(client-only) error = %v, want errInstallMissingManifest", err)
+		if !errors.Is(err, ErrClientSpecificPluginLayout) {
+			t.Fatalf("Install(client-only) error = %v, want ErrClientSpecificPluginLayout", err)
+		}
+		var layoutErr *ClientSpecificPluginLayoutError
+		if !errors.As(err, &layoutErr) || layoutErr.Layout != installerClaudePluginDirectory {
+			t.Fatalf("Install(client-only) error = %#v, want .claude-plugin layout", err)
 		}
 	})
 }

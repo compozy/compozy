@@ -4,9 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-
+	"net"
 	"net/url"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/extension/surfaces"
@@ -124,10 +123,14 @@ func (c ExtensionsGitHubSourceConfig) Validate() error {
 	if strings.TrimSpace(parsed.Host) == "" {
 		return fmt.Errorf("extensions.sources.github.base_url must include a host: %q", c.BaseURL)
 	}
-	if parsed.Scheme == marketplaceSchemeHTTP {
+	if parsed.Scheme == marketplaceSchemeHTTP && !isLoopbackHost(parsed.Hostname()) {
 		slog.Warn("config: extensions GitHub source uses insecure http scheme", "url", c.BaseURL)
 	}
 	return nil
+}
+
+func isLoopbackHost(host string) bool {
+	return strings.EqualFold(strings.TrimSpace(host), "localhost") || net.ParseIP(host).IsLoopback()
 }
 
 // Validate ensures the extension dev-loop interval is usable.

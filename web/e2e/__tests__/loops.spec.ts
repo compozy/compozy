@@ -284,7 +284,7 @@ const loopFeedbackDefinition: LoopDefinition = {
             id: "exhaust_score",
             type: "agent-judge",
             agent: loopFeedbackJudge,
-            rubric: "Score the completed candidate deterministically.",
+            rubric: "Score generation {{ .generation }} deterministically.",
             metric: { direction: "maximize" },
           },
         ],

@@ -8,6 +8,38 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
+func appendCoordinatorArtifactsForOutputs(
+	plan *task.CoordinatorCompletionPlan,
+	run Run,
+	generation int,
+	graph dsl.Graph,
+	topology controlTopology,
+	gatesEnabled bool,
+	outputs []GenerationOutput,
+) error {
+	if err := appendCoordinatorTasksForOutputs(
+		plan,
+		run,
+		generation,
+		graph,
+		topology,
+		gatesEnabled,
+		outputs,
+	); err != nil {
+		return err
+	}
+	appendCoordinatorDependenciesForOutputs(
+		plan,
+		run,
+		generation,
+		graph,
+		topology,
+		gatesEnabled,
+		outputs,
+	)
+	return nil
+}
+
 func appendCoordinatorTasksForOutputs(
 	plan *task.CoordinatorCompletionPlan,
 	run Run,

@@ -63,6 +63,13 @@ func FreeTCPPort(t testing.TB) int {
 	start := int(seed % int64(portSpan))
 	for attempt := range maxAttempts {
 		port := minPort + ((start + attempt) % portSpan)
+		reachable, err := tcpPortReachable(listenerContext, port)
+		if err != nil {
+			t.Fatalf("probe localhost TCP port %d: %v", port, err)
+		}
+		if reachable {
+			continue
+		}
 		ln, err := listenConfig.Listen(listenerContext, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 		if err != nil {
 			continue
@@ -85,6 +92,21 @@ func FreeTCPPort(t testing.TB) int {
 
 	t.Fatal("FreeTCPPort() exhausted candidate range")
 	return 0
+}
+
+func tcpPortReachable(ctx context.Context, port int) (bool, error) {
+	dialer := net.Dialer{Timeout: 20 * time.Millisecond}
+	connection, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return false, fmt.Errorf("dial localhost TCP port: %w", ctxErr)
+		}
+		return false, nil
+	}
+	if err := connection.Close(); err != nil {
+		return true, fmt.Errorf("close TCP port probe: %w", err)
+	}
+	return true, nil
 }
 
 func reserveTCPPort(port int) bool {

@@ -100,7 +100,6 @@ export const lifecycleAuthoredDetail: LoopDetail = withNode(
   LIFECYCLE_EXECUTE_TASK
 );
 
-/** The authored contract terminal reactions (ADR-010 §1). */
 export const contractTerminalsDetail: LoopDetail = {
   ...qualityGate,
   definition: {

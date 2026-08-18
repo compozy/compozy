@@ -87,6 +87,35 @@ func TestHTTPArchiveDownloader(t *testing.T) {
 		}
 	})
 
+	t.Run("Should download an HTTP artifact from an explicit loopback host", func(t *testing.T) {
+		t.Parallel()
+
+		const archive = "local curated archive"
+		client := &http.Client{Transport: httpArchiveRoundTripper(func(request *http.Request) (*http.Response, error) {
+			return archiveResponse(request, http.StatusOK, "application/gzip", archive), nil
+		})}
+		downloader, err := NewHTTPArchiveDownloader(
+			"http://127.0.0.1:42123/artifact.tar.gz",
+			"1.0.0",
+			client,
+		)
+		if err != nil {
+			t.Fatalf("NewHTTPArchiveDownloader() error = %v", err)
+		}
+		result, err := downloader.Download(t.Context(), "compozy/local-artifact", DownloadOpts{})
+		if err != nil {
+			t.Fatalf("Download() error = %v", err)
+		}
+		payload, readErr := io.ReadAll(result.Reader)
+		closeErr := result.Reader.Close()
+		if err := errors.Join(readErr, closeErr); err != nil {
+			t.Fatalf("read downloaded archive error = %v", err)
+		}
+		if string(payload) != archive {
+			t.Fatalf("Download() payload = %q, want %q", payload, archive)
+		}
+	})
+
 	t.Run("Should reject private HTTPS artifact destinations before making a request", func(t *testing.T) {
 		t.Parallel()
 

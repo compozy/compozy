@@ -162,7 +162,7 @@ func insertTimeTravelOutputs(
 
 func validateForkSeedBlobs(ctx context.Context, exec taskSQLExecutor, outputs []looppkg.GenerationOutput) error {
 	for _, output := range outputs {
-		if strings.TrimSpace(output.OutputRef) == "" {
+		if !looppkg.OutputRefLooksContentAddressed(output.OutputRef) {
 			continue
 		}
 		var exists int

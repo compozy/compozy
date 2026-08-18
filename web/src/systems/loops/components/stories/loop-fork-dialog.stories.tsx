@@ -3,8 +3,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { RELEASE_TRAIN_LOOP_NAME, releaseTrainDetail, releaseTrainRun } from "../../mocks";
 import { LoopForkDialog } from "../run-page/loop-fork-dialog";
 
-/** Fork-dialog stories driven by the Loop input schema and source-run values. */
-
 const GENERATIONS = [3, 2, 1];
 const SOURCE_INPUTS = releaseTrainRun.inputs ?? {};
 
@@ -39,19 +37,16 @@ const meta: Meta<typeof ForkStory> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The generation picker with the source run's inputs prefilled. */
 export const Default: Story = {
   args: {},
   render: () => <ForkStory />,
 };
 
-/** The daemon rejected an input and named it. */
 export const ValidationError: Story = {
   args: {},
   render: () => <ForkStory fieldErrors={{ services: "At least one service is required." }} />,
 };
 
-/** A missing generation disables the action and explains the refusal. */
 export const BlockedGeneration: Story = {
   args: {},
   render: () => <ForkStory blockedReason="Generation 5 does not exist on this run." />,

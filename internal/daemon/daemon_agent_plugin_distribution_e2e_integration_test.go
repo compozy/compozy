@@ -8,7 +8,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -44,9 +43,8 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 	defer cancel()
 
 	const credential = "agent-plugin-cli-e2e-token"
-	githubServer := newDistributionGitHubTLSServer(t, credential)
+	githubServer := newAgentPluginDistributionGitHubServer(t, credential)
 	t.Cleanup(githubServer.Close)
-	caPath := writeDistributionGitHubTestCA(t, githubServer.Server)
 	fixtureDir := agentPluginConformantFixtureDir(t)
 	seedPortableDistributionRelease(
 		t,
@@ -62,7 +60,7 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 			cfg.Extensions.Sources.GitHub.Enabled = true
 			cfg.Extensions.Sources.GitHub.BaseURL = githubServer.URL
 		}},
-		Env: map[string]string{"GITHUB_TOKEN": credential, "SSL_CERT_FILE": caPath},
+		Env: map[string]string{"GITHUB_TOKEN": credential},
 	})
 
 	installOut := runAgentPluginHumanCLI(
@@ -160,36 +158,18 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 	)
 }
 
-func newDistributionGitHubTLSServer(t *testing.T, credential string) *distributionGitHubServer {
+func newAgentPluginDistributionGitHubServer(t *testing.T, credential string) *distributionGitHubServer {
 	t.Helper()
 	fixture := &distributionGitHubServer{
 		credential: credential,
 		assets:     make(map[int64]distributionGitHubAsset),
 	}
-	fixture.Server = httptest.NewUnstartedServer(
+	fixture.Server = httptest.NewServer(
 		http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			fixture.handle(t, writer, request)
 		}),
 	)
-	fixture.StartTLS()
 	return fixture
-}
-
-func writeDistributionGitHubTestCA(t *testing.T, server *httptest.Server) string {
-	t.Helper()
-	certificate := server.Certificate()
-	if certificate == nil {
-		t.Fatal("distribution GitHub TLS certificate = nil")
-	}
-	payload := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate.Raw})
-	if len(payload) == 0 {
-		t.Fatal("encode distribution GitHub TLS certificate returned empty payload")
-	}
-	path := filepath.Join(t.TempDir(), "distribution-github-ca.pem")
-	if err := os.WriteFile(path, payload, 0o600); err != nil {
-		t.Fatalf("WriteFile(distribution GitHub CA) error = %v", err)
-	}
-	return path
 }
 
 func testDaemonE2EAgentPluginCLIFailurePaths(t *testing.T) {

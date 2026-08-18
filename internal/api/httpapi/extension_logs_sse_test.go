@@ -19,6 +19,83 @@ func TestExtensionLogsRouteAndSSEFollow(t *testing.T) {
 	t.Run("Should serve redacted history and follow frames", testExtensionLogsRouteAndSSEFollow)
 	t.Run("Should publish an empty atomic reset for a replaced ring", testExtensionLogsEmptyReset)
 	t.Run("Should publish an atomic reset when the followed ring changes", testExtensionLogsLiveEpochReset)
+	t.Run("Should close a followed stream when the transport shuts down", testExtensionLogsTransportShutdown)
+}
+
+func testExtensionLogsTransportShutdown(t *testing.T) {
+	actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
+		"operator",
+		"workspace-a",
+		taskpkg.OriginKindHTTP,
+		"extensions.logs",
+	)
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
+	}
+	service := stubExtensionService{
+		ExtensionLogsFn: func(
+			context.Context,
+			string,
+			int64,
+			string,
+			taskpkg.ActorContext,
+		) (contract.ExtensionLogsResponse, error) {
+			return contract.ExtensionLogsResponse{StreamEpoch: "epoch-current"}, nil
+		},
+	}
+	handlers := newTestHandlersWithSettingsAndExtensions(
+		t,
+		"127.0.0.1",
+		nil,
+		nil,
+		service,
+		newTestHomePaths(t),
+	)
+	handlers.TaskActorContextResolver = func(_ *gin.Context, _ string) (taskpkg.ActorContext, error) {
+		return actor, nil
+	}
+	streamDone := make(chan struct{})
+	handlers.SetStreamDone(streamDone)
+	server := httptest.NewServer(newTestRouter(t, handlers))
+	t.Cleanup(server.Close)
+	request, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		server.URL+"/api/extensions/dev-extension/logs?follow=1",
+		http.NoBody,
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequestWithContext() error = %v", err)
+	}
+	response, err := server.Client().Do(request)
+	if err != nil {
+		t.Fatalf("client.Do() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Errorf("response.Body.Close() error = %v", closeErr)
+		}
+	})
+	reader := bufio.NewReader(response.Body)
+	ready := readExtensionSSEFrame(t, reader)
+	if !strings.HasPrefix(ready, ": extension log stream ready") {
+		t.Fatalf("SSE handshake frame = %q, want leading stream-ready comment", ready)
+	}
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, readErr := io.Copy(io.Discard, reader)
+		readDone <- readErr
+	}()
+	close(streamDone)
+	select {
+	case readErr := <-readDone:
+		if readErr != nil {
+			t.Fatalf("read stream after transport shutdown error = %v", readErr)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("extension log stream remained open after transport shutdown")
+	}
 }
 
 func testExtensionLogsRouteAndSSEFollow(t *testing.T) {

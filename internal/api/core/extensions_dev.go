@@ -198,9 +198,12 @@ func (h *BaseHandlers) streamExtensionLogs(
 	}
 	ticker := time.NewTicker(extensionLogPollInterval)
 	defer ticker.Stop()
+	streamDone := h.StreamDoneChannel()
 	for {
 		select {
 		case <-c.Request.Context().Done():
+			return
+		case <-streamDone:
 			return
 		case <-ticker.C:
 			snapshot, pollErr := service.ExtensionLogs(

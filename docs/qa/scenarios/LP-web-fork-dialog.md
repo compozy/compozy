@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-replay-loop-history
 expected: The fork dialog defaults to the inspected generation, pre-fills the source run's declared inputs, submits to a new run and navigates to it, renders validation errors exactly as the run form does, and blocks submit with the daemon's deterministic reason when the source content is unavailable. Lineage then links both runs in each direction.
 entry_points: /loop-runs/$runId inspect sheet Fork action; lineage block
-qa_status: untested
-bug_ids: ""
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260818-loop-fork-inline-output
+fix_status: fixed
+retest_status: Playwright dialog coverage passed; live runtime fix awaits the rebuilt full-gate binary
 fix_commits: ""
 evidence: ""
-last_report: ""
+last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps: ""
 ---
 

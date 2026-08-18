@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-partial-loop
 expected: A Loop whose valid `stop_when` expression fails during evaluation exits `done` by default and records a `predicate_diagnostic` event instead of starting another generation. With `on_eval_error: fail`, the same failure ends the run `failed`. Branch and filtered watch-events predicates fail their node by default and honor `on_eval_error: exit`.
 entry_points: compozy loop validate; compozy loop run; compozy loop status; GET /api/workspaces/:workspace_id/loop-runs/:run_id/events; web Loop run Inspect; /docs/loops/dsl-reference; skills/compozy/references/loops.md
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence: internal/daemon/loop_run_events_e2e_integration_test.go; internal/loop/coordinator_test.go; internal/loop/coordinator_watch_test.go
-last_report:
+last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps:
 ---
 

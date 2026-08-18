@@ -8,8 +8,6 @@ import { LoopRunDiffPickers } from "../run-diff/loop-run-diff-pickers";
 import { LoopRunDiffView } from "../run-diff/loop-run-diff-view";
 import type { LoopDiff } from "../../types";
 
-/** Comparison stories projected from daemon-shaped `LoopDiff` fixtures. */
-
 const GENERATIONS = [3, 2, 1];
 const RUNS = [
   { id: "looprun_release_train_fork", label: "release-train fork · gen 2" },
@@ -65,25 +63,21 @@ const meta: Meta<typeof DiffStory> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Two generations of one run, grouped by change kind. */
 export const GenerationCompare: Story = {
   args: {},
   render: () => <DiffStory diff={generationDiffFixture} />,
 };
 
-/** A run compare with inputs and a definition-divergence warning. */
 export const RunCompare: Story = {
   args: {},
   render: () => <DiffStory diff={runDiffFixture} mode="run" />,
 };
 
-/** The honest empty state: the two sides read alike, so there is nothing to show. */
 export const NoDifferences: Story = {
   args: {},
   render: () => <DiffStory diff={emptyDiffFixture} />,
 };
 
-/** A deterministic daemon refusal renders as information, not as a crash. */
 export const CrossLoopRefusal: Story = {
   args: {},
   render: () => (
@@ -91,7 +85,6 @@ export const CrossLoopRefusal: Story = {
   ),
 };
 
-/** Nothing is chosen yet, so no comparison read has fired. */
 export const AwaitingSelection: Story = {
   args: {},
   render: () => <DiffStory diff={null} />,

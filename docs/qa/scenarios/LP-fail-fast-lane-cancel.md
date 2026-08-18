@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-partial-loop
 expected: A fail_fast fan-out settles on the lowest-index definitive failure, keeps completed lane results, cancels every unfinished sibling through the bound session path, and records one bounded branch_pruned cause without treating strategy cancellation as failure.
 entry_points: compozy loop validate|run|status; GET /loop-runs/:id; compozy__loop_status; Loop SSE
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps:
 ---
 

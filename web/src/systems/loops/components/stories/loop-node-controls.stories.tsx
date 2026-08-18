@@ -338,7 +338,6 @@ export const RunKillConfirm: Story = {
   ),
 };
 
-// Both time-travel examples use settled cells.
 const AMENDABLE = node({
   nodeId: "render-notes",
   paused: true,
@@ -348,7 +347,6 @@ const AMENDABLE = node({
 });
 const RERUNNABLE = node({ nodeId: "apply-migration", outputStatus: "succeeded", itemIndex: 0 });
 
-/** The node's declared output shape drives the editor — no free-form JSON blob. */
 const NOTES_OUTPUT_SCHEMA = {
   type: "object",
   required: ["risk"],
@@ -364,7 +362,6 @@ const ROLLOUT_RERUN_SET: LoopRerunSet = {
   carriedNodes: ["services", "triage", "standard", "rollout"],
 };
 
-/** The two-pane amend editor over the cell's recorded output. */
 export const AmendDialog: Story = {
   args: {},
   render: () => (
@@ -381,7 +378,6 @@ export const AmendDialog: Story = {
   ),
 };
 
-/** The daemon rejected the amendment and named the field it rejected. */
 export const AmendDialogValidationFailure: Story = {
   args: {},
   render: () => (
@@ -399,7 +395,6 @@ export const AmendDialogValidationFailure: Story = {
   ),
 };
 
-/** The rerun preview separates re-executed and carried nodes. */
 export const RerunDialog: Story = {
   args: {},
   render: () => (

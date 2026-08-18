@@ -461,6 +461,11 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if got, want := plan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 0); got != want {
 			t.Fatalf("queued task = %q, want %q", got, want)
 		}
+		assertCoordinatorPlanContainsTaskForControlTest(
+			t,
+			plan,
+			coordinatorNodeTaskID(loopRun.ID, 1, "work", 0),
+		)
 		if got := plan.NodeRuns[0].ResolvedNetworkParticipation; got == nil || *got != liveSpec {
 			t.Fatalf("queued participation = %#v, want %#v", got, liveSpec)
 		}
@@ -517,6 +522,11 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if got, want := secondPlan.NodeRuns[0].TaskID, coordinatorNodeTaskID(loopRun.ID, 1, "work", 1); got != want {
 			t.Fatalf("second queued task = %q, want %q", got, want)
 		}
+		assertCoordinatorPlanContainsTaskForControlTest(
+			t,
+			secondPlan,
+			coordinatorNodeTaskID(loopRun.ID, 1, "work", 1),
+		)
 	})
 
 	t.Run("Should materialize eight lanes for a five-hundred-lane collection", func(t *testing.T) {
@@ -1807,6 +1817,20 @@ func outputsByNodeAndItemForTest(outputs []GenerationOutput) map[string]Generati
 		mapped[output.NodeID+"/"+strconv.Itoa(output.ItemIndex)] = output
 	}
 	return mapped
+}
+
+func assertCoordinatorPlanContainsTaskForControlTest(
+	t *testing.T,
+	plan task.CoordinatorCompletionPlan,
+	taskID string,
+) {
+	t.Helper()
+	for _, spec := range plan.NodeTasks {
+		if spec.TaskID == taskID {
+			return
+		}
+	}
+	t.Fatalf("NodeTasks = %#v, want task %q", plan.NodeTasks, taskID)
 }
 
 func TestCoordinatorControlHelpersShouldFormatMultiDigitIndexes(t *testing.T) {

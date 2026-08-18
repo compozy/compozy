@@ -122,7 +122,6 @@ export const NoBindings: Story = {
   ),
 };
 
-/** Route, ask, and fan-out nodes with their graph-specific summaries. */
 export const GraphCompletionGlyphs: Story = {
   args: {},
   render: () => (
