@@ -33,8 +33,13 @@ export interface LoopRequestView {
   expiry: LoopRequestExpiry | null;
 
   resolution: LoopRequestResolution | null;
+}
 
-  agentsPermitted: boolean;
+/** Stable identity for a request across refreshes: generation, node, and lane. */
+export function loopRequestKey(
+  request: Pick<LoopRequest, "generation" | "node_id" | "item_index">
+): string {
+  return `${request.generation}:${request.node_id}:${request.item_index}`;
 }
 
 export interface LoopRequestExpiry {
@@ -120,7 +125,6 @@ export function projectLoopRequest(
     laneLabel: request.item_index > 0 ? `lane ${request.item_index}` : "",
     expiry,
     resolution: state === "pending" ? null : resolutionOf(request),
-    agentsPermitted: request.agents === "allow",
   };
 }
 

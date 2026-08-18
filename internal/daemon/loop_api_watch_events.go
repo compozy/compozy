@@ -53,8 +53,8 @@ func loopWatchEventsReadModel(
 func watchEventsNodeIDs(doc contract.LoopDefinitionDocument) map[string]struct{} {
 	ids := make(map[string]struct{})
 	for _, node := range doc.Graph.Nodes {
-		if node.Class == contract.LoopNodeClassSource && node.Kind == string(dsl.SourceWatchEvents) {
-			ids[node.ID] = struct{}{}
+		if node.Class == dsl.NodeClassSource && node.Kind == string(dsl.SourceWatchEvents) {
+			ids[string(node.ID)] = struct{}{}
 		}
 	}
 	return ids

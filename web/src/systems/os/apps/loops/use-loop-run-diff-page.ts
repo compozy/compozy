@@ -35,6 +35,7 @@ export interface LoopRunDiffPageModel {
   goToLoop: () => void;
   goToLoops: () => void;
   goToRun: () => void;
+  goToRuns: () => void;
 
   hasComparison: boolean;
   isDiffLoading: boolean;
@@ -106,6 +107,9 @@ export function useLoopRunDiffPage(
     },
     goToRun: () => {
       void navigate({ params: { runId }, to: "/loop-runs/$runId" });
+    },
+    goToRuns: () => {
+      void navigate({ to: "/loop-runs" });
     },
     hasComparison: query !== null,
     isDiffLoading: query !== null && diffQuery.isLoading,

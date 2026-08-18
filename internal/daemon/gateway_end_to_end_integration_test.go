@@ -681,31 +681,39 @@ func gatewayWebhookLoopDefinition() contract.LoopDefinitionDocument {
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: contract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        "gateway-webhook-e2e",
 			Description: "Prove public webhook ingress starts a Loop.",
-			Catalog:     contract.LoopCatalogMeta{Category: "Testing"},
+			Catalog:     dsl.CatalogMeta{Category: "Testing"},
 		},
-		Contract: contract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Record a signed gateway delivery.",
 			DefinitionOfDone: "The delivery marker is recorded.",
 			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.record_delivery.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress:       contract.LoopNoProgress{Window: 2},
-			Budget:           contract.LoopBudget{OnExceeded: contract.LoopBudgetExceededHalt},
-			TerminalStates: []string{
-				"done", "failed", "blocked", "exhausted", "stalled",
+			NoProgress:       dsl.NoProgress{Window: 2},
+			Budget:           dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			ContractLifecycleState: &dsl.ContractLifecycleState{
+				TerminalStates: []dsl.TerminalState{
+					dsl.TerminalDone,
+					dsl.TerminalFailed,
+					dsl.TerminalBlocked,
+					dsl.TerminalExhausted,
+					dsl.TerminalStalled,
+				},
 			},
 		},
-		Graph: contract.LoopGraph{Nodes: []contract.LoopGraphNode{{
+		Graph: dsl.Graph{Nodes: []dsl.Node{{
 			ID:    "record_delivery",
-			Class: contract.LoopNodeClassAction,
+			Class: dsl.NodeClassAction,
 			Kind:  "transform",
 			Params: map[string]any{
 				"map": map[string]any{"accepted": map[string]any{"value": true}},
 			},
 		}}},
-		Start: []contract.LoopStartBinding{{Kind: "webhook"}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: "webhook"}},
+		},
 	}
 }
 

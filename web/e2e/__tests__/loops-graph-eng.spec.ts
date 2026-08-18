@@ -44,12 +44,14 @@ test.describe("Human requests on the run page", () => {
     await openStory(page, `${RUN_PAGE}--pending-requests`);
 
     const cards = page.getByTestId("loop-request-card");
-    await expect(cards).toHaveCount(2);
-    await expect(page.getByTestId("loop-request-prompt").first()).toContainText(
+    await expect(cards).toHaveCount(1);
+    await expect(page.getByTestId("loop-request-progress")).toHaveText("Question 1 of 2");
+    await expect(page.getByTestId("loop-request-prompt")).toContainText(
       "Which regions ship first?"
     );
-    await expect(page.getByTestId("loop-request-context").first()).toBeVisible();
-    await expect(page.getByTestId("loop-request-context-fetch").first()).toBeVisible();
+    await page.getByTestId("loop-request-details").click();
+    await expect(page.getByTestId("loop-request-context")).toBeVisible();
+    await expect(page.getByTestId("loop-request-context-fetch")).toBeVisible();
 
     const askCard = cards.first();
     await expect(askCard.getByTestId("loop-request-submit")).toBeEnabled();
@@ -61,12 +63,33 @@ test.describe("Human requests on the run page", () => {
     await expect(page.getByTestId("loop-request-submit").first()).toBeEnabled();
   });
 
+  test("an enum without type submits its exact JSON value", async ({ page }) => {
+    await openStory(page, `${RUN_ROUTES}--run-enum-request`);
+
+    const card = page.getByTestId("loop-request-card");
+    await expect(card.getByTestId("loop-request-field-decision")).toBeVisible();
+    await card.getByRole("radio", { name: "approve" }).click();
+    const responsePromise = page.waitForResponse(
+      response => response.request().method() === "POST" && response.url().endsWith("/respond")
+    );
+    await card.getByTestId("loop-request-submit").click();
+    const response = await responsePromise;
+
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toMatchObject({ state: "answered" });
+    expect(JSON.parse(response.request().postData() ?? "{}")).toMatchObject({
+      payload: { decision: "approve" },
+    });
+  });
+
   test("E2E-021: a review shows proposed args and only the persisted decisions", async ({
     page,
   }) => {
     await openStory(page, `${RUN_PAGE}--pending-requests`);
 
-    const reviewCard = page.getByTestId("loop-request-card").nth(1);
+    await page.getByTestId("loop-request-next").click();
+    await expect(page.getByTestId("loop-request-progress")).toHaveText("Question 2 of 2");
+    const reviewCard = page.getByTestId("loop-request-card");
     await expect(reviewCard.getByTestId("loop-review-proposed-args")).toBeVisible();
 
     for (const decision of ["approve", "edit", "reject", "respond"]) {
@@ -95,7 +118,7 @@ test.describe("Human requests on the run page", () => {
     const card = page.getByTestId("loop-request-card").first();
     await expect(card).toBeVisible();
     await card.getByTestId("loop-request-field-regions").fill('["us-east"]');
-    await card.getByTestId("loop-request-field-canary").click();
+    await card.getByTestId("loop-request-option-canary-true").click();
     const submit = card.getByTestId("loop-request-submit");
     await expect(submit).toBeEnabled();
     const responsePromise = page.waitForResponse(
@@ -112,9 +135,16 @@ test.describe("Human requests on the run page", () => {
   test("E2E-031: repeated node requests stay isolated by generation", async ({ page }) => {
     await openStory(page, `${RUN_PAGE}--repeated-generation-requests`);
 
-    await expect(page.getByTestId("loop-request-card")).toHaveCount(2);
+    await expect(page.getByTestId("loop-request-card")).toHaveCount(1);
+    await expect(page.getByTestId("loop-request-progress")).toHaveText("Question 2 of 2");
+    await page.getByTestId("loop-request-details").click();
     await expect(page.getByRole("alert")).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(1);
+
+    await page.getByTestId("loop-request-prev").click();
+    await expect(page.getByTestId("loop-request-progress")).toHaveText("Question 1 of 2");
+    await page.getByTestId("loop-request-details").click();
+    await expect(page.getByRole("alert")).toHaveCount(0);
   });
 });
 
@@ -152,7 +182,9 @@ test("E2E-025: the diff view groups by change kind and marks a run compare", asy
 
   await expect(page.getByTestId("loop-run-diff-view")).toBeVisible();
   await expect(page.getByTestId("loop-diff-pickers")).toBeVisible();
-  const rows = page.getByTestId("loop-diff-row-change");
+  const groups = page.locator('[data-testid^="loop-diff-group-"]');
+  await expect(groups.first()).toBeVisible();
+  const rows = page.locator('[data-testid^="loop-diff-row-"][data-change]');
   await expect(rows.first()).toBeVisible();
 
   await openStory(page, `${RUN_DIFF}--run-compare`);

@@ -293,19 +293,19 @@ func feedbackMetricDefinition(
 ) compozycontract.LoopDefinitionDocument {
 	definition := feedbackBaseDefinition(name, prompt, iterationCap)
 	definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: stopWhen}
-	definition.Graph.Nodes = append(definition.Graph.Nodes, compozycontract.LoopGraphNode{
-		ID: "quality", Class: compozycontract.LoopNodeClassControl, Kind: "gate",
-		Criteria: []compozycontract.LoopGateCriterion{{
+	definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+		ID: "quality", Class: dsl.NodeClassControl, Kind: "gate",
+		Criteria: []dsl.GateCriterion{{
 			ID: criterionID, Type: "agent-judge", Agent: judgeAgent,
 			Rubric: "Score generation {{ .generation }} deterministically.",
-			Metric: &compozycontract.LoopMetricSpec{Direction: compozycontract.LoopMetricMaximize},
+			Metric: &dsl.MetricSpec{Direction: dsl.MetricMaximize},
 		}},
 		VerdictPolicy: "fixed_passes",
 		OnResult:      map[string]any{"fail": "revise"},
 		MaxRevisions:  10,
 	})
 	if gateDependsOnDraft {
-		definition.Graph.Edges = []compozycontract.LoopGraphEdge{{From: "draft", To: "quality"}}
+		definition.Graph.Edges = []dsl.Edge{{From: "draft", To: "quality"}}
 	}
 	return definition
 }
@@ -316,9 +316,9 @@ func feedbackDoDRetryDefinition() compozycontract.LoopDefinitionDocument {
 		"draft contract",
 		2,
 	)
-	shouldRepair := compozycontract.LoopGraphNode{
+	shouldRepair := dsl.Node{
 		ID:        "should_repair",
-		Class:     compozycontract.LoopNodeClassControl,
+		Class:     dsl.NodeClassControl,
 		Kind:      "branch",
 		Condition: "generation > 1",
 	}
@@ -337,8 +337,8 @@ func feedbackDoDRetryDefinition() compozycontract.LoopDefinitionDocument {
 		},
 	}
 	definition.Graph.Nodes = append(definition.Graph.Nodes, shouldRepair, repair)
-	definition.Graph.Edges = []compozycontract.LoopGraphEdge{{From: "should_repair", To: "repair"}}
-	definition.Contract.Verification = []compozycontract.LoopGateCriterion{{
+	definition.Graph.Edges = []dsl.Edge{{From: "should_repair", To: "repair"}}
+	definition.Contract.Verification = []dsl.GateCriterion{{
 		ID: "contract_check", Type: "agent-judge", Agent: feedbackDoDJudge,
 		Rubric: "Approve only after the contract issue is repaired.",
 	}}
@@ -352,9 +352,9 @@ func feedbackReviseDefinition(
 	criterionID string,
 ) compozycontract.LoopDefinitionDocument {
 	definition := feedbackBaseDefinition(name, prompt, 4)
-	definition.Graph.Nodes = append(definition.Graph.Nodes, compozycontract.LoopGraphNode{
-		ID: "quality", Class: compozycontract.LoopNodeClassControl, Kind: "gate",
-		Criteria: []compozycontract.LoopGateCriterion{{
+	definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+		ID: "quality", Class: dsl.NodeClassControl, Kind: "gate",
+		Criteria: []dsl.GateCriterion{{
 			ID: criterionID, Type: "agent-judge", Agent: judgeAgent,
 			Rubric: "Approve only after the producer output is fixed.",
 		}},
@@ -362,7 +362,7 @@ func feedbackReviseDefinition(
 		OnResult:      map[string]any{"fail": "revise"},
 		MaxRevisions:  2,
 	})
-	definition.Graph.Edges = []compozycontract.LoopGraphEdge{{From: "draft", To: "quality"}}
+	definition.Graph.Edges = []dsl.Edge{{From: "draft", To: "quality"}}
 	return definition
 }
 
@@ -370,34 +370,36 @@ func feedbackRouteDefinition() compozycontract.LoopDefinitionDocument {
 	return compozycontract.LoopDefinitionDocument{
 		APIVersion: "compozy.loop/v1",
 		Kind:       "Loop",
-		Meta: compozycontract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name: "feedback-route-causes", Description: "Runtime E2E probe for exclusive route history.",
-			Catalog: compozycontract.LoopCatalogMeta{Category: "Testing"},
+			Catalog: dsl.CatalogMeta{Category: "Testing"},
 		},
-		Contract: compozycontract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Route one classified candidate through deterministic remediation.",
 			DefinitionOfDone: "The routed remediation succeeds.",
 			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.revise.status == 'succeeded'"},
-			IterationCap:     1, NoProgress: compozycontract.LoopNoProgress{Window: 2},
-			Budget:         compozycontract.LoopBudget{OnExceeded: compozycontract.LoopBudgetExceededHalt},
-			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			IterationCap:     1, NoProgress: dsl.NoProgress{Window: 2},
+			Budget: dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: compozycontract.LoopGraph{
-			Nodes: []compozycontract.LoopGraphNode{
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
 				{
-					ID: "classifier", Class: compozycontract.LoopNodeClassAction, Kind: "transform",
+					ID: "classifier", Class: dsl.NodeClassAction, Kind: "transform",
 					Params: map[string]any{"map": map[string]any{"bucket": map[string]any{"value": "revise"}}},
 				},
 				{
-					ID: "router", Class: compozycontract.LoopNodeClassControl, Kind: "route",
-					Routes: []compozycontract.LoopRouteSpec{{
+					ID: "router", Class: dsl.NodeClassControl, Kind: "route",
+					Routes: []dsl.RouteSpec{{
 						When: "nodes.classifier.output.bucket == 'revise'", To: "quality",
 					}},
 					Default: "publish",
 				},
 				{
-					ID: "quality", Class: compozycontract.LoopNodeClassControl, Kind: "gate",
-					Criteria: []compozycontract.LoopGateCriterion{{
+					ID: "quality", Class: dsl.NodeClassControl, Kind: "gate",
+					Criteria: []dsl.GateCriterion{{
 						ID: "requires_revision", Type: "command", Check: "exit 1", Expect: "exit_zero",
 					}},
 					VerdictPolicy: "fixed_passes",
@@ -406,22 +408,24 @@ func feedbackRouteDefinition() compozycontract.LoopDefinitionDocument {
 					},
 				},
 				{
-					ID: "revise", Class: compozycontract.LoopNodeClassAction, Kind: "transform",
+					ID: "revise", Class: dsl.NodeClassAction, Kind: "transform",
 					Params: map[string]any{"map": map[string]any{"status": map[string]any{"value": "revised"}}},
 				},
 				{
-					ID: "publish", Class: compozycontract.LoopNodeClassAction, Kind: "transform",
+					ID: "publish", Class: dsl.NodeClassAction, Kind: "transform",
 					Params: map[string]any{"map": map[string]any{"status": map[string]any{"value": "published"}}},
 				},
 			},
-			Edges: []compozycontract.LoopGraphEdge{
+			Edges: []dsl.Edge{
 				{From: "classifier", To: "router"},
 				{From: "router", To: "quality"},
 				{From: "router", To: "publish"},
 				{From: "quality", To: "revise"},
 			},
 		},
-		Start: []compozycontract.LoopStartBinding{{Kind: "http"}, {Kind: "uds"}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: "http"}, {Kind: "uds"}},
+		},
 	}
 }
 
@@ -430,21 +434,23 @@ func feedbackBaseDefinition(name string, prompt string, iterationCap int) compoz
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: compozycontract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        name,
 			Description: "Runtime E2E probe for generation feedback semantics.",
-			Catalog:     compozycontract.LoopCatalogMeta{Category: "Testing"},
+			Catalog:     dsl.CatalogMeta{Category: "Testing"},
 		},
-		Contract: compozycontract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Converge through deterministic generation feedback.",
 			DefinitionOfDone: "The deterministic feedback gate approves.",
 			IterationCap:     iterationCap,
-			NoProgress:       compozycontract.LoopNoProgress{Window: 5},
-			Budget:           compozycontract.LoopBudget{OnExceeded: compozycontract.LoopBudgetExceededHalt},
-			TerminalStates:   []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			NoProgress:       dsl.NoProgress{Window: 5},
+			Budget:           dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: compozycontract.LoopGraph{Nodes: []compozycontract.LoopGraphNode{{
-			ID: "draft", Class: compozycontract.LoopNodeClassAction, Kind: "run-agent",
+		Graph: dsl.Graph{Nodes: []dsl.Node{{
+			ID: "draft", Class: dsl.NodeClassAction, Kind: "run-agent",
 			Params: map[string]any{
 				"agent":  feedbackWorkerAgent,
 				"prompt": prompt,
@@ -458,7 +464,9 @@ func feedbackBaseDefinition(name string, prompt string, iterationCap int) compoz
 				},
 			},
 		}}},
-		Start: []compozycontract.LoopStartBinding{{Kind: "http"}, {Kind: "uds"}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: "http"}, {Kind: "uds"}},
+		},
 	}
 }
 

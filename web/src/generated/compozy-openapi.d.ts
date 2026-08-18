@@ -6736,9 +6736,7 @@ export interface components {
         transport?: string;
       }[];
     };
-    /** @enum {string} */
-    IssueSeverity: "error" | "warning" | "warn";
-    LoopGraph: {
+    Graph: {
       edges: ({
         from: string;
         to: string;
@@ -6747,6 +6745,7 @@ export interface components {
       })[];
       nodes: ({
         batch_size?: number;
+        bind_as?: string;
         body?: {
           [key: string]: unknown;
         };
@@ -6832,6 +6831,7 @@ export interface components {
           [key: string]: unknown;
         };
         id: string;
+        index_as?: string;
         input_ref?: string;
         kind: string;
         max_fan_out?: number;
@@ -6988,6 +6988,42 @@ export interface components {
           non_retryable?: string[];
           on_failure?: string;
         };
+        review?: {
+          decisions?: ("approve" | "edit" | "reject" | "respond")[];
+          expires?: {
+            after: string;
+            escalate?: (
+              | {
+                  emit: {
+                    kind: string;
+                    payload?: {
+                      [key: string]: unknown;
+                    };
+                  };
+                }
+              | {
+                  tool: string;
+                  with?: {
+                    [key: string]: unknown;
+                  };
+                }
+            )[];
+            route?: string;
+          };
+          on_reject?: {
+            route: string;
+          } & {
+            [key: string]: unknown;
+          };
+          prompt?: string;
+          responders?: {
+            /** @enum {string} */
+            agents?: "deny" | "allow";
+          };
+          when?: string;
+        } & {
+          [key: string]: unknown;
+        };
         routes?: {
           to: string;
           when: string;
@@ -6995,6 +7031,19 @@ export interface components {
         session?: {
           [key: string]: unknown;
         };
+        strategy?:
+          | ("wait_all" | "fail_fast" | "race")
+          | {
+              /** @enum {string} */
+              kind: "wait_all" | "fail_fast" | "best_effort" | "race";
+              /** @enum {string} */
+              missing?: "acceptable";
+              threshold?:
+                | string
+                | {
+                    count: number;
+                  };
+            };
         timeout?: string;
         verdict_policy?: string;
         watch?: {
@@ -7003,7 +7052,11 @@ export interface components {
       } & {
         [key: string]: unknown;
       })[];
+    } & {
+      [key: string]: unknown;
     };
+    /** @enum {string} */
+    IssueSeverity: "error" | "warning" | "warn";
     ValidationIssue: {
       column?: number;
       field?: string;
@@ -93765,7 +93818,9 @@ export interface operations {
                 budget: {
                   /** @enum {string} */
                   on_exceeded?: "halt" | "escalate";
+                  /** Format: int32 */
                   tokens: number;
+                  /** Format: int32 */
                   wall_clock_sec: number;
                 };
                 constraints?: string[];
@@ -93954,6 +94009,7 @@ export interface operations {
                 })[];
                 nodes: ({
                   batch_size?: number;
+                  bind_as?: string;
                   body?: {
                     [key: string]: unknown;
                   };
@@ -94039,6 +94095,7 @@ export interface operations {
                     [key: string]: unknown;
                   };
                   id: string;
+                  index_as?: string;
                   input_ref?: string;
                   kind: string;
                   max_fan_out?: number;
@@ -94195,6 +94252,42 @@ export interface operations {
                     non_retryable?: string[];
                     on_failure?: string;
                   };
+                  review?: {
+                    decisions?: ("approve" | "edit" | "reject" | "respond")[];
+                    expires?: {
+                      after: string;
+                      escalate?: (
+                        | {
+                            emit: {
+                              kind: string;
+                              payload?: {
+                                [key: string]: unknown;
+                              };
+                            };
+                          }
+                        | {
+                            tool: string;
+                            with?: {
+                              [key: string]: unknown;
+                            };
+                          }
+                      )[];
+                      route?: string;
+                    };
+                    on_reject?: {
+                      route: string;
+                    } & {
+                      [key: string]: unknown;
+                    };
+                    prompt?: string;
+                    responders?: {
+                      /** @enum {string} */
+                      agents?: "deny" | "allow";
+                    };
+                    when?: string;
+                  } & {
+                    [key: string]: unknown;
+                  };
                   routes?: {
                     to: string;
                     when: string;
@@ -94202,6 +94295,19 @@ export interface operations {
                   session?: {
                     [key: string]: unknown;
                   };
+                  strategy?:
+                    | ("wait_all" | "fail_fast" | "race")
+                    | {
+                        /** @enum {string} */
+                        kind: "wait_all" | "fail_fast" | "best_effort" | "race";
+                        /** @enum {string} */
+                        missing?: "acceptable";
+                        threshold?:
+                          | string
+                          | {
+                              count: number;
+                            };
+                      };
                   timeout?: string;
                   verdict_policy?: string;
                   watch?: {
@@ -94210,6 +94316,8 @@ export interface operations {
                 } & {
                   [key: string]: unknown;
                 })[];
+              } & {
+                [key: string]: unknown;
               };
               inputs?: {
                 [key: string]: {
@@ -100157,7 +100265,9 @@ export interface operations {
               budget: {
                 /** @enum {string} */
                 on_exceeded?: "halt" | "escalate";
+                /** Format: int32 */
                 tokens: number;
+                /** Format: int32 */
                 wall_clock_sec: number;
               };
               constraints?: string[];
@@ -100346,6 +100456,7 @@ export interface operations {
               })[];
               nodes: ({
                 batch_size?: number;
+                bind_as?: string;
                 body?: {
                   [key: string]: unknown;
                 };
@@ -100431,6 +100542,7 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 id: string;
+                index_as?: string;
                 input_ref?: string;
                 kind: string;
                 max_fan_out?: number;
@@ -100587,6 +100699,42 @@ export interface operations {
                   non_retryable?: string[];
                   on_failure?: string;
                 };
+                review?: {
+                  decisions?: ("approve" | "edit" | "reject" | "respond")[];
+                  expires?: {
+                    after: string;
+                    escalate?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    route?: string;
+                  };
+                  on_reject?: {
+                    route: string;
+                  } & {
+                    [key: string]: unknown;
+                  };
+                  prompt?: string;
+                  responders?: {
+                    /** @enum {string} */
+                    agents?: "deny" | "allow";
+                  };
+                  when?: string;
+                } & {
+                  [key: string]: unknown;
+                };
                 routes?: {
                   to: string;
                   when: string;
@@ -100594,6 +100742,19 @@ export interface operations {
                 session?: {
                   [key: string]: unknown;
                 };
+                strategy?:
+                  | ("wait_all" | "fail_fast" | "race")
+                  | {
+                      /** @enum {string} */
+                      kind: "wait_all" | "fail_fast" | "best_effort" | "race";
+                      /** @enum {string} */
+                      missing?: "acceptable";
+                      threshold?:
+                        | string
+                        | {
+                            count: number;
+                          };
+                    };
                 timeout?: string;
                 verdict_policy?: string;
                 watch?: {
@@ -100602,6 +100763,8 @@ export interface operations {
               } & {
                 [key: string]: unknown;
               })[];
+            } & {
+              [key: string]: unknown;
             };
             inputs?: {
               [key: string]: {
@@ -100721,7 +100884,9 @@ export interface operations {
                   budget: {
                     /** @enum {string} */
                     on_exceeded?: "halt" | "escalate";
+                    /** Format: int32 */
                     tokens: number;
+                    /** Format: int32 */
                     wall_clock_sec: number;
                   };
                   constraints?: string[];
@@ -100910,6 +101075,7 @@ export interface operations {
                   })[];
                   nodes: ({
                     batch_size?: number;
+                    bind_as?: string;
                     body?: {
                       [key: string]: unknown;
                     };
@@ -100995,6 +101161,7 @@ export interface operations {
                       [key: string]: unknown;
                     };
                     id: string;
+                    index_as?: string;
                     input_ref?: string;
                     kind: string;
                     max_fan_out?: number;
@@ -101151,6 +101318,42 @@ export interface operations {
                       non_retryable?: string[];
                       on_failure?: string;
                     };
+                    review?: {
+                      decisions?: ("approve" | "edit" | "reject" | "respond")[];
+                      expires?: {
+                        after: string;
+                        escalate?: (
+                          | {
+                              emit: {
+                                kind: string;
+                                payload?: {
+                                  [key: string]: unknown;
+                                };
+                              };
+                            }
+                          | {
+                              tool: string;
+                              with?: {
+                                [key: string]: unknown;
+                              };
+                            }
+                        )[];
+                        route?: string;
+                      };
+                      on_reject?: {
+                        route: string;
+                      } & {
+                        [key: string]: unknown;
+                      };
+                      prompt?: string;
+                      responders?: {
+                        /** @enum {string} */
+                        agents?: "deny" | "allow";
+                      };
+                      when?: string;
+                    } & {
+                      [key: string]: unknown;
+                    };
                     routes?: {
                       to: string;
                       when: string;
@@ -101158,6 +101361,19 @@ export interface operations {
                     session?: {
                       [key: string]: unknown;
                     };
+                    strategy?:
+                      | ("wait_all" | "fail_fast" | "race")
+                      | {
+                          /** @enum {string} */
+                          kind: "wait_all" | "fail_fast" | "best_effort" | "race";
+                          /** @enum {string} */
+                          missing?: "acceptable";
+                          threshold?:
+                            | string
+                            | {
+                                count: number;
+                              };
+                        };
                     timeout?: string;
                     verdict_policy?: string;
                     watch?: {
@@ -101166,6 +101382,8 @@ export interface operations {
                   } & {
                     [key: string]: unknown;
                   })[];
+                } & {
+                  [key: string]: unknown;
                 };
                 inputs?: {
                   [key: string]: {
@@ -101494,7 +101712,9 @@ export interface operations {
                   budget: {
                     /** @enum {string} */
                     on_exceeded?: "halt" | "escalate";
+                    /** Format: int32 */
                     tokens: number;
+                    /** Format: int32 */
                     wall_clock_sec: number;
                   };
                   constraints?: string[];
@@ -101683,6 +101903,7 @@ export interface operations {
                   })[];
                   nodes: ({
                     batch_size?: number;
+                    bind_as?: string;
                     body?: {
                       [key: string]: unknown;
                     };
@@ -101768,6 +101989,7 @@ export interface operations {
                       [key: string]: unknown;
                     };
                     id: string;
+                    index_as?: string;
                     input_ref?: string;
                     kind: string;
                     max_fan_out?: number;
@@ -101924,6 +102146,42 @@ export interface operations {
                       non_retryable?: string[];
                       on_failure?: string;
                     };
+                    review?: {
+                      decisions?: ("approve" | "edit" | "reject" | "respond")[];
+                      expires?: {
+                        after: string;
+                        escalate?: (
+                          | {
+                              emit: {
+                                kind: string;
+                                payload?: {
+                                  [key: string]: unknown;
+                                };
+                              };
+                            }
+                          | {
+                              tool: string;
+                              with?: {
+                                [key: string]: unknown;
+                              };
+                            }
+                        )[];
+                        route?: string;
+                      };
+                      on_reject?: {
+                        route: string;
+                      } & {
+                        [key: string]: unknown;
+                      };
+                      prompt?: string;
+                      responders?: {
+                        /** @enum {string} */
+                        agents?: "deny" | "allow";
+                      };
+                      when?: string;
+                    } & {
+                      [key: string]: unknown;
+                    };
                     routes?: {
                       to: string;
                       when: string;
@@ -101931,6 +102189,19 @@ export interface operations {
                     session?: {
                       [key: string]: unknown;
                     };
+                    strategy?:
+                      | ("wait_all" | "fail_fast" | "race")
+                      | {
+                          /** @enum {string} */
+                          kind: "wait_all" | "fail_fast" | "best_effort" | "race";
+                          /** @enum {string} */
+                          missing?: "acceptable";
+                          threshold?:
+                            | string
+                            | {
+                                count: number;
+                              };
+                        };
                     timeout?: string;
                     verdict_policy?: string;
                     watch?: {
@@ -101939,6 +102210,8 @@ export interface operations {
                   } & {
                     [key: string]: unknown;
                   })[];
+                } & {
+                  [key: string]: unknown;
                 };
                 inputs?: {
                   [key: string]: {
@@ -102366,7 +102639,9 @@ export interface operations {
               budget: {
                 /** @enum {string} */
                 on_exceeded?: "halt" | "escalate";
+                /** Format: int32 */
                 tokens: number;
+                /** Format: int32 */
                 wall_clock_sec: number;
               };
               constraints?: string[];
@@ -102555,6 +102830,7 @@ export interface operations {
               })[];
               nodes: ({
                 batch_size?: number;
+                bind_as?: string;
                 body?: {
                   [key: string]: unknown;
                 };
@@ -102640,6 +102916,7 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 id: string;
+                index_as?: string;
                 input_ref?: string;
                 kind: string;
                 max_fan_out?: number;
@@ -102796,6 +103073,42 @@ export interface operations {
                   non_retryable?: string[];
                   on_failure?: string;
                 };
+                review?: {
+                  decisions?: ("approve" | "edit" | "reject" | "respond")[];
+                  expires?: {
+                    after: string;
+                    escalate?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    route?: string;
+                  };
+                  on_reject?: {
+                    route: string;
+                  } & {
+                    [key: string]: unknown;
+                  };
+                  prompt?: string;
+                  responders?: {
+                    /** @enum {string} */
+                    agents?: "deny" | "allow";
+                  };
+                  when?: string;
+                } & {
+                  [key: string]: unknown;
+                };
                 routes?: {
                   to: string;
                   when: string;
@@ -102803,6 +103116,19 @@ export interface operations {
                 session?: {
                   [key: string]: unknown;
                 };
+                strategy?:
+                  | ("wait_all" | "fail_fast" | "race")
+                  | {
+                      /** @enum {string} */
+                      kind: "wait_all" | "fail_fast" | "best_effort" | "race";
+                      /** @enum {string} */
+                      missing?: "acceptable";
+                      threshold?:
+                        | string
+                        | {
+                            count: number;
+                          };
+                    };
                 timeout?: string;
                 verdict_policy?: string;
                 watch?: {
@@ -102811,6 +103137,8 @@ export interface operations {
               } & {
                 [key: string]: unknown;
               })[];
+            } & {
+              [key: string]: unknown;
             };
             inputs?: {
               [key: string]: {
@@ -102930,7 +103258,9 @@ export interface operations {
                   budget: {
                     /** @enum {string} */
                     on_exceeded?: "halt" | "escalate";
+                    /** Format: int32 */
                     tokens: number;
+                    /** Format: int32 */
                     wall_clock_sec: number;
                   };
                   constraints?: string[];
@@ -103119,6 +103449,7 @@ export interface operations {
                   })[];
                   nodes: ({
                     batch_size?: number;
+                    bind_as?: string;
                     body?: {
                       [key: string]: unknown;
                     };
@@ -103204,6 +103535,7 @@ export interface operations {
                       [key: string]: unknown;
                     };
                     id: string;
+                    index_as?: string;
                     input_ref?: string;
                     kind: string;
                     max_fan_out?: number;
@@ -103360,6 +103692,42 @@ export interface operations {
                       non_retryable?: string[];
                       on_failure?: string;
                     };
+                    review?: {
+                      decisions?: ("approve" | "edit" | "reject" | "respond")[];
+                      expires?: {
+                        after: string;
+                        escalate?: (
+                          | {
+                              emit: {
+                                kind: string;
+                                payload?: {
+                                  [key: string]: unknown;
+                                };
+                              };
+                            }
+                          | {
+                              tool: string;
+                              with?: {
+                                [key: string]: unknown;
+                              };
+                            }
+                        )[];
+                        route?: string;
+                      };
+                      on_reject?: {
+                        route: string;
+                      } & {
+                        [key: string]: unknown;
+                      };
+                      prompt?: string;
+                      responders?: {
+                        /** @enum {string} */
+                        agents?: "deny" | "allow";
+                      };
+                      when?: string;
+                    } & {
+                      [key: string]: unknown;
+                    };
                     routes?: {
                       to: string;
                       when: string;
@@ -103367,6 +103735,19 @@ export interface operations {
                     session?: {
                       [key: string]: unknown;
                     };
+                    strategy?:
+                      | ("wait_all" | "fail_fast" | "race")
+                      | {
+                          /** @enum {string} */
+                          kind: "wait_all" | "fail_fast" | "best_effort" | "race";
+                          /** @enum {string} */
+                          missing?: "acceptable";
+                          threshold?:
+                            | string
+                            | {
+                                count: number;
+                              };
+                        };
                     timeout?: string;
                     verdict_policy?: string;
                     watch?: {
@@ -103375,6 +103756,8 @@ export interface operations {
                   } & {
                     [key: string]: unknown;
                   })[];
+                } & {
+                  [key: string]: unknown;
                 };
                 inputs?: {
                   [key: string]: {
@@ -107029,7 +107412,9 @@ export interface operations {
               budget: {
                 /** @enum {string} */
                 on_exceeded?: "halt" | "escalate";
+                /** Format: int32 */
                 tokens: number;
+                /** Format: int32 */
                 wall_clock_sec: number;
               };
               constraints?: string[];
@@ -107218,6 +107603,7 @@ export interface operations {
               })[];
               nodes: ({
                 batch_size?: number;
+                bind_as?: string;
                 body?: {
                   [key: string]: unknown;
                 };
@@ -107303,6 +107689,7 @@ export interface operations {
                   [key: string]: unknown;
                 };
                 id: string;
+                index_as?: string;
                 input_ref?: string;
                 kind: string;
                 max_fan_out?: number;
@@ -107459,6 +107846,42 @@ export interface operations {
                   non_retryable?: string[];
                   on_failure?: string;
                 };
+                review?: {
+                  decisions?: ("approve" | "edit" | "reject" | "respond")[];
+                  expires?: {
+                    after: string;
+                    escalate?: (
+                      | {
+                          emit: {
+                            kind: string;
+                            payload?: {
+                              [key: string]: unknown;
+                            };
+                          };
+                        }
+                      | {
+                          tool: string;
+                          with?: {
+                            [key: string]: unknown;
+                          };
+                        }
+                    )[];
+                    route?: string;
+                  };
+                  on_reject?: {
+                    route: string;
+                  } & {
+                    [key: string]: unknown;
+                  };
+                  prompt?: string;
+                  responders?: {
+                    /** @enum {string} */
+                    agents?: "deny" | "allow";
+                  };
+                  when?: string;
+                } & {
+                  [key: string]: unknown;
+                };
                 routes?: {
                   to: string;
                   when: string;
@@ -107466,6 +107889,19 @@ export interface operations {
                 session?: {
                   [key: string]: unknown;
                 };
+                strategy?:
+                  | ("wait_all" | "fail_fast" | "race")
+                  | {
+                      /** @enum {string} */
+                      kind: "wait_all" | "fail_fast" | "best_effort" | "race";
+                      /** @enum {string} */
+                      missing?: "acceptable";
+                      threshold?:
+                        | string
+                        | {
+                            count: number;
+                          };
+                    };
                 timeout?: string;
                 verdict_policy?: string;
                 watch?: {
@@ -107474,6 +107910,8 @@ export interface operations {
               } & {
                 [key: string]: unknown;
               })[];
+            } & {
+              [key: string]: unknown;
             };
             inputs?: {
               [key: string]: {

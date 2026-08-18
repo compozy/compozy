@@ -34,7 +34,8 @@ import type {
 } from "../../types";
 import { LoopRunAboutRail } from "./loop-run-about-rail";
 import { LoopRunInspectSheet } from "./loop-run-inspect-sheet";
-import { LoopRunNeedsYouCard, type LoopRunRequestState } from "./loop-run-needs-you-card";
+import { LoopRunNeedsYouCard } from "./loop-run-needs-you-card";
+import type { LoopRunRequestState } from "./requests/loop-request-questionnaire";
 import { LoopRunNextNote } from "./loop-run-next-note";
 import { LoopRunNowCard } from "./loop-run-now-card";
 import { LoopRunOutcomeCard } from "./loop-run-outcome-card";

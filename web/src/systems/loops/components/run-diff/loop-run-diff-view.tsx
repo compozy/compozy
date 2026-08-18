@@ -1,18 +1,9 @@
 import type { ReactNode } from "react";
-import { ArrowRight, CircleDot, GitCompare, Info } from "lucide-react";
+import { CircleDot, GitCompare, Info } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Empty,
-  Pill,
-  SkeletonRows,
-  type PillTone,
-} from "@compozy/ui";
+import { Alert, AlertDescription, AlertTitle, Empty, Pill, SkeletonRows } from "@compozy/ui";
 
 import type { LoopDiffGroupView, LoopDiffView } from "../../lib/loop-run-diff-model";
-import { LoopStatusPill } from "../loop-status-pill";
 import { LoopRunDiffInputs } from "./loop-run-diff-inputs";
 import { LoopRunDiffRow } from "./loop-run-diff-row";
 
@@ -25,12 +16,6 @@ export interface LoopRunDiffViewProps {
   pickers?: ReactNode;
 }
 
-interface DiffSideProps {
-  label: string;
-  status: string;
-  value: string;
-}
-
 interface DiffBodyProps {
   view: LoopDiffView;
 }
@@ -39,37 +24,16 @@ interface DiffGroupProps {
   group: LoopDiffGroupView;
 }
 
-const TONE_TEXT: Record<PillTone, string> = {
-  accent: "text-accent",
-  danger: "text-danger",
-  info: "text-info",
-  neutral: "text-muted",
-  success: "text-success",
-  warning: "text-warning",
-};
-
 const LIVE_SIDE_SENTENCE: Record<"base" | "against", string> = {
   base: "The base side is still running. Rows settle as it settles.",
   against: "The against side is still running. Rows settle as it settles.",
 };
 
-function DiffSide({ label, status, value }: DiffSideProps) {
-  return (
-    <div className="min-w-0">
-      <span className="eyebrow text-subtle">{label}</span>
-      <div className="mt-1 flex flex-wrap items-center gap-2">
-        <span className="font-mono text-mono-id tabular-nums text-fg-strong">{value}</span>
-        <LoopStatusPill size="xs" status={status} />
-      </div>
-    </div>
-  );
-}
-
 function DiffGroup({ group }: DiffGroupProps) {
   return (
     <section data-testid={`loop-diff-group-${group.change}`}>
       <div className="flex items-center gap-2 pb-1.5">
-        <h3 className={`eyebrow ${TONE_TEXT[group.tone]}`}>{group.label}</h3>
+        <h3 className="eyebrow text-subtle">{group.label}</h3>
         <span className="font-mono text-mono-id tabular-nums text-faint">{group.rows.length}</span>
       </div>
       <ul className="overflow-hidden rounded-md border border-line bg-canvas-soft">
@@ -84,11 +48,6 @@ function DiffGroup({ group }: DiffGroupProps) {
 function DiffBody({ view }: DiffBodyProps) {
   return (
     <>
-      <header className="flex flex-wrap items-start gap-x-4 gap-y-3 border-b border-line pb-3">
-        <DiffSide label="Base" status={view.terminalBase} value={view.baseLabel} />
-        <ArrowRight aria-hidden="true" className="mt-5 size-3.5 shrink-0 text-faint" />
-        <DiffSide label="Against" status={view.terminalAgainst} value={view.againstLabel} />
-      </header>
       {view.hasDefinitionDivergence ? (
         <Alert data-testid="loop-diff-divergence" role="note" variant="info">
           <Info aria-hidden="true" />

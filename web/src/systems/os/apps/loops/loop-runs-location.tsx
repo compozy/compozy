@@ -1,22 +1,24 @@
 import type { ReactNode } from "react";
 import { Activity, AlertCircle } from "lucide-react";
 
+import { useNavigate } from "@tanstack/react-router";
+
 import {
   Button,
   Empty,
   ListingPage,
   ListingToolbar,
-  NativeSelect,
-  NativeSelectOption,
+  PillGroup,
   SkeletonRows,
   useTopbarSlot,
 } from "@compozy/ui";
+import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunsRoute, type LoopRunsRouteSearch } from "./use-loop-runs-route";
 
 import {
-  LOOP_NODE_INVENTORY_LABELS,
   LOOP_NODE_INVENTORY_STATES,
   LoopNodeInventoryView,
+  LoopRunsFilters,
   LoopRunsView,
   useLoopRunPendingRequestCounts,
   useNowTick,
@@ -26,8 +28,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const {
     outcome,
     runsQuery,
-    setOrigin,
-    setOriginSession,
+    setOriginFilter,
     setOutcome,
     workspaceId,
     inventoryState,
@@ -40,6 +41,10 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
     setInventoryView,
     clearInventoryFilters,
   } = useLoopRunsRoute(search);
+  const navigate = useNavigate();
+  const openLoops = () => {
+    void navigate({ to: "/loops" });
+  };
   const nowMs = useNowTick(inventoryState !== undefined);
 
   const runs = runsQuery.data?.runs ?? [];
@@ -51,55 +56,32 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const showToolbar = workspaceId !== "" && !runsQuery.isLoading && !runsQuery.error;
 
   useTopbarSlot({
-    glyph: <Activity />,
-    count: showToolbar ? runs.length : undefined,
+    ...loopRunsTrail({ level: "runs", onBack: openLoops, openLoops }),
     toolbar: showToolbar ? (
       <ListingToolbar data-testid="loop-runs-origin-toolbar">
         <ListingToolbar.Leading>
-          <NativeSelect
+          <PillGroup<"runs" | "nodes">
             aria-label="Runs view"
             data-testid="loop-runs-view-switch"
-            onChange={event =>
-              setInventoryState(
-                event.target.value === "runs"
-                  ? undefined
-                  : (event.target.value as (typeof LOOP_NODE_INVENTORY_STATES)[number])
-              )
+            items={[
+              { value: "runs", label: "Runs", testId: "loop-runs-view-runs" },
+              { value: "nodes", label: "Nodes", testId: "loop-runs-view-nodes" },
+            ]}
+            onChange={next =>
+              setInventoryState(next === "runs" ? undefined : LOOP_NODE_INVENTORY_STATES[0])
             }
-            value={inventoryState ?? "runs"}
-          >
-            <NativeSelectOption value="runs">Runs</NativeSelectOption>
-            {LOOP_NODE_INVENTORY_STATES.map(value => (
-              <NativeSelectOption key={value} value={value}>
-                {LOOP_NODE_INVENTORY_LABELS[value]} nodes
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-          <NativeSelect
-            aria-label="Run origin"
-            data-testid="loop-runs-origin-filter"
-            value={search.origin ?? "all"}
-            onChange={event =>
-              setOrigin(
-                event.target.value === "all"
-                  ? undefined
-                  : (event.target.value as "catalog" | "session")
-              )
-            }
-          >
-            <NativeSelectOption value="all">All origins</NativeSelectOption>
-            <NativeSelectOption value="catalog">Catalog</NativeSelectOption>
-            <NativeSelectOption value="session">Session</NativeSelectOption>
-          </NativeSelect>
-          {search.origin === "session" ? (
-            <input
-              aria-label="Origin session id"
-              className="h-8 min-w-search-input rounded-md border border-line bg-input-fill px-2.5 font-mono text-small-body text-fg outline-none placeholder:text-faint focus:border-line-strong"
-              data-testid="loop-runs-origin-session-filter"
-              onChange={event => setOriginSession(event.target.value.trim())}
-              placeholder="Session id"
-              value={search.origin_session ?? ""}
-            />
+            value={inventoryState === undefined ? "runs" : "nodes"}
+          />
+          {inventoryState === undefined ? (
+            <ListingToolbar.Filters>
+              <LoopRunsFilters
+                onOriginFilterChange={setOriginFilter}
+                onOutcomeChange={setOutcome}
+                origin={search.origin}
+                originSession={search.origin_session}
+                outcome={outcome}
+              />
+            </ListingToolbar.Filters>
           ) : null}
         </ListingToolbar.Leading>
       </ListingToolbar>
@@ -200,12 +182,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
           title="No matching runs"
         />
       ) : (
-        <LoopRunsView
-          onOutcomeChange={setOutcome}
-          outcome={outcome}
-          pendingRequestCounts={pendingRequestCounts}
-          runs={runs}
-        />
+        <LoopRunsView outcome={outcome} pendingRequestCounts={pendingRequestCounts} runs={runs} />
       )}
     </ListingPage>
   );

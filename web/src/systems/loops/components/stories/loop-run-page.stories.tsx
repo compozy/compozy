@@ -5,7 +5,7 @@ import { useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { StoryTopbarHost } from "@/storybook/story-layout";
 
-import type { LoopRunRequestState } from "../run-page/loop-run-needs-you-card";
+import type { LoopRunRequestState } from "../run-page/requests/loop-request-questionnaire";
 import {
   LoopNodeRowActions,
   LoopRunControls,
@@ -17,6 +17,7 @@ import {
   forkedRunScenario,
   laneRequestsScenario,
   partialCompletionScenario,
+  pendingEnumRequestScenario,
   pendingRequestsScenario,
   redactedRequestScenario,
   resolvedRequestsScenario,
@@ -62,6 +63,7 @@ function ScenarioPage({
     onBack: () => {},
     crumbs: [
       { id: "loops", label: "Loops", onSelect: () => {} },
+      { id: "runs", label: "Runs", onSelect: () => {} },
       { id: "loop", label: props.run.loop_name, onSelect: () => {} },
     ],
     crumb: props.run.id,
@@ -191,6 +193,11 @@ const REVIEW_KEY = "3:apply-migration:0";
 export const PendingRequests: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={pendingRequestsScenario()} />,
+};
+
+export const PendingEnumRequest: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={pendingEnumRequestScenario()} />,
 };
 
 export const RequestValidationFailure: Story = {

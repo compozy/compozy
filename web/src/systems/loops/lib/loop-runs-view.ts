@@ -1,17 +1,8 @@
-import { LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
-
 import type { LoopRun, LoopRunStatus } from "../types";
 import { isLoopRunStatus, isTerminalLoopStatus, loopStatusLabel } from "./loop-formatters";
 
-/** Canonical status order (live first, then terminal) for the outcome filter. */
-const STATUS_ORDER: readonly LoopRunStatus[] = [
-  "running",
-  "watching",
-  "needs-approval",
-  "paused",
-  "queued",
-  ...LOOP_RUN_TERMINAL_STATUSES,
-];
+/** The runs roster's client-side outcome filter: `all` or one daemon run status. */
+export type LoopOutcomeValue = "all" | LoopRunStatus;
 
 /** Terminal problem states that surface in the "Needs a look" KPI. */
 const NEEDS_A_LOOK: readonly LoopRunStatus[] = ["failed", "exhausted", "stalled", "blocked"];
@@ -99,22 +90,6 @@ export function buildRunKpis(runs: readonly LoopRun[], now: Date = new Date()): 
   };
 }
 
-export interface LoopOutcomeSegment {
-  value: "all" | LoopRunStatus;
-  label: string;
-  count: number;
-}
-
-export function buildOutcomeSegments(runs: readonly LoopRun[]): LoopOutcomeSegment[] {
-  const counts = countByStatus(runs);
-  const segments: LoopOutcomeSegment[] = [{ value: "all", label: "All", count: runs.length }];
-  for (const status of STATUS_ORDER) {
-    const count = counts.get(status) ?? 0;
-    if (count > 0) segments.push({ value: status, label: loopStatusLabel(status), count });
-  }
-  return segments;
-}
-
 export interface LoopRunPartition {
   active: LoopRun[];
   past: LoopRun[];
@@ -123,7 +98,7 @@ export interface LoopRunPartition {
 /** Splits runs into the Active (live) and Past (terminal) tables, applying the outcome filter. */
 export function partitionRuns(
   runs: readonly LoopRun[],
-  outcome: "all" | LoopRunStatus = "all"
+  outcome: LoopOutcomeValue = "all"
 ): LoopRunPartition {
   const active: LoopRun[] = [];
   const past: LoopRun[] = [];

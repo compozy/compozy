@@ -28,7 +28,8 @@ const { LoopRunAttentionPanel, LoopRunWaitingPanel } =
   await import("../run-page/loop-run-parked-panels");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { projectLoopRequest } = await import("../../lib/loop-request-model");
-const { pendingReviewRequest } = await import("../../mocks/fixture-graph-eng-requests");
+const { answeredAskRequest, pendingReviewRequest } =
+  await import("../../mocks/fixture-graph-eng-requests");
 const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
 const { LoopNodeControlMenu } = await import("../run-page/loop-node-control-menu");
@@ -483,10 +484,41 @@ describe("LoopRunNeedsYouCard", () => {
       />
     );
 
-    expect(screen.getAllByTestId("loop-request-card")).toHaveLength(2);
+    expect(screen.getAllByTestId("loop-request-card")).toHaveLength(1);
+    expect(screen.getByTestId("loop-request-progress")).toHaveTextContent("Question 2 of 2");
+
+    fireEvent.click(screen.getByTestId("loop-request-details"));
     expect(screen.getByRole("alert")).toHaveTextContent("Context is temporarily unavailable");
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRequestFullContext).toHaveBeenCalledWith(3, pendingReviewRequest.node_id, 0);
+
+    fireEvent.click(screen.getByTestId("loop-request-prev"));
+    expect(screen.getByTestId("loop-request-progress")).toHaveTextContent("Question 1 of 2");
+    fireEvent.click(screen.getByTestId("loop-request-details"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("Should show settled requests as recorded outcomes below the questions, never a form", () => {
+    const nowMs = Date.parse("2026-08-17T10:00:00Z");
+    render(
+      <LoopRunNeedsYouCard
+        fallbackFacts={[]}
+        onDecision={vi.fn()}
+        request={null}
+        requests={[
+          projectLoopRequest(pendingReviewRequest, { nowMs, runStatus: "running" }),
+          projectLoopRequest(answeredAskRequest, { nowMs, runStatus: "running" }),
+        ]}
+        run={run({ status: "running" })}
+        showApproval={false}
+      />
+    );
+
+    expect(screen.getAllByTestId("loop-request-card")).toHaveLength(1);
+    expect(screen.queryByTestId("loop-request-progress")).not.toBeInTheDocument();
+    const settled = screen.getByTestId("loop-request-resolution");
+    expect(settled).toHaveTextContent("operator pedro answered with respond.");
+    expect(settled.querySelector("form")).toBeNull();
   });
 
   it("Should focus the requested form when opened from an attention deep link", () => {

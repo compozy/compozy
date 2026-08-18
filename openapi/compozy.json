@@ -189,16 +189,8 @@
         ],
         "type": "object"
       },
-      "IssueSeverity": {
-        "enum": [
-          "error",
-          "warning",
-          "warn"
-        ],
-        "type": "string"
-      },
-      "LoopGraph": {
-        "additionalProperties": false,
+      "Graph": {
+        "additionalProperties": {},
         "properties": {
           "edges": {
             "items": {
@@ -225,6 +217,9 @@
               "properties": {
                 "batch_size": {
                   "type": "integer"
+                },
+                "bind_as": {
+                  "type": "string"
                 },
                 "body": {
                   "additionalProperties": {},
@@ -429,6 +424,9 @@
                   "type": "object"
                 },
                 "id": {
+                  "type": "string"
+                },
+                "index_as": {
                   "type": "string"
                 },
                 "input_ref": {
@@ -898,6 +896,118 @@
                   },
                   "type": "object"
                 },
+                "review": {
+                  "additionalProperties": {},
+                  "properties": {
+                    "decisions": {
+                      "items": {
+                        "enum": [
+                          "approve",
+                          "edit",
+                          "reject",
+                          "respond"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "expires": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "after": {
+                          "type": "string"
+                        },
+                        "escalate": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "emit": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "payload": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "emit"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "with": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "tool"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "route": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "after"
+                      ],
+                      "type": "object"
+                    },
+                    "on_reject": {
+                      "additionalProperties": {},
+                      "properties": {
+                        "route": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "route"
+                      ],
+                      "type": "object"
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "responders": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "agents": {
+                          "enum": [
+                            "deny",
+                            "allow"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "when": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
                 "routes": {
                   "items": {
                     "additionalProperties": false,
@@ -920,6 +1030,63 @@
                 "session": {
                   "additionalProperties": {},
                   "type": "object"
+                },
+                "strategy": {
+                  "oneOf": [
+                    {
+                      "enum": [
+                        "wait_all",
+                        "fail_fast",
+                        "race"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "wait_all",
+                            "fail_fast",
+                            "best_effort",
+                            "race"
+                          ],
+                          "type": "string"
+                        },
+                        "missing": {
+                          "enum": [
+                            "acceptable"
+                          ],
+                          "type": "string"
+                        },
+                        "threshold": {
+                          "oneOf": [
+                            {
+                              "pattern": "^[0-9]+%$",
+                              "type": "string"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "count": {
+                                  "minimum": 1,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "count"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "type": "object"
+                    }
+                  ]
                 },
                 "timeout": {
                   "type": "string"
@@ -947,6 +1114,14 @@
           "nodes"
         ],
         "type": "object"
+      },
+      "IssueSeverity": {
+        "enum": [
+          "error",
+          "warning",
+          "warn"
+        ],
+        "type": "string"
       },
       "ValidationIssue": {
         "properties": {
@@ -229693,9 +229868,11 @@
                                   "type": "string"
                                 },
                                 "tokens": {
+                                  "format": "int32",
                                   "type": "integer"
                                 },
                                 "wall_clock_sec": {
+                                  "format": "int32",
                                   "type": "integer"
                                 }
                               },
@@ -230264,7 +230441,7 @@
                           "type": "object"
                         },
                         "graph": {
-                          "additionalProperties": false,
+                          "additionalProperties": {},
                           "properties": {
                             "edges": {
                               "items": {
@@ -230291,6 +230468,9 @@
                                 "properties": {
                                   "batch_size": {
                                     "type": "integer"
+                                  },
+                                  "bind_as": {
+                                    "type": "string"
                                   },
                                   "body": {
                                     "additionalProperties": {},
@@ -230495,6 +230675,9 @@
                                     "type": "object"
                                   },
                                   "id": {
+                                    "type": "string"
+                                  },
+                                  "index_as": {
                                     "type": "string"
                                   },
                                   "input_ref": {
@@ -230964,6 +231147,118 @@
                                     },
                                     "type": "object"
                                   },
+                                  "review": {
+                                    "additionalProperties": {},
+                                    "properties": {
+                                      "decisions": {
+                                        "items": {
+                                          "enum": [
+                                            "approve",
+                                            "edit",
+                                            "reject",
+                                            "respond"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "type": "array"
+                                      },
+                                      "expires": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "after": {
+                                            "type": "string"
+                                          },
+                                          "escalate": {
+                                            "items": {
+                                              "oneOf": [
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "emit": {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "kind": {
+                                                          "type": "string"
+                                                        },
+                                                        "payload": {
+                                                          "additionalProperties": {},
+                                                          "type": "object"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "kind"
+                                                      ],
+                                                      "type": "object"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "emit"
+                                                  ],
+                                                  "type": "object"
+                                                },
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "tool": {
+                                                      "type": "string"
+                                                    },
+                                                    "with": {
+                                                      "additionalProperties": {},
+                                                      "type": "object"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "tool"
+                                                  ],
+                                                  "type": "object"
+                                                }
+                                              ]
+                                            },
+                                            "type": "array"
+                                          },
+                                          "route": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "after"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "on_reject": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "route": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "route"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "prompt": {
+                                        "type": "string"
+                                      },
+                                      "responders": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "agents": {
+                                            "enum": [
+                                              "deny",
+                                              "allow"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
+                                      "when": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
                                   "routes": {
                                     "items": {
                                       "additionalProperties": false,
@@ -230986,6 +231281,63 @@
                                   "session": {
                                     "additionalProperties": {},
                                     "type": "object"
+                                  },
+                                  "strategy": {
+                                    "oneOf": [
+                                      {
+                                        "enum": [
+                                          "wait_all",
+                                          "fail_fast",
+                                          "race"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "enum": [
+                                              "wait_all",
+                                              "fail_fast",
+                                              "best_effort",
+                                              "race"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "missing": {
+                                            "enum": [
+                                              "acceptable"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "threshold": {
+                                            "oneOf": [
+                                              {
+                                                "pattern": "^[0-9]+%$",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "count": {
+                                                    "minimum": 1,
+                                                    "type": "integer"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "count"
+                                                ],
+                                                "type": "object"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    ]
                                   },
                                   "timeout": {
                                     "type": "string"
@@ -246404,9 +246756,11 @@
                                 "type": "string"
                               },
                               "tokens": {
+                                "format": "int32",
                                 "type": "integer"
                               },
                               "wall_clock_sec": {
+                                "format": "int32",
                                 "type": "integer"
                               }
                             },
@@ -246975,7 +247329,7 @@
                         "type": "object"
                       },
                       "graph": {
-                        "additionalProperties": false,
+                        "additionalProperties": {},
                         "properties": {
                           "edges": {
                             "items": {
@@ -247002,6 +247356,9 @@
                               "properties": {
                                 "batch_size": {
                                   "type": "integer"
+                                },
+                                "bind_as": {
+                                  "type": "string"
                                 },
                                 "body": {
                                   "additionalProperties": {},
@@ -247206,6 +247563,9 @@
                                   "type": "object"
                                 },
                                 "id": {
+                                  "type": "string"
+                                },
+                                "index_as": {
                                   "type": "string"
                                 },
                                 "input_ref": {
@@ -247675,6 +248035,118 @@
                                   },
                                   "type": "object"
                                 },
+                                "review": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "decisions": {
+                                      "items": {
+                                        "enum": [
+                                          "approve",
+                                          "edit",
+                                          "reject",
+                                          "respond"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "expires": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "after": {
+                                          "type": "string"
+                                        },
+                                        "escalate": {
+                                          "items": {
+                                            "oneOf": [
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "emit": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "type": "string"
+                                                      },
+                                                      "payload": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind"
+                                                    ],
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "emit"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "tool": {
+                                                    "type": "string"
+                                                  },
+                                                  "with": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "tool"
+                                                ],
+                                                "type": "object"
+                                              }
+                                            ]
+                                          },
+                                          "type": "array"
+                                        },
+                                        "route": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "after"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "on_reject": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "route": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "route"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "prompt": {
+                                      "type": "string"
+                                    },
+                                    "responders": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "agents": {
+                                          "enum": [
+                                            "deny",
+                                            "allow"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "when": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
                                 "routes": {
                                   "items": {
                                     "additionalProperties": false,
@@ -247697,6 +248169,63 @@
                                 "session": {
                                   "additionalProperties": {},
                                   "type": "object"
+                                },
+                                "strategy": {
+                                  "oneOf": [
+                                    {
+                                      "enum": [
+                                        "wait_all",
+                                        "fail_fast",
+                                        "race"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "kind": {
+                                          "enum": [
+                                            "wait_all",
+                                            "fail_fast",
+                                            "best_effort",
+                                            "race"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "missing": {
+                                          "enum": [
+                                            "acceptable"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "threshold": {
+                                          "oneOf": [
+                                            {
+                                              "pattern": "^[0-9]+%$",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "count": {
+                                                  "minimum": 1,
+                                                  "type": "integer"
+                                                }
+                                              },
+                                              "required": [
+                                                "count"
+                                              ],
+                                              "type": "object"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
                                 },
                                 "timeout": {
                                   "type": "string"
@@ -248094,9 +248623,11 @@
                                       "type": "string"
                                     },
                                     "tokens": {
+                                      "format": "int32",
                                       "type": "integer"
                                     },
                                     "wall_clock_sec": {
+                                      "format": "int32",
                                       "type": "integer"
                                     }
                                   },
@@ -248665,7 +249196,7 @@
                               "type": "object"
                             },
                             "graph": {
-                              "additionalProperties": false,
+                              "additionalProperties": {},
                               "properties": {
                                 "edges": {
                                   "items": {
@@ -248692,6 +249223,9 @@
                                     "properties": {
                                       "batch_size": {
                                         "type": "integer"
+                                      },
+                                      "bind_as": {
+                                        "type": "string"
                                       },
                                       "body": {
                                         "additionalProperties": {},
@@ -248896,6 +249430,9 @@
                                         "type": "object"
                                       },
                                       "id": {
+                                        "type": "string"
+                                      },
+                                      "index_as": {
                                         "type": "string"
                                       },
                                       "input_ref": {
@@ -249365,6 +249902,118 @@
                                         },
                                         "type": "object"
                                       },
+                                      "review": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "decisions": {
+                                            "items": {
+                                              "enum": [
+                                                "approve",
+                                                "edit",
+                                                "reject",
+                                                "respond"
+                                              ],
+                                              "type": "string"
+                                            },
+                                            "type": "array"
+                                          },
+                                          "expires": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "after": {
+                                                "type": "string"
+                                              },
+                                              "escalate": {
+                                                "items": {
+                                                  "oneOf": [
+                                                    {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "emit": {
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "kind": {
+                                                              "type": "string"
+                                                            },
+                                                            "payload": {
+                                                              "additionalProperties": {},
+                                                              "type": "object"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "kind"
+                                                          ],
+                                                          "type": "object"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "emit"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "tool": {
+                                                          "type": "string"
+                                                        },
+                                                        "with": {
+                                                          "additionalProperties": {},
+                                                          "type": "object"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "tool"
+                                                      ],
+                                                      "type": "object"
+                                                    }
+                                                  ]
+                                                },
+                                                "type": "array"
+                                              },
+                                              "route": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "after"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "on_reject": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "route": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "route"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "prompt": {
+                                            "type": "string"
+                                          },
+                                          "responders": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "agents": {
+                                                "enum": [
+                                                  "deny",
+                                                  "allow"
+                                                ],
+                                                "type": "string"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "when": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
                                       "routes": {
                                         "items": {
                                           "additionalProperties": false,
@@ -249387,6 +250036,63 @@
                                       "session": {
                                         "additionalProperties": {},
                                         "type": "object"
+                                      },
+                                      "strategy": {
+                                        "oneOf": [
+                                          {
+                                            "enum": [
+                                              "wait_all",
+                                              "fail_fast",
+                                              "race"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "kind": {
+                                                "enum": [
+                                                  "wait_all",
+                                                  "fail_fast",
+                                                  "best_effort",
+                                                  "race"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "missing": {
+                                                "enum": [
+                                                  "acceptable"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "threshold": {
+                                                "oneOf": [
+                                                  {
+                                                    "pattern": "^[0-9]+%$",
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "count": {
+                                                        "minimum": 1,
+                                                        "type": "integer"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "count"
+                                                    ],
+                                                    "type": "object"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          }
+                                        ]
                                       },
                                       "timeout": {
                                         "type": "string"
@@ -250763,9 +251469,11 @@
                                       "type": "string"
                                     },
                                     "tokens": {
+                                      "format": "int32",
                                       "type": "integer"
                                     },
                                     "wall_clock_sec": {
+                                      "format": "int32",
                                       "type": "integer"
                                     }
                                   },
@@ -251334,7 +252042,7 @@
                               "type": "object"
                             },
                             "graph": {
-                              "additionalProperties": false,
+                              "additionalProperties": {},
                               "properties": {
                                 "edges": {
                                   "items": {
@@ -251361,6 +252069,9 @@
                                     "properties": {
                                       "batch_size": {
                                         "type": "integer"
+                                      },
+                                      "bind_as": {
+                                        "type": "string"
                                       },
                                       "body": {
                                         "additionalProperties": {},
@@ -251565,6 +252276,9 @@
                                         "type": "object"
                                       },
                                       "id": {
+                                        "type": "string"
+                                      },
+                                      "index_as": {
                                         "type": "string"
                                       },
                                       "input_ref": {
@@ -252034,6 +252748,118 @@
                                         },
                                         "type": "object"
                                       },
+                                      "review": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "decisions": {
+                                            "items": {
+                                              "enum": [
+                                                "approve",
+                                                "edit",
+                                                "reject",
+                                                "respond"
+                                              ],
+                                              "type": "string"
+                                            },
+                                            "type": "array"
+                                          },
+                                          "expires": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "after": {
+                                                "type": "string"
+                                              },
+                                              "escalate": {
+                                                "items": {
+                                                  "oneOf": [
+                                                    {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "emit": {
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "kind": {
+                                                              "type": "string"
+                                                            },
+                                                            "payload": {
+                                                              "additionalProperties": {},
+                                                              "type": "object"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "kind"
+                                                          ],
+                                                          "type": "object"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "emit"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "tool": {
+                                                          "type": "string"
+                                                        },
+                                                        "with": {
+                                                          "additionalProperties": {},
+                                                          "type": "object"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "tool"
+                                                      ],
+                                                      "type": "object"
+                                                    }
+                                                  ]
+                                                },
+                                                "type": "array"
+                                              },
+                                              "route": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "after"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "on_reject": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "route": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "route"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "prompt": {
+                                            "type": "string"
+                                          },
+                                          "responders": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "agents": {
+                                                "enum": [
+                                                  "deny",
+                                                  "allow"
+                                                ],
+                                                "type": "string"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "when": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
                                       "routes": {
                                         "items": {
                                           "additionalProperties": false,
@@ -252056,6 +252882,63 @@
                                       "session": {
                                         "additionalProperties": {},
                                         "type": "object"
+                                      },
+                                      "strategy": {
+                                        "oneOf": [
+                                          {
+                                            "enum": [
+                                              "wait_all",
+                                              "fail_fast",
+                                              "race"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "kind": {
+                                                "enum": [
+                                                  "wait_all",
+                                                  "fail_fast",
+                                                  "best_effort",
+                                                  "race"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "missing": {
+                                                "enum": [
+                                                  "acceptable"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "threshold": {
+                                                "oneOf": [
+                                                  {
+                                                    "pattern": "^[0-9]+%$",
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "count": {
+                                                        "minimum": 1,
+                                                        "type": "integer"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "count"
+                                                    ],
+                                                    "type": "object"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          }
+                                        ]
                                       },
                                       "timeout": {
                                         "type": "string"
@@ -252844,9 +253727,11 @@
                                 "type": "string"
                               },
                               "tokens": {
+                                "format": "int32",
                                 "type": "integer"
                               },
                               "wall_clock_sec": {
+                                "format": "int32",
                                 "type": "integer"
                               }
                             },
@@ -253415,7 +254300,7 @@
                         "type": "object"
                       },
                       "graph": {
-                        "additionalProperties": false,
+                        "additionalProperties": {},
                         "properties": {
                           "edges": {
                             "items": {
@@ -253442,6 +254327,9 @@
                               "properties": {
                                 "batch_size": {
                                   "type": "integer"
+                                },
+                                "bind_as": {
+                                  "type": "string"
                                 },
                                 "body": {
                                   "additionalProperties": {},
@@ -253646,6 +254534,9 @@
                                   "type": "object"
                                 },
                                 "id": {
+                                  "type": "string"
+                                },
+                                "index_as": {
                                   "type": "string"
                                 },
                                 "input_ref": {
@@ -254115,6 +255006,118 @@
                                   },
                                   "type": "object"
                                 },
+                                "review": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "decisions": {
+                                      "items": {
+                                        "enum": [
+                                          "approve",
+                                          "edit",
+                                          "reject",
+                                          "respond"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "expires": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "after": {
+                                          "type": "string"
+                                        },
+                                        "escalate": {
+                                          "items": {
+                                            "oneOf": [
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "emit": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "type": "string"
+                                                      },
+                                                      "payload": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind"
+                                                    ],
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "emit"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "tool": {
+                                                    "type": "string"
+                                                  },
+                                                  "with": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "tool"
+                                                ],
+                                                "type": "object"
+                                              }
+                                            ]
+                                          },
+                                          "type": "array"
+                                        },
+                                        "route": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "after"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "on_reject": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "route": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "route"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "prompt": {
+                                      "type": "string"
+                                    },
+                                    "responders": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "agents": {
+                                          "enum": [
+                                            "deny",
+                                            "allow"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "when": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
                                 "routes": {
                                   "items": {
                                     "additionalProperties": false,
@@ -254137,6 +255140,63 @@
                                 "session": {
                                   "additionalProperties": {},
                                   "type": "object"
+                                },
+                                "strategy": {
+                                  "oneOf": [
+                                    {
+                                      "enum": [
+                                        "wait_all",
+                                        "fail_fast",
+                                        "race"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "kind": {
+                                          "enum": [
+                                            "wait_all",
+                                            "fail_fast",
+                                            "best_effort",
+                                            "race"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "missing": {
+                                          "enum": [
+                                            "acceptable"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "threshold": {
+                                          "oneOf": [
+                                            {
+                                              "pattern": "^[0-9]+%$",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "count": {
+                                                  "minimum": 1,
+                                                  "type": "integer"
+                                                }
+                                              },
+                                              "required": [
+                                                "count"
+                                              ],
+                                              "type": "object"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
                                 },
                                 "timeout": {
                                   "type": "string"
@@ -254538,9 +255598,11 @@
                                       "type": "string"
                                     },
                                     "tokens": {
+                                      "format": "int32",
                                       "type": "integer"
                                     },
                                     "wall_clock_sec": {
+                                      "format": "int32",
                                       "type": "integer"
                                     }
                                   },
@@ -255109,7 +256171,7 @@
                               "type": "object"
                             },
                             "graph": {
-                              "additionalProperties": false,
+                              "additionalProperties": {},
                               "properties": {
                                 "edges": {
                                   "items": {
@@ -255136,6 +256198,9 @@
                                     "properties": {
                                       "batch_size": {
                                         "type": "integer"
+                                      },
+                                      "bind_as": {
+                                        "type": "string"
                                       },
                                       "body": {
                                         "additionalProperties": {},
@@ -255340,6 +256405,9 @@
                                         "type": "object"
                                       },
                                       "id": {
+                                        "type": "string"
+                                      },
+                                      "index_as": {
                                         "type": "string"
                                       },
                                       "input_ref": {
@@ -255809,6 +256877,118 @@
                                         },
                                         "type": "object"
                                       },
+                                      "review": {
+                                        "additionalProperties": {},
+                                        "properties": {
+                                          "decisions": {
+                                            "items": {
+                                              "enum": [
+                                                "approve",
+                                                "edit",
+                                                "reject",
+                                                "respond"
+                                              ],
+                                              "type": "string"
+                                            },
+                                            "type": "array"
+                                          },
+                                          "expires": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "after": {
+                                                "type": "string"
+                                              },
+                                              "escalate": {
+                                                "items": {
+                                                  "oneOf": [
+                                                    {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "emit": {
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "kind": {
+                                                              "type": "string"
+                                                            },
+                                                            "payload": {
+                                                              "additionalProperties": {},
+                                                              "type": "object"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "kind"
+                                                          ],
+                                                          "type": "object"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "emit"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "tool": {
+                                                          "type": "string"
+                                                        },
+                                                        "with": {
+                                                          "additionalProperties": {},
+                                                          "type": "object"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "tool"
+                                                      ],
+                                                      "type": "object"
+                                                    }
+                                                  ]
+                                                },
+                                                "type": "array"
+                                              },
+                                              "route": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "after"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "on_reject": {
+                                            "additionalProperties": {},
+                                            "properties": {
+                                              "route": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "route"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "prompt": {
+                                            "type": "string"
+                                          },
+                                          "responders": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "agents": {
+                                                "enum": [
+                                                  "deny",
+                                                  "allow"
+                                                ],
+                                                "type": "string"
+                                              }
+                                            },
+                                            "type": "object"
+                                          },
+                                          "when": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "type": "object"
+                                      },
                                       "routes": {
                                         "items": {
                                           "additionalProperties": false,
@@ -255831,6 +257011,63 @@
                                       "session": {
                                         "additionalProperties": {},
                                         "type": "object"
+                                      },
+                                      "strategy": {
+                                        "oneOf": [
+                                          {
+                                            "enum": [
+                                              "wait_all",
+                                              "fail_fast",
+                                              "race"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "kind": {
+                                                "enum": [
+                                                  "wait_all",
+                                                  "fail_fast",
+                                                  "best_effort",
+                                                  "race"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "missing": {
+                                                "enum": [
+                                                  "acceptable"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "threshold": {
+                                                "oneOf": [
+                                                  {
+                                                    "pattern": "^[0-9]+%$",
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "count": {
+                                                        "minimum": 1,
+                                                        "type": "integer"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "count"
+                                                    ],
+                                                    "type": "object"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            "required": [
+                                              "kind"
+                                            ],
+                                            "type": "object"
+                                          }
+                                        ]
                                       },
                                       "timeout": {
                                         "type": "string"
@@ -266104,9 +267341,11 @@
                                 "type": "string"
                               },
                               "tokens": {
+                                "format": "int32",
                                 "type": "integer"
                               },
                               "wall_clock_sec": {
+                                "format": "int32",
                                 "type": "integer"
                               }
                             },
@@ -266675,7 +267914,7 @@
                         "type": "object"
                       },
                       "graph": {
-                        "additionalProperties": false,
+                        "additionalProperties": {},
                         "properties": {
                           "edges": {
                             "items": {
@@ -266702,6 +267941,9 @@
                               "properties": {
                                 "batch_size": {
                                   "type": "integer"
+                                },
+                                "bind_as": {
+                                  "type": "string"
                                 },
                                 "body": {
                                   "additionalProperties": {},
@@ -266906,6 +268148,9 @@
                                   "type": "object"
                                 },
                                 "id": {
+                                  "type": "string"
+                                },
+                                "index_as": {
                                   "type": "string"
                                 },
                                 "input_ref": {
@@ -267375,6 +268620,118 @@
                                   },
                                   "type": "object"
                                 },
+                                "review": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "decisions": {
+                                      "items": {
+                                        "enum": [
+                                          "approve",
+                                          "edit",
+                                          "reject",
+                                          "respond"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "expires": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "after": {
+                                          "type": "string"
+                                        },
+                                        "escalate": {
+                                          "items": {
+                                            "oneOf": [
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "emit": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "type": "string"
+                                                      },
+                                                      "payload": {
+                                                        "additionalProperties": {},
+                                                        "type": "object"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind"
+                                                    ],
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "emit"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "tool": {
+                                                    "type": "string"
+                                                  },
+                                                  "with": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "tool"
+                                                ],
+                                                "type": "object"
+                                              }
+                                            ]
+                                          },
+                                          "type": "array"
+                                        },
+                                        "route": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "after"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "on_reject": {
+                                      "additionalProperties": {},
+                                      "properties": {
+                                        "route": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "route"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "prompt": {
+                                      "type": "string"
+                                    },
+                                    "responders": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "agents": {
+                                          "enum": [
+                                            "deny",
+                                            "allow"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "type": "object"
+                                    },
+                                    "when": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
                                 "routes": {
                                   "items": {
                                     "additionalProperties": false,
@@ -267397,6 +268754,63 @@
                                 "session": {
                                   "additionalProperties": {},
                                   "type": "object"
+                                },
+                                "strategy": {
+                                  "oneOf": [
+                                    {
+                                      "enum": [
+                                        "wait_all",
+                                        "fail_fast",
+                                        "race"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "kind": {
+                                          "enum": [
+                                            "wait_all",
+                                            "fail_fast",
+                                            "best_effort",
+                                            "race"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "missing": {
+                                          "enum": [
+                                            "acceptable"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "threshold": {
+                                          "oneOf": [
+                                            {
+                                              "pattern": "^[0-9]+%$",
+                                              "type": "string"
+                                            },
+                                            {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "count": {
+                                                  "minimum": 1,
+                                                  "type": "integer"
+                                                }
+                                              },
+                                              "required": [
+                                                "count"
+                                              ],
+                                              "type": "object"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
                                 },
                                 "timeout": {
                                   "type": "string"

@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { Check, type LucideIcon, MessageSquare, Pencil, X } from "lucide-react";
 
-import { Button, Field, FieldLabel, Textarea } from "@compozy/ui";
+import { Field, FieldLabel, RadioCard, Textarea } from "@compozy/ui";
 
 import {
   LOOP_REQUEST_DECISION_LABEL,
@@ -24,8 +24,6 @@ const DECISION_ICON: Record<LoopRequestDecision, LucideIcon> = {
   respond: MessageSquare,
 };
 
-const REJECT_REST_CLASS = "text-danger hover:border-danger/40 hover:text-danger";
-
 export function LoopRequestDecisionBar({
   decisions,
   selected,
@@ -38,25 +36,20 @@ export function LoopRequestDecisionBar({
   if (decisions.length === 0) return null;
   return (
     <div className="flex flex-col gap-3">
-      <div aria-label="Decisions" className="flex flex-wrap gap-2" role="group">
+      <div aria-label="Decision" className="flex flex-col gap-1.5" role="radiogroup">
         {decisions.map(decision => {
-          const Icon = DECISION_ICON[decision];
           const isSelected = selected === decision;
           return (
-            <Button
-              aria-pressed={isSelected}
-              className={decision === "reject" && !isSelected ? REJECT_REST_CLASS : undefined}
+            <RadioCard
+              className={isSelected ? undefined : "bg-canvas-tint"}
               data-testid={`loop-request-decision-${decision}`}
               disabled={disabled}
+              icon={DECISION_ICON[decision]}
               key={decision}
-              onClick={() => onSelect(decision)}
-              size="sm"
-              type="button"
-              variant={decisionVariant(decision, isSelected)}
-            >
-              <Icon aria-hidden="true" />
-              {LOOP_REQUEST_DECISION_LABEL[decision]}
-            </Button>
+              onSelect={() => onSelect(decision)}
+              selected={isSelected}
+              title={LOOP_REQUEST_DECISION_LABEL[decision]}
+            />
           );
         })}
       </div>
@@ -77,9 +70,4 @@ export function LoopRequestDecisionBar({
       ) : null}
     </div>
   );
-}
-
-function decisionVariant(decision: LoopRequestDecision, isSelected: boolean) {
-  if (!isSelected) return "outline" as const;
-  return decision === "reject" ? ("destructive-solid" as const) : ("primary" as const);
 }

@@ -9,32 +9,13 @@ import type {
 } from "../../lib/loop-events";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 import type { LoopRequestView } from "../../lib/loop-request-model";
-import type { LoopRequestDecision } from "../../lib/loop-request-vocabulary";
 import type { LoopRunRecord } from "../../types";
 import { LoopSection } from "../loop-section";
-import { LoopRequestCard } from "./requests/loop-request-card";
-
-export interface LoopRequestAnswerInput {
-  generation: number;
-  nodeId: string;
-  itemIndex: number;
-  decision: LoopRequestDecision;
-  payload?: Record<string, unknown>;
-  note?: string;
-}
-
-export interface LoopRunRequestState {
-  engagedKey?: string;
-
-  isAnswerPending?: boolean;
-  fieldErrors?: Readonly<Record<string, string>>;
-  refusal?: string;
-  fullContext?: unknown;
-  fullContextError?: string;
-  isLoadingFullContext?: boolean;
-  onRequestFullContext?: (generation: number, nodeId: string, itemIndex: number) => void;
-  onAnswer?: (input: LoopRequestAnswerInput) => void;
-}
+import {
+  LoopRequestQuestionnaire,
+  type LoopRequestFocusTarget,
+  type LoopRunRequestState,
+} from "./requests/loop-request-questionnaire";
 
 interface LoopRunNeedsYouCardProps {
   run: LoopRunRecord;
@@ -49,14 +30,10 @@ interface LoopRunNeedsYouCardProps {
   quarantinedNodes?: readonly LoopNodeLifecycle[];
 
   requests?: readonly LoopRequestView[];
-  requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
+  requestFocus?: LoopRequestFocusTarget;
   requestState?: LoopRunRequestState;
   onOpenQuarantine?: (nodeId: string) => void;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
-}
-
-function requestKey(view: LoopRequestView): string {
-  return `${view.request.generation}:${view.request.node_id}:${view.request.item_index}`;
 }
 
 const GATE_DECISIONS = [
@@ -95,9 +72,13 @@ function nodeRowKey(node: LoopNodeLifecycle): string {
   return `${node.nodeId}${node.itemIndex === null ? "" : `-${node.itemIndex}`}-g${node.generation}`;
 }
 
+const NO_QUARANTINED_NODES: readonly LoopNodeLifecycle[] = [];
+const NO_REQUEST_VIEWS: readonly LoopRequestView[] = [];
+
 /**
  * The "Needs you" region: a neutral panelbox whose only colour is the warning
- * glyph. Approval decisions and quarantine entries share the same shell.
+ * glyph. Requests present as a one-at-a-time questionnaire; approval decisions
+ * and quarantine entries share the same shell.
  */
 export function LoopRunNeedsYouCard({
   run,
@@ -105,8 +86,8 @@ export function LoopRunNeedsYouCard({
   fallbackFacts,
   isPending,
   showApproval = true,
-  quarantinedNodes = [],
-  requests = [],
+  quarantinedNodes = NO_QUARANTINED_NODES,
+  requests = NO_REQUEST_VIEWS,
   requestFocus,
   requestState,
   onOpenQuarantine,
@@ -129,45 +110,13 @@ export function LoopRunNeedsYouCard({
       title="Needs you"
     >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
-        {requests.map((view, index) => {
-          const key = requestKey(view);
-
-          const isEngaged = requestState?.engagedKey === key;
-          return (
-            <div className={index > 0 ? "border-t border-line-soft" : undefined} key={key}>
-              <LoopRequestCard
-                fieldErrors={isEngaged ? requestState?.fieldErrors : undefined}
-                fullContext={isEngaged ? requestState?.fullContext : undefined}
-                fullContextError={isEngaged ? requestState?.fullContextError : undefined}
-                isLoadingFullContext={isEngaged ? requestState?.isLoadingFullContext : false}
-                isPending={isEngaged && requestState?.isAnswerPending === true}
-                focusOnMount={
-                  requestFocus?.nodeId === view.request.node_id &&
-                  requestFocus.itemIndex === view.request.item_index &&
-                  (requestFocus.generation === undefined ||
-                    requestFocus.generation === view.request.generation)
-                }
-                onRequestFullContext={() =>
-                  requestState?.onRequestFullContext?.(
-                    view.request.generation,
-                    view.request.node_id,
-                    view.request.item_index
-                  )
-                }
-                onSubmit={input =>
-                  requestState?.onAnswer?.({
-                    ...input,
-                    generation: view.request.generation,
-                    itemIndex: view.request.item_index,
-                    nodeId: view.request.node_id,
-                  })
-                }
-                refusal={isEngaged ? requestState?.refusal : undefined}
-                view={view}
-              />
-            </div>
-          );
-        })}
+        {requests.length > 0 ? (
+          <LoopRequestQuestionnaire
+            requestFocus={requestFocus}
+            requests={requests}
+            requestState={requestState}
+          />
+        ) : null}
         {showApproval ? (
           <div
             className={`flex items-start gap-3 px-4 py-3.5${

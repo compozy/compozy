@@ -118,15 +118,13 @@ describe("projectLoopDiff", () => {
     );
     expect(view.groups).toHaveLength(1);
     expect(view.groups[0].change).toBe("changed");
-    expect(view.groups[0].rows[0]).toMatchObject({ nodeId: "mystery", changeLabel: "Changed" });
+    expect(view.groups[0].rows[0]).toMatchObject({ nodeId: "mystery", change: "changed" });
   });
 
-  it("Should carry the compared identities, divergence flag, and terminal words verbatim", () => {
+  it("Should carry the divergence flag and terminal words verbatim", () => {
     const view = projectLoopDiff(runDiffFixture);
     expect(view.kind).toBe("run");
     expect(view.isRunCompare).toBe(true);
-    expect(view.baseLabel).toBe("looprun_release_train · generation 3");
-    expect(view.againstLabel).toBe("looprun_release_train_fork · generation 2");
     expect(view.hasDefinitionDivergence).toBe(true);
     expect(view.terminalBase).toBe("done");
     expect(view.terminalAgainst).toBe("running");

@@ -2,7 +2,8 @@ import { Activity, AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
 
-import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
+import { Empty, Spinner, useTopbarSlot } from "@compozy/ui";
+import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunDetail } from "./use-loop-run-detail";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
@@ -35,23 +36,17 @@ export function LoopRunDetailLocation({
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const workspaceId = routeWorkspaceId ?? runtimeWorkspaceId ?? "";
   const workspaceName = workspaces.find(workspace => workspace.id === workspaceId)?.name;
-  const backToRuns = () => {
+  const openLoops = () => {
+    void navigate({ to: "/loops" });
+  };
+  const openRuns = () => {
     void navigate({ to: "/loop-runs" });
   };
-  const topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack"> = {
-    onBack: backToRuns,
-    crumbs: [
-      {
-        id: "loops",
-        label: "Loops",
-        onSelect: () => {
-          void navigate({ to: "/loops" });
-        },
-      },
-      { id: "runs", label: "Runs", onSelect: backToRuns },
-    ],
-    crumb: runId,
-  };
+  useTopbarSlot(
+    workspaceId === ""
+      ? loopRunsTrail({ level: "run", onBack: openRuns, openLoops, openRuns, runId })
+      : null
+  );
 
   if (workspaceId === "") {
     return (
@@ -77,7 +72,8 @@ export function LoopRunDetailLocation({
       runId={runId}
       liveDataEnabled={liveDataEnabled}
       navigate={navigate}
-      topbarIdentity={topbarIdentity}
+      openLoops={openLoops}
+      openRuns={openRuns}
       workspaceName={
         workspaceName ?? (activeWorkspace?.id === workspaceId ? activeWorkspace.name : undefined)
       }
@@ -89,7 +85,8 @@ export function LoopRunDetailLocation({
 interface LoopRunDetailProps {
   workspaceId: string;
   runId: string;
-  topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">;
+  openLoops: () => void;
+  openRuns: () => void;
   workspaceName?: string;
   liveDataEnabled: boolean;
   navigate: ReturnType<typeof useNavigate>;
@@ -99,7 +96,8 @@ interface LoopRunDetailProps {
 function LoopRunDetail({
   workspaceId,
   runId,
-  topbarIdentity,
+  openLoops,
+  openRuns,
   workspaceName,
   liveDataEnabled,
   navigate,
@@ -118,25 +116,20 @@ function LoopRunDetail({
 
   const loopName = page.run?.loop_name;
   useTopbarSlot({
-    ...topbarIdentity,
-    crumbs: loopName
-      ? [
-          {
-            id: "loops",
-            label: "Loops",
-            onSelect: () => {
-              void navigate({ to: "/loops" });
-            },
-          },
-          {
-            id: "loop",
-            label: loopName,
-            onSelect: () => {
+    ...loopRunsTrail({
+      level: "run",
+      loopName,
+      onBack: openRuns,
+      openLoop:
+        loopName === undefined
+          ? undefined
+          : () => {
               void navigate({ to: "/loops/$name", params: { name: loopName } });
             },
-          },
-        ]
-      : topbarIdentity.crumbs,
+      openLoops,
+      openRuns,
+      runId,
+    }),
     status: page.run ? (
       <LoopStatusPill status={page.run.status} data-testid="loop-run-status-pill" />
     ) : undefined,

@@ -43,6 +43,18 @@ func loopCatalogEntryPayload(
 	if err != nil {
 		return contract.LoopCatalogEntryPayload{}, err
 	}
+	var inputs map[string]contract.LoopInput
+	if err := transcodeLoopAPI(document.Inputs, &inputs); err != nil {
+		return contract.LoopCatalogEntryPayload{}, fmt.Errorf("daemon: encode Loop catalog inputs: %w", err)
+	}
+	var start []contract.LoopStartBinding
+	if err := transcodeLoopAPI(document.Start, &start); err != nil {
+		return contract.LoopCatalogEntryPayload{}, fmt.Errorf("daemon: encode Loop catalog starts: %w", err)
+	}
+	var loopContract contract.LoopContract
+	if err := transcodeLoopAPI(document.Contract, &loopContract); err != nil {
+		return contract.LoopCatalogEntryPayload{}, fmt.Errorf("daemon: encode Loop catalog contract: %w", err)
+	}
 	var lastRun *contract.LoopCatalogLastRunPayload
 	if summary.LastRun != nil {
 		lastRun = &contract.LoopCatalogLastRunPayload{
@@ -59,9 +71,9 @@ func loopCatalogEntryPayload(
 		Description:   spec.Description,
 		Source:        contract.LoopSource(spec.Source.Normalize()),
 		Catalog:       loopCatalogResourcePayload(spec.Catalog),
-		Inputs:        document.Inputs,
-		Start:         document.Start,
-		Contract:      document.Contract,
+		Inputs:        inputs,
+		Start:         start,
+		Contract:      loopContract,
 		LastRun:       lastRun,
 		Aggregate30d:  aggregate,
 		SuccessRate30: loopSuccessRate(aggregate),

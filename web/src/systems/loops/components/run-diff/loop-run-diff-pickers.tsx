@@ -2,11 +2,16 @@ import { useId } from "react";
 
 import {
   Label,
-  NativeSelect,
-  NativeSelectOption,
   PillGroup,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   type PillGroupItem,
 } from "@compozy/ui";
+
+import { LoopStatusPill } from "../loop-status-pill";
 
 type LoopDiffMode = "generation" | "run";
 
@@ -18,6 +23,10 @@ export interface LoopRunDiffPickersProps {
 
   runs: readonly { id: string; label: string }[];
   againstRunId: string;
+  /** Resolved base-side status; rendered only once the diff view model exists. */
+  baseStatus?: string;
+  /** Resolved against-side status; rendered only once the diff view model exists. */
+  againstStatus?: string;
   onModeChange: (mode: LoopDiffMode) => void;
   onBaseGenerationChange: (generation: number) => void;
   onAgainstGenerationChange: (generation: number) => void;
@@ -29,6 +38,7 @@ interface GenerationSelectProps {
   id: string;
   label: string;
   onChange: (generation: number) => void;
+  status?: string;
   testId: string;
   value: number | null;
 }
@@ -40,6 +50,7 @@ function GenerationSelect({
   id,
   label,
   onChange,
+  status,
   testId,
   value,
 }: GenerationSelectProps) {
@@ -48,22 +59,27 @@ function GenerationSelect({
       <Label className="eyebrow text-subtle" htmlFor={id}>
         {label}
       </Label>
-      <NativeSelect
-        className={PICKER_CLASS}
-        data-testid={testId}
-        disabled={generations.length === 0}
-        id={id}
-        onChange={event => onChange(Number(event.target.value))}
-        size="sm"
-        value={value === null ? "" : String(value)}
-      >
-        {value === null ? <NativeSelectOption value="">—</NativeSelectOption> : null}
-        {generations.map(generation => (
-          <NativeSelectOption key={generation} value={generation}>
-            {`Generation ${generation}`}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Select
+          disabled={generations.length === 0}
+          onValueChange={next => {
+            if (typeof next === "string" && next !== "") onChange(Number(next));
+          }}
+          value={value === null ? "" : String(value)}
+        >
+          <SelectTrigger className={PICKER_CLASS} data-testid={testId} id={id} size="sm">
+            <SelectValue>{value === null ? "—" : `Generation ${value}`}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {generations.map(generation => (
+              <SelectItem key={generation} value={String(generation)}>
+                {`Generation ${generation}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {status ? <LoopStatusPill size="xs" status={status} /> : null}
+      </div>
     </div>
   );
 }
@@ -75,6 +91,8 @@ export function LoopRunDiffPickers({
   againstGeneration,
   runs,
   againstRunId,
+  baseStatus,
+  againstStatus,
   onModeChange,
   onBaseGenerationChange,
   onAgainstGenerationChange,
@@ -90,6 +108,8 @@ export function LoopRunDiffPickers({
       testId: "loop-diff-mode-run",
     },
   ];
+  const againstRunLabel =
+    againstRunId === "" ? "—" : (runs.find(run => run.id === againstRunId)?.label ?? againstRunId);
   return (
     <div className="flex flex-wrap items-end gap-x-4 gap-y-3" data-testid="loop-diff-pickers">
       <div className="flex flex-col gap-1.5">
@@ -106,6 +126,7 @@ export function LoopRunDiffPickers({
         id={`${fieldId}-base`}
         label="Base"
         onChange={onBaseGenerationChange}
+        status={baseStatus}
         testId="loop-diff-base-generation"
         value={baseGeneration}
       />
@@ -115,6 +136,7 @@ export function LoopRunDiffPickers({
           id={`${fieldId}-against`}
           label="Against"
           onChange={onAgainstGenerationChange}
+          status={againstStatus}
           testId="loop-diff-against-generation"
           value={againstGeneration}
         />
@@ -123,22 +145,32 @@ export function LoopRunDiffPickers({
           <Label className="eyebrow text-subtle" htmlFor={`${fieldId}-run`}>
             Against
           </Label>
-          <NativeSelect
-            className={PICKER_CLASS}
-            data-testid="loop-diff-against-run"
-            disabled={runs.length === 0}
-            id={`${fieldId}-run`}
-            onChange={event => onAgainstRunChange(event.target.value)}
-            size="sm"
-            value={againstRunId}
-          >
-            {againstRunId === "" ? <NativeSelectOption value="">—</NativeSelectOption> : null}
-            {runs.map(run => (
-              <NativeSelectOption key={run.id} value={run.id}>
-                {run.label}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Select
+              disabled={runs.length === 0}
+              onValueChange={next => {
+                if (typeof next === "string") onAgainstRunChange(next);
+              }}
+              value={againstRunId}
+            >
+              <SelectTrigger
+                className={PICKER_CLASS}
+                data-testid="loop-diff-against-run"
+                id={`${fieldId}-run`}
+                size="sm"
+              >
+                <SelectValue>{againstRunLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {runs.map(run => (
+                  <SelectItem key={run.id} value={run.id}>
+                    {run.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {againstStatus ? <LoopStatusPill size="xs" status={againstStatus} /> : null}
+          </div>
         </div>
       )}
     </div>

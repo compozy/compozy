@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
@@ -21,16 +20,10 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 
 const { LoopRunsView } = await import("../runs/loop-runs-view");
 const { loopRunFixtures } = await import("../../mocks/fixtures");
-type LoopOutcomeValue = import("../runs/loop-runs-outcome-filter").LoopOutcomeValue;
-
-function Harness() {
-  const [outcome, setOutcome] = useState<LoopOutcomeValue>("all");
-  return <LoopRunsView runs={loopRunFixtures} outcome={outcome} onOutcomeChange={setOutcome} />;
-}
 
 describe("LoopRunsView", () => {
   it("Should render the four workspace KPIs with a live active count", () => {
-    render(<Harness />);
+    render(<LoopRunsView outcome="all" runs={loopRunFixtures} />);
     const kpis = screen.getByTestId("loop-runs-kpis");
     expect(within(kpis).getByText("Active now")).toBeInTheDocument();
     expect(within(kpis).getByText("Awaiting you")).toBeInTheDocument();
@@ -40,16 +33,8 @@ describe("LoopRunsView", () => {
     expect(within(screen.getByTestId("kpi-active-now")).getByText("5")).toBeInTheDocument();
   });
 
-  it("Should render a data-driven outcome filter with per-status counts", () => {
-    render(<Harness />);
-    const filter = screen.getByTestId("loop-runs-outcome-filter");
-    expect(within(filter).getByTestId("loop-outcome-all")).toBeInTheDocument();
-    expect(within(filter).getByTestId("loop-outcome-running")).toBeInTheDocument();
-    expect(within(filter).getByTestId("loop-outcome-queued")).toBeInTheDocument();
-  });
-
   it("Should render Active and Past tables with budget mini-bars and run links", () => {
-    render(<Harness />);
+    render(<LoopRunsView outcome="all" runs={loopRunFixtures} />);
     expect(screen.getByTestId("loop-runs-active")).toBeInTheDocument();
     expect(screen.getByTestId("loop-runs-past")).toBeInTheDocument();
     expect(screen.getAllByTestId("loop-budget-bar").length).toBeGreaterThan(0);
@@ -66,6 +51,7 @@ describe("LoopRunsView", () => {
   it("Should label a session-origin Run with its exact origin session", () => {
     render(
       <LoopRunsView
+        outcome="all"
         runs={[
           {
             ...loopRunFixtures[0],
@@ -73,27 +59,32 @@ describe("LoopRunsView", () => {
             started_origin_ref: "session_42",
           },
         ]}
-        outcome="all"
-        onOutcomeChange={() => undefined}
       />
     );
     expect(screen.getByTestId("loop-run-row")).toHaveTextContent("session · session_42");
   });
 
   it("Should filter the tables to the selected outcome", () => {
-    render(<Harness />);
-    fireEvent.click(screen.getByTestId("loop-outcome-done"));
+    render(<LoopRunsView outcome="done" runs={loopRunFixtures} />);
     const rows = screen.getAllByTestId("loop-run-row");
     expect(rows.every(row => row.getAttribute("data-status") === "done")).toBe(true);
     // Done runs are terminal, so the Active table hides.
     expect(screen.queryByTestId("loop-runs-active")).not.toBeInTheDocument();
   });
 
+  it("Should show the truthful empty state when the outcome filter matches no run", () => {
+    // No fixture run is `watching`, so the filter empties both tables.
+    render(<LoopRunsView outcome="watching" runs={loopRunFixtures} />);
+    expect(screen.getByText("No matching runs")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-runs-active")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-runs-past")).not.toBeInTheDocument();
+  });
+
   it("Should show fully paged pending request counts only on their owning runs", () => {
     const target = loopRunFixtures[0];
     render(
       <LoopRunsView
-        onOutcomeChange={() => undefined}
         outcome="all"
         pendingRequestCounts={new Map([[target.id, 3]])}
         runs={loopRunFixtures}

@@ -25,6 +25,7 @@ function DiffStory({
   error?: string;
   isLoading?: boolean;
 }) {
+  const view = diff ? projectLoopDiff(diff) : null;
   return (
     <div className="flex h-dvh flex-col bg-canvas">
       <StoryTopbarHost title="Loops">
@@ -36,7 +37,9 @@ function DiffStory({
               <LoopRunDiffPickers
                 againstGeneration={mode === "generation" ? 2 : null}
                 againstRunId={mode === "run" ? RUNS[0].id : ""}
+                againstStatus={view?.terminalAgainst}
                 baseGeneration={3}
+                baseStatus={view?.terminalBase}
                 generations={GENERATIONS}
                 mode={mode}
                 onAgainstGenerationChange={() => {}}
@@ -46,7 +49,7 @@ function DiffStory({
                 runs={RUNS}
               />
             }
-            view={diff ? projectLoopDiff(diff) : null}
+            view={view}
           />
         </div>
       </StoryTopbarHost>

@@ -69,7 +69,56 @@ const loopFeedbackJudge = "loop-feedback-exhaust-judge";
 const loopFeedbackName = "feedback-best-on-exhaustion-web";
 const loopWatchEventsName = "watch-events-read-model-web";
 const loopWatchCursorSeedName = "watch-events-cursor-seed-web";
+const loopEnumAskName = "enum-ask-without-type-web";
 const loopEditorChromeStorageKey = "compozy:loops:editor-chrome:v1";
+
+const loopEnumAskDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: loopEnumAskName,
+    description: "Exercise an enum answer schema without a redundant type keyword.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Record one operator decision.",
+    definition_of_done: "The selected decision reaches the downstream transform.",
+    stop_when: "nodes.finish.status == 'succeeded'",
+    iteration_cap: 1,
+    no_progress: { window: 2 },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "choose",
+        class: "control",
+        kind: "ask",
+        params: {
+          prompt: "Approve this rollout?",
+          expect: {
+            type: "object",
+            required: ["decision"],
+            properties: { decision: { enum: ["approve", "discard"] } },
+          },
+          responders: { agents: "allow" },
+        },
+      },
+      {
+        id: "finish",
+        class: "action",
+        kind: "transform",
+        params: {
+          map: { decision: { template: "{{ .nodes.choose.output.decision }}" } },
+        },
+      },
+    ],
+    edges: [{ from: "choose", to: "finish" }],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }],
+};
 
 const loopWatchCursorSeedDefinition: LoopDefinition = {
   apiVersion: "compozy.loop/v1",
@@ -640,6 +689,65 @@ test("CompozyOS migration E2E-015: run page lifecycle controls and node inventor
     "Nothing is quarantined"
   );
   await browserArtifacts.captureScreenshot("loop-node-inventory-quarantined-empty", appPage);
+});
+
+test("an enum ask without type crosses the real browser and daemon seam", async ({
+  appPage,
+  runtime,
+}) => {
+  if (!runtime.paths) {
+    throw new Error("Loop enum ask browser test requires launch-mode runtime paths");
+  }
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await completeOnboardingIfPrompted(appPage);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopEnumAskDefinition }),
+  });
+
+  const started = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopEnumAskName)}/run`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  if (!started.run) throw new Error("Loop enum ask browser seed did not create a run");
+  const runId = started.run.id;
+  const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(runId)}`;
+  await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(runId)}`), {
+    waitUntil: "domcontentloaded",
+  });
+
+  const card = appPage.getByTestId("loop-request-card");
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId("loop-request-field-decision")).toBeVisible();
+  await card.getByRole("radio", { name: "approve" }).click();
+  const responsePromise = appPage.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/respond")
+  );
+  await card.getByTestId("loop-request-submit").click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(200);
+  expect(JSON.parse(response.request().postData() ?? "{}")).toMatchObject({
+    payload: { decision: "approve" },
+  });
+
+  await expect
+    .poll(
+      async () => {
+        const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+        const request = (detail.requests ?? []).find(candidate => candidate.node_id === "choose");
+        const downstream = (detail.generations ?? [])
+          .flatMap(generation => generation.outputs)
+          .find(output => output.node_id === "finish");
+        return {
+          requestState: request?.state,
+          runStatus: detail.run.status,
+          downstreamStatus: downstream?.status,
+        };
+      },
+      { timeout: 30_000 }
+    )
+    .toEqual({ requestState: "answered", runStatus: "done", downstreamStatus: "succeeded" });
 });
 
 test("CompozyOS migration E2E-016: author retry + on_error in the editor, publish, and run it", async ({

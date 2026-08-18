@@ -7,6 +7,7 @@ import {
   laneAskRequests,
   nearExpiryAskRequest,
   pendingAskRequest,
+  pendingEnumAskRequest,
   pendingReviewRequest,
   redactedContextRequest,
   releaseTrainDetail,
@@ -111,6 +112,13 @@ function resolvedRequestFrames(): LoopRunEventFrame[] {
 
 export function pendingRequestsScenario(): LoopRunStoryScenario {
   return fromRunDetail(releaseTrainRunDetail, releaseTrainFrames());
+}
+
+export function pendingEnumRequestScenario(): LoopRunStoryScenario {
+  return {
+    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames()),
+    requests: [pendingEnumAskRequest],
+  };
 }
 
 export function resolvedRequestsScenario(): LoopRunStoryScenario {

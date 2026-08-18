@@ -15,7 +15,7 @@ func customizeLoopGraphSchema(schema *openapi3.Schema) {
 	*schema = *openapi3.NewObjectSchema().
 		WithProperty("nodes", openapi3.NewArraySchema().WithItems(loopGraphNodeSchema())).
 		WithProperty("edges", openapi3.NewArraySchema().WithItems(loopGraphEdgeSchema())).
-		WithoutAdditionalProperties()
+		WithAdditionalProperties(openapi3.NewSchema())
 	schema.Required = []string{"edges", "nodes"}
 }
 
@@ -140,6 +140,7 @@ func loopGraphNodeSchema() *openapi3.Schema {
 		WithProperty("session", loopFreeformObjectSchema()).
 		WithProperty("timeout", openapi3.NewStringSchema()).
 		WithProperty("retry", loopRetrySchema()).
+		WithProperty("review", loopReviewSchema()).
 		WithProperty("harvest", loopFreeformObjectSchema()).
 		WithProperty("produces", loopFreeformObjectSchema()).
 		WithProperty("params", loopActionParamsSchema()).
@@ -148,6 +149,9 @@ func loopGraphNodeSchema() *openapi3.Schema {
 		WithProperty("batch_size", openapi3.NewIntegerSchema()).
 		WithProperty("max_parallel", openapi3.NewIntegerSchema()).
 		WithProperty("max_fan_out", openapi3.NewIntegerSchema()).
+		WithProperty("strategy", loopStrategySchema()).
+		WithProperty("bind_as", openapi3.NewStringSchema()).
+		WithProperty("index_as", openapi3.NewStringSchema()).
 		WithProperty("condition", openapi3.NewStringSchema()).
 		WithProperty("on_eval_error", openapi3.NewStringSchema().WithEnum(
 			string(dsl.EvalErrorFail),
@@ -169,6 +173,66 @@ func loopGraphNodeSchema() *openapi3.Schema {
 		WithAdditionalProperties(openapi3.NewSchema())
 	schema.Required = []string{"class", "id", loopKindField}
 	return schema
+}
+
+func loopReviewSchema() *openapi3.Schema {
+	responders := openapi3.NewObjectSchema().
+		WithProperty("agents", openapi3.NewStringSchema().WithEnum(
+			string(dsl.ResponderAgentsDeny),
+			string(dsl.ResponderAgentsAllow),
+		)).
+		WithoutAdditionalProperties()
+	onReject := openapi3.NewObjectSchema().
+		WithProperty("route", openapi3.NewStringSchema()).
+		WithAdditionalProperties(openapi3.NewSchema())
+	onReject.Required = []string{"route"}
+	return openapi3.NewObjectSchema().
+		WithProperty("decisions", openapi3.NewArraySchema().WithItems(
+			openapi3.NewStringSchema().WithEnum(
+				string(dsl.ReviewDecisionApprove),
+				string(dsl.ReviewDecisionEdit),
+				string(dsl.ReviewDecisionReject),
+				string(dsl.ReviewDecisionRespond),
+			),
+		)).
+		WithProperty("when", openapi3.NewStringSchema()).
+		WithProperty("prompt", openapi3.NewStringSchema()).
+		WithProperty("responders", responders).
+		WithProperty("on_reject", onReject).
+		WithProperty("expires", loopWaitExpirySchema()).
+		WithAdditionalProperties(openapi3.NewSchema())
+}
+
+func loopStrategySchema() *openapi3.Schema {
+	kinds := []any{
+		string(dsl.StrategyWaitAll),
+		string(dsl.StrategyFailFast),
+		string(dsl.StrategyBestEffort),
+		string(dsl.StrategyRace),
+	}
+	shorthandKinds := []any{
+		string(dsl.StrategyWaitAll),
+		string(dsl.StrategyFailFast),
+		string(dsl.StrategyRace),
+	}
+	count := openapi3.NewObjectSchema().
+		WithProperty("count", openapi3.NewIntegerSchema().WithMin(1)).
+		WithoutAdditionalProperties()
+	count.Required = []string{"count"}
+	threshold := &openapi3.Schema{OneOf: []*openapi3.SchemaRef{
+		{Value: openapi3.NewStringSchema().WithPattern(`^[0-9]+%$`)},
+		{Value: count},
+	}}
+	object := openapi3.NewObjectSchema().
+		WithProperty("kind", openapi3.NewStringSchema().WithEnum(kinds...)).
+		WithProperty("threshold", threshold).
+		WithProperty("missing", openapi3.NewStringSchema().WithEnum(string(dsl.MissingAcceptable))).
+		WithoutAdditionalProperties()
+	object.Required = []string{"kind"}
+	return &openapi3.Schema{OneOf: []*openapi3.SchemaRef{
+		{Value: openapi3.NewStringSchema().WithEnum(shorthandKinds...)},
+		{Value: object},
+	}}
 }
 
 func loopRouteSpecSchema() *openapi3.Schema {

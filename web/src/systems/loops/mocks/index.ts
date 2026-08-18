@@ -42,6 +42,7 @@ export {
   laneAskRequests,
   nearExpiryAskRequest,
   pendingAskRequest,
+  pendingEnumAskRequest,
   pendingReviewRequest,
   redactedContextRequest,
 } from "./fixture-graph-eng-requests";

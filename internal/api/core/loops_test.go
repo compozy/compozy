@@ -1841,8 +1841,13 @@ func happyLoopService(t testing.TB) *stubLoopService {
 				Inputs: map[string]contract.LoopInput{
 					"ticket": {Type: string(dsl.InputTypeString), Required: true},
 				},
-				Start:         []contract.LoopStartBinding{{Kind: string(dsl.StartHTTP)}},
-				Contract:      loopDefinitionDocument(t).Contract,
+				Start: []contract.LoopStartBinding{{Kind: string(dsl.StartHTTP)}},
+				Contract: contract.LoopContract{
+					Goal:             "Handle the ticket",
+					DefinitionOfDone: "Ticket is resolved",
+					IterationCap:     3,
+					TerminalStates:   []string{"done", "failed"},
+				},
 				Aggregate30d:  contract.LoopCatalogAggregatePayload{Runs: 2, Succeeded: 1, Failed: 1},
 				SuccessRate30: 0.5,
 			}}}, nil

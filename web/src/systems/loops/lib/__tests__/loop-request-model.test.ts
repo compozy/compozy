@@ -12,6 +12,7 @@ import {
   loopRequestDecisionCarriesPayload,
   loopRequestDecisionSchema,
   loopRequestExpiry,
+  loopRequestKey,
   pendingLoopRequestCount,
   projectLoopRequest,
 } from "../loop-request-model";
@@ -112,9 +113,11 @@ describe("projectLoopRequest", () => {
     ).toBe("lane 2");
   });
 
-  it("Should permit agent responders only on the nodes that opted in", () => {
-    expect(projectLoopRequest(pendingAskRequest, { nowMs: NOW }).agentsPermitted).toBe(true);
-    expect(projectLoopRequest(pendingReviewRequest, { nowMs: NOW }).agentsPermitted).toBe(false);
+  it("Should key a request by generation, node, and lane so refreshes keep identity", () => {
+    expect(loopRequestKey(pendingReviewRequest)).toBe("3:apply-migration:0");
+    expect(loopRequestKey({ ...pendingReviewRequest, generation: 2, item_index: 4 })).toBe(
+      "2:apply-migration:4"
+    );
   });
 });
 

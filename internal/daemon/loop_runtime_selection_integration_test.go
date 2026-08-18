@@ -603,7 +603,7 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 				return false
 			}
 			for _, control := range detail.NodeControls {
-				if control.NodeID == workerNodeID && control.Quarantined {
+				if control.NodeID == string(workerNodeID) && control.Quarantined {
 					return true
 				}
 			}

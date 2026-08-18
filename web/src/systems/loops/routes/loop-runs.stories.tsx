@@ -12,6 +12,8 @@ import {
   GRAPH_ENG_RUN_ID,
   graphEngPendingRequests,
   loopRunAggregatesFixture,
+  pendingEnumAskRequest,
+  releaseTrainRunDetail,
 } from "@/systems/loops/mocks";
 import { taskDashboardFixture } from "@/systems/tasks/mocks";
 import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
@@ -58,6 +60,21 @@ export const RunDetail: Story = {
 export const RunRequests: Story = {
   args: {},
   parameters: appRouteParameters(`/loop-runs/${GRAPH_ENG_RUN_ID}`),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+export const RunEnumRequest: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`/loop-runs/${GRAPH_ENG_RUN_ID}`),
+    ...storybookMswParameters({
+      loops: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", () =>
+          HttpResponse.json({ ...releaseTrainRunDetail, requests: [pendingEnumAskRequest] })
+        ),
+      ],
+    }),
+  },
   render: () => <StorybookWorkspaceSetup />,
 };
 

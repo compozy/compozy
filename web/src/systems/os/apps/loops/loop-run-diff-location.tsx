@@ -1,7 +1,8 @@
 import { AlertCircle, GitCompare } from "lucide-react";
 
-import { Empty, Spinner, useTopbarSlot } from "@compozy/ui";
+import { Empty, ListingPage, Spinner, useTopbarSlot } from "@compozy/ui";
 
+import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunDiffPage } from "./use-loop-run-diff-page";
 
 import {
@@ -47,15 +48,16 @@ interface LoopRunDiffPageProps {
 function LoopRunDiffPage({ runId, search, workspaceId }: LoopRunDiffPageProps) {
   const page = useLoopRunDiffPage(workspaceId, runId, search);
   useTopbarSlot({
-    crumb: "Compare",
-    crumbs: [
-      { id: "loops", label: "Loops", onSelect: page.goToLoops },
-      ...(page.loopName === ""
-        ? []
-        : [{ id: "loop", label: page.loopName, onSelect: page.goToLoop }]),
-      { id: "run", label: runId, onSelect: page.goToRun },
-    ],
-    onBack: page.goToRun,
+    ...loopRunsTrail({
+      level: "compare",
+      loopName: page.loopName === "" ? undefined : page.loopName,
+      onBack: page.goToRun,
+      openLoop: page.loopName === "" ? undefined : page.goToLoop,
+      openLoops: page.goToLoops,
+      openRun: page.goToRun,
+      openRuns: page.goToRuns,
+      runId,
+    }),
     status: page.run ? <LoopStatusPill status={page.run.status} /> : undefined,
   });
 
@@ -83,7 +85,7 @@ function LoopRunDiffPage({ runId, search, workspaceId }: LoopRunDiffPageProps) {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-5">
+    <ListingPage data-testid="loop-run-diff-page">
       <LoopRunDiffView
         error={page.diffError}
         isLoading={page.isDiffLoading}
@@ -91,7 +93,9 @@ function LoopRunDiffPage({ runId, search, workspaceId }: LoopRunDiffPageProps) {
           <LoopRunDiffPickers
             againstGeneration={page.againstGeneration}
             againstRunId={page.againstRunId}
+            againstStatus={page.diffView?.terminalAgainst}
             baseGeneration={page.baseGeneration}
+            baseStatus={page.diffView?.terminalBase}
             generations={page.generations}
             mode={page.mode}
             onAgainstGenerationChange={page.onAgainstGenerationChange}
@@ -114,7 +118,7 @@ function LoopRunDiffPage({ runId, search, workspaceId }: LoopRunDiffPageProps) {
           titleAs="h3"
         />
       )}
-    </div>
+    </ListingPage>
   );
 }
 

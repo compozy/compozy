@@ -4,16 +4,17 @@ import {
   FieldError,
   FieldLabel,
   Input,
-  NativeSelect,
-  NativeSelectOption,
-  Switch,
+  RadioCard,
+  RequiredMark,
   Textarea,
 } from "@compozy/ui";
 
-import type { LoopRequestField } from "../../../lib/loop-request-payload";
+import { type LoopRequestField, loopRequestFieldLabel } from "../../../lib/loop-request-payload";
 
 export interface LoopRequestAnswerFormProps {
   idPrefix: string;
+  /** Element id of the question prompt; labels a lone field so it is not named twice. */
+  promptId: string;
   fields: readonly LoopRequestField[];
   values: Readonly<Record<string, string>>;
   errors: Readonly<Record<string, string>>;
@@ -27,6 +28,7 @@ export interface LoopRequestAnswerFormProps {
 
 export function LoopRequestAnswerForm({
   idPrefix,
+  promptId,
   fields,
   values,
   errors,
@@ -48,6 +50,7 @@ export function LoopRequestAnswerForm({
     );
   }
   if (fields.length === 0) return null;
+  const lone = fields.length === 1;
   return (
     <div className="flex flex-col gap-3.5">
       {fields.map(field => (
@@ -57,6 +60,7 @@ export function LoopRequestAnswerForm({
           field={field}
           idPrefix={idPrefix}
           key={field.name}
+          labelledBy={lone ? promptId : undefined}
           onChange={onChange}
           value={values[field.name] ?? ""}
         />
@@ -71,29 +75,52 @@ interface AnswerFieldProps {
   value: string;
   error?: string;
   disabled?: boolean;
+  /** When set, the question prompt names this field and no label renders. */
+  labelledBy?: string;
   onChange: (name: string, value: string) => void;
 }
 
-function AnswerField({ field, idPrefix, value, error, disabled, onChange }: AnswerFieldProps) {
+function AnswerField({
+  field,
+  idPrefix,
+  value,
+  error,
+  disabled,
+  labelledBy,
+  onChange,
+}: AnswerFieldProps) {
   const controlId = `${idPrefix}-${field.name}`;
+  const labelId = `${controlId}-label`;
   const errorId = `${controlId}-error`;
   const describedBy = error ? errorId : undefined;
+  const isChoice = field.control.kind === "select" || field.control.kind === "boolean";
+  const asPlaceholder = labelledBy !== undefined && !isChoice;
   return (
     <Field data-invalid={error ? true : undefined}>
-      <FieldLabel htmlFor={controlId}>
-        {field.name}
-        <span className="font-mono text-mono-id text-faint">{typeHint(field)}</span>
-      </FieldLabel>
+      {labelledBy === undefined ? (
+        <FieldLabel htmlFor={isChoice ? undefined : controlId} id={labelId}>
+          {loopRequestFieldLabel(field)}
+          {field.required ? <RequiredMark className="ml-0" /> : null}
+          {field.control.kind === "json" ? (
+            <span className="font-mono text-mono-id text-faint">JSON</span>
+          ) : null}
+        </FieldLabel>
+      ) : null}
       <AnswerControl
         controlId={controlId}
         describedBy={describedBy}
         disabled={disabled}
         field={field}
         invalid={Boolean(error)}
+        labelledBy={labelledBy ?? (isChoice ? labelId : undefined)}
+        lone={labelledBy !== undefined}
         onChange={onChange}
+        placeholder={asPlaceholder && field.description !== "" ? field.description : undefined}
         value={value}
       />
-      {field.description ? <FieldDescription>{field.description}</FieldDescription> : null}
+      {field.description !== "" && !asPlaceholder ? (
+        <FieldDescription>{field.description}</FieldDescription>
+      ) : null}
       {error ? (
         <FieldError data-testid={`loop-request-field-error-${field.name}`} id={errorId}>
           {error}
@@ -108,59 +135,61 @@ interface AnswerControlProps {
   controlId: string;
   value: string;
   invalid: boolean;
+  lone: boolean;
   disabled?: boolean;
   describedBy?: string;
+  labelledBy?: string;
+  placeholder?: string;
   onChange: (name: string, value: string) => void;
 }
+
+interface ChoiceOption {
+  token: string;
+  label: string;
+}
+
+const BOOLEAN_OPTIONS: readonly ChoiceOption[] = [
+  { token: "true", label: "Yes" },
+  { token: "false", label: "No" },
+];
 
 function AnswerControl({
   field,
   controlId,
   value,
   invalid,
+  lone,
   disabled,
   describedBy,
+  labelledBy,
+  placeholder,
   onChange,
 }: AnswerControlProps) {
+  if (field.control.kind === "select" || field.control.kind === "boolean") {
+    return (
+      <ChoiceList
+        describedBy={describedBy}
+        disabled={disabled}
+        invalid={invalid}
+        labelledBy={labelledBy}
+        name={field.name}
+        onChange={onChange}
+        options={field.control.kind === "select" ? field.control.options : BOOLEAN_OPTIONS}
+        value={value}
+      />
+    );
+  }
   const shared = {
     "aria-describedby": describedBy,
     "aria-invalid": invalid || undefined,
+    "aria-labelledby": labelledBy,
     "data-testid": `loop-request-field-${field.name}`,
     disabled,
     id: controlId,
+    placeholder,
+    required: field.required,
   };
-  if (field.type === "boolean") {
-    const checked = value === "true";
-    return (
-      <span className="flex items-center gap-2.5">
-        <Switch
-          {...shared}
-          checked={checked}
-          onCheckedChange={next => onChange(field.name, next ? "true" : "false")}
-        />
-        <span className="text-form-hint text-muted">{checked ? "true" : "false"}</span>
-      </span>
-    );
-  }
-  if (field.options.length > 0) {
-    return (
-      <NativeSelect
-        {...shared}
-        className="w-full"
-        onChange={event => onChange(field.name, event.target.value)}
-        size="sm"
-        value={value}
-      >
-        <NativeSelectOption value="">Not set</NativeSelectOption>
-        {field.options.map(option => (
-          <NativeSelectOption key={option} value={option}>
-            {option}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-    );
-  }
-  if (field.type === "json") {
+  if (field.control.kind === "json") {
     return (
       <Textarea
         {...shared}
@@ -171,15 +200,77 @@ function AnswerControl({
       />
     );
   }
-  const isNumeric = field.type === "number" || field.type === "integer";
+  if (field.control.kind === "number" || field.control.kind === "integer") {
+    return (
+      <Input
+        {...shared}
+        inputMode="decimal"
+        onChange={event => onChange(field.name, event.target.value)}
+        type="number"
+        value={value}
+      />
+    );
+  }
+  if (lone) {
+    return (
+      <Textarea
+        {...shared}
+        onChange={event => onChange(field.name, event.target.value)}
+        rows={2}
+        value={value}
+      />
+    );
+  }
   return (
     <Input
       {...shared}
-      inputMode={isNumeric ? "decimal" : undefined}
       onChange={event => onChange(field.name, event.target.value)}
-      type={isNumeric ? "number" : "text"}
+      type="text"
       value={value}
     />
+  );
+}
+
+function ChoiceList({
+  name,
+  options,
+  value,
+  invalid,
+  disabled,
+  describedBy,
+  labelledBy,
+  onChange,
+}: {
+  name: string;
+  options: readonly ChoiceOption[];
+  value: string;
+  invalid: boolean;
+  disabled?: boolean;
+  describedBy?: string;
+  labelledBy?: string;
+  onChange: (name: string, value: string) => void;
+}) {
+  return (
+    <div
+      aria-describedby={describedBy}
+      aria-invalid={invalid || undefined}
+      aria-labelledby={labelledBy}
+      className="flex flex-col gap-1.5"
+      data-testid={`loop-request-field-${name}`}
+      role="radiogroup"
+    >
+      {options.map(option => (
+        <RadioCard
+          className={value === option.token ? undefined : "bg-canvas-tint"}
+          data-testid={`loop-request-option-${name}-${option.token}`}
+          disabled={disabled}
+          key={option.token}
+          onSelect={() => onChange(name, option.token)}
+          selected={value === option.token}
+          title={option.label}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -201,8 +292,8 @@ function RawPayloadField({
   return (
     <Field data-invalid={error ? true : undefined}>
       <FieldLabel htmlFor={controlId}>
-        Payload
-        <span className="font-mono text-mono-id text-faint">json</span>
+        Answer
+        <span className="font-mono text-mono-id text-faint">JSON</span>
       </FieldLabel>
       <Textarea
         aria-describedby={error ? errorId : undefined}
@@ -222,8 +313,4 @@ function RawPayloadField({
       ) : null}
     </Field>
   );
-}
-
-function typeHint(field: LoopRequestField): string {
-  return field.required ? `${field.type} · required` : field.type;
 }

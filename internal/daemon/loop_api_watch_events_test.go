@@ -33,9 +33,9 @@ func TestLoopWatchEventKindContractParity(t *testing.T) {
 
 func watchEventsDefinition(nodeID, kind string) *contract.LoopDefinitionDocument {
 	return &contract.LoopDefinitionDocument{
-		Graph: contract.LoopGraph{
-			Nodes: []contract.LoopGraphNode{
-				{ID: nodeID, Class: contract.LoopNodeClassSource, Kind: kind},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: dsl.NodeID(nodeID), Class: dsl.NodeClassSource, Kind: kind},
 			},
 		},
 	}

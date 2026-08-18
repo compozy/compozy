@@ -1,7 +1,5 @@
 import { ArrowRight, Gavel, Minus, Pencil, RotateCcw, type LucideIcon } from "lucide-react";
 
-import { Pill } from "@compozy/ui";
-
 import type { LoopDiffChange } from "../../lib/loop-request-vocabulary";
 import type { LoopDiffRowView, LoopDiffValueView } from "../../lib/loop-run-diff-model";
 
@@ -92,14 +90,6 @@ export function LoopRunDiffRow({ row }: LoopRunDiffRowProps) {
           <p className="mt-1 font-mono text-mono-id tabular-nums text-faint">{micro}</p>
         ) : null}
       </div>
-      <Pill
-        className="mt-0.5 shrink-0"
-        data-testid="loop-diff-row-change"
-        size="sm"
-        tone={row.tone}
-      >
-        {row.changeLabel}
-      </Pill>
     </li>
   );
 }

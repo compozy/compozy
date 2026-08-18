@@ -3,6 +3,7 @@
 // Owning layer: LoopRunDetailLocation, which binds shell workspace state to the run page.
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useTopbarSlot } from "@compozy/ui";
 
 const workspace = vi.hoisted(() => ({
   activeWorkspace: { id: "ws_project", name: "Project workspace" },
@@ -15,6 +16,9 @@ const workspace = vi.hoisted(() => ({
 }));
 const loopRunPageBodySpy = vi.hoisted(() => vi.fn((_props: Record<string, unknown>) => null));
 const loopRunPageSpy = vi.hoisted(() => vi.fn());
+const pageRun = vi.hoisted(() => ({
+  current: null as { loop_name: string; pause_requested?: boolean; status: string } | null,
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -52,7 +56,7 @@ vi.mock("../use-loop-run-page", () => ({
       progress: {},
       waitingNodes: [],
       resetRunControlErrors: vi.fn(),
-      run: null,
+      run: pageRun.current,
       runQuery: { error: null, isLoading: false },
     };
   },
@@ -118,6 +122,8 @@ describe("LoopRunDetailLocation", () => {
     workspace.runtimeWorkspaceId = "ws_home";
     loopRunPageBodySpy.mockClear();
     loopRunPageSpy.mockClear();
+    pageRun.current = null;
+    vi.mocked(useTopbarSlot).mockClear();
   });
 
   it("Should show the registered runtime workspace name when the selected project differs", () => {
@@ -153,6 +159,24 @@ describe("LoopRunDetailLocation", () => {
     });
     expect(loopRunPageBodySpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ requestFocus, workspaceLabel: "Target workspace" })
+    );
+  });
+
+  it("Should keep Runs in the drill-in trail after the loop name loads", () => {
+    pageRun.current = { loop_name: "implement-tasks", status: "running" };
+
+    render(<LoopRunDetailLocation runId="run-1" />);
+
+    const slot = vi.mocked(useTopbarSlot).mock.calls.at(-1)?.[0];
+    expect(slot).toEqual(
+      expect.objectContaining({
+        crumb: "run-1",
+        crumbs: [
+          expect.objectContaining({ id: "loops", label: "Loops" }),
+          expect.objectContaining({ id: "runs", label: "Runs" }),
+          expect.objectContaining({ id: "loop", label: "implement-tasks" }),
+        ],
+      })
     );
   });
 });

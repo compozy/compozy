@@ -24,6 +24,7 @@ import {
   isLoopRequestFieldSchema,
   type LoopRequestField,
   loopRequestFields,
+  loopRequestFieldKind,
   loopRequestFieldSeed,
 } from "../../lib/loop-request-payload";
 import { LoopControlAnswerAlert } from "./loop-control-answer-alert";
@@ -51,7 +52,6 @@ type OpenLoopNodeAmendDialogProps = Omit<LoopNodeAmendDialogProps, "node"> & {
 const DIALOG_WIDTH = { className: "sm:max-w-(--width-modal-md)" };
 const EDITOR_LABEL_ID = "loop-amend-editor-label";
 const ORIGINAL_LABEL_ID = "loop-amend-original-label";
-const BOOLEAN_CHOICES: string[] = ["true", "false"];
 const MICRO_FIELD_LIMIT = 3;
 
 export function LoopNodeAmendDialog({ node, ...props }: LoopNodeAmendDialogProps) {
@@ -197,7 +197,7 @@ function AmendField({ field, value, error, disabled, onChange }: AmendFieldProps
     <Field data-invalid={error !== undefined || undefined}>
       <FieldLabel htmlFor={id}>
         {field.name}
-        <span className="font-mono text-mono-id text-faint">{field.type}</span>
+        <span className="font-mono text-mono-id text-faint">{loopRequestFieldKind(field)}</span>
       </FieldLabel>
       <AmendFieldControl
         disabled={disabled}
@@ -233,9 +233,31 @@ function AmendFieldControl({
     "data-testid": id,
     disabled,
     id,
+    required: field.required,
     value,
   };
-  if (field.type === "json") {
+  if (field.control.kind === "select") {
+    return (
+      <NativeSelect {...shared} className="w-full" onChange={event => onChange(event.target.value)}>
+        <NativeSelectOption value="">Not set</NativeSelectOption>
+        {field.control.options.map(option => (
+          <NativeSelectOption key={option.token} value={option.token}>
+            {option.label}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+    );
+  }
+  if (field.control.kind === "boolean") {
+    return (
+      <NativeSelect {...shared} className="w-full" onChange={event => onChange(event.target.value)}>
+        <NativeSelectOption value="">Not set</NativeSelectOption>
+        <NativeSelectOption value="true">true</NativeSelectOption>
+        <NativeSelectOption value="false">false</NativeSelectOption>
+      </NativeSelect>
+    );
+  }
+  if (field.control.kind === "json") {
     return (
       <Textarea
         {...shared}
@@ -245,21 +267,14 @@ function AmendFieldControl({
       />
     );
   }
-  const choices = field.type === "boolean" ? BOOLEAN_CHOICES : field.options;
-  if (choices.length === 0) {
-    return <Input {...shared} onChange={event => onChange(event.target.value)} />;
-  }
+  const isNumeric = field.control.kind === "number" || field.control.kind === "integer";
   return (
-    <NativeSelect {...shared} className="w-full" onChange={event => onChange(event.target.value)}>
-      {field.required && choices.includes(value) ? null : (
-        <NativeSelectOption value="">Not set</NativeSelectOption>
-      )}
-      {choices.map(choice => (
-        <NativeSelectOption key={choice} value={choice}>
-          {choice}
-        </NativeSelectOption>
-      ))}
-    </NativeSelect>
+    <Input
+      {...shared}
+      inputMode={isNumeric ? "decimal" : undefined}
+      onChange={event => onChange(event.target.value)}
+      type={isNumeric ? "number" : "text"}
+    />
   );
 }
 

@@ -118,36 +118,38 @@ func loopRuntimeMixedDefinition() contract.LoopDefinitionDocument {
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: contract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        loopRuntimeSelectionName,
 			Description: "Exercise runtime selection layers through real ACP sessions.",
-			Catalog:     contract.LoopCatalogMeta{Category: "Testing"},
+			Catalog:     dsl.CatalogMeta{Category: "Testing"},
 		},
-		Contract: contract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Run three task-shaped fixtures with distinct runtime layers.",
 			DefinitionOfDone: "All task-shaped fixtures complete.",
 			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.collect.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress:       contract.LoopNoProgress{Window: 2},
-			Budget:           contract.LoopBudget{OnExceeded: contract.LoopBudgetExceededHalt},
-			RuntimeDefaults: &contract.LoopRuntimeDefaults{
-				Worker: contract.LoopRuntimeSpec{
+			NoProgress:       dsl.NoProgress{Window: 2},
+			Budget:           dsl.Budget{OnExceeded: dsl.BudgetExceededHalt},
+			RuntimeDefaults: &dsl.RuntimeDefaults{
+				Worker: dsl.RuntimeSpec{
 					Provider:  acpmock.ProviderName,
 					Model:     "base-model",
 					Reasoning: "low",
 				},
 			},
-			RuntimeRules: []contract.LoopRuntimeRule{{
-				Match:   contract.LoopRuntimeMatch{Type: "docs"},
-				Runtime: contract.LoopRuntimeSpec{Reasoning: "high"},
+			RuntimeRules: []dsl.RuntimeRule{{
+				Match:   dsl.RuntimeMatch{Type: "docs"},
+				Runtime: dsl.RuntimeSpec{Reasoning: "high"},
 			}},
-			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: contract.LoopGraph{
-			Nodes: []contract.LoopGraphNode{
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
 				{
 					ID:    "fixture_tasks",
-					Class: contract.LoopNodeClassAction,
+					Class: dsl.NodeClassAction,
 					Kind:  "transform",
 					Params: map[string]any{"map": map[string]any{"tasks": map[string]any{"value": []any{
 						map[string]any{
@@ -167,11 +169,11 @@ func loopRuntimeMixedDefinition() contract.LoopDefinitionDocument {
 					}}}},
 				},
 				{
-					ID: "fan_out_tasks", Class: contract.LoopNodeClassControl, Kind: "fan-out",
+					ID: "fan_out_tasks", Class: dsl.NodeClassControl, Kind: "fan-out",
 					Collection: "{{ .nodes.fixture_tasks.output.tasks }}", BatchSize: 1, MaxParallel: 1, MaxFanOut: 3,
 				},
 				{
-					ID: "execute_task", Class: contract.LoopNodeClassAction, Kind: "run-agent",
+					ID: "execute_task", Class: dsl.NodeClassAction, Kind: "run-agent",
 					Params: map[string]any{
 						"agent": loopRuntimeWorkerAgent, "prompt": "loop event probe",
 						"runtime": map[string]any{"model": "node-model"},
@@ -184,15 +186,17 @@ func loopRuntimeMixedDefinition() contract.LoopDefinitionDocument {
 						},
 					},
 				},
-				{ID: "collect", Class: contract.LoopNodeClassControl, Kind: "collect"},
+				{ID: "collect", Class: dsl.NodeClassControl, Kind: "collect"},
 			},
-			Edges: []contract.LoopGraphEdge{
+			Edges: []dsl.Edge{
 				{From: "fixture_tasks", To: "fan_out_tasks"},
 				{From: "fan_out_tasks", To: "execute_task"},
 				{From: "execute_task", To: "collect"},
 			},
 		},
-		Start: []contract.LoopStartBinding{{Kind: "manual"}, {Kind: "http"}, {Kind: "uds"}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: "manual"}, {Kind: "http"}, {Kind: "uds"}},
+		},
 	}
 }
 
@@ -200,7 +204,7 @@ func loopRuntimeSingleAgentDefinition(name string, provider string) contract.Loo
 	definition := loopEventsDefinition()
 	definition.Meta.Name = name
 	definition.Meta.Description = "Exercise one selected runtime through a real ACP session."
-	definition.Contract.RuntimeDefaults = &contract.LoopRuntimeDefaults{Worker: contract.LoopRuntimeSpec{
+	definition.Contract.RuntimeDefaults = &dsl.RuntimeDefaults{Worker: dsl.RuntimeSpec{
 		Provider:  provider,
 		Model:     "base-model",
 		Reasoning: "low",
@@ -212,19 +216,19 @@ func loopRuntimeSingleAgentDefinition(name string, provider string) contract.Loo
 func loopInputDefaultsDefinition() contract.LoopDefinitionDocument {
 	definition := loopRuntimeSingleAgentDefinition(loopInputDefaultsName, acpmock.ProviderName)
 	definition.Meta.Description = "Exercise configured Loop inputs through every public submission transport."
-	definition.Inputs = map[string]contract.LoopInput{
+	definition.Inputs = map[string]dsl.Input{
 		"task_name": {
-			Type:        string(dsl.InputTypeString),
+			Type:        dsl.InputTypeString,
 			Description: "Task selected for the integration probe.",
 			Required:    true,
 		},
 		"auto_commit": {
-			Type:        string(dsl.InputTypeBoolean),
+			Type:        dsl.InputTypeBoolean,
 			Description: "Whether the probe would commit automatically.",
 			Default:     false,
 		},
 		"reviewer": {
-			Type:        string(dsl.InputTypeString),
+			Type:        dsl.InputTypeString,
 			Description: "Reviewer identity.",
 			Default:     "definition-reviewer",
 		},
@@ -234,16 +238,16 @@ func loopInputDefaultsDefinition() contract.LoopDefinitionDocument {
 
 func loopRuntimeJudgeDefinition() contract.LoopDefinitionDocument {
 	definition := loopRuntimeSingleAgentDefinition("runtime-criterion-judge-integration", acpmock.ProviderName)
-	definition.Contract.RuntimeDefaults.Judge = contract.LoopRuntimeSpec{
+	definition.Contract.RuntimeDefaults.Judge = dsl.RuntimeSpec{
 		Provider:  acpmock.ProviderName,
 		Model:     "default-judge",
 		Reasoning: "low",
 	}
-	definition.Contract.Verification = []contract.LoopGateCriterion{{
+	definition.Contract.Verification = []dsl.GateCriterion{{
 		ID:      "quality",
 		Type:    "agent-judge",
 		Agent:   loopRuntimeJudgeAgent,
-		Runtime: contract.LoopRuntimeSpec{Model: "criterion-judge"},
+		Runtime: dsl.RuntimeSpec{Model: "criterion-judge"},
 		Rubric:  "Approve when the runtime selection fixture completed.",
 	}}
 	return definition

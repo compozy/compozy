@@ -2,7 +2,6 @@ package contract
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -325,46 +324,7 @@ type PutLoopAnnotationsRequest struct {
 	Annotations []LoopAnnotationPayload `json:"annotations"`
 }
 
-// LoopDefinitionDocument is the public compozy.loop/v1 authoring document.
-type LoopDefinitionDocument struct {
-	APIVersion           string                 `json:"apiVersion"`
-	Kind                 string                 `json:"kind"`
-	Meta                 LoopDefinitionMeta     `json:"meta"`
-	Concurrency          string                 `json:"concurrency,omitempty"`
-	Inputs               map[string]LoopInput   `json:"inputs,omitempty"`
-	Contract             LoopContract           `json:"contract"`
-	Graph                LoopGraph              `json:"graph"`
-	Start                []LoopStartBinding     `json:"start,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
-}
-
-// NewLoopDefinitionDocument converts any JSON-compatible loop document into the public DTO.
-func NewLoopDefinitionDocument(value any) (LoopDefinitionDocument, error) {
-	var out LoopDefinitionDocument
-	if err := transcodeLoopDTO(value, &out); err != nil {
-		return LoopDefinitionDocument{}, err
-	}
-	return out, nil
-}
-
-// Decode converts the public loop document into a caller-owned engine or SDK type.
-func (d LoopDefinitionDocument) Decode(target any) error {
-	return transcodeLoopDTO(d, target)
-}
-
-type LoopDefinitionMeta struct {
-	Name        string          `json:"name"`
-	Version     int             `json:"version,omitempty"`
-	Description string          `json:"description,omitempty"`
-	Catalog     LoopCatalogMeta `json:"catalog"`
-}
-
-type LoopCatalogMeta struct {
-	UseWhen  string   `json:"use_when,omitempty"`
-	Keywords []string `json:"keywords,omitempty"`
-	Category string   `json:"category,omitempty"`
-}
-
+// LoopInput is the bounded input projection returned by the Loop catalog.
 type LoopInput struct {
 	Type        string        `json:"type"`
 	Required    bool          `json:"required,omitempty"`
@@ -403,49 +363,6 @@ type LoopBudget struct {
 	OnExceeded   LoopBudgetExceeded `json:"on_exceeded,omitempty"`
 }
 
-type LoopGraph struct {
-	Nodes []LoopGraphNode `json:"nodes"`
-	Edges []LoopGraphEdge `json:"edges"`
-}
-
-type LoopGraphNode struct {
-	ID            string                       `json:"id"`
-	Class         LoopNodeClass                `json:"class"`
-	Kind          string                       `json:"kind"`
-	Session       map[string]any               `json:"session,omitempty"`
-	Timeout       string                       `json:"timeout,omitempty"`
-	Retry         *LoopRetrySpec               `json:"retry,omitempty"`
-	Harvest       map[string]any               `json:"harvest,omitempty"`
-	Produces      map[string]any               `json:"produces,omitempty"`
-	Params        map[string]any               `json:"params,omitempty"`
-	Collection    string                       `json:"collection,omitempty"`
-	Filter        string                       `json:"filter,omitempty"`
-	BatchSize     int                          `json:"batch_size,omitempty"`
-	MaxParallel   int                          `json:"max_parallel,omitempty"`
-	MaxFanOut     int                          `json:"max_fan_out,omitempty"`
-	Condition     string                       `json:"condition,omitempty"`
-	OnEvalError   dsl.EvalErrorPolicy          `json:"on_eval_error,omitempty"`
-	Routes        []LoopRouteSpec              `json:"routes,omitempty"`
-	Default       string                       `json:"default,omitempty"`
-	Criteria      []LoopGateCriterion          `json:"criteria,omitempty"`
-	VerdictPolicy string                       `json:"verdict_policy,omitempty"`
-	OnResult      map[string]any               `json:"on_result,omitempty"`
-	MaxRevisions  int                          `json:"max_revisions,omitempty"`
-	Body          *LoopGraph                   `json:"body,omitempty"`
-	Contract      *LoopContract                `json:"contract,omitempty"`
-	InputRef      string                       `json:"input_ref,omitempty"`
-	Pattern       string                       `json:"pattern,omitempty"`
-	Parse         string                       `json:"parse,omitempty"`
-	WatchSpec     map[string]any               `json:"watch,omitempty"`
-	Events        []LoopWatchEventSubscription `json:"events,omitempty"`
-	*LoopNodeLifecycleState
-}
-
-type LoopRouteSpec struct {
-	When string `json:"when"`
-	To   string `json:"to"`
-}
-
 type LoopGateCriterion struct {
 	ID       string `json:"id"`
 	Type     string `json:"type"`
@@ -468,27 +385,9 @@ type LoopMetricSpec struct {
 	MinDelta  *float64            `json:"min_delta,omitempty"`
 }
 
-type LoopGraphEdge struct {
-	From string `json:"from"`
-	To   string `json:"to"`
-}
-
+// LoopStartBinding is the bounded start projection returned by the Loop catalog.
 type LoopStartBinding struct {
 	Kind         string            `json:"kind"`
 	Inputs       map[string]any    `json:"inputs,omitempty"`
 	InputMapping map[string]string `json:"input_mapping,omitempty"`
-}
-
-func transcodeLoopDTO(value any, target any) error {
-	if target == nil {
-		return fmt.Errorf("contract: loop DTO target is required")
-	}
-	data, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("contract: encode loop DTO: %w", err)
-	}
-	if err := json.Unmarshal(data, target); err != nil {
-		return fmt.Errorf("contract: decode loop DTO: %w", err)
-	}
-	return nil
 }

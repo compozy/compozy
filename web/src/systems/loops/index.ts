@@ -284,9 +284,10 @@ export { MonoTag } from "./components/mono-tag";
 export { LoopDetailView } from "./components/detail/loop-detail";
 export { LoopStartBindingsPanel } from "./components/detail/loop-start-bindings-panel";
 export { LoopRunsView } from "./components/runs/loop-runs-view";
+export { LoopRunsFilters } from "./components/runs/loop-runs-filters";
 export { LoopNodeInventoryView } from "./components/runs/loop-node-inventory-view";
 export type { LoopNodeInventoryViewProps } from "./components/runs/loop-node-inventory-view";
-export type { LoopOutcomeValue } from "./components/runs/loop-runs-outcome-filter";
+export type { LoopOutcomeValue } from "./lib/loop-runs-view";
 export { LoopTargetFields } from "./components/target/loop-target-fields";
 
 // Run form
@@ -315,7 +316,10 @@ export {
   type LoopRunConfirmVerb,
 } from "./components/run-page/loop-run-control-dialog";
 export { LoopRunInspectSheet } from "./components/run-page/loop-run-inspect-sheet";
-export { type LoopRequestAnswerInput } from "./components/run-page/loop-run-needs-you-card";
+export {
+  type LoopRequestAnswerInput,
+  type LoopRequestFocusTarget,
+} from "./components/run-page/requests/loop-request-questionnaire";
 export {
   LoopNodeAmendDialog,
   type LoopNodeAmendDialogProps,

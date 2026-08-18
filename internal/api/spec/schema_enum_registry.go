@@ -8,6 +8,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -74,6 +75,8 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.LoopNodeClass]():                    loopNodeClassValues(),
 		reflect.TypeFor[contract.LoopReattemptStrategy]():            loopReattemptStrategyValues(),
 		reflect.TypeFor[contract.LoopBudgetExceeded]():               loopBudgetExceededValues(),
+		reflect.TypeFor[dsl.BudgetExceeded]():                        loopBudgetExceededValues(),
+		reflect.TypeFor[dsl.MetricDirection]():                       {string(dsl.MetricMaximize), string(dsl.MetricMinimize)},
 		reflect.TypeFor[contract.LoopEnvironmentMode]():              loopEnvironmentModeValues(),
 		reflect.TypeFor[contract.LoopGateDecision]():                 loopGateDecisionValues(),
 		reflect.TypeFor[contract.LoopLintSeverity]():                 loopLintSeverityValues(),

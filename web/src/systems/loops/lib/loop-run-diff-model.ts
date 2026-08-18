@@ -1,13 +1,11 @@
 import {
   isLoopDiffChange,
   LOOP_DIFF_CHANGE_LABEL,
-  LOOP_DIFF_CHANGE_TONE,
   LOOP_DIFF_CHANGES,
   type LoopDiffChange,
 } from "./loop-request-vocabulary";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import type { LoopDiff, LoopDiffInput, LoopDiffNode, LoopDiffValue } from "../types";
-import type { PillTone } from "@compozy/ui";
 
 export interface LoopDiffValueView {
   text: string;
@@ -22,8 +20,6 @@ export interface LoopDiffRowView {
   nodeId: string;
   itemIndex: number | null;
   change: LoopDiffChange;
-  changeLabel: string;
-  tone: PillTone;
 
   cause: string;
   base: LoopDiffValueView;
@@ -33,7 +29,6 @@ export interface LoopDiffRowView {
 export interface LoopDiffGroupView {
   change: LoopDiffChange;
   label: string;
-  tone: PillTone;
   rows: LoopDiffRowView[];
 }
 
@@ -55,8 +50,6 @@ export interface LoopDiffView {
   hasDefinitionDivergence: boolean;
 
   liveSide: "base" | "against" | null;
-  baseLabel: string;
-  againstLabel: string;
   terminalBase: string;
   terminalAgainst: string;
 }
@@ -103,8 +96,6 @@ function projectRow(node: LoopDiffNode, index: number): LoopDiffRowView {
     nodeId: node.node_id,
     itemIndex: node.item_index ?? null,
     change,
-    changeLabel: LOOP_DIFF_CHANGE_LABEL[change],
-    tone: LOOP_DIFF_CHANGE_TONE[change],
     cause: node.cause ?? "",
     base: projectValue(node.base),
     against: projectValue(node.against),
@@ -120,10 +111,6 @@ function projectInput(input: LoopDiffInput): LoopDiffInputRowView {
     against,
     changed: base.text !== against.text || base.summary !== against.summary,
   };
-}
-
-function sideLabel(side: LoopDiff["base"]): string {
-  return `${side.run_id} · generation ${side.generation}`;
 }
 
 export function projectLoopDiff(diff: LoopDiff): LoopDiffView {
@@ -142,7 +129,6 @@ export function projectLoopDiff(diff: LoopDiff): LoopDiffView {
     groups.push({
       change,
       label: LOOP_DIFF_CHANGE_LABEL[change],
-      tone: LOOP_DIFF_CHANGE_TONE[change],
       rows: grouped,
     });
   }
@@ -157,8 +143,6 @@ export function projectLoopDiff(diff: LoopDiff): LoopDiffView {
     isEmpty: rows.length === 0 && inputs.every(input => !input.changed),
     hasDefinitionDivergence: diff.definition_divergence === true,
     liveSide: baseLive ? "base" : againstLive ? "against" : null,
-    baseLabel: sideLabel(diff.base),
-    againstLabel: sideLabel(diff.against),
     terminalBase: diff.terminal?.base ?? diff.base.status,
     terminalAgainst: diff.terminal?.against ?? diff.against.status,
   };

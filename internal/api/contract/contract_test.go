@@ -1,6 +1,7 @@
 package contract_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 	"slices"
@@ -599,6 +600,104 @@ func TestLoopDefinitionDocumentPreservesNetworkParticipation(t *testing.T) {
 		}
 		if _, ok := publicShape["network_participation"]; !ok {
 			t.Fatalf("encoded document keys = %v, want network_participation", publicShape)
+		}
+	})
+}
+
+func TestLoopDefinitionDocumentPreservesGraphAuthoring(t *testing.T) {
+	t.Run("Should preserve every authored graph value across the public document boundary", func(t *testing.T) {
+		t.Parallel()
+
+		const source = `apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: graph-authoring-contract
+  catalog: {}
+  x-meta: retained
+contract:
+  goal: Ship safely
+  definition_of_done: The release is healthy
+  iteration_cap: 3
+  no_progress:
+    window: 2
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+graph:
+  x-graph: retained
+  nodes:
+    - id: fan_percent
+      class: control
+      kind: fan-out
+      collection: "{{ .inputs.items }}"
+      bind_as: item
+      index_as: item_index
+      x-node: retained
+      strategy:
+        kind: best_effort
+        threshold: "66%"
+        missing: acceptable
+    - id: fan_count
+      class: control
+      kind: fan-out
+      collection: "{{ .inputs.items }}"
+      strategy:
+        kind: best_effort
+        threshold:
+          count: 2
+    - id: fan_shorthand
+      class: control
+      kind: fan-out
+      collection: "{{ .inputs.items }}"
+      strategy: fail_fast
+    - id: publish
+      class: action
+      kind: transform
+      review:
+        prompt: Review before publishing.
+        x-review: retained
+        decisions: [approve, edit, reject, respond]
+        responders:
+          agents: deny
+        on_reject:
+          route: rejected
+  edges:
+    - from: fan_percent
+      to: publish
+      x-edge: retained
+x-root: retained
+`
+
+		definition, err := dsl.Parse([]byte(source))
+		if err != nil {
+			t.Fatalf("dsl.Parse() error = %v", err)
+		}
+		document, err := contract.NewLoopDefinitionDocument(definition)
+		if err != nil {
+			t.Fatalf("NewLoopDefinitionDocument() error = %v", err)
+		}
+		wire, err := json.Marshal(document)
+		if err != nil {
+			t.Fatalf("json.Marshal(document) error = %v", err)
+		}
+		var received contract.LoopDefinitionDocument
+		if err := json.Unmarshal(wire, &received); err != nil {
+			t.Fatalf("json.Unmarshal(document) error = %v", err)
+		}
+		var decoded dsl.Definition
+		if err := received.Decode(&decoded); err != nil {
+			t.Fatalf("LoopDefinitionDocument.Decode() error = %v", err)
+		}
+		want, err := dsl.Serialize(definition)
+		if err != nil {
+			t.Fatalf("dsl.Serialize(original) error = %v", err)
+		}
+		got, err := dsl.Serialize(decoded)
+		if err != nil {
+			t.Fatalf("dsl.Serialize(decoded) error = %v", err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Fatalf("decoded definition:\n%s\nwant:\n%s", got, want)
 		}
 	})
 }

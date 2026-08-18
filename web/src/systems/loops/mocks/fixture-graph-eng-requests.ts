@@ -60,6 +60,23 @@ export const pendingAskRequest = request({
   expires_at: "2026-08-18T09:00:00Z",
 });
 
+export const pendingEnumAskRequest = request({
+  node_id: "choose-rollout",
+  kind: "ask",
+  prompt: "Approve this rollout?",
+  context: { train: "release-train" },
+  expect: {
+    type: "object",
+    required: ["decision"],
+    properties: {
+      decision: { enum: ["approve", "discard"] },
+    },
+  },
+  decisions: ["respond"],
+  agents: "allow",
+  expires_at: "2026-08-18T09:00:00Z",
+});
+
 export const pendingReviewRequest = request({
   node_id: "apply-migration",
   kind: "review",
@@ -156,7 +173,7 @@ export const graphEngResolvedRequests: LoopRequest[] = [
 ];
 
 export const graphEngRequestsByNode = new Map<string, LoopRequest>(
-  [...graphEngPendingRequests, ...graphEngResolvedRequests].map(entry => [
+  [...graphEngPendingRequests, pendingEnumAskRequest, ...graphEngResolvedRequests].map(entry => [
     `${entry.loop_run_id}:${entry.generation}:${entry.node_id}:${entry.item_index}`,
     entry,
   ])

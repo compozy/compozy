@@ -408,32 +408,34 @@ func loopEventsDefinition() compozycontract.LoopDefinitionDocument {
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: compozycontract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        "loop-events-probe",
 			Description: "Runtime E2E probe for rich Loop run SSE events.",
-			Catalog: compozycontract.LoopCatalogMeta{
+			Catalog: dsl.CatalogMeta{
 				UseWhen:  "Testing Loop run event streaming.",
 				Keywords: []string{"test", "events"},
 				Category: "Testing",
 			},
 		},
-		Contract: compozycontract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Emit rich Loop run events.",
 			DefinitionOfDone: "The probe action completes.",
 			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.probe.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress:       compozycontract.LoopNoProgress{Window: 2},
-			Budget: compozycontract.LoopBudget{
+			NoProgress:       dsl.NoProgress{Window: 2},
+			Budget: dsl.Budget{
 				Tokens:       0,
 				WallClockSec: 0,
-				OnExceeded:   compozycontract.LoopBudgetExceededHalt,
+				OnExceeded:   dsl.BudgetExceededHalt,
 			},
-			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: compozycontract.LoopGraph{
-			Nodes: []compozycontract.LoopGraphNode{{
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{{
 				ID:    "probe",
-				Class: compozycontract.LoopNodeClassAction,
+				Class: dsl.NodeClassAction,
 				Kind:  "run-agent",
 				Params: map[string]any{
 					"agent":  "loop-events-agent",
@@ -449,10 +451,12 @@ func loopEventsDefinition() compozycontract.LoopDefinitionDocument {
 				},
 			}},
 		},
-		Start: []compozycontract.LoopStartBinding{
-			{Kind: "manual"},
-			{Kind: "http"},
-			{Kind: "uds"},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{
+				{Kind: "manual"},
+				{Kind: "http"},
+				{Kind: "uds"},
+			},
 		},
 	}
 }
@@ -462,30 +466,34 @@ func awaitedChildHoldDefinition() compozycontract.LoopDefinitionDocument {
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: compozycontract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        "await-child-hold",
 			Description: "Generic child Loop held by a durable wait.",
 		},
-		Contract: compozycontract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Hold a child run in a live state.",
 			DefinitionOfDone: "The durable wait is released.",
 			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.hold.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress:       compozycontract.LoopNoProgress{Window: 2},
-			Budget: compozycontract.LoopBudget{
-				OnExceeded: compozycontract.LoopBudgetExceededHalt,
+			NoProgress:       dsl.NoProgress{Window: 2},
+			Budget: dsl.Budget{
+				OnExceeded: dsl.BudgetExceededHalt,
 			},
-			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: compozycontract.LoopGraph{
-			Nodes: []compozycontract.LoopGraphNode{{
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{{
 				ID:     "hold",
-				Class:  compozycontract.LoopNodeClassControl,
+				Class:  dsl.NodeClassControl,
 				Kind:   "wait",
 				Params: map[string]any{"for": "10m"},
 			}},
 		},
-		Start: []compozycontract.LoopStartBinding{{Kind: "manual"}, {Kind: "http"}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: "manual"}, {Kind: "http"}},
+		},
 	}
 }
 
@@ -494,26 +502,28 @@ func awaitedParentProbeDefinition() compozycontract.LoopDefinitionDocument {
 		APIVersion:  "compozy.loop/v1",
 		Kind:        "Loop",
 		Concurrency: "allow",
-		Meta: compozycontract.LoopDefinitionMeta{
+		Meta: dsl.Meta{
 			Name:        "await-parent-probe",
 			Description: "Generic parent with two sequential awaited child Loops.",
 		},
-		Contract: compozycontract.LoopContract{
+		Contract: dsl.Contract{
 			Goal:             "Run two child Loops in strict sequence.",
 			DefinitionOfDone: "Both awaited child Loops finish in authored order.",
 			StopWhen:         dsl.StopWhenSpec{Expr: "nodes.second_child.status == 'succeeded'"},
 			IterationCap:     1,
-			NoProgress:       compozycontract.LoopNoProgress{Window: 2},
-			Budget: compozycontract.LoopBudget{
-				OnExceeded: compozycontract.LoopBudgetExceededHalt,
+			NoProgress:       dsl.NoProgress{Window: 2},
+			Budget: dsl.Budget{
+				OnExceeded: dsl.BudgetExceededHalt,
 			},
-			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+			ContractLifecycleState: &dsl.ContractLifecycleState{TerminalStates: []dsl.TerminalState{
+				dsl.TerminalDone, dsl.TerminalFailed, dsl.TerminalBlocked, dsl.TerminalExhausted, dsl.TerminalStalled,
+			}},
 		},
-		Graph: compozycontract.LoopGraph{
-			Nodes: []compozycontract.LoopGraphNode{
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
 				{
 					ID:    "first_child",
-					Class: compozycontract.LoopNodeClassAction,
+					Class: dsl.NodeClassAction,
 					Kind:  "run-loop",
 					Params: map[string]any{
 						"loop": "await-child-hold",
@@ -522,7 +532,7 @@ func awaitedParentProbeDefinition() compozycontract.LoopDefinitionDocument {
 				},
 				{
 					ID:    "second_child",
-					Class: compozycontract.LoopNodeClassAction,
+					Class: dsl.NodeClassAction,
 					Kind:  "run-loop",
 					Params: map[string]any{
 						"loop": "await-child-hold",
@@ -530,9 +540,11 @@ func awaitedParentProbeDefinition() compozycontract.LoopDefinitionDocument {
 					},
 				},
 			},
-			Edges: []compozycontract.LoopGraphEdge{{From: "first_child", To: "second_child"}},
+			Edges: []dsl.Edge{{From: "first_child", To: "second_child"}},
 		},
-		Start: []compozycontract.LoopStartBinding{{Kind: "manual"}, {Kind: "http"}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: "manual"}, {Kind: "http"}},
+		},
 	}
 }
 

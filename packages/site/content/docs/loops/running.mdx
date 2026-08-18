@@ -75,14 +75,21 @@ An `ask` node parks the run until someone answers; a `review` block parks an act
 someone decides on the arguments it is about to run with. Both surface in the run page's **Needs
 you** region, and both are answerable from the CLI and the API too.
 
-The card renders only what the daemon persisted: the prompt, a bounded redacted context preview
-with a fetch for the full redacted context, the expected answer shape, the deadline, and the node's
-own decision allowlist. A decision the node did not authorize is **absent** — never a disabled
-button. An ask renders a form generated from its `expect` schema; a review shows the proposed
-arguments and, on `edit`, an editor pre-filled with them. Submitting disables the form and waits for
-the daemon: an answer that fails the shape comes back with the failure on the field that caused it
-and the request stays open, and a request that someone else already answered — or whose run has
-since ended — shows the recorded outcome instead of a form.
+Pending requests present one question at a time. The question is the daemon's persisted prompt,
+with its lane and deadline beside it; when several requests wait, a "Question 1 of N" header with
+previous and next controls steps through them instead of stacking forms. The rest of what the
+daemon persisted — the bounded redacted context preview, a fetch for the full redacted context,
+and the node and generation that asked — sits behind a closed **Details** disclosure under the
+answer.
+
+The answer form renders only what the daemon authorized. An ask generates its fields from the
+`expect` schema — enum values become selectable choices, booleans answer Yes or No — and a review
+shows the proposed arguments with the node's own decision allowlist; a decision the node did not
+authorize is **absent**, never a disabled button. On `edit`, the fields come pre-filled with the
+proposed arguments. Submitting disables the form and waits for the daemon: an answer that fails
+the shape comes back with the failure on the field that caused it and the request stays open, and
+a request that someone else already answered — or whose run has since ended — shows the recorded
+outcome instead of a form.
 
 Fan-out lanes each carry their own request, named by lane and answerable independently. The waits
 rail counts pending requests alongside timers and events.
@@ -158,11 +165,13 @@ generation, node, and item identity needed by the node verbs. See
 
 ## Runs across the workspace
 
-The **Runs** view is a first-class, workspace-wide list of every execution across every Loop. A KPI
-strip surfaces "Active now," "Awaiting you" (the `needs-approval` queue), "Done today," and "Needs a
-look." An outcome filter spans the full status spectrum, rendering a segment for each status present
-in the window, plus Loop and date filters. Active and Past runs list in tables with an outcome pill,
-the Loop and run id, the goal, the generation count, timing, and a budget mini-bar.
+The **Runs** view is a first-class, workspace-wide list of every execution across every Loop. The
+window trail is Loops › Runs, so the catalog stays one click away. A KPI strip surfaces "Active now,"
+"Awaiting you" (the `needs-approval` queue), "Done today," and "Needs a look." Toolbar filter chips narrow the list by outcome — the full status vocabulary stays
+selectable, so filtering for an absent status reaches an honest empty state — by origin (catalog or
+session), or by an exact origin session id, and a Runs/Nodes switch flips the same view to the node
+inventory. Active and Past runs list in tables with an outcome pill, the Loop and run id, the goal,
+the generation count, timing, and a budget mini-bar.
 
 ## Status detail versus run summaries
 

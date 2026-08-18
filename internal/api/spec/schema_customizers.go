@@ -17,8 +17,11 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = schemaFormatBinary
 	},
-	reflect.TypeFor[contract.LoopGraph](): customizeLoopGraphSchema,
-	reflect.TypeFor[dsl.StopWhenSpec]():   customizeStopWhenSpecSchema,
+	reflect.TypeFor[dsl.Graph]():        customizeLoopGraphSchema,
+	reflect.TypeFor[dsl.StopWhenSpec](): customizeStopWhenSpecSchema,
+	reflect.TypeFor[dsl.EffectSpec](): func(schema *openapi3.Schema) {
+		*schema = *loopEffectSchema()
+	},
 	reflect.TypeFor[dsl.EvalErrorPolicy](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewStringSchema().WithEnum(
 			string(dsl.EvalErrorFail),

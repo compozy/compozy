@@ -32,9 +32,7 @@ function Stack({
   return (
     <div className="flex w-90 flex-col gap-2.5">
       {deliveries.map(delivery => (
-        <div key={delivery.key} className="rounded-lg border border-line bg-canvas-soft p-3">
-          <AttentionToast delivery={delivery} onActivate={fn()} />
-        </div>
+        <AttentionToast delivery={delivery} key={delivery.key} onActivate={fn()} />
       ))}
       {overflowCount > 0 ? (
         <AttentionToastOverflowLedge count={overflowCount} onActivate={fn()} />
