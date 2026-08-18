@@ -56,31 +56,29 @@ function mergeProps<T extends HTMLElement>(
   return merged;
 }
 
-const motionComponentCache = new Map<React.ElementType, React.ElementType>();
-
-function getOrCreateMotionComponent(type: React.ElementType): React.ElementType {
-  const key = type;
-  if (!motionComponentCache.has(key)) {
-    motionComponentCache.set(key, m.create(type));
-  }
-  return motionComponentCache.get(key)!;
-}
-
-function Slot<T extends HTMLElement = HTMLElement>({ children, ref, ...props }: SlotProps<T>) {
+function SlotClone<T extends HTMLElement = HTMLElement>({ children, ref, ...props }: SlotProps<T>) {
   if (!React.isValidElement(children)) return null;
-
-  const isAlreadyMotion =
-    typeof children.type === "object" && children.type !== null && isMotionComponent(children.type);
-
-  const Base = isAlreadyMotion
-    ? (children.type as React.ElementType)
-    : getOrCreateMotionComponent(children.type as React.ElementType);
-
-  const { ref: childRef, ...childProps } = children.props as AnyProps;
-
+  const child = children as React.ReactElement<AnyProps>;
+  const { ref: childRef, ...childProps } = child.props;
   const mergedProps = mergeProps(childProps, props);
 
-  return <Base {...mergedProps} ref={mergeRefs(childRef as React.Ref<T>, ref)} />;
+  return React.cloneElement(child, {
+    ...mergedProps,
+    ref: mergeRefs(childRef as React.Ref<T>, ref),
+  });
+}
+
+const MotionSlot = m.create(SlotClone);
+
+function Slot<T extends HTMLElement = HTMLElement>({ children, ...props }: SlotProps<T>) {
+  const isAlreadyMotion =
+    React.isValidElement(children) &&
+    typeof children.type === "object" &&
+    children.type !== null &&
+    isMotionComponent(children.type);
+
+  if (isAlreadyMotion) return <SlotClone {...props}>{children}</SlotClone>;
+  return <MotionSlot {...props}>{children}</MotionSlot>;
 }
 
 export { Slot, type AnyProps, type DOMMotionProps, type SlotProps, type WithAsChild };

@@ -1,6 +1,6 @@
 {
     "$schema": "./node_modules/oxlint/configuration_schema.json",
-    "plugins": ["unicorn", "typescript", "oxc"],
+    "plugins": ["unicorn", "typescript", "oxc", "react"],
     "jsPlugins": [
         "./lint-plugins/react-component-complexity.mjs",
         "./lint-plugins/react-hooks-separation.mjs",
@@ -144,6 +144,20 @@
                 "packages/site/**/*.{ts,tsx}"
             ],
             "rules": {
+                "react/error-boundaries": "error",
+                "react/globals": "error",
+                "react/immutability": "error",
+                "react/incompatible-library": "error",
+                "react/no-deriving-state-in-effects": "error",
+                "react/preserve-manual-memoization": "error",
+                "react/purity": "error",
+                "react/refs": "error",
+                "react/set-state-in-effect": "error",
+                "react/set-state-in-render": "error",
+                "react/static-components": "error",
+                "react/unsupported-syntax": "error",
+                "react/use-memo": "error",
+                "react/void-use-memo": "error",
                 "react-doctor/effect-needs-cleanup": "error",
                 "react-doctor/hooks-no-nan-in-deps": "error",
                 "react-doctor/checked-requires-onchange-or-readonly": "error",
@@ -176,6 +190,12 @@
                 "react-doctor/no-many-boolean-props": "error",
                 "react-doctor/no-react19-deprecated-apis": "error",
                 "react-doctor/no-giant-component": "error"
+            }
+        },
+        {
+            "files": ["web/src/components/assistant-ui/hooks/use-thread-scroll-controller.ts"],
+            "rules": {
+                "react/incompatible-library": "off"
             }
         },
         {

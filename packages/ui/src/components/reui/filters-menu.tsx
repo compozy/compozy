@@ -41,7 +41,19 @@ function FilterSubmenuContent<T = unknown>({
   onBack,
   onClose,
 }: FilterSubmenuContentProps<T>) {
-  const state = useFilterSubmenuContent({
+  const {
+    activeHighlightedIndex,
+    baseId,
+    filteredOptions,
+    focusSearchInput,
+    focusSubmenuListbox,
+    focusSubmenuSearchInput,
+    handleListboxKeyDown,
+    handleSearchInputChange,
+    handleSearchInputKeyDown,
+    highlightSubmenuOption,
+    searchInput,
+  } = useFilterSubmenuContent({
     field,
     currentValues,
     isMultiSelect,
@@ -57,16 +69,14 @@ function FilterSubmenuContent<T = unknown>({
       {field.searchable !== false ? (
         <>
           <Input
-            ref={state.focusSubmenuSearchInput}
+            ref={focusSubmenuSearchInput}
             role="combobox"
             aria-autocomplete="list"
             aria-expanded={true}
             aria-haspopup="listbox"
-            aria-controls={`${state.baseId}-listbox`}
+            aria-controls={`${baseId}-listbox`}
             aria-activedescendant={
-              state.activeHighlightedIndex >= 0
-                ? `${state.baseId}-item-${state.activeHighlightedIndex}`
-                : undefined
+              activeHighlightedIndex >= 0 ? `${baseId}-item-${activeHighlightedIndex}` : undefined
             }
             placeholder={i18n.placeholders.searchField(field.label || "")}
             className={cn(
@@ -74,16 +84,18 @@ function FilterSubmenuContent<T = unknown>({
               "focus-visible:border-line-strong focus-visible:shadow-focus-inset",
               isActive && "placeholder:text-foreground"
             )}
-            value={state.searchInput}
-            onBlur={() => isActive && state.inputRef.current?.focus()}
-            onChange={state.handleSearchInputChange}
+            value={searchInput}
+            onBlur={() => {
+              if (isActive) focusSearchInput();
+            }}
+            onChange={handleSearchInputChange}
             onFocus={() => onActive?.()}
             onMouseEnter={event => {
               onActive?.();
               event.stopPropagation();
             }}
             onClick={event => event.stopPropagation()}
-            onKeyDown={state.handleSearchInputKeyDown}
+            onKeyDown={handleSearchInputKeyDown}
           />
           <DropdownMenuSeparator />
         </>
@@ -92,29 +104,29 @@ function FilterSubmenuContent<T = unknown>({
         <div
           className="flex max-h-[min(var(--available-height),24rem)] w-full scroll-pt-2 scroll-pb-2 flex-col overscroll-contain outline-hidden"
           role="listbox"
-          id={`${state.baseId}-listbox`}
-          ref={state.focusSubmenuListbox}
+          id={`${baseId}-listbox`}
+          ref={focusSubmenuListbox}
           tabIndex={field.searchable === false ? 0 : -1}
-          onKeyDown={state.handleListboxKeyDown}
+          onKeyDown={handleListboxKeyDown}
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
-            {state.filteredOptions.length === 0 ? (
+            {filteredOptions.length === 0 ? (
               <div className="py-2 text-center text-small-body text-muted-foreground">
                 {i18n.noResultsFound}
               </div>
             ) : (
               <DropdownMenuGroup>
-                {state.filteredOptions.map((option, index) => {
+                {filteredOptions.map((option, index) => {
                   const isSelected = selectedValues.has(option.value);
-                  const isHighlighted = state.activeHighlightedIndex === index;
+                  const isHighlighted = activeHighlightedIndex === index;
                   return (
                     <DropdownMenuCheckboxItem
                       key={String(option.value)}
-                      id={`${state.baseId}-item-${index}`}
+                      id={`${baseId}-item-${index}`}
                       role="option"
                       aria-selected={isHighlighted}
                       data-highlighted={isHighlighted || undefined}
-                      onMouseEnter={() => state.highlightSubmenuOption(index)}
+                      onMouseEnter={() => highlightSubmenuOption(index)}
                       checked={isSelected}
                       className={cn(
                         "data-highlighted:bg-accent data-highlighted:text-accent-foreground",

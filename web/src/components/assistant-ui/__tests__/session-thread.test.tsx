@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState, type ComponentProps } from "react";
+import { StrictMode, useEffect, type ComponentProps } from "react";
 import { useAui, type ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -1066,12 +1066,11 @@ describe("SessionThread transcript states", () => {
       } as SessionMessage,
     ];
 
-    function GrowingTranscriptThread() {
-      const [messages, setMessages] = useState(() => toReadonlyThreadMessages(initialTranscript));
-      useEffect(() => {
-        setMessages(toReadonlyThreadMessages(grownTranscript));
-      }, []);
-
+    function GrowingTranscriptThread({
+      messages,
+    }: {
+      messages: ReturnType<typeof toReadonlyThreadMessages>;
+    }) {
       return (
         <QueryClientProvider client={createQueryClient()}>
           <SessionChatRuntimeProvider
@@ -1097,9 +1096,12 @@ describe("SessionThread transcript states", () => {
       );
     }
 
-    render(<GrowingTranscriptThread />);
+    const initialMessages = toReadonlyThreadMessages(initialTranscript);
+    const grownMessages = toReadonlyThreadMessages(grownTranscript);
+    const { rerender } = render(<GrowingTranscriptThread messages={initialMessages} />);
 
     expect(await screen.findByText("Continue delegated task run")).toBeInTheDocument();
+    rerender(<GrowingTranscriptThread messages={grownMessages} />);
     expect(await screen.findByText("Continuing after reconnect.")).toBeInTheDocument();
     expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
   });

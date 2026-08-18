@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { LayoutDashboard } from "lucide-react";
+import { Profiler } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Topbar, TopbarSlotProvider } from "../topbar";
@@ -234,22 +235,23 @@ describe("Topbar", () => {
   });
 
   it("Should publish a slot without rerendering its producer subtree", () => {
-    let producerRenders = 0;
+    const onProducerRender = vi.fn();
     function Setup() {
-      producerRenders += 1;
       useTopbarSlot({ actions: <span data-testid="live-action" /> });
       return null;
     }
 
     render(
       <TopbarSlotProvider>
-        <Setup />
+        <Profiler id="topbar-slot-producer" onRender={onProducerRender}>
+          <Setup />
+        </Profiler>
         <Topbar title="Tasks" />
       </TopbarSlotProvider>
     );
 
     expect(screen.getByTestId("live-action")).toBeInTheDocument();
-    expect(producerRenders).toBe(1);
+    expect(onProducerRender).toHaveBeenCalledTimes(1);
   });
 
   it("Should re-push the slot when the consumer's slot reference changes", () => {

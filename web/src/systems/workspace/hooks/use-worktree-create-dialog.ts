@@ -99,6 +99,7 @@ export function useWorktreeCreateDialog(
   listing: WorktreesResponse | undefined,
   options: { generatedName: string; onCreated?: (worktree: WorktreePayload) => void }
 ): WorktreeCreateDialogModel {
+  const { generatedName, onCreated } = options;
   const [draft, setDraftState] = useState<WorktreeCreateDraft>(EMPTY_DRAFT);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingWorktree, setPendingWorktree] = useState<WorktreePayload | null>(
@@ -138,7 +139,7 @@ export function useWorktreeCreateDialog(
 
   // The effective name drives the preview: an empty field previews the
   // generated suggestion, matching what submitting would actually create.
-  const effectiveName = draft.name.trim() === "" ? options.generatedName : draft.name;
+  const effectiveName = draft.name.trim() === "" ? generatedName : draft.name;
   const preview = buildWorktreeCreatePreview(effectiveName, draft.branch, parentDir);
 
   const fieldError = fieldForRefusal(refusal);
@@ -189,14 +190,14 @@ export function useWorktreeCreateDialog(
         return;
       }
       completedWorktreeID.current = authoritative.id;
-      options.onCreated?.(authoritative);
+      onCreated?.(authoritative);
     };
     const unsubscribe = queryClient.getQueryCache().subscribe(event => {
       if (hashKey(event.query.queryKey) === worktreesQueryHash) finishFromCatalog();
     });
     finishFromCatalog();
     return unsubscribe;
-  }, [catalogPending, options.onCreated, pendingWorktree, queryClient, workspaceId]);
+  }, [catalogPending, onCreated, pendingWorktree, queryClient, workspaceId]);
 
   const listedAccepted =
     trackedPending === null
@@ -225,7 +226,7 @@ export function useWorktreeCreateDialog(
     setDraft,
     advancedOpen,
     setAdvancedOpen,
-    generatedName: options.generatedName,
+    generatedName,
     preview,
     branchCandidates,
     refusal,
@@ -290,7 +291,7 @@ export function useWorktreeCreateDialog(
               }
               completedWorktreeID.current = authoritative.id;
               stopCompletionSubscription();
-              options.onCreated?.(authoritative);
+              onCreated?.(authoritative);
             };
             const worktreesQueryHash = hashKey(workspaceKeys.worktrees(workspaceId));
             completionSubscription.current = queryClient.getQueryCache().subscribe(event => {

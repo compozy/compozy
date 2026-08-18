@@ -1,7 +1,7 @@
 import * as React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   Combobox,
@@ -78,6 +78,14 @@ function MultiExample({ onChange }: { onChange?: (next: City[]) => void }) {
       </ComboboxContent>
     </Combobox>
   );
+}
+
+function ComboboxAnchorHarness({ onMount }: { onMount: (anchor: HTMLDivElement | null) => void }) {
+  const anchorRef = useComboboxAnchor();
+  React.useEffect(() => {
+    onMount(anchorRef.current);
+  }, [anchorRef, onMount]);
+  return <div ref={anchorRef} data-testid="combobox-anchor" />;
 }
 
 describe("Combobox", () => {
@@ -170,14 +178,10 @@ describe("Combobox", () => {
     await waitFor(() => expect(screen.getByText("Berlin")).toBeInTheDocument());
   });
 
-  it("Should expose useComboboxAnchor as a MutableRefObject", () => {
-    let anchorRef: ReturnType<typeof useComboboxAnchor> | undefined;
-    function Harness() {
-      anchorRef = useComboboxAnchor();
-      return null;
-    }
-    render(<Harness />);
-    expect(anchorRef).toBeDefined();
-    expect(anchorRef?.current).toBeNull();
+  it("Should expose the mounted element through useComboboxAnchor", () => {
+    const onMount = vi.fn();
+    render(<ComboboxAnchorHarness onMount={onMount} />);
+
+    expect(onMount).toHaveBeenCalledWith(screen.getByTestId("combobox-anchor"));
   });
 });

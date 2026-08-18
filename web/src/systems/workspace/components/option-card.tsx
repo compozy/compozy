@@ -23,7 +23,8 @@ interface OptionCardHeaderProps {
   right?: React.ReactNode;
 }
 
-function OptionCardHeaderSentinel(_: OptionCardHeaderProps): null {
+function OptionCardHeaderSentinel(props: OptionCardHeaderProps): null {
+  void props;
   useOptionCardSlot("Header");
   return null;
 }

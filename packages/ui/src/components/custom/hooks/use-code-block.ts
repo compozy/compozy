@@ -19,6 +19,14 @@ interface UseCodeBlockOptions {
   truncateLines?: number;
 }
 
+interface CodeHighlightResult {
+  code: string;
+  language: string;
+  lines: HighlightedCodeLine[] | null;
+  state: Exclude<CodeBlockHighlightState, "loading">;
+  theme: CodeBlockResolvedTheme;
+}
+
 export function useCodeBlock({
   code,
   highlightLines,
@@ -29,10 +37,7 @@ export function useCodeBlock({
   const resolvedTheme = useResolvedCodeTheme(themeMode);
   const resolvedThemeName = resolveCompozyCodeThemeName(resolvedTheme);
   const normalizedLanguage = normalizeCompozyCodeLanguage(language);
-  const [highlightedCode, setHighlightedCode] = React.useState<HighlightedCodeLine[] | null>(null);
-  const [highlightState, setHighlightState] = React.useState<CodeBlockHighlightState>(
-    normalizedLanguage ? "loading" : "plain"
-  );
+  const [highlightResult, setHighlightResult] = React.useState<CodeHighlightResult | null>(null);
 
   const lines = code.split("\n");
   const seenLines = new Map<string, number>();
@@ -48,20 +53,20 @@ export function useCodeBlock({
     typeof truncateLines === "number" && Number.isFinite(truncateLines) && truncateLines > 0
       ? Math.floor(truncateLines)
       : undefined;
+  const highlightResultMatches =
+    highlightResult?.code === code &&
+    highlightResult.language === normalizedLanguage &&
+    highlightResult.theme === resolvedTheme;
+  const highlightedCode = highlightResultMatches ? highlightResult.lines : null;
+  const highlightState: CodeBlockHighlightState = !normalizedLanguage
+    ? "plain"
+    : highlightResultMatches
+      ? highlightResult.state
+      : "loading";
 
   React.useEffect(() => {
+    if (!normalizedLanguage) return undefined;
     let cancelled = false;
-
-    if (!normalizedLanguage) {
-      setHighlightedCode(null);
-      setHighlightState("plain");
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setHighlightState("loading");
-    setHighlightedCode(null);
 
     void import("../../../lib/shiki-highlighter")
       .then(({ highlightCompozyCode }) =>
@@ -70,18 +75,33 @@ export function useCodeBlock({
       .then(result => {
         if (cancelled) return;
         if (!result) {
-          setHighlightedCode(null);
-          setHighlightState("plain");
+          setHighlightResult({
+            code,
+            language: normalizedLanguage,
+            lines: null,
+            state: "plain",
+            theme: resolvedTheme,
+          });
           return;
         }
-        setHighlightedCode(result.lines);
-        setHighlightState("highlighted");
+        setHighlightResult({
+          code,
+          language: normalizedLanguage,
+          lines: result.lines,
+          state: "highlighted",
+          theme: resolvedTheme,
+        });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         console.error("Failed to highlight code block", error);
-        setHighlightedCode(null);
-        setHighlightState("failed");
+        setHighlightResult({
+          code,
+          language: normalizedLanguage,
+          lines: null,
+          state: "failed",
+          theme: resolvedTheme,
+        });
       });
 
     return () => {
@@ -101,31 +121,25 @@ export function useCodeBlock({
 }
 
 function useResolvedCodeTheme(themeMode: CodeBlockThemeMode): CodeBlockResolvedTheme {
-  const [resolvedTheme, setResolvedTheme] = React.useState<CodeBlockResolvedTheme>(() =>
-    themeMode === "auto" ? COMPOZY_CODE_DEFAULT_THEME : themeMode
-  );
+  const subscribe = (onStoreChange: () => void) => {
+    if (themeMode !== "auto") return () => {};
+    return subscribeToCodeTheme(onStoreChange);
+  };
+  const getSnapshot = () => (themeMode === "auto" ? resolveAutoCodeTheme() : themeMode);
+  const getServerSnapshot = () => (themeMode === "auto" ? COMPOZY_CODE_DEFAULT_THEME : themeMode);
 
-  React.useEffect(() => {
-    if (themeMode !== "auto") {
-      setResolvedTheme(themeMode);
-      return;
-    }
+  return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
 
-    const update = () => setResolvedTheme(resolveAutoCodeTheme());
-    update();
+function subscribeToCodeTheme(onStoreChange: () => void): () => void {
+  if (typeof MutationObserver === "undefined" || typeof document === "undefined") return () => {};
 
-    if (typeof MutationObserver === "undefined" || typeof document === "undefined") return;
-
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    if (document.body) {
-      observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
-    }
-
-    return () => observer.disconnect();
-  }, [themeMode]);
-
-  return resolvedTheme;
+  const observer = new MutationObserver(onStoreChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  if (document.body) {
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  }
+  return () => observer.disconnect();
 }
 
 function resolveAutoCodeTheme(): CodeBlockResolvedTheme {

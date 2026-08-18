@@ -23,6 +23,7 @@ interface MediaMock {
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 let lastMock: MediaMock | null = null;
+const mediaMocks: MediaMock[] = [];
 
 function installMatchMedia(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -50,6 +51,7 @@ function installMatchMedia(matches: boolean) {
         },
       };
       lastMock = mock;
+      mediaMocks.push(mock);
       return mock as unknown as MediaQueryList;
     },
   });
@@ -57,6 +59,7 @@ function installMatchMedia(matches: boolean) {
 
 beforeEach(() => {
   lastMock = null;
+  mediaMocks.length = 0;
 });
 
 afterEach(() => {
@@ -115,13 +118,16 @@ describe("DetailInspector", () => {
       </DetailInspector>
     );
 
-    expect(lastMock).not.toBeNull();
-    expect(lastMock?.addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
+    const subscribedMock = mediaMocks.find(mock => mock.addEventListener.mock.calls.length > 0);
+    expect(subscribedMock?.addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
 
     unmount();
 
-    expect(lastMock?.removeEventListener).toHaveBeenCalledWith("change", expect.any(Function));
-    expect(lastMock?._listeners.size).toBe(0);
+    expect(subscribedMock?.removeEventListener).toHaveBeenCalledWith(
+      "change",
+      expect.any(Function)
+    );
+    expect(subscribedMock?._listeners.size).toBe(0);
   });
 
   it("Should default the breakpoint to 1440", () => {

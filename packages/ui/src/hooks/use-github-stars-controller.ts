@@ -25,6 +25,12 @@ export interface UseGithubStarsControllerParams {
   inViewOnce: boolean;
 }
 
+interface LoadedGithubStars {
+  repo: string;
+  stars: number;
+  username: string;
+}
+
 export function useGithubStarsController({
   ref,
   username,
@@ -41,43 +47,37 @@ export function useGithubStarsController({
     inViewMargin,
   });
 
-  const [loadedStars, setLoadedStars] = React.useState(0);
+  const [loadedStars, setLoadedStars] = React.useState<LoadedGithubStars | null>(null);
   const [currentStars, setCurrentStars] = React.useState(0);
-  const [remoteIsLoading, setRemoteIsLoading] = React.useState(true);
-  const stars = value ?? loadedStars;
-  const isLoading = value === undefined ? remoteIsLoading : false;
-  const setStars = (nextStars: number) => setLoadedStars(nextStars);
+  const matchedLoadedStars =
+    loadedStars !== null && loadedStars.username === username && loadedStars.repo === repo
+      ? loadedStars
+      : null;
+  const stars = value ?? matchedLoadedStars?.stars ?? 0;
+  const isLoading =
+    value === undefined &&
+    (!isInView || (Boolean(username) && Boolean(repo) && matchedLoadedStars === null));
+  const setStars = (nextStars: number) => {
+    if (!username || !repo) return;
+    setLoadedStars({ repo, stars: nextStars, username });
+  };
   const isCompleted = currentStars === stars;
 
   React.useEffect(() => {
-    if (value !== undefined) return;
-    if (!isInView) {
-      setLoadedStars(0);
-      setRemoteIsLoading(true);
-      return;
-    }
-    setLoadedStars(0);
-    if (!username || !repo) {
-      setRemoteIsLoading(false);
-      return;
-    }
-    setRemoteIsLoading(true);
+    if (value !== undefined || !isInView || !username || !repo) return undefined;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       void loadGithubStars(username, repo, controller.signal)
         .then(nextStars => {
-          if (nextStars !== null) {
-            setLoadedStars(nextStars);
-          }
+          if (controller.signal.aborted) return;
+          setLoadedStars({ repo, stars: nextStars ?? 0, username });
         })
         .catch(error => {
-          if (!(error instanceof DOMException && error.name === "AbortError")) {
-            console.error("Failed to load GitHub repository stars", error);
-          }
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setRemoteIsLoading(false);
+          if (controller.signal.aborted) return;
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          console.error("Failed to load GitHub repository stars", error);
+          setLoadedStars({ repo, stars: 0, username });
         });
     }, delay);
 

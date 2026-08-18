@@ -61,7 +61,7 @@ function Empty({
     iconContent = icon;
   }
 
-  const TitleTag = titleAs ?? resolveTitleTag(title);
+  const titleTag = titleAs ?? resolveTitleTag(title);
 
   return (
     <div
@@ -83,12 +83,14 @@ function Empty({
       >
         {iconContent}
       </span>
-      <TitleTag
-        data-slot="empty-title"
-        className="text-empty-h1 font-medium leading-snug tracking-empty-h1 text-fg-strong"
-      >
-        {title}
-      </TitleTag>
+      {React.createElement(
+        titleTag,
+        {
+          "data-slot": "empty-title",
+          className: "text-empty-h1 font-medium leading-snug tracking-empty-h1 text-fg-strong",
+        },
+        title
+      )}
       {description ? (
         <p
           data-slot="empty-description"

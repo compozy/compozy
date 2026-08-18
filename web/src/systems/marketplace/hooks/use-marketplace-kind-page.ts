@@ -97,6 +97,12 @@ function useMarketplaceKindPage(
     },
     liveDataEnabled
   );
+  const {
+    fetchNextPage: fetchNextMarketPage,
+    hasNextPage: hasNextMarketPage,
+    isFetchNextPageError: hasNextMarketPageError,
+    isFetchingNextPage: isFetchingNextMarketPage,
+  } = marketQuery;
 
   const skillsQuery = useSkills(activeWorkspaceId ?? "", liveDataEnabled);
   const extensionsQuery = useExtensionInventory(liveDataEnabled);
@@ -117,17 +123,17 @@ function useMarketplaceKindPage(
     if (
       scope === "installed" &&
       liveDataEnabled &&
-      marketQuery.hasNextPage &&
-      !marketQuery.isFetchingNextPage &&
-      !marketQuery.isFetchNextPageError
+      hasNextMarketPage &&
+      !isFetchingNextMarketPage &&
+      !hasNextMarketPageError
     ) {
-      void marketQuery.fetchNextPage();
+      void fetchNextMarketPage();
     }
   }, [
-    marketQuery.fetchNextPage,
-    marketQuery.hasNextPage,
-    marketQuery.isFetchNextPageError,
-    marketQuery.isFetchingNextPage,
+    fetchNextMarketPage,
+    hasNextMarketPage,
+    hasNextMarketPageError,
+    isFetchingNextMarketPage,
     liveDataEnabled,
     scope,
   ]);

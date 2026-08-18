@@ -41,6 +41,10 @@ export function useFilterSubmenuContent<T = unknown>({
     }
   };
 
+  const focusSearchInput = () => {
+    inputRef.current?.focus();
+  };
+
   const highlightSubmenuOption = (index: number) => {
     setHighlightedIndex(index);
     if (isActive) {
@@ -114,13 +118,13 @@ export function useFilterSubmenuContent<T = unknown>({
     activeHighlightedIndex,
     baseId,
     filteredOptions,
+    focusSearchInput,
     focusSubmenuListbox,
     focusSubmenuSearchInput,
     handleListboxKeyDown,
     handleSearchInputChange,
     handleSearchInputKeyDown: handleNavigationKeyDown,
     highlightSubmenuOption,
-    inputRef,
     searchInput,
   };
 }

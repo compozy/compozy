@@ -1,21 +1,23 @@
 import * as React from "react";
 
 export function useInlineLayout(breakpoint: number): boolean {
-  const [inline, setInline] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return window.matchMedia(`(min-width: ${breakpoint}px)`).matches;
-  });
-  React.useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const query = window.matchMedia(`(min-width: ${breakpoint}px)`);
-    const handler = (event: MediaQueryListEvent) => {
-      setInline(event.matches);
-    };
-    setInline(query.matches);
-    query.addEventListener("change", handler);
+  const query = `(min-width: ${breakpoint}px)`;
+  const subscribe = (onStoreChange: () => void) => {
+    if (typeof window === "undefined") return () => {};
+    const mediaQuery = window.matchMedia(query);
+    mediaQuery.addEventListener("change", onStoreChange);
     return () => {
-      query.removeEventListener("change", handler);
+      mediaQuery.removeEventListener("change", onStoreChange);
     };
-  }, [breakpoint]);
-  return inline;
+  };
+  const getSnapshot = () => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia(query).matches;
+  };
+
+  return React.useSyncExternalStore(subscribe, getSnapshot, getServerInlineSnapshot);
+}
+
+function getServerInlineSnapshot(): boolean {
+  return true;
 }
