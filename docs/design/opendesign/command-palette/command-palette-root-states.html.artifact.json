@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "command-palette/command-palette-root-states.html",
+  "entry": "command-palette/command-palette-root-states.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-18T04:10:12.234Z",
+  "updatedAt": "2026-08-18T04:10:12.234Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

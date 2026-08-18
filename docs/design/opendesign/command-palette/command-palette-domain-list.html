@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Domain list · Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="command-palette.css">
+<!--
+  command-palette-domain-list · S3 domain list + S4 detail accessory pane.
+  Spec: .compozy/tasks/command-palette/_uiux.md · stories US-010, US-011 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — os-palette-view-shell.tsx list kind + detail accessory,
+                 os-palette-session-chips.tsx, os-palette-session-row.tsx
+    spec — S3/S4 US-010/011 + BR-11: chips All 12 · Queued 3 · Running 4 ·
+           Needs-approval 2 · Done 3 (truthful, single-select); shared
+           status-tone dictionary + attention-first comparator; empty-with-filter
+           No failed loops (US-010.EC-1); showing N of M; mount cap 150 then
+           virtualize; vault names-only, values structurally absent (US-010.EC-4,
+           BR-11); detail pane selection-driven, focus stays on the list;
+           no preview · stale-cleared · independent scroll · sanitized-degraded
+           (US-011.EC-1/2/3)
+    authorized delta — none
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="dl-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Command palette</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Domain list</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="command-palette-view-bands.html">← View bands</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="dl-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Tasks — list + detail</h2>
+        <span class="lab-sec__gist">shared tones · attention-first · focus stays on the list</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Truthful chips, one dictionary</b>US-010 / US-011: chips are single-select with the story counts <code>All 12</code> · <code>Queued 3</code> · <code>Running 4</code> · <code>Needs-approval 2</code> · <code>Done 3</code>. Rows use the herdr <code>.sig</code> / <code>.state</code> dictionary — no view-local map. <code>queued</code> has no session member, so it borrows the honesty <code>unknown</code> plate rather than inventing a hue. Order is the shared attention-first comparator (needs-you, then running, then queued, then done). The accessory pane is selection-driven <code>{label, value}</code> plus sanitized rich text; it is not in the tab order.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="dl-final-stage" style="min-height:680px">
+            <div class="overlay palette-overlay" data-od-id="dl-final-overlay">
+              <div class="palette" data-od-id="dl-final-pal" role="dialog" aria-label="Command palette">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb">Tasks</span>
+                  </nav>
+                  <input id="dl-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="dl-final-list" aria-activedescendant="dl-row-vault" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks" autocomplete="off" spellcheck="false">
+                </div>
+                <!-- gating: filter = single-select chip · counts from domain aggregate -->
+                <div class="pal-chips" id="dl-final-chips" data-od-id="dl-final-chips">
+                  <button class="pal-chip is-on" type="button" data-filter="all">All <span class="count">12</span></button>
+                  <button class="pal-chip" type="button" data-filter="queued">Queued <span class="count">3</span></button>
+                  <button class="pal-chip" type="button" data-filter="running">Running <span class="count">4</span></button>
+                  <button class="pal-chip" type="button" data-filter="needs">Needs-approval <span class="count">2</span></button>
+                  <button class="pal-chip" type="button" data-filter="done">Done <span class="count">3</span></button>
+                </div>
+                <div class="pal-split" data-od-id="dl-final-split" style="max-height:360px">
+                  <div class="pal-split__list" style="overflow:auto">
+                    <div class="palette-results" id="dl-final-list" role="listbox" aria-label="Tasks" data-od-id="dl-final-list" style="max-height:none;padding:4px">
+                      <button class="pal-srow is-active" type="button" role="option" id="dl-row-vault" aria-selected="true" data-od-id="dl-row-vault" data-id="tsk_55e0" data-filter="needs" data-title="Approve vault rotation">
+                        <span class="sig" data-k="approval"><svg data-lucide="shield"></svg></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Approve vault rotation</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="needs">needs-approval</span><span>· claude</span></span>
+                        </span>
+                        <span class="pal-srow__meta">2m</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-purge" aria-selected="false" data-od-id="dl-row-purge" data-id="tsk_9a01" data-filter="needs" data-title="Approve notes purge">
+                        <span class="sig" data-k="approval"><svg data-lucide="shield"></svg></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Approve notes purge</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="needs">needs-approval</span><span>· claude · notes</span></span>
+                        </span>
+                        <span class="pal-srow__meta">6m</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-pay" aria-selected="false" data-od-id="dl-row-pay" data-id="tsk_pay1" data-filter="running" data-title="Fix payment retries">
+                        <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Fix payment retries</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                        </span>
+                        <span class="pal-srow__meta">now</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-store" aria-selected="false" data-od-id="dl-row-store" data-id="tsk_store" data-filter="running" data-title="Refactor session store">
+                        <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Refactor session store</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                        </span>
+                        <span class="pal-srow__meta">now</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-charge" aria-selected="false" data-od-id="dl-row-charge" data-id="tsk_chg" data-filter="running" data-title="Chargeback flow">
+                        <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Chargeback flow</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude · payments</span></span>
+                        </span>
+                        <span class="pal-srow__meta">now</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-hook" aria-selected="false" data-od-id="dl-row-hook" data-id="tsk_hook" data-filter="running" data-title="Webhook retries">
+                        <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Webhook retries</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude · payments</span></span>
+                        </span>
+                        <span class="pal-srow__meta">now</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-openapi" aria-selected="false" data-od-id="dl-row-openapi" data-id="tsk_oa" data-filter="queued" data-title="Regen OpenAPI types">
+                        <span class="sig" data-k="unknown"><svg data-lucide="minus"></svg></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Regen OpenAPI types</span>
+                          <span class="pal-srow__sub"><span class="state">queued</span><span>· codex</span></span>
+                        </span>
+                        <span class="pal-srow__meta">1h</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-digest" aria-selected="false" data-od-id="dl-row-digest" data-id="tsk_dig" data-filter="queued" data-title="Digest triage">
+                        <span class="sig" data-k="unknown"><svg data-lucide="minus"></svg></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Digest triage</span>
+                          <span class="pal-srow__sub"><span class="state">queued</span><span>· claude · notes</span></span>
+                        </span>
+                        <span class="pal-srow__meta">2d</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-cap" aria-selected="false" data-od-id="dl-row-cap" data-id="tsk_cap" data-filter="queued" data-title="Capture note">
+                        <span class="sig" data-k="unknown"><svg data-lucide="minus"></svg></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Capture note</span>
+                          <span class="pal-srow__sub"><span class="state">queued</span><span>· claude · notes</span></span>
+                        </span>
+                        <span class="pal-srow__meta">2d</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-rel" aria-selected="false" data-od-id="dl-row-rel" data-id="tsk_rel" data-filter="done" data-title="Release notes draft">
+                        <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Release notes draft</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· hermes</span></span>
+                        </span>
+                        <span class="pal-srow__meta">26m</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-tf" aria-selected="false" data-od-id="dl-row-tf" data-id="tsk_tf" data-filter="done" data-title="TF upgrade">
+                        <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">TF upgrade</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· codex · infra</span></span>
+                        </span>
+                        <span class="pal-srow__meta">41m</span>
+                      </button>
+                      <button class="pal-srow" type="button" role="option" id="dl-row-tok" aria-selected="false" data-od-id="dl-row-tok" data-id="tsk_tok" data-filter="done" data-title="Rotate tokens">
+                        <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                        <span class="pal-srow__main">
+                          <span class="pal-srow__title">Rotate tokens</span>
+                          <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· codex · infra</span></span>
+                        </span>
+                        <span class="pal-srow__meta">1h</span>
+                      </button>
+                      <div class="pal-none" id="dl-final-none" hidden>No tasks match</div>
+                    </div>
+                  </div>
+                  <!-- gating: detail.selectionId · tabIndex never moves off the listbox -->
+                  <aside class="pal-split__detail" id="dl-final-detail" data-od-id="dl-final-detail" aria-hidden="true">
+                    <div class="pal-kv" id="dl-kv">
+                      <div class="pal-kv__row"><span class="pal-kv__k">Status</span><span class="pal-kv__v" id="dl-kv-status">needs-approval</span></div>
+                      <div class="pal-kv__row"><span class="pal-kv__k">Agent</span><span class="pal-kv__v" id="dl-kv-agent">claude</span></div>
+                      <div class="pal-kv__row"><span class="pal-kv__k">Workspace</span><span class="pal-kv__v" id="dl-kv-ws">acme</span></div>
+                      <div class="pal-kv__row"><span class="pal-kv__k">Id</span><span class="pal-kv__v"><span class="mono" id="dl-kv-id">tsk_55e0</span></span></div>
+                      <div class="pal-kv__row" id="dl-kv-apr-row"><span class="pal-kv__k">Approval</span><span class="pal-kv__v"><span class="mono" id="dl-kv-apr">apr_55e0c9</span></span></div>
+                    </div>
+                    <div class="pal-rich" id="dl-rich" style="margin-top:12px">
+                      <p>Rotate vault credentials for the payments worker. Approver pedro.</p>
+                    </div>
+                    <div class="pal-preview-none" id="dl-preview-none" hidden>
+                      <svg data-lucide="panel-right"></svg>
+                      no preview
+                    </div>
+                  </aside>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                  <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · EMPTY WITH FILTER ===== -->
+    <section class="lab-sec" data-od-id="dl-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Empty with filter</h2>
+        <span class="lab-sec__gist">names the filter · one-keystroke clear</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Named empty</b>US-010.EC-1: a loops-view chip that matches nothing reads <code>No failed loops</code> — the filter name is in the empty, not a generic “no results”. Press the chip again (or <code>Clear</code>) to return to All. Counts stay truthful: Failed is <code>0</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="dl-empty-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="dl-empty-pal">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb">Loops</span>
+                  </nav>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-empty-list" aria-autocomplete="list" placeholder="Search loops…" aria-label="Search loops">
+                </div>
+                <div class="pal-chips" id="dl-empty-chips" data-od-id="dl-empty-chips">
+                  <button class="pal-chip" type="button" data-filter="all">All <span class="count">2</span></button>
+                  <button class="pal-chip is-on" type="button" data-filter="failed">Failed <span class="count">0</span></button>
+                </div>
+                <div class="palette-results" id="dl-empty-list" role="listbox" aria-label="Loops" data-od-id="dl-empty-list">
+                  <button class="pal-srow" type="button" role="option" hidden data-od-id="dl-empty-row-a" data-filter="all">
+                    <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">release-train</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="run">running</span></span>
+                    </span>
+                  </button>
+                  <button class="pal-srow" type="button" role="option" hidden data-od-id="dl-empty-row-b" data-filter="all">
+                    <span class="sig" data-k="idle"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">session store</span>
+                      <span class="pal-srow__sub"><span class="state">idle</span></span>
+                    </span>
+                  </button>
+                  <!-- gating: filter.label + matchCount == 0 → named empty -->
+                  <div class="pal-none pal-none--filter" id="dl-empty-none" data-od-id="dl-empty-none">
+                    <span>No failed loops</span>
+                    <button class="btn btn--sm" type="button" id="dl-empty-clear" data-od-id="dl-empty-clear">Clear</button>
+                  </div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⌫</span></span> clear filter</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · OVERFLOW + SCALE ===== -->
+    <section class="lab-sec" data-od-id="dl-overflow">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Overflow + scale</h2>
+        <span class="lab-sec__gist">showing N of M · mount cap 150</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Named truncation</b>Silent truncation is forbidden. The footer of a capped window is the exact note <code>showing N of M</code>. Mount paints at most 150 rows, then virtualizes — the note still reports the full <code>M</code>.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="dl-overflow-plain">
+            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="dl-overflow-pal">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs" aria-label="Palette path"><span class="pal-crumb">Tasks</span></nav>
+                <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-overflow-list" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks">
+              </div>
+              <div class="palette-results" id="dl-overflow-list" role="listbox" aria-label="Tasks" style="max-height:160px">
+                <button class="pal-srow is-active" type="button" role="option" aria-selected="true" data-od-id="dl-ov-1">
+                  <span class="sig" data-k="approval"><svg data-lucide="shield"></svg></span>
+                  <span class="pal-srow__main"><span class="pal-srow__title">Approve vault rotation</span></span>
+                </button>
+                <button class="pal-srow" type="button" role="option" aria-selected="false" data-od-id="dl-ov-2">
+                  <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                  <span class="pal-srow__main"><span class="pal-srow__title">Fix payment retries</span></span>
+                </button>
+                <button class="pal-srow" type="button" role="option" aria-selected="false" data-od-id="dl-ov-3">
+                  <span class="sig" data-k="unknown"><svg data-lucide="minus"></svg></span>
+                  <span class="pal-srow__main"><span class="pal-srow__title">Regen OpenAPI types</span></span>
+                </button>
+                <button class="pal-srow" type="button" role="option" aria-selected="false" data-od-id="dl-ov-4">
+                  <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                  <span class="pal-srow__main"><span class="pal-srow__title">Release notes draft</span></span>
+                </button>
+                <!-- gating: mountCap = 150 then virtualize · overflow note is mandatory -->
+                <div class="pal-overflow" data-od-id="dl-overflow-note">showing 150 of 218</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · COLD CACHE ===== -->
+    <section class="lab-sec" data-od-id="dl-cold">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Cold-cache loading</h2>
+        <span class="lab-sec__gist">skeletons · never a blank empty</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Not an empty</b>US-010.EC-3: a cold cache renders skeleton rows on the 36px ladder. A blank flash is never treated as empty — <code>.pal-none</code> does not mount while <code>loading</code>.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="dl-cold-plain">
+            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="dl-cold-pal">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs" aria-label="Palette path"><span class="pal-crumb">Tasks</span></nav>
+                <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-cold-list" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks">
+              </div>
+              <!-- gating: cache = cold · rows = skeleton · empty suppressed -->
+              <div class="palette-results" id="dl-cold-list" data-od-id="dl-cold-list" role="status" aria-label="loading">
+                <div class="pal-skel" data-od-id="dl-skel-1"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
+                <div class="pal-skel" data-od-id="dl-skel-2"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
+                <div class="pal-skel" data-od-id="dl-skel-3"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
+                <div class="pal-skel" data-od-id="dl-skel-4"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · VAULT NAMES-ONLY ===== -->
+    <section class="lab-sec" data-od-id="dl-vault">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Vault names-only</h2>
+        <span class="lab-sec__gist">values structurally absent</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No value slot</b>US-010.EC-4 · BR-11: vault rows use <code>.pal-srow--vault</code> so the grid has no value column. Names and metadata only — source and age. A secret value must not appear in markup, meta, or the detail pane.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="dl-vault-plain">
+            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="dl-vault-pal">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs" aria-label="Palette path"><span class="pal-crumb">Vault</span></nav>
+                <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-vault-list" aria-autocomplete="list" placeholder="Search vault…" aria-label="Search vault">
+              </div>
+              <!-- gating: vault.values structurally absent · BR-11 · no value column -->
+              <div class="palette-results" id="dl-vault-list" role="listbox" aria-label="Vault names">
+                <button class="pal-srow pal-srow--vault is-active" type="button" role="option" aria-selected="true" data-od-id="dl-vault-openai">
+                  <span class="sig" data-k="unknown"><svg data-lucide="key-round"></svg></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">acme.openai</span>
+                    <span class="pal-srow__sub">env · 12d</span>
+                  </span>
+                </button>
+                <button class="pal-srow pal-srow--vault" type="button" role="option" aria-selected="false" data-od-id="dl-vault-notes">
+                  <span class="sig" data-k="unknown"><svg data-lucide="key-round"></svg></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">notes.capture</span>
+                    <span class="pal-srow__sub">Notes (ext.notes) · 3d</span>
+                  </span>
+                </button>
+                <button class="pal-srow pal-srow--vault" type="button" role="option" aria-selected="false" data-od-id="dl-vault-stripe">
+                  <span class="sig" data-k="unknown"><svg data-lucide="key-round"></svg></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">payments.stripe</span>
+                    <span class="pal-srow__sub">env · 41d</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · DETAIL PANE STATES ===== -->
+    <section class="lab-sec" data-od-id="dl-detail">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Detail-pane states</h2>
+        <span class="lab-sec__gist">no preview · stale-cleared · scroll · plain degrade</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Neutral empty</b>US-011.EC-1: no selection (or a row without a preview payload) is <code>no preview</code> — glyph + the two words. Not a spinner, not an error.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="dl-preview-none-plain">
+            <div class="pal-split" style="border:1px solid var(--line);border-radius:var(--radius-lg);min-height:180px">
+              <div class="pal-split__list">
+                <div class="palette-results">
+                  <button class="pal-srow" type="button">
+                    <span class="sig" data-k="unknown"><svg data-lucide="minus"></svg></span>
+                    <span class="pal-srow__main"><span class="pal-srow__title">Regen OpenAPI types</span></span>
+                  </button>
+                </div>
+              </div>
+              <aside class="pal-split__detail" data-od-id="dl-preview-none-pane">
+                <div class="pal-preview-none">
+                  <svg data-lucide="panel-right"></svg>
+                  no preview
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Stale-cleared</b>US-011.EC-2: the selected row was deleted. The pane does not keep the stale payload — it returns to <code>no preview</code>. Selection moves to the nearest neighbor in the list; focus never lived in the pane.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="dl-stale-plain">
+            <div class="pal-split" style="border:1px solid var(--line);border-radius:var(--radius-lg);min-height:180px">
+              <div class="pal-split__list">
+                <div class="palette-results">
+                  <button class="pal-srow is-active" type="button">
+                    <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Fix payment retries</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="run">running</span></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <!-- gating: selectionId deleted → detail payload cleared -->
+              <aside class="pal-split__detail" data-od-id="dl-stale-pane">
+                <div class="pal-preview-none">
+                  <svg data-lucide="panel-right"></svg>
+                  no preview
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Independent scroll</b>US-011.EC-3: a long sanitized body scrolls inside the pane. The list keeps its own scroll and its own focus.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="dl-scroll-plain">
+            <div class="pal-split" style="border:1px solid var(--line);border-radius:var(--radius-lg);height:220px">
+              <div class="pal-split__list">
+                <div class="palette-results">
+                  <button class="pal-srow is-active" type="button">
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Release notes draft</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· hermes</span></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <aside class="pal-split__detail" data-od-id="dl-scroll-pane" style="max-height:220px">
+                <div class="pal-kv">
+                  <div class="pal-kv__row"><span class="pal-kv__k">Status</span><span class="pal-kv__v">done</span></div>
+                  <div class="pal-kv__row"><span class="pal-kv__k">Id</span><span class="pal-kv__v"><span class="mono">tsk_rel</span></span></div>
+                </div>
+                <div class="pal-rich" style="margin-top:12px">
+                  <p>Draft covers the session-store refactor, payment retries, and the notes capture path.</p>
+                  <p>Workspace acme. Operator pedro. Source rows stay on the list; this pane only mirrors the selection.</p>
+                  <p>Long bodies do not grow the palette chrome. The accessory column scrolls on its own.</p>
+                  <p>Focus remains on the listbox. Arrow keys never enter this column.</p>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Sanitized-degraded</b>Rich text that fails sanitization degrades to <code>.pal-rich--plain</code> — visible as plain text, never as live markup. The note <code>nt_9a01d2</code> is the fixture.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="dl-plain-plain">
+            <div class="pal-split" style="border:1px solid var(--line);border-radius:var(--radius-lg);min-height:180px">
+              <div class="pal-split__list">
+                <div class="palette-results">
+                  <button class="pal-srow is-active" type="button">
+                    <span class="sig" data-k="notify"><svg data-lucide="sticky-note"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Standup follow-ups</span>
+                      <span class="pal-srow__sub"><span class="mono">nt_9a01d2</span></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <aside class="pal-split__detail" data-od-id="dl-plain-pane">
+                <div class="pal-kv">
+                  <div class="pal-kv__row"><span class="pal-kv__k">Id</span><span class="pal-kv__v"><span class="mono">nt_9a01d2</span></span></div>
+                </div>
+                <pre class="pal-rich pal-rich--plain" style="margin-top:12px">Standup follow-ups
+tag: inbox
+Owner pedro · workspace acme</pre>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="dl-foot">Spec <code>.compozy/tasks/command-palette/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>os-palette-view-shell.tsx</code> list kind + detail accessory / <code>os-palette-session-chips.tsx</code> / <code>os-palette-session-row.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+  /* gating: selectionId + filter chip · detail is a mirror, never a focus target */
+
+  var DETAIL = {
+    tsk_55e0: { status: "needs-approval", agent: "claude", ws: "acme", id: "tsk_55e0", approval: "apr_55e0c9", body: "Rotate vault credentials for the payments worker. Approver pedro." },
+    tsk_9a01: { status: "needs-approval", agent: "claude", ws: "notes", id: "tsk_9a01", approval: "apr_55e0c9", body: "Purge archived notes in this workspace. Source Notes (ext.notes)." },
+    tsk_pay1: { status: "running", agent: "claude", ws: "acme", id: "tsk_pay1", approval: "", body: "Retry the failed charge path on the payments worker." },
+    tsk_store: { status: "running", agent: "claude", ws: "acme", id: "tsk_store", approval: "", body: "Session store refactor. Waiting-for-input lives on the session; this task is the work item." },
+    tsk_chg: { status: "running", agent: "claude", ws: "payments", id: "tsk_chg", approval: "", body: "Chargeback flow against the payments workspace." },
+    tsk_hook: { status: "running", agent: "claude", ws: "payments", id: "tsk_hook", approval: "", body: "Webhook retry worker for payments." },
+    tsk_oa: { status: "queued", agent: "codex", ws: "acme", id: "tsk_oa", approval: "", body: "" },
+    tsk_dig: { status: "queued", agent: "claude", ws: "notes", id: "tsk_dig", approval: "", body: "Triage the notes digest for workspace notes." },
+    tsk_cap: { status: "queued", agent: "claude", ws: "notes", id: "tsk_cap", approval: "", body: "Capture note. Field title, placeholder Note title." },
+    tsk_rel: { status: "done", agent: "hermes", ws: "acme", id: "tsk_rel", approval: "", body: "Release notes draft. Session aligned with hermes · 26m." },
+    tsk_tf: { status: "done", agent: "codex", ws: "infra", id: "tsk_tf", approval: "", body: "TF upgrade on infra." },
+    tsk_tok: { status: "done", agent: "codex", ws: "infra", id: "tsk_tok", approval: "", body: "Rotate tokens on infra." }
+  };
+
+  var input = document.getElementById("dl-final-q");
+  var list = document.getElementById("dl-final-list");
+  var chips = document.getElementById("dl-final-chips");
+  var none = document.getElementById("dl-final-none");
+  var kv = document.getElementById("dl-kv");
+  var rich = document.getElementById("dl-rich");
+  var previewNone = document.getElementById("dl-preview-none");
+  var aprRow = document.getElementById("dl-kv-apr-row");
+  var filter = "all";
+
+  function rows() {
+    return Array.prototype.slice.call(list.querySelectorAll('[role="option"]'));
+  }
+
+  function visibleRows() {
+    return rows().filter(function (r) { return !r.hidden; });
+  }
+
+  function setActive(row) {
+    rows().forEach(function (r) {
+      var on = r === row;
+      r.classList.toggle("is-active", on);
+      r.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if (row) {
+      input.setAttribute("aria-activedescendant", row.id);
+      fillDetail(row.getAttribute("data-id"));
+    } else {
+      fillDetail(null);
+    }
+  }
+
+  function fillDetail(id) {
+    var d = id && DETAIL[id];
+    if (!d || !d.body) {
+      kv.hidden = !d;
+      rich.hidden = true;
+      previewNone.hidden = !!d && !!d.status && !!d.body;
+      if (!d) {
+        kv.hidden = true;
+        previewNone.hidden = false;
+        return;
+      }
+      if (!d.body) {
+        kv.hidden = false;
+        previewNone.hidden = true;
+      }
+    } else {
+      kv.hidden = false;
+      rich.hidden = false;
+      previewNone.hidden = true;
+    }
+    document.getElementById("dl-kv-status").textContent = d.status;
+    document.getElementById("dl-kv-agent").textContent = d.agent;
+    document.getElementById("dl-kv-ws").textContent = d.ws;
+    document.getElementById("dl-kv-id").textContent = d.id;
+    aprRow.hidden = !d.approval;
+    document.getElementById("dl-kv-apr").textContent = d.approval || "";
+    rich.textContent = "";
+    if (d.body) {
+      var p = document.createElement("p");
+      p.textContent = d.body;
+      rich.appendChild(p);
+    }
+    if (!d.body) {
+      rich.hidden = true;
+    }
+  }
+
+  function apply() {
+    var needle = input.value.toLowerCase();
+    var visible = 0;
+    var first = null;
+    rows().forEach(function (r) {
+      var okChip = filter === "all" || r.getAttribute("data-filter") === filter;
+      var hay = (r.getAttribute("data-title") || "").toLowerCase();
+      var okQ = !needle || hay.indexOf(needle) !== -1;
+      var show = okChip && okQ;
+      r.hidden = !show;
+      if (show) {
+        visible += 1;
+        if (!first) first = r;
+      }
+    });
+    none.hidden = visible > 0;
+    var current = list.querySelector('[role="option"].is-active:not([hidden])');
+    setActive(current || first);
+  }
+
+  chips.querySelectorAll(".pal-chip[data-filter]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var next = chip.getAttribute("data-filter");
+      filter = chip.classList.contains("is-on") && next !== "all" ? "all" : next;
+      chips.querySelectorAll(".pal-chip[data-filter]").forEach(function (c) {
+        c.classList.toggle("is-on", c.getAttribute("data-filter") === filter);
+      });
+      apply();
+      input.focus();
+    });
+  });
+
+  rows().forEach(function (row) {
+    row.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    row.addEventListener("click", function () {
+      setActive(row);
+      input.focus();
+    });
+  });
+
+  input.addEventListener("input", apply);
+  input.addEventListener("keydown", function (e) {
+    var vis = visibleRows();
+    var idx = vis.findIndex(function (r) { return r.classList.contains("is-active"); });
+    if (e.key === "ArrowDown" && vis.length) {
+      e.preventDefault();
+      setActive(vis[Math.min(vis.length - 1, idx + 1)] || vis[0]);
+    } else if (e.key === "ArrowUp" && vis.length) {
+      e.preventDefault();
+      setActive(vis[Math.max(0, idx - 1)] || vis[0]);
+    }
+  });
+
+  var emptyChips = document.getElementById("dl-empty-chips");
+  var emptyNone = document.getElementById("dl-empty-none");
+  function setLoopFilter(k) {
+    emptyChips.querySelectorAll(".pal-chip").forEach(function (c) {
+      c.classList.toggle("is-on", c.getAttribute("data-filter") === k);
+    });
+    document.querySelectorAll("#dl-empty-list [data-filter='all']").forEach(function (r) {
+      r.hidden = k !== "all";
+    });
+    emptyNone.hidden = k !== "failed";
+  }
+  emptyChips.querySelectorAll(".pal-chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var k = chip.getAttribute("data-filter");
+      if (chip.classList.contains("is-on") && k === "failed") k = "all";
+      setLoopFilter(k);
+    });
+  });
+  document.getElementById("dl-empty-clear").addEventListener("click", function () {
+    setLoopFilter("all");
+  });
+
+  apply();
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

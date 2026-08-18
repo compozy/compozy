@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Form + grid · Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="command-palette.css">
+<!--
+  command-palette-form-grid · S5 form view + S6 grid view.
+  Spec: .compozy/tasks/command-palette/_uiux.md · stories US-012, US-013 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — os-command-palette.tsx selected-row seam; view body
+                 occupies the results well under S2 stack chrome
+    spec — S5 declared field order (US-012.AC-1); per-field inline
+           errors and Submit focuses the first invalid (US-012.AC-2);
+           submit-failed keeps the form open with values intact
+           (US-012.EC-2); password masked (US-012.EC-3); empty
+           dropdown shows its declared hint (US-012.EC-4). S6
+           sectioned grid; tiles = image | token | emoji + title +
+           optional badge; ←→↑↓ 2D nav; media-failed keeps the title
+           (US-013.EC-1); empties share the list grammar; overflow
+           virtualizes (US-013.EC-3)
+    authorized delta — none
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="fg-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Command palette</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Form + grid</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="command-palette-action-panel.html">Action panel →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — FORM PRISTINE ===== -->
+    <section class="lab-sec" data-od-id="fg-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Notes preferences — pristine form</h2>
+        <span class="lab-sec__gist">declared order · ⇥ traverses · Submit is the one primary</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Declared field order</b>US-012: <code>ext.notes</code> form <code>Notes preferences</code> under S2 stack chrome. Fields in order: text <code>Notebook name</code> · password <code>Sync token</code> · textarea <code>Capture template</code> · checkbox <code>Archive on capture</code> · dropdown <code>Default tag</code> (<code>inbox</code> / <code>idea</code>) · directory picker <code>Attachments folder</code>. ⇥ walks that order. <code>Submit</code> is the single primary.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="fg-final-stage" style="min-height:680px">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="fg-final-pal" role="dialog" aria-label="Command palette">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">Notes preferences</span>
+                  </nav>
+                  <input id="fg-final-q" type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" aria-controls="fg-final-form" aria-autocomplete="list" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="pal-kind pal-kind--form" data-od-id="fg-final-kind">
+                    <form class="pal-form" id="fg-final-form" data-od-id="fg-final-form">
+                      <!-- gating: field Notebook name · type text · ext.notes Notes preferences -->
+                      <div class="pal-field" data-od-id="fg-final-name">
+                        <label class="pal-field__lab" for="fg-final-name-in">Notebook name</label>
+                        <input class="input" id="fg-final-name-in" name="notebook-name" type="text" autocomplete="off">
+                      </div>
+                      <!-- gating: field Sync token · type password · masked -->
+                      <div class="pal-field" data-od-id="fg-final-token">
+                        <label class="pal-field__lab" for="fg-final-token-in">Sync token</label>
+                        <input class="input" id="fg-final-token-in" name="sync-token" type="password" autocomplete="off" spellcheck="false">
+                      </div>
+                      <div class="pal-field" data-od-id="fg-final-template">
+                        <label class="pal-field__lab" for="fg-final-template-in">Capture template</label>
+                        <textarea class="textarea" id="fg-final-template-in" name="capture-template" rows="3"></textarea>
+                      </div>
+                      <div class="pal-field" data-od-id="fg-final-archive">
+                        <button class="pal-check" type="button" role="checkbox" aria-checked="false" id="fg-final-archive-btn">
+                          <span class="pal-check__box"><svg data-lucide="check" hidden></svg></span>
+                          Archive on capture
+                        </button>
+                      </div>
+                      <div class="pal-field" data-od-id="fg-final-tag">
+                        <label class="pal-field__lab" for="fg-final-tag-in">Default tag</label>
+                        <select class="input" id="fg-final-tag-in" name="default-tag">
+                          <option value="inbox">inbox</option>
+                          <option value="idea">idea</option>
+                        </select>
+                      </div>
+                      <!-- gating: field Attachments folder · directory picker · not a path input -->
+                      <div class="pal-field" data-od-id="fg-final-folder">
+                        <span class="pal-field__lab" id="fg-final-folder-lab">Attachments folder</span>
+                        <div class="pal-pick" role="group" aria-labelledby="fg-final-folder-lab">
+                          <span class="pal-pick__path">Choose a folder</span>
+                          <button class="btn btn--sm" type="button" aria-label="Choose attachments folder"><svg data-lucide="folder"></svg></button>
+                        </div>
+                      </div>
+                      <div class="pal-field" style="align-items:flex-end">
+                        <button class="btn btn--primary" type="submit" data-od-id="fg-final-submit">Submit</button>
+                      </div>
+                    </form>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⇥</span></span> next field</span>
+                  <span><span class="keys"><span class="key">↩</span></span> submit</span>
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · PER-FIELD INVALID ===== -->
+    <section class="lab-sec" data-od-id="fg-invalid">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Per-field invalid</h2>
+        <span class="lab-sec__gist">Submit focuses the first invalid · inline message</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>First invalid takes focus</b>US-012.AC-2: <code>Submit</code> does not leave the form. It focuses the first invalid field and each invalid field keeps its own inline message. Here <code>Notebook name</code> and <code>Sync token</code> both read <code>required</code>; focus and the ring sit on <code>Notebook name</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fg-invalid-stage" style="min-height:0">
+            <div class="palette" data-od-id="fg-invalid-pal" role="dialog" aria-label="Command palette">
+              <div class="palette-head">
+                <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                <nav class="pal-crumbs" aria-label="Palette path">
+                  <span class="pal-crumb pal-crumb--root">Notes</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb">Notes preferences</span>
+                </nav>
+                <input type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" aria-controls="fg-invalid-form" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="pal-kind pal-kind--form">
+                  <form class="pal-form" id="fg-invalid-form" data-od-id="fg-invalid-form">
+                    <!-- gating: submit focuses FIRST invalid field · Notebook name -->
+                    <div class="pal-field is-bad is-focus" data-od-id="fg-invalid-name">
+                      <label class="pal-field__lab" for="fg-invalid-name-in">Notebook name</label>
+                      <input class="input" id="fg-invalid-name-in" type="text" autocomplete="off" aria-invalid="true" aria-describedby="fg-invalid-name-err" style="box-shadow:var(--focus-ring)">
+                      <span class="pal-field__err" id="fg-invalid-name-err">required</span>
+                    </div>
+                    <div class="pal-field is-bad" data-od-id="fg-invalid-token">
+                      <label class="pal-field__lab" for="fg-invalid-token-in">Sync token</label>
+                      <input class="input" id="fg-invalid-token-in" type="password" autocomplete="off" aria-invalid="true" aria-describedby="fg-invalid-token-err">
+                      <span class="pal-field__err" id="fg-invalid-token-err">required</span>
+                    </div>
+                    <div class="pal-field">
+                      <label class="pal-field__lab" for="fg-invalid-template-in">Capture template</label>
+                      <textarea class="textarea" id="fg-invalid-template-in" rows="3"></textarea>
+                    </div>
+                    <div class="pal-field">
+                      <button class="pal-check" type="button" role="checkbox" aria-checked="false">
+                        <span class="pal-check__box"><svg data-lucide="check" hidden></svg></span>
+                        Archive on capture
+                      </button>
+                    </div>
+                    <div class="pal-field">
+                      <label class="pal-field__lab" for="fg-invalid-tag-in">Default tag</label>
+                      <select class="input" id="fg-invalid-tag-in">
+                        <option value="inbox">inbox</option>
+                        <option value="idea">idea</option>
+                      </select>
+                    </div>
+                    <div class="pal-field">
+                      <span class="pal-field__lab">Attachments folder</span>
+                      <div class="pal-pick" role="group">
+                        <span class="pal-pick__path">Choose a folder</span>
+                        <button class="btn btn--sm" type="button" aria-label="Choose attachments folder"><svg data-lucide="folder"></svg></button>
+                      </div>
+                    </div>
+                    <div class="pal-field" style="align-items:flex-end">
+                      <button class="btn btn--primary" type="button">Submit</button>
+                    </div>
+                  </form>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">⇥</span></span> next field</span>
+                <span><span class="keys"><span class="key">↩</span></span> submit</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · SUBMIT FAILED ===== -->
+    <section class="lab-sec" data-od-id="fg-fail">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Submit failed</h2>
+        <span class="lab-sec__gist">form stays open · values intact · inline error</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Values survive the failure</b>US-012.EC-2: a failed submit does not dismiss the view. The form stays open, every value is preserved, and an inline <code>submit failed</code> error is surfaced above the fields. <code>Sync token</code> stays masked.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fg-fail-stage" style="min-height:0">
+            <div class="palette" data-od-id="fg-fail-pal" role="dialog" aria-label="Command palette">
+              <div class="palette-head">
+                <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                <nav class="pal-crumbs" aria-label="Palette path">
+                  <span class="pal-crumb pal-crumb--root">Notes</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb">Notes preferences</span>
+                </nav>
+                <input type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="pal-kind pal-kind--form">
+                  <form class="pal-form" data-od-id="fg-fail-form">
+                    <!-- gating: submit-failed · form remains mounted · values preserved -->
+                    <div class="pal-form__fail" data-od-id="fg-fail-banner" role="alert">
+                      <svg data-lucide="circle-alert" style="width:13px;height:13px;display:inline-block;vertical-align:-2px;margin-right:6px"></svg>
+                      submit failed — Notes could not save preferences
+                    </div>
+                    <div class="pal-field">
+                      <label class="pal-field__lab" for="fg-fail-name-in">Notebook name</label>
+                      <input class="input" id="fg-fail-name-in" type="text" value="acme" autocomplete="off">
+                    </div>
+                    <div class="pal-field">
+                      <label class="pal-field__lab" for="fg-fail-token-in">Sync token</label>
+                      <input class="input" id="fg-fail-token-in" type="password" value="n0tes-sync-tok" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="pal-field">
+                      <label class="pal-field__lab" for="fg-fail-template-in">Capture template</label>
+                      <textarea class="textarea" id="fg-fail-template-in" rows="3"># title</textarea>
+                    </div>
+                    <div class="pal-field">
+                      <button class="pal-check" type="button" role="checkbox" aria-checked="true">
+                        <span class="pal-check__box"><svg data-lucide="check"></svg></span>
+                        Archive on capture
+                      </button>
+                    </div>
+                    <div class="pal-field">
+                      <label class="pal-field__lab" for="fg-fail-tag-in">Default tag</label>
+                      <select class="input" id="fg-fail-tag-in">
+                        <option value="inbox" selected>inbox</option>
+                        <option value="idea">idea</option>
+                      </select>
+                    </div>
+                    <div class="pal-field">
+                      <span class="pal-field__lab">Attachments folder</span>
+                      <div class="pal-pick" role="group">
+                        <span class="pal-pick__path">~/Notes/acme</span>
+                        <button class="btn btn--sm" type="button" aria-label="Choose attachments folder"><svg data-lucide="folder"></svg></button>
+                      </div>
+                    </div>
+                    <div class="pal-field" style="align-items:flex-end">
+                      <button class="btn btn--primary" type="button">Submit</button>
+                    </div>
+                  </form>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">⇥</span></span> next field</span>
+                <span><span class="keys"><span class="key">↩</span></span> submit</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · PASSWORD + EMPTY DROPDOWN ===== -->
+    <section class="lab-sec" data-od-id="fg-mask">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Password mask · empty dropdown hint</h2>
+        <span class="lab-sec__gist">masked token · declared hint, not a blank control</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Mask and hint</b>US-012.EC-3: <code>Sync token</code> is a password field — the value is masked, never shown in the clear. US-012.EC-4: an empty <code>Default tag</code> dropdown shows its declared hint <code>inbox or idea</code> rather than an unlabeled blank.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fg-mask-stage" style="min-height:0">
+            <div class="plain" data-od-id="fg-mask-plain" style="width:min(560px,100%);padding:16px 18px">
+              <div class="pal-form">
+                <!-- gating: Sync token type=password · US-012.EC-3 -->
+                <div class="pal-field" data-od-id="fg-mask-token">
+                  <label class="pal-field__lab" for="fg-mask-token-in">Sync token</label>
+                  <input class="input" id="fg-mask-token-in" type="password" value="n0tes-sync-tok" autocomplete="off" spellcheck="false">
+                </div>
+                <!-- gating: Default tag empty · declared hint inbox or idea · US-012.EC-4 -->
+                <div class="pal-field" data-od-id="fg-mask-tag">
+                  <label class="pal-field__lab" for="fg-mask-tag-in">Default tag</label>
+                  <select class="input" id="fg-mask-tag-in">
+                    <option value="" selected></option>
+                    <option value="inbox">inbox</option>
+                    <option value="idea">idea</option>
+                  </select>
+                  <span class="pal-field__hint">inbox or idea</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · FINAL — SECTIONED GRID ===== -->
+    <section class="lab-sec" data-od-id="fg-grid">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Browse notes — sectioned grid</h2>
+        <span class="lab-sec__gist">Today / Earlier · ←→↑↓ · focus-visible on the active tile</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>2D tiles under the same ladder</b>US-013: view <code>Browse notes</code> sections <code>Today</code> and <code>Earlier</code>. Tiles are emoji or a token glyph + title + optional badge. <code>←→↑↓</code> moves in two dimensions and joins the palette ladder without replacing it. The active tile shows the focus-visible ring. Note <code>nt_9a01d2</code> is <code>Standup follow-ups</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="fg-grid-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="fg-grid-pal" role="dialog" aria-label="Command palette">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">Browse notes</span>
+                  </nav>
+                  <input id="fg-grid-q" type="text" placeholder="Search Browse notes…" aria-label="Search Browse notes" role="combobox" aria-expanded="true" aria-controls="fg-grid-list" aria-activedescendant="fg-tile-standup" aria-autocomplete="list" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="pal-kind pal-kind--grid" data-od-id="fg-grid-kind">
+                    <div class="pal-grid" id="fg-grid-list" role="listbox" aria-label="Notes" data-od-id="fg-grid-final">
+                      <div class="pal-gsec" data-od-id="fg-grid-today">
+                        <div class="pal-gsec__t">Today</div>
+                        <div class="pal-gsec__tiles">
+                          <!-- gating: tile nt_9a01d2 · 2D focus · US-013 -->
+                          <button class="pal-tile is-active" type="button" role="option" aria-selected="true" id="fg-tile-standup" data-od-id="fg-tile-standup" style="box-shadow:var(--focus-ring)">
+                            <span class="pal-tile__media">📝</span>
+                            <span class="pal-tile__t">Standup follow-ups</span>
+                            <span class="pal-tile__badge">inbox</span>
+                          </button>
+                          <button class="pal-tile" type="button" role="option" aria-selected="false" id="fg-tile-digest" data-od-id="fg-tile-digest">
+                            <span class="pal-tile__media"><span class="pal-tile__token">DG</span></span>
+                            <span class="pal-tile__t">Digest triage</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div class="pal-gsec" data-od-id="fg-grid-earlier">
+                        <div class="pal-gsec__t">Earlier</div>
+                        <div class="pal-gsec__tiles">
+                          <button class="pal-tile" type="button" role="option" aria-selected="false" id="fg-tile-release" data-od-id="fg-tile-release">
+                            <span class="pal-tile__media"><span class="pal-tile__token">RN</span></span>
+                            <span class="pal-tile__t">Release notes draft</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">←→↑↓</span></span> move</span>
+                  <span><span class="keys"><span class="key">↩</span></span> open</span>
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · MEDIA FAILED ===== -->
+    <section class="lab-sec" data-od-id="fg-media">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Media-failed tile</h2>
+        <span class="lab-sec__gist">placeholder glyph · title still visible</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Title outlives the image</b>US-013.EC-1: a tile whose media cannot load keeps its title. The media well shows a placeholder glyph plus the literal <code>media failed</code> word — tone is not the only channel.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fg-media-stage" style="min-height:0">
+            <div class="plain" data-od-id="fg-media-plain" style="width:min(280px,100%)">
+              <div class="pal-gsec__tiles" style="grid-template-columns:1fr">
+                <!-- gating: media-failed · title remains · US-013.EC-1 -->
+                <button class="pal-tile" type="button" data-od-id="fg-tile-media-fail">
+                  <span class="pal-tile__media"><span class="pal-tile__ph"><svg data-lucide="image-off"></svg></span></span>
+                  <span class="pal-tile__t">Standup follow-ups</span>
+                  <span class="pal-tile__badge">media failed</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · EMPTY + SCALE ===== -->
+    <section class="lab-sec" data-od-id="fg-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Empty grid · virtualized scale</h2>
+        <span class="lab-sec__gist">same empty grammar as lists · no silent truncation</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Honest empty</b>US-013: a grid with nothing to show uses the same <code>.pal-none</code> grammar as lists — it does not invent a hero or fall back to root. The stack and keyboard contract stay.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="fg-empty-stage" style="min-height:0">
+            <div class="palette" data-od-id="fg-empty-pal" role="dialog" aria-label="Command palette">
+              <div class="palette-head">
+                <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                <nav class="pal-crumbs" aria-label="Palette path">
+                  <span class="pal-crumb pal-crumb--root">Notes</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb">Browse notes</span>
+                </nav>
+                <input type="text" placeholder="Search Browse notes…" aria-label="Search Browse notes" role="combobox" aria-expanded="true" autocomplete="off" spellcheck="false">
+              </div>
+              <!-- gating: empty grid · same pal-none grammar as lists · US-013 -->
+              <div class="pal-none" data-od-id="fg-empty-none">No notes in this workspace yet</div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Virtualize, do not truncate</b>US-013.EC-3: past the mount cap the grid virtualizes. Silent truncation is forbidden — overflow uses the same <code>showing N of M</code> grammar as capped entity sections. <code>N</code> and <code>M</code> come from the runtime; this board does not invent a count.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="fg-overflow-note">
+            <p class="pal-overflow" style="padding:0">showing N of M</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="fg-foot">Spec <code>.compozy/tasks/command-palette/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>os-command-palette.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+  /* gating: field order Notebook name → Sync token → Capture template →
+     Archive on capture → Default tag → Attachments folder; Submit focuses
+     the first empty required; grid ←→↑↓ updates aria-activedescendant */
+
+  document.querySelectorAll(".pal-check").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var on = btn.getAttribute("aria-checked") !== "true";
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+      var svg = btn.querySelector("svg");
+      if (svg) svg.hidden = !on;
+    });
+  });
+
+  var form = document.getElementById("fg-final-form");
+  if (form) {
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var required = [
+        { field: form.querySelector("[data-od-id='fg-final-name']"), input: document.getElementById("fg-final-name-in") },
+        { field: form.querySelector("[data-od-id='fg-final-token']"), input: document.getElementById("fg-final-token-in") }
+      ];
+      var first = null;
+      required.forEach(function (row) {
+        var bad = !row.input.value.trim();
+        row.field.classList.toggle("is-bad", bad);
+        row.field.classList.remove("is-focus");
+        row.input.setAttribute("aria-invalid", bad ? "true" : "false");
+        var err = row.field.querySelector(".pal-field__err");
+        if (bad && !err) {
+          err = document.createElement("span");
+          err.className = "pal-field__err";
+          err.textContent = "required";
+          row.field.appendChild(err);
+        }
+        if (err) err.hidden = !bad;
+        if (bad && !first) first = row;
+      });
+      if (first) {
+        first.field.classList.add("is-focus");
+        first.input.focus();
+      }
+    });
+  }
+
+  var tiles = Array.prototype.slice.call(document.querySelectorAll("#fg-grid-list .pal-tile"));
+  var q = document.getElementById("fg-grid-q");
+  var idx = 0;
+  function setTile(n) {
+    if (!tiles.length) return;
+    idx = Math.max(0, Math.min(n, tiles.length - 1));
+    tiles.forEach(function (t, i) {
+      var on = i === idx;
+      t.classList.toggle("is-active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.style.boxShadow = on ? "var(--focus-ring)" : "";
+    });
+    if (q) q.setAttribute("aria-activedescendant", tiles[idx].id);
+  }
+  var grid = document.getElementById("fg-grid-list");
+  if (grid) {
+    grid.addEventListener("keydown", function (e) {
+      var cols = 3;
+      if (e.key === "ArrowRight") { e.preventDefault(); setTile(idx + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); setTile(idx - 1); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); setTile(idx + cols); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setTile(idx - cols); }
+    });
+    tiles.forEach(function (t, i) {
+      t.addEventListener("click", function () { setTile(i); });
+    });
+  }
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

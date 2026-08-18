@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Settings · Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="command-palette.css">
+<!--
+  command-palette-settings · S12 Settings › Shortcuts (whole registry + global hotkeys).
+  Spec: .compozy/tasks/command-palette/_uiux.md · stories US-023, US-024, US-029 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — web/src/systems/settings/components/layouts/window-manager-shortcut-table.tsx
+                 + os-shortcuts-dialog.tsx
+    spec — whole-registry table with source filter Core areas / Notes (ext.notes);
+           columns command · effective binding · alias (inline edit) · source;
+           alias rule 1–32 characters, no whitespace; conflicts name the culprit
+           (already used by 'session.new') + explicit overwrite (US-023);
+           overwritten loser flagged unbound; extension dormant default
+           `default unavailable — conflicts with X` (US-029.AC-2);
+           global hotkeys shell-gated (US-024): previous binding stays effective
+           when captured elsewhere (AC-3); browser mode renders rows disabled
+           with `requires desktop shell` (AC-4, Settings only);
+           macOS Accessibility callout deep-links System Settings (EC-1);
+           non-QWERTY limitation in recorder copy; reset-one / reset-all;
+           global summon default ⌘⇧Space
+    authorized delta — none
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cp-set-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Command palette</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Settings</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="command-palette-root.html">Root →</a>
+      <a class="btn btn--sm" href="command-palette-settings-palette.html">Palette →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="cp-set-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Settings › Shortcuts</h2>
+        <span class="lab-sec__gist">whole registry · source filter · reset-one / reset-all</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Whole registry</b>US-023: one table for every bound command. Columns are command · effective binding · alias · source. Filter is <code>Core areas</code> / <code>Notes (ext.notes)</code>. Extension source is an info chip with the extension name. Reset-all sits in the header; reset-one is per row. Global hotkeys hang below, shell-gated.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="cp-set-final-stage" style="min-height:680px">
+            <section class="win is-focused" data-od-id="cp-set-final-win" style="width:min(920px,100%);height:calc(100% - 8px)">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph" aria-hidden="true"><svg data-lucide="settings"></svg></span>
+                  <span class="w2-title">Settings</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="app" data-od-id="cp-set-final-page">
+                  <h3 class="w2-title" style="padding:0">Shortcuts</h3>
+
+                  <div class="cp-toolbar" data-od-id="cp-set-final-toolbar">
+                    <button class="btn btn--sm" type="button" data-od-id="cp-set-reset-all" data-reset-all>Reset all</button>
+                    <!-- gating: command.source — Core areas | ext.notes -->
+                    <div class="pill-group pill-group--sm" role="group" aria-label="Source filter">
+                      <button class="pill-group__item is-on" type="button" aria-pressed="true" data-src-filter="core">Core areas</button>
+                      <button class="pill-group__item" type="button" aria-pressed="false" data-src-filter="ext.notes">Notes (ext.notes)</button>
+                    </div>
+                  </div>
+
+                  <div class="cp-reg panelbox" data-od-id="cp-set-final-reg">
+                    <table class="spec-table" data-od-id="cp-set-final-table">
+                      <thead>
+                        <tr>
+                          <th>Command</th>
+                          <th>Effective binding</th>
+                          <th>Alias</th>
+                          <th class="cp-src-col">Source</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody data-od-id="cp-set-final-body">
+                        <tr data-src="core" data-od-id="cp-set-row-palette">
+                          <td>
+                            <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">Command palette</span>
+                            <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">palette.summon</div>
+                          </td>
+                          <td><span class="keys"><span class="key">⌘K</span></span></td>
+                          <td><input class="cp-alias" type="text" value="" aria-label="Alias for Command palette" maxlength="32"></td>
+                          <td class="cp-src-col">Core areas</td>
+                          <td>
+                            <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Reset Command palette to default"><svg data-lucide="rotate-ccw"></svg></button>
+                          </td>
+                        </tr>
+                        <tr data-src="core" data-od-id="cp-set-row-sessions">
+                          <td>
+                            <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">Sessions palette view</span>
+                            <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">palette.view.sessions</div>
+                          </td>
+                          <td><span class="keys"><span class="key">⌘E</span></span></td>
+                          <td><input class="cp-alias" type="text" value="" aria-label="Alias for Sessions palette view" maxlength="32"></td>
+                          <td class="cp-src-col">Core areas</td>
+                          <td>
+                            <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Reset Sessions palette view to default"><svg data-lucide="rotate-ccw"></svg></button>
+                          </td>
+                        </tr>
+                        <!-- gating: command.id = session.new · binding meta+n -->
+                        <tr data-src="core" data-cmd="session.new" data-od-id="cp-set-row-session-new">
+                          <td>
+                            <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">New session</span>
+                            <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">session.new</div>
+                          </td>
+                          <td><span class="keys"><span class="key">⌘N</span></span></td>
+                          <td><input class="cp-alias" type="text" value="" aria-label="Alias for New session" maxlength="32"></td>
+                          <td class="cp-src-col">Core areas</td>
+                          <td>
+                            <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Reset New session to default"><svg data-lucide="rotate-ccw"></svg></button>
+                          </td>
+                        </tr>
+                        <tr data-src="core" data-od-id="cp-set-row-sidebar">
+                          <td>
+                            <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">Toggle sidebar</span>
+                            <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">sidebar.toggle</div>
+                          </td>
+                          <td><span class="keys"><span class="key">⌘B</span></span></td>
+                          <td><input class="cp-alias" type="text" value="" aria-label="Alias for Toggle sidebar" maxlength="32"></td>
+                          <td class="cp-src-col">Core areas</td>
+                          <td>
+                            <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Reset Toggle sidebar to default"><svg data-lucide="rotate-ccw"></svg></button>
+                          </td>
+                        </tr>
+                        <tr data-src="core" data-od-id="cp-set-row-close">
+                          <td>
+                            <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">Close window</span>
+                            <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">window.close</div>
+                          </td>
+                          <td><span class="keys"><span class="key">⌘W</span></span></td>
+                          <td><input class="cp-alias" type="text" value="" aria-label="Alias for Close window" maxlength="32"></td>
+                          <td class="cp-src-col">Core areas</td>
+                          <td>
+                            <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Reset Close window to default"><svg data-lucide="rotate-ccw"></svg></button>
+                          </td>
+                        </tr>
+                        <tr data-src="core" data-od-id="cp-set-row-tab">
+                          <td>
+                            <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">New tab</span>
+                            <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">window.tab.new</div>
+                          </td>
+                          <td><span class="keys"><span class="key">⌘T</span></span></td>
+                          <td><input class="cp-alias" type="text" value="" aria-label="Alias for New tab" maxlength="32"></td>
+                          <td class="cp-src-col">Core areas</td>
+                          <td>
+                            <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Reset New tab to default"><svg data-lucide="rotate-ccw"></svg></button>
+                          </td>
+                        </tr>
+                        <tr data-src="core" data-od-id="cp-set-row-scope">
+                          <td>
+                            <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">Global scope</span>
+                            <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">palette.scope.global</div>
+                          </td>
+                          <td><span class="keys"><span class="key">⌘⇧G</span></span></td>
+                          <td><input class="cp-alias" type="text" value="" aria-label="Alias for Global scope" maxlength="32"></td>
+                          <td class="cp-src-col">Core areas</td>
+                          <td>
+                            <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Reset Global scope to default"><svg data-lucide="rotate-ccw"></svg></button>
+                          </td>
+                        </tr>
+                        <!-- gating: command.source = ext.notes · alias = cap -->
+                        <tr data-src="ext.notes" data-od-id="cp-set-row-capture">
+                          <td>
+                            <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">Capture note <span class="pal-alias">(cap)</span></span>
+                            <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">ext.notes.capture</div>
+                          </td>
+                          <td><span class="keys"><span class="key">⌥⇧N</span></span></td>
+                          <td><input class="cp-alias" type="text" value="cap" aria-label="Alias for Capture note" maxlength="32"></td>
+                          <td class="cp-src-col"><span class="pal-src">Notes (ext.notes)</span></td>
+                          <td>
+                            <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Reset Capture note to default"><svg data-lucide="rotate-ccw"></svg></button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="cp-hot" data-od-id="cp-set-final-hot">
+                    <div class="cp-hot__t">Global hotkeys</div>
+                    <div class="panelbox">
+                      <!-- gating: window_manager.global_shortcuts["palette.summon.global"] · client.kind = shell -->
+                      <div class="srow" data-od-id="cp-set-row-summon-global">
+                        <div class="srow__main">
+                          <div class="srow__label">Command palette · global</div>
+                          <div class="cp-bind" style="margin-top:2px">window_manager.global_shortcuts."palette.summon.global" = "meta+shift+Space"</div>
+                        </div>
+                        <div class="srow__ctl">
+                          <span class="keys"><span class="key">⌘⇧Space</span></span>
+                          <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Record global shortcut"><svg data-lucide="pencil"></svg></button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · ALIAS EDIT ===== -->
+    <section class="lab-sec" data-od-id="cp-set-alias">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Alias cell</h2>
+        <span class="lab-sec__gist">inline edit · whitespace rejected</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Invalid alias</b>US-023: alias is inline in the cell. A value with whitespace is rejected. The rule is verbatim <code>1–32 characters, no whitespace</code> — shown only while the cell is invalid, never as a subtitle under the heading.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-alias-plain">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th>Command</th>
+                  <th>Effective binding</th>
+                  <th>Alias</th>
+                  <th class="cp-src-col">Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- gating: command.alias — reject /\s/ -->
+                <tr data-od-id="cp-set-alias-row">
+                  <td>
+                    <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">Capture note</span>
+                    <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">ext.notes.capture</div>
+                  </td>
+                  <td><span class="keys"><span class="key">⌥⇧N</span></span></td>
+                  <td>
+                    <input class="cp-alias is-bad" type="text" value="ca p" aria-invalid="true" aria-describedby="cp-set-alias-rule" aria-label="Alias for Capture note" maxlength="32" data-alias-demo>
+                    <div class="cp-alias-rule" id="cp-set-alias-rule">1–32 characters, no whitespace</div>
+                  </td>
+                  <td class="cp-src-col"><span class="pal-src">Notes (ext.notes)</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · CONFLICT ===== -->
+    <section class="lab-sec" data-od-id="cp-set-conflict">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Conflict</h2>
+        <span class="lab-sec__gist">names the culprit · overwrite is explicit</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Recorder names the owner</b>US-023: capturing <code>⌘N</code> for <code>ext.notes.capture</code> names the culprit in a structured hint — <code>already used by 'session.new'</code> — and offers an explicit overwrite. The recorder copy states the non-QWERTY limit. Tone + glyph + the conflict phrase; never color alone.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-conflict-plain">
+            <div class="sc-row" data-od-id="cp-set-conflict-row">
+              <div class="sc-row__main">
+                <div class="sc-row__label">Capture note</div>
+                <div class="sc-row__id">ext.notes.capture</div>
+              </div>
+              <div class="sc-row__trail">
+                <span class="pill" data-tone="warning"><svg data-lucide="keyboard"></svg>listening</span>
+                <span class="keys"><span class="key">⌘N</span></span>
+                <button class="sc-row__edit" type="button" aria-label="Cancel recording" style="opacity:1"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <!-- gating: keymap collision — captured chord owned by session.new -->
+            <div class="cp-conflict" data-od-id="cp-set-conflict-banner">
+              <svg data-lucide="octagon-x"></svg>
+              <span>already used by 'session.new'</span>
+              <button class="btn btn--sm" type="button" data-od-id="cp-set-overwrite">Overwrite</button>
+            </div>
+            <div class="cp-why" style="padding:0 12px 10px">physical keys — non-QWERTY layouts may differ from the printed legend</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · LOSER ===== -->
+    <section class="lab-sec" data-od-id="cp-set-loser">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Overwritten loser</h2>
+        <span class="lab-sec__gist">flagged unbound · winner keeps the chord</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Loser is flagged</b>After overwrite, <code>session.new</code> keeps its row and is flagged <code>unbound</code>. The winner (<code>ext.notes.capture</code>) now holds <code>⌘N</code>. Warning tone + glyph + the word <code>unbound</code>.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-loser-plain">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th>Command</th>
+                  <th>Effective binding</th>
+                  <th>Alias</th>
+                  <th class="cp-src-col">Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="cp-row--loser" data-od-id="cp-set-loser-row">
+                  <td>
+                    <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--muted)">New session</span>
+                    <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">session.new</div>
+                  </td>
+                  <td>
+                    <span class="cp-flag"><svg data-lucide="circle-off" style="width:12px;height:12px"></svg>unbound</span>
+                  </td>
+                  <td><input class="cp-alias" type="text" value="" aria-label="Alias for New session" maxlength="32"></td>
+                  <td class="cp-src-col">Core areas</td>
+                </tr>
+                <tr data-od-id="cp-set-loser-winner">
+                  <td>
+                    <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--fg)">Capture note <span class="pal-alias">(cap)</span></span>
+                    <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">ext.notes.capture</div>
+                  </td>
+                  <td><span class="keys"><span class="key">⌘N</span></span></td>
+                  <td><input class="cp-alias" type="text" value="cap" aria-label="Alias for Capture note" maxlength="32"></td>
+                  <td class="cp-src-col"><span class="pal-src">Notes (ext.notes)</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · DORMANT DEFAULT ===== -->
+    <section class="lab-sec" data-od-id="cp-set-dormant">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Extension dormant default</h2>
+        <span class="lab-sec__gist">default withheld · conflict named</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Default stays dark</b>US-029.AC-2: an extension default that collides with a core command is not applied. The row stays in the registry and reads <code>default unavailable — conflicts with session.new</code>. Warning glyph + <code>unavailable</code> + the verbatim reason.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-dormant-plain">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th>Command</th>
+                  <th>Effective binding</th>
+                  <th>Alias</th>
+                  <th class="cp-src-col">Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- gating: extension default_binding conflicts with session.new -->
+                <tr class="cp-row--dormant" data-od-id="cp-set-dormant-row">
+                  <td>
+                    <span style="font-family:var(--font-sans);font-size:12.5px;font-weight:500;color:var(--muted)">Recent notes</span>
+                    <div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:1px">notes.recent</div>
+                  </td>
+                  <td>
+                    <span class="cp-flag"><svg data-lucide="triangle-alert" style="width:12px;height:12px"></svg>unavailable</span>
+                    <div class="cp-why" style="margin-top:3px">default unavailable — conflicts with session.new</div>
+                  </td>
+                  <td><input class="cp-alias" type="text" value="" aria-label="Alias for Recent notes" maxlength="32"></td>
+                  <td class="cp-src-col"><span class="pal-src">Notes (ext.notes)</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · GLOBAL HOTKEYS ===== -->
+    <section class="lab-sec" data-od-id="cp-set-global">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Global hotkeys</h2>
+        <span class="lab-sec__gist">shell-gated · previous binding stays · Settings-only disabled</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Effective summon</b>US-024: <code>palette.summon.global</code> ships as <code>⌘⇧Space</code>. The config key is a micro-mono caption, never a heading. Recorder sits on the row.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-global-ok">
+            <div class="srow">
+              <div class="srow__main">
+                <div class="srow__label">Command palette · global</div>
+                <div class="cp-bind" style="margin-top:2px">window_manager.global_shortcuts."palette.summon.global" = "meta+shift+Space"</div>
+              </div>
+              <div class="srow__ctl">
+                <span class="keys"><span class="key">⌘⇧Space</span></span>
+                <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Record global shortcut"><svg data-lucide="pencil"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Captured elsewhere</b>US-024.AC-3: another application holds the chord. The previous binding remains the effective one. Reason is the fragment <code>unavailable — in use by another application</code>.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-global-captured">
+            <!-- gating: os_hotkey_owner != compozy · previous binding still effective -->
+            <div class="srow">
+              <div class="srow__main">
+                <div class="srow__label">Command palette · global</div>
+                <div class="cp-bind" style="margin-top:2px">window_manager.global_shortcuts."palette.summon.global" = "meta+shift+Space"</div>
+                <div class="cp-why" style="margin-top:4px"><span class="cp-flag"><svg data-lucide="triangle-alert" style="width:12px;height:12px"></svg>unavailable</span> — in use by another application</div>
+              </div>
+              <div class="srow__ctl">
+                <span class="keys"><span class="key">⌘⇧Space</span></span>
+                <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Record global shortcut"><svg data-lucide="pencil"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Browser mode</b>US-024.AC-4: Settings is the only surface that renders these rows disabled instead of omitting them. Each row states <code>requires desktop shell</code>. Tone + glyph + the reason. Recorder is not operable.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-global-browser">
+            <!-- gating: client.kind = browser · rows disabled, not absent -->
+            <div class="srow cp-row--off" data-od-id="cp-set-global-browser-summon" aria-disabled="true">
+              <div class="srow__main">
+                <div class="srow__label" style="color:var(--muted)">Command palette · global</div>
+                <div class="cp-bind" style="margin-top:2px">window_manager.global_shortcuts."palette.summon.global" = "meta+shift+Space"</div>
+                <div class="cp-why" style="margin-top:4px"><span class="cp-flag"><svg data-lucide="app-window" style="width:12px;height:12px"></svg>unavailable</span> — requires desktop shell</div>
+              </div>
+              <div class="srow__ctl">
+                <span class="keys"><span class="key">⌘⇧Space</span></span>
+                <button class="btn btn--sm btn--ghost btn--icon" type="button" aria-label="Record global shortcut" disabled><svg data-lucide="pencil"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Accessibility</b>US-024.EC-1: macOS withholds global listen until Accessibility is granted. The callout deep-links System Settings. Warning glyph + <code>Accessibility</code> as the state word.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-a11y-plain">
+            <!-- gating: macos.accessibility.trusted = false -->
+            <div class="cp-a11y" data-od-id="cp-set-a11y">
+              <div class="cp-a11y__body">
+                <div style="display:flex;align-items:flex-start;gap:8px">
+                  <svg data-lucide="triangle-alert" style="width:13px;height:13px;flex:none;margin-top:2px;color:var(--warning)"></svg>
+                  <div>
+                    <b>Accessibility</b>
+                    macOS blocks global hotkeys until CompozyOS is allowed in Accessibility
+                    <div style="margin-top:8px">
+                      <a class="btn btn--sm" data-od-id="cp-set-a11y-link" href="x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility">Open System Settings</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Non-QWERTY</b>The limitation is recorder copy, not a separate banner: <code>physical keys — non-QWERTY layouts may differ from the printed legend</code>.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-set-qwerty-plain">
+            <div class="sc-row" data-od-id="cp-set-qwerty-row">
+              <div class="sc-row__main">
+                <div class="sc-row__label">Command palette · global</div>
+                <div class="sc-row__id">palette.summon.global</div>
+              </div>
+              <div class="sc-row__trail">
+                <span class="pill" data-tone="warning"><svg data-lucide="keyboard"></svg>listening</span>
+                <button class="sc-row__edit" type="button" aria-label="Cancel recording" style="opacity:1"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <div class="cp-why" style="padding:0 12px 10px">physical keys — non-QWERTY layouts may differ from the printed legend</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="cp-set-foot">Spec <code>.compozy/tasks/command-palette/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>window-manager-shortcut-table.tsx</code> + <code>os-shortcuts-dialog.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  /* gating: command.source filter — Core areas | ext.notes */
+  var filterRoot = document.querySelector("[data-od-id='cp-set-final-body']");
+  var filterBtns = document.querySelectorAll("[data-src-filter]");
+  filterBtns.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var src = btn.getAttribute("data-src-filter");
+      filterBtns.forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      if (!filterRoot) return;
+      filterRoot.querySelectorAll("tr[data-src]").forEach(function (row) {
+        row.hidden = row.getAttribute("data-src") !== src;
+      });
+    });
+  });
+
+  /* gating: command.alias — 1–32 characters, no whitespace */
+  document.querySelectorAll(".cp-alias").forEach(function (input) {
+    input.addEventListener("input", function () {
+      var raw = input.value;
+      var bad = raw.length > 32 || /\s/.test(raw);
+      input.classList.toggle("is-bad", bad);
+      input.setAttribute("aria-invalid", bad ? "true" : "false");
+      var cell = input.parentElement;
+      if (!cell) return;
+      var rule = cell.querySelector(".cp-alias-rule");
+      if (bad && !rule) {
+        rule = document.createElement("div");
+        rule.className = "cp-alias-rule";
+        rule.textContent = "1–32 characters, no whitespace";
+        cell.appendChild(rule);
+      } else if (!bad && rule && !input.hasAttribute("data-alias-demo")) {
+        rule.remove();
+      }
+    });
+  });
+
+  /* gating: keymap overwrite — ext.notes.capture takes ⌘N; aftermath is §04, do not hide the lab */
+  var overwrite = document.querySelector("[data-od-id='cp-set-overwrite']");
+  if (overwrite) {
+    overwrite.addEventListener("click", function () {
+      overwrite.setAttribute("aria-pressed", "true");
+      overwrite.textContent = "Overwritten";
+      overwrite.disabled = true;
+    });
+  }
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

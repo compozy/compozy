@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "command-palette/command-palette-view-bands.html",
+  "entry": "command-palette/command-palette-view-bands.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-18T04:08:39.274Z",
+  "updatedAt": "2026-08-18T04:08:39.274Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

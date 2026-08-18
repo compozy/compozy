@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Action panel · Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="command-palette.css">
+<!--
+  command-palette-action-panel · S7 action panel.
+  Spec: .compozy/tasks/command-palette/_uiux.md · story US-014 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — os-command-palette.tsx selected-row seam
+    spec — ⌘K on the selected row toggles a row-anchored glass panel
+           (US-014.AC-1); typing filters actions; primary marked ↩;
+           meta-actions Pin / Unpin · Set alias… · Set shortcut…;
+           entity destructive = danger text + glyph; disabled command
+           lists meta-actions + the verbatim reason only (US-014.EC-2);
+           row vanishes → panel closes, nearest-neighbor selection,
+           no dead fire (US-014.EC-1). Esc ladder: panel first
+    authorized delta — none
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ap-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Command palette</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Action panel</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="command-palette-form-grid.html">← Form + grid</a>
+      <a class="btn btn--sm" href="command-palette-args-confirmation.html">Args + confirmation →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="ap-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">⌘K on the selected session row</h2>
+        <span class="lab-sec__gist">anchored glass · Session + Command · ↩ on Land session</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Row-anchored panel</b>US-014: <span class="keys"><span class="key">⌘</span><span class="key">K</span></span> on the selected session <code>Refactor session store</code> opens the panel, shell-glass, over the palette and anchored to that row. Section <code>Session</code> — <code>Land session</code> marked <code>↩</code>, then <code>Interrupt</code> and <code>New tab here</code>. Section <code>Command</code> — <code>Pin</code> · <code>Set alias…</code> · <code>Set shortcut…</code>. Bound actions carry a chord badge. Filter sits at the top. <span class="keys"><span class="key">⌘</span><span class="key">K</span></span> again or <span class="keys"><span class="key">esc</span></span> closes. Esc ladder: panel → view stack → close.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="ap-final-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="ap-final-pal" role="dialog" aria-label="Command palette">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb">Sessions</span>
+                  </nav>
+                  <input id="ap-final-q" type="text" placeholder="Search sessions…" aria-label="Palette query" role="combobox" aria-expanded="true" aria-controls="ap-final-rows" aria-activedescendant="ap-row-refactor" aria-autocomplete="list">
+                </div>
+                <div class="palette-results" id="ap-final-rows" role="listbox" aria-label="Sessions">
+                  <!-- gating: selected session row · waiting-for-input · claude · 2m -->
+                  <button class="pal-srow is-active" type="button" role="option" aria-selected="true" id="ap-row-refactor" data-class="needs" data-od-id="ap-row-refactor">
+                    <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Refactor session store</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                    </span>
+                    <span class="pal-srow__meta">2m</span>
+                  </button>
+                  <button class="pal-srow" type="button" role="option" aria-selected="false" id="ap-row-retries" data-class="run" data-od-id="ap-row-retries">
+                    <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Fix payment retries</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                    </span>
+                    <span class="pal-srow__meta">now</span>
+                  </button>
+                  <button class="pal-srow" type="button" role="option" aria-selected="false" id="ap-row-release" data-class="done" data-od-id="ap-row-release">
+                    <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                    <span class="pal-srow__main">
+                      <span class="pal-srow__title">Release notes draft</span>
+                      <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· hermes</span></span>
+                    </span>
+                    <span class="pal-srow__meta">26m</span>
+                  </button>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                  <span><span class="keys"><span class="key">⌘</span><span class="key">K</span></span> actions</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+              <div class="pal-act" id="ap-final-panel" role="dialog" aria-label="Actions" aria-modal="true" data-od-id="ap-final-panel" style="position:absolute;top:148px;left:calc(50% + 36px);z-index:4">
+                <div class="pal-act__filter">
+                  <svg data-lucide="search"></svg>
+                  <!-- gating: panel filter query · live hide of pal-act__row -->
+                  <input id="ap-final-filter" type="text" placeholder="Filter actions…" aria-label="Filter actions" role="combobox" aria-expanded="true" aria-controls="ap-final-actions" aria-activedescendant="ap-act-land" autocomplete="off">
+                </div>
+                <div id="ap-final-actions" role="listbox" aria-label="Row actions">
+                  <div class="pal-act__sec" data-sec-head="session">Session</div>
+                  <button class="pal-act__row is-active" type="button" role="option" aria-selected="true" id="ap-act-land" data-sec="session" data-od-id="ap-act-land">
+                    <svg data-lucide="log-in"></svg>
+                    Land session
+                    <span class="pal-act__ret">↩</span>
+                  </button>
+                  <button class="pal-act__row" type="button" role="option" aria-selected="false" id="ap-act-interrupt" data-sec="session" data-od-id="ap-act-interrupt">
+                    <svg data-lucide="square"></svg>
+                    Interrupt
+                  </button>
+                  <button class="pal-act__row" type="button" role="option" aria-selected="false" id="ap-act-tab" data-sec="session" data-od-id="ap-act-tab">
+                    <svg data-lucide="app-window"></svg>
+                    New tab here
+                  </button>
+                  <div class="pal-act__sec" data-sec-head="command">Command</div>
+                  <button class="pal-act__row" type="button" role="option" aria-selected="false" id="ap-act-pin" data-sec="command" data-od-id="ap-act-pin">
+                    <svg data-lucide="pin"></svg>
+                    Pin
+                  </button>
+                  <button class="pal-act__row" type="button" role="option" aria-selected="false" id="ap-act-alias" data-sec="command" data-od-id="ap-act-alias">
+                    <svg data-lucide="text-cursor-input"></svg>
+                    Set alias…
+                  </button>
+                  <button class="pal-act__row" type="button" role="option" aria-selected="false" id="ap-act-shortcut" data-sec="command" data-od-id="ap-act-shortcut">
+                    <svg data-lucide="keyboard"></svg>
+                    Set shortcut…
+                  </button>
+                </div>
+                <div class="pal-act__empty" id="ap-final-empty" hidden>No actions match</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · FILTER + EMPTY ===== -->
+    <section class="lab-sec" data-od-id="ap-filter">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Filter as you type</h2>
+        <span class="lab-sec__gist">narrows the list · empty is honest</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Typing filters actions</b>US-014: the filter input narrows both sections. A query <code>pin</code> leaves <code>Pin</code>. Sections with no remaining rows collapse. The primary marker stays on a visible row only when that row is still the active one.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="ap-filter-stage" style="min-height:0">
+            <div class="pal-act" role="dialog" aria-label="Actions" data-od-id="ap-filter-panel">
+              <div class="pal-act__filter">
+                <svg data-lucide="search"></svg>
+                <input type="text" value="pin" aria-label="Filter actions" role="combobox" aria-expanded="true" aria-controls="ap-filter-list" aria-activedescendant="ap-filter-pin">
+              </div>
+              <div id="ap-filter-list" role="listbox" aria-label="Row actions">
+                <div class="pal-act__sec">Command</div>
+                <button class="pal-act__row is-active" type="button" role="option" aria-selected="true" id="ap-filter-pin">
+                  <svg data-lucide="pin"></svg>
+                  Pin
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Filtered empty</b>A query that matches nothing keeps the panel open and shows <code>No actions match</code>. It does not close, and it does not invent a fallback action.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="ap-empty-stage" style="min-height:0">
+            <div class="pal-act" role="dialog" aria-label="Actions" data-od-id="ap-empty-panel">
+              <div class="pal-act__filter">
+                <svg data-lucide="search"></svg>
+                <input type="text" value="xyz" aria-label="Filter actions" role="combobox" aria-expanded="true">
+              </div>
+              <div class="pal-act__empty" data-od-id="ap-empty-none">No actions match</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · DESTRUCTIVE ===== -->
+    <section class="lab-sec" data-od-id="ap-danger">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Destructive emphasis</h2>
+        <span class="lab-sec__gist">danger text + glyph · never color alone</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Entity destructive</b>US-014: a domain action that destroys the entity wears danger text + glyph. Fixture: worktree row → <code>Remove worktree</code>. Tone, <code>trash-2</code>, and the word <code>Remove</code> travel together.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="ap-danger-stage" style="min-height:0;flex-direction:column;align-items:center;gap:16px">
+            <div class="palette" data-od-id="ap-danger-pal" role="dialog" aria-label="Command palette" style="width:min(560px,100%)">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <input type="text" placeholder="Search apps, sessions, and actions…" aria-label="Palette query" role="combobox" aria-expanded="true" aria-activedescendant="ap-row-worktree">
+              </div>
+              <div class="palette-results" role="listbox" aria-label="Results">
+                <!-- gating: worktree entity row · destructive domain action -->
+                <button class="pal-item is-active" type="button" role="option" aria-selected="true" id="ap-row-worktree" data-od-id="ap-row-worktree">
+                  <svg data-lucide="git-branch"></svg>
+                  acme
+                  <span class="pal-meta">worktree</span>
+                </button>
+              </div>
+            </div>
+            <div class="pal-act" role="dialog" aria-label="Actions" data-od-id="ap-danger-panel">
+              <div class="pal-act__filter">
+                <svg data-lucide="search"></svg>
+                <input type="text" placeholder="Filter actions…" aria-label="Filter actions" role="combobox" aria-expanded="true" aria-activedescendant="ap-act-remove">
+              </div>
+              <div role="listbox" aria-label="Row actions">
+                <div class="pal-act__sec">Worktree</div>
+                <button class="pal-act__row pal-act__row--danger is-active" type="button" role="option" aria-selected="true" id="ap-act-remove" data-od-id="ap-act-remove">
+                  <svg data-lucide="trash-2"></svg>
+                  Remove worktree
+                </button>
+                <div class="pal-act__sec">Command</div>
+                <button class="pal-act__row" type="button" role="option" aria-selected="false">
+                  <svg data-lucide="pin"></svg>
+                  Pin
+                </button>
+                <button class="pal-act__row" type="button" role="option" aria-selected="false">
+                  <svg data-lucide="text-cursor-input"></svg>
+                  Set alias…
+                </button>
+                <button class="pal-act__row" type="button" role="option" aria-selected="false">
+                  <svg data-lucide="keyboard"></svg>
+                  Set shortcut…
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · DISABLED COMMAND ===== -->
+    <section class="lab-sec" data-od-id="ap-off">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Disabled command</h2>
+        <span class="lab-sec__gist">meta-actions + verbatim reason only</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Reason, not a ghost run</b>US-014.EC-2: when the selected command is unavailable, the panel lists meta-actions plus the verbatim reason only — <code>extension notes is unhealthy (crash loop)</code>. Unavailable domain actions are not listed as runnable. The reason is a sentence fragment with no trailing period, and it is never baked into the label <code>Capture note</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="ap-off-stage" style="min-height:0;flex-direction:column;align-items:center;gap:16px">
+            <div class="palette" data-od-id="ap-off-pal" role="dialog" aria-label="Command palette" style="width:min(560px,100%)">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <input type="text" placeholder="Search apps, sessions, and actions…" aria-label="Palette query" role="combobox" aria-expanded="true" aria-activedescendant="ap-row-capture">
+              </div>
+              <div class="palette-results" role="listbox" aria-label="Results">
+                <!-- gating: command unavailable · reason lives in the panel, not the label -->
+                <button class="pal-item pal-item--off is-active" type="button" role="option" aria-selected="true" aria-disabled="true" id="ap-row-capture" data-od-id="ap-row-capture">
+                  <svg data-lucide="sticky-note"></svg>
+                  Capture note
+                  <span class="pal-alias">(cap)</span>
+                </button>
+              </div>
+            </div>
+            <div class="pal-act" role="dialog" aria-label="Actions" data-od-id="ap-off-panel">
+              <div class="pal-act__filter">
+                <svg data-lucide="search"></svg>
+                <input type="text" placeholder="Filter actions…" aria-label="Filter actions" role="combobox" aria-expanded="true">
+              </div>
+              <div role="listbox" aria-label="Row actions">
+                <div class="pal-act__sec">Command</div>
+                <button class="pal-act__row" type="button" role="option" aria-selected="false">
+                  <svg data-lucide="pin"></svg>
+                  Pin
+                </button>
+                <button class="pal-act__row" type="button" role="option" aria-selected="false">
+                  <svg data-lucide="text-cursor-input"></svg>
+                  Set alias…
+                </button>
+                <button class="pal-act__row" type="button" role="option" aria-selected="false">
+                  <svg data-lucide="keyboard"></svg>
+                  Set shortcut…
+                </button>
+              </div>
+              <p class="pal-act__why" data-od-id="ap-off-why">extension notes is unhealthy (crash loop)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · BEHAVIOR ===== -->
+    <section class="lab-sec" data-od-id="ap-behavior">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Close, neighbor, ladder</h2>
+        <span class="lab-sec__gist">no dead fire · panel first on Esc</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Panel lifetime</b>US-014.EC-1: if the selected row vanishes while the panel is open, the panel closes, selection moves to the nearest neighbor, and the dismissed action cannot fire. Esc closes the panel before the view stack. <span class="keys"><span class="key">⌘</span><span class="key">K</span></span> toggles the same panel on the selected row.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="ap-behavior-plain">
+            <table class="spec-table">
+              <thead><tr><th>event</th><th>result</th></tr></thead>
+              <tbody>
+                <tr><td>row vanishes</td><td>panel closes · nearest-neighbor selection · no dead fire</td></tr>
+                <tr><td>esc</td><td>panel closes first · stack and palette stay · next esc pops or closes per the ladder</td></tr>
+                <tr><td>⌘K</td><td>toggle — open on the selected row, or close if this panel is already open</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="ap-foot">Spec <code>.compozy/tasks/command-palette/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>os-command-palette.tsx</code> selected-row. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+  /* gating: selected row + ⌘K toggles #ap-final-panel; filter query
+     hides non-matching pal-act__row; Esc closes the panel first */
+
+  var panel = document.getElementById("ap-final-panel");
+  var filter = document.getElementById("ap-final-filter");
+  var empty = document.getElementById("ap-final-empty");
+  var list = document.getElementById("ap-final-actions");
+
+  function setPanel(open) {
+    if (!panel) return;
+    panel.hidden = !open;
+    if (open && filter) filter.focus();
+  }
+
+  function applyFilter(q) {
+    if (!list) return;
+    var query = (q || "").toLowerCase().trim();
+    var visible = 0;
+    list.querySelectorAll(".pal-act__row").forEach(function (row) {
+      var hit = !query || row.textContent.toLowerCase().indexOf(query) !== -1;
+      row.hidden = !hit;
+      if (hit) visible += 1;
+    });
+    list.querySelectorAll("[data-sec-head]").forEach(function (head) {
+      var sec = head.getAttribute("data-sec-head");
+      var any = false;
+      list.querySelectorAll('.pal-act__row[data-sec="' + sec + '"]').forEach(function (row) {
+        if (!row.hidden) any = true;
+      });
+      head.hidden = !any;
+    });
+    if (empty) empty.hidden = visible > 0;
+    if (list) list.hidden = visible === 0;
+  }
+
+  if (filter) {
+    filter.addEventListener("input", function () { applyFilter(filter.value); });
+  }
+
+  document.addEventListener("keydown", function (e) {
+    var isK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
+    if (isK) {
+      e.preventDefault();
+      if (panel) setPanel(panel.hidden);
+      return;
+    }
+    if (e.key === "Escape" && panel && !panel.hidden) {
+      e.preventDefault();
+      e.stopPropagation();
+      setPanel(false);
+    }
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

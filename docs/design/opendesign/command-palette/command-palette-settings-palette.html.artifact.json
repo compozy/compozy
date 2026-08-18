@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "command-palette/command-palette-settings-palette.html",
+  "entry": "command-palette/command-palette-settings-palette.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-18T04:09:59.212Z",
+  "updatedAt": "2026-08-18T04:09:59.212Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

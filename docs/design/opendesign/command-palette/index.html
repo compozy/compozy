@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  command-palette-index · set map — root · views · input flows · settings.
+  Spec: .compozy/tasks/command-palette/_uiux.md (S1–S16) · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — the opendesign index pattern
+    spec — `_uiux.md` surface map
+    authorized delta — none
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:70ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="command-palette-index">
+  <h1>Command palette</h1>
+  <p class="lede">Root, views, input flows, and settings for the OS command palette — ten boards from <code>.compozy/tasks/command-palette/_uiux.md</code>. Each board opens with the final surface, then walks its states. Contract in <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="grp" data-od-id="cp-index-root">
+    <div class="grp__t">Root</div>
+    <div class="cards">
+      <a class="card" href="command-palette-root.html" data-od-id="card-root">
+        <span class="card__top"><span class="card__name">Root</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-root.html</span></span>
+        <span class="card__sub">S1 — first-run rest, query + <span class="mono">ghost</span> tail, async entity sections, and the widened <span class="mono">global</span> scope chip.</span>
+      </a>
+      <a class="card" href="command-palette-root-states.html" data-od-id="card-root-states">
+        <span class="card__top"><span class="card__name">Root states</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-root-states.html</span></span>
+        <span class="card__sub">S1 · S10 · S14 — edge and failure rows, destination mode <span class="mono">Open in this tab</span>, and pending as a motion token.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="cp-index-views">
+    <div class="grp__t">Views</div>
+    <div class="cards">
+      <a class="card" href="command-palette-view-shell.html" data-od-id="card-view-shell">
+        <span class="card__top"><span class="card__name">View shell</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-view-shell.html</span></span>
+        <span class="card__sub">S2 — stack chrome, <span class="mono">…</span> crumb, per-view footers, and loading / timeout / unavailable frames.</span>
+      </a>
+      <a class="card" href="command-palette-view-bands.html" data-od-id="card-view-bands">
+        <span class="card__top"><span class="card__name">View bands</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-view-bands.html</span></span>
+        <span class="card__sub">US-039 — busy (rows stay), degraded + retry, circuit-broken, and the <span class="mono">view reloaded</span> note.</span>
+      </a>
+      <a class="card" href="command-palette-domain-list.html" data-od-id="card-domain-list">
+        <span class="card__top"><span class="card__name">Domain list</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-domain-list.html</span></span>
+        <span class="card__sub">S3 · S4 — list exemplar + selection-driven detail pane; chips reuse <span class="mono">.pal-chip</span>, tones reuse the shared dictionary.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="cp-index-input">
+    <div class="grp__t">Input flows</div>
+    <div class="cards">
+      <a class="card" href="command-palette-form-grid.html" data-od-id="card-form-grid">
+        <span class="card__top"><span class="card__name">Form + grid</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-form-grid.html</span></span>
+        <span class="card__sub">S5 · S6 — declared field order (text, password, textarea, checkbox, dropdown, picker) and sectioned tiles.</span>
+      </a>
+      <a class="card" href="command-palette-action-panel.html" data-od-id="card-action-panel">
+        <span class="card__top"><span class="card__name">Action panel</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-action-panel.html</span></span>
+        <span class="card__sub">S7 — row-anchored glass panel; filter-as-you-type; primary <span class="mono">↩</span>; meta-actions <span class="mono">Pin</span> / <span class="mono">Set alias…</span> / <span class="mono">Set shortcut…</span>.</span>
+      </a>
+      <a class="card" href="command-palette-args-confirmation.html" data-od-id="card-args-confirmation">
+        <span class="card__top"><span class="card__name">Args + confirmation</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-args-confirmation.html</span></span>
+        <span class="card__sub">S8 · S9 — <span class="mono">Capture note</span> args bar (<span class="mono">title</span>, <span class="mono">tag</span>) and <span class="mono">Purge archived notes?</span> with Cancel focused.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="cp-index-settings">
+    <div class="grp__t">Settings &amp; extensions</div>
+    <div class="cards">
+      <a class="card" href="command-palette-settings.html" data-od-id="card-settings">
+        <span class="card__top"><span class="card__name">Settings</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-settings.html</span></span>
+        <span class="card__sub">S12 — whole-registry table (command · binding · alias · source), conflicts, and shell-gated global hotkeys.</span>
+      </a>
+      <a class="card" href="command-palette-settings-palette.html" data-od-id="card-settings-palette">
+        <span class="card__top"><span class="card__name">Palette settings</span><span class="tag tag--final">final + lab</span><span class="card__file">command-palette-settings-palette.html</span></span>
+        <span class="card__sub">S15 · S16 — <span class="mono">ext.notes</span> Palette panel and Settings › Palette (agent-fallback, reset personalization).</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span>; borrowed <span class="mono">herdr.css</span> grammar + <span class="mono">command-palette.css</span>. Content illustrative; runtime truth owns values.</p>
+</div>
+</body>
+</html>

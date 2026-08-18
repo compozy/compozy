@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Root · Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="command-palette.css">
+<!--
+  command-palette-root · S1 root anatomy.
+  Spec: .compozy/tasks/command-palette/_uiux.md · stories US-002, US-003, US-005, US-006, US-007, US-021 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — os-command-palette.tsx (cmdk) + use-os-command-palette.ts
+                 (group precedence, recents/pins, ghost tail, entity streams, scope)
+    spec — S1 rest with Pinned → Recents → context → curated (US-005.AC-1);
+           first-run curated defaults only (US-005.AC-2); query mix keeps
+           entities out of the command group (US-002.AC-3) and alias as
+           Title (alias) (US-002.AC-4); ghost tail after caret (US-006.AC-1/EC-1);
+           async entity sections never block siblings (US-003.AC-4);
+           widened globe chip + workspace sub-line suffix (US-003.EC-5, US-007.AC-2);
+           Recents never lists Command palette (US-021.AC-1)
+    authorized delta — pins/recents substrate lands in task_03; first-run
+                       therefore has no Pinned/Recents groups
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cpr-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Command palette</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Root</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="command-palette-root-states.html">Root states →</a>
+      <a class="btn btn--sm" href="command-palette-view-shell.html">Views →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — REST ===== -->
+    <section class="lab-sec" data-od-id="cpr-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Rest — palette over the OS</h2>
+        <span class="lab-sec__gist">⌘K · workspace acme · first row selected</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Fixed precedence</b>US-005.AC-1: groups read <code>Pinned</code> → <code>Recents</code> → context (<code>Window</code>) → curated <code>Views</code> · <code>Apps</code> · <code>Settings</code>. Pin-time order: <code>New session</code> then <code>Capture note (cap)</code>. Recents are most-recent-first and never contain Command palette itself (US-021.AC-1). App rows use <code>Open {app}</code>; settings rows use <code>Settings → {page}</code>. Bound rows carry a <code>.pal-chord</code> badge. Scope chip is the current workspace — not widened. Selection is the neutral plate on the first row. Footer: ↑↓ move · ⏎ open · esc close.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="cpr-final-stage" style="min-height:760px">
+            <header class="menubar" style="position:relative;z-index:1">
+              <div class="mb-side">
+                <button class="mb-logo" type="button" aria-label="CompozyOS">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg>
+                </button>
+                <button class="ws-trigger" type="button">
+                  <span class="ws-avatar mono">AC</span>
+                  <span class="ws-name">acme</span>
+                  <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <nav class="mb-menus" aria-label="Menus">
+                  <button class="mb-menu" type="button">Session</button>
+                  <button class="mb-menu" type="button">View</button>
+                  <button class="mb-menu" type="button">Help</button>
+                </nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" type="button" aria-label="Attention"><svg data-lucide="bell"></svg></button>
+                <button class="mb-chip" type="button" aria-label="Command palette" aria-pressed="true"><span class="mono">⌘K</span></button>
+                <button class="mb-icon" type="button" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+            <section class="win is-focused" data-od-id="cpr-final-win" style="margin:18px 20px 0;height:calc(100% - 80px)">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="house"></svg></span>
+                  <span class="w2-title">Home</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body"></div>
+            </section>
+            <div class="overlay palette-overlay" data-od-id="cpr-final-overlay">
+              <div class="palette" data-od-id="cpr-final-palette">
+                <div class="palette-head">
+                  <svg data-lucide="search"></svg>
+                  <input id="cpr-final-input" type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cpr-final-list" aria-activedescendant="cpr-final-row-new-session" aria-autocomplete="list" aria-label="Palette query">
+                </div>
+                <div class="pal-chips" data-od-id="cpr-final-chips">
+                  <!-- gating: scope chip = current workspace · not widened · US-007 -->
+                  <button class="pal-chip pal-scope" type="button" aria-pressed="false" data-od-id="cpr-final-scope"><svg data-lucide="globe"></svg>acme</button>
+                </div>
+                <div class="palette-results" id="cpr-final-list" role="listbox" aria-label="Palette results" data-od-id="cpr-final-list">
+                  <!-- gating: group precedence Pinned → Recents → context → curated · US-005.AC-1 -->
+                  <div class="pal-group" role="presentation">Pinned</div>
+                  <button type="button" class="pal-item is-active" role="option" id="cpr-final-row-new-session" aria-selected="true" data-od-id="cpr-final-row-new-session">
+                    <svg data-lucide="plus"></svg>New session
+                    <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">N</span></span>
+                  </button>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-capture" aria-selected="false" data-od-id="cpr-final-row-capture">
+                    <svg data-lucide="sticky-note"></svg>
+                    <span>Capture note <span class="pal-alias">(cap)</span></span>
+                    <span class="pal-src">Notes (ext.notes)</span>
+                    <span class="pal-chord"><span class="pal-k">⌥</span><span class="pal-k">⇧</span><span class="pal-k">N</span></span>
+                  </button>
+                  <!-- gating: recents most-recent-first, deduplicated; never Command palette · US-021.AC-1 -->
+                  <div class="pal-group" role="presentation">Recents</div>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-sidebar" aria-selected="false" data-od-id="cpr-final-row-sidebar">
+                    <svg data-lucide="panel-left"></svg>Toggle sidebar
+                    <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">B</span></span>
+                  </button>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-recent-tasks" aria-selected="false" data-od-id="cpr-final-row-recent-tasks">
+                    <svg data-lucide="list-todo"></svg>Open Tasks
+                  </button>
+                  <div class="pal-group" role="presentation">Window</div>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-close" aria-selected="false" data-od-id="cpr-final-row-close">
+                    <svg data-lucide="x"></svg>Close window
+                    <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">W</span></span>
+                  </button>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-zoom" aria-selected="false" data-od-id="cpr-final-row-zoom">
+                    <svg data-lucide="maximize-2"></svg>Zoom window
+                    <span class="pal-chord"><span class="pal-k">⌃</span><span class="pal-k">⌥</span><span class="pal-k">⏎</span></span>
+                  </button>
+                  <div class="pal-group" role="presentation">Views</div>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-sessions" aria-selected="false" data-od-id="cpr-final-row-sessions">
+                    <svg data-lucide="message-square"></svg>Sessions
+                    <span class="pal-push">view<svg data-lucide="corner-down-left"></svg></span>
+                    <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">E</span></span>
+                  </button>
+                  <div class="pal-group" role="presentation">Apps</div>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-home" aria-selected="false" data-od-id="cpr-final-row-home">
+                    <svg data-lucide="house"></svg>Open Home
+                  </button>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-tasks" aria-selected="false" data-od-id="cpr-final-row-tasks">
+                    <svg data-lucide="list-todo"></svg>Open Tasks
+                  </button>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-vault" aria-selected="false" data-od-id="cpr-final-row-vault">
+                    <svg data-lucide="vault"></svg>Open Vault
+                  </button>
+                  <div class="pal-group" role="presentation">Settings</div>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-shortcuts" aria-selected="false" data-od-id="cpr-final-row-shortcuts">
+                    <svg data-lucide="keyboard"></svg>Settings → Shortcuts
+                  </button>
+                  <button type="button" class="pal-item" role="option" id="cpr-final-row-palette" aria-selected="false" data-od-id="cpr-final-row-palette">
+                    <svg data-lucide="command"></svg>Settings → Palette
+                  </button>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                  <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · FIRST-RUN ===== -->
+    <section class="lab-sec" data-od-id="cpr-firstrun">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">First-run</h2>
+        <span class="lab-sec__gist">curated defaults · never empty</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>True first-run</b>US-005.AC-2: no <code>Pinned</code> and no <code>Recents</code>. The list is curated defaults only — <code>Views</code>, <code>Apps</code>, <code>Settings</code> — so rest is never empty. Authorized difference: the pins/recents substrate lands in <code>task_03</code>; this board does not invent those groups on a first-run workspace.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cpr-firstrun-stage">
+            <div class="palette" data-od-id="cpr-firstrun-palette" style="width:min(560px,100%)">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cpr-firstrun-list" aria-activedescendant="cpr-firstrun-row-sessions" aria-autocomplete="list" aria-label="Palette query">
+              </div>
+              <!-- gating: first-run omits Pinned/Recents · pins/recents substrate = task_03 · US-005.AC-2 -->
+              <div class="pal-chips">
+                <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
+              </div>
+              <div class="palette-results" id="cpr-firstrun-list" role="listbox" aria-label="Palette results" data-od-id="cpr-firstrun-list">
+                <div class="pal-group" role="presentation">Views</div>
+                <button type="button" class="pal-item is-active" role="option" id="cpr-firstrun-row-sessions" aria-selected="true" data-od-id="cpr-firstrun-row-sessions">
+                  <svg data-lucide="message-square"></svg>Sessions
+                  <span class="pal-push">view<svg data-lucide="corner-down-left"></svg></span>
+                  <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">E</span></span>
+                </button>
+                <div class="pal-group" role="presentation">Apps</div>
+                <button type="button" class="pal-item" role="option" id="cpr-firstrun-row-home" aria-selected="false" data-od-id="cpr-firstrun-row-home">
+                  <svg data-lucide="house"></svg>Open Home
+                </button>
+                <button type="button" class="pal-item" role="option" id="cpr-firstrun-row-tasks" aria-selected="false" data-od-id="cpr-firstrun-row-tasks">
+                  <svg data-lucide="list-todo"></svg>Open Tasks
+                </button>
+                <button type="button" class="pal-item" role="option" id="cpr-firstrun-row-vault" aria-selected="false" data-od-id="cpr-firstrun-row-vault">
+                  <svg data-lucide="vault"></svg>Open Vault
+                </button>
+                <div class="pal-group" role="presentation">Settings</div>
+                <button type="button" class="pal-item" role="option" id="cpr-firstrun-row-shortcuts" aria-selected="false" data-od-id="cpr-firstrun-row-shortcuts">
+                  <svg data-lucide="keyboard"></svg>Settings → Shortcuts
+                </button>
+                <button type="button" class="pal-item" role="option" id="cpr-firstrun-row-palette" aria-selected="false" data-od-id="cpr-firstrun-row-palette">
+                  <svg data-lucide="command"></svg>Settings → Palette
+                </button>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · QUERY MIX + ALIAS ===== -->
+    <section class="lab-sec" data-od-id="cpr-query">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Query mix</h2>
+        <span class="lab-sec__gist">commands stay commands · entities stay entities</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Query <code>ses</code></b>US-002.AC-3: mixed hits keep fixed precedence. Command rows — <code>New session</code>, Sessions palette view — stay in command groups. Session entities — <code>Refactor session store</code> (<code>waiting-for-input</code>) and <code>Fix payment retries</code> (<code>running</code>) — render in the <code>Sessions</code> entity section. Entities never interleave into the command group. Tone + glyph + literal state word on every entity row.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cpr-query-ses-stage">
+            <div class="palette" data-od-id="cpr-query-ses-palette" style="width:min(560px,100%)">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <input type="text" value="ses" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cpr-query-ses-list" aria-activedescendant="cpr-query-ses-new" aria-autocomplete="list" aria-label="Palette query">
+              </div>
+              <div class="pal-chips">
+                <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
+              </div>
+              <div class="palette-results" id="cpr-query-ses-list" role="listbox" aria-label="Palette results" data-od-id="cpr-query-ses-list">
+                <div class="pal-group" role="presentation">Pinned</div>
+                <button type="button" class="pal-item is-active" role="option" id="cpr-query-ses-new" aria-selected="true" data-od-id="cpr-query-ses-new">
+                  <svg data-lucide="plus"></svg>New session
+                  <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">N</span></span>
+                </button>
+                <div class="pal-group" role="presentation">Views</div>
+                <button type="button" class="pal-item" role="option" id="cpr-query-ses-view" aria-selected="false" data-od-id="cpr-query-ses-view">
+                  <svg data-lucide="message-square"></svg>Sessions
+                  <span class="pal-push">view<svg data-lucide="corner-down-left"></svg></span>
+                  <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">E</span></span>
+                </button>
+                <!-- gating: entity section Sessions · never interleave into command groups · US-002.AC-3 -->
+                <div class="pal-group" role="presentation">Sessions</div>
+                <button type="button" class="pal-srow" role="option" id="cpr-query-ses-store" aria-selected="false" data-class="needs" data-od-id="cpr-query-ses-store">
+                  <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">Refactor session store</span>
+                    <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                  </span>
+                  <span class="pal-srow__meta">2m</span>
+                </button>
+                <button type="button" class="pal-srow" role="option" id="cpr-query-ses-pay" aria-selected="false" data-class="run" data-od-id="cpr-query-ses-pay">
+                  <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">Fix payment retries</span>
+                    <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                  </span>
+                  <span class="pal-srow__meta">now</span>
+                </button>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Alias match <code>cap</code></b>US-002.AC-4: alias renders as <code>Title (alias)</code> — <code>Capture note (cap)</code>. The alias is a muted suffix, never a second hue. Extension source stays the info chip <code>Notes (ext.notes)</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cpr-query-cap-stage" style="min-height:260px">
+            <div class="palette" data-od-id="cpr-query-cap-palette" style="width:min(560px,100%)">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <input type="text" value="cap" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cpr-query-cap-list" aria-activedescendant="cpr-query-cap-row" aria-autocomplete="list" aria-label="Palette query">
+              </div>
+              <div class="palette-results" id="cpr-query-cap-list" role="listbox" aria-label="Palette results" data-od-id="cpr-query-cap-list">
+                <!-- gating: alias field Title (alias) · US-002.AC-4 -->
+                <div class="pal-group" role="presentation">Pinned</div>
+                <button type="button" class="pal-item is-active" role="option" id="cpr-query-cap-row" aria-selected="true" data-od-id="cpr-query-cap-row">
+                  <svg data-lucide="sticky-note"></svg>
+                  <span>Capture note <span class="pal-alias">(cap)</span></span>
+                  <span class="pal-src">Notes (ext.notes)</span>
+                  <span class="pal-chord"><span class="pal-k">⌥</span><span class="pal-k">⇧</span><span class="pal-k">N</span></span>
+                </button>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · GHOST ===== -->
+    <section class="lab-sec" data-od-id="cpr-ghost">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Ghost autocomplete</h2>
+        <span class="lab-sec__gist">typed casing · tail after caret · → accept</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>High-confidence tail</b>US-006.AC-1 / EC-1: query <code>purge arch</code> keeps operator casing. Only the completion tail <code>ived notes</code> renders after the caret. Hint <code>→ accept</code> accepts only at the end of the input. Ghost is reserved for the high-confidence top result — <code>Purge archived notes</code> — never for weaker siblings.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cpr-ghost-stage" style="min-height:280px">
+            <div class="palette" data-od-id="cpr-ghost-palette" style="width:min(560px,100%)">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <div class="pal-ghost">
+                  <div class="pal-ghost__mirror" aria-hidden="true">
+                    <span class="pal-ghost__typed" id="cpr-ghost-typed">purge arch</span><span class="pal-ghost__tail" id="cpr-ghost-tail">ived notes</span>
+                  </div>
+                  <input id="cpr-ghost-input" type="text" value="purge arch" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cpr-ghost-list" aria-activedescendant="cpr-ghost-row-purge" aria-autocomplete="both" aria-label="Palette query">
+                  <button class="pal-ghost__accept" type="button" id="cpr-ghost-accept" data-od-id="cpr-ghost-accept">→ accept</button>
+                </div>
+              </div>
+              <div class="palette-results" id="cpr-ghost-list" role="listbox" aria-label="Palette results" data-od-id="cpr-ghost-list">
+                <!-- gating: ghost tail after caret · accept only at end of input · US-006.AC-1 / EC-1 -->
+                <button type="button" class="pal-item is-active" role="option" id="cpr-ghost-row-purge" aria-selected="true" data-od-id="cpr-ghost-row-purge">
+                  <svg data-lucide="trash-2"></svg>Purge archived notes
+                  <span class="pal-src">Notes (ext.notes)</span>
+                </button>
+                <button type="button" class="pal-item" role="option" id="cpr-ghost-row-capture" aria-selected="false" data-od-id="cpr-ghost-row-capture">
+                  <svg data-lucide="sticky-note"></svg>
+                  <span>Capture note <span class="pal-alias">(cap)</span></span>
+                  <span class="pal-src">Notes (ext.notes)</span>
+                  <span class="pal-chord"><span class="pal-k">⌥</span><span class="pal-k">⇧</span><span class="pal-k">N</span></span>
+                </button>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · ASYNC SECTIONS ===== -->
+    <section class="lab-sec" data-od-id="cpr-async">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Async entity sections</h2>
+        <span class="lab-sec__gist">siblings stay live · later waves merge below</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>In-section loading</b>US-003.AC-4: <code>Sessions</code> is resolved. <code>Worktrees</code> is still an in-section skeleton — motion token only, no percentage. Loading never blocks siblings. Later waves merge below already-rendered higher-precedence groups.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cpr-async-stage">
+            <div class="palette" data-od-id="cpr-async-palette" style="width:min(560px,100%)">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cpr-async-list" aria-activedescendant="cpr-async-row-sessions" aria-autocomplete="list" aria-label="Palette query">
+              </div>
+              <div class="pal-chips">
+                <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
+              </div>
+              <div class="palette-results" id="cpr-async-list" role="listbox" aria-label="Palette results" data-od-id="cpr-async-list">
+                <div class="pal-group" role="presentation">Views</div>
+                <button type="button" class="pal-item is-active" role="option" id="cpr-async-row-sessions" aria-selected="true" data-od-id="cpr-async-row-sessions">
+                  <svg data-lucide="message-square"></svg>Sessions
+                  <span class="pal-push">view<svg data-lucide="corner-down-left"></svg></span>
+                  <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">E</span></span>
+                </button>
+                <div class="pal-group" role="presentation">Sessions</div>
+                <button type="button" class="pal-srow" role="option" id="cpr-async-store" aria-selected="false" data-class="needs" data-od-id="cpr-async-store">
+                  <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">Refactor session store</span>
+                    <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                  </span>
+                  <span class="pal-srow__meta">2m</span>
+                </button>
+                <button type="button" class="pal-srow" role="option" id="cpr-async-pay" aria-selected="false" data-class="run" data-od-id="cpr-async-pay">
+                  <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">Fix payment retries</span>
+                    <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                  </span>
+                  <span class="pal-srow__meta">now</span>
+                </button>
+                <!-- gating: later entity waves merge BELOW already-rendered higher-precedence groups; loading never blocks siblings · use-os-command-palette.ts entity stream · US-003.AC-4 -->
+                <div class="pal-group" role="presentation">Worktrees</div>
+                <div class="pal-skel" aria-hidden="true" data-od-id="cpr-async-skel-1">
+                  <span class="pal-skel__ic"></span>
+                  <span class="pal-skel__bar pal-skel__bar--lg"></span>
+                  <span class="pal-skel__bar pal-skel__bar--sm"></span>
+                </div>
+                <div class="pal-skel" aria-hidden="true" data-od-id="cpr-async-skel-2">
+                  <span class="pal-skel__ic"></span>
+                  <span class="pal-skel__bar pal-skel__bar--lg"></span>
+                  <span class="pal-skel__bar pal-skel__bar--sm"></span>
+                </div>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · GLOBAL SCOPE ===== -->
+    <section class="lab-sec" data-od-id="cpr-scope">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Global scope</h2>
+        <span class="lab-sec__gist">widened globe · suffix on foreign rows only</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>All workspaces</b>US-003.EC-5 · US-007.AC-2: the globe chip widens to <code>All workspaces</code>. Cross-workspace rows carry the workspace as a sub-line suffix — <code>· payments</code>, <code>· infra</code>. Current-scope rows (workspace <code>acme</code>) carry no label. Identical names both render: <code>Deploy checklist</code> in <code>acme</code> and in <code>payments</code>. Chord <code>⌘⇧G</code> toggles the chip. Click the chip in this lab to collapse back to <code>acme</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cpr-scope-stage">
+            <div class="palette" data-od-id="cpr-scope-palette" style="width:min(560px,100%)">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cpr-scope-list" aria-activedescendant="cpr-scope-row-tasks" aria-autocomplete="list" aria-label="Palette query">
+              </div>
+              <div class="pal-chips" data-od-id="cpr-scope-chips">
+                <!-- gating: widened globe chip All workspaces · current-scope rows unlabeled · US-003.EC-5 · US-007.AC-2 -->
+                <button class="pal-chip pal-scope is-wide" type="button" id="cpr-scope-chip" aria-pressed="true" data-od-id="cpr-scope-chip"><svg data-lucide="globe"></svg><span id="cpr-scope-label">All workspaces</span></button>
+              </div>
+              <div class="palette-results" id="cpr-scope-list" role="listbox" aria-label="Palette results" data-od-id="cpr-scope-list">
+                <div class="pal-group" role="presentation">Apps</div>
+                <button type="button" class="pal-item is-active" role="option" id="cpr-scope-row-tasks" aria-selected="true" data-od-id="cpr-scope-row-tasks">
+                  <svg data-lucide="list-todo"></svg>Open Tasks
+                </button>
+                <div class="pal-group" role="presentation">Sessions</div>
+                <button type="button" class="pal-srow" role="option" id="cpr-scope-store" aria-selected="false" data-class="needs" data-ws="acme" data-od-id="cpr-scope-store">
+                  <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">Refactor session store</span>
+                    <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                  </span>
+                  <span class="pal-srow__meta">2m</span>
+                </button>
+                <button type="button" class="pal-srow" role="option" id="cpr-scope-charge" aria-selected="false" data-class="needs" data-ws="payments" data-otherws data-od-id="cpr-scope-charge">
+                  <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">Chargeback flow</span>
+                    <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-auth</span><span>· claude · payments</span></span>
+                  </span>
+                  <span class="pal-srow__meta">6m</span>
+                </button>
+                <button type="button" class="pal-srow" role="option" id="cpr-scope-tf" aria-selected="false" data-class="needs" data-ws="infra" data-otherws data-od-id="cpr-scope-tf">
+                  <span class="sig" data-k="failed"><svg data-lucide="x"></svg></span>
+                  <span class="pal-srow__main">
+                    <span class="pal-srow__title">TF upgrade</span>
+                    <span class="pal-srow__sub"><span class="state" data-class="needs">failed</span><span>· codex · infra</span></span>
+                  </span>
+                  <span class="pal-srow__meta">41m</span>
+                </button>
+                <div class="pal-group" role="presentation">Tasks</div>
+                <button type="button" class="pal-item" role="option" id="cpr-scope-deploy-acme" aria-selected="false" data-ws="acme" data-od-id="cpr-scope-deploy-acme">
+                  <svg data-lucide="list-checks"></svg>Deploy checklist
+                </button>
+                <button type="button" class="pal-item pal-item--sub" role="option" id="cpr-scope-deploy-pay" aria-selected="false" data-ws="payments" data-otherws data-od-id="cpr-scope-deploy-pay">
+                  <svg data-lucide="list-checks"></svg>
+                  <span class="pal-item__main">
+                    <span>Deploy checklist</span>
+                    <span class="pal-item__sub">· payments</span>
+                  </span>
+                </button>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                <span><span class="keys"><span class="key">⌘</span><span class="key">⇧</span><span class="key">G</span></span> scope</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="cpr-foot">Spec <code>.compozy/tasks/command-palette/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>os-command-palette.tsx</code> + <code>use-os-command-palette.ts</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  /* gating: US-006.AC-1 / EC-1 — ghost accept only at end of input; typed casing preserved */
+  var ghostInput = document.getElementById("cpr-ghost-input");
+  var ghostTyped = document.getElementById("cpr-ghost-typed");
+  var ghostTail = document.getElementById("cpr-ghost-tail");
+  var ghostAccept = document.getElementById("cpr-ghost-accept");
+
+  function acceptGhost() {
+    if (!ghostInput || ghostInput.dataset.accepted === "1") return;
+    if (ghostInput.selectionStart !== ghostInput.value.length) return;
+    var tail = ghostTail ? ghostTail.textContent : "";
+    ghostInput.value = ghostInput.value + tail;
+    if (ghostTyped) ghostTyped.textContent = ghostInput.value;
+    if (ghostTail) ghostTail.hidden = true;
+    if (ghostAccept) ghostAccept.hidden = true;
+    ghostInput.dataset.accepted = "1";
+    ghostInput.setAttribute("aria-autocomplete", "list");
+  }
+
+  if (ghostAccept) ghostAccept.addEventListener("click", acceptGhost);
+  if (ghostInput) {
+    ghostInput.addEventListener("keydown", function (e) {
+      if ((e.key === "ArrowRight" || e.key === "Tab") && ghostInput.selectionStart === ghostInput.value.length && ghostInput.dataset.accepted !== "1") {
+        e.preventDefault();
+        acceptGhost();
+      }
+    });
+  }
+
+  /* gating: US-007.AC-2 — globe chip toggles current workspace vs All workspaces */
+  var scopeChip = document.getElementById("cpr-scope-chip");
+  var scopeLabel = document.getElementById("cpr-scope-label");
+  var scopeList = document.getElementById("cpr-scope-list");
+  if (scopeChip && scopeList) {
+    scopeChip.addEventListener("click", function () {
+      var wide = !scopeChip.classList.contains("is-wide");
+      scopeChip.classList.toggle("is-wide", wide);
+      scopeChip.setAttribute("aria-pressed", wide ? "true" : "false");
+      if (scopeLabel) scopeLabel.textContent = wide ? "All workspaces" : "acme";
+      scopeList.querySelectorAll("[data-otherws]").forEach(function (row) {
+        row.hidden = !wide;
+      });
+    });
+  }
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

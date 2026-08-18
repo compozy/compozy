@@ -1,0 +1,784 @@
+/* ============================================================
+   COMMAND PALETTE — command-palette.css
+   Root results, view stack, input flows, settings & extensions.
+   Companion to design-system/ds-core.css + ds-shell.css
+   + borrowed herdr-parity/herdr.css palette grammar.
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css + web/src/systems/os/components/
+        os-command-palette.tsx (production seams)
+     2. .compozy/tasks/command-palette/_uiux.md + _user_stories.md
+     3. design-system ds-core/ds-shell + GUIDE.md
+     4. herdr-parity/herdr.css borrowed palette grammar
+        (.palette / .pal-group / .pal-item / .pal-chips / .pal-chip /
+        .pal-scope / .pal-srow / .pal-foot / .pal-crumbs / .sig / .keys)
+     5. This file (new anatomy only)
+
+   Semantic contract (locked in DESIGN-NOTES.md):
+     Group order Pinned → Recents → context → curated. Entities
+     never interleave into the command group. Ghost tail is a
+     high-confidence completion after the caret. Fallback row
+     `Ask agent: '{query}'` is delegation, not execution.
+     Availability reasons live in a structured hint slot, never
+     the label. Selection = --row-selected + top light edge.
+     Color is never the only channel: tone + glyph + state word.
+
+   Borrow / link-order rule (boards MUST use this order):
+     ds-core.css → ds-shell.css → ../herdr-parity/herdr.css
+     → command-palette.css (LAST).
+   This file OWNS the lab scaffold: the full-bleed graph-eng
+   scaffold is re-declared below so it WINS the cascade
+   collision with herdr.css's old 960px .page scaffold.
+   NEVER restyle ds-* tokens/classes or herdr palette classes.
+   New vocabulary only — modifiers/elements that do not exist
+   in herdr.css, or fresh per-chapter prefixed classes.
+   No new hues: every color literal is a ds-core token or a
+   color-mix of one.
+   ============================================================ */
+
+/* ---- domain tokens (derived from ds-core only; no new hues) ----
+   --cp-pal-w matches shipped .palette (ds-shell ~:350).
+   --cp-detail-w is the accessory pane inside that 560 cap.
+   --cp-act-w is the row-anchored action popover.
+   --cp-band-h sits on the 22px pill-sm / chip band.
+   --cp-args-h is the 28px search-input ladder (pills in the
+   52px palette head). Window head 44 · palette head 52 ·
+   pal-item 36 · pal-srow ≥40 remain the herdr/ds-shell sizes. */
+:root{
+  --cp-pal-w:min(560px,92vw);
+  --cp-detail-w:208px;
+  --cp-act-w:260px;
+  --cp-band-h:22px;
+  --cp-args-h:28px;
+}
+
+/* Board class map — use these names; do not invent parallels.
+   1  .pal-ghost(. __mirror __typed __tail __accept) · .pal-item--ask
+      .pal-ask .pal-ask-q · .pal-chord .pal-k · .pal-item--sub
+      .pal-item__main .pal-item__sub · .pal-alias · .pal-chip.is-wide
+      .pal-overflow · .pal-item--off .pal-hint · .pal-sec-err
+      .pal-skel(. __ic __bar --lg --sm) · .pal-pend · .pal-src
+   2  .pal-dest-head · .pal-group.pal-dest · .pal-none--dest
+   3  .pal-crumb--ellipsis .pal-tip · .pal-foot--args/--confirm
+      .pal-frame(--unavailable --loading --timeout --broken)
+      .pal-kind(--list --detail --form --grid)
+   4  .pal-band(--busy --degraded --broken) · .pal-reload
+   5  .pal-split(. __list __detail) · .pal-kv(. __row __k __v)
+      .pal-rich(--plain) · .pal-preview-none · .pal-srow--vault
+      .pal-none--filter
+   6  .pal-form · .pal-field(. __lab __hint __err .is-bad .is-focus
+      .is-miss) · .pal-check(. __box) · .pal-pick(. __path) · .pal-form__fail
+   7  .pal-grid · .pal-gsec__t · .pal-gsec__tiles · .pal-tile
+      (. __media __token __ph __t __badge)
+   8  .pal-act(. __filter __sec __row --danger --off __ret __why __empty)
+   9  .pal-head--args (beside .palette-head) · .pal-args · .pal-arg
+      (. __lab __in --mask .is-on .is-miss .is-bad __err) · .pal-dd(. __row __empty)
+   10 .pal-confirm(. __title __body __acts __go --danger --void __void)
+   11 .cp-toolbar · .cp-reg · .cp-bind · .cp-alias(.is-bad) · .cp-alias-rule
+      .cp-conflict · .cp-row--loser .cp-flag · .cp-row--dormant
+      .cp-row--off · .cp-why · .cp-hot(. __t) · .cp-a11y(. __body) · .cp-src-col
+   12 .cp-ext(.is-dormant .is-unhealthy __head __name __id __list __row
+      __cmd __views __health) · .cp-fb · .cp-reset-confirm
+   Reuse herdr: .palette .palette-head .palette-results .pal-group
+   .pal-item .pal-chips .pal-chip .pal-scope .pal-srow .pal-foot
+   .pal-crumbs .pal-crumb .sig .state .keys .key .spec-table
+   Reuse ds: .input .textarea .ctl .field .btn .switch .srow .panelbox
+   .pill-group .focus-ring
+*/
+
+/* ============ LAB SCAFFOLD (states sheets) ============
+   Re-declared from graph-eng.css so full-bleed wins over
+   herdr.css `.page{max-width:960px}`. Authorized delta vs
+   the herdr 960px scaffold — operator direction 2026-08-16. */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:none;width:100%;margin:0;padding:24px 36px 80px}
+.lab-sec{margin:0 0 40px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
+.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
+.spec__note b{font-weight:600;color:var(--fg)}
+.spec__note > b:first-child{display:block;font-size:11.5px;margin-bottom:2px}
+.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+@media (max-width:760px){
+  .spec{grid-template-columns:1fr}
+  .lab-sec__gist{display:none}
+  .page{padding-left:20px;padding-right:20px}
+}
+
+/* demo stage — wallpapered, not a product window */
+.stage{
+  position:relative;min-height:400px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--short{min-height:260px}
+.stage--tall{min-height:520px}
+.stage--pad{display:flex;align-items:flex-start;justify-content:center;padding:28px 20px 32px}
+.stage--center{display:flex;align-items:center;justify-content:center;padding:24px 20px}
+/* demo overrides: floating chrome renders in-flow inside stages.
+   inset:0 WINS herdr's `.stage .overlay{position:absolute}` (no inset). */
+.stage .popover,.stage .toasts{position:absolute}
+.stage .overlay{position:absolute;inset:0}
+.stage .palette-overlay{position:absolute;inset:0;padding-top:36px}
+.stage .win{position:relative;animation:none}
+.plain{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+.lab-foot{margin-top:28px;font-size:11px;line-height:1.55;color:var(--faint)}
+.lab-foot code{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+
+/* ==== 1 · ROOT RESULTS ==== */
+/* Boards: command-palette-root.html · command-palette-root-states.html
+   Surfaces: S1 rest / first-run / query+ghost / async / global scope;
+   S14 pending motion (root-states). Production: os-command-palette.tsx.
+   New nodes only — .pal-group / .pal-item / .pal-meta stay herdr's. */
+
+/* Ghost autocomplete — after the caret, typed casing preserved.
+   Wrapper fills the 52px palette head; input size is ds-shell's. */
+.pal-ghost{
+  position:relative;flex:1;min-width:0;height:100%;
+  display:flex;align-items:center;
+}
+.pal-ghost__mirror{
+  position:absolute;inset:0;display:flex;align-items:center;
+  pointer-events:none;font-size:14.5px;letter-spacing:-.006em;
+  white-space:nowrap;overflow:hidden;
+}
+.pal-ghost__typed{color:transparent}
+.pal-ghost__tail{color:var(--subtle)}
+.pal-ghost__accept{
+  position:relative;z-index:1;margin-left:auto;flex:none;
+  font-family:var(--font-mono);font-size:10.5px;font-weight:500;
+  color:var(--faint);letter-spacing:.02em;
+}
+
+/* Ask-agent fallback — delegation, not execution. Info plate +
+   own glyph; never a plain .pal-item. */
+.pal-item--ask{color:var(--fg)}
+.pal-item--ask:hover{background:var(--row-hover);color:var(--fg-strong)}
+.pal-item--ask.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
+.pal-ask{
+  width:18px;height:18px;flex:none;
+  display:grid;place-items:center;border-radius:var(--radius-pill);
+  background:var(--info-tint);color:var(--info);
+}
+.pal-ask svg{width:11px;height:11px;color:var(--info)}
+.pal-item--ask .pal-ask-q{color:var(--info);font-weight:500}
+
+/* Chord badge cluster — row-scale keycaps, right-aligned.
+   Distinct from herdr .key (20px) and .pal-foot .key (16px). */
+.pal-chord{display:inline-flex;align-items:center;gap:2px;margin-left:auto;flex:none}
+.pal-k{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:16px;height:15px;padding:0 4px;
+  border:1px solid var(--line);border-radius:var(--radius-xxs);
+  background:var(--badge-fill);
+  font-family:var(--font-mono);font-size:9px;font-weight:500;color:var(--subtle);
+  white-space:nowrap;
+}
+.pal-item.is-active .pal-k,.pal-item--sub.is-active .pal-k{color:var(--muted);border-color:var(--line-strong)}
+
+/* Stacked command row — workspace sub-line suffix (herdr pal-srow
+   precedent). Height steps from 36 → ≥40 only with this modifier. */
+.pal-item--sub{
+  height:auto;min-height:40px;align-items:flex-start;padding-top:6px;padding-bottom:6px;
+}
+.pal-item__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:0}
+.pal-item__sub{
+  font-size:10.5px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* Alias suffix — `Title (alias)` muted, never a second hue. */
+.pal-alias{color:var(--subtle);font-weight:400}
+
+/* Widened global-scope chip — boards add .is-wide on the globe
+   chip when All-workspaces is on. Does not restyle .pal-scope. */
+.pal-chip.is-wide{
+  padding-inline:12px;background:var(--elevated);
+  border-color:var(--line-strong);color:var(--fg-strong);
+  box-shadow:var(--highlight);
+}
+.pal-chip.is-wide .count,.pal-chip.is-wide svg{color:var(--subtle)}
+.pal-chip.is-wide:hover{color:var(--fg-strong);border-color:var(--line-strong)}
+
+/* Overflow note — exact `showing N of M`. Not a command row. */
+.pal-overflow{
+  padding:4px 10px 8px;
+  font-family:var(--font-mono);font-size:10px;color:var(--faint);
+}
+
+/* Disabled row + structured reason hint. Reason NEVER in the label.
+   Disabled is the only lane allowed to drop contrast. */
+.pal-item--off,.pal-item--off:hover{
+  color:var(--muted);background:transparent;cursor:not-allowed;
+}
+.pal-item--off svg{color:var(--faint)}
+.pal-hint{
+  margin-left:auto;flex:none;max-width:46%;
+  font-size:10.5px;line-height:1.3;color:var(--subtle);
+  text-align:right;
+}
+.pal-item--off .pal-chord{margin-left:8px}
+.pal-item--off .pal-k{color:var(--faint);border-color:var(--line-soft)}
+
+/* Inline section error — names the domain; siblings stay live. */
+.pal-sec-err{
+  display:flex;align-items:flex-start;gap:7px;
+  padding:8px 10px;font-size:12px;line-height:1.45;color:var(--fg);
+}
+.pal-sec-err svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--warning)}
+.pal-sec-err b{font-weight:600;color:var(--fg-strong)}
+
+/* Async skeleton rows — 36px pal-item ladder. Motion token only;
+   never a percentage. */
+.pal-skel{
+  display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;
+}
+.pal-skel__ic{
+  width:15px;height:15px;flex:none;border-radius:var(--radius-xxs);
+  background:var(--badge-fill);
+}
+.pal-skel__bar{
+  height:8px;border-radius:var(--radius-xxs);
+  background:var(--badge-fill);
+  animation:cp-pulse 1.4s var(--ease) infinite;
+}
+.pal-skel__bar--lg{width:42%}
+.pal-skel__bar--sm{width:22%;margin-left:auto}
+
+/* In-palette pending — motion token only, never fake %. */
+.pal-pend{
+  width:7px;height:7px;flex:none;border-radius:50%;
+  background:var(--accent);color:var(--accent);
+  animation:pulse 1.8s var(--ease) infinite;
+}
+
+/* Extension-source chip — info + extension name (signal map). */
+.pal-src{
+  display:inline-flex;align-items:center;height:16px;padding:0 6px;
+  border-radius:var(--radius-xxs);background:var(--info-tint);
+  font-family:var(--font-mono);font-size:9.5px;color:var(--info);
+  white-space:nowrap;
+}
+
+@keyframes cp-pulse{0%,100%{opacity:.42}50%{opacity:.88}}
+@keyframes cp-indeterminate{0%{transform:translateX(-80%)}100%{transform:translateX(220%)}}
+
+/* ==== 2 · DESTINATION MODE ==== */
+/* Board: command-palette-root-states.html
+   Surface: S10 destination. Heading `Open in this tab`;
+   placeholder `Open in this tab…`. Ineligible groups absent. */
+.pal-dest-head{
+  flex:none;font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;
+}
+.pal-group.pal-dest{
+  text-transform:none;letter-spacing:-.01em;font-size:12px;font-weight:600;color:var(--fg-strong);
+  padding:10px 10px 4px;
+}
+.pal-none--dest{color:var(--muted)}
+
+/* ==== 3 · VIEW-STACK CHROME ==== */
+/* Board: command-palette-view-shell.html
+   Surface: S2 stack chrome + frames. Breadcrumb ≤3 slots,
+   left-truncating. herdr .pal-crumbs / .pal-crumb stay as-is. */
+
+/* Ellipsis crumb — `…` · tooltip `Earlier levels`. New class;
+   does not restyle herdr .pal-crumb--more. */
+.pal-crumb--ellipsis{
+  position:relative;min-width:22px;justify-content:center;
+  color:var(--faint);background:transparent;border-color:transparent;padding:0 2px;
+}
+.pal-crumb--ellipsis:hover,.pal-crumb--ellipsis:focus-visible{color:var(--fg);background:var(--row-hover)}
+.pal-tip{
+  position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  z-index:2;padding:4px 8px;
+  background:var(--elevated);border:1px solid var(--line-strong);
+  border-radius:var(--radius-sm);box-shadow:var(--shadow-overlay);
+  font-size:11px;font-weight:500;color:var(--fg);white-space:nowrap;
+  pointer-events:none;
+}
+.pal-crumb--ellipsis:hover .pal-tip,.pal-crumb--ellipsis:focus-visible .pal-tip{display:block}
+.pal-crumb--ellipsis .pal-tip{display:none}
+
+/* Per-view footer variants — same 34px herdr .pal-foot chrome. */
+.pal-foot--args .pal-k,.pal-foot--confirm .pal-k{height:16px}
+
+/* Full-frame states under identical chrome (results well). */
+.pal-frame{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  min-height:180px;padding:28px 24px;text-align:center;
+}
+.pal-frame svg{width:18px;height:18px;color:var(--faint)}
+.pal-frame__t{font-size:13px;font-weight:500;color:var(--fg-strong)}
+.pal-frame__s{font-size:12px;line-height:1.45;color:var(--muted);max-width:28ch}
+.pal-frame--unavailable svg{color:var(--warning)}
+.pal-frame--timeout svg{color:var(--warning)}
+.pal-frame--loading .pal-pend{margin-bottom:2px}
+
+/* Kind-body containers — list / detail / form / grid share chrome. */
+.pal-kind{min-width:0}
+.pal-kind--form,.pal-kind--grid{padding:10px 12px 12px}
+.pal-kind--list{padding:0}
+
+/* ==== 4 · PROGRAMMABLE BANDS ==== */
+/* Board: command-palette-view-bands.html
+   Surface: US-039. Soft 150ms · hard ack 3s · break at 3 misses.
+   Busy keeps previous rows — the list never blanks. */
+.pal-band{
+  position:relative;display:flex;align-items:center;gap:8px;
+  min-height:var(--cp-band-h);padding:0 12px;
+  font-size:11px;color:var(--subtle);
+}
+.pal-band svg{width:12px;height:12px;flex:none}
+.pal-band--busy{color:var(--muted)}
+.pal-band--busy::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:2px;
+  background:color-mix(in oklab,var(--accent) 70%,transparent);
+  transform-origin:left center;
+  animation:cp-indeterminate 1.2s var(--ease) infinite;
+}
+.pal-band--degraded{color:var(--fg);background:color-mix(in srgb,var(--warning-tint) 70%,transparent)}
+.pal-band--degraded svg{color:var(--warning)}
+.pal-band--broken{color:var(--fg);background:color-mix(in srgb,var(--warning-tint) 70%,transparent)}
+.pal-band--broken svg{color:var(--warning)}
+.pal-band .btn{margin-left:auto}
+
+/* Circuit-broken occupies the results well; chrome stays live. */
+.pal-frame--broken svg{color:var(--warning)}
+
+/* `view reloaded` note chip — after a dev-mode edit with the view open. */
+.pal-reload{
+  display:inline-flex;align-items:center;gap:5px;
+  height:18px;padding:0 7px;border-radius:var(--radius-pill);
+  background:var(--success-tint);color:var(--success);
+  font-size:10.5px;font-weight:500;
+}
+.pal-reload svg{width:11px;height:11px}
+
+/* ==== 5 · DOMAIN LIST + DETAIL PANE ==== */
+/* Board: command-palette-domain-list.html
+   Surfaces: S3 list exemplar + S4 detail. Chips reuse .pal-chip;
+   tones reuse herdr .state / .sig — NO second tone map. */
+.pal-split{
+  display:grid;grid-template-columns:minmax(0,1fr) var(--cp-detail-w);
+  min-height:220px;align-items:stretch;
+}
+.pal-split__list{min-width:0;border-right:1px solid var(--line)}
+.pal-split__detail{
+  min-width:0;overflow:auto;padding:10px 12px 14px;
+  background:color-mix(in oklab,var(--canvas-soft) 55%,transparent);
+}
+.pal-kv{display:flex;flex-direction:column;gap:0}
+.pal-kv__row{
+  display:grid;grid-template-columns:72px minmax(0,1fr);
+  gap:8px;align-items:baseline;padding:5px 0;
+  border-top:1px solid var(--line-soft);
+}
+.pal-kv__row:first-child{border-top:0;padding-top:0}
+.pal-kv__k{font-size:10.5px;color:var(--subtle)}
+.pal-kv__v{font-size:12px;color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pal-kv__v .mono{font-size:10.5px;color:var(--muted)}
+
+/* Sanitized rich text → plain-text degrade. */
+.pal-rich{font-size:12px;line-height:1.5;color:var(--fg);max-width:36ch}
+.pal-rich p + p{margin-top:8px}
+.pal-rich--plain{color:var(--muted);white-space:pre-wrap}
+
+/* Neutral empty — `no preview`. */
+.pal-preview-none{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  min-height:160px;text-align:center;color:var(--subtle);font-size:12px;
+}
+.pal-preview-none svg{width:16px;height:16px;color:var(--faint)}
+
+/* Vault names-only — values structurally absent (no value cell). */
+.pal-srow--vault{grid-template-columns:var(--sig) minmax(0,1fr)}
+
+/* Empty-with-filter — names the filter; one-keystroke clear. */
+.pal-none--filter{display:flex;flex-direction:column;align-items:center;gap:8px}
+.pal-none--filter .btn{height:22px}
+
+/* ==== 6 · FORM VIEW ==== */
+/* Board: command-palette-form-grid.html
+   Surface: S5. Field order declared. Inputs reuse ds 36px .input /
+   .textarea / 32px .ctl. Per-field error; submit-failed keeps values. */
+.pal-form{display:flex;flex-direction:column;gap:10px}
+.pal-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.pal-field__lab{font-size:11px;font-weight:500;color:var(--subtle)}
+.pal-field__hint{font-size:11px;color:var(--subtle)}
+.pal-field__err{font-size:11px;color:var(--danger)}
+.pal-field.is-bad .pal-field__lab{color:var(--danger)}
+.pal-field.is-bad{border-radius:var(--radius-md)}
+.pal-field.is-focus .pal-field__lab{color:var(--fg)}
+.pal-field.is-miss .pal-field__hint{color:var(--fg);font-weight:500}
+
+/* Checkbox + picker — no ds checkbox; 16px hit inside the field row.
+   File/directory picker is a 36px control row, not a path <input>. */
+.pal-check{
+  display:inline-flex;align-items:center;gap:8px;
+  min-height:36px;font-size:13px;color:var(--fg);
+}
+.pal-check__box{
+  width:16px;height:16px;flex:none;border-radius:var(--radius-xxs);
+  border:1px solid var(--line-strong);background:var(--elevated);
+  display:grid;place-items:center;
+}
+.pal-check[aria-checked="true"] .pal-check__box{
+  background:var(--accent);border-color:var(--accent);color:var(--accent-ink);
+}
+.pal-check__box svg{width:10px;height:10px}
+.pal-pick{
+  display:flex;align-items:center;gap:8px;min-height:36px;
+  padding:0 8px 0 12px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);
+}
+.pal-pick__path{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--font-mono);font-size:11.5px;color:var(--muted);
+}
+.pal-pick.is-bad{box-shadow:inset 0 0 0 1px var(--danger)}
+
+.pal-form__fail{
+  padding:8px 10px;border-radius:var(--radius-md);
+  background:var(--danger-tint);color:var(--danger);font-size:12px;line-height:1.45;
+}
+
+/* ==== 7 · GRID VIEW ==== */
+/* Board: command-palette-form-grid.html
+   Surface: S6. Sections + tiles (image|token|emoji + title +
+   optional badge). Media-failed keeps the title. 2D focus ring. */
+.pal-grid{display:flex;flex-direction:column;gap:12px}
+.pal-gsec__t{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--subtle);padding:2px 2px 6px;
+}
+.pal-gsec__tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pal-tile{
+  display:flex;flex-direction:column;gap:6px;
+  min-height:72px;padding:8px;border-radius:var(--radius-md);
+  text-align:left;color:var(--fg);
+}
+.pal-tile:hover{background:var(--row-hover);color:var(--fg-strong)}
+.pal-tile.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
+.pal-tile:focus-visible{box-shadow:var(--focus-ring)}
+.pal-tile__media{
+  height:44px;border-radius:var(--radius-sm);
+  background:var(--elevated);overflow:hidden;
+  display:grid;place-items:center;
+}
+.pal-tile__media img{width:100%;height:100%;object-fit:cover}
+.pal-tile__token{
+  font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--fg-strong);
+}
+.pal-tile__ph{color:var(--faint)}
+.pal-tile__ph svg{width:16px;height:16px}
+.pal-tile__t{
+  font-size:11.5px;font-weight:500;color:var(--fg-strong);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.pal-tile__badge{
+  align-self:flex-start;height:16px;padding:0 6px;border-radius:var(--radius-xxs);
+  background:var(--badge-fill);font-size:9.5px;color:var(--subtle);
+}
+
+/* ==== 8 · ACTION PANEL ==== */
+/* Board: command-palette-action-panel.html
+   Surface: S7. Anchored to the selected row. Glass grammar:
+   --shell-glass-pop, blur 30–34, radius 12–14, --shadow-overlay
+   + top light edge. Production radius stays on in-palette bodies. */
+.pal-act{
+  width:var(--cp-act-w);
+  background:var(--shell-glass-pop);
+  backdrop-filter:blur(32px) saturate(1.25);
+  border:1px solid var(--line-strong);border-radius:13px;
+  box-shadow:var(--shadow-overlay),var(--highlight);
+  overflow:hidden;
+}
+.pal-act__filter{
+  display:flex;align-items:center;gap:7px;
+  height:36px;padding:0 10px;border-bottom:1px solid var(--line);
+}
+.pal-act__filter svg{width:13px;height:13px;color:var(--subtle);flex:none}
+.pal-act__filter input{
+  flex:1;min-width:0;height:28px;background:none;border:0;outline:none;
+  font-size:12px;color:var(--fg);
+}
+.pal-act__filter input::placeholder{color:var(--subtle)}
+.pal-act__sec{
+  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--subtle);padding:8px 10px 3px;
+}
+.pal-act__row{
+  display:flex;align-items:center;gap:8px;width:100%;
+  min-height:32px;padding:0 10px;
+  font-size:12.5px;color:var(--fg);text-align:left;
+}
+.pal-act__row:hover{background:var(--row-hover);color:var(--fg-strong)}
+.pal-act__row.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
+.pal-act__row svg{width:13px;height:13px;flex:none;color:var(--muted)}
+.pal-act__row:hover svg,.pal-act__row.is-active svg{color:var(--fg)}
+.pal-act__ret{
+  margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--subtle);
+}
+.pal-act__row .pal-chord{margin-left:auto}
+.pal-act__row--danger,.pal-act__row--danger:hover,.pal-act__row--danger.is-active{color:var(--danger)}
+.pal-act__row--danger svg{color:var(--danger)}
+.pal-act__row--off,.pal-act__row--off:hover{
+  color:var(--muted);background:transparent;cursor:not-allowed;
+}
+.pal-act__row--off svg{color:var(--faint)}
+.pal-act__why{
+  padding:2px 10px 10px;
+  font-size:11px;line-height:1.45;color:var(--subtle);
+}
+.pal-act__empty{padding:16px 12px;font-size:12px;color:var(--muted);text-align:center}
+
+/* ==== 9 · ARGS BAR ==== */
+/* Board: command-palette-args-confirmation.html
+   Surface: S8. Input bar morphs into inline typed fields.
+   Fixture: Capture note → title (text, required) + tag (dropdown).
+   ⇥ traverses. 28px pills sit in the 52px palette head. */
+.pal-args{
+  display:flex;align-items:center;gap:6px;flex:1;min-width:0;height:100%;
+}
+.pal-arg{
+  display:flex;align-items:center;gap:6px;
+  height:var(--cp-args-h);padding:0 8px;
+  border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--input-fill);min-width:0;
+}
+.pal-arg__lab{
+  font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);flex:none;
+}
+.pal-arg__in{
+  min-width:72px;flex:1;height:100%;background:none;border:0;outline:none;
+  font-size:12px;color:var(--fg);
+}
+.pal-arg__in::placeholder{color:var(--subtle)}
+.pal-arg.is-on,.pal-arg:focus-within{border-color:var(--line-strong);background:var(--elevated)}
+.pal-arg.is-miss{
+  border-color:var(--line-strong);box-shadow:var(--focus-ring);
+}
+.pal-arg.is-miss .pal-arg__in::placeholder{color:var(--fg);font-weight:500}
+.pal-arg.is-bad{border-color:color-mix(in oklab,var(--danger) 55%,var(--line-strong))}
+.pal-arg--mask .pal-arg__in{-webkit-text-security:disc}
+.pal-arg__err{
+  position:absolute;top:calc(100% + 6px);left:16px;
+  font-size:11px;color:var(--danger);
+}
+/* Boards add .pal-head--args beside .palette-head — do not
+   restyle .palette-head itself (ds-shell). */
+.pal-head--args{position:relative}
+
+/* Type-to-filter dropdown — content radius (3–10), not glass. */
+.pal-dd{
+  position:absolute;top:calc(100% - 2px);left:16px;right:16px;z-index:3;
+  max-height:180px;overflow:auto;padding:4px;
+  background:var(--elevated);border:1px solid var(--line-strong);
+  border-radius:var(--radius-md);box-shadow:var(--shadow-overlay);
+}
+.pal-dd__row{
+  display:flex;align-items:center;width:100%;height:28px;padding:0 8px;
+  border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);text-align:left;
+}
+.pal-dd__row:hover{background:var(--row-hover);color:var(--fg-strong)}
+.pal-dd__row.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
+.pal-dd__empty{padding:10px 8px;font-size:12px;color:var(--muted)}
+
+/* ==== 10 · CONFIRMATION ==== */
+/* Board: command-palette-args-confirmation.html
+   Surface: S9. Declared copy only. Cancel focused by default.
+   Destructive = danger confirm button. Invalidated target is honest. */
+.pal-confirm{
+  display:flex;flex-direction:column;gap:10px;
+  padding:20px 18px 16px;
+}
+.pal-confirm__title{font-size:14px;font-weight:600;letter-spacing:-.015em;color:var(--fg-strong)}
+.pal-confirm__body{font-size:12.5px;line-height:1.5;color:var(--muted);max-width:42ch}
+.pal-confirm__acts{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px}
+.pal-confirm__go{
+  display:inline-flex;align-items:center;justify-content:center;
+  height:26px;padding:0 12px;border-radius:var(--radius-md);
+  font-size:12px;font-weight:500;
+  background:var(--btn-fill);border:1px solid var(--line);color:var(--fg);
+}
+.pal-confirm__go:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+.pal-confirm__go--danger{
+  background:var(--danger);border-color:transparent;color:var(--accent-ink);
+}
+.pal-confirm__go--danger:hover{
+  background:color-mix(in oklab,var(--danger) 86%,var(--fg-strong));
+  border-color:transparent;color:var(--accent-ink);
+}
+.pal-confirm--void .pal-confirm__body{color:var(--fg)}
+.pal-confirm__void{
+  padding:8px 10px;border-radius:var(--radius-md);
+  background:var(--warning-tint);color:var(--fg);font-size:12px;line-height:1.45;
+}
+
+/* ==== 11 · SETTINGS ==== */
+/* Board: command-palette-settings.html
+   Surface: S12 shortcuts + global hotkeys. Table reuses herdr
+   .spec-table. New row/cell modifiers only. srow ≥54 in window. */
+.cp-toolbar{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 0 12px;
+}
+.cp-toolbar .pill-group{margin-left:auto}
+.cp-reg{width:100%;overflow:auto}
+.cp-bind{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.cp-alias{
+  min-height:28px;width:100%;max-width:160px;padding:0 8px;
+  border:1px solid transparent;border-radius:var(--radius-sm);
+  background:transparent;font-family:var(--font-mono);font-size:11.5px;color:var(--fg);
+}
+.cp-alias:hover{background:var(--input-fill)}
+.cp-alias:focus{border-color:var(--line-strong);background:var(--elevated);outline:none}
+.cp-alias.is-bad{border-color:color-mix(in oklab,var(--danger) 55%,var(--line-strong));color:var(--fg)}
+.cp-alias-rule{font-size:10.5px;color:var(--danger);margin-top:3px}
+
+.cp-conflict{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:8px 10px;margin:6px 0;
+  background:color-mix(in srgb,var(--danger-tint) 70%,transparent);
+  border-radius:var(--radius-md);font-size:12px;line-height:1.45;color:var(--fg);
+}
+.cp-conflict svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--danger)}
+.cp-conflict .btn{margin-left:auto;flex:none}
+
+.cp-row--loser td{color:var(--muted)}
+.cp-row--loser .cp-flag{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10.5px;color:var(--warning);
+}
+.cp-row--dormant td{color:var(--muted)}
+.cp-row--off td,.cp-row--off .cp-alias{color:var(--muted)}
+.cp-row--off{cursor:not-allowed}
+.cp-why{font-size:11px;color:var(--subtle)}
+
+.cp-hot{margin-top:22px}
+.cp-hot__t{
+  font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--subtle);padding-bottom:6px;
+}
+
+/* macOS Accessibility callout + System Settings deep-link. */
+.cp-a11y{
+  display:flex;flex-direction:column;gap:0;
+  margin-top:12px;border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:var(--canvas-soft);overflow:hidden;
+}
+.cp-a11y__body{padding:12px 16px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.cp-a11y__body b{color:var(--fg-strong);font-weight:600}
+
+/* ==== 12 · EXTENSIONS + PALETTE SETTINGS ==== */
+/* Board: command-palette-settings-palette.html
+   Surfaces: S15 Palette settings + S16 extension Palette panel.
+   Fixture ext.notes. Unhealthy = grayed + verbatim health line. */
+.cp-ext{padding:0}
+.cp-ext__head{
+  display:flex;align-items:center;gap:10px;padding:12px 16px;
+  border-bottom:1px solid var(--line);
+}
+.cp-ext__name{font-size:13px;font-weight:600;color:var(--fg-strong)}
+.cp-ext__id{font-family:var(--font-mono);font-size:10.5px;color:var(--faint)}
+.cp-ext__list{padding:4px 0}
+.cp-ext__row{
+  display:flex;align-items:center;gap:10px;
+  min-height:36px;padding:6px 16px;
+  border-top:1px solid var(--line-soft);
+}
+.cp-ext__row:first-child{border-top:0}
+.cp-ext__cmd{flex:1;min-width:0;font-size:12.5px;color:var(--fg)}
+.cp-ext__views{
+  padding:8px 16px 14px;
+  font-size:12px;color:var(--muted);
+}
+.cp-ext__views b{display:block;font-size:10px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--subtle);margin-bottom:4px}
+
+.cp-ext.is-dormant .cp-ext__cmd,.cp-ext.is-dormant .cp-ext__name{color:var(--muted)}
+.cp-ext.is-unhealthy{opacity:1}
+.cp-ext.is-unhealthy .cp-ext__name,.cp-ext.is-unhealthy .cp-ext__cmd,
+.cp-ext.is-unhealthy .cp-ext__views{color:var(--muted)}
+.cp-ext.is-unhealthy .pal-k,.cp-ext.is-unhealthy .pal-chord{opacity:.7}
+.cp-ext__health{
+  display:flex;align-items:flex-start;gap:7px;
+  padding:8px 16px 12px;font-size:12px;line-height:1.45;color:var(--fg);
+}
+.cp-ext__health svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--warning)}
+
+.cp-fb{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 16px;font-size:12px;color:var(--success);
+}
+.cp-fb svg{width:13px;height:13px}
+
+/* Reset row confirmation — scoped to the workspace. */
+.cp-reset-confirm{padding:4px 16px 14px}
+.cp-reset-confirm .pal-confirm{padding:8px 0 0}
+
+/* ==== APPEND POINT — later runs add chapters after this line ==== */
+
+/* ==== 13 · REVIEW APPENDIX — round 1 (2026-08-18) ==== */
+/* Sources: board appendix-request comments + review round 1.
+   Append-only per the set contract; nothing above is restyled. */
+/* Grid children must be allowed to shrink or the tasks list underlaps
+   .pal-foot at max-height (CSS grid overflow rule) · domain-list §01.
+   The container also clips: with max-height alone the auto row track
+   grows to content height and bleeds over .pal-foot. */
+.pal-split{overflow:hidden}
+.pal-split__list,.pal-split__detail{min-height:0}
+/* Grid sections stack with breathing room · form-grid §05. */
+.pal-gsec+.pal-gsec{margin-top:14px}
+/* Detail kind body under stack chrome · view-shell §02. */
+.pal-kind--detail{padding:12px 14px 14px}
+/* Static depiction of keyboard focus (default-focused Cancel, US-016;
+   first-invalid field, US-015.AC-2) · args-confirmation + settings-palette. */
+.focus-ring{box-shadow:var(--focus-ring)}
+/* Per-row dormant contributed default inside the S16 panel · US-029.AC-2. */
+.cp-ext__row.is-dormant .cp-ext__cmd{color:var(--subtle)}
+
+/* ============ MOBILE ============ */
+@media (max-width:760px){
+  .pal-split{grid-template-columns:1fr}
+  .pal-split__list{border-right:0;border-bottom:1px solid var(--line)}
+  .pal-split__detail{min-height:140px}
+  .pal-gsec__tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pal-act{width:min(var(--cp-act-w),92vw)}
+  .pal-args{flex-wrap:wrap;height:auto;padding:8px 0}
+  .pal-head--args{height:auto;min-height:52px;align-items:flex-start;padding-top:8px;padding-bottom:8px}
+  .cp-toolbar{flex-wrap:wrap}
+  .cp-toolbar .pill-group{margin-left:0}
+  .cp-src-col{display:none}
+  .pal-hint{max-width:38%}
+}
+@media (prefers-reduced-motion:reduce){
+  .pal-skel__bar,.pal-pend,.pal-band--busy::before{animation:none}
+  .pal-chip,.pal-act__row,.pal-tile,.pal-arg,.pal-confirm__go,.cp-alias{transition:none}
+}
+body[data-motion="reduced"] .pal-skel__bar,
+body[data-motion="reduced"] .pal-pend,
+body[data-motion="reduced"] .pal-band--busy::before{animation:none}
+
+::selection{background:var(--accent-tint);color:var(--fg-strong)}

@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Palette settings · Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="command-palette.css">
+<!--
+  command-palette-settings-palette · S15 Settings › Palette + S16 Extensions detail.
+  Spec: .compozy/tasks/command-palette/_uiux.md · stories US-027, US-032, US-033 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — web/src/routes/_app/settings/-extensions-settings-page.tsx
+    spec — Settings › Palette: agent-fallback toggle (v1 ships exactly one
+           fallback target — no ordered list); personalization master-switch
+           mirror; Reset palette personalization scoped to the workspace
+           (US-032/033) with confirmation + post-reset feedback;
+           config keys as micro-mono captions
+           `cmd_palette.fallback_targets = ["agent"]` ·
+           `cmd_palette.personalization = true`.
+           S16 Notes (ext.notes) Palette panel: contributed commands with
+           effective bindings + views (US-027); dormant default
+           `default unavailable — conflicts with session.new`;
+           unhealthy extension grays contributions with
+           `extension notes is unhealthy (crash loop)` (US-027.EC-4)
+    authorized delta — none
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cp-palset-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Command palette</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Palette settings</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="command-palette-settings.html">← Settings</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — S15 ===== -->
+    <section class="lab-sec" data-od-id="cp-palset-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Settings › Palette</h2>
+        <span class="lab-sec__gist">one fallback target · personalization mirror · reset per workspace</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Policy only</b>US-032 / US-033: v1 ships exactly one fallback target — the toggle is the whole control, no ordered list. Personalization is a master-switch mirror. Reset is scoped to this workspace. Config keys stay micro-mono captions: <code>cmd_palette.fallback_targets = ["agent"]</code> · <code>cmd_palette.personalization = true</code>.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="cp-palset-final-stage">
+            <section class="win is-focused" data-od-id="cp-palset-final-win" style="width:min(720px,100%);height:calc(100% - 8px)">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph" aria-hidden="true"><svg data-lucide="settings"></svg></span>
+                  <span class="w2-title">Settings</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="app" data-od-id="cp-palset-final-page">
+                  <h3 class="w2-title" style="padding:0">Palette</h3>
+                  <div class="panelbox" data-od-id="cp-palset-final-box">
+                    <!-- gating: cmd_palette.fallback_targets = ["agent"] · v1 length === 1 -->
+                    <div class="srow" data-od-id="cp-palset-row-fallback">
+                      <div class="srow__main">
+                        <div class="srow__label">Agent fallback</div>
+                        <div class="cp-bind" style="margin-top:2px">cmd_palette.fallback_targets = ["agent"]</div>
+                      </div>
+                      <div class="srow__ctl">
+                        <button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Agent fallback" data-switch="fallback">
+                          <span class="knob"></span>
+                        </button>
+                      </div>
+                    </div>
+                    <!-- gating: cmd_palette.personalization = true · master-switch mirror -->
+                    <div class="srow" data-od-id="cp-palset-row-person">
+                      <div class="srow__main">
+                        <div class="srow__label">Palette personalization</div>
+                        <div class="cp-bind" style="margin-top:2px">cmd_palette.personalization = true</div>
+                      </div>
+                      <div class="srow__ctl">
+                        <button class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Palette personalization" data-switch="personalization">
+                          <span class="knob"></span>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="srow" data-od-id="cp-palset-row-reset">
+                      <div class="srow__main">
+                        <div class="srow__label">Reset palette personalization</div>
+                        <div class="cp-bind" style="margin-top:2px">workspace acme</div>
+                      </div>
+                      <div class="srow__ctl">
+                        <button class="btn btn--sm" type="button" data-od-id="cp-palset-reset-open">Reset</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · FALLBACK OFF ===== -->
+    <section class="lab-sec" data-od-id="cp-palset-off">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Fallback disabled</h2>
+        <span class="lab-sec__gist">toggle off · zero-match has no Ask agent row</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Honest absence</b>With the toggle off, a zero-match query renders no fallback row — not a disabled <code>Ask agent</code> line. The paired capture is the palette at rest on that query. <code>cmd_palette.fallback_targets</code> is empty for this workspace.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cp-palset-off-stage" style="min-height:0;flex-direction:column;align-items:center;gap:14px">
+            <div class="panelbox" style="width:min(560px,100%)">
+              <!-- gating: cmd_palette.fallback_targets = [] -->
+              <div class="srow" data-od-id="cp-palset-off-row">
+                <div class="srow__main">
+                  <div class="srow__label">Agent fallback</div>
+                  <div class="cp-bind" style="margin-top:2px">cmd_palette.fallback_targets = []</div>
+                </div>
+                <div class="srow__ctl">
+                  <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Agent fallback">
+                    <span class="knob"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="palette" data-od-id="cp-palset-off-pal" style="width:min(560px,100%);position:relative;animation:none">
+              <div class="palette-head">
+                <svg data-lucide="search"></svg>
+                <input type="text" value="zzzz quantum" aria-label="Palette query" readonly>
+              </div>
+              <div class="palette-results" data-od-id="cp-palset-off-results" style="min-height:72px">
+                <!-- gating: fallback_targets empty · zero-match · no pal-item--ask -->
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · RESET FLOW ===== -->
+    <section class="lab-sec" data-od-id="cp-palset-reset">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Reset personalization</h2>
+        <span class="lab-sec__gist">this workspace · acme · then confirmation</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Scope confirmation</b>US-033: reset is scoped to <code>this workspace</code> — workspace <code>acme</code>. Cancel is focused by default. Confirm verb is <code>Reset</code>. Declared copy only.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cp-palset-reset-confirm-plain">
+            <div class="cp-reset-confirm" data-od-id="cp-palset-reset-confirm">
+              <div class="pal-confirm">
+                <div class="pal-confirm__title">Reset palette personalization?</div>
+                <div class="pal-confirm__body">Clears pins, recents, frecency, and query learning for this workspace.</div>
+                <div class="cp-bind" style="margin-top:2px">workspace acme</div>
+                <div class="pal-confirm__acts">
+                  <!-- gating: Cancel focused by default · visible focus ring -->
+                  <button class="btn focus-ring" type="button" data-od-id="cp-palset-reset-cancel">Cancel</button>
+                  <button class="btn btn--primary" type="button" data-od-id="cp-palset-reset-go">Reset</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Post-reset</b>Success is a glyph + the word <code>reset</code>, then the CLI echo as a micro-mono evidence line. Never a toast campaign.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cp-palset-reset-done-plain">
+            <!-- gating: cmd_palette.personalization reset for workspace_id = acme -->
+            <div class="cp-fb" data-od-id="cp-palset-reset-fb">
+              <svg data-lucide="check"></svg>
+              reset
+            </div>
+            <div class="cp-bind" style="padding:0 16px 12px">Reset palette personalization for workspace acme (pins, recents, frecency, query learning).</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · FINAL — S16 ===== -->
+    <section class="lab-sec" data-od-id="cp-palset-ext">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Notes (ext.notes) · Palette panel</h2>
+        <span class="lab-sec__gist">contributed commands · views</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Contributions</b>US-027: the extension Palette panel lists contributed commands with their effective bindings — <code>Capture note ⌥⇧N</code> · <code>Recent notes</code> · <code>Purge archived notes</code> — and contributed views <code>Recent notes</code> · <code>Browse notes</code>. Source chip is info tone with the extension name.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="cp-palset-ext-stage" style="min-height:420px">
+            <section class="win is-focused" data-od-id="cp-palset-ext-win" style="width:min(720px,100%)">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph" aria-hidden="true"><svg data-lucide="settings"></svg></span>
+                  <span class="w2-title">Settings</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="app" data-od-id="cp-palset-ext-page">
+                  <div class="panelbox">
+                    <div class="cp-ext" data-od-id="cp-palset-ext-panel">
+                      <div class="cp-ext__head">
+                        <div>
+                          <div class="cp-ext__name">Notes</div>
+                          <div class="cp-ext__id">ext.notes</div>
+                        </div>
+                        <span class="pal-src">Notes (ext.notes)</span>
+                      </div>
+                      <div class="cp-ext__list">
+                        <!-- gating: extension.contributed_commands -->
+                        <div class="cp-ext__row" data-od-id="cp-palset-ext-cmd-capture">
+                          <span class="cp-ext__cmd">Capture note</span>
+                          <span class="keys"><span class="key">⌥⇧N</span></span>
+                        </div>
+                        <div class="cp-ext__row" data-od-id="cp-palset-ext-cmd-recent">
+                          <span class="cp-ext__cmd">Recent notes</span>
+                        </div>
+                        <div class="cp-ext__row" data-od-id="cp-palset-ext-cmd-purge">
+                          <span class="cp-ext__cmd">Purge archived notes</span>
+                        </div>
+                      </div>
+                      <div class="cp-ext__views" data-od-id="cp-palset-ext-views">
+                        <b>Views</b>
+                        Recent notes · Browse notes
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · DORMANT IN PANEL ===== -->
+    <section class="lab-sec" data-od-id="cp-palset-dormant">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Dormant default</h2>
+        <span class="lab-sec__gist">row stays · default withheld</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Inside the panel</b>The same dormant default as S12: <code>Recent notes</code> keeps its row. Reason is <code>default unavailable — conflicts with session.new</code>. Warning glyph + <code>unavailable</code> + the fragment.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-palset-dormant-plain">
+            <div class="cp-ext" data-od-id="cp-palset-dormant-panel">
+              <div class="cp-ext__list">
+                <div class="cp-ext__row" data-od-id="cp-palset-dormant-capture">
+                  <span class="cp-ext__cmd">Capture note</span>
+                  <span class="keys"><span class="key">⌥⇧N</span></span>
+                </div>
+                <!-- gating: extension default_binding conflicts with session.new -->
+                <div class="cp-ext__row is-dormant" data-od-id="cp-palset-dormant-row" style="color:var(--muted)">
+                  <span class="cp-ext__cmd">Recent notes</span>
+                  <span class="cp-flag"><svg data-lucide="triangle-alert" style="width:12px;height:12px"></svg>unavailable</span>
+                </div>
+                <div class="cp-why" style="padding:0 16px 10px">default unavailable — conflicts with session.new</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · UNHEALTHY ===== -->
+    <section class="lab-sec" data-od-id="cp-palset-unhealthy">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Unhealthy extension</h2>
+        <span class="lab-sec__gist">contributions grayed · health reason verbatim</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Crash loop</b>US-027.EC-4: the panel stays mounted. Contributions are grayed. The health line is the fragment <code>extension notes is unhealthy (crash loop)</code> — warning glyph + <code>unhealthy</code> + the reason. Never color alone.</div>
+        <div class="spec__demo">
+          <div class="plain" style="padding:0" data-od-id="cp-palset-unhealthy-plain">
+            <div class="cp-ext is-unhealthy" data-od-id="cp-palset-unhealthy-panel">
+              <div class="cp-ext__head">
+                <div>
+                  <div class="cp-ext__name">Notes</div>
+                  <div class="cp-ext__id">ext.notes</div>
+                </div>
+                <span class="pal-src">Notes (ext.notes)</span>
+              </div>
+              <!-- gating: extension.health = crash_loop -->
+              <div class="cp-ext__health" data-od-id="cp-palset-unhealthy-reason">
+                <svg data-lucide="triangle-alert"></svg>
+                <span>extension notes is unhealthy (crash loop)</span>
+              </div>
+              <div class="cp-ext__list">
+                <div class="cp-ext__row" data-od-id="cp-palset-unhealthy-capture">
+                  <span class="cp-ext__cmd">Capture note</span>
+                  <span class="keys"><span class="key">⌥⇧N</span></span>
+                </div>
+                <div class="cp-ext__row" data-od-id="cp-palset-unhealthy-recent">
+                  <span class="cp-ext__cmd">Recent notes</span>
+                </div>
+                <div class="cp-ext__row" data-od-id="cp-palset-unhealthy-purge">
+                  <span class="cp-ext__cmd">Purge archived notes</span>
+                </div>
+              </div>
+              <div class="cp-ext__views">
+                <b>Views</b>
+                Recent notes · Browse notes
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="cp-palset-foot">Spec <code>.compozy/tasks/command-palette/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>-extensions-settings-page.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  /* gating: cmd_palette.fallback_targets / cmd_palette.personalization */
+  document.querySelectorAll("[data-switch]").forEach(function (sw) {
+    sw.addEventListener("click", function () {
+      var on = sw.getAttribute("aria-checked") !== "true";
+      sw.setAttribute("aria-checked", on ? "true" : "false");
+      sw.classList.toggle("is-on", on);
+      var row = sw.closest(".srow");
+      var cap = row ? row.querySelector(".cp-bind") : null;
+      if (!cap) return;
+      if (sw.getAttribute("data-switch") === "fallback") {
+        cap.textContent = on ? 'cmd_palette.fallback_targets = ["agent"]' : "cmd_palette.fallback_targets = []";
+      } else if (sw.getAttribute("data-switch") === "personalization") {
+        cap.textContent = on ? "cmd_palette.personalization = true" : "cmd_palette.personalization = false";
+      }
+    });
+  });
+
+  /* gating: reset scoped to workspace acme — §03 is a static lab; do not hide it */
+  var goBtn = document.querySelector("[data-od-id='cp-palset-reset-go']");
+  var cancelBtn = document.querySelector("[data-od-id='cp-palset-reset-cancel']");
+  if (goBtn) {
+    goBtn.addEventListener("click", function () {
+      goBtn.setAttribute("aria-pressed", "true");
+      goBtn.disabled = true;
+    });
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", function () {
+      cancelBtn.setAttribute("aria-pressed", "true");
+    });
+  }
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

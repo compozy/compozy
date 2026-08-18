@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>View shell · Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="command-palette.css">
+<!--
+  command-palette-view-shell · S2 stack chrome.
+  Spec: .compozy/tasks/command-palette/_uiux.md · stories US-009, US-028 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — os-palette-view-shell.tsx, os-palette-view-stack.tsx,
+                 os-palette-breadcrumb.tsx, os-palette-footer.tsx,
+                 os-palette-session-chips.tsx, os-palette-session-row.tsx seams
+    spec — S2: breadcrumb ≤3 slots, left-truncating; … tooltip Earlier levels;
+           per-level scoped search; ⌫ pops one level on empty query; Esc closes
+           the whole stack; re-push mounts fresh; live refresh never steals
+           selection (nearest-neighbor, BR-7); frames view-unavailable (names
+           source), loading, timeout + retry (US-028.EC-2); unknown kind →
+           view requires a newer CompozyOS (US-028.EC-4); US-009.EC-1 / US-028.EC-5
+    authorized delta — none
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="vs-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Command palette</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">View shell</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="command-palette-root.html">Root →</a>
+      <a class="btn btn--sm" href="command-palette-view-bands.html">View bands →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL ===== -->
+    <section class="lab-sec" data-od-id="vs-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">List kind under stack chrome</h2>
+        <span class="lab-sec__gist">depth ≥ 2 · … / Sessions / claude · scoped search</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Depth two, identical chrome</b>US-009: the stack is past two ancestors, so the path left-truncates to <code>… / Sessions / claude</code> (≤3 slots). The <code>…</code> crumb tooltip is <code>Earlier levels</code>. Search is scoped to this leaf — placeholder <code>Search claude's sessions…</code> — and never bleeds sibling levels. Footer keeps the <code>⌫</code> back hint. <code>Esc</code> closes the whole stack; reopen mounts at root. Selection is a neutral plate.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="vs-final-stage">
+            <div class="overlay palette-overlay" id="vs-final-overlay" data-od-id="vs-final-overlay">
+              <div class="palette" data-od-id="vs-final-pal" role="dialog" aria-label="Command palette">
+                <div class="palette-head">
+                  <!-- gating: viewStack.depth — icon is back when depth ≥ 1 -->
+                  <button type="button" id="vs-final-back" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" id="vs-final-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--ellipsis" id="vs-final-ellipsis" tabindex="0" aria-label="Earlier levels">…
+                      <span class="pal-tip">Earlier levels</span>
+                    </span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb pal-crumb--root" data-od-id="vs-final-crumb-sessions">Sessions</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb" data-od-id="vs-final-crumb-leaf">claude</span>
+                  </nav>
+                  <input id="vs-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="vs-final-list" aria-activedescendant="vs-final-row-store" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="pal-kind pal-kind--list">
+                  <div class="palette-results" id="vs-final-root" hidden data-od-id="vs-final-root" role="listbox" aria-label="Root results">
+                    <div class="pal-group">Views</div>
+                    <!-- gating: viewRegistry.push('sessions') remounts a fresh view -->
+                    <button class="pal-item is-active" type="button" role="option" id="vs-final-push-sessions" aria-selected="true" data-od-id="vs-final-push-sessions">
+                      <svg data-lucide="message-square"></svg>Sessions
+                      <span class="pal-push">view<svg data-lucide="corner-down-left"></svg></span>
+                    </button>
+                    <div class="pal-group">Windows</div>
+                    <button class="pal-item" type="button" role="option" id="vs-final-open-tasks" aria-selected="false">
+                      <svg data-lucide="list-todo"></svg>Open Tasks
+                    </button>
+                  </div>
+                  <div class="palette-results" id="vs-final-sessions" hidden data-od-id="vs-final-sessions" role="listbox" aria-label="Sessions">
+                    <button class="pal-srow is-active" type="button" role="option" id="vs-sess-store" aria-selected="true" data-od-id="vs-sess-store" data-class="needs" data-agent="claude">
+                      <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Refactor session store</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                      </span>
+                      <span class="pal-srow__meta">2m</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vs-sess-charge" aria-selected="false" data-od-id="vs-sess-charge" data-class="needs" data-agent="claude">
+                      <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Chargeback flow</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-auth</span><span>· claude · payments</span></span>
+                      </span>
+                      <span class="pal-srow__meta">6m</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vs-sess-pay" aria-selected="false" data-od-id="vs-sess-pay" data-class="run" data-agent="claude">
+                      <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Fix payment retries</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                      </span>
+                      <span class="pal-srow__meta">now</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vs-sess-notes" aria-selected="false" data-od-id="vs-sess-notes" data-class="done" data-agent="hermes">
+                      <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Release notes draft</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· hermes</span></span>
+                      </span>
+                      <span class="pal-srow__meta">26m</span>
+                    </button>
+                    <!-- gating: row.agent == 'claude' pushes a fresh scoped leaf -->
+                    <button class="pal-item" type="button" id="vs-sess-push-claude" data-od-id="vs-sess-push-claude">
+                      <svg data-lucide="bot"></svg>claude
+                      <span class="pal-push">view<svg data-lucide="corner-down-left"></svg></span>
+                    </button>
+                  </div>
+                  <div class="palette-results" id="vs-final-list" data-od-id="vs-final-list" role="listbox" aria-label="claude's sessions">
+                    <button class="pal-srow is-active" type="button" role="option" id="vs-final-row-store" aria-selected="true" data-od-id="vs-final-row-store" data-title="Refactor session store">
+                      <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Refactor session store</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                      </span>
+                      <span class="pal-srow__meta">2m</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vs-final-row-charge" aria-selected="false" data-od-id="vs-final-row-charge" data-title="Chargeback flow">
+                      <span class="sig" data-k="auth"><svg data-lucide="shield"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Chargeback flow</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-auth</span><span>· claude · payments</span></span>
+                      </span>
+                      <span class="pal-srow__meta">6m</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vs-final-row-pay" aria-selected="false" data-od-id="vs-final-row-pay" data-title="Fix payment retries">
+                      <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Fix payment retries</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                      </span>
+                      <span class="pal-srow__meta">now</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vs-final-row-hook" aria-selected="false" data-od-id="vs-final-row-hook" data-title="Webhook retries">
+                      <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Webhook retries</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude · payments</span></span>
+                      </span>
+                      <span class="pal-srow__meta">now</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vs-final-row-digest" aria-selected="false" data-od-id="vs-final-row-digest" data-title="Digest triage">
+                      <span class="sig" data-k="idle"><span class="sig-dot"></span></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Digest triage</span>
+                        <span class="pal-srow__sub"><span class="state">idle</span><span>· claude · notes</span></span>
+                      </span>
+                      <span class="pal-srow__meta">2d</span>
+                    </button>
+                    <div class="pal-none" id="vs-final-none" hidden>No sessions match</div>
+                  </div>
+                </div>
+                <div class="pal-foot" data-od-id="vs-final-foot">
+                  <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                  <span><span class="keys"><span class="key">⏎</span></span> <span id="vs-final-enter">open</span></span>
+                  <span id="vs-final-pop-hint"><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+            <button class="btn" type="button" id="vs-final-reopen" hidden data-od-id="vs-final-reopen" style="position:absolute;top:36px;left:50%;transform:translateX(-50%)" aria-label="Open palette">
+              <span class="keys"><span class="key">⌘</span><span class="key">K</span></span>
+              Open
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · FOUR KINDS ===== -->
+    <section class="lab-sec" data-od-id="vs-kinds">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Four kinds, identical chrome</h2>
+        <span class="lab-sec__gist">list · detail · form · grid — body only changes</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>list</b>The default kind. Rows stay on the herdr <code>.pal-srow</code> grammar. Head, crumbs, scoped search, and footer are the same four-kind chrome.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="vs-kind-list">
+            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="vs-kind-list-pal">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs" aria-label="Palette path">
+                  <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb pal-crumb--root">Sessions</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb">claude</span>
+                </nav>
+                <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-list-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+              </div>
+              <div class="pal-kind pal-kind--list">
+                <div class="palette-results" id="vs-kind-list-box" role="listbox" aria-label="claude's sessions" style="max-height:88px">
+                  <button class="pal-srow is-active" type="button" role="option" aria-selected="true" data-od-id="vs-kind-list-row">
+                    <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                    <span class="pal-srow__main"><span class="pal-srow__title">Fix payment retries</span></span>
+                    <span class="pal-srow__meta">now</span>
+                  </button>
+                </div>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>detail</b>Same head and footer. The body is a selection-driven accessory read — <code>{label, value}</code> rows — not a second list.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="vs-kind-detail">
+            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="vs-kind-detail-pal">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs" aria-label="Palette path">
+                  <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb pal-crumb--root">Sessions</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb">claude</span>
+                </nav>
+                <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-detail-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+              </div>
+              <div class="pal-kind pal-kind--detail" id="vs-kind-detail-box">
+                <div class="pal-kv" data-od-id="vs-kind-detail-kv">
+                  <div class="pal-kv__row"><span class="pal-kv__k">Status</span><span class="pal-kv__v"><span class="state" data-class="run">running</span></span></div>
+                  <div class="pal-kv__row"><span class="pal-kv__k">Agent</span><span class="pal-kv__v">claude</span></div>
+                  <div class="pal-kv__row"><span class="pal-kv__k">Workspace</span><span class="pal-kv__v">acme</span></div>
+                  <div class="pal-kv__row"><span class="pal-kv__k">Id</span><span class="pal-kv__v"><span class="mono">cl_7f21</span></span></div>
+                </div>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>form</b>Declared fields only. Chrome stays the stack; the body is <code>.pal-form</code>. Fixture field <code>title</code>, placeholder <code>Note title</code>.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="vs-kind-form">
+            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="vs-kind-form-pal">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs" aria-label="Palette path">
+                  <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb pal-crumb--root">Sessions</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb">claude</span>
+                </nav>
+                <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-form-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+              </div>
+              <div class="pal-kind pal-kind--form" id="vs-kind-form-box">
+                <form class="pal-form" data-od-id="vs-kind-form-fields">
+                  <div class="pal-field">
+                    <label class="pal-field__lab" for="vs-kind-form-title">title</label>
+                    <input class="input" id="vs-kind-form-title" type="text" placeholder="Note title" autocomplete="off">
+                  </div>
+                </form>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>grid</b>Sections + tiles. Media is a token or a placeholder glyph — title stays if media fails. 2D arrows join the ladder without replacing it.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="vs-kind-grid">
+            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="vs-kind-grid-pal">
+              <div class="palette-head">
+                <svg data-lucide="corner-up-left"></svg>
+                <nav class="pal-crumbs" aria-label="Palette path">
+                  <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb pal-crumb--root">Sessions</span>
+                  <span class="w2-sep">/</span>
+                  <span class="pal-crumb">claude</span>
+                </nav>
+                <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-grid-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+              </div>
+              <div class="pal-kind pal-kind--grid" id="vs-kind-grid-box">
+                <div class="pal-grid">
+                  <div>
+                    <div class="pal-gsec__t">Open</div>
+                    <div class="pal-gsec__tiles">
+                      <button class="pal-tile is-active" type="button" data-od-id="vs-kind-grid-sessions">
+                        <div class="pal-tile__media"><span class="pal-tile__token">⌘E</span></div>
+                        <span class="pal-tile__t">Sessions</span>
+                      </button>
+                      <button class="pal-tile" type="button" data-od-id="vs-kind-grid-note">
+                        <div class="pal-tile__media"><span class="pal-tile__token">⌥⇧N</span></div>
+                        <span class="pal-tile__t">Capture note</span>
+                      </button>
+                      <button class="pal-tile" type="button" data-od-id="vs-kind-grid-new">
+                        <div class="pal-tile__media"><span class="pal-tile__ph"><svg data-lucide="image-off"></svg></span></div>
+                        <span class="pal-tile__t">New session</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                <span class="pal-foot-flex"></span>
+                <span><span class="keys"><span class="key">esc</span></span> close</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · VIEW UNAVAILABLE ===== -->
+    <section class="lab-sec" data-od-id="vs-unavail">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">View unavailable</h2>
+        <span class="lab-sec__gist">names the source · pop still works</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Source named</b>US-009.EC-1 · US-028.EC-5: the frame is <code>view unavailable</code> plus the source <code>Notes (ext.notes)</code>. Tone, glyph, and the literal words travel together. <code>⌫</code> still pops; <code>Esc</code> still closes the stack. Reopen starts at root — it does not remount this leaf.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="vs-unavail-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="vs-unavail-pal">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">Recent notes</span>
+                  </nav>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-unavail-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                </div>
+                <!-- gating: viewFrame = unavailable · source = ext.notes -->
+                <div class="pal-frame pal-frame--unavailable" id="vs-unavail-frame" data-od-id="vs-unavail-frame" role="status">
+                  <svg data-lucide="triangle-alert"></svg>
+                  <div class="pal-frame__t">view unavailable</div>
+                  <div class="pal-frame__s">Notes (ext.notes)</div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · LOADING ===== -->
+    <section class="lab-sec" data-od-id="vs-loading">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Loading frame</h2>
+        <span class="lab-sec__gist">extension-sourced view resolving</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Resolving</b>An extension-sourced view has no last-good payload yet. Pending is a motion token plus the word <code>loading</code> — no percentage. Source stays <code>Notes (ext.notes)</code>. Chrome stays live so <code>Esc</code> / <code>⌫</code> still work.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="vs-loading-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="vs-loading-pal">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">Browse notes</span>
+                  </nav>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-loading-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                </div>
+                <!-- gating: viewFrame = loading · source resolving, no lastGood -->
+                <div class="pal-frame pal-frame--loading" id="vs-loading-frame" data-od-id="vs-loading-frame" role="status">
+                  <span class="pal-pend" aria-hidden="true"></span>
+                  <div class="pal-frame__t">loading</div>
+                  <div class="pal-frame__s">Notes (ext.notes)</div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · TIMEOUT ===== -->
+    <section class="lab-sec" data-od-id="vs-timeout">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Timeout + retry</h2>
+        <span class="lab-sec__gist">Esc / ⌫ always work</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Hard miss</b>US-028.EC-2: the resolve timed out. Frame title is <code>timeout</code>, source named, one <code>Retry</code> affordance. <code>Esc</code> and <code>⌫</code> remain live on the chrome — a hung view never traps the stack. Retry is the single primary on this surface.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="vs-timeout-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="vs-timeout-pal">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">Browse notes</span>
+                  </nav>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-timeout-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                </div>
+                <!-- gating: viewFrame = timeout · retry() re-resolves the same leaf -->
+                <div class="pal-frame pal-frame--timeout" id="vs-timeout-frame" data-od-id="vs-timeout-frame" role="status">
+                  <svg data-lucide="clock"></svg>
+                  <div class="pal-frame__t">timeout</div>
+                  <div class="pal-frame__s">Notes (ext.notes)</div>
+                  <button class="btn btn--sm btn--primary" type="button" data-od-id="vs-timeout-retry">Retry</button>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · UNKNOWN KIND ===== -->
+    <section class="lab-sec" data-od-id="vs-unknown">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Unknown view kind</h2>
+        <span class="lab-sec__gist">degrade, do not invent a renderer</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Newer host required</b>US-028.EC-4: an unrecognized <code>view.kind</code> degrades to the exact line <code>view requires a newer CompozyOS</code>. No guessed layout. Pop and close stay on the chrome.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="vs-unknown-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="vs-unknown-pal">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">Browse notes</span>
+                  </nav>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-unknown-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                </div>
+                <!-- gating: view.kind unknown — no renderer in this CompozyOS -->
+                <div class="pal-frame" id="vs-unknown-frame" data-od-id="vs-unknown-frame" role="status">
+                  <svg data-lucide="circle-alert"></svg>
+                  <div class="pal-frame__t">view requires a newer CompozyOS</div>
+                  <div class="pal-frame__s">Notes (ext.notes)</div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · BEHAVIOR ===== -->
+    <section class="lab-sec" data-od-id="vs-behavior">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Behavior</h2>
+        <span class="lab-sec__gist">gesture → result · BR-7</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Stack contract</b>Search is per-level. Live refresh reorders under the current <code>selectionId</code> and falls back to the nearest neighbor — it never steals focus (BR-7). Hidden ancestor lists stay out of the query so results cannot bleed across levels.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="vs-behavior-table">
+            <table class="spec-table">
+              <thead><tr><th>gesture</th><th>result</th></tr></thead>
+              <tbody>
+                <tr><td>type in query</td><td>filter the current leaf only — no cross-level result bleed</td></tr>
+                <tr><td>⌫ on empty query</td><td>pop one level · remount is not required</td></tr>
+                <tr><td>esc</td><td>close the whole stack · reopen starts at root</td></tr>
+                <tr><td>re-push the same view</td><td>mounts fresh (empty query, first row selected)</td></tr>
+                <tr><td>live refresh</td><td>rows may reorder · selection stays on the same id, else nearest neighbor (BR-7)</td></tr>
+                <tr><td>↑↓ / ⏎</td><td>identical at every depth · selection = <code>.is-active</code> neutral plate</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="vs-foot">Spec <code>.compozy/tasks/command-palette/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>os-palette-view-shell.tsx</code> / <code>os-palette-view-stack.tsx</code> / <code>os-palette-breadcrumb.tsx</code> / <code>os-palette-footer.tsx</code>. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+  /* gating: viewStack.depth + query === '' · os-palette-view-stack.tsx
+     Esc closes the stack; Backspace pops one level; re-push remounts fresh. */
+  var overlay = document.getElementById("vs-final-overlay");
+  var reopen = document.getElementById("vs-final-reopen");
+  var input = document.getElementById("vs-final-q");
+  var crumbs = document.getElementById("vs-final-crumbs");
+  var back = document.getElementById("vs-final-back");
+  var root = document.getElementById("vs-final-root");
+  var sessions = document.getElementById("vs-final-sessions");
+  var leaf = document.getElementById("vs-final-list");
+  var none = document.getElementById("vs-final-none");
+  var popHint = document.getElementById("vs-final-pop-hint");
+  var enterHint = document.getElementById("vs-final-enter");
+  var depth = 2;
+
+  function panes() {
+    return [
+      { el: root, d: 0, label: "Root results" },
+      { el: sessions, d: 1, label: "Sessions" },
+      { el: leaf, d: 2, label: "claude's sessions" }
+    ];
+  }
+
+  function visiblePane() {
+    return panes().find(function (p) { return p.d === depth; }).el;
+  }
+
+  function optionsOf(pane) {
+    return Array.prototype.slice.call(pane.querySelectorAll('[role="option"]')).filter(function (r) {
+      return !r.hidden;
+    });
+  }
+
+  function setActive(pane, row) {
+    optionsOf(pane).forEach(function (r) {
+      var on = r === row;
+      r.classList.toggle("is-active", on);
+      r.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if (row) input.setAttribute("aria-activedescendant", row.id);
+  }
+
+  function applyQuery() {
+    var pane = visiblePane();
+    var q = input.value.toLowerCase();
+    var visible = 0;
+    var first = null;
+    pane.querySelectorAll('[role="option"]').forEach(function (r) {
+      var hay = (r.getAttribute("data-title") || r.textContent || "").toLowerCase();
+      var show = !q || hay.indexOf(q) !== -1;
+      r.hidden = !show;
+      if (show) {
+        visible += 1;
+        if (!first) first = r;
+      }
+    });
+    if (none) none.hidden = depth !== 2 || visible > 0;
+    var current = pane.querySelector('[role="option"].is-active:not([hidden])');
+    setActive(pane, current || first);
+  }
+
+  function setDepth(next, fresh) {
+    depth = next;
+    var open = overlay && !overlay.hidden;
+    crumbs.hidden = depth === 0;
+    popHint.hidden = depth === 0;
+    enterHint.textContent = depth === 0 ? "open" : "open session";
+    root.hidden = depth !== 0;
+    sessions.hidden = depth !== 1;
+    leaf.hidden = depth !== 2;
+    if (depth === 0) {
+      input.placeholder = "Search apps, sessions, and actions…";
+      input.setAttribute("aria-label", "Palette query");
+      input.setAttribute("aria-controls", "vs-final-root");
+    } else if (depth === 1) {
+      input.placeholder = "Search sessions…";
+      input.setAttribute("aria-label", "Search sessions");
+      input.setAttribute("aria-controls", "vs-final-sessions");
+    } else {
+      input.placeholder = "Search claude's sessions…";
+      input.setAttribute("aria-label", "Search claude's sessions");
+      input.setAttribute("aria-controls", "vs-final-list");
+    }
+    if (fresh) input.value = "";
+    input.setAttribute("aria-expanded", open ? "true" : "false");
+    back.setAttribute("aria-label", depth === 0 ? "Search" : "Back");
+    back.innerHTML = depth === 0 ? '<svg data-lucide="search"></svg>' : '<svg data-lucide="corner-up-left"></svg>';
+    refreshIcons();
+    applyQuery();
+    if (open) input.focus();
+  }
+
+  function closeStack() {
+    overlay.hidden = true;
+    reopen.hidden = false;
+    input.setAttribute("aria-expanded", "false");
+  }
+
+  function openRoot() {
+    overlay.hidden = false;
+    reopen.hidden = true;
+    setDepth(0, true);
+  }
+
+  back.addEventListener("click", function () {
+    if (depth > 0) setDepth(depth - 1, true);
+  });
+  document.getElementById("vs-final-push-sessions").addEventListener("click", function () {
+    setDepth(1, true);
+  });
+  document.getElementById("vs-sess-push-claude").addEventListener("click", function () {
+    setDepth(2, true);
+  });
+  reopen.addEventListener("click", openRoot);
+
+  leaf.querySelectorAll('[role="option"]').forEach(function (row) {
+    row.addEventListener("click", function () { setActive(leaf, row); });
+  });
+  sessions.querySelectorAll('[role="option"]').forEach(function (row) {
+    row.addEventListener("click", function () { setActive(sessions, row); });
+  });
+
+  input.addEventListener("input", applyQuery);
+  input.addEventListener("keydown", function (e) {
+    var pane = visiblePane();
+    var rows = optionsOf(pane);
+    var idx = rows.findIndex(function (r) { return r.classList.contains("is-active"); });
+    if (e.key === "ArrowDown" && rows.length) {
+      e.preventDefault();
+      setActive(pane, rows[Math.min(rows.length - 1, idx + 1)] || rows[0]);
+    } else if (e.key === "ArrowUp" && rows.length) {
+      e.preventDefault();
+      setActive(pane, rows[Math.max(0, idx - 1)] || rows[0]);
+    } else if (e.key === "Backspace" && input.value === "" && depth > 0) {
+      e.preventDefault();
+      setDepth(depth - 1, true);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeStack();
+    }
+  });
+
+  setDepth(2, false);
+  refreshIcons();
+})();
+</script>
+</body>
+</html>

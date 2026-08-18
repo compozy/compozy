@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>View bands · Command palette · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="../herdr-parity/herdr.css">
+<link rel="stylesheet" href="command-palette.css">
+<!--
+  command-palette-view-bands · US-039 programmable-view latency bands.
+  Spec: .compozy/tasks/command-palette/_uiux.md · stories US-031, US-038, US-039 · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — os-palette-view-shell.tsx refresh / band seam
+    spec — US-039 three-band budget: soft 150 ms · hard ack 3 s · circuit-break
+           at 3 consecutive misses. Busy keeps previous rows (US-039.AC-2).
+           Degraded = last-good + inline retry. Circuit-broken until reopen;
+           Esc / ⌫ / navigation / other views stay live. Program crash →
+           unavailable frame naming the extension (US-039.EC-1).
+           view reloaded after composzy extension dev with the view open
+           (US-031.EC-1 · US-038.AC-5)
+    authorized delta — none
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="vb-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Command palette</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">View bands</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="command-palette-view-shell.html">← View shell</a>
+      <a class="btn btn--sm" href="command-palette-domain-list.html">Domain list →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — BUSY ===== -->
+    <section class="lab-sec" data-od-id="vb-final">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Busy band — rows stay</h2>
+        <span class="lab-sec__gist">soft 150 ms · list never blanks</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Previous rows stay painted</b>US-039.AC-2: three-band budget is <code>soft 150 ms</code> · <code>hard ack 3 s</code> · circuit-break at <code>3</code> consecutive misses. Past the soft budget the busy band appears — a motion token and the word <code>updating</code> — while last-good rows remain fully visible. The list never blanks for a spinner. No percentage.</div>
+        <div class="spec__demo">
+          <div class="stage stage--tall" data-od-id="vb-final-stage">
+            <div class="overlay palette-overlay" data-od-id="vb-final-overlay">
+              <div class="palette" data-od-id="vb-final-pal" role="dialog" aria-label="Command palette">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb pal-crumb--root">Sessions</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">claude</span>
+                  </nav>
+                  <input id="vb-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="vb-final-list" aria-activedescendant="vb-final-row-store" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions" autocomplete="off" spellcheck="false">
+                </div>
+                <!-- gating: viewBand = busy · elapsed > soft 150ms · lastGoodRows painted -->
+                <div class="pal-band pal-band--busy" data-od-id="vb-final-band" role="status">
+                  <span class="pal-pend" aria-hidden="true"></span>
+                  <span>updating</span>
+                </div>
+                <div class="pal-kind pal-kind--list">
+                  <div class="palette-results" id="vb-final-list" role="listbox" aria-label="claude's sessions" data-od-id="vb-final-list">
+                    <button class="pal-srow is-active" type="button" role="option" id="vb-final-row-store" aria-selected="true" data-od-id="vb-final-row-store" data-title="Refactor session store">
+                      <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Refactor session store</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                      </span>
+                      <span class="pal-srow__meta">2m</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vb-final-row-pay" aria-selected="false" data-od-id="vb-final-row-pay" data-title="Fix payment retries">
+                      <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Fix payment retries</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                      </span>
+                      <span class="pal-srow__meta">now</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" id="vb-final-row-notes" aria-selected="false" data-od-id="vb-final-row-notes" data-title="Release notes draft">
+                      <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Release notes draft</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="done">done</span><span>· hermes</span></span>
+                      </span>
+                      <span class="pal-srow__meta">26m</span>
+                    </button>
+                    <div class="pal-none" id="vb-final-none" hidden>No sessions match</div>
+                  </div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · DEGRADED ===== -->
+    <section class="lab-sec" data-od-id="vb-degraded">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Degraded band</h2>
+        <span class="lab-sec__gist">last-good + retry after hard ack</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Hard ack at 3 s</b>US-039: after the hard ack the band promotes to <code>degraded</code> — warning glyph + the word + an inline <code>Retry</code>. Last-good rows stay. Retry re-resolves; it does not blank the list.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="vb-deg-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="vb-deg-pal">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb pal-crumb--root">Sessions</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">claude</span>
+                  </nav>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-deg-list" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                </div>
+                <!-- gating: viewBand = degraded · missCount ≥ 1 · elapsed > hard ack 3s -->
+                <div class="pal-band pal-band--degraded" id="vb-deg-band" data-od-id="vb-deg-band" role="status">
+                  <svg data-lucide="triangle-alert"></svg>
+                  <span>degraded</span>
+                  <button class="btn btn--sm btn--primary" type="button" id="vb-deg-retry" data-od-id="vb-deg-retry">Retry</button>
+                </div>
+                <div class="pal-kind pal-kind--list">
+                  <div class="palette-results" id="vb-deg-list" role="listbox" aria-label="claude's sessions" style="max-height:132px">
+                    <button class="pal-srow is-active" type="button" role="option" aria-selected="true" data-od-id="vb-deg-row-store">
+                      <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Refactor session store</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="needs">waiting-for-input</span><span>· claude</span></span>
+                      </span>
+                      <span class="pal-srow__meta">2m</span>
+                    </button>
+                    <button class="pal-srow" type="button" role="option" aria-selected="false" data-od-id="vb-deg-row-pay">
+                      <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Fix payment retries</span>
+                        <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                      </span>
+                      <span class="pal-srow__meta">now</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · CIRCUIT-BROKEN ===== -->
+    <section class="lab-sec" data-od-id="vb-broken">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Circuit-broken</h2>
+        <span class="lab-sec__gist">until reopen · other views stay live</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Three consecutive misses</b>The results well is replaced by <code>view broken</code> / <code>until reopen</code>. Head, search, <code>Esc</code>, <code>⌫</code>, and navigation remain live — a broken programmable view cannot trap the palette. Other views still push. Reopen is what clears the break.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="vb-brk-stage">
+            <div class="overlay palette-overlay" id="vb-brk-overlay">
+              <div class="palette" data-od-id="vb-brk-pal">
+                <div class="palette-head">
+                  <button type="button" id="vb-brk-back" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Sessions</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">claude</span>
+                  </nav>
+                  <input id="vb-brk-q" type="text" role="combobox" aria-expanded="true" aria-controls="vb-brk-frame" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                </div>
+                <!-- gating: viewBand = broken · missCount == 3 · circuit open until remount -->
+                <div class="pal-frame pal-frame--broken" id="vb-brk-frame" data-od-id="vb-brk-frame" role="status">
+                  <svg data-lucide="unplug"></svg>
+                  <div class="pal-frame__t">view broken</div>
+                  <div class="pal-frame__s">until reopen</div>
+                </div>
+                <div class="pal-foot">
+                  <span id="vb-brk-pop"><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+            <button class="btn" type="button" id="vb-brk-reopen" hidden data-od-id="vb-brk-reopen" style="position:absolute;top:28px;left:50%;transform:translateX(-50%)" aria-label="Open palette">
+              <span class="keys"><span class="key">⌘</span><span class="key">K</span></span>
+              Open
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · PROGRAM CRASHED ===== -->
+    <section class="lab-sec" data-od-id="vb-crash">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Program crashed</h2>
+        <span class="lab-sec__gist">unavailable frame names the extension</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Crash is unavailable</b>US-039.EC-1: a programmable-view process crash uses the same unavailable frame as S2, naming the source <code>Notes (ext.notes)</code>. The structured reason stays in a hint slot when the runtime supplies one — never baked into the title. Pop still works.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="vb-crash-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="vb-crash-pal">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">Recent notes</span>
+                  </nav>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-crash-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                </div>
+                <!-- gating: program crash · viewFrame = unavailable · source = ext.notes -->
+                <div class="pal-frame pal-frame--unavailable" id="vb-crash-frame" data-od-id="vb-crash-frame" role="status">
+                  <svg data-lucide="triangle-alert"></svg>
+                  <div class="pal-frame__t">view unavailable</div>
+                  <div class="pal-frame__s">Notes (ext.notes)</div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · VIEW RELOADED ===== -->
+    <section class="lab-sec" data-od-id="vb-reload">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">View reloaded</h2>
+        <span class="lab-sec__gist">dev-mode edit with the view open</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Dev remount note</b>US-031.EC-1 · US-038.AC-5: after <code>compozy extension dev</code> edits a contributed view that is already open, the leaf remounts and a success chip reads <code>view reloaded</code>. Glyph + word + success tone. Rows come back from the new program; selection uses nearest-neighbor (BR-7).</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="vb-reload-stage">
+            <div class="overlay palette-overlay">
+              <div class="palette" data-od-id="vb-reload-pal">
+                <div class="palette-head">
+                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <nav class="pal-crumbs" aria-label="Palette path">
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
+                    <span class="w2-sep">/</span>
+                    <span class="pal-crumb">Recent notes</span>
+                  </nav>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-reload-list" aria-activedescendant="vb-reload-row" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                </div>
+                <div class="pal-chips" data-od-id="vb-reload-chips">
+                  <button class="pal-chip is-on" type="button">All <span class="count">2</span></button>
+                  <!-- gating: extDev.hotReload && viewOpen → pal-reload chip -->
+                  <span class="pal-reload" data-od-id="vb-reload-chip" style="margin-left:auto"><svg data-lucide="refresh-cw"></svg>view reloaded</span>
+                </div>
+                <div class="pal-kind pal-kind--list">
+                  <div class="palette-results" id="vb-reload-list" role="listbox" aria-label="Recent notes" style="max-height:88px">
+                    <button class="pal-srow is-active" type="button" role="option" id="vb-reload-row" aria-selected="true" data-od-id="vb-reload-row">
+                      <span class="sig" data-k="notify"><svg data-lucide="sticky-note"></svg></span>
+                      <span class="pal-srow__main">
+                        <span class="pal-srow__title">Standup follow-ups</span>
+                        <span class="pal-srow__sub"><span class="mono">nt_9a01d2</span></span>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⌫</span></span> back</span>
+                  <span class="pal-foot-flex"></span>
+                  <span><span class="keys"><span class="key">esc</span></span> close</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="vb-foot">Spec <code>.compozy/tasks/command-palette/_uiux.md</code> · contract <code>DESIGN-NOTES.md</code> · production seam <code>os-palette-view-shell.tsx</code> refresh / band. Content illustrative, runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  function refreshIcons() {
+    if (window.lucide) window.lucide.createIcons();
+  }
+  /* gating: viewBand + missCount · retry does not blank lastGoodRows */
+
+  var q = document.getElementById("vb-final-q");
+  var list = document.getElementById("vb-final-list");
+  var none = document.getElementById("vb-final-none");
+
+  function options() {
+    return Array.prototype.slice.call(list.querySelectorAll('[role="option"]')).filter(function (r) {
+      return !r.hidden;
+    });
+  }
+
+  function setActive(row) {
+    options().forEach(function (r) {
+      var on = r === row;
+      r.classList.toggle("is-active", on);
+      r.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if (row) q.setAttribute("aria-activedescendant", row.id);
+  }
+
+  function applyQuery() {
+    var needle = q.value.toLowerCase();
+    var visible = 0;
+    var first = null;
+    list.querySelectorAll('[role="option"]').forEach(function (r) {
+      var hay = (r.getAttribute("data-title") || "").toLowerCase();
+      var show = !needle || hay.indexOf(needle) !== -1;
+      r.hidden = !show;
+      if (show) {
+        visible += 1;
+        if (!first) first = r;
+      }
+    });
+    none.hidden = visible > 0;
+    var current = list.querySelector('[role="option"].is-active:not([hidden])');
+    setActive(current || first);
+  }
+
+  list.querySelectorAll('[role="option"]').forEach(function (row) {
+    row.addEventListener("click", function () { setActive(row); });
+  });
+  q.addEventListener("input", applyQuery);
+  q.addEventListener("keydown", function (e) {
+    var rows = options();
+    var idx = rows.findIndex(function (r) { return r.classList.contains("is-active"); });
+    if (e.key === "ArrowDown" && rows.length) {
+      e.preventDefault();
+      setActive(rows[Math.min(rows.length - 1, idx + 1)] || rows[0]);
+    } else if (e.key === "ArrowUp" && rows.length) {
+      e.preventDefault();
+      setActive(rows[Math.max(0, idx - 1)] || rows[0]);
+    }
+  });
+
+  var retry = document.getElementById("vb-deg-retry");
+  var band = document.getElementById("vb-deg-band");
+  retry.addEventListener("click", function () {
+    band.hidden = true;
+  });
+
+  var brkOverlay = document.getElementById("vb-brk-overlay");
+  var brkReopen = document.getElementById("vb-brk-reopen");
+  var brkQ = document.getElementById("vb-brk-q");
+  var brkDepth = 1;
+
+  function closeBroken() {
+    brkOverlay.hidden = true;
+    brkReopen.hidden = false;
+    brkQ.setAttribute("aria-expanded", "false");
+  }
+  function openBroken() {
+    brkOverlay.hidden = false;
+    brkReopen.hidden = true;
+    brkDepth = 1;
+    brkQ.value = "";
+    brkQ.setAttribute("aria-expanded", "true");
+    brkQ.focus();
+  }
+  document.getElementById("vb-brk-back").addEventListener("click", closeBroken);
+  brkReopen.addEventListener("click", openBroken);
+  brkQ.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeBroken();
+    } else if (e.key === "Backspace" && brkQ.value === "" && brkDepth > 0) {
+      e.preventDefault();
+      closeBroken();
+    }
+  });
+
+  refreshIcons();
+})();
+</script>
+</body>
+</html>
