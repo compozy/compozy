@@ -1,6 +1,7 @@
 import { editorEdgeId, type EditorEdge, type EditorNode, type RawLoopNode } from "../lib/codec";
 import type { PaletteItem } from "../lib/loop-palette";
 import { uniqueNodeId } from "../lib/loop-palette";
+import { removeRouteTargets } from "../lib/loop-editor-route-edges";
 
 import {
   createLoopEditorState,
@@ -142,7 +143,10 @@ export const loopEditorDraftTransitions = {
   nodesDeleted: (current: LoopEditorState, event: LoopEditorEvents["nodesDeleted"]) => {
     const removed = new Set(event.nodeIds);
     if (removed.size === 0) return;
-    const nodes = current.nodes.filter(node => !removed.has(node.id));
+    const nodes = removeRouteTargets(
+      current.nodes.filter(node => !removed.has(node.id)),
+      removed
+    );
     if (nodes.length === current.nodes.length) return;
 
     const edges = current.edges.filter(
@@ -159,6 +163,8 @@ export const loopEditorDraftTransitions = {
       selectedNodeId,
       selectionSeq: current.selectionSeq + 1,
       isDirty: true,
+      positionsDirty: true,
+      positionsGeneration: current.positionsGeneration + 1,
       publishError: null,
       publishFailureKind: null,
       publishRejectedIssues: [],
@@ -186,6 +192,7 @@ export const loopEditorDraftTransitions = {
   }),
   nodeFieldChanged: (current: LoopEditorState, event: LoopEditorEvents["nodeFieldChanged"]) => ({
     ...current,
+    edges: event.edges ?? current.edges,
     nodes: event.nodes,
     isDirty: true,
     publishError: null,

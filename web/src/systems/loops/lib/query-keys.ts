@@ -116,12 +116,19 @@ export const loopsKeys = {
       normalizeNumber(filters.limit),
     ] as const,
 
-  requestDetail: (workspaceId: string, runId: string, nodeId: string, itemIndex?: number) =>
+  requestDetail: (
+    workspaceId: string,
+    runId: string,
+    generation: number,
+    nodeId: string,
+    itemIndex?: number
+  ) =>
     [
       ...loopsKeys.requestsRoot(),
       "detail",
       workspaceId,
       runId,
+      generation,
       nodeId,
       normalizeNumber(itemIndex),
     ] as const,

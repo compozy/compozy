@@ -90,7 +90,6 @@ export type LoopRunMutationResult = OperationResponse<"cancelLoopRun", 200>;
 
 // Node lifecycle ------------------------------------------------------------
 
-/** The shared structured answer every node lifecycle verb returns (contract §API). */
 export type LoopNodeMutationResult = OperationResponse<"pauseLoopNode", 200>;
 /** Durable per-node control truth: pause/quarantine/attention/cancel + revision. */
 export type LoopNodeControl = NonNullable<LoopRunDetail["node_controls"]>[number];

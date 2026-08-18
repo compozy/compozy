@@ -70,12 +70,6 @@ export interface LoopRunKpis {
   needsALook: LoopKpi;
 }
 
-/**
- * Derives the four workspace-wide Runs KPIs from the run set (a derived read
- * model, §9.11 — truthful UI, no invented metric). "Done today" uses
- * `last_progress_at` as the terminal timestamp because the run projection exposes
- * no dedicated `ended_at`.
- */
 export function buildRunKpis(runs: readonly LoopRun[], now: Date = new Date()): LoopRunKpis {
   const counts = countByStatus(runs);
   const liveCount = LIVE_STATUSES.reduce((total, status) => total + (counts.get(status) ?? 0), 0);
@@ -111,11 +105,6 @@ export interface LoopOutcomeSegment {
   count: number;
 }
 
-/**
- * Builds the data-driven outcome filter: `All` plus one segment per status
- * actually present in the window, in canonical order. Paused/Queued only appear
- * once such runs exist (design §4.5).
- */
 export function buildOutcomeSegments(runs: readonly LoopRun[]): LoopOutcomeSegment[] {
   const counts = countByStatus(runs);
   const segments: LoopOutcomeSegment[] = [{ value: "all", label: "All", count: runs.length }];

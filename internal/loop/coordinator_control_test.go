@@ -150,22 +150,26 @@ func TestCoordinatorRunnerShouldParkAskRequests(t *testing.T) {
 		name          string
 		authoredAfter string
 		wantAfter     time.Duration
+		omitContext   bool
 	}{
 		{name: "Should seed expiry when the ask omits it", wantAfter: 72 * time.Hour},
 		{name: "Should preserve authored expiry over the seed", authoredAfter: "1h", wantAfter: time.Hour},
+		{name: "Should accept an ask without optional context", wantAfter: 72 * time.Hour, omitContext: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			params := dsl.NodeParams{
-				"prompt": "Choose release target for {{ .inputs.release }}",
-				"context": map[string]any{
+				"prompt":     "Choose release target for {{ .inputs.release }}",
+				"expect":     map[string]any{"environment": "string"},
+				"responders": map[string]any{"agents": "allow"},
+			}
+			if !tt.omitContext {
+				params["context"] = map[string]any{
 					"release":   "{{ .inputs.release }}",
 					"api_token": "super-secret-token",
 					"evidence":  strings.Repeat("x", requestPreviewLimitBytes+256),
-				},
-				"expect":     map[string]any{"environment": "string"},
-				"responders": map[string]any{"agents": "allow"},
+				}
 			}
 			if tt.authoredAfter != "" {
 				params["expires"] = map[string]any{"after": tt.authoredAfter}
@@ -223,8 +227,14 @@ func TestCoordinatorRunnerShouldParkAskRequests(t *testing.T) {
 			}
 			request := payload.Requests[0]
 			if request.Prompt != "Choose release target for v2.4.1" ||
-				request.Agents != dsl.ResponderAgentsAllow ||
-				!strings.Contains(string(request.Context), `"api_token":"[REDACTED]"`) ||
+				request.Agents != dsl.ResponderAgentsAllow {
+				t.Fatalf("frozen request = %#v", request)
+			}
+			if tt.omitContext {
+				if string(request.Context) != `{}` || string(request.ContextPreview) != `{}` {
+					t.Fatalf("context-free request = %#v, want empty objects", request)
+				}
+			} else if !strings.Contains(string(request.Context), `"api_token":"[REDACTED]"`) ||
 				strings.Contains(string(request.Context), "super-secret-token") ||
 				!strings.Contains(string(request.ContextPreview), `"truncated":true`) {
 				t.Fatalf("frozen request = %#v", request)
@@ -416,6 +426,28 @@ func TestCoordinatorWaitExpiryRouteShouldSkipNormalPath(t *testing.T) {
 		mapped["normal/0"].OutputRef != branchSkippedOutputRef ||
 		mapped["timeout/0"].Status != generationOutputPending {
 		t.Fatalf("expiry route outputs = %#v, want normal skipped and timeout pending", mapped)
+	}
+
+	reviewGraph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform), Review: &dsl.ReviewSpec{}},
+			{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+			{ID: "timed_out", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		},
+		Edges: []dsl.Edge{{From: "draft", To: "publish"}, {From: "draft", To: "timed_out"}},
+	}
+	reviewOutputs := []GenerationOutput{
+		{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded,
+			OutputRef: WaitExpiryRouteOutputRef("timed_out"), Epoch: 2},
+		{Generation: 1, NodeID: "publish", Status: generationOutputPending},
+		{Generation: 1, NodeID: "timed_out", Status: generationOutputPending},
+	}
+	applyWaitExpiryRoutes(reviewGraph, newControlTopology(reviewGraph), &reviewOutputs)
+	reviewMapped := outputsByNodeAndItemForTest(reviewOutputs)
+	if reviewMapped["publish/0"].Status != generationOutputSucceeded ||
+		reviewMapped["publish/0"].OutputRef != branchSkippedOutputRef ||
+		reviewMapped["timed_out/0"].Status != generationOutputPending {
+		t.Fatalf("review expiry route outputs = %#v, want publish skipped and timed_out pending", reviewMapped)
 	}
 }
 

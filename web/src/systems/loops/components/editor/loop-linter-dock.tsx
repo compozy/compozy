@@ -20,15 +20,6 @@ interface LoopLinterDockProps {
 
 const CHIP_CLASS = "rounded-xs px-1.5 py-0.5 font-mono text-badge";
 
-/**
- * The linter dock (design §4.6): a collapsible panel pinned under the canvas showing the
- * shared linter's issues with their deterministic codes and a "Reveal node" jump. Blocking
- * errors render danger + "publish returns 422"; non-blocking warnings render warning-tinted
- * and never claim a 422 gate (daemon truth wins). Before the first verdict the dock shows a
- * neutral pending/failed state, never a claimed pass. The dock reports — it never computes.
- *
- * Counters are severity-split and zero counts are omitted.
- */
 export function LoopLinterDock({
   lint,
   validateFailed,

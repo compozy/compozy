@@ -44,13 +44,27 @@ func (h *BaseHandlers) GetLoopRequest(c *gin.Context) {
 		h.respondLoopError(c, err)
 		return
 	}
+	generation, err := requiredRequestGeneration(c)
+	if err != nil {
+		h.respondLoopError(c, err)
+		return
+	}
 	response, err := service.GetLoopRequest(c.Request.Context(), c.Param("workspace_id"),
-		c.Param("run_id"), c.Param("node_id"), itemIndex)
+		c.Param("run_id"), generation, c.Param("node_id"), itemIndex)
 	if err != nil {
 		h.respondLoopError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+func requiredRequestGeneration(c *gin.Context) (int, error) {
+	raw := c.Query("generation")
+	generation, err := strconv.Atoi(raw)
+	if err != nil || generation < 1 {
+		return 0, fmt.Errorf("%w: request generation is invalid", looppkg.ErrValidation)
+	}
+	return generation, nil
 }
 
 func (h *BaseHandlers) RespondLoopRequest(c *gin.Context) {

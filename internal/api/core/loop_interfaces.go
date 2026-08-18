@@ -184,7 +184,7 @@ type LoopService interface {
 		actor taskpkg.ActorContext,
 	) error
 	ListLoopRequests(context.Context, string, LoopRequestListQuery) (contract.LoopRequestsResponse, error)
-	GetLoopRequest(context.Context, string, string, string, int) (contract.LoopRequestPayload, error)
+	GetLoopRequest(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error)
 	RespondLoopRequest(
 		context.Context,
 		string,

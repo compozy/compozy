@@ -11,11 +11,6 @@ interface LoopConfigureChecksProps {
   onCommandChange: (id: string, command: string) => void;
 }
 
-/**
- * The "Review gate" group (§4.7.1): each declared verification criterion as a switch row.
- * A `command` check is toggleable and exposes a project-command field (disabled with the
- * check); every other typed criterion is LOCKED on — removing it needs a fork (ADR-009).
- */
 export function LoopConfigureChecks({
   descriptors,
   states,

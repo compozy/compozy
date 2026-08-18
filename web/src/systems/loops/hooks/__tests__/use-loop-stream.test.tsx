@@ -6,8 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 import { useLoopStream } from "@/systems/loops";
 import type { LoopRunEventFrame, LoopStreamEventSource } from "@/systems/loops";
 
-// The twelve enumerated Loop-run SSE kinds the run page binds (techspec §observability,
-// L-017). Kept local to the test so a drift in the hook's subscription list is caught.
 const LOOP_EVENT_KINDS = [
   "node_running",
   "node_succeeded",
@@ -325,6 +323,9 @@ describe("useLoopStream", () => {
         queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
       });
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "requests", "ws_1"] });
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["loops", "node-inventory", "ws_1"],
+      });
 
       expect(invalidateQueries).not.toHaveBeenCalledWith({
         queryKey: ["loops", "catalog", "ws_1"],

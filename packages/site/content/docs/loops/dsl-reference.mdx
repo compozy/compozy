@@ -3,8 +3,6 @@ title: compozy.loop/v1 DSL
 description: The Loop definition schema — declared inputs, the contract, node classes and kinds, the gate contract, and start bindings.
 ---
 
-{/* Design reference: docs/design/opendesign/loop-detail.html — LOOPS-DESIGN-SPEC §4.2 (the detail screen renders this definition). Daemon truth wins on divergence (ADR-017 §9). */}
-
 A Loop definition is a **data-first, serializable** document — `compozy.loop/v1` YAML on disk, never a
 program of inline functions. The daemon compiles it to a resolved form that the coordinator and
 executors consume; authors and agents read and write the YAML. This page is the schema reference.
@@ -126,11 +124,11 @@ references validate).
 
 ### Node classes
 
-| Class     | Openness | Kinds                                                               |
-| --------- | -------- | ------------------------------------------------------------------- |
-| `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID        |
-| `control` | closed   | `fan-out`, `collect`, `branch`, `route`, `gate`, `wait`, `sub-loop` |
-| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`              |
+| Class     | Openness | Kinds                                                                      |
+| --------- | -------- | -------------------------------------------------------------------------- |
+| `action`  | **open** | `run-agent`, `run-loop`, `transform`, `goal`, or any tool ID               |
+| `control` | closed   | `fan-out`, `collect`, `branch`, `route`, `gate`, `wait`, `ask`, `sub-loop` |
+| `source`  | closed   | `input`, `file-import`, `watch-source`, `watch-events`                     |
 
 ### Action nodes
 

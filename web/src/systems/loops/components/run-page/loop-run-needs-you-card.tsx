@@ -15,6 +15,7 @@ import { LoopSection } from "../loop-section";
 import { LoopRequestCard } from "./requests/loop-request-card";
 
 export interface LoopRequestAnswerInput {
+  generation: number;
   nodeId: string;
   itemIndex: number;
   decision: LoopRequestDecision;
@@ -29,8 +30,9 @@ export interface LoopRunRequestState {
   fieldErrors?: Readonly<Record<string, string>>;
   refusal?: string;
   fullContext?: unknown;
+  fullContextError?: string;
   isLoadingFullContext?: boolean;
-  onRequestFullContext?: (nodeId: string, itemIndex: number) => void;
+  onRequestFullContext?: (generation: number, nodeId: string, itemIndex: number) => void;
   onAnswer?: (input: LoopRequestAnswerInput) => void;
 }
 
@@ -38,7 +40,7 @@ interface LoopRunNeedsYouCardProps {
   run: LoopRunRecord;
   /** The `needs_approval` payload; null before the frame replays. */
   request: LoopApprovalRequest | null;
-  /** Usage-snapshot facts standing in when the payload carries none (§3). */
+
   fallbackFacts: LoopApprovalFact[];
   isPending?: boolean;
   /** When true, the approval decision block renders. */
@@ -47,17 +49,16 @@ interface LoopRunNeedsYouCardProps {
   quarantinedNodes?: readonly LoopNodeLifecycle[];
 
   requests?: readonly LoopRequestView[];
-  requestFocus?: { nodeId: string; itemIndex: number };
+  requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
   requestState?: LoopRunRequestState;
   onOpenQuarantine?: (nodeId: string) => void;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
 }
 
 function requestKey(view: LoopRequestView): string {
-  return `${view.request.node_id}:${view.request.item_index}`;
+  return `${view.request.generation}:${view.request.node_id}:${view.request.item_index}`;
 }
 
-/** The closed ADR-017 §9.8 verdict set, rendered as the card's action buttons in order. */
 const GATE_DECISIONS = [
   {
     decision: "approve",
@@ -137,14 +138,18 @@ export function LoopRunNeedsYouCard({
               <LoopRequestCard
                 fieldErrors={isEngaged ? requestState?.fieldErrors : undefined}
                 fullContext={isEngaged ? requestState?.fullContext : undefined}
+                fullContextError={isEngaged ? requestState?.fullContextError : undefined}
                 isLoadingFullContext={isEngaged ? requestState?.isLoadingFullContext : false}
                 isPending={isEngaged && requestState?.isAnswerPending === true}
                 focusOnMount={
                   requestFocus?.nodeId === view.request.node_id &&
-                  requestFocus.itemIndex === view.request.item_index
+                  requestFocus.itemIndex === view.request.item_index &&
+                  (requestFocus.generation === undefined ||
+                    requestFocus.generation === view.request.generation)
                 }
                 onRequestFullContext={() =>
                   requestState?.onRequestFullContext?.(
+                    view.request.generation,
                     view.request.node_id,
                     view.request.item_index
                   )
@@ -152,6 +157,7 @@ export function LoopRunNeedsYouCard({
                 onSubmit={input =>
                   requestState?.onAnswer?.({
                     ...input,
+                    generation: view.request.generation,
                     itemIndex: view.request.item_index,
                     nodeId: view.request.node_id,
                   })

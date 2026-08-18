@@ -21,11 +21,15 @@ func dependenciesSucceededForOutput(
 	outputMap := generationOutputMap(outputs)
 	for _, dependency := range topology.dependencies[nodeID] {
 		dependencyOutput, ok := dependencyOutputForNode(topology, outputMap, nodeID, dependency, output.ItemIndex)
-		if !ok || dependencyOutput.Status != generationOutputSucceeded {
+		if !ok || !generationOutputSatisfiesDependency(dependencyOutput.Status) {
 			return false
 		}
 	}
 	return true
+}
+
+func generationOutputSatisfiesDependency(status string) bool {
+	return status == generationOutputSucceeded || status == generationOutputPartial
 }
 
 func dependencyOutputForNode(

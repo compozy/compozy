@@ -554,6 +554,8 @@ func compilerDefinition(t *testing.T) dsl.Definition {
 			Kind:       string(dsl.ControlFanOut),
 			Collection: "{{ .nodes.read_task.output.items }}",
 			MaxFanOut:  4,
+			BindAs:     "entry",
+			IndexAs:    "entry_index",
 		},
 		{
 			ID:    "agent",
@@ -561,7 +563,7 @@ func compilerDefinition(t *testing.T) dsl.Definition {
 			Kind:  string(dsl.ActionRunAgent),
 			Params: dsl.NodeParams{
 				"agent":  "codex",
-				"prompt": "Summarize {{ .item.title }}",
+				"prompt": "Summarize {{ .entry.title }} at {{ .entry_index }}",
 				"output_schema": map[string]any{
 					"summary": "string",
 				},
@@ -571,7 +573,7 @@ func compilerDefinition(t *testing.T) dsl.Definition {
 			ID:        "decision",
 			Class:     dsl.NodeClassControl,
 			Kind:      string(dsl.ControlBranch),
-			Condition: `nodes.agent.output.summary != ""`,
+			Condition: `nodes.agent.output.summary != "" && progress.pending >= 0`,
 		},
 		{
 			ID:    "child_loop",

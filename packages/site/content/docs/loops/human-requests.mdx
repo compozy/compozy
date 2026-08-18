@@ -27,7 +27,15 @@ graph:
           agents: deny
         expires:
           after: 72h
-          route: request_expired
+          route: choose_environment_result
+
+    - id: choose_environment_result
+      class: control
+      kind: route
+      routes:
+        - when: nodes.choose_environment.output != null
+          to: deploy
+      default: request_expired
 
     - id: deploy
       class: action
@@ -45,8 +53,9 @@ graph:
           expired: { value: true }
 
   edges:
-    - { from: choose_environment, to: deploy }
-    - { from: choose_environment, to: request_expired }
+    - { from: choose_environment, to: choose_environment_result }
+    - { from: choose_environment_result, to: deploy }
+    - { from: choose_environment_result, to: request_expired }
 ```
 
 `expect` is required and becomes the output shape. `responders.agents` defaults to `deny`; set it
@@ -59,14 +68,15 @@ always wins. Leaving the setting empty keeps expiry entirely in the definition.
 
 ## Operate requests
 
-| Action | CLI                                                                                       | HTTP or UDS                                      | Native tool              |
-| ------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------ |
-| List   | `compozy loop requests --state pending`                                                   | `GET /loop-requests?state=pending`               | `compozy__loop_requests` |
-| Detail | `compozy loop request --run-id <id> --node <id>`                                          | `GET /loop-runs/:run_id/nodes/:node_id/request`  | `compozy__loop_request`  |
-| Answer | `compozy loop respond --run-id <id> --node <id> --payload '{"environment":"production"}'` | `POST /loop-runs/:run_id/nodes/:node_id/respond` | `compozy__loop_respond`  |
+| Action | CLI                                                                                                        | HTTP or UDS                                                    | Native tool              |
+| ------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------ |
+| List   | `compozy loop requests --state pending`                                                                    | `GET /loop-requests?state=pending`                             | `compozy__loop_requests` |
+| Detail | `compozy loop request --run-id <id> --generation <n> --node <id>`                                          | `GET /loop-runs/:run_id/nodes/:node_id/request?generation=<n>` | `compozy__loop_request`  |
+| Answer | `compozy loop respond --run-id <id> --generation <n> --node <id> --payload '{"environment":"production"}'` | `POST /loop-runs/:run_id/nodes/:node_id/respond`               | `compozy__loop_respond`  |
 
 The list returns bounded previews and `aggregates.pending`; detail returns the full redacted
-context. Fan-out requests use `--item` or `item_index`. Pending order is expiry first, with requests
+context. Detail and answer calls require the request generation. Fan-out requests also use `--item`
+or `item_index`. Pending order is expiry first, with requests
 without expiry last; resolved order is newest first. Cursors preserve that order.
 
 Pending requests also appear under **Needs you** in the OS attention bell and carry a matching

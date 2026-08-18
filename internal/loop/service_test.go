@@ -2348,9 +2348,14 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		t.Parallel()
 
 		store := newTimeTravelFakeStore()
-		svc := newTestServiceWithOptions(t, store, validDefinition(), loop.WithRunIDFactory(func() (loop.RunID, error) {
-			return "fork-child", nil
-		})).(loop.TimeTravelService)
+		resolver := loopTestParticipationResolver(t, true)
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithRunIDFactory(func() (loop.RunID, error) { return "fork-child", nil }),
+			loop.WithParticipationResolver(resolver),
+		).(loop.TimeTravelService)
 		starter := newTestServiceWithOptions(
 			t,
 			store,
@@ -2358,9 +2363,14 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			loop.WithRunIDFactory(func() (loop.RunID, error) {
 				return "fork-source", nil
 			}),
+			loop.WithParticipationResolver(resolver),
 		)
+		mode, strategy := participation.ModeLive, participation.StrategyLoopRun
 		source, err := starter.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
 			Values: map[string]any{"tasks": "source-ref"},
+			NetworkParticipation: &participation.Request{
+				Mode: &mode, ChannelStrategy: &strategy,
+			},
 		}, humanActor(t))
 		if err != nil {
 			t.Fatalf("Start() error = %v", err)
@@ -2401,6 +2411,14 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		}
 		if result.Run.DefinitionDigest != source.DefinitionDigest || result.Run.Inputs["tasks"] != "override-ref" {
 			t.Fatalf("fork snapshot/inputs = digest %q inputs %#v", result.Run.DefinitionDigest, result.Run.Inputs)
+		}
+		sourceNetwork, childNetwork := source.NetworkSpecSnapshot(), result.Run.NetworkSpecSnapshot()
+		if childNetwork.Mode != participation.ModeLive ||
+			childNetwork.ChannelStrategy != participation.StrategyLoopRun ||
+			childNetwork.ChannelID == sourceNetwork.ChannelID ||
+			childNetwork.Source != sourceNetwork.Source ||
+			childNetwork.Bounds != sourceNetwork.Bounds {
+			t.Fatalf("fork participation = %#v, source %#v", childNetwork, sourceNetwork)
 		}
 		if store.forkRequest == nil || store.forkRequest.Operation.SourceGeneration == nil ||
 			*store.forkRequest.Operation.SourceGeneration != 1 || len(store.forkRequest.SeedOutputs) != 1 ||

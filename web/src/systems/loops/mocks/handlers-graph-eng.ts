@@ -16,8 +16,8 @@ function reason(code: string, message: string, details?: Record<string, string>)
   return { error: message, code, ...(details ? { details } : {}) };
 }
 
-function requestKey(runId: string, nodeId: string, itemIndex: number): string {
-  return `${runId}:${nodeId}:${itemIndex}`;
+function requestKey(runId: string, generation: number, nodeId: string, itemIndex: number): string {
+  return `${runId}:${generation}:${nodeId}:${itemIndex}`;
 }
 
 export const graphEngHandlers: HttpHandler[] = [
@@ -38,9 +38,10 @@ export const graphEngHandlers: HttpHandler[] = [
     "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/request",
     ({ params, request }) => {
       const url = new URL(request.url);
+      const generation = Number(url.searchParams.get("generation"));
       const itemIndex = Number(url.searchParams.get("item_index") ?? "0");
       const found = graphEngRequestsByNode.get(
-        requestKey(String(params.run_id), String(params.node_id), itemIndex)
+        requestKey(String(params.run_id), generation, String(params.node_id), itemIndex)
       );
       if (!found) {
         return HttpResponse.json(
@@ -63,6 +64,7 @@ export const graphEngHandlers: HttpHandler[] = [
     async ({ params, request }) => {
       const nodeId = String(params.node_id);
       const body = (await request.json().catch(() => ({}))) as {
+        generation?: number;
         decision?: string;
         payload?: unknown;
         item_index?: number;

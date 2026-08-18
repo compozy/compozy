@@ -108,6 +108,14 @@ test.describe("Human requests on the run page", () => {
     await expect(card.getByTestId("loop-request-resolution")).toHaveCount(0);
     await expect(submit).toBeEnabled();
   });
+
+  test("E2E-031: repeated node requests stay isolated by generation", async ({ page }) => {
+    await openStory(page, `${RUN_PAGE}--repeated-generation-requests`);
+
+    await expect(page.getByTestId("loop-request-card")).toHaveCount(2);
+    await expect(page.getByRole("alert")).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(1);
+  });
 });
 
 test("E2E-023: strategy progress reads partial, pruning, and width from daemon truth", async ({

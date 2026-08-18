@@ -9,10 +9,6 @@ interface LoopLimitsPanelProps {
   effectiveConfig: LoopEffectiveConfig;
 }
 
-/**
- * Right-rail Limits & budget panel: each per-loop default paired with its hard
- * daemon ceiling (§5.4). Budgets are opt-in but enforced.
- */
 export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
   const rows = buildLoopLimits(effectiveConfig);
   const effective = resolveLoopEffectiveConfig(effectiveConfig);

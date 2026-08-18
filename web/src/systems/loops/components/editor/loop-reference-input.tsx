@@ -22,12 +22,6 @@ interface LoopReferenceInputProps {
 
 type ReferenceFieldElement = HTMLInputElement | HTMLTextAreaElement;
 
-/**
- * A template-string input with the ADR-020 `{{ }}` reference picker: typing `{{ .`
- * surfaces the loop namespace (inputs, upstream node outputs, item/index, trigger,
- * generation) filtered by the partial path; selecting one inserts `{{ .path }}`. The
- * autocomplete state lives in `useReferenceAutocomplete`, so this stays presentational.
- */
 export function LoopReferenceInput({
   value,
   onChange,

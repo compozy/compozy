@@ -32,6 +32,7 @@ import {
   retryingScenario,
   waitingScenario,
 } from "./loop-run-lifecycle-fixtures";
+import { pendingReviewRequest } from "../../mocks";
 import {
   buildScenarioProps,
   exhaustedScenario,
@@ -184,8 +185,8 @@ export const InspectOpen: Story = {
   render: () => <LoopRunPageStory scenario={runningScenario()} inspectInitiallyOpen />,
 };
 
-const ASK_KEY = "confirm-rollout:0";
-const REVIEW_KEY = "apply-migration:0";
+const ASK_KEY = "3:confirm-rollout:0";
+const REVIEW_KEY = "3:apply-migration:0";
 
 export const PendingRequests: Story = {
   args: {},
@@ -226,6 +227,29 @@ export const RequestAnswerPending: Story = {
       scenario={pendingRequestsScenario()}
     />
   ),
+};
+
+export const RepeatedGenerationRequests: Story = {
+  args: {},
+  render: () => {
+    const scenario = pendingRequestsScenario();
+    return (
+      <LoopRunPageStory
+        requestState={{
+          engagedKey: REVIEW_KEY,
+          fullContextError: "Context is temporarily unavailable",
+          onRequestFullContext: () => {},
+        }}
+        scenario={{
+          ...scenario,
+          requests: [
+            { ...pendingReviewRequest, generation: 2 },
+            { ...pendingReviewRequest, generation: 3 },
+          ],
+        }}
+      />
+    );
+  },
 };
 
 export const ResolvedRequests: Story = {

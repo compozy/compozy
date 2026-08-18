@@ -213,15 +213,17 @@ export function loopRunRequestCountsOptions(workspaceId: string, enabled = true)
 export function loopRequestDetailOptions(
   workspaceId: string,
   runId: string,
+  generation: number,
   nodeId: string,
   itemIndex?: number,
   enabled = true
 ) {
   return queryOptions({
-    queryKey: loopsKeys.requestDetail(workspaceId, runId, nodeId, itemIndex),
-    queryFn: ({ signal }) => getLoopRequest({ workspaceId, runId, nodeId, itemIndex }, signal),
+    queryKey: loopsKeys.requestDetail(workspaceId, runId, generation, nodeId, itemIndex),
+    queryFn: ({ signal }) =>
+      getLoopRequest({ workspaceId, runId, generation, nodeId, itemIndex }, signal),
     staleTime: LIVE_STALE_TIME,
-    enabled: Boolean(workspaceId) && Boolean(runId) && Boolean(nodeId) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(runId) && generation > 0 && Boolean(nodeId) && enabled,
   });
 }
 

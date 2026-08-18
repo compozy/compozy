@@ -31,12 +31,6 @@ export interface LoopOverrideField {
   defaultValue: number | null;
 }
 
-/**
- * The six override fields, each pairing its per-loop default (from the saved
- * configuration) with its runtime bound. Cost is deliberately absent — it is a
- * display-only metric with no enforced cap (ADR-017 §9.5.2), so the run form
- * renders NO cost-cap input.
- */
 export function buildOverrideFields(effectiveConfig: LoopEffectiveConfig): LoopOverrideField[] {
   const effective = resolveLoopEffectiveConfig(effectiveConfig);
   const iterationDefault = effective.iteration_cap > 0 ? effective.iteration_cap : null;
@@ -155,11 +149,6 @@ function isFieldDefault(field: LoopOverrideField, value: number): boolean {
   return value === field.defaultValue;
 }
 
-/**
- * True when any override diverges from its per-loop default (typing the default back
- * in is not an override — mirrors the design's badge, §4.3). A set value that equals
- * the default, or a policy equal to the contract's, does not flip the badge.
- */
 export function hasActiveOverrides(
   draft: LoopOverrideDraft,
   effectiveConfig: LoopEffectiveConfig

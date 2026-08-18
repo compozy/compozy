@@ -428,9 +428,10 @@ func TestLoopRequestHandlersShouldPreserveTransportParity(t *testing.T) {
 				}, nil
 			}
 			service.getLoopRequestFn = func(
-				_ context.Context, workspaceID, runID, nodeID string, itemIndex int,
+				_ context.Context, workspaceID, runID string, generation int, nodeID string, itemIndex int,
 			) (contract.LoopRequestPayload, error) {
-				if workspaceID != "ws-1" || runID != "run-1" || nodeID != "select" || itemIndex != 2 {
+				if workspaceID != "ws-1" || runID != "run-1" || generation != 1 ||
+					nodeID != "select" || itemIndex != 2 {
 					return contract.LoopRequestPayload{}, errors.New("unexpected request identity")
 				}
 				request.ItemIndex = itemIndex
@@ -477,11 +478,11 @@ func TestLoopRequestHandlersShouldPreserveTransportParity(t *testing.T) {
 			}
 
 			detail := performRequest(t, engine, http.MethodGet,
-				"/workspaces/ws-1/loop-runs/run-1/nodes/select/request?item_index=2", nil)
+				"/workspaces/ws-1/loop-runs/run-1/nodes/select/request?generation=1&item_index=2", nil)
 			assertLoopStatus(t, detail.Code, http.StatusOK, detail.Body.String())
 			respond := performRequest(t, engine, http.MethodPost,
 				"/workspaces/ws-1/loop-runs/run-1/nodes/select/respond",
-				[]byte(`{"item_index":2,"payload":{"environment":"production"}}`))
+				[]byte(`{"generation":1,"item_index":2,"payload":{"environment":"production"}}`))
 			assertLoopStatus(t, respond.Code, http.StatusOK, respond.Body.String())
 			var responded contract.RespondLoopRequestResponse
 			testutil.DecodeJSONResponse(t, respond, &responded)
@@ -520,6 +521,93 @@ func TestLoopRequestHandlersShouldPreserveTransportParity(t *testing.T) {
 				failure.Details["environment"] == "" {
 				t.Fatalf("%s request error = %#v", transport, failure)
 			}
+		})
+	}
+}
+
+// Invariant: time-travel routes preserve typed query/body input and response status across HTTP and UDS.
+// The canonical Loop handler suite owns transport parity for diff, rerun, and fork operations.
+func TestLoopTimeTravelHandlersShouldPreserveTransportParity(t *testing.T) {
+	t.Parallel()
+
+	for _, transport := range []string{"httpapi", "udsapi"} {
+		t.Run("Should serve time-travel operations over "+transport, func(t *testing.T) {
+			t.Parallel()
+
+			service := happyLoopService(t)
+			service.diffLoopRunFn = func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				query looppkg.DiffQuery,
+			) (contract.LoopDiffResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || query.Generation != 3 ||
+					query.AgainstGeneration != 2 || query.AgainstRunID != "run-2" {
+					return contract.LoopDiffResponse{}, errors.New("unexpected diff input")
+				}
+				return contract.LoopDiffResponse{Kind: "generation", Inputs: []contract.LoopDiffInputRow{},
+					Nodes: []contract.LoopDiffNodeRow{}}, nil
+			}
+			service.rerunLoopRunFn = func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				request contract.RerunLoopRequest,
+				_ taskpkg.ActorContext,
+			) (contract.RerunLoopResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || request.FromNode != "review" ||
+					request.ItemIndex == nil || *request.ItemIndex != 2 {
+					return contract.RerunLoopResponse{}, errors.New("unexpected rerun input")
+				}
+				return contract.RerunLoopResponse{RunID: runID, Generation: 4, ParentGeneration: 3,
+					RerunNodes: []string{"review"}}, nil
+			}
+			service.forkLoopRunFn = func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				request contract.ForkLoopRequest,
+				_ taskpkg.ActorContext,
+			) (contract.ForkLoopResponse, error) {
+				if workspaceID != "ws-1" || runID != "run-1" || request.Generation != 3 ||
+					request.Inputs["environment"] != "staging" {
+					return contract.ForkLoopResponse{}, errors.New("unexpected fork input")
+				}
+				return contract.ForkLoopResponse{Run: contract.LoopRunPayload{ID: "fork-1"}}, nil
+			}
+			_, engine := newLoopHandlerFixture(t, transport, service)
+
+			diff := performRequest(t, engine, http.MethodGet,
+				"/workspaces/ws-1/loop-runs/run-1/diff?generation=3&against_generation=2&against_run=run-2", nil)
+			assertLoopStatus(t, diff.Code, http.StatusOK, diff.Body.String())
+			var diffResponse contract.LoopDiffResponse
+			testutil.DecodeJSONResponse(t, diff, &diffResponse)
+			if diffResponse.Kind != "generation" {
+				t.Fatalf("%s diff response = %#v", transport, diffResponse)
+			}
+
+			rerun := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/rerun", []byte(`{"from_node":"review","item_index":2}`))
+			assertLoopStatus(t, rerun.Code, http.StatusOK, rerun.Body.String())
+			var rerunResponse contract.RerunLoopResponse
+			testutil.DecodeJSONResponse(t, rerun, &rerunResponse)
+			if rerunResponse.Generation != 4 || len(rerunResponse.RerunNodes) != 1 {
+				t.Fatalf("%s rerun response = %#v", transport, rerunResponse)
+			}
+
+			fork := performRequest(t, engine, http.MethodPost,
+				"/workspaces/ws-1/loop-runs/run-1/fork",
+				[]byte(`{"generation":3,"inputs":{"environment":"staging"}}`))
+			assertLoopStatus(t, fork.Code, http.StatusCreated, fork.Body.String())
+			var forkResponse contract.ForkLoopResponse
+			testutil.DecodeJSONResponse(t, fork, &forkResponse)
+			if forkResponse.Run.ID != "fork-1" {
+				t.Fatalf("%s fork response = %#v", transport, forkResponse)
+			}
+
+			invalid := performRequest(t, engine, http.MethodGet,
+				"/workspaces/ws-1/loop-runs/run-1/diff?generation=zero", nil)
+			assertLoopStatus(t, invalid.Code, http.StatusBadRequest, invalid.Body.String())
 		})
 	}
 }
@@ -1644,6 +1732,9 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.GET("/loop-runs/:run_id/nodes/:node_id/request", handlers.GetLoopRequest)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/respond", handlers.RespondLoopRequest)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/amend", handlers.AmendLoopNode)
+	workspace.GET("/loop-runs/:run_id/diff", handlers.DiffLoopRun)
+	workspace.POST("/loop-runs/:run_id/rerun", handlers.RerunLoopRun)
+	workspace.POST("/loop-runs/:run_id/fork", handlers.ForkLoopRun)
 	workspace.GET("/loop-nodes", handlers.ListLoopNodes)
 	workspace.GET("/loop-runs/:run_id/events", handlers.StreamLoopRunEvents)
 	workspace.GET("/sessions/:session_id/goal", handlers.GetSessionGoal)
@@ -1674,7 +1765,7 @@ type stubLoopService struct {
 	putAnnotationsFn     func(context.Context, string, string, contract.PutLoopAnnotationsRequest) (contract.LoopAnnotationsResponse, error)
 	listLoopRunsFn       func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
 	listLoopRequestsFn   func(context.Context, string, core.LoopRequestListQuery) (contract.LoopRequestsResponse, error)
-	getLoopRequestFn     func(context.Context, string, string, string, int) (contract.LoopRequestPayload, error)
+	getLoopRequestFn     func(context.Context, string, string, int, string, int) (contract.LoopRequestPayload, error)
 	respondLoopRequestFn func(
 		context.Context,
 		string,
@@ -1691,6 +1782,21 @@ type stubLoopService struct {
 		contract.LoopNodeAmendRequest,
 		taskpkg.ActorContext,
 	) (contract.LoopNodeAmendResponse, error)
+	diffLoopRunFn  func(context.Context, string, string, looppkg.DiffQuery) (contract.LoopDiffResponse, error)
+	rerunLoopRunFn func(
+		context.Context,
+		string,
+		string,
+		contract.RerunLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.RerunLoopResponse, error)
+	forkLoopRunFn func(
+		context.Context,
+		string,
+		string,
+		contract.ForkLoopRequest,
+		taskpkg.ActorContext,
+	) (contract.ForkLoopResponse, error)
 	getLoopRunFn        func(context.Context, string, string) (contract.LoopRunResponse, error)
 	getSessionGoalFn    func(context.Context, string, string) (*session.GoalSnapshot, error)
 	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
@@ -2033,21 +2139,30 @@ func (s *stubLoopService) GetLoopRun(
 }
 
 func (s *stubLoopService) DiffLoopRun(
-	context.Context, string, string, looppkg.DiffQuery,
+	ctx context.Context, workspaceID, runID string, query looppkg.DiffQuery,
 ) (contract.LoopDiffResponse, error) {
-	return contract.LoopDiffResponse{}, errors.New("unexpected DiffLoopRun call")
+	if s.diffLoopRunFn == nil {
+		return contract.LoopDiffResponse{}, errors.New("unexpected DiffLoopRun call")
+	}
+	return s.diffLoopRunFn(ctx, workspaceID, runID, query)
 }
 
 func (s *stubLoopService) RerunLoopRun(
-	context.Context, string, string, contract.RerunLoopRequest, taskpkg.ActorContext,
+	ctx context.Context, workspaceID, runID string, request contract.RerunLoopRequest, actor taskpkg.ActorContext,
 ) (contract.RerunLoopResponse, error) {
-	return contract.RerunLoopResponse{}, errors.New("unexpected RerunLoopRun call")
+	if s.rerunLoopRunFn == nil {
+		return contract.RerunLoopResponse{}, errors.New("unexpected RerunLoopRun call")
+	}
+	return s.rerunLoopRunFn(ctx, workspaceID, runID, request, actor)
 }
 
 func (s *stubLoopService) ForkLoopRun(
-	context.Context, string, string, contract.ForkLoopRequest, taskpkg.ActorContext,
+	ctx context.Context, workspaceID, runID string, request contract.ForkLoopRequest, actor taskpkg.ActorContext,
 ) (contract.ForkLoopResponse, error) {
-	return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
+	if s.forkLoopRunFn == nil {
+		return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
+	}
+	return s.forkLoopRunFn(ctx, workspaceID, runID, request, actor)
 }
 
 func (s *stubLoopService) GetSessionGoal(
@@ -2188,10 +2303,11 @@ func (s *stubLoopService) GetLoopRequest(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
+	generation int,
 	nodeID string,
 	itemIndex int,
 ) (contract.LoopRequestPayload, error) {
-	return s.getLoopRequestFn(ctx, workspaceID, runID, nodeID, itemIndex)
+	return s.getLoopRequestFn(ctx, workspaceID, runID, generation, nodeID, itemIndex)
 }
 
 func (s *stubLoopService) RespondLoopRequest(

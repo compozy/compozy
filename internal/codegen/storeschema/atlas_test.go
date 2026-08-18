@@ -201,7 +201,7 @@ CREATE TRIGGER trg_records_owner_guard
         SELECT RAISE(ABORT, 'owner is required');
     END;
 `)
-		plan, _, closeDev, err := planAtlasStream(testutil.Context(t), stream{
+		plan, dev, closeDev, err := planAtlasStream(testutil.Context(t), stream{
 			name:          "test",
 			schemaSource:  schemaSource{path: desiredPath},
 			migrationsDir: migrationsDir,
@@ -214,6 +214,9 @@ CREATE TRIGGER trg_records_owner_guard
 				t.Errorf("close Atlas database: %v", err)
 			}
 		}()
+		if err := lintAtlasPlan(testutil.Context(t), "test", plan, dev); err != nil {
+			t.Fatalf("lintAtlasPlan() error = %v", err)
+		}
 
 		var statements strings.Builder
 		for _, change := range plan.migration.Changes {

@@ -16,7 +16,7 @@ import { Button, cn, PillGroup, type PillGroupItem } from "@compozy/ui";
 
 import type { LoopEditorView } from "../../hooks/use-loop-editor-state";
 import type { PaletteItem } from "../../lib/loop-palette";
-import type { LoopEditorPaletteMode } from "./loop-editor-palette";
+import type { LoopEditorPaletteMode } from "../../lib/loop-editor-types";
 import { LoopEditorPaletteMenu } from "./loop-editor-palette-menu";
 
 interface LoopEditorToolbarProps {

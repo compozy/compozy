@@ -1,11 +1,3 @@
-/**
- * The inspector field-descriptor contract (types only). The per-kind builders in
- * `loop-node-fields.ts` produce these, and `loop-node-schema.ts` dispatches over them —
- * one responsibility per file. This is the "schema generates the inspector" model,
- * derived from the canonical `compozy.loop/v1` DSL types + the ADR-021 reserved kinds;
- * the inspector renders FROM these descriptors, it is not a second schema authority.
- */
-
 import type { LoopEnvironmentMode } from "../types";
 
 export type FieldPath = (string | number)[];
@@ -23,7 +15,7 @@ export interface TextFieldSpec extends FieldCommon {
   required?: boolean;
   optionalLabel?: string;
   placeholder?: string;
-  /** Enables `{{ }}` reference autocomplete over the compiled namespace (ADR-020). */
+
   reference?: boolean;
   /**
    * The field holds an object/array in the definition (rendered as JSON, parsed back
@@ -31,10 +23,7 @@ export interface TextFieldSpec extends FieldCommon {
    * scalar text edit never coerces a structured field to a string (round-trip safety).
    */
   json?: boolean;
-  /**
-   * The field is a CEL condition (not a `{{ }}` template) — autocomplete triggers on a
-   * bare namespace identifier (`nodes.`, `inputs.`, `item`, …) instead of `{{` (ADR-020).
-   */
+
   cel?: boolean;
 }
 

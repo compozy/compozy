@@ -2,11 +2,6 @@ import type { LoopEffectiveConfig, LoopRunRecord } from "../types";
 import { UNBOUNDED_CAP } from "./loop-catalog";
 import { resolveLoopEffectiveConfig } from "./loop-effective-config";
 
-/**
- * Hard daemon ceilings (LOOPS-DESIGN-SPEC §5.4 / ADR-012/017/022). These are
- * compile-time backstops, never editable in the UI; the right-hand value of every
- * limit row. The left value is the per-loop default read from the definition.
- */
 export const LOOP_CEILINGS = {
   iterationCap: 100,
   tokens: "20M",

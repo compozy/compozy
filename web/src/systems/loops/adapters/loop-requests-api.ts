@@ -21,6 +21,10 @@ interface RequestPath {
   itemIndex?: number;
 }
 
+interface RequestDetailPath extends RequestPath {
+  generation: number;
+}
+
 const REQUEST_ANSWER_STATUSES = new Set([403, 409, 410, 422]);
 
 function requestError(nodeId: string, response: Response, error: unknown): LoopsApiError {
@@ -64,7 +68,7 @@ export async function listLoopRequests(
 }
 
 export async function getLoopRequest(
-  { workspaceId, runId, nodeId, itemIndex }: RequestPath,
+  { workspaceId, runId, generation, nodeId, itemIndex }: RequestDetailPath,
   signal?: AbortSignal
 ): Promise<LoopRequestDetail> {
   const { data, error, response } = await apiClient.GET(
@@ -72,7 +76,7 @@ export async function getLoopRequest(
     {
       params: {
         path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId },
-        query: itemIndex === undefined ? {} : { item_index: itemIndex },
+        query: { generation, ...(itemIndex === undefined ? {} : { item_index: itemIndex }) },
       },
       signal,
     }

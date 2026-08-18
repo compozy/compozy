@@ -91,7 +91,7 @@ func loadAmendmentTarget(
 			ON control.loop_run_id = output.loop_run_id AND control.node_id = output.node_id
 		LEFT JOIN loop_node_lane_pauses AS lane_pause
 			ON lane_pause.loop_run_id = output.loop_run_id AND lane_pause.node_id = output.node_id
-			AND lane_pause.item_index = output.item_index
+			AND lane_pause.generation = output.generation AND lane_pause.item_index = output.item_index
 		WHERE run.workspace_id = ? AND output.loop_run_id = ? AND output.generation = ?
 			AND output.node_id = ? AND output.item_index = ?`, input.WorkspaceID, input.RunID,
 		input.Generation, input.NodeID, input.ItemIndex).Scan(

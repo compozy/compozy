@@ -82,7 +82,7 @@ export type LoopEditorEvents = {
     position: { x: number; y: number };
     source: string;
   };
-  nodeFieldChanged: { nodes: EditorNode[] };
+  nodeFieldChanged: { edges?: EditorEdge[]; nodes: EditorNode[] };
 
   nodesDeleted: { nodeIds: string[] };
 

@@ -56,7 +56,7 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse) outputBundle {
 			"loop_name",
 			automationStatusKey,
 			"completion_state",
-			"generation",
+			loopGenerationKey,
 			"best_generation",
 			"best_score",
 		},

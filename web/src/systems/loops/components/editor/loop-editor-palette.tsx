@@ -15,8 +15,6 @@ import {
 } from "../../lib/loop-palette";
 import { MonoTag } from "../mono-tag";
 
-export type LoopEditorPaletteMode = "expanded" | "collapsed" | "menu";
-
 interface LoopEditorPaletteProps {
   onAddNode: (item: PaletteItem) => void;
   disabled?: boolean;

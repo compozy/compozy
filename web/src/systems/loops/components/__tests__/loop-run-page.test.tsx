@@ -458,6 +458,37 @@ describe("LoopRunWaitingPanel", () => {
 });
 
 describe("LoopRunNeedsYouCard", () => {
+  it("Should keep same-node requests from different generations distinct and retry context", () => {
+    const onRequestFullContext = vi.fn();
+    const view = projectLoopRequest(pendingReviewRequest, {
+      nowMs: Date.parse("2026-08-17T10:00:00Z"),
+      runStatus: "running",
+    });
+    render(
+      <LoopRunNeedsYouCard
+        fallbackFacts={[]}
+        onDecision={vi.fn()}
+        request={null}
+        requestState={{
+          engagedKey: `3:${pendingReviewRequest.node_id}:0`,
+          fullContextError: "Context is temporarily unavailable",
+          onRequestFullContext,
+        }}
+        requests={[
+          { ...view, request: { ...view.request, generation: 2 } },
+          { ...view, request: { ...view.request, generation: 3 } },
+        ]}
+        run={run({ status: "running" })}
+        showApproval={false}
+      />
+    );
+
+    expect(screen.getAllByTestId("loop-request-card")).toHaveLength(2);
+    expect(screen.getByRole("alert")).toHaveTextContent("Context is temporarily unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRequestFullContext).toHaveBeenCalledWith(3, pendingReviewRequest.node_id, 0);
+  });
+
   it("Should focus the requested form when opened from an attention deep link", () => {
     render(
       <LoopRunNeedsYouCard

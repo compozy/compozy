@@ -113,7 +113,6 @@ export { describeStartKinds, RUN_FORM_START_KIND } from "./lib/loop-start-kinds"
 export type { LoopGraph, LoopGraphEdge, LoopGraphNode, LoopNodeClass } from "./lib/loop-graph";
 export { readLoopGraph } from "./lib/loop-graph";
 
-// Visual editor — bijective codec, layout, linter, node schema, references (task 22)
 export type { EditorEdge, EditorGraph, EditorNode, RawLoopEdge, RawLoopNode } from "./lib/codec";
 export { definitionToGraph, editorEdgeId, graphToDefinition } from "./lib/codec";
 export type { LoopInvariantKey, LoopInvariantStatus, LoopLintState } from "./lib/loop-editor-lint";
@@ -136,15 +135,17 @@ export type { LoopEditorShortcutHandlers } from "./hooks/use-loop-editor-shortcu
 export { LoopEditor } from "./components/editor/loop-editor";
 export { LoopEditorFold } from "./components/editor/loop-editor-fold";
 export { LoopEditorCanvas } from "./components/editor/loop-editor-canvas";
-export type { LoopEditorConnectionDrop } from "./components/editor/loop-editor-canvas";
+export type {
+  LoopEditorConnectionDrop,
+  LoopEditorNodeActions,
+  LoopEditorPaletteMode,
+} from "./lib/loop-editor-types";
 export { LoopEditorEdge } from "./components/editor/loop-editor-edge";
 export type { LoopEditorEdgeData } from "./components/editor/loop-editor-edge";
 export { LoopEditorNodeActionsProvider } from "./components/editor/loop-editor-node";
-export type { LoopEditorNodeActions } from "./components/editor/loop-editor-node";
 export { LoopEditorNodeMenu } from "./components/editor/loop-editor-node-menu";
 export type { LoopEditorNodeMenuProps } from "./components/editor/loop-editor-node-menu";
 export { LoopEditorPalette } from "./components/editor/loop-editor-palette";
-export type { LoopEditorPaletteMode } from "./components/editor/loop-editor-palette";
 export { LoopEditorPaletteMenu } from "./components/editor/loop-editor-palette-menu";
 export { LoopEditorQuickAdd } from "./components/editor/loop-editor-quick-add";
 export { LoopEditorConnectionPicker } from "./components/editor/loop-editor-connection-picker";

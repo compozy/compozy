@@ -550,13 +550,23 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		runs := descriptors[toolspkg.ToolIDLoopRuns]
 		cancel := descriptors[toolspkg.ToolIDLoopCancel]
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
+		requests := descriptors[toolspkg.ToolIDLoopRequests]
+		request := descriptors[toolspkg.ToolIDLoopRequest]
+		respond := descriptors[toolspkg.ToolIDLoopRespond]
+		amend := descriptors[toolspkg.ToolIDLoopNodeAmend]
+		diff := descriptors[toolspkg.ToolIDLoopDiff]
+		rerun := descriptors[toolspkg.ToolIDLoopRerun]
+		fork := descriptors[toolspkg.ToolIDLoopFork]
 		assertNativeOutputSchemaAccepts(t, status, `{
 			"run":{"id":"run-1","completion_state":"partial","best_generation":2,"best_score":0.91},
 			"materialized_contract":{"goal":"Ship weather-app","definition_of_done":"All tasks complete"},
 			"node_controls":[],
 			"waits":[],
+			"requests":[],
+			"amendments":[],
 			"generations":[{
 				"generation":2,"parent_generation":1,"origin":"gate_revise",
+				"route_causes":[{"node_id":"quality","item_index":0,"route":"revise","cause":"gate","at":"2026-08-02T18:00:00Z"}],
 				"verdicts":[{"gate_id":"quality","outcome":"rejected","score":0.7,"route_cause_rank":0}],
 				"outputs":[{
 					"node_id":"draft","status":"failed","attempt":3,
@@ -604,6 +614,37 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				"wait":{"kind":"human"}
 			}],
 			"next_cursor":"cursor-2"
+		}`)
+		requestPayload := `{
+			"loop_run_id":"run-1","loop_name":"review","generation":2,"node_id":"approval","item_index":0,
+			"kind":"review","state":"pending","prompt":"Approve?","context":{"tag":"v1"},
+			"decisions":["approve","reject"],"agents":"deny","opened_at":"2026-08-02T18:00:00Z"
+		}`
+		assertNativeOutputSchemaAccepts(t, request, requestPayload)
+		requestsPayload := `{"items":[` + requestPayload +
+			`],"aggregates":{"pending":1},"next_cursor":""}`
+		assertNativeOutputSchemaAccepts(t, requests, requestsPayload)
+		assertNativeOutputSchemaAccepts(t, respond, `{
+			"ok":true,"run_id":"run-1","node_id":"approval","decision":"approve","state":"answered",
+			"provenance":{"actor_kind":"operator","actor_id":"user-1","answered_at":"2026-08-02T18:01:00Z"}
+		}`)
+		assertNativeOutputSchemaAccepts(t, amend, `{
+			"ok":true,"amendment":{"loop_run_id":"run-1","generation":2,"node_id":"draft","item_index":0,
+			"amendment_seq":1,"amended":{"text":"fixed"},"actor_kind":"operator","actor_id":"user-1",
+			"created_at":"2026-08-02T18:02:00Z"}
+		}`)
+		assertNativeOutputSchemaAccepts(t, diff, `{
+			"kind":"generation","base":{"run_id":"run-1","generation":1,"status":"done"},
+			"against":{"run_id":"run-1","generation":2,"status":"done"},
+			"inputs":[{"key":"target","base":{"inline":"a"},"against":{"inline":"b"}}],
+			"nodes":[{"node_id":"draft","change":"changed","base":{"hash":"a"},"against":{"hash":"b"}}]
+		}`)
+		assertNativeOutputSchemaAccepts(t, rerun, `{
+			"run_id":"run-1","generation":3,"parent_generation":2,"rerun_nodes":["draft"],"carried":2,"replayed":false
+		}`)
+		assertNativeOutputSchemaAccepts(t, fork, `{
+			"run":{"id":"run-2","workspace_id":"ws-1","loop_name":"review","status":"running","completion_state":"complete","generation":1},
+			"replayed":false
 		}`)
 		if _, exists := descriptors[toolspkg.ToolID("compozy__loop_stop")]; exists {
 			t.Fatal("deleted compozy__loop_stop descriptor is still registered")

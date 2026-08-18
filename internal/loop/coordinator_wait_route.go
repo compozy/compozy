@@ -30,7 +30,8 @@ func applyWaitExpiryRoutes(
 			continue
 		}
 		node, ok := graphNode(graph, dsl.NodeID(output.NodeID))
-		if !ok || (!isControlKind(node, dsl.ControlWait) && !isControlKind(node, dsl.ControlAsk)) {
+		if !ok || (!isControlKind(node, dsl.ControlWait) &&
+			!isControlKind(node, dsl.ControlAsk) && node.Review == nil) {
 			continue
 		}
 		starts := make([]dsl.NodeID, 0, len(topology.dependents[node.ID]))

@@ -1,12 +1,5 @@
 import type { LoopDefinition, LoopRunRecord } from "../types";
 
-/**
- * The About-rail projections (redesign spec §3/§4): the watched subject line,
- * the per-input rows, and the humanized start origin. Everything reads from
- * `run.inputs` + the pinned definition — generic over any loop, never
- * special-cased by loop name (§5.1).
- */
-
 export interface LoopRunInputRow {
   key: string;
   label: string;

@@ -194,6 +194,7 @@ type RequestDetail = Request
 type RespondInput struct {
 	WorkspaceID WorkspaceID
 	RunID       RunID
+	Generation  int
 	NodeID      NodeID
 	ItemIndex   int
 	Decision    string

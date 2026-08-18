@@ -54,7 +54,8 @@ export function useLoopEditorState() {
     applyLayout: (nodes: EditorNode[]) => store.trigger.layoutApplied({ nodes }),
     changeContract: (definition: LoopDefinition | null) =>
       store.trigger.contractFieldChanged({ definition }),
-    changeNodeField: (nodes: EditorNode[]) => store.trigger.nodeFieldChanged({ nodes }),
+    changeNodeField: (nodes: EditorNode[], edges?: EditorEdge[]) =>
+      store.trigger.nodeFieldChanged({ nodes, edges }),
     connectNodes: (edges: EditorEdge[]) => store.trigger.connectionCreated({ edges }),
     initialize: (
       definition: LoopDefinition,

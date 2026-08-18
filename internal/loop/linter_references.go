@@ -396,32 +396,6 @@ func namespaceWithEvent(namespace refs.Namespace) refs.Namespace {
 	return namespace
 }
 
-func (c *lintContext) inFanoutScope(id dsl.NodeID) bool {
-	seen := map[dsl.NodeID]struct{}{}
-	var visit func(dsl.NodeID) bool
-	visit = func(current dsl.NodeID) bool {
-		if _, ok := seen[current]; ok {
-			return false
-		}
-		seen[current] = struct{}{}
-		if node, ok := c.nodeByID[current]; ok && isCollectNode(node) {
-			return false
-		}
-		for _, previous := range c.reverse[current] {
-			node, ok := c.nodeByID[previous]
-			if ok && node.Class == dsl.NodeClassControl &&
-				dsl.ControlKind(node.Kind) == dsl.ControlFanOut {
-				return true
-			}
-			if visit(previous) {
-				return true
-			}
-		}
-		return false
-	}
-	return visit(id)
-}
-
 func isCollectNode(node dsl.Node) bool {
 	return node.Class == dsl.NodeClassControl && dsl.ControlKind(node.Kind) == dsl.ControlCollect
 }

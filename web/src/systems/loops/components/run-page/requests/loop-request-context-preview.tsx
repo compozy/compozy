@@ -6,6 +6,7 @@ import { Button, Eyebrow, Spinner } from "@compozy/ui";
 export interface LoopRequestContextPreviewProps {
   context: unknown;
   fullContext?: unknown;
+  error?: string;
   isLoading?: boolean;
   onRequestFull?: () => void;
 }
@@ -18,6 +19,7 @@ interface LoopRequestContextEntry {
 export function LoopRequestContextPreview({
   context,
   fullContext,
+  error,
   isLoading,
   onRequestFull,
 }: LoopRequestContextPreviewProps) {
@@ -46,6 +48,11 @@ export function LoopRequestContextPreview({
       ) : null}
       {onRequestFull && !hasFull ? (
         <div className="mt-2.5">
+          {error ? (
+            <p className="mb-2 text-small-body text-danger" role="alert">
+              {error}
+            </p>
+          ) : null}
           <Button
             aria-busy={isLoading || undefined}
             data-testid="loop-request-context-fetch"
@@ -56,7 +63,7 @@ export function LoopRequestContextPreview({
             variant="outline"
           >
             {isLoading ? <Spinner /> : <ScrollText aria-hidden="true" />}
-            Show full context
+            {error ? "Try again" : "Show full context"}
           </Button>
         </div>
       ) : null}

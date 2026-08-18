@@ -33,12 +33,6 @@ function setOverrideValue(
   return { ...draft, values };
 }
 
-/**
- * The per-loop "Stop limits" grid (§4.7.4): the same six numeric fields as the run-form
- * Advanced panel plus the budget-exceeded policy, each showing its per-loop default and
- * runtime bound. There is NO cost-cap field — cost is
- * display-only (ADR-017 §9.5.2).
- */
 export function LoopConfigureLimits({
   effectiveConfig,
   draft,

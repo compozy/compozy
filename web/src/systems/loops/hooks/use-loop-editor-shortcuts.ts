@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent } from "react";
 
-import { isEditableTarget } from "@/systems/session/lib/editable-target";
+import { isEditableTarget } from "@/systems/session";
 
 export interface LoopEditorShortcutHandlers {
   onQuickAdd: () => void;

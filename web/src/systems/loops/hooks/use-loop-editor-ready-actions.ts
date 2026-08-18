@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
 
-import type { LoopEditorNodeActions } from "../components/editor/loop-editor-node";
+import type { LoopEditorNodeActions } from "../lib/loop-editor-types";
 import type { UseLoopEditorResult } from "./use-loop-editor";
 import { useLoopEditorChrome } from "./use-loop-editor-chrome";
 import { useLoopEditorOverlays } from "./use-loop-editor-overlays";

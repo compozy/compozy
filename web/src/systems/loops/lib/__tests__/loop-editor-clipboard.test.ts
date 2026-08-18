@@ -17,6 +17,27 @@ function node(id: string, position = { x: 100, y: 200 }): EditorNode {
   };
 }
 
+function routeNode(id: string): EditorNode {
+  return {
+    ...node(id),
+    data: {
+      raw: {
+        id,
+        class: "control",
+        kind: "route",
+        routes: [
+          { when: "inputs.hot", to: "inside" },
+          { when: "inputs.cold", to: "outside" },
+        ],
+        default: "inside",
+      },
+      nodeClass: "control",
+      kind: "route",
+      hasError: false,
+    },
+  };
+}
+
 function edge(source: string, target: string, index = 0): EditorEdge {
   return {
     id: editorEdgeId(source, target, index),
@@ -74,6 +95,15 @@ describe("pasteEditorClipboard", () => {
     expect(pastedEdge.data?.raw).toEqual({ from: "a_2", to: "b_2" });
 
     expect(pastedEdge.id).not.toBe(edges[0].id);
+  });
+
+  it("Should remap internal route targets and drop targets outside the pasted fragment", () => {
+    const nodes = [routeNode("route"), node("inside"), node("outside")];
+    const clipboard = copyEditorSelection(nodes, [], ["route", "inside"]);
+    const result = pasteEditorClipboard(nodes, [], clipboard)!;
+    const pastedRoute = result.nodes.find(entry => entry.id === "route_2")!;
+    expect(pastedRoute.data.raw.routes).toEqual([{ when: "inputs.hot", to: "inside_2" }]);
+    expect(pastedRoute.data.raw.default).toBe("inside_2");
   });
 
   it("Should drop an edge whose endpoint never made it into the clipboard", () => {

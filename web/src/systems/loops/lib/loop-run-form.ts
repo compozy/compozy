@@ -58,12 +58,6 @@ export function isRunFormValid(
   return missingRequiredInputs(schema, inputs).length === 0;
 }
 
-/**
- * Builds the `inputs` request body: every defined value passes through (an explicit
- * empty string is kept only when the field's default is `""`, the "disable this
- * check" convention, §4.3). `undefined`/`null` are dropped so the daemon applies
- * the declared default instead of receiving a null.
- */
 export function serializeRunInputs(
   schema: LoopInputSchema | undefined,
   inputs: LoopRunInputs

@@ -3,8 +3,6 @@ title: Loops
 description: Named, goal-seeking, self-correcting units of work the daemon owns, runs unattended, and always stops cleanly with a named outcome.
 ---
 
-{/* Design reference: docs/design/opendesign/loops-index.html (design-doc launcher, not a product route) — LOOPS-DESIGN-SPEC §1–§2. Daemon truth wins on divergence (ADR-017 §9). */}
-
 A **Loop** is a named, reusable definition of goal-seeking, self-correcting, bounded work that
 the daemon owns, runs unattended, and always ends with one named outcome. It is the runtime's
 answer to "run this until it is actually done, and tell me honestly how it ended."

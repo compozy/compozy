@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -41,6 +42,7 @@ func (s *daemonLoopAPIService) GetLoopRequest(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
+	generation int,
 	nodeID string,
 	itemIndex int,
 ) (contract.LoopRequestPayload, error) {
@@ -49,8 +51,10 @@ func (s *daemonLoopAPIService) GetLoopRequest(
 		return contract.LoopRequestPayload{}, err
 	}
 	request, err := s.aggregate.GetRequest(ctx, ws, looppkg.RequestRef{
-		RunID: looppkg.RunID(strings.TrimSpace(runID)), NodeID: looppkg.NodeID(strings.TrimSpace(nodeID)),
-		ItemIndex: itemIndex,
+		RunID:      looppkg.RunID(strings.TrimSpace(runID)),
+		Generation: generation,
+		NodeID:     looppkg.NodeID(strings.TrimSpace(nodeID)),
+		ItemIndex:  itemIndex,
 	})
 	if err != nil {
 		return contract.LoopRequestPayload{}, err
@@ -66,13 +70,19 @@ func (s *daemonLoopAPIService) RespondLoopRequest(
 	req contract.RespondLoopRequest,
 	actor taskpkg.ActorContext,
 ) (contract.RespondLoopRequestResponse, error) {
+	if req.Generation < 1 {
+		return contract.RespondLoopRequestResponse{}, fmt.Errorf(
+			"%w: request generation is invalid",
+			looppkg.ErrValidation,
+		)
+	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.RespondLoopRequestResponse{}, err
 	}
 	result, err := s.aggregate.Respond(ctx, looppkg.RespondInput{
 		WorkspaceID: ws, RunID: looppkg.RunID(strings.TrimSpace(runID)),
-		NodeID: looppkg.NodeID(strings.TrimSpace(nodeID)), ItemIndex: req.ItemIndex,
+		Generation: req.Generation, NodeID: looppkg.NodeID(strings.TrimSpace(nodeID)), ItemIndex: req.ItemIndex,
 		Decision: strings.TrimSpace(req.Decision), Payload: append(json.RawMessage(nil), req.Payload...),
 		Note: strings.TrimSpace(req.Note), Actor: actor,
 	})

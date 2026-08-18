@@ -197,11 +197,6 @@ function NowOutboundLinkContent({ label }: { label: string }) {
   );
 }
 
-/**
- * The "Happening now" card (§2/§7): the live step while running, the watching
- * card while parked on events, the paused explainer, and the queued slot note.
- * Every rendered value traces to the run projection or streamed frames.
- */
 export function LoopRunNowCard(props: LoopRunNowCardProps) {
   const { run, now, isLive, children, nodeLines, nodesById, renderNodeActions, nodeSessions } =
     props;

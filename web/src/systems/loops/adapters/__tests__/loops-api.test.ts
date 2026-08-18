@@ -515,14 +515,26 @@ describe("loop requests + time travel (request construction + error mapping)", (
     });
 
     mockJsonResponse({ node_id: "pick_envs" });
-    await getLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "pick_envs", itemIndex: 2 });
+    await getLoopRequest({
+      workspaceId: WS,
+      runId: "run_1",
+      generation: 3,
+      nodeId: "pick_envs",
+      itemIndex: 2,
+    });
     await expectFetchRequest({
-      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/pick_envs/request?item_index=2",
+      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/pick_envs/request?generation=3&item_index=2",
       method: "GET",
       callIndex: 1,
     });
 
-    const body = { decision: "edit", payload: { tag: "v2" }, note: "fixed tag", item_index: 0 };
+    const body = {
+      generation: 3,
+      decision: "edit",
+      payload: { tag: "v2" },
+      note: "fixed tag",
+      item_index: 0,
+    };
     mockJsonResponse({ ok: true });
     await respondLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "publish" }, body);
     await expectFetchRequest({
@@ -587,7 +599,7 @@ describe("loop requests + time travel (request construction + error mapping)", (
     const validation = await expectRejection(
       respondLoopRequest(
         { workspaceId: WS, runId: "run_1", nodeId: "pick_envs" },
-        { payload: { regions: [] } }
+        { generation: 3, payload: { regions: [] } }
       ),
       LoopRequestError
     );
@@ -607,7 +619,10 @@ describe("loop requests + time travel (request construction + error mapping)", (
       { status: 409 }
     );
     const answered = await expectRejection(
-      respondLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "publish" }, { payload: {} }),
+      respondLoopRequest(
+        { workspaceId: WS, runId: "run_1", nodeId: "publish" },
+        { generation: 3, payload: {} }
+      ),
       LoopRequestError
     );
     expect(answered.status).toBe(409);
@@ -623,7 +638,10 @@ describe("loop requests + time travel (request construction + error mapping)", (
     ] as const) {
       mockJsonResponse({ error: code, code }, { status });
       const refusal = await expectRejection(
-        respondLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "publish" }, { payload: {} }),
+        respondLoopRequest(
+          { workspaceId: WS, runId: "run_1", nodeId: "publish" },
+          { generation: 3, payload: {} }
+        ),
         LoopRequestError
       );
       expect(refusal.code).toBe(code);
@@ -632,7 +650,7 @@ describe("loop requests + time travel (request construction + error mapping)", (
 
     mockJsonResponse({ error: "gone" }, { status: 404 });
     await expect(
-      getLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "ghost" })
+      getLoopRequest({ workspaceId: WS, runId: "run_1", generation: 3, nodeId: "ghost" })
     ).rejects.toMatchObject({ status: 404 });
 
     mockJsonResponse({ error: "boom" }, { status: 500 });
@@ -730,13 +748,19 @@ describe("loop requests + time travel (against MSW mock handlers)", () => {
     const detail = await getLoopRequest({
       workspaceId: WS,
       runId: GRAPH_ENG_RUN_ID,
+      generation: 3,
       nodeId: "confirm-rollout",
       itemIndex: 0,
     });
     expect((detail.context as Record<string, unknown>).plan).toContain("complete redacted context");
 
     await expect(
-      getLoopRequest({ workspaceId: WS, runId: GRAPH_ENG_RUN_ID, nodeId: "ghost" })
+      getLoopRequest({
+        workspaceId: WS,
+        runId: GRAPH_ENG_RUN_ID,
+        generation: 3,
+        nodeId: "ghost",
+      })
     ).rejects.toMatchObject({ status: 404 });
   });
 
@@ -744,13 +768,13 @@ describe("loop requests + time travel (against MSW mock handlers)", () => {
     await expect(
       respondLoopRequest(
         { workspaceId: WS, runId: GRAPH_ENG_RUN_ID, nodeId: "confirm-rollout" },
-        { payload: { regions: [] } }
+        { generation: 3, payload: { regions: [] } }
       )
     ).rejects.toMatchObject({ code: "request_validation_failed", status: 422 });
 
     const answered = await respondLoopRequest(
       { workspaceId: WS, runId: GRAPH_ENG_RUN_ID, nodeId: "confirm-rollout" },
-      { payload: { regions: ["eu"], canary: true } }
+      { generation: 3, payload: { regions: ["eu"], canary: true } }
     );
     expect(answered).toMatchObject({ state: "answered", provenance: { actor_id: "pedro" } });
 

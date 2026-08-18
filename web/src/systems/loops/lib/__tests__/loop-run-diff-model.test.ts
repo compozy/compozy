@@ -71,6 +71,15 @@ describe("projectLoopDiff", () => {
     expect(inputs.find(input => input.key === "severity")?.changed).toBe(true);
   });
 
+  it("Should distinguish an explicit null from an absent diff value", () => {
+    const [input] = projectLoopDiff(
+      diffOf({ inputs: [{ key: "value", base: { inline: null }, against: {} }] })
+    ).inputs;
+    expect(input.base).toMatchObject({ text: "null", isAbsent: false });
+    expect(input.against.isAbsent).toBe(true);
+    expect(input.changed).toBe(true);
+  });
+
   it("Should call a diff empty only when neither a node nor an input differs", () => {
     expect(projectLoopDiff(emptyDiffFixture).isEmpty).toBe(true);
     expect(projectLoopDiff(generationDiffFixture).isEmpty).toBe(false);

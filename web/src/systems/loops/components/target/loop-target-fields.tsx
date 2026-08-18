@@ -38,12 +38,6 @@ interface LoopTargetFieldsProps {
   showMapping?: boolean;
 }
 
-/**
- * The Run-loop target editor (TechSpec §9.14): a loop picker, an auto-generated
- * typed-input form from the chosen Loop's declared inputs, and — for
- * triggers/webhooks — an event-payload -> input mapping table. Rendered from the
- * daemon's declared-input schema, so it always matches what the Loop accepts.
- */
 export function LoopTargetFields({
   catalog,
   mode,

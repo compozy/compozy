@@ -2,7 +2,7 @@ package builtin
 
 const loopStatusOutputSchema = `{
 	"type":"object",
-	"required":["run","materialized_contract","node_controls","waits"],
+	"required":["run","materialized_contract","node_controls","waits","requests","amendments"],
 	"properties":{
 		"run":{
 			"type":"object",
@@ -21,7 +21,7 @@ const loopStatusOutputSchema = `{
 			"type":"array",
 			"items":{
 				"type":"object",
-				"required":["generation","parent_generation","origin","verdicts","outputs"],
+			"required":["generation","parent_generation","origin","route_causes","verdicts","outputs"],
 				"properties":{
 					"generation":{"type":"integer","minimum":1},
 					"parent_generation":{"type":"integer","minimum":0},
@@ -32,6 +32,20 @@ const loopStatusOutputSchema = `{
 							"gate_next_generation","dod_retry","ratchet_restore","requeue"
 						]
 					},
+					"route_causes":{"type":"array","items":{
+						"type":"object",
+						"required":["node_id","item_index","route","cause","at"],
+						"properties":{
+							"node_id":{"type":"string","minLength":1},
+							"item_index":{"type":"integer","minimum":0},
+							"route":{"type":"string","minLength":1},
+							"cause":{"type":"string","minLength":1},
+							"matched_when":{"type":"string"},
+							"default":{"type":"boolean"},
+							"at":{"type":"string","format":"date-time"}
+						},
+						"additionalProperties":false
+					}},
 					"verdicts":{
 						"type":"array",
 						"items":{
@@ -61,6 +75,8 @@ const loopStatusOutputSchema = `{
 		},
 		"node_controls":{"type":"array","items":{"type":"object","additionalProperties":true}},
 		"waits":{"type":"array","items":{"type":"object","additionalProperties":true}},
+		"requests":{"type":"array","items":` + loopRequestPayloadSchema + `},
+		"amendments":{"type":"array","items":` + loopAmendmentPayloadSchema + `},
 		"watch_events":{"type":"object"}
 	},
 	"additionalProperties":false

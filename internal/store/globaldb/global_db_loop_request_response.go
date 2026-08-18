@@ -27,7 +27,7 @@ func (g *LoopRepo) respondRequestWithExecutor(
 	result *looppkg.RespondResult,
 ) error {
 	stored, err := getStoredRequest(ctx, exec, input.WorkspaceID, looppkg.RequestRef{
-		RunID: input.RunID, NodeID: input.NodeID, ItemIndex: input.ItemIndex,
+		RunID: input.RunID, Generation: input.Generation, NodeID: input.NodeID, ItemIndex: input.ItemIndex,
 	})
 	if err != nil {
 		return err

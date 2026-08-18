@@ -27,12 +27,6 @@ export const heroEffectiveLifecycle: NonNullable<LoopDetail["effective_lifecycle
   wait_admission_interval: "1m0s",
 };
 
-/**
- * A run closed by a cooperative cancel (ADR-008): in-flight work finished, then the
- * run closed as `canceled` — the seventh terminal, distinct from `failed`. The hero
- * path needs it in the mock world so the roster filter, the status pill, and the
- * detail's recent runs all show a real canceled terminal rather than a stand-in.
- */
 export const heroRunFixtures: LoopRun[] = [
   {
     workspace_id: "ws_default",

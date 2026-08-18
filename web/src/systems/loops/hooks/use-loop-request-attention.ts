@@ -41,8 +41,8 @@ export function useLoopRequestAttention(
   workspaces.forEach((workspace, index) => {
     const query = queries[index];
     const stale = query?.isError === true;
-    loading ||= query?.isLoading === true;
-    disconnected ||= stale;
+    if (query?.isLoading === true) loading = true;
+    if (stale) disconnected = true;
     if (!stale) pendingCount += query?.data?.aggregates.pending ?? 0;
     for (const request of query?.data?.items ?? []) {
       items.push({

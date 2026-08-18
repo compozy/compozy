@@ -41,7 +41,7 @@ func newLoopRequestsCommand(deps commandDeps) *cobra.Command {
 
 func newLoopRequestCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, runID, nodeID string
-	var itemIndex int
+	var generation, itemIndex int
 	cmd := &cobra.Command{
 		Use: loopRequestKey, Short: "Inspect one human request", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -50,7 +50,7 @@ func newLoopRequestCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			response, err := client.GetLoopRequest(cmd.Context(), workspaceID,
-				strings.TrimSpace(runID), strings.TrimSpace(nodeID), itemIndex)
+				strings.TrimSpace(runID), generation, strings.TrimSpace(nodeID), itemIndex)
 			if err != nil {
 				return err
 			}
@@ -58,13 +58,13 @@ func newLoopRequestCommand(deps commandDeps) *cobra.Command {
 				fmt.Sprintf("%s · %s · run %s", response.State, response.NodeID, response.LoopRunID)))
 		},
 	}
-	addLoopRequestFlags(cmd, &workspaceRef, &runID, &nodeID, &itemIndex)
+	addLoopRequestFlags(cmd, &workspaceRef, &runID, &generation, &nodeID, &itemIndex)
 	return cmd
 }
 
 func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, runID, nodeID, decision, payload, note string
-	var itemIndex int
+	var generation, itemIndex int
 	cmd := &cobra.Command{
 		Use: loopRespondKey, Short: "Answer or decide one human request", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -79,7 +79,7 @@ func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 			}
 			response, err := client.RespondLoopRequest(cmd.Context(), workspaceID,
 				strings.TrimSpace(runID), strings.TrimSpace(nodeID), contract.RespondLoopRequest{
-					ItemIndex: itemIndex, Decision: normalizedDecision, Payload: raw,
+					Generation: generation, ItemIndex: itemIndex, Decision: normalizedDecision, Payload: raw,
 					Note: strings.TrimSpace(note),
 				}, agentCredentialsFromEnv(deps))
 			if err != nil {
@@ -89,7 +89,7 @@ func newLoopRespondCommand(deps commandDeps) *cobra.Command {
 				fmt.Sprintf("answered · %s · run %s resumed", response.NodeID, response.RunID)))
 		},
 	}
-	addLoopRequestFlags(cmd, &workspaceRef, &runID, &nodeID, &itemIndex)
+	addLoopRequestFlags(cmd, &workspaceRef, &runID, &generation, &nodeID, &itemIndex)
 	cmd.Flags().StringVar(&decision, loopDecisionKey, "", "Request decision")
 	cmd.Flags().StringVar(&payload, loopPayloadKey, "", "JSON response payload")
 	cmd.Flags().StringVar(&note, "note", "", "Resolution note")
@@ -116,13 +116,16 @@ func addLoopRequestFlags(
 	cmd *cobra.Command,
 	workspaceRef *string,
 	runID *string,
+	generation *int,
 	nodeID *string,
 	itemIndex *int,
 ) {
 	cmd.Flags().StringVar(workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(runID, loopRunIDKey, "", "Loop run ID")
+	cmd.Flags().IntVar(generation, loopGenerationKey, 0, "Loop generation")
 	cmd.Flags().StringVar(nodeID, loopNodeKey, "", "Request node ID")
 	cmd.Flags().IntVar(itemIndex, "item", 0, "Fan-out item index")
+	mustMarkFlagRequired(cmd, loopGenerationKey)
 	mustMarkFlagRequired(cmd, loopRunIDKey)
 	mustMarkFlagRequired(cmd, loopNodeKey)
 }

@@ -279,7 +279,7 @@ describe("graph-completion mutation hooks", () => {
       workspaceId: WS,
       runId: GRAPH_ENG_RUN_ID,
       nodeId: "confirm-rollout",
-      data: { payload: { regions: ["eu"], canary: true } },
+      data: { generation: 3, payload: { regions: ["eu"], canary: true } },
     });
 
     await waitFor(() => {
@@ -301,7 +301,7 @@ describe("graph-completion mutation hooks", () => {
         workspaceId: WS,
         runId: GRAPH_ENG_RUN_ID,
         nodeId: "confirm-rollout",
-        data: { payload: { regions: [] } },
+        data: { generation: 3, payload: { regions: [] } },
       })
     ).rejects.toMatchObject({ code: "request_validation_failed" });
 
@@ -346,6 +346,7 @@ describe("graph-completion mutation hooks", () => {
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "run-diff"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
   });
 
   it("Should invalidate both sides of the lineage after a fork", async () => {

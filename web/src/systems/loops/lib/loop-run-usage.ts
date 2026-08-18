@@ -3,13 +3,6 @@ import type { LoopApprovalFact } from "./loop-events";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { formatTokenCount } from "./loop-runs-view";
 
-/**
- * The Usage rail model (redesign spec §3/§6): four plain rows — Time, Tokens,
- * Cost, Rounds — plus the one policy note. Values tint warn at ≥90% of a
- * ceiling and danger at/over it; unbounded caps render `∞` (never a bar, never
- * an invented ceiling).
- */
-
 export type LoopUsageTone = "neutral" | "warn" | "danger";
 
 export type LoopUsageKey = "time" | "tokens" | "cost" | "rounds";
@@ -23,13 +16,6 @@ export interface LoopRunUsageRow {
   tone: LoopUsageTone;
 }
 
-/**
- * Coarse display-only USD estimate per 1M tokens (ADR-017 §9.5.2). CompozyOS enforces
- * no USD cap and the run projection carries no per-model price, so this single
- * documented blended heuristic exists for visibility ONLY — never a billed
- * figure and never a budget dimension. It is superseded the day the daemon
- * exposes a real per-run rate.
- */
 export const LOOP_COST_PER_1M_TOKENS = 5;
 
 /** `~$1.34` — the leading `~` keeps the estimate qualifier next to the value. */
@@ -45,11 +31,6 @@ function ratioTone(ratio: number): LoopUsageTone {
   return "neutral";
 }
 
-/**
- * Run elapsed seconds (§5.4): only `running` ticks against the wall clock
- * (`now − started_at`); every parked and terminal state shows the frozen
- * `created_at → last_progress_at` span.
- */
 export function runElapsedSeconds(
   run: Pick<LoopRunRecord, "status" | "started_at" | "created_at" | "last_progress_at">,
   nowMs: number
@@ -154,7 +135,6 @@ export function buildRunUsage(run: LoopRunRecord, elapsedSeconds: number): LoopR
   ];
 }
 
-/** The one Usage note (§6 copy + prototype state variants); null on terminal runs. */
 export function usageNote(run: LoopRunRecord): string | null {
   if (isTerminalLoopStatus(run.status)) return null;
   if (run.status === "watching") {
@@ -172,10 +152,6 @@ export function usageNote(run: LoopRunRecord): string | null {
     : "Cost is an estimate (tokens × rate), never a cap. If a limit is reached, this run stops as exhausted.";
 }
 
-/**
- * The "Needs you" facts fallback (§3): when the `needs_approval` payload carries
- * no facts, the usage snapshot stands in — truthful, never fabricated context.
- */
 export function usageSnapshotFacts(run: LoopRunRecord, elapsedSeconds: number): LoopApprovalFact[] {
   return [
     {

@@ -14,12 +14,6 @@ export interface LoopStartKinds {
   alsoDeclared: string[];
 }
 
-/**
- * Read-truth projection of a loop's declared `start[]` allowlist for the run form.
- *
- * Read-only by contract: authoring the allowlist is Spec 3 (ADR-018 §3), so this
- * never proposes a kind the definition does not declare and never offers an edit.
- */
 export function describeStartKinds(start: readonly LoopStartBinding[] | undefined): LoopStartKinds {
   const seen = new Set<string>();
   const alsoDeclared: string[] = [];

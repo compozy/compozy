@@ -367,6 +367,7 @@ type nativeLoopRequestsInput struct {
 type nativeLoopRequestInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	RunID       string `json:"run_id"`
+	Generation  int    `json:"generation"`
 	NodeID      string `json:"node_id"`
 	ItemIndex   int    `json:"item_index,omitempty"`
 }
@@ -374,6 +375,7 @@ type nativeLoopRequestInput struct {
 type nativeLoopRespondInput struct {
 	WorkspaceID string          `json:"workspace,omitempty"`
 	RunID       string          `json:"run_id"`
+	Generation  int             `json:"generation"`
 	NodeID      string          `json:"node_id"`
 	ItemIndex   int             `json:"item_index,omitempty"`
 	Decision    string          `json:"decision,omitempty"`

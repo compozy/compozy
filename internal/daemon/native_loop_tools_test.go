@@ -1793,6 +1793,7 @@ func (s *nativeLoopServiceStub) GetLoopRequest(
 	context.Context,
 	string,
 	string,
+	int,
 	string,
 	int,
 ) (contract.LoopRequestPayload, error) {

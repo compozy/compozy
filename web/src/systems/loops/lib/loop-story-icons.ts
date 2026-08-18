@@ -29,10 +29,6 @@ import {
 
 import type { LoopStoryIcon } from "./loop-run-story-types";
 
-/**
- * One Lucide glyph per story concept (DESIGN-BACKLOG §2.1 / L7).
- * Run-canceled uses `circle-slash`; node cancel stays `canceled` → Ban.
- */
 export const LOOP_STORY_ICONS: Record<LoopStoryIcon, LucideIcon> = {
   round: Play,
   "check-pass": Check,

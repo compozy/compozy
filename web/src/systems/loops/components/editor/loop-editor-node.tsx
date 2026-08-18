@@ -7,6 +7,7 @@ import { cn, KindIcon, PropertyRow, type KindIconRegistry } from "@compozy/ui";
 import type { EditorNode } from "../../lib/codec";
 import { EDITOR_ROUTE_ROW_HEIGHT } from "../../lib/loop-editor-layout";
 import { routeCardRows } from "../../lib/loop-editor-route-edges";
+import type { LoopEditorNodeActions } from "../../lib/loop-editor-types";
 import { loopNodeCardRows } from "../../lib/loop-node-card-rows";
 import {
   LOOP_CALL_TOOL_ICON,
@@ -17,16 +18,6 @@ import { LOOP_ENVIRONMENT_MODE_LABELS } from "../../lib/loop-node-schema-types";
 import type { LoopEnvironmentMode, LoopEnvironmentSpec } from "../../types";
 import { MonoTag } from "../mono-tag";
 import { LoopEditorNodeMenu } from "./loop-editor-node-menu";
-
-export interface LoopEditorNodeActions {
-  readOnly: boolean;
-  canPaste: boolean;
-  onDuplicate: (nodeId: string) => void;
-  onCopy: (nodeId: string) => void;
-  onPaste: () => void;
-  onRename: (nodeId: string) => void;
-  onDelete: (nodeId: string) => void;
-}
 
 const LoopEditorNodeActionsContext = createContext<LoopEditorNodeActions | null>(null);
 

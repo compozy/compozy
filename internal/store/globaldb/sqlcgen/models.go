@@ -842,6 +842,7 @@ type LoopNodeControl struct {
 type LoopNodeLanePause struct {
 	WorkspaceID string         `json:"workspace_id"`
 	LoopRunID   string         `json:"loop_run_id"`
+	Generation  int64          `json:"generation"`
 	NodeID      string         `json:"node_id"`
 	ItemIndex   int64          `json:"item_index"`
 	ActorKind   string         `json:"actor_kind"`

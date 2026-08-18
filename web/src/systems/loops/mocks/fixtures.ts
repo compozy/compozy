@@ -304,7 +304,6 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
       implementer: { type: "agent", required: false, default: "code_implementer" },
       auto_commit: { type: "boolean", required: false, default: false },
     },
-    // The 6 declared start kinds from the design (§4.2); a watch-source stays a body node.
     start: [
       { kind: "manual" },
       { kind: "cli" },

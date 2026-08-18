@@ -31,7 +31,6 @@ interface LoopRunStoryTimelineProps {
   onLoadMoreGoalTurns?: () => void;
 }
 
-/** Story dots color state only (§1): neutral rows stay on the faint ring. */
 const TONE_RING: Record<PillTone, string> = {
   neutral: "border-faint text-faint",
   accent: "border-accent text-accent",
@@ -160,11 +159,6 @@ function partitionStoryGenerations(rows: readonly LoopStoryRow[]): {
   return { newest, older };
 }
 
-/**
- * The "What happened" story timeline (§5.3): newest generation flat, older
- * generations folded. Goal-node rows fold the `/turns` audit behind a Turns
- * disclosure on their newest appearance.
- */
 export function LoopRunStoryTimeline({
   rows,
   isLive,

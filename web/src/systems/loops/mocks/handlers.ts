@@ -179,8 +179,6 @@ export const handlers: HttpHandler[] = [
         definition?: Record<string, unknown>;
         expected_version?: number | null;
       };
-      // Echo the published definition with a bumped monotonic meta.version (§9.13);
-      // the store is not mutated so parallel tests stay isolated.
       const published = (body.definition ?? detail.definition) as Partial<LoopDefinition>;
       const publishedMeta =
         typeof published.meta === "object" && published.meta !== null

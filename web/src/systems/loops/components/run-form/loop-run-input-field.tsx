@@ -31,14 +31,6 @@ function agentAvatar(value: unknown, field: LoopInputSchemaField): string {
   return raw.slice(0, 2).toLowerCase() || "ag";
 }
 
-/**
- * One auto-generated run-form field, rendered entirely from a declared input's type
- * (§4.3): boolean -> switch, number -> numeric input, agent -> avatar-prefixed picker,
- * file/ref/string -> mono text. Every field carries a type marker, a required marker,
- * an optional hint, and an inline required error. `data-input-type` makes the chosen
- * control type assertable (web-unit-3). The daemon's declared type string is rendered
- * verbatim in the badge (truthful UI — `boolean`, not `bool`).
- */
 export function LoopRunInputField({
   name,
   field,

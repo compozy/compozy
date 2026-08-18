@@ -8,10 +8,6 @@ interface LoopRunQuietNoteProps extends ComponentProps<"div"> {
   title?: string;
 }
 
-/**
- * The shared quiet-note chrome (§2/§5.3): a hairline card with a leading glyph
- * and one muted line. Used by the "What happens next" note and the no-op outcome.
- */
 export function LoopRunQuietNote({
   icon: Icon,
   title,

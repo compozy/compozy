@@ -1,15 +1,6 @@
 import { effectsField } from "./loop-node-lifecycle-fields";
 import type { EffectsFieldSpec } from "./loop-node-schema-types";
 
-/**
- * The seven contract terminal reactions (`dsl.TerminalEffects`). Each is a plain effect list
- * that fires exactly once per run on the resulting outcome — `on_canceled` included, because
- * cancel and kill both land on the `canceled` terminal (ADR-010 §1).
- *
- * Paths are relative to `definition.contract`, so the contract lane writes them through
- * `withLoopContractPath` rather than the per-node draft setter.
- */
-
 export const LOOP_TERMINAL_REACTIONS: EffectsFieldSpec[] = [
   effectsField("on_done", "on_done", ["on_done"]),
   effectsField("on_noop", "on_noop", ["on_noop"]),

@@ -1,14 +1,6 @@
 import type { EditorNode } from "./codec";
 import type { LoopValidationIssue, ValidateLoopResult } from "../types";
 
-/**
- * Maps the shared Go linter's verdict (`POST /loops/:name/validate` and the publish
- * 422, ADR-023) onto the editor: the four canonical invariant chips (ADR-015) plus a
- * reference chip (ADR-020), the per-node error map the canvas badges and inspector
- * highlight consume, and the blocking-error flag that gates Publish. The GUI never
- * recomputes invariants — it only surfaces what the daemon returned.
- */
-
 export type LoopInvariantKey =
   | "acyclicity"
   | "reachability"
@@ -30,13 +22,6 @@ export const LOOP_INVARIANTS: { key: LoopInvariantKey; label: string }[] = [
   { key: "human_request", label: "Human requests" },
 ];
 
-// Deterministic-code → invariant classification. Codes are matched by substring so a
-// daemon that appends new codes in a known family still lights the right chip; an
-// unrecognized error code stays in the issue list and blocks Publish without flipping
-// a named chip (truthful UI: we never claim an invariant we can't attribute).
-// `references` is matched before `fan_out` on purpose: `item_outside_fanout` is a
-// reference-scope error (ADR-020, `item`/`index` used outside a fan-out branch body), but
-// its substring `fanout` would otherwise misattribute it to the Fan-out bounds chip.
 const CODE_KEYWORDS: { key: LoopInvariantKey; keywords: string[] }[] = [
   { key: "acyclicity", keywords: ["cycle", "acyclic"] },
   { key: "reachability", keywords: ["unreachable", "reachab"] },

@@ -48,15 +48,6 @@ import {
   usageSnapshotFacts,
 } from "./loop-run-usage";
 
-/**
- * The single run-page derivation path (redesign spec §2-§7). Both the live hook
- * (`useLoopRunPage`) and the Storybook fixtures read this projection, so the two
- * can never drift on story/progress/usage/about or the now-card gating. It is a
- * pure function of the run projection, the pinned definition, the reduced SSE
- * live state, and the current clock — no React, no query access.
- */
-
-/** Statuses whose main column leads with the "Happening now" card (§7). */
 export const NOW_CARD_STATUSES = new Set(["running", "watching", "paused"]);
 
 /** The newest `status_changed` frame that landed the run on `toStatus`. */

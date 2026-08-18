@@ -9,9 +9,9 @@ entry_points: /loop-runs/$runId inspect sheet Fork action; lineage block
 qa_status: pass
 bug_ids: BUG-20260818-loop-fork-inline-output
 fix_status: fixed
-retest_status: Playwright dialog coverage passed; live runtime fix awaits the rebuilt full-gate binary
-fix_commits: ""
-evidence: ""
+retest_status: pass
+fix_commits: e9c00c2
+evidence: docs/qa/bugs/BUG-20260818-loop-fork-inline-output.md; docs/qa/reports/2026-08-18-graph-eng.md
 last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps: ""
 ---

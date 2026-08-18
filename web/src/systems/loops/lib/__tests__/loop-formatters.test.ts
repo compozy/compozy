@@ -11,8 +11,6 @@ import {
 } from "../loop-formatters";
 import type { LoopRunStatus } from "../../types";
 
-// The canonical §3.3 table: every one of the 12 statuses -> tone + pulse + label +
-// terminal group. Diverging from this is a truthful-UI regression (color = state).
 const STATUS_TABLE: Array<{
   status: LoopRunStatus;
   tone: PillTone;

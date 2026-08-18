@@ -17,11 +17,6 @@ function defaultPlaceholder(field: LoopInputSchemaField): string | undefined {
   return String(field.default);
 }
 
-/**
- * One control for a declared Loop input in the automation Target step, chosen by
- * the declared type: boolean -> switch, number -> numeric input, everything else
- * -> text input. Full agent/ref/file pickers ship with the run form (task 20).
- */
 export function LoopInputControl({
   name,
   field,

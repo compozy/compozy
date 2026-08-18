@@ -31,6 +31,7 @@ func loopRequestOperations() []OperationSpec {
 			nil,
 			[]ParameterSpec{
 				workspaceIDParam(), loopRunIDParam(), pathParam("node_id", "Loop node id"),
+				requiredIntQueryParam("generation", "Loop generation"),
 				intQueryParam("item_index", "Fan-out lane index"),
 			},
 			[]ResponseSpec{ok(contract.LoopRequestPayload{}), badRequest(), notFound("Loop request not found"),

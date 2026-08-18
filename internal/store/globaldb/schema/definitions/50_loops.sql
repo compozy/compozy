@@ -251,6 +251,7 @@ CREATE TABLE loop_node_amendments (
 CREATE TABLE loop_node_lane_pauses (
 	workspace_id TEXT NOT NULL,
 	loop_run_id  TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+	generation   INTEGER NOT NULL CHECK (generation >= 1),
 	node_id      TEXT NOT NULL,
 	item_index   INTEGER NOT NULL CHECK (item_index >= 0),
 	actor_kind   TEXT NOT NULL,
@@ -258,7 +259,7 @@ CREATE TABLE loop_node_lane_pauses (
 	reason       TEXT,
 	mode         TEXT NOT NULL CHECK (mode IN ('drain','cancel')),
 	requested_at TIMESTAMP NOT NULL,
-	PRIMARY KEY (loop_run_id, node_id, item_index)
+	PRIMARY KEY (loop_run_id, generation, node_id, item_index)
 );
 
 CREATE TABLE loop_admission_claims (

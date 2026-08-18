@@ -26,6 +26,7 @@ function invalidateTimetravel(
   runIds: readonly string[]
 ): Promise<unknown> {
   const pending = [
+    queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.runDiffRoot() }),

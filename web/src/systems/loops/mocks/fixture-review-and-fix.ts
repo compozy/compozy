@@ -22,6 +22,7 @@ export const reviewAndFixGraph = fixtureGraph(
       id: "fix_batches",
       class: "control",
       kind: "fan-out",
+      collection: "{{ .nodes.review.output.findings }}",
       batch_size: 1,
       max_parallel: 1,
       max_fan_out: 64,

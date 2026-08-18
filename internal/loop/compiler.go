@@ -126,7 +126,7 @@ func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 		return nil, err
 	}
 	for _, node := range definition.Graph.Nodes {
-		namespace := ctx.namespace(ctx.inFanoutScope(node.ID), ctx.hasTriggerStart())
+		namespace := ctx.namespaceForNode(node.ID, ctx.hasTriggerStart())
 		if err := compileNode(resolved, node, namespace, ctx); err != nil {
 			return nil, err
 		}

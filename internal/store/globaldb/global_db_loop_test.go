@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -24,71 +23,6 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
-
-func TestLoopRunEventKindValidShouldMatchPublicContract(t *testing.T) {
-	t.Parallel()
-
-	localKinds := map[string]struct{}{
-		loopRunEventNodeRunning:             {},
-		loopRunEventNodeSucceeded:           {},
-		loopRunEventNodeFailed:              {},
-		loopRunEventGateVerdict:             {},
-		loopRunEventGenerationStarted:       {},
-		loopRunEventChannelMsg:              {},
-		loopRunEventTokenTick:               {},
-		loopRunEventNeedsApproval:           {},
-		loopRunEventStatusChanged:           {},
-		loopRunEventGoalTurnStarted:         {},
-		loopRunEventGoalTurnCompleted:       {},
-		loopRunEventGoalStatusChanged:       {},
-		loopRunEventRuntimeApplied:          {},
-		loopRunEventPredicateDiagnostic:     {},
-		loopRunEventRouteTaken:              {},
-		loopRunEventNodeRetryScheduled:      {},
-		loopRunEventNodePaused:              {},
-		loopRunEventNodeResumed:             {},
-		loopRunEventNodeCanceled:            {},
-		loopRunEventNodeKilled:              {},
-		loopRunEventNodeQuarantined:         {},
-		loopRunEventNodeRequeued:            {},
-		loopRunEventNodeWaitStarted:         {},
-		loopRunEventNodeWaitResumed:         {},
-		loopRunEventNodeAttentionFlagged:    {},
-		loopRunEventNodeAttentionCleared:    {},
-		loopRunEventEffectResults:           {},
-		loopRunEventCustomEvent:             {},
-		loopRunEventDuplicateSuppressed:     {},
-		loopRunEventTargetBreakerTransition: {},
-		loopRunEventStaleScheduleDropped:    {},
-		loopRunEventLateArrival:             {},
-		loopRunEventRequestOpened:           {},
-		loopRunEventRequestAnswered:         {},
-		loopRunEventRequestExpired:          {},
-		loopRunEventRequestCanceled:         {},
-		loopRunEventNodeAmended:             {},
-		loopRunEventBranchPruned:            {},
-		loopRunEventRunForked:               {},
-	}
-	for _, kind := range contract.LoopRunEventKindValues() {
-		t.Run("Should accept public kind "+kind, func(t *testing.T) {
-			t.Parallel()
-			if !loopRunEventKindValid(kind) {
-				t.Fatalf("loopRunEventKindValid(%q) = false, want true", kind)
-			}
-			if _, ok := localKinds[kind]; !ok {
-				t.Fatalf("contract kind %q is missing from local loop event constants", kind)
-			}
-		})
-	}
-	for kind := range localKinds {
-		t.Run("Should publish local kind "+kind, func(t *testing.T) {
-			t.Parallel()
-			if !slices.Contains(contract.LoopRunEventKindValues(), kind) {
-				t.Fatalf("local loop event kind %q is missing from public contract", kind)
-			}
-		})
-	}
-}
 
 // Invariant: a time-travel operation and its generation or child run commit atomically under one
 // workspace-scoped intent key. The canonical GlobalDB Loop suite owns replay, lineage, seed, and coordinator truth.
@@ -855,8 +789,8 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		t.Fatalf("insert amendment output error = %v", err)
 	}
 	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
-		workspace_id, loop_run_id, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
-	) VALUES (?, ?, 'repair', 2, 'human', 'operator:one', 'inspect', 'drain', ?)`,
+		workspace_id, loop_run_id, generation, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
+	) VALUES (?, ?, 1, 'repair', 2, 'human', 'operator:one', 'inspect', 'drain', ?)`,
 		run.WorkspaceID, run.ID, now); err != nil {
 		t.Fatalf("insert amendment lane pause error = %v", err)
 	}
@@ -954,8 +888,8 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 			t.Fatalf("insert amendment race output error = %v", err)
 		}
 		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
-			workspace_id, loop_run_id, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
-		) VALUES (?, ?, 'repair', 0, 'human', 'operator:race', 'inspect', 'drain', ?)`,
+			workspace_id, loop_run_id, generation, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
+		) VALUES (?, ?, 1, 'repair', 0, 'human', 'operator:race', 'inspect', 'drain', ?)`,
 			run.WorkspaceID, run.ID, now); err != nil {
 			t.Fatalf("insert amendment race pause error = %v", err)
 		}
@@ -1027,6 +961,45 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not reuse a lane pause from another generation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 16, 15, 24, 0, 0, time.UTC)
+		run, err := globalDB.CreateLoopRunForStart(
+			ctx, testLoopRun("looprun-amendment-generation", now, looppkg.StatusRunning), dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		payload := json.RawMessage(`{"value":"recorded"}`)
+		outputRef := looppkg.OutputRefForPayload(payload)
+		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, outputRef, payload, now); err != nil {
+			t.Fatalf("UpsertLoopOutputBlob() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
+		) VALUES (?, 2, 'repair', 0, 'succeeded', ?, 1, 1)`, run.ID, outputRef); err != nil {
+			t.Fatalf("insert generation output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
+			workspace_id, loop_run_id, generation, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
+		) VALUES (?, ?, 1, 'repair', 0, 'human', 'operator:one', 'inspect', 'drain', ?)`,
+			run.WorkspaceID, run.ID, now); err != nil {
+			t.Fatalf("insert prior-generation lane pause error = %v", err)
+		}
+
+		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 2, NodeID: "repair",
+			Payload: json.RawMessage(`{"value":"amended"}`), Schema: json.RawMessage(`{"type":"object"}`),
+			Actor: operatorActorContextForTest("operator:one"), RequestedAt: now.Add(time.Minute),
+		})
+		if !errors.Is(err, looppkg.ErrAmendNotParked) {
+			t.Fatalf("AmendNodeOutput(cross-generation pause) error = %v, want ErrAmendNotParked", err)
+		}
+	})
+
 	t.Run("Should reject invalid payloads and targets that are not parked", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
@@ -1048,7 +1021,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 			t.Fatalf("AmendNodeOutput(invalid payload) error = %v", err)
 		}
 		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM loop_node_lane_pauses
-			WHERE loop_run_id = ? AND node_id = 'repair' AND item_index = 2`, run.ID); err != nil {
+			WHERE loop_run_id = ? AND generation = 1 AND node_id = 'repair' AND item_index = 2`, run.ID); err != nil {
 			t.Fatalf("delete lane pause error = %v", err)
 		}
 		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{

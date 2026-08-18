@@ -95,6 +95,9 @@ func materializeAskRequest(
 	if err != nil {
 		return askRequest{}, fmt.Errorf("loop: render ask context %q: %w", node.ID, err)
 	}
+	if renderedContext == nil {
+		renderedContext = map[string]any{}
+	}
 	contextMap, ok := renderedContext.(map[string]any)
 	if !ok {
 		return askRequest{}, fmt.Errorf("%w: ask node %q context must resolve to an object", ErrValidation, node.ID)
@@ -142,6 +145,10 @@ func askRequestExpiry(
 }
 
 func requestContextPayloads(contextMap map[string]any) (json.RawMessage, json.RawMessage, error) {
+	if len(contextMap) == 0 {
+		empty := json.RawMessage(`{}`)
+		return empty, cloneRawMessage(empty), nil
+	}
 	redacted := diagnostics.RedactValue(contextMap)
 	full, err := json.Marshal(redacted)
 	if err != nil {

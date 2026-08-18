@@ -149,6 +149,12 @@ func loopGraphNodeSchema() *openapi3.Schema {
 		WithProperty("max_parallel", openapi3.NewIntegerSchema()).
 		WithProperty("max_fan_out", openapi3.NewIntegerSchema()).
 		WithProperty("condition", openapi3.NewStringSchema()).
+		WithProperty("on_eval_error", openapi3.NewStringSchema().WithEnum(
+			string(dsl.EvalErrorFail),
+			string(dsl.EvalErrorExit),
+		)).
+		WithProperty("routes", openapi3.NewArraySchema().WithItems(loopRouteSpecSchema())).
+		WithProperty("default", openapi3.NewStringSchema()).
 		WithProperty("criteria", openapi3.NewArraySchema().WithItems(loopGateCriterionSchema())).
 		WithProperty("verdict_policy", openapi3.NewStringSchema()).
 		WithProperty("on_result", loopFreeformObjectSchema()).
@@ -162,6 +168,15 @@ func loopGraphNodeSchema() *openapi3.Schema {
 		WithProperty("events", openapi3.NewArraySchema().WithItems(loopWatchEventSubscriptionSchema())).
 		WithAdditionalProperties(openapi3.NewSchema())
 	schema.Required = []string{"class", "id", loopKindField}
+	return schema
+}
+
+func loopRouteSpecSchema() *openapi3.Schema {
+	schema := openapi3.NewObjectSchema().
+		WithProperty("when", openapi3.NewStringSchema()).
+		WithProperty("to", openapi3.NewStringSchema()).
+		WithoutAdditionalProperties()
+	schema.Required = []string{"to", "when"}
 	return schema
 }
 

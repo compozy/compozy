@@ -45,6 +45,7 @@ export interface LoopRequestCardProps {
   refusal?: string;
 
   fullContext?: unknown;
+  fullContextError?: string;
   isLoadingFullContext?: boolean;
   onRequestFullContext?: () => void;
   onSubmit: (input: {
@@ -87,6 +88,7 @@ export function LoopRequestCard({
   fieldErrors,
   refusal,
   fullContext,
+  fullContextError,
   isLoadingFullContext,
   onRequestFullContext,
   onSubmit,
@@ -194,6 +196,7 @@ export function LoopRequestCard({
             <LoopRequestContextPreview
               context={view.request.context}
               fullContext={fullContext}
+              error={fullContextError}
               isLoading={isLoadingFullContext}
               onRequestFull={onRequestFullContext}
             />

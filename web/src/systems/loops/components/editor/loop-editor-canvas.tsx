@@ -22,6 +22,7 @@ import {
   editorNodeHeight,
 } from "../../lib/loop-editor-layout";
 import { buildDisplayEdges, LOOP_EDITOR_EDGE_TYPE } from "../../lib/loop-editor-route-edges";
+import type { LoopEditorConnectionDrop } from "../../lib/loop-editor-types";
 import type { LoopEnvironmentSpec } from "../../types";
 import { LoopEditorEdge } from "./loop-editor-edge";
 import { LoopEditorNode } from "./loop-editor-node";
@@ -41,14 +42,6 @@ const FLOW_TOKEN_STYLE = {
     "color-mix(in srgb, var(--color-fg) 24%, var(--color-canvas))",
   "--xy-handle-border-color-default": "var(--color-line)",
 } as CSSProperties;
-
-export interface LoopEditorConnectionDrop {
-  source: string;
-
-  point: { x: number; y: number };
-
-  position: { x: number; y: number };
-}
 
 interface LoopEditorCanvasProps {
   nodes: EditorNode[];

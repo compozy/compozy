@@ -38,7 +38,12 @@ import {
 } from "../lib/loop-editor-draft";
 import type { LoopLintState } from "../lib/loop-editor-lint";
 import { layoutEditorGraph } from "../lib/loop-editor-layout";
-import { forwardNodeIds } from "../lib/loop-editor-route-edges";
+import {
+  forwardNodeIds,
+  reconcileRouteEdges,
+  removeRouteTargets,
+  updateRouteTarget,
+} from "../lib/loop-editor-route-edges";
 import { buildNodeFields, type FieldPath, type FieldSpec } from "../lib/loop-node-schema";
 import type { PaletteItem } from "../lib/loop-palette";
 import type { LoopDefinition, LoopDetail, LoopValidationIssue } from "../types";
@@ -121,13 +126,6 @@ export interface UseLoopEditorResult {
   savePositions: () => void;
 }
 
-/**
- * The fork-and-edit editor view-model: it loads the one canonical definition + its
- * position sidecar, holds the draft as editor-session state (no server draft store,
- * §9.13), and drives the bijective codec, the shared-linter validate loop, the publish
- * (expected_version CAS), and the positions save. The GUI never owns invariants — every
- * chip and per-node badge comes from a `validate`/publish verdict.
- */
 export function useLoopEditor(
   workspaceId: string,
   name: string,
@@ -305,16 +303,33 @@ export function useLoopEditor(
       ? changes
       : changes.filter(change => change.type !== "remove");
     if (allowed.length === 0) return;
-    applyGraphEdges(
-      applyEdgeChanges(allowed, edges),
-      allowed.some(change => change.type === "remove")
-    );
+    const removedEdges = allowed.flatMap(change => {
+      if (change.type !== "remove") return [];
+      const edge = edges.find(candidate => candidate.id === change.id);
+      return edge ? [edge] : [];
+    });
+    if (removedEdges.length > 0) {
+      let nextNodes = nodes;
+      let nextEdges = applyEdgeChanges(allowed, edges);
+      for (const edge of removedEdges) {
+        nextNodes = removeRouteTargets(nextNodes, new Set([edge.target]), edge.source);
+        nextEdges = reconcileRouteEdges(nextNodes, nextEdges, edge.source);
+      }
+      changeNodeField(nextNodes, nextEdges);
+      return;
+    }
+    applyGraphEdges(applyEdgeChanges(allowed, edges), false);
   };
 
   const onConnect = (connection: Connection) => {
     if (!definitionEditable) return;
-    const { source, target } = connection;
+    const { source, sourceHandle, target } = connection;
     if (!source || !target) return;
+    const routeNodes = updateRouteTarget(nodes, source, sourceHandle, target);
+    if (routeNodes !== nodes && routeNodes.some((node, index) => node !== nodes[index])) {
+      changeNodeField(routeNodes, reconcileRouteEdges(routeNodes, edges, source));
+      return;
+    }
     const edge: EditorEdge = {
       id: editorEdgeId(source, target, edges.length),
       source,
@@ -324,9 +339,6 @@ export function useLoopEditor(
     connectNodes(addEdge(edge, edges));
   };
 
-  // Bumped on a genuine selection *switch* (click / reveal / add) but NOT on a rename of the
-  // already-selected node, so the inspector's field container is keyed by this — a rename
-  // never remounts it (which would drop focus after each keystroke, R-001 round 7).
   const selectNode = (id: string | null) => {
     selectEditorNode(id);
   };
@@ -338,7 +350,8 @@ export function useLoopEditor(
   const changeFields = (edits: NodeFieldEdit[]) => {
     const targetId = selectedNodeId;
     if (!definitionEditable || !targetId || edits.length === 0) return;
-    changeNodeField(setNodeFields(nodes, targetId, edits));
+    const nextNodes = setNodeFields(nodes, targetId, edits);
+    changeNodeField(nextNodes, reconcileRouteEdges(nextNodes, edges, targetId));
   };
 
   const changeField = (path: FieldPath, value: unknown) => {

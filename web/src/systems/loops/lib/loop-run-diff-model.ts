@@ -69,7 +69,7 @@ function formatBytes(size: number): string {
 
 function formatInline(value: unknown): string {
   if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
+  if (value === undefined) return "";
   return JSON.stringify(value);
 }
 

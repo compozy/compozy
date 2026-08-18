@@ -237,7 +237,10 @@ export function lintDefinition(definition?: {
   const nodes = Array.isArray(graph?.nodes) ? (graph.nodes as RawRecord[]) : [];
   for (const node of nodes) {
     const fanOut = node.max_fan_out;
-    if (node.kind === "fan-out" && (typeof fanOut !== "number" || fanOut <= 0)) {
+    if (
+      node.kind === "fan-out" &&
+      (text(node.collection) === "" || typeof fanOut !== "number" || fanOut <= 0)
+    ) {
       issues.push({
         node_id: String(node.id),
         code: "fan_out_unbounded",

@@ -18,17 +18,6 @@ interface LoopRunControlsProps {
   onCancel: () => void;
 }
 
-/**
- * Operator run controls (§4.4 / ADR-017, VC-R3). The offered verbs come from
- * `loopRunVerbs`, which reads daemon truth: Pause only from `running` (the
- * daemon rejects it elsewhere, N-003), Resume only from `paused`, Cancel for any
- * live run.
- *
- * Cancel stays a first-class button because winding a run down is the ordinary
- * ending. Kill is deliberately NOT here — it is the destructive escape and lives
- * in the surface's single ⋯ overflow (`LoopRunOverflowMenu`, DESIGN-LESSONS
- * L12), so this row never becomes a wall of stop buttons.
- */
 export function LoopRunControls({
   status,
   pauseRequested,

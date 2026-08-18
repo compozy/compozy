@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/network/participation"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
@@ -189,7 +190,7 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 	if err != nil {
 		return StartResult{}, err
 	}
-	child, err := s.forkChildRun(source, snapshot.Definition, values, input)
+	child, err := s.forkChildRun(ctx, source, snapshot.Definition, values, input)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -229,6 +230,7 @@ func forkRequestDigest(source Run, input ForkInput) (string, error) {
 }
 
 func (s *service) forkChildRun(
+	ctx context.Context,
 	source Run,
 	snapshot json.RawMessage,
 	values map[string]any,
@@ -268,8 +270,71 @@ func (s *service) forkChildRun(
 		child.BestGeneration, child.BestScore = nil, nil
 	}
 	child.Origin = &RunOrigin{Kind: RunOriginCatalog}
-	child.SetNetworkSpec(source.NetworkSpecSnapshot())
+	networkSpec, err := s.resolveForkParticipation(ctx, source.WorkspaceID, runID, source.NetworkSpecSnapshot())
+	if err != nil {
+		return Run{}, fmt.Errorf("loop: resolve fork network participation: %w", err)
+	}
+	child.SetNetworkSpec(networkSpec)
 	return child, nil
+}
+
+func (s *service) resolveForkParticipation(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	runID RunID,
+	source participation.Spec,
+) (participation.Spec, error) {
+	if source.Mode != participation.ModeLive {
+		return source, nil
+	}
+	if s == nil || s.participationResolver == nil {
+		return participation.Spec{}, fmt.Errorf(
+			"%w: loop participation resolver is required for live fork",
+			ErrActionDependencyMissing,
+		)
+	}
+	mode, strategy := source.Mode, source.ChannelStrategy
+	request := &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		Bounds:          participationBoundsRequest(source.Bounds),
+	}
+	if source.ChannelStrategy == participation.StrategyNamed {
+		channelID := source.ChannelID
+		request.ChannelID = &channelID
+	}
+	resolveInput := participation.ResolveInput{
+		WorkspaceID: string(workspaceID),
+		Owner: participation.OwnerRef{
+			WorkspaceID: string(workspaceID),
+			Kind:        participation.OwnerKindLoopRun,
+			ID:          string(runID),
+		},
+		Request:   request,
+		LoopRunID: string(runID),
+	}
+	if resolver, ok := s.participationResolver.(participation.IntentResolver); ok {
+		return resolver.ResolveIntent(ctx, resolveInput, participation.Intent{Request: request, Source: source.Source})
+	}
+	resolveInput.RequestSource = participation.SourceExplicitRequest
+	resolved, err := s.participationResolver.Resolve(ctx, resolveInput)
+	if err != nil {
+		return participation.Spec{}, err
+	}
+	resolved.Source = source.Source
+	return resolved, nil
+}
+
+func participationBoundsRequest(bounds participation.Bounds) *participation.BoundsRequest {
+	return &participation.BoundsRequest{
+		MaxWakes:         new(bounds.MaxWakes),
+		MaxWakeWallTime:  new(bounds.MaxWakeWallTime),
+		MaxTotalWallTime: new(bounds.MaxTotalWallTime),
+		MaxInputTokens:   new(bounds.MaxInputTokens),
+		MaxOutputTokens:  new(bounds.MaxOutputTokens),
+		MaxWakeDepth:     new(bounds.MaxWakeDepth),
+		CoalesceWindow:   new(bounds.CoalesceWindow),
+	}
 }
 
 func requireTimeTravelOutputs(

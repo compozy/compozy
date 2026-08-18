@@ -15,11 +15,6 @@ interface LoopRunsViewProps {
   pendingRequestCounts?: ReadonlyMap<string, number>;
 }
 
-/**
- * The workspace-wide Runs surface (design §4.5): KPIs, a data-driven outcome
- * filter, and Active/Past tables. KPIs summarize every run; the tables reflect
- * the selected outcome and hide when empty.
- */
 export function LoopRunsView({
   runs,
   outcome,

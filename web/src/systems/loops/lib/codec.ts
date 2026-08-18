@@ -3,19 +3,6 @@ import type { Edge as FlowEdge, Node as FlowNode } from "@xyflow/react";
 import type { LoopDefinition, LoopDefinitionGraph, LoopEnvironmentSpec } from "../types";
 import { toLoopNodeClass, type LoopNodeClass } from "./loop-graph";
 
-/**
- * The bijective `compozy.loop/v1` ↔ `@xyflow/react` codec (ADR-015).
- *
- * `definitionToGraph` opens the one canonical definition into a React Flow graph;
- * `graphToDefinition` publishes it back. The codec is lossless: every node/edge
- * carries its ENTIRE original JSON in `data.raw`, and `graphToDefinition` is a
- * structural merge over the original definition — it only replaces `graph.nodes`
- * and `graph.edges`, passing meta / concurrency / inputs / contract / start and any
- * unknown or file-imported node fields through verbatim. Positions are NEVER part
- * of the definition; they live in the annotations sidecar and are applied by the
- * layout module. The GUI never owns invariants — the shared Go linter does.
- */
-
 /** The opaque per-node JSON exactly as it appears in the canonical graph. */
 export type RawLoopNode = Record<string, unknown> & { id: string; class: string; kind: string };
 
@@ -96,11 +83,6 @@ export function definitionToGraph(definition: Pick<LoopDefinition, "graph">): Ed
   const editorNodes: EditorNode[] = [];
   for (const candidate of nodes) {
     if (!isRawLoopNode(candidate)) continue;
-    // A node without a non-empty string id (or an edge missing from/to) cannot be placed
-    // on the canvas or referenced, and is unreachable for a valid compozy.loop/v1 document —
-    // ADR-020 enforces snake_case string ids, and the linter rejects anything else. Such
-    // an element is intentionally dropped here; the definition it came from is malformed
-    // and would fail publish, so the round-trip contract holds for every valid input.
     const raw = candidate;
     editorNodes.push({
       id: raw.id,

@@ -42,12 +42,16 @@ func (c *daemonClient) GetLoopRequest(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
+	generation int,
 	nodeID string,
 	itemIndex int,
 ) (contract.LoopRequestPayload, error) {
 	var response contract.LoopRequestPayload
 	path := loopRequestPath(workspaceID, runID, nodeID)
-	values := url.Values{"item_index": []string{strconv.Itoa(itemIndex)}}
+	values := url.Values{
+		loopGenerationKey: []string{strconv.Itoa(generation)},
+		"item_index":      []string{strconv.Itoa(itemIndex)},
+	}
 	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
 		return contract.LoopRequestPayload{}, err
 	}

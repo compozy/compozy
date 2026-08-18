@@ -35,7 +35,7 @@ func compileSubLoopBody(
 	nestedCtx := newLintContext(nested, &DefinitionLinter{tools: tools})
 	nestedCtx.indexGraphTrusted()
 	for _, child := range node.Body.Nodes {
-		namespace := nestedCtx.namespace(nestedCtx.inFanoutScope(child.ID), nestedCtx.hasTriggerStart())
+		namespace := nestedCtx.namespaceForNode(child.ID, nestedCtx.hasTriggerStart())
 		qualifiedChild := child
 		qualifiedChild.ID = qualifySubLoopNodeID(string(qualifiedParentID), child.ID)
 		if err := compileNode(resolved, qualifiedChild, namespace, nestedCtx); err != nil {

@@ -1,48 +1,50 @@
 package contract
 
+import looppkg "github.com/compozy/compozy/internal/loop"
+
 // LoopRunEventKind is the public loop run event stream vocabulary.
-type LoopRunEventKind string
+type LoopRunEventKind = looppkg.RunEventKind
 
 const (
-	LoopRunEventNodeRunning          LoopRunEventKind = "node_running"
-	LoopRunEventNodeSucceeded        LoopRunEventKind = "node_succeeded"
-	LoopRunEventNodeFailed           LoopRunEventKind = "node_failed"
-	LoopRunEventGateVerdict          LoopRunEventKind = "gate_verdict"
-	LoopRunEventGenerationStarted    LoopRunEventKind = "generation_started"
-	LoopRunEventChannelMsg           LoopRunEventKind = "channel_msg"
-	LoopRunEventTokenTick            LoopRunEventKind = "token_tick"
-	LoopRunEventNeedsApproval        LoopRunEventKind = "needs_approval"
-	LoopRunEventStatusChanged        LoopRunEventKind = "status_changed"
-	LoopRunEventGoalTurnStarted      LoopRunEventKind = "goal_turn_started"
-	LoopRunEventGoalTurnCompleted    LoopRunEventKind = "goal_turn_completed"
-	LoopRunEventGoalStatusChanged    LoopRunEventKind = "goal_status_changed"
-	LoopRunEventRuntimeApplied       LoopRunEventKind = "runtime_applied"
-	LoopRunEventPredicateDiagnostic  LoopRunEventKind = "predicate_diagnostic"
-	LoopRunEventRouteTaken           LoopRunEventKind = "route_taken"
-	LoopRunEventNodeRetryScheduled   LoopRunEventKind = "node_retry_scheduled"
-	LoopRunEventNodePaused           LoopRunEventKind = "node_paused"
-	LoopRunEventNodeResumed          LoopRunEventKind = "node_resumed"
-	LoopRunEventNodeCanceled         LoopRunEventKind = "node_canceled"
-	LoopRunEventNodeKilled           LoopRunEventKind = "node_killed"
-	LoopRunEventNodeQuarantined      LoopRunEventKind = "node_quarantined"
-	LoopRunEventNodeRequeued         LoopRunEventKind = "node_requeued"
-	LoopRunEventNodeWaitStarted      LoopRunEventKind = "node_wait_started"
-	LoopRunEventNodeWaitResumed      LoopRunEventKind = "node_wait_resumed"
-	LoopRunEventNodeAttentionFlagged LoopRunEventKind = "node_attention_flagged"
-	LoopRunEventNodeAttentionCleared LoopRunEventKind = "node_attention_cleared"
-	LoopRunEventEffectResults        LoopRunEventKind = "effect_results"
-	LoopRunEventCustomEvent          LoopRunEventKind = "custom_event"
-	LoopRunEventDuplicateSuppressed  LoopRunEventKind = "duplicate_suppressed"
-	LoopRunEventTargetBreaker        LoopRunEventKind = "target_breaker_transition"
-	LoopRunEventStaleScheduleDropped LoopRunEventKind = "stale_schedule_dropped"
-	LoopRunEventLateArrival          LoopRunEventKind = "late_arrival"
-	LoopRunEventRequestOpened        LoopRunEventKind = "request_opened"
-	LoopRunEventRequestAnswered      LoopRunEventKind = "request_answered"
-	LoopRunEventRequestExpired       LoopRunEventKind = "request_expired"
-	LoopRunEventRequestCanceled      LoopRunEventKind = "request_canceled"
-	LoopRunEventNodeAmended          LoopRunEventKind = "node_amended"
-	LoopRunEventBranchPruned         LoopRunEventKind = "branch_pruned"
-	LoopRunEventRunForked            LoopRunEventKind = "run_forked"
+	LoopRunEventNodeRunning          = looppkg.RunEventNodeRunning
+	LoopRunEventNodeSucceeded        = looppkg.RunEventNodeSucceeded
+	LoopRunEventNodeFailed           = looppkg.RunEventNodeFailed
+	LoopRunEventGateVerdict          = looppkg.RunEventGateVerdict
+	LoopRunEventGenerationStarted    = looppkg.RunEventGenerationStarted
+	LoopRunEventChannelMsg           = looppkg.RunEventChannelMsg
+	LoopRunEventTokenTick            = looppkg.RunEventTokenTick
+	LoopRunEventNeedsApproval        = looppkg.RunEventNeedsApproval
+	LoopRunEventStatusChanged        = looppkg.RunEventStatusChanged
+	LoopRunEventGoalTurnStarted      = looppkg.RunEventGoalTurnStarted
+	LoopRunEventGoalTurnCompleted    = looppkg.RunEventGoalTurnCompleted
+	LoopRunEventGoalStatusChanged    = looppkg.RunEventGoalStatusChanged
+	LoopRunEventRuntimeApplied       = looppkg.RunEventRuntimeApplied
+	LoopRunEventPredicateDiagnostic  = looppkg.RunEventPredicateDiagnostic
+	LoopRunEventRouteTaken           = looppkg.RunEventRouteTaken
+	LoopRunEventNodeRetryScheduled   = looppkg.RunEventNodeRetryScheduled
+	LoopRunEventNodePaused           = looppkg.RunEventNodePaused
+	LoopRunEventNodeResumed          = looppkg.RunEventNodeResumed
+	LoopRunEventNodeCanceled         = looppkg.RunEventNodeCanceled
+	LoopRunEventNodeKilled           = looppkg.RunEventNodeKilled
+	LoopRunEventNodeQuarantined      = looppkg.RunEventNodeQuarantined
+	LoopRunEventNodeRequeued         = looppkg.RunEventNodeRequeued
+	LoopRunEventNodeWaitStarted      = looppkg.RunEventNodeWaitStarted
+	LoopRunEventNodeWaitResumed      = looppkg.RunEventNodeWaitResumed
+	LoopRunEventNodeAttentionFlagged = looppkg.RunEventNodeAttentionFlagged
+	LoopRunEventNodeAttentionCleared = looppkg.RunEventNodeAttentionCleared
+	LoopRunEventEffectResults        = looppkg.RunEventEffectResults
+	LoopRunEventCustomEvent          = looppkg.RunEventCustomEvent
+	LoopRunEventDuplicateSuppressed  = looppkg.RunEventDuplicateSuppressed
+	LoopRunEventTargetBreaker        = looppkg.RunEventTargetBreaker
+	LoopRunEventStaleScheduleDropped = looppkg.RunEventStaleScheduleDropped
+	LoopRunEventLateArrival          = looppkg.RunEventLateArrival
+	LoopRunEventRequestOpened        = looppkg.RunEventRequestOpened
+	LoopRunEventRequestAnswered      = looppkg.RunEventRequestAnswered
+	LoopRunEventRequestExpired       = looppkg.RunEventRequestExpired
+	LoopRunEventRequestCanceled      = looppkg.RunEventRequestCanceled
+	LoopRunEventNodeAmended          = looppkg.RunEventNodeAmended
+	LoopRunEventBranchPruned         = looppkg.RunEventBranchPruned
+	LoopRunEventRunForked            = looppkg.RunEventRunForked
 )
 
 // LoopRunStatusValues returns the closed public loop run status vocabulary.
@@ -97,47 +99,7 @@ func LoopRunTerminalStatusValues() []string {
 
 // LoopRunEventKindValues returns the closed public loop run event vocabulary.
 func LoopRunEventKindValues() []string {
-	return []string{
-		string(LoopRunEventNodeRunning),
-		string(LoopRunEventNodeSucceeded),
-		string(LoopRunEventNodeFailed),
-		string(LoopRunEventGateVerdict),
-		string(LoopRunEventGenerationStarted),
-		string(LoopRunEventChannelMsg),
-		string(LoopRunEventTokenTick),
-		string(LoopRunEventNeedsApproval),
-		string(LoopRunEventStatusChanged),
-		string(LoopRunEventGoalTurnStarted),
-		string(LoopRunEventGoalTurnCompleted),
-		string(LoopRunEventGoalStatusChanged),
-		string(LoopRunEventRuntimeApplied),
-		string(LoopRunEventPredicateDiagnostic),
-		string(LoopRunEventRouteTaken),
-		string(LoopRunEventNodeRetryScheduled),
-		string(LoopRunEventNodePaused),
-		string(LoopRunEventNodeResumed),
-		string(LoopRunEventNodeCanceled),
-		string(LoopRunEventNodeKilled),
-		string(LoopRunEventNodeQuarantined),
-		string(LoopRunEventNodeRequeued),
-		string(LoopRunEventNodeWaitStarted),
-		string(LoopRunEventNodeWaitResumed),
-		string(LoopRunEventNodeAttentionFlagged),
-		string(LoopRunEventNodeAttentionCleared),
-		string(LoopRunEventEffectResults),
-		string(LoopRunEventCustomEvent),
-		string(LoopRunEventDuplicateSuppressed),
-		string(LoopRunEventTargetBreaker),
-		string(LoopRunEventStaleScheduleDropped),
-		string(LoopRunEventLateArrival),
-		string(LoopRunEventRequestOpened),
-		string(LoopRunEventRequestAnswered),
-		string(LoopRunEventRequestExpired),
-		string(LoopRunEventRequestCanceled),
-		string(LoopRunEventNodeAmended),
-		string(LoopRunEventBranchPruned),
-		string(LoopRunEventRunForked),
-	}
+	return looppkg.RunEventKindValues()
 }
 
 // LoopRunTransitionCauseValues returns the closed public transition-cause vocabulary.

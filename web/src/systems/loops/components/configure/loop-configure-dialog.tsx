@@ -35,19 +35,6 @@ interface LoopConfigureDialogProps {
   onOpenEditor?: () => void;
 }
 
-/**
- * The no-fork Configure surface (design §4.7): writes the per-loop `loop_config`
- * store — verification-check toggles + command overrides, the human-approval-gate
- * flag, the re-attempt strategy, and the 6 clamped limit overrides.
- *
- * Structural fields (node order / kinds / inputs / contract / goal) are not
- * editable here; they belong in the builder (ADR-009). There is NO cost-cap
- * field — cost is display-only (ADR-017).
- *
- * A modal rather than a sheet: this is a bounded, single-entity edit that ends
- * in Save or Cancel, which is the entity-editor contract. Sheets are for
- * browse-heavy, long-lived inspection.
- */
 export function LoopConfigureDialog({
   open,
   workspaceId,

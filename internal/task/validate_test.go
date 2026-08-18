@@ -332,6 +332,23 @@ func TestPayloadSizeGuards(t *testing.T) {
 	}
 }
 
+func TestCoordinatorCompletionPlanShouldRejectYieldWithLaneCancellation(t *testing.T) {
+	t.Parallel()
+
+	err := (CoordinatorCompletionPlan{
+		Yield: true,
+		LaneCancels: []CoordinatorLaneCancelSpec{{
+			LoopRunID:  "loop-run-1",
+			NodeID:     "worker",
+			ItemIndex:  0,
+			ReasonCode: "strategy_settled",
+		}},
+	}).Validate("coordinator_completion.plan")
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("Validate() error = %v, want %v", err, ErrValidation)
+	}
+}
+
 func TestRunStatusJSONDecodingShouldRejectUnknownValues(t *testing.T) {
 	t.Parallel()
 

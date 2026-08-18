@@ -4,7 +4,7 @@ import {
   useSidebarViewport,
 } from "@compozy/ui";
 
-import type { LoopEditorPaletteMode } from "../components/editor/loop-editor-palette";
+import type { LoopEditorPaletteMode } from "../lib/loop-editor-types";
 import {
   useLoopEditorChromeState,
   type UseLoopEditorChromeStateResult,

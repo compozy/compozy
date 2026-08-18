@@ -12,6 +12,7 @@ import {
   type LoopStrategyProgressInput,
 } from "../loop-run-strategy";
 import type { LoopDefinition, LoopRunGeneration } from "../../types";
+import { loopEventFrame } from "./loop-event-frame";
 
 function graphOf(
   nodes: Record<string, unknown>[],
@@ -132,7 +133,7 @@ describe("buildStrategyProgress", () => {
 
     const unknown = progressFor({
       graph: fanOutGraph(),
-      run: { completion_state: "half-done", generation: 1 },
+      run: { completion_state: "half-done" as never, generation: 1 },
       generations: failedLanes,
     })[0];
     expect(unknown.completionState).toBe("complete");
@@ -208,6 +209,21 @@ describe("buildStrategyProgress", () => {
     const [model] = progressFor({ graph: fanOutGraph() });
     expect(model.nodeId).toBe("spread");
     expect(model.joinNodeId).toBe("join");
+  });
+
+  it("Should match branch pruning to the fan-out event identity", () => {
+    const [model] = progressFor({
+      graph: fanOutGraph({ strategy: { kind: "fail_fast" } }),
+      frames: [
+        loopEventFrame("branch_pruned", {
+          generation: 1,
+          node_id: "spread",
+          item_indexes: [2, 1],
+          reason: "fail_fast",
+        }),
+      ],
+    });
+    expect(model.triggerLane).toBe(1);
   });
 
   it("Should derive the release-train panel from the newest generation's own rows", () => {

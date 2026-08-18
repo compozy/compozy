@@ -3,13 +3,6 @@ import type { PillTone } from "@compozy/ui";
 import type { LoopRunGeneration } from "../types";
 import type { LoopGraph } from "./loop-graph";
 
-/**
- * The story data shapes (redesign spec §5.3): the plain-language story rows, the
- * "Happening now" projection, and the story context the frame fold reads. Every
- * string is a template over real payload fields — the runtime identifiers survive
- * verbatim in the mono `micro` labels (§5.1).
- */
-
 export type LoopStoryIcon =
   | "round"
   | "check-pass"

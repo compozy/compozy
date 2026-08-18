@@ -6779,6 +6779,7 @@ export interface components {
           [key: string]: unknown;
         })[];
         deadline?: string;
+        default?: string;
         events?: {
           filter?: string;
           /** @enum {string} */
@@ -6872,6 +6873,8 @@ export interface components {
           )[];
           route?: string;
         };
+        /** @enum {string} */
+        on_eval_error?: "fail" | "exit";
         /** @enum {string} */
         on_parent_close?: "terminate" | "cancel" | "abandon";
         on_pause?: (
@@ -6985,6 +6988,10 @@ export interface components {
           non_retryable?: string[];
           on_failure?: string;
         };
+        routes?: {
+          to: string;
+          when: string;
+        }[];
         session?: {
           [key: string]: unknown;
         };
@@ -93511,7 +93518,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              completion_state: string;
+              /** @enum {string} */
+              completion_state: "complete" | "partial";
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -93978,6 +93986,7 @@ export interface operations {
                     [key: string]: unknown;
                   })[];
                   deadline?: string;
+                  default?: string;
                   events?: {
                     filter?: string;
                     /** @enum {string} */
@@ -94071,6 +94080,8 @@ export interface operations {
                     )[];
                     route?: string;
                   };
+                  /** @enum {string} */
+                  on_eval_error?: "fail" | "exit";
                   /** @enum {string} */
                   on_parent_close?: "terminate" | "cancel" | "abandon";
                   on_pause?: (
@@ -94184,6 +94195,10 @@ export interface operations {
                     non_retryable?: string[];
                     on_failure?: string;
                   };
+                  routes?: {
+                    to: string;
+                    when: string;
+                  }[];
                   session?: {
                     [key: string]: unknown;
                   };
@@ -94652,7 +94667,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              completion_state: string;
+              /** @enum {string} */
+              completion_state: "complete" | "partial";
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -95991,7 +96007,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              completion_state: string;
+              /** @enum {string} */
+              completion_state: "complete" | "partial";
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -97602,7 +97619,9 @@ export interface operations {
   };
   getLoopRequest: {
     parameters: {
-      query?: {
+      query: {
+        /** @description Loop generation */
+        generation: number;
         /** @description Fan-out lane index */
         item_index?: number;
       };
@@ -98051,6 +98070,7 @@ export interface operations {
       content: {
         "application/json": {
           decision?: string;
+          generation: number;
           item_index?: number;
           note?: string;
           payload: unknown;
@@ -100358,6 +100378,7 @@ export interface operations {
                   [key: string]: unknown;
                 })[];
                 deadline?: string;
+                default?: string;
                 events?: {
                   filter?: string;
                   /** @enum {string} */
@@ -100451,6 +100472,8 @@ export interface operations {
                   )[];
                   route?: string;
                 };
+                /** @enum {string} */
+                on_eval_error?: "fail" | "exit";
                 /** @enum {string} */
                 on_parent_close?: "terminate" | "cancel" | "abandon";
                 on_pause?: (
@@ -100564,6 +100587,10 @@ export interface operations {
                   non_retryable?: string[];
                   on_failure?: string;
                 };
+                routes?: {
+                  to: string;
+                  when: string;
+                }[];
                 session?: {
                   [key: string]: unknown;
                 };
@@ -100915,6 +100942,7 @@ export interface operations {
                       [key: string]: unknown;
                     })[];
                     deadline?: string;
+                    default?: string;
                     events?: {
                       filter?: string;
                       /** @enum {string} */
@@ -101008,6 +101036,8 @@ export interface operations {
                       )[];
                       route?: string;
                     };
+                    /** @enum {string} */
+                    on_eval_error?: "fail" | "exit";
                     /** @enum {string} */
                     on_parent_close?: "terminate" | "cancel" | "abandon";
                     on_pause?: (
@@ -101121,6 +101151,10 @@ export interface operations {
                       non_retryable?: string[];
                       on_failure?: string;
                     };
+                    routes?: {
+                      to: string;
+                      when: string;
+                    }[];
                     session?: {
                       [key: string]: unknown;
                     };
@@ -101681,6 +101715,7 @@ export interface operations {
                       [key: string]: unknown;
                     })[];
                     deadline?: string;
+                    default?: string;
                     events?: {
                       filter?: string;
                       /** @enum {string} */
@@ -101774,6 +101809,8 @@ export interface operations {
                       )[];
                       route?: string;
                     };
+                    /** @enum {string} */
+                    on_eval_error?: "fail" | "exit";
                     /** @enum {string} */
                     on_parent_close?: "terminate" | "cancel" | "abandon";
                     on_pause?: (
@@ -101887,6 +101924,10 @@ export interface operations {
                       non_retryable?: string[];
                       on_failure?: string;
                     };
+                    routes?: {
+                      to: string;
+                      when: string;
+                    }[];
                     session?: {
                       [key: string]: unknown;
                     };
@@ -102546,6 +102587,7 @@ export interface operations {
                   [key: string]: unknown;
                 })[];
                 deadline?: string;
+                default?: string;
                 events?: {
                   filter?: string;
                   /** @enum {string} */
@@ -102639,6 +102681,8 @@ export interface operations {
                   )[];
                   route?: string;
                 };
+                /** @enum {string} */
+                on_eval_error?: "fail" | "exit";
                 /** @enum {string} */
                 on_parent_close?: "terminate" | "cancel" | "abandon";
                 on_pause?: (
@@ -102752,6 +102796,10 @@ export interface operations {
                   non_retryable?: string[];
                   on_failure?: string;
                 };
+                routes?: {
+                  to: string;
+                  when: string;
+                }[];
                 session?: {
                   [key: string]: unknown;
                 };
@@ -103103,6 +103151,7 @@ export interface operations {
                       [key: string]: unknown;
                     })[];
                     deadline?: string;
+                    default?: string;
                     events?: {
                       filter?: string;
                       /** @enum {string} */
@@ -103196,6 +103245,8 @@ export interface operations {
                       )[];
                       route?: string;
                     };
+                    /** @enum {string} */
+                    on_eval_error?: "fail" | "exit";
                     /** @enum {string} */
                     on_parent_close?: "terminate" | "cancel" | "abandon";
                     on_pause?: (
@@ -103309,6 +103360,10 @@ export interface operations {
                       non_retryable?: string[];
                       on_failure?: string;
                     };
+                    routes?: {
+                      to: string;
+                      when: string;
+                    }[];
                     session?: {
                       [key: string]: unknown;
                     };
@@ -106021,7 +106076,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              completion_state: string;
+              /** @enum {string} */
+              completion_state: "complete" | "partial";
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -106636,7 +106692,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
-              completion_state: string;
+              /** @enum {string} */
+              completion_state: "complete" | "partial";
               /** Format: date-time */
               created_at: string;
               definition_digest?: string;
@@ -107193,6 +107250,7 @@ export interface operations {
                   [key: string]: unknown;
                 })[];
                 deadline?: string;
+                default?: string;
                 events?: {
                   filter?: string;
                   /** @enum {string} */
@@ -107286,6 +107344,8 @@ export interface operations {
                   )[];
                   route?: string;
                 };
+                /** @enum {string} */
+                on_eval_error?: "fail" | "exit";
                 /** @enum {string} */
                 on_parent_close?: "terminate" | "cancel" | "abandon";
                 on_pause?: (
@@ -107399,6 +107459,10 @@ export interface operations {
                   non_retryable?: string[];
                   on_failure?: string;
                 };
+                routes?: {
+                  to: string;
+                  when: string;
+                }[];
                 session?: {
                   [key: string]: unknown;
                 };

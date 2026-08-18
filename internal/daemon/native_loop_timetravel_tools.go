@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -26,7 +27,7 @@ func (n *daemonNativeTools) loopDiff(
 	}
 	response, err := n.loopService().DiffLoopRun(ctx, workspaceID, runID, looppkg.DiffQuery{
 		Generation: input.Generation, AgainstGeneration: input.AgainstGeneration,
-		AgainstRunID: looppkg.RunID(input.AgainstRunID),
+		AgainstRunID: looppkg.RunID(strings.TrimSpace(input.AgainstRunID)),
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(request.ToolID, err)

@@ -1,15 +1,6 @@
 import type { RawLoopNode } from "./codec";
 import type { LoopNodeClass } from "./loop-graph";
 
-/**
- * The "Add node" palette (design §4.6), grouped by class. Action carries the three
- * ADR-021 reserved kinds, a "Channel post" shortcut that inserts a pre-filled
- * `compozy__network_send` node, and a "Call tool…" entry that adds a blank ToolID action
- * the inspector fills. Control/Source list their closed kinds. Each item seeds the raw
- * node with its DSL-shaped defaults so a dropped node is valid-shaped (though the
- * linter still gates reachability until the author connects it — fork-and-edit).
- */
-
 export interface PaletteItem {
   label: string;
   /** The kind badge shown on the palette row (a ToolID for tool actions). */
@@ -95,7 +86,7 @@ export const LOOP_PALETTE: PaletteGroup[] = [
         kindLabel: "compozy__network_send",
         nodeClass: "action",
         idBase: "channel_post",
-        hint: "A pre-filled compozy__network_send node (the retired channel-post primitive, ADR-021).",
+        hint: "A pre-filled compozy__network_send node.",
         buildRaw: id => ({ id, class: "action", kind: "compozy__network_send", params: {} }),
       },
       {

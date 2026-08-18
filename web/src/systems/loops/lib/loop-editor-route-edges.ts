@@ -1,4 +1,4 @@
-import type { EditorEdge, EditorNode } from "./codec";
+import { editorEdgeId, type EditorEdge, type EditorNode, type RawLoopNode } from "./codec";
 import { readRoutes } from "./loop-node-route-fields";
 
 export const LOOP_EDITOR_EDGE_TYPE = "loopEdge";
@@ -41,6 +41,76 @@ export function routeHandleId(index: number): string {
 }
 
 export const ROUTE_DEFAULT_HANDLE_ID = "route:default";
+
+function routeTargets(raw: RawLoopNode): string[] {
+  const targets = readRoutes(raw).map(route => route.to);
+  const fallback = typeof raw.default === "string" ? raw.default : "";
+  if (fallback !== "") targets.push(fallback);
+  return [...new Set(targets.filter(Boolean))];
+}
+
+export function reconcileRouteEdges(
+  nodes: readonly EditorNode[],
+  edges: readonly EditorEdge[],
+  sourceId: string
+): EditorEdge[] {
+  const source = nodes.find(node => node.id === sourceId);
+  if (source?.data.kind !== "route") return [...edges];
+  const nodeIds = new Set(nodes.map(node => node.id));
+  const retained = edges.filter(edge => edge.source !== sourceId);
+  const appended = routeTargets(source.data.raw).flatMap((target, index) => {
+    if (!nodeIds.has(target) || target === sourceId) return [];
+    return [
+      {
+        id: editorEdgeId(sourceId, target, retained.length + index),
+        source: sourceId,
+        target,
+        data: { raw: { from: sourceId, to: target } },
+      } satisfies EditorEdge,
+    ];
+  });
+  return [...retained, ...appended];
+}
+
+export function updateRouteTarget(
+  nodes: readonly EditorNode[],
+  sourceId: string,
+  sourceHandle: string | null | undefined,
+  target: string
+): EditorNode[] {
+  return nodes.map(node => {
+    if (node.id !== sourceId || node.data.kind !== "route") return node;
+    const raw = { ...node.data.raw };
+    if (sourceHandle === ROUTE_DEFAULT_HANDLE_ID) {
+      raw.default = target;
+    } else if (sourceHandle?.startsWith("route:")) {
+      const index = Number(sourceHandle.slice("route:".length));
+      const routes = readRoutes(raw);
+      const route = routes[index];
+      if (!route) return node;
+      routes[index] = { ...route, to: target };
+      raw.routes = routes;
+    } else {
+      return node;
+    }
+    return { ...node, data: { ...node.data, raw } };
+  });
+}
+
+export function removeRouteTargets(
+  nodes: readonly EditorNode[],
+  targets: ReadonlySet<string>,
+  sourceId?: string
+): EditorNode[] {
+  return nodes.map(node => {
+    if (node.data.kind !== "route" || (sourceId !== undefined && node.id !== sourceId)) return node;
+    const routes = readRoutes(node.data.raw).filter(route => !targets.has(route.to));
+    const fallback = typeof node.data.raw.default === "string" ? node.data.raw.default : "";
+    const raw: RawLoopNode = { ...node.data.raw, routes };
+    if (targets.has(fallback)) delete raw.default;
+    return { ...node, data: { ...node.data, raw } };
+  });
+}
 
 export interface RouteEdgeDisplay {
   sourceHandle: string;

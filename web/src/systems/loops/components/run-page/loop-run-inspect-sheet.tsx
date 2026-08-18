@@ -122,11 +122,6 @@ function buildTiles(
   ];
 }
 
-/**
- * The Inspect drawer (§2/§4): the operator sheet holding everything the story
- * surface dropped — stop_when, verification, policies, watch spec, fan-out
- * params, the last check's criteria, watch cursors, and the raw event frames.
- */
 export function LoopRunInspectSheet({
   open,
   onOpenChange,

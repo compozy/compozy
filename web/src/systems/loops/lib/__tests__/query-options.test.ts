@@ -167,20 +167,21 @@ describe("loop query-options", () => {
   });
 
   it("Should gate the request detail read on workspace, run, and node", () => {
-    expect(loopRequestDetailOptions("ws_a", "run_1", "ask_node", 1).queryKey).toEqual([
+    expect(loopRequestDetailOptions("ws_a", "run_1", 3, "ask_node", 1).queryKey).toEqual([
       "loops",
       "requests",
       "detail",
       "ws_a",
       "run_1",
+      3,
       "ask_node",
       "1",
     ]);
-    expect(loopRequestDetailOptions("", "run_1", "ask_node").enabled).toBe(false);
-    expect(loopRequestDetailOptions("ws_a", "", "ask_node").enabled).toBe(false);
-    expect(loopRequestDetailOptions("ws_a", "run_1", "").enabled).toBe(false);
+    expect(loopRequestDetailOptions("", "run_1", 3, "ask_node").enabled).toBe(false);
+    expect(loopRequestDetailOptions("ws_a", "", 3, "ask_node").enabled).toBe(false);
+    expect(loopRequestDetailOptions("ws_a", "run_1", 3, "").enabled).toBe(false);
 
-    expect(loopRequestDetailOptions("ws_a", "run_1", "ask_node", 0, false).enabled).toBe(false);
+    expect(loopRequestDetailOptions("ws_a", "run_1", 3, "ask_node", 0, false).enabled).toBe(false);
   });
 
   it("Should keep refreshing a diff while either compared side is still executing", () => {

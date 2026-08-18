@@ -314,6 +314,9 @@
                 "deadline": {
                   "type": "string"
                 },
+                "default": {
+                  "type": "string"
+                },
                 "events": {
                   "items": {
                     "properties": {
@@ -550,6 +553,13 @@
                     }
                   },
                   "type": "object"
+                },
+                "on_eval_error": {
+                  "enum": [
+                    "fail",
+                    "exit"
+                  ],
+                  "type": "string"
                 },
                 "on_parent_close": {
                   "enum": [
@@ -887,6 +897,25 @@
                     }
                   },
                   "type": "object"
+                },
+                "routes": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "to": {
+                        "type": "string"
+                      },
+                      "when": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "to",
+                      "when"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
                 },
                 "session": {
                   "additionalProperties": {},
@@ -228991,6 +229020,10 @@
                             "type": "integer"
                           },
                           "completion_state": {
+                            "enum": [
+                              "complete",
+                              "partial"
+                            ],
                             "type": "string"
                           },
                           "created_at": {
@@ -230347,6 +230380,9 @@
                                   "deadline": {
                                     "type": "string"
                                   },
+                                  "default": {
+                                    "type": "string"
+                                  },
                                   "events": {
                                     "items": {
                                       "properties": {
@@ -230583,6 +230619,13 @@
                                       }
                                     },
                                     "type": "object"
+                                  },
+                                  "on_eval_error": {
+                                    "enum": [
+                                      "fail",
+                                      "exit"
+                                    ],
+                                    "type": "string"
                                   },
                                   "on_parent_close": {
                                     "enum": [
@@ -230920,6 +230963,25 @@
                                       }
                                     },
                                     "type": "object"
+                                  },
+                                  "routes": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "to": {
+                                          "type": "string"
+                                        },
+                                        "when": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "to",
+                                        "when"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
                                   },
                                   "session": {
                                     "additionalProperties": {},
@@ -232393,6 +232455,10 @@
                           "type": "integer"
                         },
                         "completion_state": {
+                          "enum": [
+                            "complete",
+                            "partial"
+                          ],
                           "type": "string"
                         },
                         "created_at": {
@@ -235710,6 +235776,10 @@
                           "type": "integer"
                         },
                         "completion_state": {
+                          "enum": [
+                            "complete",
+                            "partial"
+                          ],
                           "type": "string"
                         },
                         "created_at": {
@@ -239934,6 +240004,16 @@
             }
           },
           {
+            "description": "Loop generation",
+            "in": "query",
+            "name": "generation",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
             "description": "Fan-out lane index",
             "in": "query",
             "name": "item_index",
@@ -241054,6 +241134,9 @@
                   "decision": {
                     "type": "string"
                   },
+                  "generation": {
+                    "type": "integer"
+                  },
                   "item_index": {
                     "type": "integer"
                   },
@@ -241063,6 +241146,7 @@
                   "payload": {}
                 },
                 "required": [
+                  "generation",
                   "payload"
                 ],
                 "type": "object"
@@ -247007,6 +247091,9 @@
                                 "deadline": {
                                   "type": "string"
                                 },
+                                "default": {
+                                  "type": "string"
+                                },
                                 "events": {
                                   "items": {
                                     "properties": {
@@ -247243,6 +247330,13 @@
                                     }
                                   },
                                   "type": "object"
+                                },
+                                "on_eval_error": {
+                                  "enum": [
+                                    "fail",
+                                    "exit"
+                                  ],
+                                  "type": "string"
                                 },
                                 "on_parent_close": {
                                   "enum": [
@@ -247580,6 +247674,25 @@
                                     }
                                   },
                                   "type": "object"
+                                },
+                                "routes": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "to": {
+                                        "type": "string"
+                                      },
+                                      "when": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "to",
+                                      "when"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
                                 },
                                 "session": {
                                   "additionalProperties": {},
@@ -248668,6 +248781,9 @@
                                       "deadline": {
                                         "type": "string"
                                       },
+                                      "default": {
+                                        "type": "string"
+                                      },
                                       "events": {
                                         "items": {
                                           "properties": {
@@ -248904,6 +249020,13 @@
                                           }
                                         },
                                         "type": "object"
+                                      },
+                                      "on_eval_error": {
+                                        "enum": [
+                                          "fail",
+                                          "exit"
+                                        ],
+                                        "type": "string"
                                       },
                                       "on_parent_close": {
                                         "enum": [
@@ -249241,6 +249364,25 @@
                                           }
                                         },
                                         "type": "object"
+                                      },
+                                      "routes": {
+                                        "items": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "to": {
+                                              "type": "string"
+                                            },
+                                            "when": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "to",
+                                            "when"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
                                       },
                                       "session": {
                                         "additionalProperties": {},
@@ -251308,6 +251450,9 @@
                                       "deadline": {
                                         "type": "string"
                                       },
+                                      "default": {
+                                        "type": "string"
+                                      },
                                       "events": {
                                         "items": {
                                           "properties": {
@@ -251544,6 +251689,13 @@
                                           }
                                         },
                                         "type": "object"
+                                      },
+                                      "on_eval_error": {
+                                        "enum": [
+                                          "fail",
+                                          "exit"
+                                        ],
+                                        "type": "string"
                                       },
                                       "on_parent_close": {
                                         "enum": [
@@ -251881,6 +252033,25 @@
                                           }
                                         },
                                         "type": "object"
+                                      },
+                                      "routes": {
+                                        "items": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "to": {
+                                              "type": "string"
+                                            },
+                                            "when": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "to",
+                                            "when"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
                                       },
                                       "session": {
                                         "additionalProperties": {},
@@ -253360,6 +253531,9 @@
                                 "deadline": {
                                   "type": "string"
                                 },
+                                "default": {
+                                  "type": "string"
+                                },
                                 "events": {
                                   "items": {
                                     "properties": {
@@ -253596,6 +253770,13 @@
                                     }
                                   },
                                   "type": "object"
+                                },
+                                "on_eval_error": {
+                                  "enum": [
+                                    "fail",
+                                    "exit"
+                                  ],
+                                  "type": "string"
                                 },
                                 "on_parent_close": {
                                   "enum": [
@@ -253933,6 +254114,25 @@
                                     }
                                   },
                                   "type": "object"
+                                },
+                                "routes": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "to": {
+                                        "type": "string"
+                                      },
+                                      "when": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "to",
+                                      "when"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
                                 },
                                 "session": {
                                   "additionalProperties": {},
@@ -255025,6 +255225,9 @@
                                       "deadline": {
                                         "type": "string"
                                       },
+                                      "default": {
+                                        "type": "string"
+                                      },
                                       "events": {
                                         "items": {
                                           "properties": {
@@ -255261,6 +255464,13 @@
                                           }
                                         },
                                         "type": "object"
+                                      },
+                                      "on_eval_error": {
+                                        "enum": [
+                                          "fail",
+                                          "exit"
+                                        ],
+                                        "type": "string"
                                       },
                                       "on_parent_close": {
                                         "enum": [
@@ -255598,6 +255808,25 @@
                                           }
                                         },
                                         "type": "object"
+                                      },
+                                      "routes": {
+                                        "items": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "to": {
+                                              "type": "string"
+                                            },
+                                            "when": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "to",
+                                            "when"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
                                       },
                                       "session": {
                                         "additionalProperties": {},
@@ -263079,6 +263308,10 @@
                           "type": "integer"
                         },
                         "completion_state": {
+                          "enum": [
+                            "complete",
+                            "partial"
+                          ],
                           "type": "string"
                         },
                         "created_at": {
@@ -264991,6 +265224,10 @@
                           "type": "integer"
                         },
                         "completion_state": {
+                          "enum": [
+                            "complete",
+                            "partial"
+                          ],
                           "type": "string"
                         },
                         "created_at": {
@@ -266554,6 +266791,9 @@
                                 "deadline": {
                                   "type": "string"
                                 },
+                                "default": {
+                                  "type": "string"
+                                },
                                 "events": {
                                   "items": {
                                     "properties": {
@@ -266790,6 +267030,13 @@
                                     }
                                   },
                                   "type": "object"
+                                },
+                                "on_eval_error": {
+                                  "enum": [
+                                    "fail",
+                                    "exit"
+                                  ],
+                                  "type": "string"
                                 },
                                 "on_parent_close": {
                                   "enum": [
@@ -267127,6 +267374,25 @@
                                     }
                                   },
                                   "type": "object"
+                                },
+                                "routes": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "to": {
+                                        "type": "string"
+                                      },
+                                      "when": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "to",
+                                      "when"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
                                 },
                                 "session": {
                                   "additionalProperties": {},

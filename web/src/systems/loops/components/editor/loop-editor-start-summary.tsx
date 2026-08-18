@@ -5,13 +5,6 @@ interface LoopEditorStartSummaryProps {
   start: LoopStartBinding[];
 }
 
-/**
- * The read-only Start summary pinned at the canvas origin (design §4.6 / §9.14): the
- * definition's declared `start[]` kinds as chips, so the graph and the DSL tell the same
- * initiation story. There is no graph-side start editing in v1; `start[]` is authored in
- * the definition file/agent (FS-as-truth, ADR-015) and round-trips through the codec like
- * any other field. The editable DSL surface for `start[]` is a v1 deferral.
- */
 export function LoopEditorStartSummary({ start }: LoopEditorStartSummaryProps) {
   if (start.length === 0) return null;
   return (

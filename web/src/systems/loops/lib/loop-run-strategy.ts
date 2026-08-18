@@ -160,7 +160,7 @@ export function buildStrategyProgress({
     : "complete";
   return nodes.map(node => {
     const laneNodeId = laneNodeFor(graph, node.id);
-    const pruned = prunedLanes(frames, laneNodeId);
+    const pruned = prunedLanes(frames, node.id);
     const counts = countLanes(newest, laneNodeId, node.maxFanOut);
     const { rate, label } = coverage(counts);
     const partialJoin = (newest?.outputs ?? []).some(

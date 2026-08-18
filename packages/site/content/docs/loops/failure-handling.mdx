@@ -3,8 +3,6 @@ title: Failure handling
 description: Classify failures, bound retries, route or absorb errors, react with effects, and recover parked or quarantined nodes.
 ---
 
-{/* Contract sources: loop-node-lifecycle ADR-002 (failure precedence), ADR-003 (family-asymmetric retry), ADR-004 (evidence-based liveness), and ADR-005 (durable waits). */}
-
 Loop failures follow one fixed path. The daemon classifies the failure first, then applies the same
 precedence to every node family:
 

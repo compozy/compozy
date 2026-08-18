@@ -3,15 +3,6 @@ import dagre from "@dagrejs/dagre";
 import type { EditorEdge, EditorNode } from "./codec";
 import type { LoopAnnotation } from "../types";
 
-/**
- * Auto-layout for definitions that carry no saved node positions (agent- or
- * file-authored bodies, or a freshly forked read-only Loop). A left-to-right dagre pass
- * lays the DAG out deterministically; any node with a saved annotation (the
- * positions sidecar, ADR-015) overrides the computed coordinate so a hand-arranged
- * layout is never clobbered. Positions live only here + in the sidecar, never in the
- * canonical definition.
- */
-
 export const EDITOR_NODE_WIDTH = 188;
 export const EDITOR_NODE_HEIGHT = 96;
 

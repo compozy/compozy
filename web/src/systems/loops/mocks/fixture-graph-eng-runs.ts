@@ -142,7 +142,7 @@ export const releaseTrainAmendments: LoopAmendment[] = [
 const pendingRequestWaits: LoopNodeWait[] = graphEngPendingRequests.map(entry => ({
   admission_failures: 0,
   age_seconds: 420,
-  claim_state: "open",
+  claim_state: "waiting",
   created_at: entry.opened_at,
   escalation_cursor: 0,
   expect: entry.expect,

@@ -10,16 +10,22 @@ import {
 } from "@/systems/loops";
 
 export interface LoopRequestTarget {
+  generation: number;
   nodeId: string;
   itemIndex: number;
 }
 
 export function loopRequestTargetKey(target: LoopRequestTarget): string {
-  return `${target.nodeId}:${target.itemIndex}`;
+  return `${target.generation}:${target.nodeId}:${target.itemIndex}`;
 }
 
 function sameTarget(left: LoopRequestTarget | null, right: LoopRequestTarget): boolean {
-  return left !== null && left.nodeId === right.nodeId && left.itemIndex === right.itemIndex;
+  return (
+    left !== null &&
+    left.generation === right.generation &&
+    left.nodeId === right.nodeId &&
+    left.itemIndex === right.itemIndex
+  );
 }
 
 export function useLoopRunRequestsState(workspaceId: string, runId: string) {
@@ -35,6 +41,7 @@ export function useLoopRunRequestsState(workspaceId: string, runId: string) {
   const contextQuery = useLoopRequestDetail(
     workspaceId,
     runId,
+    engaged?.generation ?? 0,
     contextEnabled ? engaged.nodeId : "",
     engaged?.itemIndex,
     contextEnabled
@@ -52,13 +59,13 @@ export function useLoopRunRequestsState(workspaceId: string, runId: string) {
     clearFeedback();
   };
 
-  const handleRequestFullContext = (nodeId: string, itemIndex: number) => {
-    engage({ nodeId, itemIndex });
+  const handleRequestFullContext = (generation: number, nodeId: string, itemIndex: number) => {
+    engage({ generation, nodeId, itemIndex });
     setWantsFullContext(true);
   };
 
   const handleAnswerRequest = async (input: LoopRequestAnswerInput) => {
-    engage({ nodeId: input.nodeId, itemIndex: input.itemIndex });
+    engage({ generation: input.generation, nodeId: input.nodeId, itemIndex: input.itemIndex });
     clearFeedback();
     try {
       await respondMutation.mutateAsync({
@@ -66,6 +73,7 @@ export function useLoopRunRequestsState(workspaceId: string, runId: string) {
         runId,
         nodeId: input.nodeId,
         data: {
+          generation: input.generation,
           decision: input.decision,
           item_index: input.itemIndex,
           note: input.note,
@@ -102,6 +110,7 @@ export function useLoopRunRequestsState(workspaceId: string, runId: string) {
     fieldErrors,
     refusal,
     fullContext: contextEnabled ? contextQuery.data?.context : undefined,
+    fullContextError: contextEnabled && contextQuery.error ? contextQuery.error.message : undefined,
     isLoadingFullContext: contextEnabled && contextQuery.isPending,
     onRequestFullContext: handleRequestFullContext,
     onAnswer: handleAnswerRequest,

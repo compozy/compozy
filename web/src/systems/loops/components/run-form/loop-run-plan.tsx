@@ -7,11 +7,6 @@ interface LoopRunPlanProps {
   plan: LoopDryRunPreview;
 }
 
-/**
- * Renders the dry-run result (§4.3 / §9.1): the resolved gen-1 plan the daemon would
- * execute — resolved inputs + the materialized node list — with no run created and no
- * budget spent. It appears only after a successful Dry run.
- */
 export function LoopRunPlan({ plan }: LoopRunPlanProps) {
   const inputEntries = Object.entries(plan.resolved_inputs ?? {});
   return (

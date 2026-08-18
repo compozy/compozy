@@ -42,10 +42,11 @@ type LoopRequestsResponse struct {
 }
 
 type RespondLoopRequest struct {
-	ItemIndex int             `json:"item_index,omitempty"`
-	Decision  string          `json:"decision,omitempty"`
-	Payload   json.RawMessage `json:"payload"`
-	Note      string          `json:"note,omitempty"`
+	Generation int             `json:"generation"`
+	ItemIndex  int             `json:"item_index,omitempty"`
+	Decision   string          `json:"decision,omitempty"`
+	Payload    json.RawMessage `json:"payload"`
+	Note       string          `json:"note,omitempty"`
 }
 
 type LoopRequestProvenance struct {

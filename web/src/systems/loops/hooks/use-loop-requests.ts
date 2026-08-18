@@ -21,9 +21,12 @@ export function useLoopRequests(
 export function useLoopRequestDetail(
   workspaceId: string,
   runId: string,
+  generation: number,
   nodeId: string,
   itemIndex?: number,
   enabled = true
 ) {
-  return useQuery(loopRequestDetailOptions(workspaceId, runId, nodeId, itemIndex, enabled));
+  return useQuery(
+    loopRequestDetailOptions(workspaceId, runId, generation, nodeId, itemIndex, enabled)
+  );
 }

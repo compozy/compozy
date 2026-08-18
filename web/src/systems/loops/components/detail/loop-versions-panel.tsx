@@ -7,12 +7,6 @@ interface LoopVersionsPanelProps {
   version: number;
 }
 
-/**
- * Right-rail Versions panel. The Loop resource projection exposes only the current
- * published version integer (no server-side draft store or version history in v1,
- * §9.13), so exactly the current version renders here — truthful UI, no invented
- * history rows. Version diff/revert are deferred.
- */
 export function LoopVersionsPanel({ version }: LoopVersionsPanelProps) {
   return (
     <LoopRailSection

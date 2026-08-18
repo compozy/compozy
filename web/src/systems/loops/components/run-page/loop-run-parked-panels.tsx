@@ -62,7 +62,7 @@ function hasLadderStrip(wait: LoopNodeWaitView): boolean {
 
 function waitTitle(wait: LoopNodeWaitView, requestKinds: ReadonlyMap<string, string>): string {
   if (wait.kind === "request") {
-    const kind = requestKinds.get(`${wait.nodeId}:${wait.itemIndex}`);
+    const kind = requestKinds.get(`${wait.generation}:${wait.nodeId}:${wait.itemIndex}`);
     if (kind && isLoopRequestKind(kind)) return LOOP_REQUEST_WAIT_SENTENCE[kind];
   }
   return WAIT_KIND_TITLE[wait.kind] ?? "is parked";

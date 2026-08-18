@@ -111,14 +111,6 @@ function LoopRunFormActions({
   );
 }
 
-/**
- * The hero run form (§4.3): an auto-generated typed input form from the Loop's declared
- * inputs, a folded per-run limits list (clamped, no cost cap), and the Dry run / Start run
- * actions. After a successful Dry run, the resolved gen-1 plan renders inline. Leaving the
- * form without starting is a route action (`Close` in the window chrome), not a third button
- * beside the two that submit. State + the run/dry calls live in `useLoopRunForm`; this
- * component is the presentation.
- */
 export function LoopRunForm({
   workspaceId,
   loop,

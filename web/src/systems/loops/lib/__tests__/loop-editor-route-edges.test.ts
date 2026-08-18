@@ -5,9 +5,12 @@ import {
   buildDisplayEdges,
   forwardNodeIds,
   LOOP_EDITOR_EDGE_TYPE,
+  reconcileRouteEdges,
+  removeRouteTargets,
   ROUTE_DEFAULT_HANDLE_ID,
   routeCardRows,
   routeHandleId,
+  updateRouteTarget,
 } from "../loop-editor-route-edges";
 
 function actionNode(id: string): EditorNode {
@@ -128,6 +131,37 @@ describe("routeCardRows", () => {
 
   it("Should give a node that is not a route no rows", () => {
     expect(routeCardRows(actionNode("standard"))).toEqual([]);
+  });
+});
+
+describe("route graph coherence", () => {
+  it("Should rebuild outgoing edges from the declared route targets", () => {
+    const nodes = [
+      routeNode("triage", TRIAGE_ROUTES, "backlog"),
+      actionNode("hotfix"),
+      actionNode("standard"),
+      actionNode("backlog"),
+      actionNode("stale"),
+    ];
+    const result = reconcileRouteEdges(nodes, [edge("triage", "stale")], "triage");
+    expect(result.map(entry => entry.target)).toEqual(["hotfix", "standard", "backlog"]);
+  });
+
+  it("Should update the declaration addressed by a route handle", () => {
+    const nodes = [routeNode("triage", TRIAGE_ROUTES, "backlog")];
+    const updated = updateRouteTarget(nodes, "triage", routeHandleId(1), "canary");
+    expect(routeCardRows(updated[0])[1]?.to).toBe("canary");
+    const fallback = updateRouteTarget(updated, "triage", ROUTE_DEFAULT_HANDLE_ID, "manual");
+    expect(routeCardRows(fallback[0]).at(-1)?.to).toBe("manual");
+  });
+
+  it("Should remove deleted targets from conditions and fallback", () => {
+    const nodes = [routeNode("triage", TRIAGE_ROUTES, "backlog")];
+    const updated = removeRouteTargets(nodes, new Set(["standard", "backlog"]));
+    expect(routeCardRows(updated[0])).toEqual([
+      { handle: "route:0", label: 'inputs.severity == "p0"', to: "hotfix" },
+      { handle: ROUTE_DEFAULT_HANDLE_ID, label: "default", to: "" },
+    ]);
   });
 });
 

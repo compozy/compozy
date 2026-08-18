@@ -73,7 +73,8 @@ Each run summary exposes `best_generation`/`best_score` but never embeds generat
 
 An `ask` control parks one node cell until a valid answer arrives. Use `compozy__loop_requests` to
 find work, `compozy__loop_request` to read the full redacted context and expected shape, then
-`compozy__loop_respond` with `payload` and the exact `run_id`, `node_id`, and `item_index`. Agent
+`compozy__loop_respond` with `payload` and the exact `run_id`, `generation`, `node_id`, and
+`item_index`. `compozy__loop_request` requires the same identity. Agent
 answers require `responders.agents: allow` on that node plus `loops.respond`; humans remain allowed
 by default. A run starter and every agent in its durable spawn chain are always denied from
 answering their own run. Treat `request_already_answered` as durable winner truth; expired and

@@ -93,7 +93,7 @@ describe("buildLoopConfigRequest", () => {
     });
   });
 
-  it("Should pin a typed numeric even when it equals the definition default (R-004)", () => {
+  it("Should pin a typed numeric even when it equals the definition default", () => {
     const draft = initialConfigDraft(descriptors, null, loopEffectiveConfigFixture);
     // The delivery contract's no_progress.window default is 3; typing it must pin, not inherit.
     draft.limits.values.no_progress_window = 3;

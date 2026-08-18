@@ -9,9 +9,9 @@ entry_points: compozy loop fork; POST /loop-runs/:id/fork over HTTP and UDS; com
 qa_status: pass
 bug_ids: BUG-20260818-loop-fork-inline-output
 fix_status: fixed
-retest_status: focused store regression passed; full-gate retest pending
-fix_commits: ""
-evidence: ""
+retest_status: pass
+fix_commits: e9c00c2
+evidence: docs/qa/bugs/BUG-20260818-loop-fork-inline-output.md; docs/qa/reports/2026-08-18-graph-eng.md
 last_report: docs/qa/reports/2026-08-18-graph-eng.md
 overlaps: ""
 ---

@@ -106,3 +106,27 @@ func TestSettleJoinShouldKeepAnAdmittedDecision(t *testing.T) {
 		t.Fatalf("settleJoin(prior) = %#v, want %#v", got, prior)
 	}
 }
+
+func TestCollectDependencyShouldAcceptPartialSettlement(t *testing.T) {
+	t.Parallel()
+
+	graph := dsl.Graph{
+		Nodes: []dsl.Node{
+			{ID: "collect", Class: dsl.NodeClassControl, Kind: string(dsl.ControlCollect)},
+			{ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+		},
+		Edges: []dsl.Edge{{From: "collect", To: "publish"}},
+	}
+	outputs := []GenerationOutput{
+		{Generation: 1, NodeID: "collect", Status: generationOutputPartial},
+		{Generation: 1, NodeID: "publish", Status: generationOutputPending},
+	}
+	if !dependenciesSucceededForOutput(
+		graph,
+		newControlTopology(graph),
+		outputs,
+		outputs[1],
+	) {
+		t.Fatal("partial collect did not release its downstream dependency")
+	}
+}

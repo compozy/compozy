@@ -3,8 +3,6 @@ title: "Example: converse and decide"
 description: A documented Loop that posts a question into a channel, lets agents converse, harvests the agreed decision, and branches on it.
 ---
 
-{/* Design reference: docs/design/opendesign/run-detail.html (embedded channel) — LOOPS-DESIGN-SPEC §4.4, §9.9. Daemon truth wins on divergence (ADR-017 §9). */}
-
 <Callout type="info">
   This is a **documented example**, not a packaged default Loop. The capability ships in the runtime
   — it is a `compozy__network_send` action with a `channel_result` harvest — but CompozyOS does not

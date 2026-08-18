@@ -117,27 +117,29 @@ describe("loopsKeys", () => {
   });
 
   it("Should address one request by run, node, and fan-out lane", () => {
-    expect(loopsKeys.requestDetail("ws_a", "run_1", "confirm-rollout", 2)).toEqual([
+    expect(loopsKeys.requestDetail("ws_a", "run_1", 3, "confirm-rollout", 2)).toEqual([
       "loops",
       "requests",
       "detail",
       "ws_a",
       "run_1",
+      3,
       "confirm-rollout",
       "2",
     ]);
 
-    expect(loopsKeys.requestDetail("ws_a", "run_1", "confirm-rollout")).toEqual([
+    expect(loopsKeys.requestDetail("ws_a", "run_1", 3, "confirm-rollout")).toEqual([
       "loops",
       "requests",
       "detail",
       "ws_a",
       "run_1",
+      3,
       "confirm-rollout",
       "",
     ]);
-    expect(loopsKeys.requestDetail("ws_a", "run_1", "confirm-rollout", 1)).not.toEqual(
-      loopsKeys.requestDetail("ws_a", "run_1", "confirm-rollout", 2)
+    expect(loopsKeys.requestDetail("ws_a", "run_1", 3, "confirm-rollout", 1)).not.toEqual(
+      loopsKeys.requestDetail("ws_a", "run_1", 3, "confirm-rollout", 2)
     );
   });
 

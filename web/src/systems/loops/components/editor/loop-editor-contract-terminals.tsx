@@ -14,10 +14,6 @@ interface LoopEditorContractTerminalsProps {
   onChangePath: (path: FieldPath, value: unknown) => void;
 }
 
-/**
- * The seven contract terminal reactions (ADR-010 §1), each a plain effect list firing exactly
- * once per run on the resulting outcome, including `on_canceled`.
- */
 export function LoopEditorContractTerminals({
   contract,
   disabled,

@@ -11,7 +11,7 @@ interface LoopRunSubheadProps extends ComponentProps<"div"> {
   subject: string | null;
   /** True when the pinned graph parks on a watch source ("Watching …" voice). */
   hasWatchSource: boolean;
-  /** Ticking (running) or frozen (§5.4) elapsed label. */
+
   elapsedLabel: string;
   /** Unprefixed origin/actor from `humanizeStartOrigin`; this strip prepends `Started by `. */
   startedBy?: string;
@@ -29,7 +29,6 @@ function RelativeTime({ iso }: { iso: string }) {
   );
 }
 
-/** The elapsed voice per §5.4: plain while running, `active`/`used` while parked. */
 function elapsedSegment(run: LoopRunRecord, elapsedLabel: string): string | null {
   switch (run.status) {
     case "watching":
@@ -43,10 +42,6 @@ function elapsedSegment(run: LoopRunRecord, elapsedLabel: string): string | null
   }
 }
 
-/**
- * The run subhead strip (§2 anatomy): run id, watched subject, started/ended
- * relative time, and the elapsed clock — one quiet line under the topbar.
- */
 export function LoopRunSubhead({
   run,
   subject,

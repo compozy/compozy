@@ -1,14 +1,6 @@
 import type { EditorEdge, EditorNode } from "./codec";
 import type { LoopDefinition } from "../types";
 
-/**
- * The single reference namespace both the `{{ }}` template surface and the CEL
- * condition surface resolve against (ADR-020). The editor's autocomplete offers
- * exactly these paths so an author never hand-types an unvalidated reference; the
- * shared linter still owns whether a path resolves (`unknown_reference`). This module
- * only enumerates the reachable shape from the current definition — it does not judge.
- */
-
 export type LoopReferenceKind =
   | "input"
   | "node-output"
@@ -96,8 +88,6 @@ export function buildReferenceNamespace(
       detail: "the fanned index (fan-out branch)",
     });
   }
-  // `trigger.<path>` is the activation payload — trigger/webhook starts carry one
-  // (ADR-020/023). Payload-less direct starts (manual/cli/uds) do not.
   const TRIGGER_START_KINDS = new Set(["trigger", "webhook", "schedule", "network"]);
   const hasTriggerStart = (definition.start ?? []).some(binding =>
     TRIGGER_START_KINDS.has(binding.kind)
@@ -122,7 +112,6 @@ export function filterReferences(
   return suggestions.filter(suggestion => suggestion.path.toLowerCase().includes(needle));
 }
 
-/** Namespace roots that trigger the CEL identifier picker (ADR-020). */
 const CEL_ROOTS = ["inputs", "nodes", "item", "index", "trigger", "generation"];
 
 function activeTemplateQuery(value: string, caret: number): string | null {

@@ -45,7 +45,6 @@ import { LoopRunSubhead } from "./loop-run-subhead";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
 import { LoopRunUsageRail } from "./loop-run-usage-rail";
 
-/** Statuses that render the terminal extra card at the top of the main column (§7). */
 const OUTCOME_STATUSES = new Set<LoopRunStatus>([
   "failed",
   "blocked",
@@ -132,7 +131,7 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   onStartNewRun: () => void;
 
   requests?: readonly LoopRequestView[];
-  requestFocus?: { nodeId: string; itemIndex: number };
+  requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
 
   requestState?: LoopRunRequestState;
 
@@ -150,12 +149,6 @@ function shortDigest(digest: string): string {
   return digest.replace(/^sha256:/, "").slice(0, 7);
 }
 
-/**
- * The redesigned run page body (§2 anatomy): subhead, the status-gated main
- * column — Needs you / outcome card / Progress / Happening now / What happened /
- * What happens next — and the 320px Usage + About rail with the Inspect foot.
- * Purely presentational; the location wires the view-model hook into it.
- */
 export function LoopRunPageBody({
   run,
   definition,
@@ -217,7 +210,10 @@ export function LoopRunPageBody({
   const quarantinedNodes = (nodeLifecycles ?? []).filter(node => node.quarantined);
 
   const requestKinds = new Map(
-    requests.map(view => [`${view.request.node_id}:${view.request.item_index}`, view.request.kind])
+    requests.map(view => [
+      `${view.request.generation}:${view.request.node_id}:${view.request.item_index}`,
+      view.request.kind,
+    ])
   );
 
   const pendingRequestCount = requests.filter(

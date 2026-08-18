@@ -4,19 +4,6 @@ import { isTerminalLoopStatus } from "./loop-formatters";
 import type { LoopNodeLifecycle } from "./loop-node-lifecycle";
 import { parkedNodeIds } from "./loop-node-lifecycle";
 
-/**
- * The group progress model (redesign spec §5.2): the latest generation's fan-out
- * branches as equal-width segments, plus the plain-language meta line. Batch
- * sizes are not first-class, so segments never carry invented weights — one
- * branch, one equal segment.
- *
- * Parked accounting (US-019 AC-2, US-024 AC-1): a paused, quarantined, or
- * waiting node is *excluded from the denominator*, not counted as failing. Its
- * clock is suspended, so "2 of 3 counted tasks done · 1 paused excluded" is the
- * truthful reading — showing it as an unfinished group would imply work is owed
- * that nothing is spending attempts on.
- */
-
 export type LoopProgressSegmentState =
   | "clean"
   | "active"

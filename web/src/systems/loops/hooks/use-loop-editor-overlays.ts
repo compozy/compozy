@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { LoopEditorConnectionDrop } from "../components/editor/loop-editor-canvas";
+import type { LoopEditorConnectionDrop } from "../lib/loop-editor-types";
 
 export interface LoopEditorOverlays {
   quickAdd: { position: { x: number; y: number } | null } | null;

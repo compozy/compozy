@@ -28,7 +28,7 @@ export function LoopRunDetailLocation({
 }: {
   runId: string;
   routeWorkspaceId?: string;
-  requestFocus?: { nodeId: string; itemIndex: number };
+  requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
 }) {
   const navigate = useNavigate();
   const { activeWorkspace, runtimeWorkspaceId, workspaces } = useActiveWorkspace();
@@ -93,7 +93,7 @@ interface LoopRunDetailProps {
   workspaceName?: string;
   liveDataEnabled: boolean;
   navigate: ReturnType<typeof useNavigate>;
-  requestFocus?: { nodeId: string; itemIndex: number };
+  requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
 }
 
 function LoopRunDetail({

@@ -36,14 +36,6 @@ function setOverrideValue(
   return { ...draft, values };
 }
 
-/**
- * Per-run limits (§4.3): folded by default but never silent — the summary states the
- * generations, whether a budget is enforced, and whether the loop's saved defaults are
- * still in play, so folding hides detail rather than truth. Open, it is the limrow list
- * of six numeric fields (each showing its per-loop default + runtime bound) plus the
- * budget-exceeded policy as the last row. There is NO cost-cap field — cost is
- * display-only (ADR-017 §9.5.2).
- */
 export function LoopRunOverrides({
   effectiveConfig,
   draft,

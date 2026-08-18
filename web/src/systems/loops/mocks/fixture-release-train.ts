@@ -56,6 +56,7 @@ export const releaseTrainGraph = fixtureGraph(
       id: "rollout",
       class: "control",
       kind: "fan-out",
+      collection: "{{ .inputs.services }}",
       batch_size: 1,
       max_parallel: 2,
       max_fan_out: 500,

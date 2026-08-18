@@ -28,10 +28,10 @@ func (g *LoopRepo) pauseNodeLane(
 		return fmt.Errorf("store: load Loop node lane pause target: %w", err)
 	}
 	insert, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO loop_node_lane_pauses (
-		workspace_id, loop_run_id, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, mutation.WorkspaceID, mutation.RunID, mutation.NodeID,
-		itemIndex, mutation.Actor.Actor.Kind, mutation.Actor.Actor.Ref, mutation.Reason, mutation.Mode,
-		mutation.RequestedAt.UTC())
+		workspace_id, loop_run_id, generation, node_id, item_index, actor_kind, actor_id, reason, mode, requested_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, mutation.WorkspaceID, mutation.RunID, run.Generation,
+		mutation.NodeID, itemIndex, mutation.Actor.Actor.Kind, mutation.Actor.Actor.Ref, mutation.Reason,
+		mutation.Mode, mutation.RequestedAt.UTC())
 	if err != nil {
 		return fmt.Errorf("store: insert Loop node lane pause: %w", err)
 	}
@@ -80,8 +80,8 @@ func (g *LoopRepo) resumeNodeLane(
 	itemIndex := *mutation.ItemIndex
 	var pausedAt time.Time
 	if err := exec.QueryRowContext(ctx, `SELECT requested_at FROM loop_node_lane_pauses
-		WHERE workspace_id = ? AND loop_run_id = ? AND node_id = ? AND item_index = ?`,
-		mutation.WorkspaceID, mutation.RunID, mutation.NodeID, itemIndex).Scan(&pausedAt); err != nil {
+		WHERE workspace_id = ? AND loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
+		mutation.WorkspaceID, mutation.RunID, run.Generation, mutation.NodeID, itemIndex).Scan(&pausedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return loopLifecycleReasonError(looppkg.ReasonCodeNodeNotPaused,
 				fmt.Errorf("%w: node lane %s/%d is not paused", looppkg.ErrInvalidTransition,
@@ -91,8 +91,8 @@ func (g *LoopRepo) resumeNodeLane(
 		return fmt.Errorf("store: load Loop node lane pause: %w", err)
 	}
 	removed, err := exec.ExecContext(ctx, `DELETE FROM loop_node_lane_pauses
-		WHERE workspace_id = ? AND loop_run_id = ? AND node_id = ? AND item_index = ?`,
-		mutation.WorkspaceID, mutation.RunID, mutation.NodeID, itemIndex)
+		WHERE workspace_id = ? AND loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
+		mutation.WorkspaceID, mutation.RunID, run.Generation, mutation.NodeID, itemIndex)
 	if err != nil {
 		return fmt.Errorf("store: release Loop node lane pause: %w", err)
 	}

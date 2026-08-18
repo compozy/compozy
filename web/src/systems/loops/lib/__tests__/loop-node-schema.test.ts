@@ -52,7 +52,6 @@ describe("loop node schema", () => {
     const prompt = fields.find(f => "key" in f && f.key === "prompt");
     expect(agent).toMatchObject({ required: true, reference: true });
     expect(prompt).toMatchObject({ type: "textarea", required: true, reference: true });
-    // No `action_ref` and no closed kind select (round-5 delete targets, ADR-021).
     expect(keys(fields)).not.toContain("action_ref");
     expect(keys(fields)).toContain("overrides");
   });
@@ -79,7 +78,6 @@ describe("loop node schema", () => {
       type: "select",
       options: ["revise_until_clean", "fixed_passes"],
     });
-    // Routing is editable in-inspector (not a read-only summary) — R-004 remediation.
     const onPass = fields.find(f => "key" in f && f.key === "on_pass");
     const onFail = fields.find(f => "key" in f && f.key === "on_fail");
     expect(onPass).toMatchObject({
@@ -225,8 +223,6 @@ describe("loop node schema", () => {
   it("Should render a file-import parse select over exactly json and text", () => {
     const raw: RawLoopNode = { id: "load", class: "source", kind: "file-import", pattern: "" };
     const parse = buildNodeFields(raw).find(f => "key" in f && f.key === "parse");
-    // The Markdown-task parse value left the core: file-import parses only the two
-    // structured formats now (ADR-002 — the extension owns CompozyOS task import).
     expect(parse).toMatchObject({ type: "select", path: ["parse"], options: ["json", "text"] });
   });
 

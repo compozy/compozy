@@ -2,12 +2,6 @@ import type { LoopRunGeneration } from "../types";
 import { type LoopGraph, findWatchNode, topoOrder } from "./loop-graph";
 import { humanizeLoopNodeId } from "./loop-run-story-rows";
 
-/**
- * The "What happens next" quiet note (redesign spec §5.3): the remaining
- * downstream nodes of the current generation phrased as one static sentence from
- * the pinned graph — no invention, domain flavor only from node ids.
- */
-
 /** Joins humanized labels as an ordered sequence: `a`, `a, then b`, `a, b, then c`. */
 function joinLabels(labels: string[]): string {
   if (labels.length <= 1) return labels[0] ?? "";
@@ -17,11 +11,6 @@ function joinLabels(labels: string[]): string {
 /** Latest-generation output statuses that still count as "ahead" work. */
 const PENDING_OUTPUT_STATUSES = new Set(["pending", "ready", "enqueued"]);
 
-/**
- * The "What happens next" quiet note (§5.3): remaining downstream nodes of the
- * current generation in topological order, humanized into one sentence, ending
- * with the watch/stop clause. Static per definition — no invention.
- */
 export function buildNextNote(
   graph: LoopGraph | null,
   generations: readonly LoopRunGeneration[] | undefined

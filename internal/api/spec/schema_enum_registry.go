@@ -63,6 +63,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.RoleResolutionMode]():               roleResolutionModeValues(),
 		reflect.TypeFor[contract.LoopSource]():                       loopSourceValues(),
 		reflect.TypeFor[contract.LoopRunStatus]():                    loopRunStatusValues(),
+		reflect.TypeFor[contract.LoopCompletionState]():              contract.LoopCompletionStateValues(),
 		reflect.TypeFor[contract.LoopRunTransitionCause]():           contract.LoopRunTransitionCauseValues(),
 		reflect.TypeFor[contract.LoopRunEventKind]():                 loopRunEventKindValues(),
 		reflect.TypeFor[contract.LoopNodeInventoryState]():           contract.LoopNodeInventoryStateValues(),

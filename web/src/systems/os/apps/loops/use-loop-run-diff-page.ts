@@ -92,7 +92,10 @@ export function useLoopRunDiffPage(
     againstGeneration: search.against_generation ?? null,
     againstRunId: search.against_run ?? "",
     baseGeneration,
-    diffError: query === null ? undefined : diffRefusal(diffQuery.error),
+    diffError:
+      query === null
+        ? undefined
+        : (diffRefusal(diffQuery.error) ?? diffRefusal(siblingsQuery.error)),
     diffView: diff ? projectLoopDiff(diff) : null,
     generations,
     goToLoop: () => {

@@ -47,7 +47,9 @@ func (n *daemonNativeTools) loopRequest(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	response, err := n.loopService().GetLoopRequest(ctx, workspaceID, runID, input.NodeID, input.ItemIndex)
+	response, err := n.loopService().GetLoopRequest(
+		ctx, workspaceID, runID, input.Generation, input.NodeID, input.ItemIndex,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
@@ -72,7 +74,7 @@ func (n *daemonNativeTools) loopRespond(
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
 	response, err := n.loopService().RespondLoopRequest(ctx, workspaceID, runID, input.NodeID,
-		contract.RespondLoopRequest{ItemIndex: input.ItemIndex, Decision: input.Decision,
+		contract.RespondLoopRequest{Generation: input.Generation, ItemIndex: input.ItemIndex, Decision: input.Decision,
 			Payload: input.Payload, Note: input.Note}, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)

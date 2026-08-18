@@ -157,7 +157,7 @@ export const graphEngResolvedRequests: LoopRequest[] = [
 
 export const graphEngRequestsByNode = new Map<string, LoopRequest>(
   [...graphEngPendingRequests, ...graphEngResolvedRequests].map(entry => [
-    `${entry.loop_run_id}:${entry.node_id}:${entry.item_index}`,
+    `${entry.loop_run_id}:${entry.generation}:${entry.node_id}:${entry.item_index}`,
     entry,
   ])
 );

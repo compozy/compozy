@@ -9,12 +9,6 @@ interface LoopStatsPanelProps {
   aggregate: LoopAggregate30d;
 }
 
-/**
- * Right-rail "Last 30 days" panel. The daemon projection exposes success rate and
- * the run/succeeded/failed aggregate only; average generations and median
- * duration from the design mock are not in the contract, so the four stats render
- * exactly what the daemon computes (truthful UI, §9.11).
- */
 export function LoopStatsPanel({ successRate, aggregate }: LoopStatsPanelProps) {
   const stats = [
     { label: "Success rate", value: successRateLabel(successRate) },

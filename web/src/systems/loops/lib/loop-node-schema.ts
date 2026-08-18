@@ -90,20 +90,6 @@ function actionKindFields(raw: RawLoopNode, kind: string): FieldSpec[] {
   return toolActionFields(raw);
 }
 
-/**
- * Resolves the inspector field set for a node from its class + kind. Reserved kinds
- * (run-agent / run-loop / transform) get first-party forms; every other action kind is a
- * ToolID rendered by the generic params form; control/source kinds map to their DSL shapes.
- * An unrecognized kind degrades to id + kind. The per-kind builders live in
- * `loop-node-fields.ts`; this is the thin dispatcher (one responsibility per file).
- *
- * Lifecycle fields follow the runtime's class rules (ADR-010):
- * - action: reliability (deadline · retry · result_contract · on_error) + the six triggers,
- *   goal drops deadline/backoff/non_retryable (`retry_on_goal_node`);
- * - control: on_error + the six triggers only — a control produces no task run, so a retry or
- *   deadline would be inert and result_contract lacks a declared output schema;
- * - source: nothing — no source kind produces an attempt (`error_route_dead`).
- */
 export function buildNodeFields(
   raw: RawLoopNode,
   definition?: Pick<LoopDefinition, "inputs" | "start">,

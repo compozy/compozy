@@ -30,6 +30,7 @@ const (
 	loopRunKey        = "run"
 	loopStatusKey     = "status"
 	loopStateKey      = "state"
+	loopGenerationKey = "generation"
 	loopTurnsKey      = "turns"
 	loopCancelKey     = "cancel"
 	loopKillKey       = "kill"

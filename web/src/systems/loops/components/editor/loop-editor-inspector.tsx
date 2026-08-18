@@ -30,12 +30,6 @@ interface LoopEditorInspectorProps {
   lintIssues?: readonly LoopValidationIssue[];
 }
 
-/**
- * The set of nodes inside a fan-out branch body — every node reachable forward from a
- * fan-out node up to (not through) its paired `collect` barrier. `item`/`index` enter the
- * reference namespace only for these nodes (ADR-020 scopes them to the whole branch body,
- * which can be several hops deep), not merely a fan-out's direct successors.
- */
 function fanoutBranchNodeIds(nodes: EditorNode[], edges: EditorEdge[]): Set<string> {
   const fanOutIds: string[] = [];
   const collectIds = new Set<string>();
@@ -71,14 +65,6 @@ function fanoutBranchNodeIds(nodes: EditorNode[], edges: EditorEdge[]): Set<stri
   return inBranch;
 }
 
-/**
- * The per-node inspector (design §4.6). It renders the field set the DSL types produce
- * for the selected node's class/kind (loop-node-schema) — swapping entirely when the
- * selection changes — and routes every edit back through the codec. The field container is
- * keyed by `selectionKey` (which changes only on a selection switch, not a rename) so
- * per-field draft buffers (JSON editors) reset when switching nodes but a per-keystroke
- * rename never remounts the id input.
- */
 export function LoopEditorInspector({
   node,
   fields,

@@ -252,6 +252,7 @@ func (p CoordinatorCompletionPlan) validateShape(path string) error {
 	if p.Yield && (len(p.NodeRuns) > 0 ||
 		len(p.RunStops) > 0 ||
 		len(p.ParentCloses) > 0 ||
+		len(p.LaneCancels) > 0 ||
 		p.NextCoordinator != nil ||
 		p.Terminal != nil) {
 		return fmt.Errorf("%w: %s yield must not enqueue work or terminalize", ErrValidation, path)
