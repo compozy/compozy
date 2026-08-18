@@ -10,6 +10,7 @@ export function installApplicationMenu(product: () => ProductWindow | null): voi
       submenu: [{ role: "about" }, { type: "separator" }, { role: "hide" }, { role: "quit" }],
     });
   }
+  template.push({ role: "editMenu" });
   template.push({
     label: "View",
     submenu: [

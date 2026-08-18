@@ -54,6 +54,86 @@ func (p *stubDaemonProcess) complete(err error) {
 	close(p.done)
 }
 
+func TestRefreshDesktopOwnedRuntimePath(t *testing.T) {
+	t.Run("Should preserve the inherited PATH for an operator-managed runtime", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := false
+		set := false
+		err := refreshDesktopOwnedRuntimePath(t.Context(), compozyconfig.HomePaths{}, desktopRuntimePathDependencies{
+			executable:     func() (string, error) { return "/operator/compozy", nil },
+			ownedByDesktop: func(compozyconfig.HomePaths, string) bool { return false },
+			environment:    func() []string { return []string{"PATH=/inherited/bin"} },
+			resolve: func(context.Context, []string) (string, error) {
+				resolved = true
+				return "/login/bin", nil
+			},
+			setenv: func(string, string) error {
+				set = true
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("refreshDesktopOwnedRuntimePath() error = %v", err)
+		}
+		if resolved || set {
+			t.Fatalf("operator-managed runtime changed PATH: resolved=%t set=%t", resolved, set)
+		}
+	})
+
+	t.Run("Should install the login shell PATH for a desktop-owned runtime", func(t *testing.T) {
+		t.Parallel()
+
+		var gotKey string
+		var gotValue string
+		err := refreshDesktopOwnedRuntimePath(t.Context(), compozyconfig.HomePaths{}, desktopRuntimePathDependencies{
+			executable:     func() (string, error) { return "/desktop/compozy", nil },
+			ownedByDesktop: func(compozyconfig.HomePaths, string) bool { return true },
+			environment:    func() []string { return []string{"PATH=/gui/bin"} },
+			resolve: func(_ context.Context, environment []string) (string, error) {
+				if !slices.Contains(environment, "PATH=/gui/bin") {
+					t.Fatalf("resolve environment = %#v, want inherited PATH", environment)
+				}
+				return "/login/bin:/usr/bin", nil
+			},
+			setenv: func(key string, value string) error {
+				gotKey = key
+				gotValue = value
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("refreshDesktopOwnedRuntimePath() error = %v", err)
+		}
+		if gotKey != "PATH" || gotValue != "/login/bin:/usr/bin" {
+			t.Fatalf("setenv() = %q/%q, want corrected PATH", gotKey, gotValue)
+		}
+	})
+
+	t.Run("Should preserve the inherited PATH when login shell resolution fails", func(t *testing.T) {
+		t.Parallel()
+
+		resolveErr := errors.New("login shell failed")
+		set := false
+		err := refreshDesktopOwnedRuntimePath(t.Context(), compozyconfig.HomePaths{}, desktopRuntimePathDependencies{
+			executable:     func() (string, error) { return "/desktop/compozy", nil },
+			ownedByDesktop: func(compozyconfig.HomePaths, string) bool { return true },
+			environment:    func() []string { return []string{"PATH=/gui/bin"} },
+			resolve:        func(context.Context, []string) (string, error) { return "", resolveErr },
+			setenv: func(string, string) error {
+				set = true
+				return nil
+			},
+		})
+		if !errors.Is(err, resolveErr) {
+			t.Fatalf("refreshDesktopOwnedRuntimePath() error = %v, want resolver error", err)
+		}
+		if set {
+			t.Fatal("refreshDesktopOwnedRuntimePath() changed PATH after resolver failure")
+		}
+	})
+}
+
 func TestPollingLifecycle(t *testing.T) {
 	t.Parallel()
 

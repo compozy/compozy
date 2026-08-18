@@ -82,6 +82,10 @@ verified runtime, so a clean first run can provision offline. Boot resolves in t
 a healthy daemon, start `$COMPOZY_HOME/bin/compozy`, or verify and install the bundled runtime.
 Quitting the shell leaves the daemon running.
 
+On macOS and Linux, a desktop-owned daemon refreshes only `PATH` from the operator's login shell
+before starting runtime services. Failure preserves the inherited environment. Operator-managed
+daemons and Windows keep their launcher environment.
+
 The product UI is developed and release-verified against Chromium, the engine embedded by Electron.
 Other browsers can open the daemon-served UI on a best-effort basis.
 
@@ -105,3 +109,8 @@ The desktop main window supports the standard page zoom shortcuts: `Command` + `
 `-`, and `Command` + `0` on macOS; use `Control` instead of `Command` on Windows and Linux. These
 shortcuts scale the whole product interface. The in-product Window > Zoom action has a different
 purpose: it expands one CompozyOS window inside the desktop workspace.
+
+## Native editing
+
+Editable fields use the platform Edit menu. Cut, copy, paste, and select all use `Command` on macOS
+and `Control` on Windows and Linux.

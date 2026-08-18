@@ -1,12 +1,15 @@
 package procutil
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFilteredDaemonEnvRemovesCredentialShapedVariables(t *testing.T) {
@@ -103,6 +106,83 @@ func TestLaunchSandboxFiltersFallbackEnvironment(t *testing.T) {
 	})
 }
 
+func TestResolveLoginShellPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("login shell PATH resolution is not used on Windows")
+	}
+
+	t.Run("Should return only the PATH emitted by the operator login shell", func(t *testing.T) {
+		home := t.TempDir()
+		shell := writeExecutableShell(t, `#!/bin/sh
+if [ "$DISABLE_AUTO_UPDATE" != "true" ]; then exit 31; fi
+: > login-shell-cwd-marker
+printf 'startup noise\000/login/bin:/usr/bin\000trailing noise'
+`)
+		got, err := ResolveLoginShellPath(t.Context(), []string{
+			"HOME=" + home,
+			"PATH=/gui/bin",
+			"SHELL=" + shell,
+		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 1024})
+		if err != nil {
+			t.Fatalf("ResolveLoginShellPath() error = %v", err)
+		}
+		if got != "/login/bin:/usr/bin" {
+			t.Fatalf("ResolveLoginShellPath() = %q, want login shell PATH", got)
+		}
+		if _, err := os.Stat(filepath.Join(home, "login-shell-cwd-marker")); err != nil {
+			t.Fatalf("login shell working directory marker: %v", err)
+		}
+	})
+
+	t.Run("Should reject an empty login shell PATH", func(t *testing.T) {
+		shell := writeExecutableShell(t, "#!/bin/sh\nprintf '\\000\\000'\n")
+		got, err := ResolveLoginShellPath(t.Context(), []string{
+			"HOME=" + t.TempDir(),
+			"PATH=/gui/bin",
+			"SHELL=" + shell,
+		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 1024})
+		if err == nil {
+			t.Fatal("ResolveLoginShellPath() error = nil, want empty PATH error")
+		}
+		if got != "" {
+			t.Fatalf("ResolveLoginShellPath() = %q, want no PATH on error", got)
+		}
+	})
+
+	t.Run("Should reject shell output beyond the configured bound", func(t *testing.T) {
+		shell := writeExecutableShell(
+			t,
+			"#!/bin/sh\nprintf '\\000%s\\000' '"+strings.Repeat("x", 64)+"'\n",
+		)
+		got, err := ResolveLoginShellPath(t.Context(), []string{
+			"HOME=" + t.TempDir(),
+			"PATH=/gui/bin",
+			"SHELL=" + shell,
+		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 32})
+		if !errors.Is(err, errLoginShellPathOutputTooLarge) {
+			t.Fatalf("ResolveLoginShellPath() error = %v, want output limit error", err)
+		}
+		if got != "" {
+			t.Fatalf("ResolveLoginShellPath() = %q, want no PATH on error", got)
+		}
+	})
+
+	t.Run("Should stop the login shell when the deadline expires", func(t *testing.T) {
+		shell := writeExecutableShell(t, "#!/bin/sh\nwhile :; do :; done\n")
+		got, err := ResolveLoginShellPath(t.Context(), []string{
+			"HOME=" + t.TempDir(),
+			"PATH=/gui/bin",
+			"SHELL=" + shell,
+		}, LoginShellPathOptions{Timeout: 20 * time.Millisecond, MaxOutputBytes: 1024})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("ResolveLoginShellPath() error = %v, want deadline exceeded", err)
+		}
+		if got != "" {
+			t.Fatalf("ResolveLoginShellPath() = %q, want no PATH on error", got)
+		}
+	})
+}
+
 func TestAttachCommandLogRedactsRecentError(t *testing.T) {
 	t.Run("Should redact token shaped stderr before wrapping", func(t *testing.T) {
 		logPath := filepath.Join(t.TempDir(), "command.log")
@@ -158,4 +238,14 @@ func hasEnvPrefix(env []string, prefix string) bool {
 		}
 	}
 	return false
+}
+
+func writeExecutableShell(t *testing.T, contents string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "login-shell")
+	if err := os.WriteFile(path, []byte(contents), 0o700); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
+	return path
 }

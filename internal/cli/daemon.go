@@ -243,6 +243,7 @@ func runDaemonForegroundMode(
 	exitWhenOrphaned bool,
 	acquireUpdateLock bool,
 ) (returnErr error) {
+	deps = deps.withDaemonRuntimeDefaults()
 	runtime, err := loadRuntimeContext(deps)
 	if err != nil {
 		return err
@@ -250,6 +251,7 @@ func runDaemonForegroundMode(
 	if err := deps.ensureHome(runtime.HomePaths); err != nil {
 		return err
 	}
+	refreshDesktopOwnedRuntimePathBeforeStart(ctx, deps, runtime.HomePaths)
 	var updateLock *compozydaemon.UpdateLock
 	if acquireUpdateLock {
 		updateLock, err = acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(runtime.HomePaths))

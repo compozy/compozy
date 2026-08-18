@@ -16,6 +16,17 @@ subprocesses, and lets some extension providers use process-level overrides.
 | Managed session env injection | Agent subprocesses.                         | Starts from daemon environment, sets CompozyOS session variables, sets `COMPOZY_BIN`, and prepends the daemon binary directory to `PATH`. |
 | Hook subprocess env           | Hook subprocesses.                          | Starts from an allowlist of parent env vars, then applies hook `env` overrides.                                                           |
 
+## Desktop-owned daemon PATH
+
+On macOS and Linux, a daemon started from the desktop app resolves `PATH` from the operator's login
+shell before it starts runtime services. Only `PATH` is imported; other shell variables do not
+replace the desktop process environment. If shell resolution fails or exceeds its bound, startup
+continues with the inherited `PATH` and records a warning.
+
+This behavior applies only while durable install provenance identifies the runtime as desktop-owned.
+A daemon started or installed by the operator keeps the environment from its own launcher. Windows
+keeps the inherited desktop environment.
+
 ## Core Variables CompozyOS Reads
 
 | Variable                               | Type           | Default      | Valid values                                        | Description                                                                                                                                                               |

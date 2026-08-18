@@ -17,6 +17,9 @@ import { completeOnboarding } from "../helpers";
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
 const repositoryRoot = resolve(testDirectory, "../../../..");
+const loginPathAgent = "desktop-login-path-agent";
+const loginPathFixtureAgent = "browser-lifecycle-agent";
+const loginPathPrompt = "e2e first message";
 
 async function jsonCommand(
   desktop: DesktopInstance,
@@ -31,6 +34,93 @@ async function bootstrapEvents(home: string): Promise<readonly Record<string, un
     .split("\n")
     .filter(Boolean)
     .map(line => JSON.parse(line) as Record<string, unknown>);
+}
+
+async function prepareLoginPathProvider(context: {
+  readonly environment: Record<string, string>;
+  readonly home: string;
+}): Promise<void> {
+  const operatorHome = join(context.home, "operator");
+  const loginBin = join(operatorHome, ".local", "bin");
+  const fixtureDir = join(context.home, "fixtures");
+  const driver = join(
+    fixtureDir,
+    process.platform === "win32" ? "acpmock-driver.exe" : "acpmock-driver"
+  );
+  const provider = join(loginBin, process.platform === "win32" ? "desktop-acp.cmd" : "desktop-acp");
+  const fixture = join(
+    repositoryRoot,
+    "internal",
+    "testutil",
+    "acpmock",
+    "testdata",
+    "browser_session_lifecycle_fixture.json"
+  );
+  const diagnostics = join(context.home, "logs", "desktop-login-path-provider.jsonl");
+  const agentDir = join(context.home, "agents", loginPathAgent);
+  await Promise.all([
+    mkdir(loginBin, { recursive: true, mode: 0o700 }),
+    mkdir(fixtureDir, { recursive: true, mode: 0o700 }),
+    mkdir(agentDir, { recursive: true, mode: 0o700 }),
+  ]);
+  const build = await runCommand(
+    "go",
+    ["build", "-o", driver, "./internal/testutil/acpmock/cmd/acpmock-driver"],
+    { cwd: repositoryRoot, env: process.env }
+  );
+  if (build.exitCode !== 0) {
+    throw new Error(build.stderr.trim() || "ACP provider fixture build failed.");
+  }
+  if (process.platform !== "win32") await chmod(driver, 0o700);
+
+  context.environment.COMPOZY_DESKTOP_TEST_DRIVER = driver;
+  context.environment.COMPOZY_DESKTOP_TEST_FIXTURE = fixture;
+  context.environment.COMPOZY_DESKTOP_TEST_DIAGNOSTICS = diagnostics;
+  context.environment.COMPOZY_DESKTOP_TEST_LOGIN_BIN = loginBin;
+  context.environment.HOME = operatorHome;
+  context.environment.PATH =
+    process.platform === "win32" ? (process.env.PATH ?? "") : "/usr/bin:/bin:/usr/sbin:/sbin";
+
+  if (process.platform === "win32") {
+    await writeFile(
+      provider,
+      [
+        "@echo off",
+        '"%COMPOZY_DESKTOP_TEST_DRIVER%" --fixture "%COMPOZY_DESKTOP_TEST_FIXTURE%" --agent "browser-lifecycle-agent" --diagnostics "%COMPOZY_DESKTOP_TEST_DIAGNOSTICS%"',
+        "",
+      ].join("\r\n"),
+      { mode: 0o700 }
+    );
+  } else {
+    const loginShell = join(operatorHome, "login-shell");
+    context.environment.SHELL = loginShell;
+    await Promise.all([
+      writeFile(
+        provider,
+        `#!/bin/sh\nexec "$COMPOZY_DESKTOP_TEST_DRIVER" --fixture "$COMPOZY_DESKTOP_TEST_FIXTURE" --agent "${loginPathFixtureAgent}" --diagnostics "$COMPOZY_DESKTOP_TEST_DIAGNOSTICS"\n`,
+        { mode: 0o700 }
+      ),
+      writeFile(
+        loginShell,
+        '#!/bin/sh\nexport PATH="$COMPOZY_DESKTOP_TEST_LOGIN_BIN:/usr/bin:/bin:/usr/sbin:/sbin"\nexec /bin/sh "$@"\n',
+        { mode: 0o700 }
+      ),
+    ]);
+  }
+
+  const configPath = join(context.home, "config.toml");
+  const config = await readFile(configPath, "utf8");
+  await Promise.all([
+    writeFile(
+      configPath,
+      `${config}\n[providers.desktop-login-path]\ncommand = "desktop-acp"\ndisplay_name = "Desktop login PATH"\nauth_mode = "none"\nnone_security = "local_transport"\n\n[providers.desktop-login-path.models]\ndefault = "qa-browser-model"\n`
+    ),
+    writeFile(
+      join(agentDir, "AGENT.md"),
+      `---\nname: ${loginPathAgent}\nprovider: desktop-login-path\nmodel: qa-browser-model\npermissions: approve-reads\n---\n\nYou are the desktop login PATH test agent.\n`,
+      { mode: 0o600 }
+    ),
+  ]);
 }
 
 async function corruptRuntimeBundle(context: {
@@ -424,6 +514,74 @@ test("E2E-009: menu and shortcut zoom share one persisted bounded value", async 
         ?.webContents.getZoomLevel()
     )
   ).toBe(1);
+});
+
+test("native Edit shortcuts copy and paste editable renderer content", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop();
+  const product = await desktop.product();
+  expect(
+    await desktop.app.evaluate(({ Menu }) => {
+      const edit = Menu.getApplicationMenu()?.items.find(item => item.label === "Edit");
+      return edit?.submenu?.items.map(item => item.role) ?? [];
+    })
+  ).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectall"]));
+  await product.evaluate(() => {
+    const source = document.createElement("input");
+    source.setAttribute("aria-label", "Copy source");
+    source.value = "Copied through the Electron Edit menu";
+    const target = document.createElement("input");
+    target.setAttribute("aria-label", "Paste target");
+    document.body.append(source, target);
+    source.focus();
+    source.select();
+  });
+
+  const modifier = process.platform === "darwin" ? "Meta" : "Control";
+  await product.keyboard.press(`${modifier}+C`);
+  await product.getByRole("textbox", { name: "Paste target" }).focus();
+  await product.keyboard.press(`${modifier}+V`);
+
+  await expect(product.getByRole("textbox", { name: "Paste target" })).toHaveValue(
+    "Copied through the Electron Edit menu"
+  );
+});
+
+test("desktop-owned runtime resolves a provider available only on the login PATH", async ({
+  launchDesktop,
+}) => {
+  test.skip(process.platform === "win32", "Windows preserves the inherited desktop PATH");
+
+  const desktop = await launchDesktop({ prepare: prepareLoginPathProvider });
+  await desktop.product();
+  const created = await jsonCommand(desktop, [
+    "session",
+    "new",
+    "--cwd",
+    repositoryRoot,
+    "--agent",
+    loginPathAgent,
+    "-o",
+    "json",
+  ]);
+  const sessionID = typeof created.id === "string" ? created.id : "";
+  expect(sessionID).not.toBe("");
+
+  await desktop.cli(["session", "prompt", sessionID, loginPathPrompt, "-o", "json"]);
+  await expect
+    .poll(async () => {
+      try {
+        return await readFile(
+          join(desktop.home, "logs", "desktop-login-path-provider.jsonl"),
+          "utf8"
+        );
+      } catch (error) {
+        if (error instanceof Error && "code" in error && error.code === "ENOENT") return "";
+        throw error;
+      }
+    })
+    .toContain(loginPathPrompt);
 });
 
 test("E2E-010: external navigation opens only safe web URLs and never leaves the product", async ({
