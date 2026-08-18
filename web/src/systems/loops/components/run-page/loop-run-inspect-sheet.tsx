@@ -27,9 +27,11 @@ import {
   LoopRunInspectTerminalStates,
   LoopRunInspectTiles,
   LoopRunInspectVerification,
+  LoopRunInspectGenerations,
   LoopRunInspectWatch,
   type LoopRunInspectTile,
 } from "./loop-run-inspect-sections";
+import { LoopRunLineageSection } from "./loop-run-lineage-section";
 import { LoopRunResolvedRuntimes } from "./loop-run-resolved-runtimes";
 
 interface LoopRunInspectSheetProps {
@@ -42,6 +44,12 @@ interface LoopRunInspectSheetProps {
   watchEvents?: LoopWatchEventsState;
   generations: readonly LoopRunGeneration[];
   frames: readonly LoopRunEventFrame[];
+
+  onOpenRun?: (runId: string) => void;
+
+  onCompareGeneration?: (generation: number) => void;
+
+  onForkGeneration?: (generation: number) => void;
 }
 
 function str(value: unknown): string {
@@ -129,6 +137,9 @@ export function LoopRunInspectSheet({
   watchEvents,
   generations,
   frames,
+  onOpenRun,
+  onCompareGeneration,
+  onForkGeneration,
 }: LoopRunInspectSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -184,7 +195,19 @@ export function LoopRunInspectSheet({
           </div>
           <LoopRunInspectTiles tiles={buildTiles(run, definition, graph)} />
           <LoopRunInspectVerification verification={definition?.contract?.verification ?? []} />
+          <LoopRunInspectGenerations
+            generations={generations}
+            onCompareGeneration={onCompareGeneration}
+            onForkGeneration={onForkGeneration}
+          />
           <LoopRunResolvedRuntimes generations={generations} />
+          {onOpenRun ? (
+            <LoopRunLineageSection
+              forkedFrom={run.forked_from ?? null}
+              forks={run.forks}
+              onOpenRun={onOpenRun}
+            />
+          ) : null}
           <LoopRunInspectTerminalStates states={definition?.contract?.terminal_states ?? []} />
           <LoopRunInspectCriteria verdict={latestVerdict} />
           <LoopRunInspectWatch state={watchEvents} />

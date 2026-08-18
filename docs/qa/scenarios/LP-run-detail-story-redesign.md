@@ -6,7 +6,7 @@ persona: Lea
 journey: J-04
 expected: The run detail uses the materialized contract for its plain-language Progress story, shows bounded Goal criterion diagnostics and warnings in the turn timeline, and keeps the raw executed definition plus every operator fact reachable through Inspect.
 entry_points: web /loop-runs/:id; GET /loop-runs/:id; SSE /loop-runs/:id/events; topbar ⋯ Inspect
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -34,3 +34,5 @@ QA result 2026-08-10: Lea opened the completed Run in the Web app. Progress show
 Goal and definition of done, the expanded timeline showed both command verdicts and their durable
 diagnostics, and Inspect exposed the raw authored definition and runtime facts. The browser console
 reported no errors.
+
+reset: the story timeline gains the graph-completion row families — request lifecycle, route taken, branch pruned, node amended, run forked (.compozy/tasks/graph-eng/task_08.md). The recorded pass predates them.

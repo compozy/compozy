@@ -36,6 +36,7 @@ export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBody
     nowMs: STORY_NOW,
     nodeControls: scenario.nodeControls,
     waits: scenario.waits,
+    requests: scenario.requests,
   });
   return {
     ...view,

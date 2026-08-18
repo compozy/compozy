@@ -20,6 +20,11 @@ import {
 } from "../lib/codec";
 import { buildDslView, type DslLine } from "../lib/loop-dsl";
 import {
+  copyEditorSelection,
+  pasteEditorClipboard,
+  type LoopEditorClipboardContent,
+} from "../lib/loop-editor-clipboard";
+import {
   editorDefinitionFromLoop,
   withLoopContractField,
   withLoopContractPath,
@@ -33,6 +38,7 @@ import {
 } from "../lib/loop-editor-draft";
 import type { LoopLintState } from "../lib/loop-editor-lint";
 import { layoutEditorGraph } from "../lib/loop-editor-layout";
+import { forwardNodeIds } from "../lib/loop-editor-route-edges";
 import { buildNodeFields, type FieldPath, type FieldSpec } from "../lib/loop-node-schema";
 import type { PaletteItem } from "../lib/loop-palette";
 import type { LoopDefinition, LoopDetail, LoopValidationIssue } from "../types";
@@ -43,6 +49,14 @@ import {
 } from "./use-loop-editor-state";
 
 export type LoopEditorStatus = "no-workspace" | "loading" | "error" | "ready";
+
+function selectedNodeIds(nodes: readonly EditorNode[]): string[] {
+  const ids: string[] = [];
+  for (const node of nodes) {
+    if (node.selected) ids.push(node.id);
+  }
+  return ids;
+}
 export type { LoopEditorSidebarTab, LoopEditorView } from "./use-loop-editor-state";
 
 export interface UseLoopEditorResult {
@@ -89,7 +103,18 @@ export interface UseLoopEditorResult {
   changeFields: (edits: NodeFieldEdit[]) => void;
   changeContract: (field: EditableLoopContractField, value: string) => void;
   changeContractPath: (path: FieldPath, value: unknown) => void;
-  addNode: (item: PaletteItem) => void;
+  addNode: (item: PaletteItem, position?: { x: number; y: number }) => void;
+
+  addNodeWithEdge: (item: PaletteItem, position: { x: number; y: number }, source: string) => void;
+
+  onNodesDelete: (deleted: EditorNode[]) => void;
+  deleteNodes: (nodeIds: string[]) => void;
+
+  selectedNodeIds: string[];
+  copyNodes: (nodeIds: string[]) => void;
+  duplicateNodes: (nodeIds: string[]) => void;
+  pasteNodes: () => void;
+  canPaste: boolean;
   autoLayout: () => void;
   validate: () => void;
   publish: () => void;
@@ -118,6 +143,9 @@ export function useLoopEditor(
 
   const {
     addNode,
+    addNodeWithEdge,
+    deleteNodes,
+    pasteNodes,
     baseDefinition,
     busy,
     edges,
@@ -153,6 +181,8 @@ export function useLoopEditor(
   } = useLoopEditorState();
 
   const [revealSeq, setRevealSeq] = useState(0);
+
+  const [clipboard, setClipboard] = useState<LoopEditorClipboardContent | null>(null);
 
   const handlePublished = useEffectEvent((loop: LoopDetail) => {
     onPublished?.(loop);
@@ -232,13 +262,42 @@ export function useLoopEditor(
       ? changes
       : changes.filter(change => change.type !== "remove");
     if (allowed.length === 0) return;
-    let positionsChanged = false;
-    let structureChanged = false;
+
+    const removals: string[] = [];
+    const rest: NodeChange<EditorNode>[] = [];
     for (const change of allowed) {
-      if (change.type === "position") positionsChanged = true;
-      if (change.type === "remove") structureChanged = true;
+      if (change.type === "remove") removals.push(change.id);
+      else rest.push(change);
     }
-    applyGraphNodes(applyNodeChanges(allowed, nodes), positionsChanged, structureChanged);
+    if (rest.length > 0) {
+      const positionsChanged = rest.some(change => change.type === "position");
+      applyGraphNodes(applyNodeChanges(rest, nodes), positionsChanged, false);
+    }
+    if (removals.length > 0) deleteNodes(removals);
+  };
+
+  const onNodesDelete = (deleted: EditorNode[]) => {
+    if (!definitionEditable || deleted.length === 0) return;
+    deleteNodes(deleted.map(node => node.id));
+  };
+
+  const copyNodes = (nodeIds: string[]) => {
+    if (nodeIds.length === 0) return;
+    setClipboard(copyEditorSelection(nodes, edges, nodeIds));
+  };
+
+  const pasteFromClipboard = () => {
+    if (!definitionEditable || !clipboard) return;
+    const pasted = pasteEditorClipboard(nodes, edges, clipboard);
+    if (!pasted) return;
+    pasteNodes(pasted.edges, pasted.nodes, pasted.selectedNodeId);
+  };
+
+  const duplicateNodes = (nodeIds: string[]) => {
+    if (!definitionEditable || nodeIds.length === 0) return;
+    const pasted = pasteEditorClipboard(nodes, edges, copyEditorSelection(nodes, edges, nodeIds));
+    if (!pasted) return;
+    pasteNodes(pasted.edges, pasted.nodes, pasted.selectedNodeId);
   };
 
   const onEdgesChange = (changes: EdgeChange<EditorEdge>[]) => {
@@ -334,7 +393,9 @@ export function useLoopEditor(
 
   const selectedNode = nodes.find(node => node.id === selectedNodeId) ?? null;
   const selectedFields = selectedNode
-    ? buildNodeFields(selectedNode.data.raw, baseDefinition ?? undefined)
+    ? buildNodeFields(selectedNode.data.raw, baseDefinition ?? undefined, {
+        forwardNodeIds: forwardNodeIds(nodes, edges, selectedNode.id),
+      })
     : [];
   const dslBase = baseDefinition;
   // Only serialize when the DSL panel is visible — skip graph conversion + YAML
@@ -393,10 +454,25 @@ export function useLoopEditor(
     changeFields,
     changeContract,
     changeContractPath,
-    addNode: (item: PaletteItem) => {
+    addNode: (item: PaletteItem, position?: { x: number; y: number }) => {
       if (!definitionEditable) return;
-      addNode(item);
+      addNode(item, position);
     },
+    addNodeWithEdge: (item: PaletteItem, position: { x: number; y: number }, source: string) => {
+      if (!definitionEditable) return;
+      addNodeWithEdge(item, position, source);
+    },
+    onNodesDelete,
+    deleteNodes: (nodeIds: string[]) => {
+      if (!definitionEditable) return;
+      deleteNodes(nodeIds);
+    },
+
+    selectedNodeIds: selectedNodeIds(nodes),
+    copyNodes,
+    duplicateNodes,
+    pasteNodes: pasteFromClipboard,
+    canPaste: clipboard !== null,
     autoLayout,
     validate: () => runValidation({ notify: true }),
     publish,

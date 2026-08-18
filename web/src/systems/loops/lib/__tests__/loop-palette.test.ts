@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { LOOP_PALETTE, uniqueNodeId } from "../loop-palette";
+import {
+  filterPaletteItems,
+  LOOP_PALETTE,
+  loopPaletteItems,
+  paletteKindKey,
+  uniqueNodeId,
+} from "../loop-palette";
 
 describe("loop palette", () => {
   it("Should group Action / Control / Source with the reserved action kinds + tool entries", () => {
@@ -55,5 +61,76 @@ describe("loop palette", () => {
     expect(uniqueNodeId("run_agent", new Set())).toBe("run_agent");
     expect(uniqueNodeId("run_agent", existing)).toBe("run_agent_3");
     expect(uniqueNodeId("Bad Id!", new Set())).toBe("bad_id_");
+  });
+
+  it("Should add ask and route to Control without dropping a kind that was already there", () => {
+    const control = LOOP_PALETTE.find(group => group.label === "Control")!;
+    const kinds = control.items.map(item => item.kindLabel);
+    expect(kinds).toContain("ask");
+    expect(kinds).toContain("route");
+
+    expect(kinds).toEqual(
+      expect.arrayContaining(["fan-out", "collect", "branch", "gate", "sub-loop", "wait"])
+    );
+
+    expect(
+      LOOP_PALETTE.find(group => group.label === "Action")!.items.map(i => i.kindLabel)
+    ).toEqual(expect.arrayContaining(["run-agent", "goal", "run-loop", "transform"]));
+  });
+
+  it("Should seed ask and route so a dropped node is valid-shaped from the first render", () => {
+    const control = LOOP_PALETTE.find(group => group.label === "Control")!;
+
+    expect(control.items.find(item => item.kindLabel === "route")!.buildRaw("triage")).toEqual({
+      id: "triage",
+      class: "control",
+      kind: "route",
+      routes: [],
+      default: "",
+    });
+
+    expect(control.items.find(item => item.kindLabel === "ask")!.buildRaw("confirm")).toEqual({
+      id: "confirm",
+      class: "control",
+      kind: "ask",
+      params: { prompt: "", expect: { type: "object" } },
+    });
+  });
+});
+
+describe("filterPaletteItems", () => {
+  const items = loopPaletteItems();
+
+  it("Should return the whole palette for an empty query", () => {
+    expect(filterPaletteItems(items, "")).toHaveLength(items.length);
+    expect(filterPaletteItems(items, "   ")).toHaveLength(items.length);
+  });
+
+  it("Should match on the label, the kind, and the extra keywords alike", () => {
+    expect(filterPaletteItems(items, "watch events").map(item => item.kindLabel)).toEqual([
+      "watch-events",
+    ]);
+    expect(filterPaletteItems(items, "compozy__network_send").map(item => item.label)).toEqual([
+      "Channel post",
+    ]);
+
+    expect(filterPaletteItems(items, "question").map(item => item.kindLabel)).toEqual(["ask"]);
+    expect(filterPaletteItems(items, "switch").map(item => item.kindLabel)).toEqual(["route"]);
+  });
+
+  it("Should ignore case and surrounding whitespace when matching", () => {
+    expect(filterPaletteItems(items, "  ROUTE  ").map(item => item.kindLabel)).toContain("route");
+  });
+
+  it("Should return nothing for a query the palette cannot satisfy", () => {
+    expect(filterPaletteItems(items, "deploy to production")).toEqual([]);
+  });
+});
+
+describe("paletteKindKey", () => {
+  it("Should resolve the tool placeholder to the generic action glyph key", () => {
+    expect(paletteKindKey("tool…")).toBe("");
+    expect(paletteKindKey("run-agent")).toBe("run-agent");
+    expect(paletteKindKey("route")).toBe("route");
   });
 });

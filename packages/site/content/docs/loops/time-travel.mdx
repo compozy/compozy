@@ -21,6 +21,15 @@ return their byte size and SHA-256 content hash instead of an oversized inline p
 
 Diff is a workspace-scoped read and needs no additional agent capability.
 
+In the web UI, open **Inspect** on a run and use **Compare…** on any generation row. The comparison
+view is its own deep-linkable page: node rows are grouped by change kind using the same
+`changed / rerun / skipped / carried / verdict` vocabulary the CLI prints, a value the daemon
+summarized shows its size and content hash with a link to the full content, run comparisons add an
+input block, a banner appears when the two runs pin different definition versions, and a still-executing
+side is labelled as such. Two identical generations render an explicit "nothing changed" state rather
+than an empty page. Pickers are scoped to the same Loop, so the UI never offers a cross-Loop
+comparison the daemon would reject.
+
 ## Rerun from a node
 
 ```bash
@@ -35,6 +44,11 @@ need `loops.timetravel`. An agent cannot rerun its own executing run, but it may
 run.
 
 ## Fork a linked run
+
+From the web UI, **Fork from here** on an Inspect generation row opens a dialog that defaults to that
+generation and pre-fills the source run's declared inputs. Submitting starts the fork and takes you to
+the new run; input errors render exactly as they do on the run form. Once forked, each run's Inspect
+sheet links the other — the source lists its forks, the fork names where it came from.
 
 ```bash
 compozy loop fork --run-id <run-id> --generation 2 --input service=payments

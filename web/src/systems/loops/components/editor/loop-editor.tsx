@@ -1,18 +1,23 @@
 import { AlertCircle } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
 
-import { Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
+import { cn, Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { useWorktrees, type WorktreePayload } from "@/systems/workspace";
 
+import { useLoopEditorChrome } from "../../hooks/use-loop-editor-chrome";
 import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
+import { useLoopEditorReadyActions } from "../../hooks/use-loop-editor-ready-actions";
 import { useLoopFork } from "../../hooks/use-loop-fork";
 import { useLoopConfig } from "../../hooks/use-loops";
 import type { LoopDefinition, LoopDetail, LoopEnvironmentSpec } from "../../types";
 import { LoopEditorCanvas } from "./loop-editor-canvas";
+import { LoopEditorConnectionPicker } from "./loop-editor-connection-picker";
 import { LoopEditorDslView } from "./loop-editor-dsl-view";
-import { LoopEditorPalette } from "./loop-editor-palette";
+import { LoopEditorNodeActionsProvider } from "./loop-editor-node";
+import { LoopEditorPalette, type LoopEditorPaletteMode } from "./loop-editor-palette";
 import { LoopEditorPublishRejectedStrip } from "./loop-editor-publish-rejected-strip";
+import { LoopEditorQuickAdd } from "./loop-editor-quick-add";
 import { LoopEditorSidebar } from "./loop-editor-sidebar";
 import { LoopEditorSourceStrip } from "./loop-editor-source-strip";
 import { LoopEditorStartSummary } from "./loop-editor-start-summary";
@@ -34,12 +39,19 @@ type ReadyEditor = UseLoopEditorResult & {
   definition: LoopDefinition;
 };
 
-/**
- * The fork-and-edit visual editor (task 22): the `@xyflow/react` DAG canvas + node
- * palette + per-node inspector + linter dock + Graph/DSL toggle over the ONE canonical
- * Loop definition. The bijective codec + shared-linter authority live in the view-model
- * (useLoopEditor); this composition wires the surfaces and the publish → run handoff.
- */
+const EDITOR_GRID_CLASS = {
+  "rail:inspector":
+    "grid-cols-[190px_minmax(0,1fr)_320px] xl:grid-cols-[210px_minmax(0,1fr)_344px]",
+  "rail:canvas": "grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)]",
+  "none:inspector": "grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_344px]",
+  "none:canvas": "grid-cols-[minmax(0,1fr)]",
+} as const;
+
+function editorGridClass(paletteMode: LoopEditorPaletteMode, inspectorOpen: boolean): string {
+  const rail = paletteMode === "expanded" ? "rail" : "none";
+  return EDITOR_GRID_CLASS[`${rail}:${inspectorOpen ? "inspector" : "canvas"}`];
+}
+
 export function LoopEditor({
   workspaceId,
   name,
@@ -104,13 +116,15 @@ export function LoopEditor({
   }
 
   return (
-    <LoopEditorReady
-      editor={readyEditor}
-      fork={forkState}
-      gitBacked={worktrees.data?.repo.git_backed !== false}
-      loopDefaultEnvironment={config.data?.environment ?? undefined}
-      worktrees={worktrees.data?.worktrees ?? []}
-    />
+    <ReactFlowProvider>
+      <LoopEditorReady
+        editor={readyEditor}
+        fork={forkState}
+        gitBacked={worktrees.data?.repo.git_backed !== false}
+        loopDefaultEnvironment={config.data?.environment ?? undefined}
+        worktrees={worktrees.data?.worktrees ?? []}
+      />
+    </ReactFlowProvider>
   );
 }
 
@@ -128,20 +142,29 @@ function LoopEditorReady({
   gitBacked: boolean;
 }) {
   const definition = editor.definition;
-  const readOnly = !editor.definitionEditable;
+  const { addNode, chrome, editorRoot, nodeActions, overlays, readOnly, revealNode, selectNode } =
+    useLoopEditorReadyActions(editor);
 
   return (
-    <ReactFlowProvider>
-      <div className="flex min-h-0 flex-1 flex-col gap-0" data-testid="loop-editor">
+    <LoopEditorNodeActionsProvider actions={nodeActions}>
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-0"
+        data-testid="loop-editor"
+        ref={editorRoot}
+      >
         <LoopEditorToolbar
           addNodeDisabled={editor.busy || readOnly}
           busy={editor.busy}
-          onAddNode={editor.addNode}
+          onAddNode={addNode}
           positionsDirty={editor.positionsDirty}
           view={editor.view}
           onViewChange={editor.selectView}
           onAutoLayout={editor.autoLayout}
           onSaveLayout={() => void editor.savePositions()}
+          paletteMode={chrome.paletteMode}
+          onTogglePalette={chrome.togglePalette}
+          inspectorOpen={chrome.inspectorOpen}
+          onToggleInspector={chrome.toggleInspector}
         />
 
         {readOnly ? (
@@ -152,8 +175,15 @@ function LoopEditorReady({
           />
         ) : null}
 
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[170px_minmax(0,1fr)_320px] xl:grid-cols-[190px_minmax(0,1fr)_344px]">
-          <LoopEditorPalette onAddNode={editor.addNode} disabled={editor.busy || readOnly} />
+        <div
+          className={cn(
+            "grid min-h-0 flex-1",
+            editorGridClass(chrome.paletteMode, chrome.inspectorOpen)
+          )}
+        >
+          {chrome.paletteMode === "expanded" ? (
+            <LoopEditorPalette onAddNode={addNode} disabled={editor.busy || readOnly} />
+          ) : null}
 
           <section className="relative flex min-h-0 flex-col bg-canvas">
             {editor.view === "graph" ? (
@@ -167,7 +197,10 @@ function LoopEditorReady({
                   onNodesChange={editor.onNodesChange}
                   onEdgesChange={editor.onEdgesChange}
                   onConnect={editor.onConnect}
-                  onSelectNode={editor.selectNode}
+                  onNodesDelete={editor.onNodesDelete}
+                  onConnectDropped={overlays.openConnectionDrop}
+                  onQuickAdd={overlays.openQuickAdd}
+                  onSelectNode={selectNode}
                   readOnly={readOnly}
                   loopDefaultEnvironment={loopDefaultEnvironment}
                 />
@@ -191,38 +224,73 @@ function LoopEditorReady({
             <LoopLinterDock
               lint={editor.lint}
               validateFailed={editor.validateFailed}
-              onReveal={editor.revealNode}
+              onReveal={revealNode}
+              collapsed={chrome.dockCollapsed}
+              onToggleCollapsed={chrome.toggleDock}
             />
           </section>
 
-          <LoopEditorSidebar
-            contract={definition.contract}
-            contractDisabled={editor.busy || readOnly}
-            gitBacked={gitBacked}
-            inspectorDisabled={editor.busy || readOnly}
-            lintByNode={editor.lint.byNode}
-            loopDefaultEnvironment={loopDefaultEnvironment}
-            node={editor.selectedNode}
-            fields={editor.selectedFields}
-            nodes={editor.nodes}
-            edges={editor.edges}
-            onChangeContract={editor.changeContract}
-            onChangeContractPath={editor.changeContractPath}
-            onChangeField={editor.changeField}
-            onChangeFields={editor.changeFields}
-            onSidebarTabChange={editor.selectSidebarTab}
-            selectionKey={editor.selectionSeq}
-            definition={definition}
-            sidebarTab={editor.sidebarTab}
-            worktrees={worktrees}
-          />
+          {chrome.inspectorOpen ? (
+            <LoopEditorSidebar
+              contract={definition.contract}
+              contractDisabled={editor.busy || readOnly}
+              gitBacked={gitBacked}
+              inspectorDisabled={editor.busy || readOnly}
+              lintByNode={editor.lint.byNode}
+              loopDefaultEnvironment={loopDefaultEnvironment}
+              node={editor.selectedNode}
+              fields={editor.selectedFields}
+              nodes={editor.nodes}
+              edges={editor.edges}
+              onChangeContract={editor.changeContract}
+              onChangeContractPath={editor.changeContractPath}
+              onChangeField={editor.changeField}
+              onChangeFields={editor.changeFields}
+              onSidebarTabChange={editor.selectSidebarTab}
+              selectionKey={editor.selectionSeq}
+              definition={definition}
+              sidebarTab={editor.sidebarTab}
+              worktrees={worktrees}
+            />
+          ) : null}
         </div>
       </div>
-    </ReactFlowProvider>
+
+      <LoopEditorQuickAdd
+        nodes={editor.nodes.map(node => ({
+          id: node.id,
+          kind: node.data.kind,
+          label: node.id,
+        }))}
+        onAddNode={item => addNode(item, overlays.quickAdd?.position ?? undefined)}
+        onOpenChange={overlays.setQuickAddOpen}
+        onRevealNode={revealNode}
+        open={overlays.quickAdd !== null}
+        readOnly={readOnly}
+      />
+
+      <LoopEditorConnectionPicker
+        onOpenChange={open => {
+          if (!open) overlays.closeConnectionDrop();
+        }}
+        onPick={item => {
+          const drop = overlays.connectionDrop;
+          if (drop) {
+            editor.addNodeWithEdge(item, drop.position, drop.source);
+            chrome.openInspector();
+          }
+          overlays.closeConnectionDrop();
+        }}
+        open={overlays.connectionDrop !== null}
+        point={overlays.connectionDrop?.point ?? null}
+        sourceNodeId={overlays.connectionDrop?.source ?? ""}
+      />
+    </LoopEditorNodeActionsProvider>
   );
 }
 
 function LoopEditorSkeleton() {
+  const { paletteMode, inspectorOpen } = useLoopEditorChrome();
   return (
     <div
       aria-busy="true"
@@ -235,27 +303,31 @@ function LoopEditorSkeleton() {
         <Skeleton className="h-7 w-28" />
         <Skeleton className="h-7 w-32" />
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[170px_minmax(0,1fr)_320px] xl:grid-cols-[190px_minmax(0,1fr)_344px]">
-        <div className="hidden space-y-3 border-r border-line p-3 lg:block">
-          <Skeleton className="h-3 w-20" />
-          {[0, 1, 2, 3, 4].map(index => (
-            <Skeleton className="h-9 w-full" key={index} />
-          ))}
-        </div>
+      <div className={cn("grid min-h-0 flex-1", editorGridClass(paletteMode, inspectorOpen))}>
+        {paletteMode === "expanded" ? (
+          <div className="space-y-3 border-r border-line p-3">
+            <Skeleton className="h-3 w-20" />
+            {[0, 1, 2, 3, 4].map(index => (
+              <Skeleton className="h-9 w-full" key={index} />
+            ))}
+          </div>
+        ) : null}
         <div className="relative p-8">
           <Skeleton className="absolute top-16 left-16 h-24 w-44" />
           <Skeleton className="absolute top-44 left-72 h-24 w-44" />
           <Skeleton className="absolute top-72 left-28 h-24 w-44" />
         </div>
-        <div className="space-y-4 border-l border-line p-4">
-          <div className="flex gap-2">
-            <Skeleton className="h-7 w-20" />
-            <Skeleton className="h-7 w-16" />
+        {inspectorOpen ? (
+          <div className="space-y-4 border-l border-line p-4">
+            <div className="flex gap-2">
+              <Skeleton className="h-7 w-20" />
+              <Skeleton className="h-7 w-16" />
+            </div>
+            <Skeleton className="h-3 w-48" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-20 w-full" />
           </div>
-          <Skeleton className="h-3 w-48" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-20 w-full" />
-        </div>
+        ) : null}
       </div>
       <span className="sr-only">Loading Loop editor</span>
     </div>

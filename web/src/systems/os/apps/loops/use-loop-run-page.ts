@@ -13,6 +13,8 @@ import {
   type LoopControlAnswer,
   type LoopGateDecision,
   type LoopNodeLifecycle,
+  type LoopRunGeneration,
+  type LoopRunRecord,
   loopRunVerbs,
   mergeGoalTurnTimeline,
   projectLoopRunPageView,
@@ -28,6 +30,27 @@ import {
   useResumeLoopRun,
   useRunLoop,
 } from "@/systems/loops";
+
+const SETTLED_OUTPUT_STATUSES = new Set(["succeeded", "failed", "partial", "canceled"]);
+
+function isGenerationBusy(
+  run: LoopRunRecord | undefined,
+  generations: readonly LoopRunGeneration[] | undefined
+): boolean {
+  if (!run || isTerminalLoopStatus(run.status)) return false;
+  const rounds = generations ?? [];
+  const newest = rounds.reduce((max, round) => Math.max(max, round.generation), 0);
+  let settled = 0;
+  for (const round of rounds) {
+    if (round.generation !== newest) continue;
+    for (const cell of round.outputs) {
+      if (!SETTLED_OUTPUT_STATUSES.has(cell.status)) return true;
+      settled += 1;
+    }
+  }
+
+  return settled === 0;
+}
 
 function runControlFeedback(
   failure: unknown,
@@ -120,6 +143,7 @@ export function useLoopRunPage(
         nowMs,
         nodeControls: runQuery.data?.node_controls,
         waits: runQuery.data?.waits,
+        requests: runQuery.data?.requests,
       })
     : null;
   const effectiveRun = view?.effectiveRun ?? run;
@@ -241,6 +265,11 @@ export function useLoopRunPage(
     definition,
     materializedContract,
     generations: generations ?? [],
+
+    amendments: runQuery.data?.amendments ?? [],
+
+    inputSchema: definition?.inputs,
+    isGenerationBusy: isGenerationBusy(run, generations),
     graph: view?.graph ?? null,
     watchEvents,
     versionLabel,
@@ -273,6 +302,8 @@ export function useLoopRunPage(
     waitingNodes: view?.waitingNodes ?? [],
     attentionNodes: view?.attentionNodes ?? [],
     nodeSessions: view?.nodeSessions ?? new Map<string, string>(),
+    requests: view?.requests ?? [],
+    strategyProgress: view?.strategyProgress ?? [],
     handlePause,
     handleResume,
     handleCancel,

@@ -58,6 +58,7 @@ import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTriggersTriggerIdRouteImport } from './routes/_app/triggers.$triggerId'
 import { Route as AppAgentsNameIndexRouteImport } from './routes/_app/agents.$name.index'
 import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
+import { Route as AppLoopRunsRunIdDiffRouteImport } from './routes/_app/loop-runs.$runId.diff'
 import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
 import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
 import { Route as AppLoopsNameRunRouteImport } from './routes/_app/loops.$name.run'
@@ -317,6 +318,11 @@ const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppAgentsNameRoute,
 } as any)
+const AppLoopRunsRunIdDiffRoute = AppLoopRunsRunIdDiffRouteImport.update({
+  id: '/diff',
+  path: '/diff',
+  getParentRoute: () => AppLoopRunsRunIdRoute,
+} as any)
 const AppLoopsNameConfigureRoute = AppLoopsNameConfigureRouteImport.update({
   id: '/configure',
   path: '/configure',
@@ -404,7 +410,7 @@ export interface FileRoutesByFullPath {
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/bridges/$id': typeof AppBridgesIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
-  '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
+  '/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/marketplace/$kind': typeof AppMarketplaceKindRoute
   '/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
@@ -432,6 +438,7 @@ export interface FileRoutesByFullPath {
   '/marketplace/': typeof AppMarketplaceIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
@@ -462,7 +469,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/bridges/$id': typeof AppBridgesIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
-  '/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
+  '/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/marketplace/$kind': typeof AppMarketplaceKindRoute
   '/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
@@ -490,6 +497,7 @@ export interface FileRoutesByTo {
   '/marketplace': typeof AppMarketplaceIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/loops/$name/run': typeof AppLoopsNameRunRoute
@@ -526,7 +534,7 @@ export interface FileRoutesById {
   '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/_app/bridges/$id': typeof AppBridgesIdRoute
   '/_app/jobs/$jobId': typeof AppJobsJobIdRoute
-  '/_app/loop-runs/$runId': typeof AppLoopRunsRunIdRoute
+  '/_app/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
   '/_app/loops/$name': typeof AppLoopsNameRouteWithChildren
   '/_app/marketplace/$kind_': typeof AppMarketplaceKindRoute
   '/_app/marketplace/extensions': typeof AppMarketplaceExtensionsRoute
@@ -554,6 +562,7 @@ export interface FileRoutesById {
   '/_app/marketplace/': typeof AppMarketplaceIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/_app/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/_app/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/_app/loops/$name/editor': typeof AppLoopsNameEditorRoute
   '/_app/loops/$name/run': typeof AppLoopsNameRunRoute
@@ -618,6 +627,7 @@ export interface FileRouteTypes {
     | '/marketplace/'
     | '/settings/'
     | '/agents/$name/settings'
+    | '/loop-runs/$runId/diff'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
@@ -676,6 +686,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/settings'
     | '/agents/$name/settings'
+    | '/loop-runs/$runId/diff'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
     | '/loops/$name/run'
@@ -739,6 +750,7 @@ export interface FileRouteTypes {
     | '/_app/marketplace/'
     | '/_app/settings/'
     | '/_app/agents/$name/settings'
+    | '/_app/loop-runs/$runId/diff'
     | '/_app/loops/$name/configure'
     | '/_app/loops/$name/editor'
     | '/_app/loops/$name/run'
@@ -1104,6 +1116,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsNameSettingsRouteImport
       parentRoute: typeof AppAgentsNameRoute
     }
+    '/_app/loop-runs/$runId/diff': {
+      id: '/_app/loop-runs/$runId/diff'
+      path: '/diff'
+      fullPath: '/loop-runs/$runId/diff'
+      preLoaderRoute: typeof AppLoopRunsRunIdDiffRouteImport
+      parentRoute: typeof AppLoopRunsRunIdRoute
+    }
     '/_app/loops/$name/configure': {
       id: '/_app/loops/$name/configure'
       path: '/configure'
@@ -1244,12 +1263,23 @@ const AppJobsRouteChildren: AppJobsRouteChildren = {
 const AppJobsRouteWithChildren =
   AppJobsRoute._addFileChildren(AppJobsRouteChildren)
 
+interface AppLoopRunsRunIdRouteChildren {
+  AppLoopRunsRunIdDiffRoute: typeof AppLoopRunsRunIdDiffRoute
+}
+
+const AppLoopRunsRunIdRouteChildren: AppLoopRunsRunIdRouteChildren = {
+  AppLoopRunsRunIdDiffRoute: AppLoopRunsRunIdDiffRoute,
+}
+
+const AppLoopRunsRunIdRouteWithChildren =
+  AppLoopRunsRunIdRoute._addFileChildren(AppLoopRunsRunIdRouteChildren)
+
 interface AppLoopRunsRouteChildren {
-  AppLoopRunsRunIdRoute: typeof AppLoopRunsRunIdRoute
+  AppLoopRunsRunIdRoute: typeof AppLoopRunsRunIdRouteWithChildren
 }
 
 const AppLoopRunsRouteChildren: AppLoopRunsRouteChildren = {
-  AppLoopRunsRunIdRoute: AppLoopRunsRunIdRoute,
+  AppLoopRunsRunIdRoute: AppLoopRunsRunIdRouteWithChildren,
 }
 
 const AppLoopRunsRouteWithChildren = AppLoopRunsRoute._addFileChildren(

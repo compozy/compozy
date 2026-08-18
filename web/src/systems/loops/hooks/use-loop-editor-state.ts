@@ -39,7 +39,14 @@ export function useLoopEditorState() {
     structuralRevision: context.structuralRevision,
     validateFailed: context.validateFailed,
     view: context.view,
-    addNode: (item: PaletteItem) => store.trigger.nodeAdded({ item }),
+    addNode: (item: PaletteItem, position?: { x: number; y: number }) =>
+      store.trigger.nodeAdded({ item, position }),
+
+    addNodeWithEdge: (item: PaletteItem, position: { x: number; y: number }, source: string) =>
+      store.trigger.nodeAddedWithEdge({ item, position, source }),
+    deleteNodes: (nodeIds: string[]) => store.trigger.nodesDeleted({ nodeIds }),
+    pasteNodes: (edges: EditorEdge[], nodes: EditorNode[], selectedNodeId: string) =>
+      store.trigger.nodesPasted({ edges, nodes, selectedNodeId }),
     applyGraphEdges: (edges: EditorEdge[], structureChanged: boolean) =>
       store.trigger.graphEdgesApplied({ edges, structureChanged }),
     applyGraphNodes: (nodes: EditorNode[], positionsChanged: boolean, structureChanged: boolean) =>

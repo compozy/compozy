@@ -3,6 +3,7 @@ import { loopGenerationScore } from "./loop-generation-presentation";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { goalNodeIds } from "./loop-graph";
 import { LIFECYCLE_KINDS_ENDING_ATTEMPT, lifecycleStoryRow } from "./loop-run-story-lifecycle-rows";
+import { graphStoryRow } from "./loop-run-story-request-rows";
 import {
   asRecord,
   branchKey,
@@ -222,6 +223,11 @@ export function buildRunStory(
         break;
       }
       default: {
+        const graphRow = graphStoryRow(kind, frame);
+        if (graphRow) {
+          rows.push(graphRow);
+          break;
+        }
         // Node lifecycle kinds (Spec 1). A beat that ends the current attempt
         // also clears the node from "Happening now", so a paused, canceled, or
         // quarantined node never keeps reading as if it were still working.

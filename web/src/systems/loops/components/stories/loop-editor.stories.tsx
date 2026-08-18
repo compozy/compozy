@@ -7,7 +7,8 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
 
 import { LoopEditor } from "../editor/loop-editor";
-import { handlers as loopHandlers } from "../../mocks";
+import { LoopEditorConnectionPicker } from "../editor/loop-editor-connection-picker";
+import { handlers as loopHandlers, RELEASE_TRAIN_LOOP_NAME, releaseTrainDetail } from "../../mocks";
 import {
   PUBLISH_REJECTED_ISSUES,
   fullLifecycleDetail,
@@ -433,4 +434,106 @@ export const RetiredCwdRejected: Story = {
     await selectNode("execute_task")({ canvasElement });
     await userEvent.click(canvas.getByTestId("loop-linter-toggle"));
   },
+};
+
+/** Serves the release-train definition — the one fixture carrying the new grammar. */
+function releaseTrainHandlers() {
+  return editorHandlers(releaseTrainDetail);
+}
+
+const releaseTrainArgs = { workspaceId: WS, name: RELEASE_TRAIN_LOOP_NAME };
+
+/** Both rails collapsed before any editor preference is stored. */
+export const ChromeCalmDefault: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+};
+
+/** The palette rail opened from the toolbar with a narrowed search. */
+export const ChromePaletteExpanded: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByTestId("loop-editor");
+    await userEvent.click(canvas.getByTestId("loop-editor-palette-toggle"));
+    await userEvent.type(await canvas.findByTestId("loop-palette-search"), "ro");
+  },
+};
+
+/** The route inspector with one row per branch and the default last. */
+export const RouteInspector: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+  play: selectNode("triage"),
+};
+
+/** The ask inspector with prompt, answer shape, and deadline. */
+export const AskInspector: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+  play: selectNode("confirm-rollout"),
+};
+
+/** The fan-out strategy inspector with its complete marshalled value. */
+export const StrategyInspector: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+  play: selectNode("rollout"),
+};
+
+/** The review inspector beside the linter dock's code list. */
+export const ReviewInspectorWithDock: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+  play: async ({ canvasElement }) => {
+    await selectNode("apply-migration")({ canvasElement });
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByTestId("loop-linter-toggle"));
+  },
+};
+
+/** Quick-add over the canvas with kind and existing-node choices. */
+export const QuickAdd: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const card = (await canvas.findAllByTestId("loop-editor-node"))[0];
+    await userEvent.click(card);
+    await userEvent.keyboard("a");
+    await waitFor(() => expect(document.querySelector("[data-testid='loop-editor-quick-add']")));
+  },
+};
+
+/** The node context menu with an empty clipboard. */
+export const NodeContextMenu: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const cards = await canvas.findAllByTestId("loop-editor-node");
+    const card = cards.find(element => element.getAttribute("data-node-id") === "triage");
+    if (!card) throw new Error("node card triage not found");
+    await userEvent.pointer({ keys: "[MouseRight]", target: card });
+  },
+};
+
+/** The connection-drop picker mounted at a fixed anchor. */
+export const ConnectionDropPicker: Story = {
+  args: releaseTrainArgs,
+  parameters: { msw: { handlers: releaseTrainHandlers() } },
+  render: () => (
+    <StoryTopbarHost title="Editor">
+      <StorySurface className="flex h-[560px] items-center justify-center p-0">
+        <LoopEditorConnectionPicker
+          onOpenChange={() => {}}
+          onPick={() => {}}
+          open
+          point={{ x: 420, y: 260 }}
+          sourceNodeId="triage"
+        />
+      </StorySurface>
+    </StoryTopbarHost>
+  ),
 };

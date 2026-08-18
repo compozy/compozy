@@ -1,11 +1,22 @@
-import { Code2, LayoutGrid, Maximize, Save, Share2, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  Code2,
+  LayoutGrid,
+  Maximize,
+  PanelLeft,
+  PanelRight,
+  Save,
+  Share2,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { useReactFlow, useViewport } from "@xyflow/react";
 import type { ReactNode } from "react";
 
-import { Button, PillGroup, type PillGroupItem } from "@compozy/ui";
+import { Button, cn, PillGroup, type PillGroupItem } from "@compozy/ui";
 
 import type { LoopEditorView } from "../../hooks/use-loop-editor-state";
 import type { PaletteItem } from "../../lib/loop-palette";
+import type { LoopEditorPaletteMode } from "./loop-editor-palette";
 import { LoopEditorPaletteMenu } from "./loop-editor-palette-menu";
 
 interface LoopEditorToolbarProps {
@@ -17,6 +28,11 @@ interface LoopEditorToolbarProps {
   onSaveLayout: () => void;
   onAddNode: (item: PaletteItem) => void;
   addNodeDisabled?: boolean;
+
+  paletteMode: LoopEditorPaletteMode;
+  onTogglePalette: () => void;
+  inspectorOpen: boolean;
+  onToggleInspector: () => void;
 }
 
 const VIEW_ITEMS: PillGroupItem<LoopEditorView>[] = [
@@ -42,16 +58,6 @@ const VIEW_ITEMS: PillGroupItem<LoopEditorView>[] = [
   },
 ];
 
-/**
- * Canvas sub-toolbar: zoom/auto-layout, Graph|DSL toggle, and Save layout. Editor actions live
- * in the shell topbar via `useTopbarSlot`; the read-only/fork notice is owned by
- * `LoopEditorSourceStrip` (one notice, not two). Invariant detail lives in the Validation dock
- * — not duplicated as toolbar chips.
- *
- * Layout stays available on a read-only definition: positions are the annotations sidecar, and
- * `PutLoopAnnotations` has no source gate — withholding it would invent a restriction the
- * runtime does not impose.
- */
 export function LoopEditorToolbar({
   busy,
   positionsDirty,
@@ -61,12 +67,33 @@ export function LoopEditorToolbar({
   onSaveLayout,
   onAddNode,
   addNodeDisabled = false,
+  paletteMode,
+  onTogglePalette,
+  inspectorOpen,
+  onToggleInspector,
 }: LoopEditorToolbarProps) {
   const flow = useReactFlow();
   const { zoom } = useViewport();
+  const paletteExpanded = paletteMode === "expanded";
 
   return (
     <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas-soft px-3.5">
+      {paletteMode === "menu" ? null : (
+        <Button
+          aria-label={paletteExpanded ? "Close node palette" : "Open node palette"}
+          aria-pressed={paletteExpanded}
+          className={cn(paletteExpanded ? "bg-elevated text-fg" : null)}
+          data-state={paletteExpanded ? "open" : "closed"}
+          data-testid="loop-editor-palette-toggle"
+          onClick={onTogglePalette}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <PanelLeft aria-hidden="true" className="size-4" />
+        </Button>
+      )}
+
       <PillGroup
         aria-label="Editor view"
         className="[&_[data-slot=pill-group-item]]:min-h-11"
@@ -76,7 +103,9 @@ export function LoopEditorToolbar({
         value={view}
       />
 
-      <LoopEditorPaletteMenu disabled={addNodeDisabled} onAddNode={onAddNode} />
+      {paletteExpanded ? null : (
+        <LoopEditorPaletteMenu disabled={addNodeDisabled} onAddNode={onAddNode} />
+      )}
 
       <div className="ml-auto flex items-center gap-2.5">
         <div className="flex items-center gap-0.5 rounded-md border border-line-soft bg-input-fill p-0.5">
@@ -108,6 +137,20 @@ export function LoopEditorToolbar({
         >
           <Save aria-hidden="true" className="size-3.5" />
           Save layout
+        </Button>
+
+        <Button
+          aria-label={inspectorOpen ? "Close inspector" : "Open inspector"}
+          aria-pressed={inspectorOpen}
+          className={cn(inspectorOpen ? "bg-elevated text-fg" : null)}
+          data-state={inspectorOpen ? "open" : "closed"}
+          data-testid="loop-editor-inspector-toggle"
+          onClick={onToggleInspector}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <PanelRight aria-hidden="true" className="size-4" />
         </Button>
       </div>
     </div>

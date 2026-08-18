@@ -3,6 +3,7 @@ import {
   Bot,
   CheckCheck,
   Eye,
+  MessageCircleQuestion,
   FileDown,
   GitBranch,
   GitMerge,
@@ -13,6 +14,7 @@ import {
   Repeat2,
   RotateCcw,
   Send,
+  Signpost,
   Split,
   Target,
   Wrench,
@@ -36,6 +38,8 @@ export const LOOP_NODE_KIND_ICONS = {
   gate: CheckCheck,
   "sub-loop": Repeat2,
   wait: Hourglass,
+  ask: MessageCircleQuestion,
+  route: Signpost,
   "watch-source": Eye,
   "watch-events": Radio,
   "file-import": FileDown,
@@ -63,6 +67,8 @@ export const LOOP_NODE_CLASS_ICONS = {
   source: LogIn,
   "control-fan-out": Split,
   "control-gate": CheckCheck,
+  "control-route": Signpost,
+  "control-ask": MessageCircleQuestion,
   control: GitMerge,
   action: Bot,
 } as const satisfies Record<string, LucideIcon>;
@@ -71,10 +77,14 @@ export function loopNodeClassIcon(input: {
   nodeClass: LoopNodeClass;
   isFanOut?: boolean;
   isGate?: boolean;
+  isRoute?: boolean;
+  isAsk?: boolean;
 }): LucideIcon {
   if (input.nodeClass === "source") return LOOP_NODE_CLASS_ICONS.source;
   if (input.nodeClass === "action") return LOOP_NODE_CLASS_ICONS.action;
   if (input.isFanOut) return LOOP_NODE_CLASS_ICONS["control-fan-out"];
   if (input.isGate) return LOOP_NODE_CLASS_ICONS["control-gate"];
+  if (input.isRoute) return LOOP_NODE_CLASS_ICONS["control-route"];
+  if (input.isAsk) return LOOP_NODE_CLASS_ICONS["control-ask"];
   return LOOP_NODE_CLASS_ICONS.control;
 }

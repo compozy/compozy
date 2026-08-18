@@ -7,6 +7,9 @@ import {
   loopConfigOptions,
   loopDetailOptions,
   loopRunDetailOptions,
+  loopRunDiffOptions,
+  loopRunDiffQuery,
+  type LoopRunDiffRouteSearch,
   type LoopRunsFilter,
   loopRunsOptions,
   loopsCatalogOptions,
@@ -110,4 +113,23 @@ export async function preloadLoopRunDetailRoute(
       queryClient.ensureQueryData(loopDetailOptions(workspaceId, run.loop_name)),
     ]);
   }
+}
+
+export async function preloadLoopRunDiffRoute(
+  queryClient: QueryClient,
+  runId: string,
+  search: LoopRunDiffRouteSearch
+): Promise<void> {
+  const workspaceId = await resolveRouteWorkspaceId(queryClient, search.workspace);
+  if (!workspaceId) {
+    return;
+  }
+  await settleRouteQueries([queryClient.ensureQueryData(loopRunDetailOptions(workspaceId, runId))]);
+  const query = loopRunDiffQuery(search);
+  if (!query) {
+    return;
+  }
+  await settleRouteQueries([
+    queryClient.ensureQueryData(loopRunDiffOptions(workspaceId, runId, query)),
+  ]);
 }

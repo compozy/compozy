@@ -3,6 +3,7 @@ import type {
   LoopDefinition,
   LoopNodeControl,
   LoopNodeWait,
+  LoopRequest,
   LoopRunEventFrame,
   LoopRunGeneration,
   LoopRunRecord,
@@ -26,4 +27,6 @@ export interface LoopRunStoryScenario {
   nodeControls?: LoopNodeControl[];
   /** Durable wait cells, exactly as `getLoopRun` returns them. */
   waits?: LoopNodeWait[];
+
+  requests?: LoopRequest[];
 }

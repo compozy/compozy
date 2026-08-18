@@ -16,11 +16,24 @@ in an inspector, and publish. It is one of three surfaces over the **same** cano
   - **Action** — the three reserved kinds `run-agent`, `run-loop`, `transform`, a curated shortlist
     of common tools (including a **Channel post** shortcut that inserts a pre-filled
     `compozy__network_send` node), and a searchable "Call tool…" picker over the whole tool registry.
-  - **Control** — `fan-out`, `collect`, `branch`, `gate`, `sub-loop`.
+  - **Control** — `fan-out`, `collect`, `branch`, `gate`, `sub-loop`, `wait`, `ask`, `route`.
   - **Source** — `watch-source`, `file-import`, `input`.
 - **Canvas** (center) — positioned node cards and edges on a dot grid. A selected node gets an
   accent ring; a node with an error gets a danger ring and a badge.
 - **Inspector** (right) — the fields for the selected node.
+
+Both rails are collapsible and **ship collapsed**, so a fresh editor opens full-bleed. Toggle them
+from the toolbar or with `[` and `]` while the canvas has focus; the inspector also opens on its own
+when you select a node, add one from the palette, or reveal a node from the linter dock. Rail state
+and the dock's fold persist per user across reloads.
+
+On the canvas: press `a` (or double-click empty space) for **quick-add** — pick a kind to place it
+at the visible centre, or search an existing node id to reveal it. Drag a connection onto empty
+canvas to get a picker that creates the node **already wired** from the source. Right-click a node
+for duplicate, copy, paste, rename, and delete; on a read-only source loop those verbs are absent.
+Marquee-drag or modifier-click to select several nodes for a bulk move or delete — deleting a node
+removes its edges too. A selected edge carries a delete affordance at its midpoint, and an edge
+leaving a `route` node shows the condition that chooses it.
 
 ## The inspector renders from the schema
 
@@ -32,13 +45,34 @@ Runtime fields authored through the definition file or API round-trip without lo
 validated by the daemon even when the current inspector does not expose an editor control for
 them.
 
+Four composite controls write shapes the DSL constrains, so each writes its whole value at once
+rather than leaving a half-shape the daemon would reject:
+
+- **`ask`** — prompt, context, the required `expect` answer schema, whether agents may answer, and
+  an expiry. The run page renders its answer form from that same `expect` schema.
+- **`route`** — the ordered `routes[]` list (a condition plus a forward target each) and the
+  required `default`. Declaration order is the tiebreak the runtime evaluates in, so the editor
+  preserves it exactly, and target pickers offer forward nodes only.
+- **`strategy`** on a fan-out — `wait_all`, `fail_fast`, `race`, or `best_effort` with its
+  threshold, plus the `missing: acceptable` acknowledgement, alongside the `bind_as` / `index_as`
+  iteration names.
+- **`review`** on an action node — the decision allowlist, `when`, prompt, responder policy,
+  `on_reject.route`, and an expiry. Enabling writes the whole block; disabling clears it.
+
 ## The linter is the daemon's
 
-A dock along the bottom of the canvas shows four structural invariants as pass/fail chips —
-**acyclicity**, **reachability**, **termination**, and **fan-out bounds** — plus the current issue
-list. The editor **surfaces the runtime's validation; it does not invent its own**. An issue such
-as a missing positive `max_fan_out` (code `fan_out_unbounded`) links to the offending node, and
-Publish stays disabled until it clears.
+A dock along the bottom of the canvas shows structural invariants as pass/fail chips —
+**acyclicity**, **reachability**, **termination**, **fan-out bounds**, **references**, **routing**,
+and **human requests** — plus the current issue list. The editor **surfaces the runtime's
+validation; it does not invent its own**. An issue such as a missing positive `max_fan_out` (code
+`fan_out_unbounded`) links to the offending node, and Publish stays disabled until it clears.
+
+Codes you will meet while authoring the newer kinds: `route_default_missing`,
+`route_target_invalid`, `route_mapping_invalid`, `strategy_threshold_invalid`,
+`strategy_coverage_undeclared`, `iteration_name_conflict`, `ask_expect_required`,
+`review_shape_invalid`, `review_respond_schema_required`, and `responder_policy_invalid`. A code the
+editor cannot attribute to a chip is still listed and still blocks Publish — the dock never claims
+an invariant it cannot name.
 
 ## Validate and publish
 

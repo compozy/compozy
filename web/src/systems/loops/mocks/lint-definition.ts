@@ -1,20 +1,3 @@
-/**
- * Mock subset of the shared Go linter used at the editor's test I/O boundary. Each rule mirrors
- * a named daemon rule and returns its public issue shape:
- *
- * | rule                        | Go source                              |
- * | --------------------------- | -------------------------------------- |
- * | `fan_out_unbounded`          | `linter.go` fan-out author bound       |
- * | `cycle_detected`            | acyclicity invariant                   |
- * | `error_route_conflict`      | `linter_lifecycle.go` lintErrorPolicy  |
- * | `timeout_exceeds_deadline`  | `linter_lifecycle.go` lintLifecycleNode|
- * | `result_contract_invalid`   | `linter_lifecycle.go` lintResultContract|
- * | `effect_shape_invalid`      | `linter_effects.go` lintEffect         |
- * | `wait_shape_invalid`        | `linter_wait.go` lintWait              |
- * | `wait_expiry_without_path`  | `linter_wait.go` lintWaitExpiry (warn) |
- * | `parent_close_invalid`      | `linter_lifecycle.go` lintParentClose  |
- */
-
 export interface MockLintIssue {
   node_id?: string;
   code: string;
@@ -259,6 +242,14 @@ export function lintDefinition(definition?: {
         node_id: String(node.id),
         code: "fan_out_unbounded",
         message: "fan-out must declare collection and a positive max_fan_out.",
+        severity: "error",
+      });
+    }
+    if (node.kind === "route" && text(node.default) === "") {
+      issues.push({
+        node_id: String(node.id),
+        code: "route_default_missing",
+        message: "route node must declare a default target",
         severity: "error",
       });
     }

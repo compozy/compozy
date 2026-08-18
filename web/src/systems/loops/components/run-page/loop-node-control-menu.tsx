@@ -12,6 +12,7 @@ import {
 
 import {
   LOOP_NODE_VERB_PRESENTATION,
+  type LoopNodeTimetravelCapability,
   type LoopNodeVerb,
   loopNodeVerbs,
 } from "../../lib/loop-node-controls";
@@ -22,6 +23,8 @@ interface LoopNodeControlMenuProps {
   node: LoopNodeLifecycle;
   runStatus?: string | null;
   isPending?: boolean;
+
+  timetravel?: LoopNodeTimetravelCapability;
   onVerb: (verb: LoopNodeVerb, node: LoopNodeLifecycle) => void;
 }
 
@@ -42,9 +45,10 @@ export function LoopNodeControlMenu({
   node,
   runStatus,
   isPending,
+  timetravel,
   onVerb,
 }: LoopNodeControlMenuProps) {
-  const verbs = loopNodeVerbs(node, runStatus);
+  const verbs = loopNodeVerbs(node, runStatus, timetravel);
   if (verbs.length === 0) return null;
   const safeVerbs = verbs.filter(verb => !STOPPING_VERBS.has(verb));
   const stoppingVerbs = verbs.filter(verb => STOPPING_VERBS.has(verb));

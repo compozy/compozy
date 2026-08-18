@@ -8,9 +8,10 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
-import { loopRunAggregatesFixture } from "@/systems/loops/mocks";
+import { GRAPH_ENG_RUN_ID, loopRunAggregatesFixture } from "@/systems/loops/mocks";
 
 const runningLoopRunRoute = "/loop-runs/looprun_running";
+const loopRunDiffRoute = `/loop-runs/${GRAPH_ENG_RUN_ID}/diff?generation=3&against_generation=2`;
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/loops/routes/LoopRuns",
@@ -38,6 +39,18 @@ export const RunsList: Story = {
 export const RunDetail: Story = {
   args: {},
   parameters: appRouteParameters(runningLoopRunRoute),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+export const RunRequests: Story = {
+  args: {},
+  parameters: appRouteParameters(`/loop-runs/${GRAPH_ENG_RUN_ID}`),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+export const Diff: Story = {
+  args: {},
+  parameters: appRouteParameters(loopRunDiffRoute),
   render: () => <StorybookWorkspaceSetup />,
 };
 

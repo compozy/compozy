@@ -6,6 +6,7 @@ import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generate
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { buildLoopStreamUrl } from "../adapters/loops-api";
+import { isLoopRequestEventKind } from "../lib/loop-graph-events";
 import { loopsKeys } from "../lib/query-keys";
 import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
 import {
@@ -53,6 +54,10 @@ function isLifecycleKind(kind: string): boolean {
   return LOOP_LIFECYCLE_EVENT_KINDS.has(kind as LoopRunEventKind);
 }
 
+function isRequestKind(kind: string): boolean {
+  return isLoopRequestEventKind(kind);
+}
+
 function defaultEventSourceFactory(url: string): LoopStreamEventSource {
   return createStreamEventSource(url);
 }
@@ -93,6 +98,15 @@ function invalidateLoopRunQueries(
   if (refreshCatalog) {
     void queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) });
   }
+}
+
+function invalidateLoopRequestQueries(
+  queryClient: QueryClient,
+  workspaceId: string,
+  runId: string
+) {
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.requestsByWorkspace(workspaceId) });
 }
 
 /**
@@ -182,6 +196,8 @@ export function useLoopStream(
           trimmedRun,
           kind === "status_changed"
         );
+      } else if (isRequestKind(kind)) {
+        invalidateLoopRequestQueries(queryClient, trimmedWorkspace, trimmedRun);
       }
       notifyEvent(payload, subscription);
     };

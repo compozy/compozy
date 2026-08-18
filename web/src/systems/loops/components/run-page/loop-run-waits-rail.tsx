@@ -9,6 +9,8 @@ import type { LoopNodeInventoryState } from "../../types";
 interface LoopRunWaitsRailProps {
   /** Every node the daemon reports lifecycle state for, from the run detail. */
   nodes: readonly LoopNodeLifecycle[];
+
+  pendingRequests?: number;
   runId: string;
 }
 
@@ -21,7 +23,7 @@ interface LoopRunWaitsRailProps {
  * panel answers "is anything parked?", and the answer "nothing" is information
  * the operator came here for (DESIGN-LESSONS L5 governs badges, not readouts).
  */
-export function LoopRunWaitsRail({ nodes, runId }: LoopRunWaitsRailProps) {
+export function LoopRunWaitsRail({ nodes, pendingRequests = 0, runId }: LoopRunWaitsRailProps) {
   let waiting = 0;
   let attention = 0;
   let quarantined = 0;
@@ -36,6 +38,12 @@ export function LoopRunWaitsRail({ nodes, runId }: LoopRunWaitsRailProps) {
     nodes: LoopNodeInventoryState;
     nodeId?: string;
   }[] = [
+    {
+      label: "Needs an answer",
+      value: pendingRequests,
+      nodes: "waiting",
+      nodeId: undefined,
+    },
     {
       label: "Open waits",
       value: waiting,

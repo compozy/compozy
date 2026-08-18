@@ -20,6 +20,8 @@ export interface PaletteItem {
   /** Base for the generated snake_case node id. */
   idBase: string;
   hint?: string;
+
+  keywords?: string[];
 }
 
 export interface PaletteGroup {
@@ -170,6 +172,31 @@ export const LOOP_PALETTE: PaletteGroup[] = [
         // `wait_shape_invalid`, so a dropped node is valid-shaped from the first render.
         buildRaw: id => ({ id, class: "control", kind: "wait", params: { for: "1h" } }),
       },
+      {
+        label: "Ask",
+        kindLabel: "ask",
+        nodeClass: "control",
+        idBase: "ask",
+        keywords: ["human", "question", "answer", "request", "input"],
+        hint: "Parks the run until a person answers. The answer becomes this node's output.",
+
+        buildRaw: id => ({
+          id,
+          class: "control",
+          kind: "ask",
+          params: { prompt: "", expect: { type: "object" } },
+        }),
+      },
+      {
+        label: "Route",
+        kindLabel: "route",
+        nodeClass: "control",
+        idBase: "route",
+        keywords: ["branch", "condition", "switch", "when", "default"],
+        hint: "Sends the run down exactly one forward branch. A default is required.",
+
+        buildRaw: id => ({ id, class: "control", kind: "route", routes: [], default: "" }),
+      },
     ],
   },
   {
@@ -213,6 +240,25 @@ export const LOOP_PALETTE: PaletteGroup[] = [
     ],
   },
 ];
+
+export function paletteKindKey(kindLabel: string): string {
+  return kindLabel === "tool…" ? "" : kindLabel;
+}
+
+export function loopPaletteItems(): PaletteItem[] {
+  return LOOP_PALETTE.flatMap(group => group.items);
+}
+
+export function filterPaletteItems(items: readonly PaletteItem[], query: string): PaletteItem[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return [...items];
+  return items.filter(item =>
+    [item.label, item.kindLabel, item.hint ?? "", ...(item.keywords ?? [])]
+      .join(" ")
+      .toLowerCase()
+      .includes(needle)
+  );
+}
 
 /** Generates a snake_case node id from a base, suffixing `_N` until it is unique. */
 export function uniqueNodeId(base: string, existing: ReadonlySet<string>): string {

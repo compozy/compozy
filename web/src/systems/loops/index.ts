@@ -1,70 +1,56 @@
 // Types
 export type {
-  ApproveLoopRunRequest,
   CreateLoopRequest,
-  LoopAggregate30d,
-  LoopAnnotation,
   LoopAnnotationsUpdateRequest,
   LoopCatalogEntry,
   LoopCatalogStableFilter,
-  LoopsListResponse,
-  LoopCatalogInfo,
-  LoopConfig,
   LoopConfigUpdateRequest,
-  LoopContract,
-  LoopContractBudget,
-  LoopContractVerification,
   LoopDefinition,
-  LoopDefinitionGraph,
   LoopDefinitionMeta,
-  LoopDetail,
   LoopDryRunNode,
-  LoopDryRunPreview,
-  LoopEffectiveConfig,
   LoopInputSchema,
-  LoopInputSchemaField,
-  LoopNodeInventoryItem,
-  LoopNodeInventoryState,
   LoopRun,
-  LoopRunActionResult,
-  LoopRunAggregates,
   LoopRunDetail,
   LoopRunEventFrame,
   LoopRunEventKind,
   LoopRunGeneration,
   LoopRunGenerationOutput,
-  LoopRunListResult,
   LoopRunRecord,
-  LoopRunStatus,
   LoopRunsFilter,
-  LoopStartBinding,
-  LoopStreamFilter,
   LoopValidationIssue,
   GoalTurn,
-  GoalTurnFilter,
-  GoalTurnPage,
-  LoopWatchEventSubscription,
-  LoopWatchEventsState,
   PatchLoopRequest,
-  RunLoopRequest,
   RunLoopResult,
-  ValidateLoopRequest,
-  ValidateLoopResult,
+  LoopAmendment,
+  LoopRequest,
+  LoopRequestAggregates,
+  LoopRequestFilter,
+  LoopRequestListResult,
 } from "./types";
+
+export type { LoopRequestKind } from "./lib/loop-request-vocabulary";
+export { LOOP_REQUEST_KIND_TITLE } from "./lib/loop-request-vocabulary";
 
 // Adapters
 export {
   LoopLifecycleConflictError,
+  LoopRequestError,
   LoopsApiError,
+  LoopTimetravelError,
+  amendLoopNode,
   approveLoopRun,
   buildLoopStreamUrl,
   cancelLoopRun,
   createLoop,
   deleteLoop,
+  diffLoopRun,
+  forkLoopRun,
   getLoop,
   getLoopAnnotations,
   getLoopConfig,
+  getLoopRequest,
   getLoopRun,
+  listLoopRequests,
   listLoopRuns,
   listGoalTurns,
   listLoops,
@@ -72,6 +58,8 @@ export {
   pauseLoopRun,
   putLoopAnnotations,
   putLoopConfig,
+  rerunLoopRun,
+  respondLoopRequest,
   resumeLoopRun,
   runLoop,
   validateLoop,
@@ -84,44 +72,26 @@ export {
   loopAnnotationsOptions,
   loopConfigOptions,
   loopDetailOptions,
+  loopRequestsOptions,
   loopRunDetailOptions,
-  loopNodeInventoryOptions,
+  loopRunDiffOptions,
   loopRunsOptions,
   loopsCatalogOptions,
 } from "./lib/query-options";
 
 // Catalog helpers
-export type {
-  LoopCatalogFilter,
-  LoopCatalogGroup,
-  LoopKind,
-  LoopKindFilter,
-  LoopStatusFilter,
-} from "./lib/loop-catalog";
-export {
-  UNBOUNDED_CAP,
-  groupLoopCatalog,
-  hasActiveLoopFilters,
-  hasHumanGate,
-  isUnboundedCap,
-  iterationCapLabel,
-  loopCategory,
-  loopInputCount,
-  loopKind,
-  matchesLoopFilter,
-  successRateLabel,
-} from "./lib/loop-catalog";
+export type { LoopCatalogFilter, LoopStatusFilter } from "./lib/loop-catalog";
 export { loopFactsSegments } from "./lib/loop-catalog-presentation";
 
 // Listing filter bridge (status options + URL parsers)
 export type { LoopStatusFilterOption } from "./lib/loop-list-filters";
 export { loopStatusFilterOptions } from "./lib/loop-list-filters";
 export {
-  parseLoopCategoryFilter,
-  parseLoopKindFilter,
-  parseLoopStatusFilter,
+  loopRunDiffQuery,
+  validateLoopRunDiffSearch,
   validateLoopRunsSearch,
   validateLoopsSearch,
+  type LoopRunDiffRouteSearch,
   type LoopRunsRouteSearch,
   type LoopsRouteSearch,
 } from "./lib/loops-route-search";
@@ -134,146 +104,58 @@ export { describeStartKinds, RUN_FORM_START_KIND } from "./lib/loop-start-kinds"
 
 // Read-only graph projection
 export type { LoopGraph, LoopGraphEdge, LoopGraphNode, LoopNodeClass } from "./lib/loop-graph";
-export {
-  fanOutSummary,
-  findWatchNode,
-  goalNodeIds,
-  nodeClassLabel,
-  readLoopGraph,
-} from "./lib/loop-graph";
+export { readLoopGraph } from "./lib/loop-graph";
 
 // Visual editor — bijective codec, layout, linter, node schema, references (task 22)
 export type { EditorEdge, EditorGraph, EditorNode, RawLoopEdge, RawLoopNode } from "./lib/codec";
 export { definitionToGraph, editorEdgeId, graphToDefinition } from "./lib/codec";
-export { layoutEditorGraph, annotationsToPositions } from "./lib/loop-editor-layout";
 export type { LoopInvariantKey, LoopInvariantStatus, LoopLintState } from "./lib/loop-editor-lint";
-export {
-  LOOP_INVARIANTS,
-  applyLintToNodes,
-  buildLintState,
-  classifyInvariant,
-  emptyLintState,
-} from "./lib/loop-editor-lint";
 export type { FieldPath, FieldSpec } from "./lib/loop-node-schema";
 export { buildNodeFields } from "./lib/loop-node-schema";
 export type { LoopReferenceKind, LoopReferenceSuggestion } from "./lib/loop-references";
-export {
-  activeReferenceQuery,
-  buildReferenceNamespace,
-  filterReferences,
-} from "./lib/loop-references";
 export type { DslLine } from "./lib/loop-dsl";
 export { buildDslView } from "./lib/loop-dsl";
 export type { PaletteGroup, PaletteItem } from "./lib/loop-palette";
-export { LOOP_PALETTE, uniqueNodeId } from "./lib/loop-palette";
 export { LOOP_STORY_ICONS } from "./lib/loop-story-icons";
 export type { LoopNodeKind } from "./lib/loop-node-kind-icons";
-export {
-  LOOP_CALL_TOOL_ICON,
-  LOOP_NODE_CLASS_ICONS,
-  LOOP_NODE_KIND_ICONS,
-  loopNodeClassIcon,
-  loopNodeKindIcon,
-} from "./lib/loop-node-kind-icons";
 export type { LoopStartKind } from "./lib/loop-start-kind-icons";
 export { LOOP_START_KIND_ICONS, loopStartKindIcon } from "./lib/loop-start-kind-icons";
-export {
-  getAtPath,
-  isNodeIdPath,
-  renameNodeId,
-  setAtPath,
-  setNodeField,
-} from "./lib/loop-editor-draft";
 export { useLoopEditor } from "./hooks/use-loop-editor";
-export type {
-  LoopEditorStatus,
-  LoopEditorView,
-  UseLoopEditorResult,
-} from "./hooks/use-loop-editor";
+export type { RouteEdgeDisplay } from "./lib/loop-editor-route-edges";
+
+export type { UseLoopEditorChromeStateResult } from "./hooks/use-loop-editor-chrome-state";
+export { useLoopEditorShortcuts } from "./hooks/use-loop-editor-shortcuts";
+export type { LoopEditorShortcutHandlers } from "./hooks/use-loop-editor-shortcuts";
 export { LoopEditor } from "./components/editor/loop-editor";
 export { LoopEditorFold } from "./components/editor/loop-editor-fold";
+export { LoopEditorCanvas } from "./components/editor/loop-editor-canvas";
+export type { LoopEditorConnectionDrop } from "./components/editor/loop-editor-canvas";
+export { LoopEditorEdge } from "./components/editor/loop-editor-edge";
+export type { LoopEditorEdgeData } from "./components/editor/loop-editor-edge";
+export { LoopEditorNodeActionsProvider } from "./components/editor/loop-editor-node";
+export type { LoopEditorNodeActions } from "./components/editor/loop-editor-node";
+export { LoopEditorNodeMenu } from "./components/editor/loop-editor-node-menu";
+export type { LoopEditorNodeMenuProps } from "./components/editor/loop-editor-node-menu";
+export { LoopEditorPalette } from "./components/editor/loop-editor-palette";
+export type { LoopEditorPaletteMode } from "./components/editor/loop-editor-palette";
+export { LoopEditorPaletteMenu } from "./components/editor/loop-editor-palette-menu";
+export { LoopEditorQuickAdd } from "./components/editor/loop-editor-quick-add";
+export { LoopEditorConnectionPicker } from "./components/editor/loop-editor-connection-picker";
+export type { LoopEditorConnectionPickerProps } from "./components/editor/loop-editor-connection-picker";
 export { loopNodeCardRows } from "./lib/loop-node-card-rows";
 export type { LoopNodeCardRow } from "./lib/loop-node-card-rows";
 
 // Limits & budget
 export type { LoopLimitRow } from "./lib/loop-limits";
-export {
-  LOOP_CEILINGS,
-  buildLoopLimits,
-  formatTokenBudget,
-  formatWallClock,
-} from "./lib/loop-limits";
-
-// Runs view-model
-export type {
-  LoopBudgetBar,
-  LoopBudgetTone,
-  LoopKpi,
-  LoopOutcomeSegment,
-  LoopRunKpis,
-  LoopRunPartition,
-} from "./lib/loop-runs-view";
-export {
-  buildOutcomeSegments,
-  buildRunKpis,
-  formatTokenCount,
-  loopBudgetBar,
-  loopRunOriginLine,
-  partitionRuns,
-} from "./lib/loop-runs-view";
 
 // Run-form model
 export type { LoopRunInputs } from "./lib/loop-run-form";
-export {
-  declaredInputCountsGist,
-  environmentGist,
-  hasInputValue,
-  initialRunInputs,
-  isRunFormValid,
-  missingRequiredInputs,
-  participationGist,
-  serializeRunInputs,
-} from "./lib/loop-run-form";
-export type {
-  LoopBudgetPolicy,
-  LoopOverrideDraft,
-  LoopOverrideField,
-  LoopOverrideKey,
-} from "./lib/loop-overrides";
-export {
-  buildConfigOverrides,
-  buildOverrideFields,
-  clampOverrideValue,
-  hasActiveOverrides,
-  initialOverrideDraft,
-  summarizeRunLimits,
-} from "./lib/loop-overrides";
 
 // Configure-sheet model
-export type {
-  EnabledChecksMap,
-  LoopConfigCheckDescriptor,
-  LoopConfigCheckState,
-} from "./lib/loop-config-checks";
-export {
-  buildCheckDescriptors,
-  defaultCheckStates,
-  initialCheckStates,
-  parseEnabledChecks,
-  serializeEnabledChecks,
-} from "./lib/loop-config-checks";
 export type { LoopConfigDraft, LoopReattemptStrategy } from "./lib/loop-config-draft";
-export {
-  buildConfigureModel,
-  buildLoopConfigRequest,
-  initialConfigDraft,
-  resetConfigDraft,
-} from "./lib/loop-config-draft";
 
 // Run-page model
 export {
-  buildNextNote,
-  buildRunStory,
   type LoopRunStory,
   type LoopRunStoryContext,
   type LoopStoryIcon,
@@ -282,29 +164,9 @@ export {
   type LoopStoryRow,
   type LoopStoryTaskLink,
 } from "./lib/loop-run-story";
-export {
-  buildRunProgress,
-  latestGateVerdict,
-  type LoopProgressSegmentState,
-  type LoopRunProgressModel,
-} from "./lib/loop-run-progress";
-export {
-  buildRunUsage,
-  deriveCostEstimate,
-  formatClockDuration,
-  type LoopRunUsageRow,
-  type LoopUsageKey,
-  type LoopUsageTone,
-  runElapsedSeconds,
-  usageNote,
-  usageSnapshotFacts,
-} from "./lib/loop-run-usage";
-export {
-  buildInputRows,
-  humanizeStartOrigin,
-  type LoopRunInputRow,
-  watchedSubject,
-} from "./lib/loop-run-about";
+export { type LoopProgressSegmentState, type LoopRunProgressModel } from "./lib/loop-run-progress";
+export { type LoopRunUsageRow, type LoopUsageKey, type LoopUsageTone } from "./lib/loop-run-usage";
+export { type LoopRunInputRow } from "./lib/loop-run-about";
 export {
   applyLoopEventFrame,
   emptyLoopRunLiveState,
@@ -323,16 +185,7 @@ export { useNowTick } from "./hooks/use-now-tick";
 
 // Formatters and helpers
 export type { LoopStatusSignal } from "./lib/loop-formatters";
-export {
-  LOOP_STATUS_LABELS,
-  LOOP_STATUS_TONE,
-  isLoopRunStatus,
-  isTerminalLoopStatus,
-  loopStatusLabel,
-  loopStatusPulse,
-  loopStatusSignal,
-  loopStatusTone,
-} from "./lib/loop-formatters";
+export { isTerminalLoopStatus } from "./lib/loop-formatters";
 
 // Read hooks
 export {
@@ -343,6 +196,14 @@ export {
   useLoopRuns,
   useLoops,
 } from "./hooks/use-loops";
+export { useLoopRequestDetail, useLoopRequests } from "./hooks/use-loop-requests";
+
+export { useAmendLoopNode, useRespondLoopRequest } from "./hooks/use-loop-request-actions";
+export {
+  useForkLoopRun,
+  useLoopRunDiff,
+  useRerunLoopRun,
+} from "./hooks/use-loop-timetravel-actions";
 
 // Mutation hooks
 export {
@@ -352,7 +213,6 @@ export {
   useDeleteLoop,
   usePatchLoop,
   usePauseLoopRun,
-  usePutLoopAnnotations,
   usePutLoopConfig,
   useKillLoopRun,
   useResumeLoopRun,
@@ -375,17 +235,15 @@ export { type LoopNodeLifecycle, projectNodeLifecycles } from "./lib/loop-node-l
 export {
   loopControlAnswer,
   type LoopControlAnswer,
+  type LoopNodeTimetravelCapability,
   type LoopNodeVerb,
+  loopNodeVerbs,
   loopNodeWaitResumeItemIndex,
   loopRunVerbs,
 } from "./lib/loop-node-controls";
+export { buildRerunSet, type LoopRerunSet } from "./lib/loop-rerun-set";
 export { buildNodeNowLines } from "./lib/loop-node-now-view";
-export {
-  isLoopNodeInventoryState,
-  LOOP_NODE_INVENTORY_LABELS,
-  LOOP_NODE_INVENTORY_STATES,
-  LOOP_NODE_INVENTORY_TONES,
-} from "./lib/loop-node-inventory";
+export { LOOP_NODE_INVENTORY_LABELS, LOOP_NODE_INVENTORY_STATES } from "./lib/loop-node-inventory";
 
 // Run-form view-model hook
 export { useLoopRunForm } from "./hooks/use-loop-run-form";
@@ -398,11 +256,7 @@ export type { UseLoopConfigureResult } from "./hooks/use-loop-configure";
 export { useLoopStream } from "./hooks/use-loop-stream";
 export { mergeGoalTurns, mergeGoalTurnTimeline, useGoalTurns } from "./hooks/use-goal-turns";
 export type { GoalTurnTimelineItem, UseGoalTurnsOptions } from "./hooks/use-goal-turns";
-export type {
-  LoopStreamEventSource,
-  LoopStreamEventSourceFactory,
-  UseLoopStreamOptions,
-} from "./hooks/use-loop-stream";
+export type { LoopStreamEventSource } from "./hooks/use-loop-stream";
 
 // Components
 export { LoopStatusPill } from "./components/loop-status-pill";
@@ -447,7 +301,16 @@ export {
   type LoopRunConfirmVerb,
 } from "./components/run-page/loop-run-control-dialog";
 export { LoopRunInspectSheet } from "./components/run-page/loop-run-inspect-sheet";
-export { LoopRunNeedsYouCard } from "./components/run-page/loop-run-needs-you-card";
+export { type LoopRequestAnswerInput } from "./components/run-page/loop-run-needs-you-card";
+export {
+  LoopNodeAmendDialog,
+  type LoopNodeAmendDialogProps,
+} from "./components/run-page/loop-node-amend-dialog";
+export {
+  LoopNodeRerunDialog,
+  type LoopNodeRerunDialogProps,
+} from "./components/run-page/loop-node-rerun-dialog";
+export { LoopForkDialog, type LoopForkDialogProps } from "./components/run-page/loop-fork-dialog";
 export type { LoopGateDecision } from "./lib/loop-events";
 export { LoopRunNextNote } from "./components/run-page/loop-run-next-note";
 export { LoopRunNowCard } from "./components/run-page/loop-run-now-card";
@@ -461,17 +324,20 @@ export { LoopRunSubhead } from "./components/run-page/loop-run-subhead";
 export { LoopRunTurnsDisclosure } from "./components/run-page/loop-run-turns-disclosure";
 export { LoopRunUsageRail } from "./components/run-page/loop-run-usage-rail";
 
+export type { LoopDiffView } from "./lib/loop-run-diff-model";
+export { comparableGenerations, projectLoopDiff } from "./lib/loop-run-diff-model";
+export {
+  LoopRunDiffPickers,
+  LoopRunDiffView,
+  type LoopRunDiffInputsProps,
+  type LoopRunDiffPickersProps,
+  type LoopRunDiffRowProps,
+  type LoopRunDiffViewProps,
+} from "./components/run-diff";
+
 // Loop-target editing (automation Target step)
 export type { LoopTargetDraft } from "./lib/loop-target";
 export { setLoopTargetInput, setLoopTargetLoop, setLoopTargetMapping } from "./lib/loop-target";
-export type {
-  LoopAutomationStartKind,
-  LoopTargetAvailabilityStatus,
-  LoopTargetCatalog,
-} from "./lib/loop-target-availability";
-export {
-  loopDeclaresStartKind,
-  loopTargetAvailabilityMessage,
-  projectLoopTargetCatalog,
-} from "./lib/loop-target-availability";
+export type { LoopAutomationStartKind, LoopTargetCatalog } from "./lib/loop-target-availability";
+export { loopTargetAvailabilityMessage } from "./lib/loop-target-availability";
 export { useLoopTargetCatalog } from "./hooks/use-loop-target-catalog";

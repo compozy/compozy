@@ -1,17 +1,29 @@
 import { describe, expect, it } from "vitest";
 
 import { loopDetailByName } from "../../mocks/fixtures";
+import { releaseTrainDetail } from "../../mocks/fixture-release-train";
 import type { LoopDefinition } from "../../types";
 import {
   fanOutSummary,
   findWatchNode,
   goalNodeIds,
+  iterationNamesSummary,
   nodeClassLabel,
   readLoopGraph,
+  routeSummary,
+  strategySummary,
   topoOrder,
 } from "../loop-graph";
 
 const definition = loopDetailByName.get("quality-gate-demo")!.definition;
+
+function graphOf(nodes: Record<string, unknown>[]) {
+  return readLoopGraph({ graph: { nodes, edges: [] } } as unknown as Pick<LoopDefinition, "graph">);
+}
+
+function nodeOf(raw: Record<string, unknown>) {
+  return graphOf([raw]).nodes[0];
+}
 
 describe("loop-graph", () => {
   it("Should project the daemon graph (opaque in OpenAPI) into typed nodes and edges", () => {
@@ -150,5 +162,140 @@ describe("loop-graph", () => {
       },
     } as unknown as Pick<LoopDefinition, "graph">);
     expect(topoOrder(graph)).toEqual(["a", "b", "c", "x", "y"]);
+  });
+});
+
+describe("loop-graph completion grammar", () => {
+  const releaseTrain = readLoopGraph(releaseTrainDetail.definition);
+
+  it("Should read a strategy from both the shorthand string and the full object", () => {
+    expect(
+      nodeOf({ id: "f", class: "control", kind: "fan-out", strategy: "fail_fast" }).strategy
+    ).toEqual({ kind: "fail_fast" });
+
+    expect(
+      nodeOf({
+        id: "f",
+        class: "control",
+        kind: "fan-out",
+        strategy: { kind: "best_effort", threshold: "66%", missing: "acceptable" },
+      }).strategy
+    ).toEqual({ kind: "best_effort", threshold: "66%", missing: "acceptable" });
+
+    expect(
+      nodeOf({
+        id: "f",
+        class: "control",
+        kind: "fan-out",
+        strategy: { kind: "best_effort", threshold: { count: 3 } },
+      }).strategy
+    ).toEqual({ kind: "best_effort", threshold: "3", missing: undefined });
+
+    expect(
+      nodeOf({ id: "f", class: "control", kind: "fan-out", strategy: "  " }).strategy
+    ).toBeUndefined();
+    expect(
+      nodeOf({ id: "f", class: "control", kind: "fan-out", strategy: { threshold: "50%" } })
+        .strategy
+    ).toBeUndefined();
+  });
+
+  it("Should read the iteration bindings that un-shadow a nested fan-out", () => {
+    const node = releaseTrain.nodes.find(entry => entry.id === "rollout")!;
+    expect(node.bindAs).toBe("service");
+    expect(node.indexAs).toBe("service_index");
+    expect(iterationNamesSummary(node)).toBe("as service · index service_index");
+    expect(
+      iterationNamesSummary(nodeOf({ id: "f", class: "control", kind: "fan-out" }))
+    ).toBeNull();
+  });
+
+  it("Should read the ordered route table, its default, and the eval-error policy", () => {
+    const triage = releaseTrain.nodes.find(entry => entry.id === "triage")!;
+    expect(triage.routes).toEqual([
+      { when: 'inputs.severity == "p0"', to: "hotfix" },
+      { when: 'inputs.severity == "p1"', to: "standard" },
+    ]);
+    expect(triage.defaultRoute).toBe("backlog");
+    expect(triage.onEvalError).toBe("fail");
+
+    expect(
+      nodeOf({
+        id: "r",
+        class: "control",
+        kind: "route",
+        routes: [{ when: "a", to: "" }, { when: "b", to: "x" }, "nonsense"],
+      }).routes
+    ).toEqual([{ when: "b", to: "x" }]);
+  });
+
+  it("Should read an ask node's prompt and whether it declares an answer shape", () => {
+    const ask = releaseTrain.nodes.find(entry => entry.id === "confirm-rollout")!;
+    expect(ask.askPrompt).toBe("Which regions ship first?");
+    expect(ask.hasAskExpect).toBe(true);
+
+    const bare = nodeOf({ id: "a", class: "control", kind: "ask", params: { prompt: "  " } });
+    expect(bare.askPrompt).toBeUndefined();
+    expect(bare.hasAskExpect).toBe(false);
+  });
+
+  it("Should read the review block on an action node", () => {
+    const action = releaseTrain.nodes.find(entry => entry.id === "apply-migration")!;
+    expect(action.review).toEqual({
+      decisions: ["approve", "edit", "reject", "respond"],
+      prompt: "apply-migration proposes a migrate",
+      onRejectRoute: "backlog",
+      expiresAfter: "24h",
+    });
+
+    expect(nodeOf({ id: "x", class: "action", kind: "transform" }).review).toBeUndefined();
+  });
+
+  it("Should keep the strategy summary null when the author declared none", () => {
+    expect(strategySummary(nodeOf({ id: "f", class: "control", kind: "fan-out" }))).toBeNull();
+    expect(strategySummary(releaseTrain.nodes.find(entry => entry.id === "rollout")!)).toBe(
+      "best_effort 66% missing acceptable"
+    );
+    expect(
+      strategySummary(nodeOf({ id: "f", class: "control", kind: "fan-out", strategy: "race" }))
+    ).toBe("race");
+  });
+
+  it("Should say a route has no default rather than inventing one", () => {
+    expect(routeSummary(releaseTrain.nodes.find(entry => entry.id === "triage")!)).toBe(
+      "2 routes · default backlog"
+    );
+    expect(
+      routeSummary(
+        nodeOf({ id: "r", class: "control", kind: "route", routes: [{ when: "a", to: "x" }] })
+      )
+    ).toBe("1 route · no default");
+
+    expect(routeSummary(nodeOf({ id: "r", class: "control", kind: "route" }))).toBe(
+      "0 routes · no default"
+    );
+    expect(routeSummary(nodeOf({ id: "x", class: "action", kind: "transform" }))).toBeNull();
+  });
+
+  it("Should append the strategy and the iteration names to the fan-out summary", () => {
+    expect(fanOutSummary(releaseTrain.nodes.find(entry => entry.id === "rollout")!)).toBe(
+      "batch 1 · ×2 · ≤500 · best_effort 66% missing acceptable · as service · index service_index"
+    );
+
+    expect(
+      fanOutSummary(nodeOf({ id: "f", class: "control", kind: "fan-out", strategy: "race" }))
+    ).toBe("race");
+  });
+
+  it("Should specialize the class label for route and ask control nodes", () => {
+    expect(nodeClassLabel(releaseTrain.nodes.find(entry => entry.id === "triage")!)).toBe(
+      "control · route"
+    );
+    expect(nodeClassLabel(releaseTrain.nodes.find(entry => entry.id === "confirm-rollout")!)).toBe(
+      "control · ask"
+    );
+    expect(nodeClassLabel(releaseTrain.nodes.find(entry => entry.id === "collect-rollout")!)).toBe(
+      "control"
+    );
   });
 });

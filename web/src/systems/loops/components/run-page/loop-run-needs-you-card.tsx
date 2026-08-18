@@ -8,8 +8,31 @@ import type {
   LoopGateDecision,
 } from "../../lib/loop-events";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import type { LoopRequestView } from "../../lib/loop-request-model";
+import type { LoopRequestDecision } from "../../lib/loop-request-vocabulary";
 import type { LoopRunRecord } from "../../types";
 import { LoopSection } from "../loop-section";
+import { LoopRequestCard } from "./requests/loop-request-card";
+
+export interface LoopRequestAnswerInput {
+  nodeId: string;
+  itemIndex: number;
+  decision: LoopRequestDecision;
+  payload?: Record<string, unknown>;
+  note?: string;
+}
+
+export interface LoopRunRequestState {
+  engagedKey?: string;
+
+  isAnswerPending?: boolean;
+  fieldErrors?: Readonly<Record<string, string>>;
+  refusal?: string;
+  fullContext?: unknown;
+  isLoadingFullContext?: boolean;
+  onRequestFullContext?: (nodeId: string, itemIndex: number) => void;
+  onAnswer?: (input: LoopRequestAnswerInput) => void;
+}
 
 interface LoopRunNeedsYouCardProps {
   run: LoopRunRecord;
@@ -22,8 +45,15 @@ interface LoopRunNeedsYouCardProps {
   showApproval?: boolean;
   /** Quarantined lanes that need an entry point above the fold. */
   quarantinedNodes?: readonly LoopNodeLifecycle[];
+
+  requests?: readonly LoopRequestView[];
+  requestState?: LoopRunRequestState;
   onOpenQuarantine?: (nodeId: string) => void;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
+}
+
+function requestKey(view: LoopRequestView): string {
+  return `${view.request.node_id}:${view.request.item_index}`;
 }
 
 /** The closed ADR-017 §9.8 verdict set, rendered as the card's action buttons in order. */
@@ -74,17 +104,19 @@ export function LoopRunNeedsYouCard({
   isPending,
   showApproval = true,
   quarantinedNodes = [],
+  requests = [],
+  requestState,
   onOpenQuarantine,
   onDecision,
 }: LoopRunNeedsYouCardProps) {
-  if (!showApproval && quarantinedNodes.length === 0) return null;
+  if (!showApproval && quarantinedNodes.length === 0 && requests.length === 0) return null;
   const gateId = request?.gateId ?? run.active_gate_id ?? "approve";
   const facts = request?.facts && request.facts.length > 0 ? request.facts : fallbackFacts;
   const micro =
     gateId === "budget"
       ? `needs_approval · ${gateId} · on_exceeded: ${run.budget_on_exceeded}`
       : `needs_approval · ${gateId}`;
-  const gistCount = (showApproval ? 1 : 0) + quarantinedNodes.length;
+  const gistCount = (showApproval ? 1 : 0) + quarantinedNodes.length + requests.length;
   return (
     <LoopSection
       className="mb-0"
@@ -94,8 +126,43 @@ export function LoopRunNeedsYouCard({
       title="Needs you"
     >
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+        {requests.map((view, index) => {
+          const key = requestKey(view);
+
+          const isEngaged = requestState?.engagedKey === key;
+          return (
+            <div className={index > 0 ? "border-t border-line-soft" : undefined} key={key}>
+              <LoopRequestCard
+                fieldErrors={isEngaged ? requestState?.fieldErrors : undefined}
+                fullContext={isEngaged ? requestState?.fullContext : undefined}
+                isLoadingFullContext={isEngaged ? requestState?.isLoadingFullContext : false}
+                isPending={isEngaged && requestState?.isAnswerPending === true}
+                onRequestFullContext={() =>
+                  requestState?.onRequestFullContext?.(
+                    view.request.node_id,
+                    view.request.item_index
+                  )
+                }
+                onSubmit={input =>
+                  requestState?.onAnswer?.({
+                    ...input,
+                    itemIndex: view.request.item_index,
+                    nodeId: view.request.node_id,
+                  })
+                }
+                refusal={isEngaged ? requestState?.refusal : undefined}
+                view={view}
+              />
+            </div>
+          );
+        })}
         {showApproval ? (
-          <div className="flex items-start gap-3 px-4 py-3.5" data-testid="loop-run-needs-approval">
+          <div
+            className={`flex items-start gap-3 px-4 py-3.5${
+              requests.length > 0 ? " border-t border-line-soft" : ""
+            }`}
+            data-testid="loop-run-needs-approval"
+          >
             <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
             <div className="min-w-0 flex-1">
               <div className="text-ws-name font-medium text-fg-strong">
@@ -150,7 +217,7 @@ export function LoopRunNeedsYouCard({
           return (
             <div
               className={`flex items-start gap-3 px-4 py-3.5 ${
-                showApproval || index > 0 ? "border-t border-line-soft" : ""
+                showApproval || requests.length > 0 || index > 0 ? "border-t border-line-soft" : ""
               }`}
               data-testid={`loop-run-needs-quarantine-${rowKey}`}
               key={rowKey}

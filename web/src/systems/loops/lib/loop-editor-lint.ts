@@ -14,23 +14,20 @@ export type LoopInvariantKey =
   | "reachability"
   | "termination"
   | "fan_out"
-  | "references";
+  | "references"
+  | "routing"
+  | "human_request";
 
 export type LoopInvariantStatus = "pass" | "fail";
 
-/**
- * The four canonical structural invariants (ADR-015: acyclicity, reachability,
- * termination, fan-out bounds) PLUS a fifth References chip. Reference validation is a
- * real, first-class linter output (ADR-020) that fails Publish, so it earns a chip even
- * though the spec text says "the 4 invariant chips" — the four canonical keys are the
- * ones tests assert; References is the honest fifth surface, not decoration.
- */
 export const LOOP_INVARIANTS: { key: LoopInvariantKey; label: string }[] = [
   { key: "acyclicity", label: "Acyclicity" },
   { key: "reachability", label: "Reachability" },
   { key: "termination", label: "Termination" },
   { key: "references", label: "References" },
   { key: "fan_out", label: "Fan-out bounds" },
+  { key: "routing", label: "Routing" },
+  { key: "human_request", label: "Human requests" },
 ];
 
 // Deterministic-code → invariant classification. Codes are matched by substring so a
@@ -48,7 +45,14 @@ const CODE_KEYWORDS: { key: LoopInvariantKey; keywords: string[] }[] = [
     key: "references",
     keywords: ["reference", "unresolvable", "condition_not_bool", "item_outside_fanout", "node_id"],
   },
-  { key: "fan_out", keywords: ["fan_out", "fanout"] },
+
+  { key: "human_request", keywords: ["ask_", "review_", "responder_"] },
+  {
+    key: "routing",
+    keywords: ["route_", "eval_error_policy", "error_route"],
+  },
+
+  { key: "fan_out", keywords: ["fan_out", "fanout", "strategy_", "iteration_name"] },
 ];
 
 /** Classifies a lint code to its invariant chip, or `null` when unattributable. */
@@ -102,6 +106,8 @@ export function emptyLintState(): LoopLintState {
       termination: "pass",
       fan_out: "pass",
       references: "pass",
+      routing: "pass",
+      human_request: "pass",
     },
     hasBlockingErrors: false,
     errorCount: 0,

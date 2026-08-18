@@ -87,3 +87,39 @@ export class LoopLifecycleConflictError extends LoopsApiError {
     return this.details.winner_requested_at ?? "";
   }
 }
+
+export class LoopRequestError extends LoopsApiError {
+  constructor(
+    message: string,
+    status: number,
+    public readonly code: string,
+    public readonly details: Readonly<Record<string, string>>
+  ) {
+    super(message, status);
+    this.name = "LoopRequestError";
+  }
+
+  get fieldErrors(): Readonly<Record<string, string>> {
+    return this.code === "request_validation_failed" ? this.details : {};
+  }
+
+  get isAnswerable(): boolean {
+    return this.status === 422;
+  }
+
+  get recordedDecision(): string {
+    return this.details.decision ?? this.details.answered_decision ?? "";
+  }
+}
+
+export class LoopTimetravelError extends LoopsApiError {
+  constructor(
+    message: string,
+    status: number,
+    public readonly code: string,
+    public readonly details: Readonly<Record<string, string>>
+  ) {
+    super(message, status);
+    this.name = "LoopTimetravelError";
+  }
+}

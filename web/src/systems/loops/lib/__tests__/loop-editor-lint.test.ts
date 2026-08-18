@@ -212,6 +212,99 @@ describe("loop editor lint", () => {
     ).toEqual([]);
   });
 
+  it("Should mirror the daemon error when a route has no default target", () => {
+    expect(
+      lintDefinition({
+        graph: {
+          nodes: [{ id: "triage", class: "control", kind: "route", routes: [], default: "" }],
+        },
+      })
+    ).toEqual([
+      expect.objectContaining({
+        code: "route_default_missing",
+        node_id: "triage",
+        severity: "error",
+      }),
+    ]);
+
+    expect(
+      lintDefinition({
+        graph: {
+          nodes: [
+            {
+              id: "triage",
+              class: "control",
+              kind: "route",
+              routes: [],
+              default: "backlog",
+            },
+          ],
+        },
+      })
+    ).toEqual([]);
+  });
+
+  it("Should light the Routing chip for every route and error-route failure", () => {
+    for (const code of [
+      "route_default_missing",
+      "route_target_invalid",
+      "error_route_backward",
+      "eval_error_policy_invalid",
+    ]) {
+      expect(classifyInvariant(code)).toBe("routing");
+      const state = buildLintState({
+        valid: false,
+        errors: [{ node_id: "triage", code, message: "", severity: "error" }],
+      });
+      expect(state.invariants.routing).toBe("fail");
+      expect(state.invariants.human_request).toBe("pass");
+      expect(state.invariants.fan_out).toBe("pass");
+      expect(state.hasBlockingErrors).toBe(true);
+    }
+  });
+
+  it("Should light the Human requests chip for every ask, review, and responder failure", () => {
+    for (const code of [
+      "ask_expect_required",
+      "review_shape_invalid",
+      "responder_policy_invalid",
+    ]) {
+      expect(classifyInvariant(code)).toBe("human_request");
+      const state = buildLintState({
+        valid: false,
+        errors: [{ node_id: "confirm", code, message: "", severity: "error" }],
+      });
+      expect(state.invariants.human_request).toBe("fail");
+      expect(state.invariants.routing).toBe("pass");
+    }
+  });
+
+  it("Should light the Fan-out bounds chip for strategy and iteration-name failures", () => {
+    for (const code of ["strategy_threshold_invalid", "iteration_name_conflict"]) {
+      expect(classifyInvariant(code)).toBe("fan_out");
+      const state = buildLintState({
+        valid: false,
+        errors: [{ node_id: "rollout", code, message: "", severity: "error" }],
+      });
+      expect(state.invariants.fan_out).toBe("fail");
+      expect(state.invariants.human_request).toBe("pass");
+    }
+  });
+
+  it("Should keep an unattributable code blocking Publish without claiming a chip", () => {
+    for (const code of ["wait_shape_invalid", "unknown_parameter"]) {
+      expect(classifyInvariant(code)).toBeNull();
+      const state = buildLintState({
+        valid: false,
+        errors: [{ node_id: "await_ack", code, message: "", severity: "error" }],
+      });
+      expect(Object.values(state.invariants).every(status => status === "pass")).toBe(true);
+      expect(state.hasBlockingErrors).toBe(true);
+      expect(state.errorCount).toBe(1);
+      expect(state.byNode.get("await_ack")).toHaveLength(1);
+    }
+  });
+
   it("Should reject an emit that declares with even when the value is null", () => {
     const issues = lintDefinition({
       graph: {

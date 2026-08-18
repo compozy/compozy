@@ -151,6 +151,57 @@ export interface EnvironmentFieldSpec extends FieldCommon {
   inheritLabel: string;
 }
 
+export const LOOP_STRATEGY_KINDS = ["wait_all", "fail_fast", "best_effort", "race"] as const;
+export type LoopStrategyKind = (typeof LOOP_STRATEGY_KINDS)[number];
+
+export interface StrategyFieldSpec extends FieldCommon {
+  type: "strategy";
+
+  basePath: FieldPath;
+
+  kind: LoopStrategyKind | null;
+
+  threshold: string;
+
+  missingAcceptable: boolean;
+}
+
+export interface LoopRouteEntry {
+  when: string;
+  to: string;
+}
+
+export interface RoutesFieldSpec extends FieldCommon {
+  type: "routes";
+
+  path: FieldPath;
+
+  defaultPath: FieldPath;
+  routes: LoopRouteEntry[];
+  defaultRoute: string;
+
+  targets: string[];
+}
+
+export const LOOP_REVIEW_DECISIONS = ["approve", "edit", "reject", "respond"] as const;
+export type LoopReviewDecision = (typeof LOOP_REVIEW_DECISIONS)[number];
+
+export interface ReviewFieldSpec extends FieldCommon {
+  type: "review";
+
+  basePath: FieldPath;
+  enabled: boolean;
+
+  decisions: LoopReviewDecision[];
+  when: string;
+  prompt: string;
+  agentsAllowed: boolean;
+  onRejectRoute: string;
+  expiresAfter: string;
+
+  targets: string[];
+}
+
 export interface FoldFieldSpec extends FieldCommon {
   type: "fold";
   subLabel?: string;
@@ -170,4 +221,7 @@ export type FieldSpec =
   | EffectsFieldSpec
   | WaitModeFieldSpec
   | EnvironmentFieldSpec
+  | StrategyFieldSpec
+  | RoutesFieldSpec
+  | ReviewFieldSpec
   | FoldFieldSpec;

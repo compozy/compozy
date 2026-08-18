@@ -66,13 +66,18 @@ function expiryFields(basePath: string[], owner: string): FieldSpec[] {
 }
 
 /** The `expires` fold on a human gate (`dsl.Node.Expires`, node root — not params). */
-export function gateExpiryFold(_raw: RawLoopNode): FieldSpec {
+
+export function gateExpiryFold(
+  _raw: RawLoopNode,
+  basePath: string[] = ["expires"],
+  owner = "gate"
+): FieldSpec {
   return {
     type: "fold",
-    key: "gate_expiry",
+    key: `${owner}_expiry`,
     label: "Expiry & escalation",
     subLabel: "expires.after · escalate · route",
-    fields: expiryFields(["expires"], "gate"),
+    fields: expiryFields(basePath, owner),
   };
 }
 

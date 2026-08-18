@@ -25,10 +25,22 @@ import {
   loopRunDetailByRunId,
   loopRunFixtures,
 } from "./fixtures";
+import { graphEngHandlers } from "./handlers-graph-eng";
+import { graphEngRunDetailByRunId, graphEngRunFixtures } from "./fixture-graph-eng-runs";
+import { RELEASE_TRAIN_LOOP_NAME, releaseTrainDetail } from "./fixture-release-train";
 import { lintDefinition } from "./lint-definition";
 import { materializeContractFixture } from "./materialize-contract-fixture";
 
 const catalogByName = new Map(loopCatalogFixtures.map(entry => [entry.name, entry]));
+
+const runDetailByRunId = new Map([...loopRunDetailByRunId, ...graphEngRunDetailByRunId]);
+const runListFixtures = [...loopRunFixtures, ...graphEngRunFixtures];
+const detailByName = new Map([
+  ...loopDetailByName,
+  [RELEASE_TRAIN_LOOP_NAME, releaseTrainDetail] as const,
+]);
+
+const definitionNames = new Set(detailByName.keys());
 
 function resolveRunInputs(
   entry: (typeof loopCatalogFixtures)[number],
@@ -108,7 +120,7 @@ function tally(values: readonly (string | null | undefined)[]): Record<string, n
 const loopRunEventStreamEncoder = new TextEncoder();
 
 function createLoopRunEventsStreamResponse(workspaceId: string, runId: string): Response {
-  const generation = loopRunDetailByRunId.get(runId)?.run.generation ?? 1;
+  const generation = runDetailByRunId.get(runId)?.run.generation ?? 1;
   const frame = {
     id: `${runId}:storybook:1`,
     seq: 1,
@@ -144,7 +156,7 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json({ loop: loopDetailByName.get("implement-tasks")! }, { status: 201 })
   ),
   compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
-    const detail = loopDetailByName.get(String(params.name));
+    const detail = detailByName.get(String(params.name));
     if (!detail) {
       return HttpResponse.json(
         { error: `Loop not found: ${String(params.name)}` },
@@ -156,7 +168,7 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.patch(
     "/api/workspaces/{workspace_id}/loops/{name}",
     async ({ params, request }) => {
-      const detail = loopDetailByName.get(String(params.name));
+      const detail = detailByName.get(String(params.name));
       if (!detail) {
         return HttpResponse.json(
           { error: `Loop not found: ${String(params.name)}` },
@@ -189,7 +201,7 @@ export const handlers: HttpHandler[] = [
     }
   ),
   compozyApiMock.delete("/api/workspaces/{workspace_id}/loops/{name}", ({ params }) => {
-    if (!catalogByName.has(String(params.name))) {
+    if (!definitionNames.has(String(params.name))) {
       return HttpResponse.json(
         { error: `Loop not found: ${String(params.name)}` },
         { status: 404 }
@@ -198,7 +210,7 @@ export const handlers: HttpHandler[] = [
     return new HttpResponse(null, { status: 204 });
   }),
   compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", ({ params }) => {
-    if (!catalogByName.has(String(params.name))) {
+    if (!definitionNames.has(String(params.name))) {
       return HttpResponse.json(
         { error: `Loop not found: ${String(params.name)}` },
         { status: 404 }
@@ -339,7 +351,7 @@ export const handlers: HttpHandler[] = [
     const url = new URL(request.url);
     const loop = url.searchParams.get("loop");
     const status = url.searchParams.get("status");
-    const runs = loopRunFixtures.filter(run => {
+    const runs = runListFixtures.filter(run => {
       if (loop && run.loop_name !== loop) return false;
       if (status && run.status !== status) return false;
       return true;
@@ -347,7 +359,7 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({ runs, aggregates: loopRunAggregatesFixture });
   }),
   compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", ({ params }) => {
-    const detail = loopRunDetailByRunId.get(String(params.run_id));
+    const detail = runDetailByRunId.get(String(params.run_id));
     if (!detail) {
       return HttpResponse.json(
         { error: `Loop run not found: ${String(params.run_id)}` },
@@ -358,7 +370,7 @@ export const handlers: HttpHandler[] = [
   }),
   compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns", ({ params }) => {
     const runId = String(params.run_id);
-    if (!loopRunDetailByRunId.has(runId)) {
+    if (!runDetailByRunId.has(runId)) {
       return HttpResponse.json({ error: `Loop run not found: ${runId}` }, { status: 404 });
     }
     return HttpResponse.json({ turns: [], next_after_seq: null });
@@ -368,7 +380,7 @@ export const handlers: HttpHandler[] = [
     ({ params, response }) => {
       const workspaceId = String(params.workspace_id);
       const runId = String(params.run_id);
-      if (!loopRunDetailByRunId.has(runId)) {
+      if (!runDetailByRunId.has(runId)) {
         return HttpResponse.json({ error: `Loop run not found: ${runId}` }, { status: 404 });
       }
       return response.untyped(createLoopRunEventsStreamResponse(workspaceId, runId));
@@ -386,4 +398,5 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.post("/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel", ({ params }) =>
     HttpResponse.json({ ok: true, run_id: String(params.run_id) })
   ),
+  ...graphEngHandlers,
 ];

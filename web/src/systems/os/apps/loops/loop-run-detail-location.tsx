@@ -1,18 +1,18 @@
-import { useState } from "react";
 import { Activity, AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
 
 import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
-import { useLoopRunPage } from "./use-loop-run-page";
-import { useLoopNodeControls } from "./use-loop-node-controls";
+import { useLoopRunDetail } from "./use-loop-run-detail";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
+  LoopForkDialog,
+  LoopNodeAmendDialog,
   LoopNodeControlDialog,
+  LoopNodeRerunDialog,
   LoopNodeRowActions,
   LoopQuarantineSheet,
-  type LoopRunConfirmVerb,
   LoopRunControlDialog,
   LoopRunControls,
   LoopRunOverflowMenu,
@@ -100,20 +100,11 @@ function LoopRunDetail({
   liveDataEnabled,
   navigate,
 }: LoopRunDetailProps) {
-  const page = useLoopRunPage(workspaceId, runId, { liveDataEnabled });
-  const nodeControls = useLoopNodeControls(workspaceId, runId);
-  const [inspectOpen, setInspectOpen] = useState(false);
-  // Cancel and kill are destructive and irreversible for this run, so both go
-  // through a confirm that restates the run's current status before committing.
-  const [runVerb, setRunVerb] = useState<LoopRunConfirmVerb | null>(null);
-  const openRunControl = (verb: LoopRunConfirmVerb) => {
-    page.resetRunControlErrors();
-    setRunVerb(verb);
-  };
-  const confirmRunControl = async (verb: LoopRunConfirmVerb) => {
-    const accepted = verb === "kill" ? await page.handleKill() : await page.handleCancel();
-    if (accepted) setRunVerb(null);
-  };
+  const { page, nodeControls, requests, timetravel, dialogs } = useLoopRunDetail(
+    workspaceId,
+    runId,
+    { liveDataEnabled }
+  );
   const quarantineNode =
     nodeControls.quarantineNodeId === null
       ? null
@@ -152,14 +143,14 @@ function LoopRunDetail({
           pendingVerb={page.pendingRunVerb}
           onPause={page.handlePause}
           onResume={page.handleResume}
-          onCancel={() => openRunControl("cancel")}
+          onCancel={() => dialogs.openRunControl("cancel")}
         />
         <LoopRunOverflowMenu
           isKillPending={page.isKillPending}
           loopName={page.run.loop_name}
           // Kill is offered only while the run is live; a terminal run gets the
           // views but no verb the daemon would reject.
-          onKill={page.canKillRun ? () => openRunControl("kill") : undefined}
+          onKill={page.canKillRun ? () => dialogs.openRunControl("kill") : undefined}
         />
       </div>
     ) : undefined,
@@ -234,7 +225,7 @@ function LoopRunDetail({
         terminalFromStatus={page.terminalFromStatus}
         terminalAt={page.terminalAt}
         terminalCause={page.terminalCause}
-        inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
+        inspect={{ open: dialogs.inspectOpen, onOpenChange: dialogs.setInspectOpen }}
         pendingAction={page.pendingAction}
         nodeLifecycles={page.nodeLifecycles}
         nodeNowLines={page.nodeNowLines}
@@ -244,15 +235,27 @@ function LoopRunDetail({
         nodeSessions={page.nodeSessions}
         renderNodeActions={node => (
           <LoopNodeRowActions
-            isPending={nodeControls.isPending}
+            isPending={nodeControls.isBusy}
             node={node}
             onVerb={nodeControls.onVerb}
             runStatus={page.run?.status}
+            timetravel={nodeControls.timetravelFor(node)}
           />
         )}
         onOpenQuarantine={nodeControls.openQuarantine}
         onDecision={page.handleDecision}
         onStartNewRun={page.handleStartNewRun}
+        requests={page.requests}
+        requestState={{
+          ...requests,
+          onAnswer: input => {
+            void requests.onAnswer(input);
+          },
+        }}
+        strategyProgress={page.strategyProgress}
+        onOpenRun={timetravel.onOpenRun}
+        onCompareGeneration={timetravel.onCompareGeneration}
+        onForkGeneration={timetravel.onForkGeneration}
       />
       <LoopNodeControlDialog
         answer={sheetNestsNodeDialog ? undefined : nodeControls.answer}
@@ -264,10 +267,55 @@ function LoopRunDetail({
         }}
         request={sheetNestsNodeDialog ? null : nodeControls.request}
       />
+      <LoopNodeAmendDialog
+        answer={nodeControls.timetravelAnswer}
+        fieldErrors={nodeControls.amendFieldErrors}
+        isPending={nodeControls.isTimetravelPending}
+        node={nodeControls.amendNode}
+        onConfirm={input => {
+          void nodeControls.commitAmend(input);
+        }}
+        onOpenChange={open => {
+          if (!open) nodeControls.closeTimetravel();
+        }}
+        open={nodeControls.amendNode !== null}
+        originalOutput={nodeControls.amendOriginalOutput}
+        outputSchema={nodeControls.amendOutputSchema}
+      />
+      <LoopNodeRerunDialog
+        answer={nodeControls.timetravelAnswer}
+        isPending={nodeControls.isTimetravelPending}
+        node={nodeControls.rerunNode}
+        onConfirm={input => {
+          void nodeControls.commitRerun(input);
+        }}
+        onOpenChange={open => {
+          if (!open) nodeControls.closeTimetravel();
+        }}
+        open={nodeControls.rerunNode !== null}
+        rerunSet={nodeControls.rerunSet}
+      />
+      <LoopForkDialog
+        blockedReason={timetravel.forkBlockedReason}
+        defaultGeneration={timetravel.forkGeneration}
+        fieldErrors={timetravel.forkFieldErrors}
+        generations={timetravel.forkGenerations}
+        inputSchema={timetravel.forkInputSchema}
+        isPending={timetravel.isForkPending}
+        loopName={timetravel.loopName}
+        onOpenChange={open => {
+          if (!open) timetravel.onCloseFork();
+        }}
+        onSubmit={input => {
+          void timetravel.onSubmitFork(input);
+        }}
+        open={timetravel.forkGeneration !== null}
+        sourceInputs={timetravel.forkSourceInputs}
+      />
       <LoopRunControlDialog
-        answer={runVerb === "kill" ? page.killAnswer : page.cancelAnswer}
+        answer={dialogs.runVerb === "kill" ? page.killAnswer : page.cancelAnswer}
         elapsedLabel={page.elapsedLabel}
-        error={runVerb === "kill" ? page.killError : page.cancelError}
+        error={dialogs.runVerb === "kill" ? page.killError : page.cancelError}
         generation={page.effectiveRun.generation}
         inFlightCount={
           page.nodeLifecycles.filter(
@@ -276,17 +324,14 @@ function LoopRunDetail({
         }
         isPending={page.isCancelPending || page.isKillPending}
         onConfirm={verb => {
-          void confirmRunControl(verb);
+          void dialogs.confirmRunControl(verb);
         }}
         onOpenChange={open => {
-          if (!open) {
-            page.resetRunControlErrors();
-            setRunVerb(null);
-          }
+          if (!open) dialogs.closeRunControl();
         }}
         runId={runId}
         status={page.effectiveRun.status}
-        verb={runVerb}
+        verb={dialogs.runVerb}
         waitingOnYouCount={page.waitingNodes.length}
       />
       <LoopQuarantineSheet

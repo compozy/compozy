@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { applyLoopEventFrame, emptyLoopRunLiveState } from "../loop-events";
+import {
+  parseBranchPruned,
+  parseNodeAmended,
+  parseRequestOpened,
+  parseRequestResolved,
+  parseRouteTaken,
+  parseRunForked,
+} from "../loop-graph-events";
 import type { LoopRunEventKind } from "../../types";
 import { loopEventFrame as frame } from "./loop-event-frame";
 
@@ -410,5 +418,153 @@ describe("applyLoopEventFrame", () => {
     expect(state.retrySchedules).toEqual({});
     // The frame still retains — the operator can see it arrived.
     expect(state.frames).toHaveLength(1);
+  });
+});
+
+describe("graph-completion event payload readers", () => {
+  it("Should retain every graph-completion frame so a reconnect can replay the story", () => {
+    let state = emptyLoopRunLiveState();
+    const kinds: LoopRunEventKind[] = [
+      "request_opened",
+      "request_answered",
+      "request_expired",
+      "request_canceled",
+      "node_amended",
+      "route_taken",
+      "branch_pruned",
+      "run_forked",
+    ];
+    kinds.forEach((kind, index) => {
+      state = applyLoopEventFrame(state, frame(kind, { node_id: "n" }, index + 1));
+    });
+    expect(state.frames.map(entry => entry.kind)).toEqual(kinds);
+  });
+
+  it("Should narrow an opened request to the fields the daemon persists", () => {
+    const opened = parseRequestOpened(
+      frame("request_opened", {
+        generation: 3,
+        node_id: "confirm-rollout",
+        item_index: 2,
+        kind: "ask",
+        prompt: "Which regions ship first?",
+        decisions: ["respond", 7],
+        agents: "allow",
+        expires_at: "2026-08-18T09:00:00Z",
+      })
+    );
+    expect(opened).toEqual({
+      generation: 3,
+      nodeId: "confirm-rollout",
+      itemIndex: 2,
+      kind: "ask",
+      prompt: "Which regions ship first?",
+
+      decisions: ["respond"],
+      expiresAt: "2026-08-18T09:00:00Z",
+    });
+    expect(parseRequestOpened(frame("request_opened", { generation: 3 }))).toBeNull();
+    expect(parseRequestOpened(frame("request_opened", "not-an-object"))).toBeNull();
+  });
+
+  it("Should carry the answering actor and decision off a resolution frame", () => {
+    expect(
+      parseRequestResolved(
+        frame("request_answered", {
+          generation: 3,
+          node_id: "apply-migration",
+          item_index: 0,
+          decision: "edit",
+          actor_kind: "operator",
+          actor_id: "pedro",
+        })
+      )
+    ).toEqual({
+      generation: 3,
+      nodeId: "apply-migration",
+      itemIndex: 0,
+      decision: "edit",
+      actorKind: "operator",
+      actorId: "pedro",
+    });
+
+    expect(
+      parseRequestResolved(frame("request_expired", { node_id: "apply-migration" }))?.decision
+    ).toBe("");
+  });
+
+  it("Should distinguish a matched route from the default route", () => {
+    expect(
+      parseRouteTaken(
+        frame("route_taken", {
+          generation: 2,
+          node_id: "triage",
+          item_index: 0,
+          route: "standard",
+          cause: "condition_matched",
+          matched_when: 'inputs.severity == "p1"',
+        })
+      )
+    ).toMatchObject({
+      route: "standard",
+      matchedWhen: 'inputs.severity == "p1"',
+      isDefault: false,
+    });
+
+    expect(
+      parseRouteTaken(
+        frame("route_taken", {
+          node_id: "triage",
+          route: "backlog",
+          cause: "default_route",
+          default: true,
+        })
+      )
+    ).toMatchObject({ route: "backlog", matchedWhen: "", isDefault: true });
+  });
+
+  it("Should read pruned lanes as an aggregate list, dropping non-numeric entries", () => {
+    expect(
+      parseBranchPruned(
+        frame("branch_pruned", {
+          generation: 3,
+          node_id: "apply-migration",
+          item_indexes: [1, 2, "3", null],
+          reason: "fail_fast",
+        })
+      )
+    ).toEqual({
+      generation: 3,
+      nodeId: "apply-migration",
+      itemIndexes: [1, 2],
+      reason: "fail_fast",
+    });
+    expect(parseBranchPruned(frame("branch_pruned", { reason: "fail_fast" }))).toBeNull();
+  });
+
+  it("Should read amendment provenance and fork lineage", () => {
+    expect(
+      parseNodeAmended(
+        frame("node_amended", {
+          generation: 3,
+          node_id: "render-notes",
+          item_index: 0,
+          amendment_seq: 2,
+          actor_kind: "operator",
+          actor_id: "pedro",
+        })
+      )
+    ).toMatchObject({ amendmentSeq: 2, actorId: "pedro", nodeId: "render-notes" });
+
+    expect(
+      parseRunForked(
+        frame("run_forked", {
+          source_run_id: "lr_1",
+          source_generation: 2,
+          fork_run_id: "lr_2",
+        })
+      )
+    ).toEqual({ sourceRunId: "lr_1", sourceGeneration: 2, forkRunId: "lr_2" });
+    expect(parseRunForked(frame("run_forked", { source_run_id: "lr_1" }))).toBeNull();
   });
 });

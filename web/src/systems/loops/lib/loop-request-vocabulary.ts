@@ -1,0 +1,135 @@
+import {
+  Check,
+  CircleAlert,
+  CircleDashed,
+  CircleSlash,
+  Clock,
+  GitBranch,
+  GitFork,
+  type LucideIcon,
+  Minus,
+  Pencil,
+  TriangleAlert,
+} from "lucide-react";
+
+import type { PillTone } from "@compozy/ui";
+
+export const LOOP_REQUEST_KINDS = ["ask", "review"] as const;
+export type LoopRequestKind = (typeof LOOP_REQUEST_KINDS)[number];
+
+export const LOOP_REQUEST_STATES = ["pending", "answered", "expired", "canceled"] as const;
+export type LoopRequestState = (typeof LOOP_REQUEST_STATES)[number];
+
+export const LOOP_REQUEST_DECISIONS = ["approve", "edit", "reject", "respond"] as const;
+export type LoopRequestDecision = (typeof LOOP_REQUEST_DECISIONS)[number];
+
+export const LOOP_COMPLETION_STATES = ["complete", "partial"] as const;
+export type LoopCompletionState = (typeof LOOP_COMPLETION_STATES)[number];
+
+export const LOOP_DIFF_CHANGES = ["changed", "rerun", "skipped", "carried", "verdict"] as const;
+export type LoopDiffChange = (typeof LOOP_DIFF_CHANGES)[number];
+
+export const LOOP_RESPONDER_AGENT_POLICIES = ["allow", "deny"] as const;
+export type LoopResponderAgentPolicy = (typeof LOOP_RESPONDER_AGENT_POLICIES)[number];
+
+function member<T extends string>(values: readonly T[], value: string): value is T {
+  return (values as readonly string[]).includes(value);
+}
+
+export function isLoopRequestKind(value: string): value is LoopRequestKind {
+  return member(LOOP_REQUEST_KINDS, value);
+}
+
+export function isLoopRequestState(value: string): value is LoopRequestState {
+  return member(LOOP_REQUEST_STATES, value);
+}
+
+export function isLoopRequestDecision(value: string): value is LoopRequestDecision {
+  return member(LOOP_REQUEST_DECISIONS, value);
+}
+
+export function isLoopCompletionState(value: string): value is LoopCompletionState {
+  return member(LOOP_COMPLETION_STATES, value);
+}
+
+export function isLoopDiffChange(value: string): value is LoopDiffChange {
+  return member(LOOP_DIFF_CHANGES, value);
+}
+
+export function isLoopResponderAgentPolicy(value: string): value is LoopResponderAgentPolicy {
+  return member(LOOP_RESPONDER_AGENT_POLICIES, value);
+}
+
+export function isResolvedLoopRequestState(state: string): boolean {
+  return state !== "pending";
+}
+
+export interface LoopSignal {
+  tone: PillTone;
+  icon: LucideIcon;
+
+  word: string;
+}
+
+export const LOOP_REQUEST_STATE_SIGNAL: Record<LoopRequestState, LoopSignal> = {
+  pending: { tone: "warning", icon: TriangleAlert, word: "pending" },
+  answered: { tone: "info", icon: Check, word: "answered" },
+  expired: { tone: "danger", icon: CircleAlert, word: "expired" },
+  canceled: { tone: "neutral", icon: Minus, word: "canceled" },
+};
+
+export const LOOP_REQUEST_NEAR_EXPIRY_SIGNAL: LoopSignal = {
+  tone: "warning",
+  icon: Clock,
+  word: "expires soon",
+};
+
+export const LOOP_AMENDED_SIGNAL: LoopSignal = { tone: "info", icon: Pencil, word: "amended" };
+export const LOOP_FORK_SIGNAL: LoopSignal = { tone: "info", icon: GitFork, word: "fork" };
+
+export const LOOP_PARTIAL_SIGNAL: LoopSignal = {
+  tone: "warning",
+  icon: TriangleAlert,
+  word: "partial",
+};
+
+export const LOOP_ABSENCE_SIGNALS = {
+  canceled_by_strategy: { tone: "neutral", icon: CircleSlash, word: "canceled by strategy" },
+  route_not_taken: { tone: "neutral", icon: GitBranch, word: "not taken" },
+  never_materialized: { tone: "neutral", icon: CircleDashed, word: "never materialized" },
+} satisfies Record<string, LoopSignal>;
+
+export type LoopAbsenceKind = keyof typeof LOOP_ABSENCE_SIGNALS;
+
+export const LOOP_DIFF_CHANGE_TONE: Record<LoopDiffChange, PillTone> = {
+  changed: "accent",
+  rerun: "info",
+  skipped: "neutral",
+  carried: "neutral",
+  verdict: "info",
+};
+
+export const LOOP_DIFF_CHANGE_LABEL: Record<LoopDiffChange, string> = {
+  changed: "Changed",
+  rerun: "Rerun",
+  skipped: "Skipped",
+  carried: "Carried",
+  verdict: "Verdict",
+};
+
+export const LOOP_REQUEST_WAIT_SENTENCE: Record<LoopRequestKind, string> = {
+  ask: "is waiting for an answer",
+  review: "is waiting for a decision on its proposed action",
+};
+
+export const LOOP_REQUEST_KIND_TITLE: Record<LoopRequestKind, string> = {
+  ask: "Answer requested",
+  review: "Decision requested",
+};
+
+export const LOOP_REQUEST_DECISION_LABEL: Record<LoopRequestDecision, string> = {
+  approve: "Approve",
+  edit: "Edit and approve",
+  reject: "Reject",
+  respond: "Respond",
+};

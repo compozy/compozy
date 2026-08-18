@@ -6,10 +6,15 @@ import type { OsWindowRoute } from "../../lib/os-types";
 import { LoopConfigureLocation } from "./loop-configure-location";
 import { LoopDetailLocation } from "./loop-detail-location";
 import { LoopRunDetailLocation } from "./loop-run-detail-location";
+import { LoopRunDiffLocation } from "./loop-run-diff-location";
 import { LoopRunFormLocation } from "./loop-run-form-location";
 import { LoopRunsLocation } from "./loop-runs-location";
 import { LoopsCatalogLocation } from "./loops-catalog-location";
-import { validateLoopRunsSearch, validateLoopsSearch } from "@/systems/loops";
+import {
+  validateLoopRunDiffSearch,
+  validateLoopRunsSearch,
+  validateLoopsSearch,
+} from "@/systems/loops";
 import { setActiveWorkspaceId, useActiveWorkspace } from "@/systems/workspace";
 
 const DEFAULT_LOOPS_ROUTE = { pathname: "/loops", search: {} } as const;
@@ -45,6 +50,17 @@ export function LoopsWindow({ windowId }: { windowId: string }) {
       setActiveWorkspaceId(routeWorkspaceId);
     }
   }, [activeWorkspaceId, canAdoptRouteWorkspace, routeWorkspaceId]);
+
+  const runDiff = /^\/loop-runs\/([^/]+)\/diff$/.exec(location.pathname);
+  if (runDiff) {
+    return (
+      <LoopRunDiffLocation
+        routeWorkspaceId={routeWorkspaceId}
+        runId={decodePathSegment(runDiff[1])}
+        search={validateLoopRunDiffSearch(location.search)}
+      />
+    );
+  }
 
   const runDetail = /^\/loop-runs\/([^/]+)$/.exec(location.pathname);
   if (runDetail) {

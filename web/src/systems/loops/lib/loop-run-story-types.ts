@@ -37,7 +37,15 @@ export type LoopStoryIcon =
   | "effect"
   | "suppressed"
   | "breaker-open"
-  | "breaker-closed";
+  | "breaker-closed"
+  | "request-opened"
+  | "request-answered"
+  | "request-expired"
+  | "route-taken"
+  | "route-default"
+  | "pruned"
+  | "amended"
+  | "forked";
 
 export interface LoopStoryIssue {
   id: string;

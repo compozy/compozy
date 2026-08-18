@@ -15,6 +15,14 @@ import type { LoopAnnotation } from "../types";
 export const EDITOR_NODE_WIDTH = 188;
 export const EDITOR_NODE_HEIGHT = 96;
 
+export const EDITOR_ROUTE_ROW_HEIGHT = 22;
+
+export function editorNodeHeight(node: EditorNode): number {
+  if (node.data.kind !== "route") return EDITOR_NODE_HEIGHT;
+  const routes = Array.isArray(node.data.raw.routes) ? node.data.raw.routes.length : 0;
+  return EDITOR_NODE_HEIGHT + (routes + 1) * EDITOR_ROUTE_ROW_HEIGHT;
+}
+
 /** Indexes a saved-annotations list by node id for O(1) position override lookup. */
 export function annotationsToPositions(
   annotations: readonly LoopAnnotation[]
@@ -36,7 +44,7 @@ function dagrePositions(
   graph.setGraph({ rankdir: "LR", ranksep: 72, nodesep: 28, marginx: 28, marginy: 28 });
   graph.setDefaultEdgeLabel(() => ({}));
   for (const node of nodes) {
-    graph.setNode(node.id, { width: EDITOR_NODE_WIDTH, height: EDITOR_NODE_HEIGHT });
+    graph.setNode(node.id, { width: EDITOR_NODE_WIDTH, height: editorNodeHeight(node) });
   }
   for (const edge of edges) {
     if (graph.hasNode(edge.source) && graph.hasNode(edge.target)) {
@@ -51,7 +59,7 @@ function dagrePositions(
       // dagre reports node centers; React Flow positions from the top-left corner.
       positions.set(node.id, {
         x: laid.x - EDITOR_NODE_WIDTH / 2,
-        y: laid.y - EDITOR_NODE_HEIGHT / 2,
+        y: laid.y - editorNodeHeight(node) / 2,
       });
     }
   }

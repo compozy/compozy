@@ -46,6 +46,41 @@ export interface LoopGraphNode {
   deadline?: string;
   /** Authored `expires.after` on a wait node — the point the wait gives up. */
   waitExpiresAfter?: string;
+
+  strategy?: LoopGraphStrategy;
+
+  bindAs?: string;
+  indexAs?: string;
+
+  routes: LoopGraphRoute[];
+  defaultRoute?: string;
+
+  onEvalError?: string;
+
+  askPrompt?: string;
+  hasAskExpect: boolean;
+
+  review?: LoopGraphReview;
+}
+
+export interface LoopGraphStrategy {
+  kind: string;
+
+  threshold?: string;
+
+  missing?: string;
+}
+
+export interface LoopGraphRoute {
+  when: string;
+  to: string;
+}
+
+export interface LoopGraphReview {
+  decisions: string[];
+  prompt?: string;
+  onRejectRoute?: string;
+  expiresAfter?: string;
 }
 
 export interface LoopGraphEdge {
@@ -82,12 +117,55 @@ export function toLoopNodeClass(value: unknown): LoopNodeClass | null {
     : null;
 }
 
+function projectStrategy(raw: unknown): LoopGraphStrategy | undefined {
+  if (typeof raw === "string") {
+    const kind = raw.trim();
+    return kind === "" ? undefined : { kind };
+  }
+  const record = asRecord(raw);
+  if (!record) return undefined;
+  const kind = asString(record.kind);
+  if (kind === "") return undefined;
+  const count = asOptionalNumber(asRecord(record.threshold)?.count);
+  const threshold =
+    asOptionalString(record.threshold) ?? (count === undefined ? undefined : String(count));
+  return { kind, threshold, missing: asOptionalString(record.missing) };
+}
+
+function projectRoutes(raw: unknown): LoopGraphRoute[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map(entry => {
+      const record = asRecord(entry);
+      if (!record) return null;
+      const to = asString(record.to);
+      if (to === "") return null;
+      return { when: asString(record.when), to };
+    })
+    .filter((route): route is LoopGraphRoute => route !== null);
+}
+
+function projectReview(raw: unknown): LoopGraphReview | undefined {
+  const record = asRecord(raw);
+  if (!record) return undefined;
+  const decisions = Array.isArray(record.decisions)
+    ? record.decisions.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  return {
+    decisions,
+    prompt: asOptionalString(record.prompt),
+    onRejectRoute: asOptionalString(asRecord(record.on_reject)?.route),
+    expiresAfter: asOptionalString(asRecord(record.expires)?.after),
+  };
+}
+
 function projectNode(raw: unknown): LoopGraphNode | null {
   const record = asRecord(raw);
   if (!record) return null;
   const id = asString(record.id);
   if (id === "") return null;
   const kind = asString(record.kind);
+  const params = asRecord(record.params);
   return {
     id,
     nodeClass: toLoopNodeClass(record.class),
@@ -101,7 +179,16 @@ function projectNode(raw: unknown): LoopGraphNode | null {
     retryMaxAttempts: asOptionalNumber(asRecord(record.retry)?.max_attempts),
     timeout: asOptionalString(record.timeout),
     deadline: asOptionalString(record.deadline),
-    waitExpiresAfter: asOptionalString(asRecord(asRecord(record.params)?.expires)?.after),
+    waitExpiresAfter: asOptionalString(asRecord(params?.expires)?.after),
+    strategy: projectStrategy(record.strategy),
+    bindAs: asOptionalString(record.bind_as),
+    indexAs: asOptionalString(record.index_as),
+    routes: projectRoutes(record.routes),
+    defaultRoute: asOptionalString(record.default),
+    onEvalError: asOptionalString(record.on_eval_error),
+    askPrompt: asOptionalString(params?.prompt),
+    hasAskExpect: asRecord(params?.expect) !== null,
+    review: projectReview(record.review),
   };
 }
 
@@ -137,6 +224,8 @@ export function readLoopGraph(definition: Pick<LoopDefinition, "graph">): LoopGr
 /** The node-class label rendered as neutral mono text (never color-coded). */
 export function nodeClassLabel(node: LoopGraphNode): string {
   if (node.nodeClass === "control" && node.kind === "fan-out") return "control · fan-out";
+  if (node.nodeClass === "control" && node.kind === "route") return "control · route";
+  if (node.nodeClass === "control" && node.kind === "ask") return "control · ask";
   if (node.nodeClass === "control" && node.isGate) return "control · gate";
   return node.nodeClass ?? "node";
 }
@@ -195,12 +284,40 @@ export function topoOrder(graph: LoopGraph): string[] {
   return ordered;
 }
 
+export function strategySummary(node: LoopGraphNode): string | null {
+  if (!node.strategy) return null;
+  const parts = [node.strategy.kind];
+  if (node.strategy.threshold) parts.push(node.strategy.threshold);
+  if (node.strategy.missing) parts.push(`missing ${node.strategy.missing}`);
+  return parts.join(" ");
+}
+
+export function iterationNamesSummary(node: LoopGraphNode): string | null {
+  const parts: string[] = [];
+  if (node.bindAs) parts.push(`as ${node.bindAs}`);
+  if (node.indexAs) parts.push(`index ${node.indexAs}`);
+  return parts.length === 0 ? null : parts.join(" · ");
+}
+
+export function routeSummary(node: LoopGraphNode): string | null {
+  if (node.kind !== "route" && node.routes.length === 0) return null;
+  const count = node.routes.length;
+  const parts = [count === 1 ? "1 route" : `${count} routes`];
+
+  parts.push(node.defaultRoute ? `default ${node.defaultRoute}` : "no default");
+  return parts.join(" · ");
+}
+
 /** The fan-out summary line (`batch 1 · seq · ≤64`) shown under a fan-out node. */
 export function fanOutSummary(node: LoopGraphNode): string | null {
+  const strategy = strategySummary(node);
+  const iteration = iterationNamesSummary(node);
   if (
     node.batchSize === undefined &&
     node.maxParallel === undefined &&
-    node.maxFanOut === undefined
+    node.maxFanOut === undefined &&
+    strategy === null &&
+    iteration === null
   ) {
     return null;
   }
@@ -209,5 +326,7 @@ export function fanOutSummary(node: LoopGraphNode): string | null {
   if (node.maxParallel !== undefined)
     parts.push(node.maxParallel <= 1 ? "seq" : `×${node.maxParallel}`);
   if (node.maxFanOut !== undefined) parts.push(`≤${node.maxFanOut}`);
+  if (strategy) parts.push(strategy);
+  if (iteration) parts.push(iteration);
   return parts.join(" · ");
 }

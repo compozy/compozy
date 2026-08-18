@@ -18,7 +18,7 @@ import { toLoopNodeClass, type LoopNodeClass } from "./loop-graph";
 
 /** The opaque per-node JSON exactly as it appears in the canonical graph. */
 export type RawLoopNode = Record<string, unknown> & { id: string; class: string; kind: string };
-/** The opaque per-edge JSON (`{ from, to, ... }`, may carry `sourceHandle`/`condition`). */
+
 export type RawLoopEdge = Record<string, unknown> & { from: string; to: string };
 
 /** Data carried on each React Flow node: the full raw node plus its projected labels. */
@@ -118,12 +118,11 @@ export function definitionToGraph(definition: Pick<LoopDefinition, "graph">): Ed
   edges.forEach((candidate, index) => {
     if (!isRawLoopEdge(candidate)) return;
     const raw = candidate;
-    const handle = asString(raw.sourceHandle);
+
     editorEdges.push({
       id: editorEdgeId(raw.from, raw.to, index),
       source: raw.from,
       target: raw.to,
-      ...(handle === "" ? {} : { sourceHandle: handle }),
       data: { raw },
     });
   });
@@ -138,10 +137,8 @@ function definitionNode(raw: RawLoopNode): LoopDefinitionGraph["nodes"][number] 
   return { ...raw, class: nodeClass, id: raw.id, kind: raw.kind };
 }
 
-/** Rebuilds a raw edge for a connection the user drew that has no original JSON. */
 function synthesizeEdge(edge: EditorEdge): RawLoopEdge {
-  const handle = typeof edge.sourceHandle === "string" ? edge.sourceHandle : "";
-  return { from: edge.source, to: edge.target, ...(handle === "" ? {} : { sourceHandle: handle }) };
+  return { from: edge.source, to: edge.target };
 }
 
 /**

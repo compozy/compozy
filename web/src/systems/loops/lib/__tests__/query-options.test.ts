@@ -4,7 +4,10 @@ import {
   goalTurnsOptions,
   loopConfigOptions,
   loopDetailOptions,
+  loopRequestDetailOptions,
+  loopRequestsOptions,
   loopRunDetailOptions,
+  loopRunDiffOptions,
   loopRunsOptions,
   loopsCatalogOptions,
 } from "../query-options";
@@ -70,6 +73,55 @@ describe("loop query-options", () => {
     }) => number | false;
     expect(asFn({ state: { data: { run: { status: "running" } } } })).toBe(15_000);
     expect(asFn({ state: { data: { run: { status: "exhausted" } } } })).toBe(false);
+    expect(asFn({ state: { data: undefined } })).toBe(15_000);
+  });
+
+  it("Should default the request inventory to pending and page by cursor", () => {
+    const options = loopRequestsOptions("ws_a");
+    expect(options.queryKey).toEqual(["loops", "requests", "ws_a", "pending", "", "50"]);
+    expect(options.initialPageParam).toBeUndefined();
+    expect(options.enabled).toBe(true);
+    expect(loopRequestsOptions("").enabled).toBe(false);
+    expect(loopRequestsOptions("ws_a", { state: "resolved" }).queryKey).toContain("resolved");
+  });
+
+  it("Should stop paging the request inventory when the daemon returns no cursor", () => {
+    const { getNextPageParam } = loopRequestsOptions("ws_a");
+    const page = { aggregates: { pending: 2 }, items: [], next_cursor: "" };
+    expect(getNextPageParam(page, [page], undefined, [undefined])).toBeUndefined();
+    expect(getNextPageParam({ ...page, next_cursor: "c2" }, [page], undefined, [undefined])).toBe(
+      "c2"
+    );
+  });
+
+  it("Should gate the request detail read on workspace, run, and node", () => {
+    expect(loopRequestDetailOptions("ws_a", "run_1", "ask_node", 1).queryKey).toEqual([
+      "loops",
+      "requests",
+      "detail",
+      "ws_a",
+      "run_1",
+      "ask_node",
+      "1",
+    ]);
+    expect(loopRequestDetailOptions("", "run_1", "ask_node").enabled).toBe(false);
+    expect(loopRequestDetailOptions("ws_a", "", "ask_node").enabled).toBe(false);
+    expect(loopRequestDetailOptions("ws_a", "run_1", "").enabled).toBe(false);
+
+    expect(loopRequestDetailOptions("ws_a", "run_1", "ask_node", 0, false).enabled).toBe(false);
+  });
+
+  it("Should keep refreshing a diff while either compared side is still executing", () => {
+    const { refetchInterval } = loopRunDiffOptions("ws_a", "run_1", { against_run: "run_2" });
+    const asFn = refetchInterval as (query: {
+      state: { data?: { against: { status: string }; base: { status: string } } };
+    }) => number | false;
+    expect(
+      asFn({ state: { data: { base: { status: "done" }, against: { status: "running" } } } })
+    ).toBe(15_000);
+    expect(
+      asFn({ state: { data: { base: { status: "done" }, against: { status: "canceled" } } } })
+    ).toBe(false);
     expect(asFn({ state: { data: undefined } })).toBe(15_000);
   });
 });

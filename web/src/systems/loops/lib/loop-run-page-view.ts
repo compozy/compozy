@@ -2,6 +2,7 @@ import type {
   LoopDefinition,
   LoopNodeControl,
   LoopNodeWait,
+  LoopRequest,
   LoopRunEventFrame,
   LoopRunGeneration,
   LoopRunRecord,
@@ -34,7 +35,9 @@ import {
   buildRunProgress,
   latestGateVerdict,
 } from "./loop-run-progress";
+import { projectLoopRequest, type LoopRequestView } from "./loop-request-model";
 import { buildRunStory } from "./loop-run-story";
+import { buildStrategyProgress, type LoopStrategyProgressModel } from "./loop-run-strategy";
 import type { LoopRunStory } from "./loop-run-story-types";
 import {
   type LoopRunUsageRow,
@@ -121,6 +124,10 @@ export interface LoopRunPageViewInput {
   nodeControls?: readonly LoopNodeControl[];
   /** Durable wait cells from the run detail. */
   waits?: readonly LoopNodeWait[];
+
+  requests?: readonly LoopRequest[];
+
+  frames?: readonly LoopRunEventFrame[];
 }
 
 export interface LoopRunPageView {
@@ -160,6 +167,10 @@ export interface LoopRunPageView {
   attentionNodes: LoopNodeLifecycle[];
   /** ACP session per node from the latest generation — one click into the agent. */
   nodeSessions: ReadonlyMap<string, string>;
+
+  requests: LoopRequestView[];
+
+  strategyProgress: LoopStrategyProgressModel[];
 }
 
 export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPageView {
@@ -235,5 +246,15 @@ export function projectLoopRunPageView(input: LoopRunPageViewInput): LoopRunPage
     waitingNodes: waitingNodes(nodeLifecycles),
     attentionNodes: attentionNodes(nodeLifecycles),
     nodeSessions: sessionsByNode(generations),
+
+    requests: (input.requests ?? []).map(request =>
+      projectLoopRequest(request, { nowMs, runStatus: run.status })
+    ),
+    strategyProgress: buildStrategyProgress({
+      frames: input.frames ?? live.frames,
+      generations: generations ?? [],
+      graph,
+      run: effectiveRun,
+    }),
   };
 }

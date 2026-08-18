@@ -5,6 +5,7 @@ import { useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { StoryTopbarHost } from "@/storybook/story-layout";
 
+import type { LoopRunRequestState } from "../run-page/loop-run-needs-you-card";
 import {
   LoopNodeRowActions,
   LoopRunControls,
@@ -12,6 +13,14 @@ import {
   LoopRunPageBody,
   LoopStatusPill,
 } from "../../index";
+import {
+  forkedRunScenario,
+  laneRequestsScenario,
+  partialCompletionScenario,
+  pendingRequestsScenario,
+  redactedRequestScenario,
+  resolvedRequestsScenario,
+} from "./loop-run-graph-eng-fixtures";
 import {
   attentionScenario,
   canceledScenario,
@@ -47,9 +56,16 @@ import {
 function ScenarioPage({
   scenario,
   inspectInitiallyOpen = false,
+  requestState,
 }: {
   scenario: LoopRunStoryScenario;
   inspectInitiallyOpen?: boolean;
+  /**
+   * The engagement/feedback half of the request contract. Stories set it
+   * statically so a capture pins one daemon answer; the live round trip is the
+   * route story's job.
+   */
+  requestState?: LoopRunRequestState;
 }) {
   const [inspectOpen, setInspectOpen] = useState(inspectInitiallyOpen);
   const props = buildScenarioProps(scenario);
@@ -84,6 +100,7 @@ function ScenarioPage({
       <LoopRunPageBody
         {...props}
         inspect={{ open: inspectOpen, onOpenChange: setInspectOpen }}
+        requestState={requestState}
         renderNodeActions={node => (
           <LoopNodeRowActions node={node} onVerb={() => {}} runStatus={props.run.status} />
         )}
@@ -95,11 +112,16 @@ function ScenarioPage({
 function LoopRunPageStory({
   scenario,
   inspectInitiallyOpen = false,
+  requestState,
 }: Parameters<typeof ScenarioPage>[0]) {
   return (
     <div className="flex h-dvh flex-col bg-canvas">
       <StoryTopbarHost title="Loops">
-        <ScenarioPage scenario={scenario} inspectInitiallyOpen={inspectInitiallyOpen} />
+        <ScenarioPage
+          scenario={scenario}
+          inspectInitiallyOpen={inspectInitiallyOpen}
+          requestState={requestState}
+        />
       </StoryTopbarHost>
     </div>
   );
@@ -174,8 +196,85 @@ export const InspectOpen: Story = {
   render: () => <LoopRunPageStory scenario={runningScenario()} inspectInitiallyOpen />,
 };
 
-// Node lifecycle states (Spec 1). These are the Visual Contract capture targets
-// for VC-R1 (Retrying) and VC-R2 (the rest).
+// `engagedKey` is `"<nodeId>:<itemIndex>"` — the card that owns the daemon's answer.
+const ASK_KEY = "confirm-rollout:0";
+const REVIEW_KEY = "apply-migration:0";
+
+/** A pending ask with its schema form beside a pending review. */
+export const PendingRequests: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={pendingRequestsScenario()} />,
+};
+
+/** The daemon rejected the answer and named the fields it rejected. */
+export const RequestValidationFailure: Story = {
+  args: {},
+  render: () => (
+    <LoopRunPageStory
+      requestState={{
+        engagedKey: ASK_KEY,
+        fieldErrors: { regions: "At least one region is required." },
+      }}
+      scenario={pendingRequestsScenario()}
+    />
+  ),
+};
+
+/** A deterministic refusal leaves the form usable. */
+export const RequestAlreadyAnswered: Story = {
+  args: {},
+  render: () => (
+    <LoopRunPageStory
+      requestState={{
+        engagedKey: REVIEW_KEY,
+        refusal: "Someone already answered this request.",
+      }}
+      scenario={pendingRequestsScenario()}
+    />
+  ),
+};
+
+/** The one moment the form is genuinely locked: an answer is on the wire. */
+export const RequestAnswerPending: Story = {
+  args: {},
+  render: () => (
+    <LoopRunPageStory
+      requestState={{ engagedKey: ASK_KEY, isAnswerPending: true }}
+      scenario={pendingRequestsScenario()}
+    />
+  ),
+};
+
+/** Answered, expired, and canceled outcomes on a terminated run. */
+export const ResolvedRequests: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={resolvedRequestsScenario()} />,
+};
+
+/** A redacted, truncated preview rendered verbatim. */
+export const RedactedRequestContext: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={redactedRequestScenario()} />,
+};
+
+/** Three fan-out lanes, each answered independently. */
+export const LaneRequests: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={laneRequestsScenario()} />,
+};
+
+/** A `best_effort` join that settled `partial`. */
+export const PartialCompletion: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={partialCompletionScenario()} />,
+};
+
+/** Fork lineage and generation entry points with the inspector open. */
+export const ForkLineage: Story = {
+  args: {},
+  render: () => <LoopRunPageStory scenario={forkedRunScenario()} inspectInitiallyOpen />,
+};
+
 export const Retrying: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={retryingScenario()} />,

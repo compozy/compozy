@@ -6,27 +6,37 @@ import { handlers } from "@/systems/loops/mocks";
 import { loopEffectiveConfigFixture } from "@/systems/loops/mocks/fixtures";
 import { SPEC_CYCLE_IMPORT_TASKS_KIND } from "@/systems/loops/mocks/fixture-action-kinds";
 import {
+  LoopRequestError,
   LoopsApiError,
+  LoopTimetravelError,
+  amendLoopNode,
   approveLoopRun,
   buildLoopStreamUrl,
   createLoop,
   deleteLoop,
+  diffLoopRun,
+  forkLoopRun,
   getLoop,
   getLoopAnnotations,
   getLoopConfig,
+  getLoopRequest,
   getLoopRun,
   listGoalTurns,
+  listLoopRequests,
   listLoopRuns,
   listLoops,
   patchLoop,
   pauseLoopRun,
   putLoopAnnotations,
   putLoopConfig,
+  rerunLoopRun,
+  respondLoopRequest,
   resumeLoopRun,
   runLoop,
   cancelLoopRun,
   validateLoop,
 } from "@/systems/loops";
+import { GRAPH_ENG_RUN_ID } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 import type { CreateLoopRequest, PatchLoopRequest } from "@/systems/loops";
 
 const WS = "ws_1";
@@ -471,5 +481,314 @@ describe("loops-api (against MSW mock handlers)", () => {
       auto_commit: false,
     });
     await expect(deleteLoop(WS, "implement-tasks")).resolves.toBeUndefined();
+  });
+});
+
+async function expectRejection<E extends Error>(
+  promise: Promise<unknown>,
+  ctor: new (...args: never[]) => E
+): Promise<E> {
+  const error = await promise.then(
+    () => null,
+    (reason: unknown) => reason
+  );
+  expect(error).toBeInstanceOf(ctor);
+  return error as E;
+}
+
+describe("loop requests + time travel (request construction + error mapping)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("Should address the request inventory, one request, and the respond verb", async () => {
+    mockJsonResponse({ items: [], aggregates: { pending: 0 }, next_cursor: "" });
+    await listLoopRequests(WS, { state: "pending", run_id: "run_1", limit: 25 });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-requests?state=pending&run_id=run_1&limit=25",
+      method: "GET",
+    });
+
+    mockJsonResponse({ node_id: "pick_envs" });
+    await getLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "pick_envs", itemIndex: 2 });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/pick_envs/request?item_index=2",
+      method: "GET",
+      callIndex: 1,
+    });
+
+    const body = { decision: "edit", payload: { tag: "v2" }, note: "fixed tag", item_index: 0 };
+    mockJsonResponse({ ok: true });
+    await respondLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "publish" }, body);
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/publish/respond",
+      method: "POST",
+      body,
+      callIndex: 2,
+    });
+  });
+
+  it("Should address diff, rerun, fork, and amend at their scoped endpoints", async () => {
+    mockJsonResponse({ kind: "generation" });
+    await diffLoopRun(
+      { workspaceId: WS, runId: "run_1" },
+      { generation: 1, against_generation: 2 }
+    );
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1/diff?generation=1&against_generation=2",
+      method: "GET",
+    });
+
+    const rerunBody = { from_node: "shard_verify", reason: "flaky infra", request_id: "r-1" };
+    mockJsonResponse({ run_id: "run_1", generation: 3 });
+    await rerunLoopRun({ workspaceId: WS, runId: "run_1" }, rerunBody);
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1/rerun",
+      method: "POST",
+      body: rerunBody,
+      callIndex: 1,
+    });
+
+    const forkBody = { generation: 2, inputs: { service: "payments" } };
+    mockJsonResponse({ run: { id: "run_2" } }, { status: 201 });
+    await forkLoopRun({ workspaceId: WS, runId: "run_1" }, forkBody);
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1/fork",
+      method: "POST",
+      body: forkBody,
+      callIndex: 2,
+    });
+
+    const amendBody = { payload: { risk: "medium" }, reason: "over-rated" };
+    mockJsonResponse({ ok: true, amendment: {} });
+    await amendLoopNode({ workspaceId: WS, runId: "run_1", nodeId: "classify" }, amendBody);
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_1/loop-runs/run_1/nodes/classify/amend",
+      method: "POST",
+      body: amendBody,
+      callIndex: 3,
+    });
+  });
+
+  it("Should keep the daemon's reason envelope on every deterministic respond refusal", async () => {
+    mockJsonResponse(
+      {
+        error: "answer does not match",
+        code: "request_validation_failed",
+        details: { regions: "minItems: array must have at least 1 items" },
+      },
+      { status: 422 }
+    );
+    const validation = await expectRejection(
+      respondLoopRequest(
+        { workspaceId: WS, runId: "run_1", nodeId: "pick_envs" },
+        { payload: { regions: [] } }
+      ),
+      LoopRequestError
+    );
+    expect(validation.status).toBe(422);
+    expect(validation.code).toBe("request_validation_failed");
+    expect(validation.isAnswerable).toBe(true);
+    expect(validation.fieldErrors).toEqual({
+      regions: "minItems: array must have at least 1 items",
+    });
+
+    mockJsonResponse(
+      {
+        error: "already answered",
+        code: "request_already_answered",
+        details: { decision: "reject" },
+      },
+      { status: 409 }
+    );
+    const answered = await expectRejection(
+      respondLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "publish" }, { payload: {} }),
+      LoopRequestError
+    );
+    expect(answered.status).toBe(409);
+    expect(answered.recordedDecision).toBe("reject");
+    expect(answered.isAnswerable).toBe(false);
+    expect(answered.fieldErrors).toEqual({});
+
+    for (const [status, code] of [
+      [410, "request_expired"],
+      [410, "request_canceled"],
+      [403, "respond_not_permitted"],
+      [403, "respond_self_denied"],
+    ] as const) {
+      mockJsonResponse({ error: code, code }, { status });
+      const refusal = await expectRejection(
+        respondLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "publish" }, { payload: {} }),
+        LoopRequestError
+      );
+      expect(refusal.code).toBe(code);
+      expect(refusal.isAnswerable).toBe(false);
+    }
+
+    mockJsonResponse({ error: "gone" }, { status: 404 });
+    await expect(
+      getLoopRequest({ workspaceId: WS, runId: "run_1", nodeId: "ghost" })
+    ).rejects.toMatchObject({ status: 404 });
+
+    mockJsonResponse({ error: "boom" }, { status: 500 });
+    await expect(listLoopRequests(WS)).rejects.toMatchObject({ status: 500 });
+  });
+
+  it("Should keep the reason envelope on every time-travel refusal", async () => {
+    const cases = [
+      [409, "rerun_busy"],
+      [422, "rerun_node_unsettled"],
+      [409, "timetravel_key_reuse"],
+      [403, "timetravel_self_denied"],
+    ] as const;
+    for (const [status, code] of cases) {
+      mockJsonResponse({ error: code, code, details: { actual_state: "running" } }, { status });
+      const refusal = await expectRejection(
+        rerunLoopRun({ workspaceId: WS, runId: "run_1" }, { from_node: "shard_verify" }),
+        LoopTimetravelError
+      );
+      expect(refusal.status).toBe(status);
+      expect(refusal.code).toBe(code);
+      expect(refusal.details.actual_state).toBe("running");
+    }
+
+    mockJsonResponse(
+      { error: "unknown generation", code: "fork_generation_unknown" },
+      { status: 404 }
+    );
+    const fork = await expectRejection(
+      forkLoopRun({ workspaceId: WS, runId: "run_1" }, { generation: 99 }),
+      LoopTimetravelError
+    );
+    expect(fork.code).toBe("fork_generation_unknown");
+
+    mockJsonResponse({ error: "cross loop", code: "diff_cross_loop" }, { status: 422 });
+    await expect(diffLoopRun({ workspaceId: WS, runId: "run_1" })).rejects.toMatchObject({
+      code: "diff_cross_loop",
+    });
+
+    mockJsonResponse(
+      { error: "bad shape", code: "request_validation_failed", details: { risk: "required" } },
+      { status: 422 }
+    );
+    const amend = await expectRejection(
+      amendLoopNode({ workspaceId: WS, runId: "run_1", nodeId: "classify" }, { payload: {} }),
+      LoopRequestError
+    );
+    expect(amend.fieldErrors).toEqual({ risk: "required" });
+
+    mockJsonResponse({ error: "gone" }, { status: 404 });
+    await expect(
+      amendLoopNode({ workspaceId: WS, runId: "run_1", nodeId: "ghost" }, { payload: {} })
+    ).rejects.toMatchObject({ status: 404 });
+
+    mockJsonResponse({ error: "boom" }, { status: 500 });
+    await expect(
+      forkLoopRun({ workspaceId: WS, runId: "run_1" }, { generation: 1 })
+    ).rejects.toMatchObject({ status: 500 });
+  });
+});
+
+describe("loop requests + time travel (against MSW mock handlers)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      createMswFetch(() => handlers)
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Should read the daemon-computed pending aggregate rather than a page count", async () => {
+    const pending = await listLoopRequests(WS, { state: "pending" });
+    expect(pending.items.map(entry => entry.node_id)).toEqual([
+      "confirm-rollout",
+      "apply-migration",
+    ]);
+    expect(pending.aggregates.pending).toBe(2);
+
+    const filtered = await listLoopRequests(WS, { state: "pending", run_id: "nope" });
+    expect(filtered.items).toHaveLength(0);
+    expect(filtered.aggregates.pending).toBe(2);
+
+    const resolved = await listLoopRequests(WS, { state: "resolved" });
+    expect(resolved.items.map(entry => entry.state)).toEqual(["answered", "expired", "canceled"]);
+  });
+
+  it("Should return the full redacted context only from the per-request detail read", async () => {
+    const listed = await listLoopRequests(WS, { state: "pending" });
+    const preview = listed.items[0]?.context as Record<string, unknown>;
+    expect(preview.plan).toBeUndefined();
+
+    const detail = await getLoopRequest({
+      workspaceId: WS,
+      runId: GRAPH_ENG_RUN_ID,
+      nodeId: "confirm-rollout",
+      itemIndex: 0,
+    });
+    expect((detail.context as Record<string, unknown>).plan).toContain("complete redacted context");
+
+    await expect(
+      getLoopRequest({ workspaceId: WS, runId: GRAPH_ENG_RUN_ID, nodeId: "ghost" })
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("Should resolve respond, amend, diff, rerun and fork through the handlers", async () => {
+    await expect(
+      respondLoopRequest(
+        { workspaceId: WS, runId: GRAPH_ENG_RUN_ID, nodeId: "confirm-rollout" },
+        { payload: { regions: [] } }
+      )
+    ).rejects.toMatchObject({ code: "request_validation_failed", status: 422 });
+
+    const answered = await respondLoopRequest(
+      { workspaceId: WS, runId: GRAPH_ENG_RUN_ID, nodeId: "confirm-rollout" },
+      { payload: { regions: ["eu"], canary: true } }
+    );
+    expect(answered).toMatchObject({ state: "answered", provenance: { actor_id: "pedro" } });
+
+    const amended = await amendLoopNode(
+      { workspaceId: WS, runId: GRAPH_ENG_RUN_ID, nodeId: "render-notes" },
+      { payload: { risk: "medium" }, reason: "over-rated" }
+    );
+    expect(amended.amendment).toMatchObject({ original: { risk: "high" }, amendment_seq: 1 });
+
+    const diff = await diffLoopRun(
+      { workspaceId: WS, runId: GRAPH_ENG_RUN_ID },
+      { generation: 2, against_generation: 3 }
+    );
+    expect(diff.kind).toBe("generation");
+    expect(diff.nodes.map(node => node.change)).toEqual([
+      "changed",
+      "rerun",
+      "skipped",
+      "carried",
+      "verdict",
+    ]);
+
+    const rerun = await rerunLoopRun(
+      { workspaceId: WS, runId: GRAPH_ENG_RUN_ID },
+      { from_node: "render-notes" }
+    );
+    expect(rerun.rerun_nodes).toContain("render-notes");
+    await expect(
+      rerunLoopRun({ workspaceId: WS, runId: GRAPH_ENG_RUN_ID }, { from_node: "confirm-rollout" })
+    ).rejects.toMatchObject({ code: "rerun_node_unsettled" });
+
+    const forked = await forkLoopRun(
+      { workspaceId: WS, runId: GRAPH_ENG_RUN_ID },
+      { generation: 2, inputs: { severity: "p0" } }
+    );
+    expect(forked.run.forked_from).toMatchObject({ generation: 2 });
+    await expect(
+      forkLoopRun({ workspaceId: WS, runId: GRAPH_ENG_RUN_ID }, { generation: 99 })
+    ).rejects.toMatchObject({ code: "fork_generation_unknown", status: 404 });
   });
 });

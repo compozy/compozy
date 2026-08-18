@@ -26,6 +26,8 @@ const storyTaskId = "task_001";
 const storyTaskRunId = "run_001";
 const storyLoopName = "implement-tasks";
 const storyLoopRunId = "looprun_running";
+
+const storyLoopDiffRunId = "looprun_release_train";
 const storyThreadId = "thread_launch_command";
 const storyDirectId = "direct_story_launch_corridor";
 const storyBridgeId = "brg_launch_room";
@@ -335,6 +337,13 @@ export const routeStoryRegistry = [
     storybookPath: `/loop-runs/${storyLoopRunId}`,
     title: "systems/loops/routes/LoopRuns",
     storyName: "RunDetail",
+  },
+  {
+    system: "loops",
+    routePath: "/loop-runs/$runId/diff",
+    storybookPath: `/loop-runs/${storyLoopDiffRunId}/diff`,
+    title: "systems/loops/routes/LoopRuns",
+    storyName: "Diff",
   },
   {
     system: "agent",

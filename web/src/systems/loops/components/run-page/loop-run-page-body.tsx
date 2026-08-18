@@ -17,7 +17,9 @@ import type {
 } from "../../lib/loop-events";
 import type { LoopGraph } from "../../lib/loop-graph";
 import type { LoopRunInputRow } from "../../lib/loop-run-about";
+import type { LoopRequestView } from "../../lib/loop-request-model";
 import type { LoopRunProgressModel } from "../../lib/loop-run-progress";
+import type { LoopStrategyProgressModel } from "../../lib/loop-run-strategy";
 import type { LoopRunStory } from "../../lib/loop-run-story";
 import type { LoopRunUsageRow } from "../../lib/loop-run-usage";
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
@@ -32,11 +34,12 @@ import type {
 } from "../../types";
 import { LoopRunAboutRail } from "./loop-run-about-rail";
 import { LoopRunInspectSheet } from "./loop-run-inspect-sheet";
-import { LoopRunNeedsYouCard } from "./loop-run-needs-you-card";
+import { LoopRunNeedsYouCard, type LoopRunRequestState } from "./loop-run-needs-you-card";
 import { LoopRunNextNote } from "./loop-run-next-note";
 import { LoopRunNowCard } from "./loop-run-now-card";
 import { LoopRunOutcomeCard } from "./loop-run-outcome-card";
 import { LoopRunProgressPanel } from "./loop-run-progress-panel";
+import { LoopStrategyProgress } from "./loop-strategy-progress";
 import { LoopRunStoryTimeline } from "./loop-run-story-timeline";
 import { LoopRunSubhead } from "./loop-run-subhead";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
@@ -53,6 +56,9 @@ const OUTCOME_STATUSES = new Set<LoopRunStatus>([
   // "Why it stopped" slot with calm neutral tone (VC-R2).
   "canceled",
 ]);
+
+const NO_REQUESTS: readonly LoopRequestView[] = [];
+const NO_STRATEGY_PROGRESS: readonly LoopStrategyProgressModel[] = [];
 
 export interface LoopRunGoalTurnsPaging {
   hasMore: boolean;
@@ -124,6 +130,18 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   onOpenQuarantine?: (nodeId: string) => void;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
   onStartNewRun: () => void;
+
+  requests?: readonly LoopRequestView[];
+
+  requestState?: LoopRunRequestState;
+
+  strategyProgress?: readonly LoopStrategyProgressModel[];
+
+  onOpenRun?: (runId: string) => void;
+
+  onCompareGeneration?: (generation: number) => void;
+
+  onForkGeneration?: (generation: number) => void;
 }
 
 /** `sha256:4f9c2a1…` → `4f9c2a1` for the rail foot. */
@@ -183,12 +201,26 @@ export function LoopRunPageBody({
   onOpenQuarantine,
   onDecision,
   onStartNewRun,
+  requests = NO_REQUESTS,
+  requestState,
+  strategyProgress = NO_STRATEGY_PROGRESS,
+  onOpenRun,
+  onCompareGeneration,
+  onForkGeneration,
   className,
   ...divProps
 }: LoopRunPageBodyProps) {
   const status = run.status;
   const contract = materializedContract;
   const quarantinedNodes = (nodeLifecycles ?? []).filter(node => node.quarantined);
+
+  const requestKinds = new Map(
+    requests.map(view => [`${view.request.node_id}:${view.request.item_index}`, view.request.kind])
+  );
+
+  const pendingRequestCount = requests.filter(
+    view => view.state === "pending" && view.isAnswerable
+  ).length;
   const nowTurnsSlot =
     story.now?.isGoalNode === true ? (
       <LoopRunTurnsDisclosure
@@ -236,16 +268,18 @@ export function LoopRunPageBody({
         />
         <div className="mt-5.5 grid grid-cols-1 items-start gap-8 min-[1080px]:grid-cols-[minmax(0,1fr)_320px]">
           <main className="flex min-w-0 flex-col gap-6.5">
-            {status === "needs-approval" || quarantinedNodes.length > 0 ? (
+            {status === "needs-approval" || quarantinedNodes.length > 0 || requests.length > 0 ? (
               <LoopRunNeedsYouCard
-                run={run}
-                request={approvalRequest}
                 fallbackFacts={approvalFallbackFacts}
                 isPending={pendingAction === "approve"}
-                showApproval={status === "needs-approval"}
-                quarantinedNodes={quarantinedNodes}
-                onOpenQuarantine={onOpenQuarantine}
                 onDecision={onDecision}
+                onOpenQuarantine={onOpenQuarantine}
+                quarantinedNodes={quarantinedNodes}
+                request={approvalRequest}
+                requestState={requestState}
+                requests={requests}
+                run={run}
+                showApproval={status === "needs-approval"}
               />
             ) : null}
             <LoopRunAttentionPanel
@@ -273,10 +307,12 @@ export function LoopRunPageBody({
               doneWhen={contract.definition_of_done}
               progress={progress}
             />
+            <LoopStrategyProgress models={strategyProgress} />
             {status !== "paused" ? nowCard : null}
             <LoopRunWaitingPanel
               nodes={waitingNodes ?? []}
               renderNodeActions={renderNodeActions}
+              requestKinds={requestKinds}
               runId={run.id}
             />
             <LoopRunStoryTimeline
@@ -294,7 +330,11 @@ export function LoopRunPageBody({
             <div className="rounded-lg border border-line bg-canvas-soft">
               <LoopRunUsageRail rows={usageRows} note={usageNote} />
               {nodeLifecycles && nodeLifecycles.length > 0 ? (
-                <LoopRunWaitsRail nodes={nodeLifecycles} runId={run.id} />
+                <LoopRunWaitsRail
+                  nodes={nodeLifecycles}
+                  pendingRequests={pendingRequestCount}
+                  runId={run.id}
+                />
               ) : null}
               <LoopRunAboutRail
                 run={run}
@@ -335,6 +375,9 @@ export function LoopRunPageBody({
         watchEvents={watchEvents}
         generations={generations}
         frames={frames}
+        onOpenRun={onOpenRun}
+        onCompareGeneration={onCompareGeneration}
+        onForkGeneration={onForkGeneration}
       />
     </div>
   );

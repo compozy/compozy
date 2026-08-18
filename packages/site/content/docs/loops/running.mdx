@@ -71,6 +71,34 @@ node or gate, selected forward node, lane index, decision cause, and time. A rou
 `matched_when`; a default selection sets `default: true`. These facts are workspace-scoped and come
 from the durable `route_taken` event, so HTTP, CLI, native-tool status, and SSE replay agree.
 
+### Human requests
+
+An `ask` node parks the run until someone answers; a `review` block parks an action node until
+someone decides on the arguments it is about to run with. Both surface in the run page's **Needs
+you** region, and both are answerable from the CLI and the API too.
+
+The card renders only what the daemon persisted: the prompt, a bounded redacted context preview
+with a fetch for the full redacted context, the expected answer shape, the deadline, and the node's
+own decision allowlist. A decision the node did not authorize is **absent** — never a disabled
+button. An ask renders a form generated from its `expect` schema; a review shows the proposed
+arguments and, on `edit`, an editor pre-filled with them. Submitting disables the form and waits for
+the daemon: an answer that fails the shape comes back with the failure on the field that caused it
+and the request stays open, and a request that someone else already answered — or whose run has
+since ended — shows the recorded outcome instead of a form.
+
+Fan-out lanes each carry their own request, named by lane and answerable independently. The waits
+rail counts pending requests alongside timers and events.
+
+### Fan-out strategy and partial completion
+
+When a fan-out declares a completion strategy, the progress panel names it and its threshold, and
+separates four things a single "failed" count would blur: lanes that succeeded, lanes that failed,
+lanes the **strategy canceled**, and lanes that **never materialized** because the window did not
+open them. A `best_effort` join that met its threshold with a gap reports `partial` with its
+coverage numbers, and because partiality is a run-level fact (`completion_state`), it reads
+`partial` everywhere the outcome appears — the outcome card, the run lists, and the diff. A wide
+fan-out reports aggregate counts rather than one row per lane.
+
 ### Approval gates
 
 A `human` gate parks the run in `needs-approval` — a **live pause**, never a terminal outcome. The
@@ -101,9 +129,20 @@ the committed winner instead of starting a second cancellation path.
 ### Node controls and inventories
 
 The run page offers only the verbs valid for a node's current state: **Pause**, **Resume**,
-**Cancel**, **Kill**, and **Requeue**. Pause supports `drain` (the default) or `cancel`; Resume
-supports `plain`, `reset_attempts`, or `immediate`, and can carry a JSON payload for a manual wait.
-Requeue is available only for quarantined work and creates a bounded successor generation.
+**Cancel**, **Kill**, **Requeue**, **Amend output**, and **Rerun from here**. Pause supports `drain`
+(the default) or `cancel`; Resume supports `plain`, `reset_attempts`, or `immediate`, and can carry
+a JSON payload for a manual wait. Requeue is available only for quarantined work and creates a
+bounded successor generation.
+
+**Amend output** corrects a settled output on a parked or paused node. It appears only when the node
+declares an output shape to validate against, shows the recorded original read-only beside the
+corrected value, and takes a reason. Amendments are append-only: the recorded output is never
+rewritten, the corrected value becomes what resume and downstream reads see, and both stay visible
+in history and in a diff. Amending does not re-run consumers — pair it with **Rerun from here**.
+
+**Rerun from here** opens a new generation from a settled node. Its dialog previews the rerun set —
+the node plus everything that depends on it — and the count carried forward untouched. The verb is
+absent while the node is still parked and while a generation is in flight.
 
 Use the workspace inventories to find durable work before acting:
 

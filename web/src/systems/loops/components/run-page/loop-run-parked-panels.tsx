@@ -9,12 +9,15 @@ import {
   type LoopNodeLifecycle,
   type LoopNodeWaitView,
 } from "../../lib/loop-node-lifecycle";
+import { isLoopRequestKind, LOOP_REQUEST_WAIT_SENTENCE } from "../../lib/loop-request-vocabulary";
 import { humanizeLoopNodeId } from "../../lib/loop-run-story-rows";
 import { LoopSection } from "../loop-section";
 
 interface LoopRunWaitingPanelProps {
   nodes: readonly LoopNodeLifecycle[];
   renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
+
+  requestKinds?: ReadonlyMap<string, string>;
   runId?: string;
 }
 
@@ -39,12 +42,15 @@ function ageLabel(seconds: number): string {
 const WAIT_KIND_SENTENCE: Record<string, string> = {
   timer: "Sleeping on a timer — it resumes by itself.",
   event: "Waiting for a matching event. A lane's wait is its own; nothing else is held up.",
+  request: "Parked on a person. Answer it in Needs you and the lane resumes.",
 };
 
 const WAIT_KIND_TITLE: Record<string, string> = {
   timer: "is waiting on a timer",
   event: "is waiting for an event",
   approval_escalation: "is waiting for your decision",
+
+  request: "is waiting for an answer",
 };
 
 function hasLadderStrip(wait: LoopNodeWaitView): boolean {
@@ -52,6 +58,14 @@ function hasLadderStrip(wait: LoopNodeWaitView): boolean {
     wait.kind === "approval_escalation" &&
     (wait.escalationCursor > 0 || Boolean(wait.nextEscalationAt))
   );
+}
+
+function waitTitle(wait: LoopNodeWaitView, requestKinds: ReadonlyMap<string, string>): string {
+  if (wait.kind === "request") {
+    const kind = requestKinds.get(`${wait.nodeId}:${wait.itemIndex}`);
+    if (kind && isLoopRequestKind(kind)) return LOOP_REQUEST_WAIT_SENTENCE[kind];
+  }
+  return WAIT_KIND_TITLE[wait.kind] ?? "is parked";
 }
 
 function waitSentence(wait: LoopNodeWaitView): string {
@@ -86,7 +100,12 @@ const INVENTORY_LINK_CLASS =
  * daemon's own age. Every value — kind, resume time, escalation cursor, age —
  * comes from the wait row; nothing is computed from wall-clock guesses here.
  */
-export function LoopRunWaitingPanel({ nodes, renderNodeActions, runId }: LoopRunWaitingPanelProps) {
+export function LoopRunWaitingPanel({
+  nodes,
+  renderNodeActions,
+  requestKinds = new Map(),
+  runId,
+}: LoopRunWaitingPanelProps) {
   const waits: { node: LoopNodeLifecycle; wait: LoopNodeWaitView }[] = [];
   for (const node of nodes) {
     for (const wait of node.waits) {
@@ -114,7 +133,7 @@ export function LoopRunWaitingPanel({ nodes, renderNodeActions, runId }: LoopRun
               <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-info" />
               <div className="min-w-0 flex-1">
                 <div className="text-ws-name font-medium text-fg-strong">
-                  {node.label} {WAIT_KIND_TITLE[wait.kind] ?? "is waiting"}
+                  {node.label} {waitTitle(wait, requestKinds)}
                 </div>
                 <div className="mt-0.75 max-w-[60ch] text-small-body leading-relaxed text-muted">
                   {waitSentence(wait)}

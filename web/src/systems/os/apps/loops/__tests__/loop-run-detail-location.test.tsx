@@ -69,8 +69,38 @@ vi.mock("../use-loop-node-controls", () => ({
   }),
 }));
 
+vi.mock("../use-loop-run-requests-state", () => ({
+  useLoopRunRequestsState: () => ({
+    engagedKey: undefined,
+    isAnswerPending: false,
+    fieldErrors: undefined,
+    refusal: undefined,
+    fullContext: undefined,
+    isLoadingFullContext: false,
+    onRequestFullContext: vi.fn(),
+    onAnswer: vi.fn(),
+  }),
+}));
+
+vi.mock("../use-loop-run-timetravel", () => ({
+  useLoopRunTimetravel: () => ({
+    forkGeneration: null,
+    forkGenerations: [],
+    forkGenerationsSourceInputs: undefined,
+    forkgFieldErrors: undefined,
+    onCloseFork: vi.fn(),
+    onCompareGeneration: vi.fn(),
+    onForkGeneration: vi.fn(),
+    onOpenRun: vi.fn(),
+    onSubmitFork: vi.fn(),
+  }),
+}));
+
 vi.mock("@/systems/loops", () => ({
+  LoopForkDialog: () => null,
+  LoopNodeAmendDialog: () => null,
   LoopNodeControlDialog: () => null,
+  LoopNodeRerunDialog: () => null,
   LoopNodeRowActions: () => null,
   LoopQuarantineSheet: () => null,
   LoopRunControlDialog: () => null,

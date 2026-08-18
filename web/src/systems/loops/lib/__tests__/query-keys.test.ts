@@ -97,4 +97,72 @@ describe("loopsKeys", () => {
     ]);
     expect(loopsKeys.stream("ws_a", "run_1")).toEqual(["loops", "stream", "ws_a", "run_1", ""]);
   });
+
+  it("Should key the request inventory by state and run while keeping cursor out of the key", () => {
+    expect(loopsKeys.requests("ws_a", { state: "pending", run_id: "run_1", limit: 50 })).toEqual([
+      "loops",
+      "requests",
+      "ws_a",
+      "pending",
+      "run_1",
+      "50",
+    ]);
+    expect(loopsKeys.requests("ws_a", { state: "pending" })).not.toEqual(
+      loopsKeys.requests("ws_a", { state: "resolved" })
+    );
+    expect(loopsKeys.requests("ws_a").slice(0, 3)).toEqual(loopsKeys.requestsByWorkspace("ws_a"));
+    expect(loopsKeys.requestsByWorkspace("ws_a")).not.toEqual(
+      loopsKeys.requestsByWorkspace("ws_b")
+    );
+  });
+
+  it("Should address one request by run, node, and fan-out lane", () => {
+    expect(loopsKeys.requestDetail("ws_a", "run_1", "confirm-rollout", 2)).toEqual([
+      "loops",
+      "requests",
+      "detail",
+      "ws_a",
+      "run_1",
+      "confirm-rollout",
+      "2",
+    ]);
+
+    expect(loopsKeys.requestDetail("ws_a", "run_1", "confirm-rollout")).toEqual([
+      "loops",
+      "requests",
+      "detail",
+      "ws_a",
+      "run_1",
+      "confirm-rollout",
+      "",
+    ]);
+    expect(loopsKeys.requestDetail("ws_a", "run_1", "confirm-rollout", 1)).not.toEqual(
+      loopsKeys.requestDetail("ws_a", "run_1", "confirm-rollout", 2)
+    );
+  });
+
+  it("Should make every compared diff pair its own key, never one filtered read", () => {
+    expect(loopsKeys.runDiff("ws_a", "run_1", { generation: 2, against_generation: 3 })).toEqual([
+      "loops",
+      "run-diff",
+      "ws_a",
+      "run_1",
+      "2",
+      "3",
+      "",
+    ]);
+    expect(loopsKeys.runDiff("ws_a", "run_1", { against_run: "run_2" })).toEqual([
+      "loops",
+      "run-diff",
+      "ws_a",
+      "run_1",
+      "",
+      "",
+      "run_2",
+    ]);
+    expect(loopsKeys.runDiff("ws_a", "run_1", { against_generation: 2 })).not.toEqual(
+      loopsKeys.runDiff("ws_a", "run_1", { against_generation: 3 })
+    );
+    expect(loopsKeys.runDiff("ws_a", "run_1").slice(0, 2)).toEqual(loopsKeys.runDiffRoot());
+  });
 });
