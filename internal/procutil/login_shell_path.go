@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -144,8 +145,8 @@ func defaultLoginShell() string {
 }
 
 func environmentValue(environment []string, key string) string {
-	for index := len(environment) - 1; index >= 0; index-- {
-		name, value, found := strings.Cut(environment[index], "=")
+	for _, entry := range slices.Backward(environment) {
+		name, value, found := strings.Cut(entry, "=")
 		if found && name == key {
 			return value
 		}
