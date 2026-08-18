@@ -1,0 +1,6 @@
+version: 0.3.0-beta.17
+releaseDate: 2026-08-18T03:28:12.121Z
+files:
+  - url: https://github.com/compozy/compozy/releases/download/v0.3.0-beta.17/CompozyOS-0.3.0-beta.17-linux-x64.AppImage
+    sha512: AaEEpG4RSqxTmcciHq1VyaFEYuNFx052YOSuETpRY8nLbstVQdxuve7NV8oxkKDYm2EwZX7IWUeq/bAZi5n6ag==
+    size: 220639708
