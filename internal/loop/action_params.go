@@ -47,7 +47,7 @@ func renderHarvestSpec(node dsl.Node, namespace map[string]any) (*dsl.HarvestSpe
 		namespace,
 	)
 	if err != nil {
-		return nil, err
+		return nil, materializationError("nodes."+string(node.ID)+".harvest.responder", err)
 	}
 	contentRule, err := refs.RenderTemplateString(
 		fmt.Sprintf("nodes.%s.harvest.content_rule", node.ID),
@@ -55,7 +55,7 @@ func renderHarvestSpec(node dsl.Node, namespace map[string]any) (*dsl.HarvestSpe
 		namespace,
 	)
 	if err != nil {
-		return nil, err
+		return nil, materializationError("nodes."+string(node.ID)+".harvest.content_rule", err)
 	}
 	rendered.Responder = responder
 	rendered.ContentRule = contentRule
@@ -103,11 +103,23 @@ func normalizeNodeParams(params dsl.NodeParams) (map[string]any, error) {
 }
 
 func renderAny(name string, value any, namespace map[string]any) (any, error) {
-	return renderTemplatedValue(name, value, namespace, false)
+	rendered, err := renderTemplatedValue(name, value, namespace, false)
+	if err != nil {
+		return nil, materializationError(name, err)
+	}
+	return rendered, nil
 }
 
 func renderActionParam(name string, value any, namespace map[string]any) (any, error) {
-	return renderTemplatedValue(name, value, namespace, true)
+	rendered, err := renderTemplatedValue(name, value, namespace, true)
+	if err != nil {
+		return nil, materializationError(name, err)
+	}
+	return rendered, nil
+}
+
+func materializationError(name string, err error) error {
+	return fmt.Errorf("%w: %s: %w", ErrActionMaterialization, name, err)
 }
 
 func renderTemplatedValue(
@@ -231,12 +243,16 @@ func evaluateTransformMapping(key string, mapping dsl.TransformMapping, namespac
 	if from := strings.TrimSpace(mapping.From); from != "" {
 		value, err := namespacePathValue(namespace, from)
 		if err != nil {
-			return nil, fmt.Errorf("transform map %q from %q: %w", key, from, err)
+			return nil, materializationError("transform."+key, err)
 		}
 		return value, nil
 	}
 	if templateSource := strings.TrimSpace(mapping.Template); templateSource != "" {
-		return refs.RenderTemplateString("transform."+key, mapping.Template, namespace)
+		rendered, err := refs.RenderTemplateString("transform."+key, mapping.Template, namespace)
+		if err != nil {
+			return nil, materializationError("transform."+key, err)
+		}
+		return rendered, nil
 	}
 	normalized, err := normalizeJSONValue(mapping.Value)
 	if err != nil {

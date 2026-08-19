@@ -128,16 +128,17 @@ func resolveFanOutCollection(
 		value, ok := valueAtPath(namespace, tmpl.References[0].Path)
 		if !ok {
 			return nil, fmt.Errorf(
-				"%w: fan-out collection reference %q is unavailable",
-				ErrValidation,
+				"%w: fan-out collection reference %q is unavailable: %w",
+				ErrActionMaterialization,
 				tmpl.References[0].Raw,
+				ErrValidation,
 			)
 		}
 		return collectionItems(value)
 	}
 	rendered, err := refs.RenderTemplateString(key, node.Collection, namespace)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %s: %w", ErrActionMaterialization, key, err)
 	}
 	return collectionItems(rendered)
 }

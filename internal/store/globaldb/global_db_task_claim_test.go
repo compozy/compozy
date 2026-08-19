@@ -6572,6 +6572,59 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	if status != "enqueued" {
 		t.Fatalf("generation output status = %q, want enqueued", status)
 	}
+
+	wake, added, err := globalDB.EnqueueLoopCoordinatorWake(
+		ctx,
+		string(loopRun.ID),
+		"loop.coordinator.terminal-drain",
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop.test"},
+		now.Add(2*time.Second),
+	)
+	if err != nil || !added {
+		t.Fatalf("EnqueueLoopCoordinatorWake() = %#v, %v, want added", wake, err)
+	}
+	terminalClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID: wake.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: string(loopRun.WorkspaceID),
+		RunKind: taskpkg.RunKindCoordinator, ClaimerSessionID: "daemon-loop-terminal-drain",
+		ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+		LeaseDuration: time.Minute, Now: now.Add(3 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(terminal drain) error = %v", err)
+	}
+	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: terminalClaim.Run.ID, ClaimToken: terminalClaim.ClaimToken,
+		Actor: coordinatorActorContextForTest(),
+		Plan: taskpkg.CoordinatorCompletionPlan{
+			Snapshot: taskpkg.GenerationSnapshot{
+				LoopRunID: string(loopRun.ID), Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{
+					{NodeID: "load", Status: "failed", TaskRunID: rootRunID},
+					{NodeID: "agent", Status: "pending"},
+				}},
+			},
+			Terminal: &taskpkg.CoordinatorTerminal{
+				Status: string(looppkg.StatusFailed), Cause: string(looppkg.TransitionCauseContract),
+			},
+		},
+		Now: now.Add(4 * time.Second),
+	}, looppkg.NewStoreFinalizer()); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(terminal drain) error = %v", err)
+	}
+	drainedRun, err := globalDB.GetTaskRun(ctx, rootRunID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(drained root) error = %v", err)
+	}
+	if drainedRun.Status != taskpkg.TaskRunStatusCanceled {
+		t.Fatalf("drained root run status = %q, want canceled", drainedRun.Status)
+	}
+	drainedTask, err := globalDB.GetTask(ctx, rootTaskID)
+	if err != nil {
+		t.Fatalf("GetTask(drained root) error = %v", err)
+	}
+	if drainedTask.Status != taskpkg.TaskStatusCanceled {
+		t.Fatalf("drained root task status = %q, want canceled", drainedTask.Status)
+	}
 }
 
 func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {

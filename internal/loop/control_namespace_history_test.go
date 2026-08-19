@@ -9,19 +9,21 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/dsl/refs"
 	"github.com/compozy/compozy/internal/loop/gate"
 )
 
 // Suite: generation history projection
-// Invariant: a namespace exposes only the durable previous and best generation context.
+// Invariant: history references always resolve through a complete authored shape.
 // Boundary IN: pure history projection and its reader-backed record assembly.
 // Boundary OUT: coordinator wiring and persistence queries, owned by their canonical suites.
 
 func TestGenerationHistoryProjection(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should leave initial generation history and namespace roots empty", testGenerationHistoryInitialGeneration)
+	t.Run("Should seed initial generation history with schema-shaped zeros", testGenerationHistoryInitialGeneration)
 	t.Run("Should project every previous node and verdict", testGenerationHistoryPreviousGeneration)
+	t.Run("Should keep sparse later generations schema-total", testGenerationHistorySparseGeneration)
 	t.Run("Should expose only escalated classified failures to repair context", testGenerationHistoryRepairFailure)
 	t.Run("Should scope fan-out history to the current item", testGenerationHistoryFanOutScope)
 	t.Run("Should project best outputs without status", testGenerationHistoryBestGeneration)
@@ -169,11 +171,25 @@ func testGenerationHistoryInitialGeneration(t *testing.T) {
 	if history.Best != nil {
 		t.Fatalf("history.Best = %#v, want nil", history.Best)
 	}
+	definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{
+		{
+			ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{"output_schema": map[string]any{
+				"type": "object", "properties": map[string]any{
+					"summary": map[string]any{"type": "string"},
+					"counts": map[string]any{"type": "object", "properties": map[string]any{
+						"done": map[string]any{"type": "integer"},
+					}},
+				},
+			}},
+		},
+		{ID: "quality", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate)},
+	}}}
 	namespace, err := runtimeNamespaceWithHistory(
 		Run{},
 		1,
-		dsl.Graph{},
-		controlTopology{},
+		definition.Graph,
+		newDefinitionControlTopology(definition, nil),
 		nil,
 		history,
 		"",
@@ -187,12 +203,33 @@ func testGenerationHistoryInitialGeneration(t *testing.T) {
 		t.Fatalf("namespace[previous] = %#v, want absent-data object", namespace["previous"])
 	}
 	previousNodes, ok := previous["nodes"].(map[string]any)
-	if !ok || len(previousNodes) != 0 {
-		t.Fatalf("namespace[previous].nodes = %#v, want empty node map", previous["nodes"])
+	if !ok {
+		t.Fatalf("namespace[previous].nodes = %#v, want node map", previous["nodes"])
+	}
+	draft := previousNodes["draft"].(map[string]any)
+	draftOutput := draft[namespaceOutputKey].(map[string]any)
+	counts := draftOutput["counts"].(map[string]any)
+	if draft[namespaceStatusKey] != "" || draftOutput["summary"] != "" || counts["done"] != json.Number("0") {
+		t.Fatalf("namespace[previous].nodes.draft = %#v, want schema-shaped zeros", draft)
+	}
+	verdict := previous[namespaceVerdictsKey].(map[string]any)["quality"].(map[string]any)
+	if verdict[namespaceOutcomeKey] != "" || !reflect.DeepEqual(verdict[namespaceBlockingIssuesKey], []any{}) {
+		t.Fatalf("namespace[previous].verdicts.quality = %#v, want empty verdict shape", verdict)
+	}
+	rendered, err := refs.RenderTemplateString(
+		"history",
+		"{{ .previous.nodes.draft.output.summary }}|{{ .previous.verdicts.quality.blocking_issues }}",
+		namespace,
+	)
+	if err != nil {
+		t.Fatalf("RenderTemplateString() error = %v", err)
+	}
+	if rendered != "|[]" {
+		t.Fatalf("RenderTemplateString() = %q, want %q", rendered, "|[]")
 	}
 	best, ok := namespace["best"].(map[string]any)
-	if !ok || len(best) != 0 {
-		t.Fatalf("namespace[best] = %#v, want empty object", namespace["best"])
+	if !ok || best[metadataGenerationKey] != int64(0) {
+		t.Fatalf("namespace[best] = %#v, want generation-zero object", namespace["best"])
 	}
 }
 
@@ -272,6 +309,53 @@ func testGenerationHistoryPreviousGeneration(t *testing.T) {
 	wantCauses := []GateInstanceProjection{{GateID: "security"}, {GateID: "quality"}}
 	if got := history.Previous.RouteCauses; !reflect.DeepEqual(got, wantCauses) {
 		t.Fatalf("history.Previous.RouteCauses = %#v, want %#v", got, wantCauses)
+	}
+}
+
+func testGenerationHistorySparseGeneration(t *testing.T) {
+	t.Parallel()
+
+	definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{
+		{
+			ID: "draft", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Produces: dsl.Schema{"summary": "string"},
+		},
+		{
+			ID: "repair", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Produces: dsl.Schema{"summary": "string"},
+		},
+		{ID: "quality", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate)},
+	}}}
+	history := GenerationHistory{Previous: &PreviousGeneration{
+		Generation: 2,
+		Nodes: map[string]map[int]NodeProjection{
+			"draft": {0: {Status: generationOutputSucceeded, Output: map[string]any{"summary": "ready"}}},
+		},
+		Verdicts: map[string]map[int]VerdictProjection{},
+	}}
+	namespace, err := runtimeNamespaceWithHistory(
+		Run{},
+		3,
+		definition.Graph,
+		newDefinitionControlTopology(definition, nil),
+		nil,
+		history,
+		"repair",
+		0,
+	)
+	if err != nil {
+		t.Fatalf("runtimeNamespaceWithHistory() error = %v", err)
+	}
+	rendered, err := refs.RenderTemplateString(
+		"reattempt-history",
+		"{{ .previous.nodes.repair.output.summary }}|{{ .previous.verdicts.quality.blocking_issues }}",
+		namespace,
+	)
+	if err != nil {
+		t.Fatalf("RenderTemplateString() error = %v", err)
+	}
+	if rendered != "|[]" {
+		t.Fatalf("RenderTemplateString() = %q, want %q", rendered, "|[]")
 	}
 }
 

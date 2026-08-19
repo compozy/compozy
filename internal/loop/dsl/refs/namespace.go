@@ -45,6 +45,7 @@ type Schema map[string]any
 type Namespace struct {
 	Inputs        map[string]Schema
 	Nodes         map[string]NodeSchema
+	Gates         map[string]struct{}
 	AllowFanout   bool
 	AllowProgress bool
 	AllowTrigger  bool

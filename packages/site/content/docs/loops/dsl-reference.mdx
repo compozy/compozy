@@ -159,6 +159,11 @@ extension, and MCP tool is a Loop action for free.
 
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.
+Cross-generation references keep the same authored shape on every pass. On generation 1,
+`previous.generation` is `0`; before a best candidate exists, `best.generation` is `0`. Authored
+node outputs use zero values from their declared schemas and verdict lists are empty, so a valid
+history path can be rendered during initial and sparse repair generations. Use the generation
+number when history-dependent prose should be omitted.
 `params.runtime` is a per-node `{ provider, model, reasoning }` layer. For an imported task item,
 fields resolve independently in this order: per-run rule, task frontmatter, configured rule,
 `params.runtime`, `runtime_defaults.worker`, then the agent definition. Rule specificity is

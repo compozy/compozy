@@ -116,31 +116,33 @@ func (h GenerationHistory) previousNamespace(
 	current dsl.NodeID,
 	itemIndex int,
 ) map[string]any {
+	nodes := historyPreviousNodeDefaults(topology)
+	verdicts := historyVerdictDefaults(topology)
 	if h.Previous == nil {
-		nodes := make(map[string]any, len(topology.dependencies))
-		for nodeID := range topology.dependencies {
-			nodes[string(nodeID)] = map[string]any{}
-		}
 		return map[string]any{
+			metadataGenerationKey:   int64(0),
 			namespaceNodesKey:       nodes,
-			namespaceVerdictsKey:    map[string]any{},
+			namespaceVerdictsKey:    verdicts,
 			namespaceRouteCausesKey: []string{},
 		}
 	}
-	nodes := make(map[string]any, len(h.Previous.Nodes))
 	for nodeID, items := range h.Previous.Nodes {
 		node, ok := items[historyProjectionItemIndex(topology, current, dsl.NodeID(nodeID), itemIndex)]
 		if !ok {
 			continue
 		}
-		entry := map[string]any{namespaceStatusKey: node.Status, namespaceOutputKey: node.Output}
+		entry, exists := nodes[nodeID].(map[string]any)
+		if !exists {
+			entry = map[string]any{namespaceStatusKey: "", namespaceOutputKey: map[string]any{}}
+		}
+		entry[namespaceStatusKey] = node.Status
+		entry[namespaceOutputKey] = mergeHistoryOutput(entry[namespaceOutputKey], node.Output)
 		if node.Failure != nil {
 			entry[namespaceFailureKey] = *node.Failure
 			entry[namespaceDispositionKey] = node.Disposition
 		}
 		nodes[nodeID] = entry
 	}
-	verdicts := make(map[string]any, len(h.Previous.Verdicts))
 	for gateID, items := range h.Previous.Verdicts {
 		verdict, ok := items[historyProjectionItemIndex(topology, current, dsl.NodeID(gateID), itemIndex)]
 		if !ok {
@@ -173,16 +175,25 @@ func (h GenerationHistory) bestNamespace(
 	current dsl.NodeID,
 	itemIndex int,
 ) map[string]any {
+	nodes := historyBestNodeDefaults(topology)
 	if h.Best == nil {
-		return map[string]any{}
+		return map[string]any{
+			metadataGenerationKey: int64(0),
+			namespaceScoreKey:     float64(0),
+			namespaceNodesKey:     nodes,
+		}
 	}
-	nodes := make(map[string]any, len(h.Best.Nodes))
 	for nodeID, items := range h.Best.Nodes {
 		node, ok := items[historyProjectionItemIndex(topology, current, dsl.NodeID(nodeID), itemIndex)]
 		if !ok {
 			continue
 		}
-		nodes[nodeID] = map[string]any{namespaceOutputKey: node.Output}
+		entry, exists := nodes[nodeID].(map[string]any)
+		if !exists {
+			entry = map[string]any{namespaceOutputKey: map[string]any{}}
+		}
+		entry[namespaceOutputKey] = mergeHistoryOutput(entry[namespaceOutputKey], node.Output)
+		nodes[nodeID] = entry
 	}
 	return map[string]any{
 		metadataGenerationKey: h.Best.Generation,

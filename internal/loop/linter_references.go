@@ -389,16 +389,24 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 		inputs[name] = inputSchema(input)
 	}
 	nodes := map[string]refs.NodeSchema{}
+	gates := map[string]struct{}{}
 	for _, node := range c.def.Graph.Nodes {
 		schema, ok := c.outputSchema(node)
 		nodes[string(node.ID)] = refs.NodeSchema{
 			Output: schema, HasOutput: ok,
 			HasProgress: isControlKind(node, dsl.ControlFanOut),
 		}
+		if isControlKind(node, dsl.ControlGate) {
+			gates[string(node.ID)] = struct{}{}
+		}
+	}
+	if len(c.def.Contract.Verification) > 0 {
+		gates["contract"] = struct{}{}
 	}
 	return refs.Namespace{
 		Inputs:       inputs,
 		Nodes:        nodes,
+		Gates:        gates,
 		AllowFanout:  allowFanout,
 		AllowTrigger: allowTrigger,
 	}

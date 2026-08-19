@@ -35,13 +35,13 @@ against the declared input and output schemas — there is no silent empty-strin
 | `inputs.<name>`                       | A declared typed input                                                          | everywhere                            |
 | `nodes.<id>.output.<path>`            | A current-generation node's harvested, typed output                             | everywhere (after the node)           |
 | `nodes.<id>.status`                   | A current-generation node's terminal status                                     | everywhere                            |
-| `previous.generation`                 | The immediately preceding generation number                                     | generations 2 and later               |
-| `previous.nodes.<id>.status`          | A previous-generation node's terminal status                                    | generations 2 and later               |
-| `previous.nodes.<id>.output.<path>`   | A previous-generation node's typed output                                       | generations 2 and later               |
-| `previous.verdicts.<gate_id>.<field>` | One prior machine verdict: `outcome`, `score`, `blocking_issues`, or `criteria` | generations 2 and later               |
-| `previous.route_causes`               | Ordered gate IDs whose prior verdicts caused succession                         | generations 2 and later               |
-| `best.generation` / `best.score`      | The accepted metric baseline                                                    | after a best candidate exists         |
-| `best.nodes.<id>.output.<path>`       | Output from that best generation; status and verdicts are not projected         | after a best candidate exists         |
+| `previous.generation`                 | The immediately preceding generation number, or `0` before one exists           | every generation                      |
+| `previous.nodes.<id>.status`          | A previous-generation node's terminal status, or an empty string                | every generation                      |
+| `previous.nodes.<id>.output.<path>`   | A previous-generation node's typed output, using schema-shaped zero values      | every generation                      |
+| `previous.verdicts.<gate_id>.<field>` | One prior machine verdict: `outcome`, `score`, `blocking_issues`, or `criteria` | every generation                      |
+| `previous.route_causes`               | Ordered gate IDs whose prior verdicts caused succession                         | every generation                      |
+| `best.generation` / `best.score`      | The accepted metric baseline, or `0` before one exists                          | every generation                      |
+| `best.nodes.<id>.output.<path>`       | Output from that best generation; status and verdicts are not projected         | every generation                      |
 | `item`                                | The fanned unit (element, or array slice when `batch_size > 1`)                 | inside a `fan-out` branch only        |
 | `index`                               | The fanned index                                                                | inside a `fan-out` branch only        |
 | `trigger.<path>`                      | The activation payload                                                          | `trigger` and `webhook` starts only   |
@@ -101,23 +101,24 @@ node outputs or change the transition it observes. See
 
 ## Cross-generation repair context
 
-`previous` and `best` are read-only projections. `previous` always means generation `N-1`, even
-when generation `N` was restored from an older best candidate. `best` names that accepted metric
-baseline. On generation 1, `previous` is an empty object; before a metric candidate becomes
-eligible, `best` is an empty object.
+`previous` and `best` are read-only, total projections: every authored node and gate has a stable
+shape in every generation. `previous` always means generation `N-1`, even when generation `N` was
+restored from an older best candidate. `best` names that accepted metric baseline. Before either
+projection exists, its `generation` is `0`, node outputs use zero values from their declared schema,
+and verdict lists are empty. Sparse repair generations keep the same shape.
 
-Use `with` to keep a value template valid before history exists, and read only the fields the next
-attempt needs:
+Use `if` with the generation number when prose should appear only after history exists. Structural
+guards such as `with .previous` are valid, but the total projection itself is always present:
 
 ```yaml
 prompt: |
   Improve the current candidate.
-  {{ with .previous }}
-  The prior quality gate returned {{ .verdicts.quality.outcome }}.
-  Blocking issues: {{ .verdicts.quality.blocking_issues }}
+  {{ if .previous.generation }}
+  The prior quality gate returned {{ .previous.verdicts.quality.outcome }}.
+  Blocking issues: {{ .previous.verdicts.quality.blocking_issues }}
   {{ end }}
-  {{ with .best }}
-  Preserve the useful parts of generation {{ .generation }}, scored {{ .score }}.
+  {{ if .best.generation }}
+  Preserve the useful parts of generation {{ .best.generation }}, scored {{ .best.score }}.
   {{ end }}
 ```
 

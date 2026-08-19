@@ -47,7 +47,7 @@ func (r *CoordinatorRunner) applyNodeLifecyclePrecedence(
 	events := make([]GenerationLifecycleEventIntent, 0)
 	controls := make([]NodeControlMutation, 0)
 	graph := resolved.Definition.Graph
-	topology := newControlTopology(graph)
+	topology := newResolvedControlTopology(resolved)
 	history := GenerationHistory{}
 	if r.targetHealth != nil {
 		history, err = r.readGenerationHistory(ctx, run, generation)
@@ -435,7 +435,8 @@ func classifyGenerationOutputFailure(output GenerationOutput, taskRun task.Run) 
 		string(tools.ErrorCodeTimedOut), childLoopStatusRef(StatusFailed):
 		evidence.Transport = true
 	case string(ReasonCodeUnknownActionKind), string(ReasonCodeActionDependencyMissing),
-		string(ReasonCodeActionSchemaInvalid), string(ReasonCodeActionContractStale):
+		string(ReasonCodeActionSchemaInvalid), string(ReasonCodeActionContractStale),
+		string(ReasonCodeActionMaterializationFailed):
 		evidence.Authoring = true
 	default:
 		evidence.PayloadFailure = &failure

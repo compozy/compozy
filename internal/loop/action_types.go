@@ -52,6 +52,8 @@ var (
 	ErrActionStalled = errors.New("loop: action stalled")
 	// ErrActionSchemaInvalid reports run-agent structured output that failed output_schema validation.
 	ErrActionSchemaInvalid = errors.New("loop: action schema validation failed")
+	// ErrActionMaterialization reports authored templates that cannot resolve against the runtime namespace.
+	ErrActionMaterialization = errors.New("loop: action materialization failed")
 	// ErrActionTimeout reports an action turn canceled by the node timeout.
 	ErrActionTimeout = errors.New("loop: action timeout")
 )
@@ -65,6 +67,8 @@ const (
 	ReasonCodeActionStalled ReasonCode = "action_stalled"
 	// ReasonCodeActionSchemaInvalid reports run-agent output_schema validation failure.
 	ReasonCodeActionSchemaInvalid ReasonCode = "action_schema_invalid"
+	// ReasonCodeActionMaterializationFailed reports an authored value that could not be materialized.
+	ReasonCodeActionMaterializationFailed ReasonCode = "action_materialization_failed"
 	// ReasonCodeActionTimeout reports timeout cancellation of an action turn.
 	ReasonCodeActionTimeout ReasonCode = "action_timeout"
 	// ReasonCodeActionContractStale reports runtime tool schemas that differ from the Run snapshot.

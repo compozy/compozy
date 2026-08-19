@@ -376,8 +376,11 @@ custom `bind_as`/`index_as` names (their fan-out body only), `trigger.<path>` (t
 - `best.generation`, `best.score`, and `best.nodes.<id>.output`; best status and verdicts are not
   projected.
 
-`previous` is empty on generation 1; `best` is empty until one metric candidate becomes eligible.
-Guard history-dependent templates with `{{ with .previous }}` or `{{ with .best }}`. Node IDs match
+`previous` and `best` keep a total authored shape in every generation. Before either projection
+exists, its `generation` is `0`, schema-known output fields use zero values, and verdict lists are
+empty. Sparse repair generations keep the same shape. Structural guards such as
+`{{ with .previous }}` are valid, but use `{{ if .previous.generation }}` or
+`{{ if .best.generation }}` when history-dependent prose should be omitted. Node IDs match
 `^[a-z][a-z0-9_]*$` (lowercase snake_case) so the same ID is valid in templates and CEL.
 
 Fan-out `strategy` is `wait_all` by default. `fail_fast` and `race` accept string shorthand.

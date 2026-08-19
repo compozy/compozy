@@ -385,7 +385,15 @@ func TestHistoryReferencesShouldUseIdenticalGrammarForPathsTemplatesAndCEL(t *te
 		path     []string
 		wantCode string
 	}{
+		{name: "Should accept the previous nodes collection", path: []string{"previous", "nodes"}},
+		{name: "Should accept a previous node guard", path: []string{"previous", "nodes", "load"}},
+		{name: "Should accept a previous verdict guard", path: []string{"previous", "verdicts", "quality"}},
 		{name: "Should accept the previous generation", path: []string{"previous", "generation"}},
+		{
+			name:     "Should reject an unknown previous gate",
+			path:     []string{"previous", "verdicts", "missing"},
+			wantCode: refs.CodeUnknownReference,
+		},
 		{
 			name: "Should accept previous node output",
 			path: []string{"previous", "nodes", "load", "output", "tasks", "title"},
@@ -752,6 +760,7 @@ func namespace(allowFanout bool) refs.Namespace {
 				},
 			},
 		},
+		Gates:       map[string]struct{}{"quality": {}},
 		AllowFanout: allowFanout,
 	}
 }

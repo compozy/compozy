@@ -3,8 +3,8 @@ package refs
 import "strings"
 
 func (n Namespace) validatePreviousPath(path []string) *Error {
-	if len(path) < 2 {
-		return newPathError(CodeUnknownReference, path, "previous reference must name a field")
+	if len(path) == 1 {
+		return nil
 	}
 	switch path[1] {
 	case "generation":
@@ -12,7 +12,7 @@ func (n Namespace) validatePreviousPath(path []string) *Error {
 	case "nodes":
 		return n.validatePreviousNodePath(path)
 	case "verdicts":
-		return validatePreviousVerdictPath(path)
+		return n.validatePreviousVerdictPath(path)
 	case "route_causes":
 		return validateHistoryScalar(path, "previous.route_causes")
 	default:
@@ -21,8 +21,8 @@ func (n Namespace) validatePreviousPath(path []string) *Error {
 }
 
 func (n Namespace) validateBestPath(path []string) *Error {
-	if len(path) < 2 {
-		return newPathError(CodeUnknownReference, path, "best reference must name a field")
+	if len(path) == 1 {
+		return nil
 	}
 	switch path[1] {
 	case "generation", "score":
@@ -35,8 +35,12 @@ func (n Namespace) validateBestPath(path []string) *Error {
 }
 
 func (n Namespace) validatePreviousNodePath(path []string) *Error {
-	if len(path) < 4 {
-		return newPathError(CodeUnknownReference, path, "previous node reference must name a node and field")
+	if len(path) == 2 {
+		return nil
+	}
+	if len(path) == 3 {
+		_, err := n.historyNode(path, "previous")
+		return err
 	}
 	node, err := n.historyNode(path, "previous")
 	if err != nil {
@@ -46,8 +50,11 @@ func (n Namespace) validatePreviousNodePath(path []string) *Error {
 	case "status":
 		return validateHistoryScalarTail(path[3:], "previous node status")
 	case namespaceOutput:
-		if !node.HasOutput {
+		if len(path) == 4 {
 			return nil
+		}
+		if !node.HasOutput {
+			return newPathError(CodeUnresolvablePath, path, "previous node output has no declared schema")
 		}
 		return validateSchemaPath(node.Output, path[4:], path)
 	default:
@@ -56,8 +63,12 @@ func (n Namespace) validatePreviousNodePath(path []string) *Error {
 }
 
 func (n Namespace) validateBestNodePath(path []string) *Error {
-	if len(path) < 4 {
-		return newPathError(CodeUnknownReference, path, "best node reference must name a node and output")
+	if len(path) == 2 {
+		return nil
+	}
+	if len(path) == 3 {
+		_, err := n.historyNode(path, "best")
+		return err
 	}
 	node, err := n.historyNode(path, "best")
 	if err != nil {
@@ -66,8 +77,11 @@ func (n Namespace) validateBestNodePath(path []string) *Error {
 	if path[3] != namespaceOutput {
 		return newPathError(CodeUnknownReference, path, "best node field %q is not available", path[3])
 	}
-	if !node.HasOutput {
+	if len(path) == 4 {
 		return nil
+	}
+	if !node.HasOutput {
+		return newPathError(CodeUnresolvablePath, path, "best node output has no declared schema")
 	}
 	return validateSchemaPath(node.Output, path[4:], path)
 }
@@ -80,18 +94,30 @@ func (n Namespace) historyNode(path []string, root string) (NodeSchema, *Error) 
 	return node, nil
 }
 
-func validatePreviousVerdictPath(path []string) *Error {
-	if len(path) < 4 || strings.TrimSpace(path[2]) == "" {
+func (n Namespace) validatePreviousVerdictPath(path []string) *Error {
+	if len(path) == 2 {
+		return nil
+	}
+	if strings.TrimSpace(path[2]) == "" {
 		return newPathError(
 			CodeUnknownReference,
 			path,
 			"previous verdict reference must name a gate and field",
 		)
 	}
+	if _, ok := n.Gates[path[2]]; !ok {
+		return newPathError(CodeUnknownReference, path, "unknown previous gate %q", path[2])
+	}
+	if len(path) == 3 {
+		return nil
+	}
 	switch path[3] {
 	case "outcome", "score":
 		return validateHistoryScalarTail(path[3:], "previous verdict "+path[3])
 	case "blocking_issues", "criteria":
+		if len(path) > 4 {
+			return newPathError(CodeUnresolvablePath, path, "previous verdict %s is a collection", path[3])
+		}
 		return nil
 	default:
 		return newPathError(CodeUnknownReference, path, "unknown previous verdict field %q", path[3])

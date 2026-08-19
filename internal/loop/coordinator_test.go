@@ -444,6 +444,76 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 		}
 	})
 
+	t.Run("Should expose a downstream template failure as a routable authoring failure", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID: "looprun-template-failure", WorkspaceID: "ws-template-failure",
+			Status: StatusRunning, Generation: 1, Inputs: map[string]any{},
+			Origin: &RunOrigin{Kind: RunOriginSession, SessionID: "session-template-failure"},
+		}
+		node := dsl.Node{
+			ID: "consumer", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{
+				"agent": "codex", "prompt": "Use {{ .nodes.producer.output.summary }}",
+			},
+		}
+		definition := dsl.Definition{Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID: "producer", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+					Params: dsl.NodeParams{"output_schema": map[string]any{
+						"type": "object", "properties": map[string]any{
+							"summary": map[string]any{"type": "string"},
+						},
+					}},
+				},
+				node,
+			},
+			Edges: []dsl.Edge{{From: "producer", To: "consumer"}},
+		}}
+		capture := &recordingActionExecutor{execute: func(node dsl.Node, input ActionExecutionInput) error {
+			_, err := renderNodeParams(node, input.Namespace)
+			return err
+		}}
+		actions, err := NewActionRegistry(
+			&internalActionRegistryFake{},
+			WithActionRunAgentExecutor(capture),
+		)
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			controlCoordinatorRun(loopRun, 1),
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "producer", Status: generationOutputSucceeded, OutputRef: `{"tipo":"backend"}`},
+				{Generation: 1, NodeID: "consumer", Status: generationOutputRunning, TaskRunID: "run-consumer"},
+			}}},
+			definition,
+			WithCoordinatorActionRegistry(actions),
+		)
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{
+			Generation: 1, NodeID: "consumer", Attempt: 1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(action metadata) error = %v", err)
+		}
+		_, err = runner.ExecuteActionRun(t.Context(), task.Run{
+			ID: "run-consumer", RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed, Metadata: metadata,
+		}, task.ActorContext{})
+		if !errors.Is(err, ErrActionMaterialization) {
+			t.Fatalf("ExecuteActionRun() error = %v, want ErrActionMaterialization", err)
+		}
+		provider, ok := errors.AsType[SafeActionFailureProvider](err)
+		if !ok || provider.SafeActionFailure().Code != string(ReasonCodeActionMaterializationFailed) {
+			t.Fatalf("ExecuteActionRun() failure = %#v, want routable authoring code", provider)
+		}
+	})
+
 	t.Run("Should expose externalized outputs to action templates without replacing their refs", func(t *testing.T) {
 		t.Parallel()
 
@@ -5230,15 +5300,21 @@ type coordinatorRunnerTaskRunReader struct {
 }
 
 type recordingActionExecutor struct {
-	input ActionExecutionInput
+	input   ActionExecutionInput
+	execute func(dsl.Node, ActionExecutionInput) error
 }
 
 func (e *recordingActionExecutor) Execute(
 	_ context.Context,
-	_ dsl.Node,
+	node dsl.Node,
 	input ActionExecutionInput,
 ) (ActionRawResult, error) {
 	e.input = input
+	if e.execute != nil {
+		if err := e.execute(node, input); err != nil {
+			return ActionRawResult{}, err
+		}
+	}
 	return ActionRawResult{Status: "completed"}, nil
 }
 

@@ -743,9 +743,14 @@ func TestLinterShouldValidateGenerationHistoryReferences(t *testing.T) {
 		t.Parallel()
 
 		definition := validDefinition()
+		appendGate(&definition, dsl.Node{
+			ID: "quality", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+			Criteria: []dsl.GateCriterion{{ID: "check", Type: dsl.CriterionCommand, Check: "make verify"}},
+		})
 		definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: "previous.generation >= 1 && best.score >= 0"}
 		requireNode(t, &definition, "agent").Params["prompt"] =
-			"Repair {{ .previous.verdicts.quality.blocking_issues }} from {{ .best.nodes.agent.output.summary }}"
+			"{{ with .previous }}Repair {{ with .verdicts.quality }}{{ .blocking_issues }}{{ end }} " +
+				"from {{ .nodes.agent.output.summary }}{{ end }}"
 		requireLintCodes(t, loop.NewLinter().Lint(definition))
 	})
 
@@ -776,6 +781,10 @@ func TestLinterShouldValidateGenerationHistoryReferences(t *testing.T) {
 			t.Parallel()
 
 			definition := validDefinition()
+			appendGate(&definition, dsl.Node{
+				ID: "quality", Class: dsl.NodeClassControl, Kind: string(dsl.ControlGate),
+				Criteria: []dsl.GateCriterion{{ID: "check", Type: dsl.CriterionCommand, Check: "make verify"}},
+			})
 			if reference.asCondition {
 				definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: reference.path + " != null"}
 			} else {

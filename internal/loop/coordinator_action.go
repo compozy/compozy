@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -79,7 +80,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 		provenanceParentSessionID,
 	)
 	if err != nil {
-		return task.RunResult{}, err
+		return task.RunResult{}, actionMaterializationFailure(err)
 	}
 	if err := r.configureActionExecutionInput(ctx, taskRun, &actionCtx, &input); err != nil {
 		return task.RunResult{}, err
@@ -91,7 +92,22 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err := r.admitActionTarget(ctx, taskRun.ID, actionCtx.node, input); err != nil {
 		return task.RunResult{}, err
 	}
-	return executeActionTaskRun(ctx, executor, actionCtx.node, input)
+	result, err := executeActionTaskRun(ctx, executor, actionCtx.node, input)
+	return result, actionMaterializationFailure(err)
+}
+
+func actionMaterializationFailure(err error) error {
+	if err == nil || !errors.Is(err, ErrActionMaterialization) {
+		return err
+	}
+	return newSafeActionFailureError(
+		reasonError(ReasonCodeActionMaterializationFailed, err, nil),
+		NewActionFailure(
+			string(ReasonCodeActionMaterializationFailed),
+			"an authored node value could not be materialized",
+			"fix the node template or its referenced data",
+		),
+	)
 }
 
 func (r *CoordinatorRunner) readActionGenerationOutputs(
@@ -323,7 +339,7 @@ func actionExecutionInput(
 	history GenerationHistory,
 	provenanceParentSessionID string,
 ) (ActionExecutionInput, error) {
-	topology := newControlTopology(resolved.Definition.Graph)
+	topology := newResolvedControlTopology(resolved)
 	namespace, err := runtimeNamespaceWithHistory(
 		loopRun,
 		meta.Generation,

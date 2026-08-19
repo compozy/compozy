@@ -14,7 +14,9 @@ const args = new Set(process.argv.slice(2));
 const outputPath = join(root, "packages/ui/src/lib/font-size-classes.generated.ts");
 const sources = ["packages/ui/src/tokens.css", "packages/site/app/global.css"];
 
-const classes = sources.flatMap(source => fontSizeClasses(readFileSync(join(root, source), "utf8")));
+const classes = sources.flatMap(source =>
+  fontSizeClasses(readFileSync(join(root, source), "utf8"))
+);
 const unique = [...new Set(classes)].sort();
 if (unique.length === 0) throw new Error("No --text-* theme tokens found in " + sources.join(", "));
 const next = emit(unique);
