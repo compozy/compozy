@@ -71,6 +71,13 @@ const rawWindowManagerStreamFrameSchema = z.discriminatedUnion("type", [
       path: ["revision"],
     }),
   z.strictObject({
+    type: z.literal("client_command"),
+    workspace_id: identifierSchema,
+    command_id: identifierSchema,
+    op: identifierSchema,
+    payload: z.unknown().optional(),
+  }),
+  z.strictObject({
     type: z.literal("error"),
     error: windowManagerErrorSchema,
   }),
@@ -79,6 +86,17 @@ const rawWindowManagerStreamFrameSchema = z.discriminatedUnion("type", [
 export const windowManagerStreamFrameSchema = rawWindowManagerStreamFrameSchema.transform(
   (frame): WindowManagerStreamFrame => {
     if (frame.type === "error") return { type: frame.type, error: frame.error };
+    if (frame.type === "client_command") {
+      return {
+        type: frame.type,
+        command: {
+          workspaceId: frame.workspace_id,
+          commandId: frame.command_id,
+          op: frame.op,
+          payload: frame.payload ?? null,
+        },
+      };
+    }
     if (frame.type === "snapshot") {
       return {
         type: frame.type,

@@ -130,6 +130,20 @@ func TestRegistryMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose the workspace command-palette event family", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{CmdPaletteCatalogChanged, CmdPaletteCommandInvoked} {
+			metadata, ok := Lookup(name)
+			if !ok {
+				t.Fatalf("Lookup(%q) = false", name)
+			}
+			if metadata.Family != "cmd_palette" || metadata.Component != ComponentCmdPalette ||
+				metadata.Outcome != OutcomeInfo || !metadata.GlobalScope || metadata.NotificationEligible {
+				t.Fatalf("command-palette metadata for %q = %#v", name, metadata)
+			}
+		}
+	})
+
 	t.Run("Should UT-046 expose canonical workspace access metadata", func(t *testing.T) {
 		t.Parallel()
 

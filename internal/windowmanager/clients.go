@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // RegisterClient creates or refreshes one explicit client-local view.
@@ -38,6 +39,14 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 			)
 		}
 	}
+	kind, err := normalizeClientKind(registration.Kind)
+	if err != nil {
+		return ClientView{}, err
+	}
+	token, digest, err := newAttachmentToken()
+	if err != nil {
+		return ClientView{}, fmt.Errorf("mint client attachment token: %w", err)
+	}
 	m.mu.Lock()
 	workspaceClients := m.clients[registration.WorkspaceID]
 	if workspaceClients == nil {
@@ -50,7 +59,9 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 		view = ClientView{
 			WorkspaceID:          registration.WorkspaceID,
 			ClientID:             clientID,
+			Kind:                 kind,
 			PresentationRevision: 1,
+			ContextRevision:      1,
 			ConnectedAt:          m.now().UTC(),
 			FocusOrder:           []WindowID{},
 			StackActive:          map[NodeID]WindowID{},
@@ -58,6 +69,7 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 	} else {
 		before = cloneClientView(view)
 	}
+	view.Kind = kind
 	activeID := registration.ActiveDesktopID
 	if activeID == "" {
 		if exists {
@@ -67,8 +79,13 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 		}
 	}
 	view.ActiveDesktopID = activeID
+	view.PaletteContext.ScopeGlobal = registration.Context.ScopeGlobal
+	view.PaletteContext.FocusedSessionState = strings.TrimSpace(registration.Context.FocusedSessionState)
+	view.PaletteContext.WorkspaceTrusted = registration.Context.WorkspaceTrusted
+	view.PaletteContext.DestinationIntent = cloneRouteIntentPointer(registration.Context.DestinationIntent)
 	view = repairClientView(view, snapshot)
 	changed := !exists || !clientViewsEqual(before, view)
+	contextChanged := !exists || before.Kind != view.Kind || !paletteContextsEqual(before.PaletteContext, view.PaletteContext)
 	if exists && changed {
 		next, revisionErr := nextPresentationRevision(before.PresentationRevision)
 		if revisionErr != nil {
@@ -77,12 +94,30 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 		}
 		view.PresentationRevision = next
 	}
-	workspaceClients[clientID] = cloneClientView(view)
+	if exists && contextChanged {
+		next, revisionErr := nextContextRevision(before.ContextRevision)
+		if revisionErr != nil {
+			m.mu.Unlock()
+			return ClientView{}, fmt.Errorf("advance client %q context: %w", clientID, revisionErr)
+		}
+		view.ContextRevision = next
+	}
+	stored := cloneClientView(view)
+	stored.AttachmentToken = ""
+	workspaceClients[clientID] = stored
+	workspaceTokens := m.clientTokens[registration.WorkspaceID]
+	if workspaceTokens == nil {
+		workspaceTokens = make(map[ClientID][32]byte)
+		m.clientTokens[registration.WorkspaceID] = workspaceTokens
+	}
+	workspaceTokens[clientID] = digest
 	m.mu.Unlock()
 	if changed {
-		m.publishClient(view)
+		m.publishClient(stored)
 	}
-	return cloneClientView(view), nil
+	result := cloneClientView(stored)
+	result.AttachmentToken = token
+	return result, nil
 }
 
 // UnregisterClient removes transient presentation state only.
@@ -106,7 +141,13 @@ func (m *Manager) UnregisterClient(ctx context.Context, workspaceID WorkspaceID,
 		return fmt.Errorf("client %q: %w", clientID, ErrClientNotFound)
 	}
 	delete(workspaceClients, clientID)
+	delete(m.clientTokens[workspaceID], clientID)
+	endpoint := m.commandEndpoints[workspaceID][clientID]
+	delete(m.commandEndpoints[workspaceID], clientID)
 	m.mu.Unlock()
+	if endpoint != nil {
+		endpoint.closeWithError(ErrClientNotFound)
+	}
 	m.closeClientSubscriptions(workspaceID, clientID)
 	return nil
 }
@@ -251,6 +292,17 @@ func (m *Manager) applyPresentation(
 			)
 		}
 		view.PresentationRevision = next
+		if !paletteContextsEqual(before.PaletteContext, view.PaletteContext) {
+			contextRevision, contextErr := nextContextRevision(before.ContextRevision)
+			if contextErr != nil {
+				return ClientView{}, false, ChangeSet{}, fmt.Errorf(
+					"advance client %q context: %w",
+					view.ClientID,
+					contextErr,
+				)
+			}
+			view.ContextRevision = contextRevision
+		}
 		if persist {
 			m.clients[request.WorkspaceID][view.ClientID] = cloneClientView(view)
 		}

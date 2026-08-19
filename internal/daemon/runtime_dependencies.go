@@ -72,6 +72,8 @@ func (d *Daemon) runtimeDeps(
 		ToolRegistry:        state.toolRegistry,
 		Toolsets:            state.toolsets,
 		ToolApprovals:       state.toolApprovals,
+		ApprovalCoordinator: state.approvalCoordinator,
+		CmdPalette:          state.cmdPalette,
 		ApprovalGrants:      state.deps.ApprovalGrants,
 		Clarify:             state.clarify,
 		HostedMCP:           state.hostedMCP,

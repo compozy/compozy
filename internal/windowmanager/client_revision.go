@@ -27,3 +27,14 @@ func nextPresentationRevision(current uint64) (uint64, error) {
 	}
 	return current + 1, nil
 }
+
+func nextContextRevision(current uint64) (uint64, error) {
+	if current >= MaxWireRevision {
+		return 0, fmt.Errorf(
+			"context revision %d cannot advance: %w",
+			current,
+			ErrPresentationRevisionExhausted,
+		)
+	}
+	return current + 1, nil
+}

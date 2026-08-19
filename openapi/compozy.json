@@ -1245,12 +1245,20 @@
               "active_desktop_id": {
                 "type": "string"
               },
+              "attachment_token": {
+                "type": "string"
+              },
               "client_id": {
                 "type": "string"
               },
               "connected_at": {
                 "format": "date-time",
                 "type": "string"
+              },
+              "context_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
               },
               "focus_order": {
                 "items": {
@@ -1261,6 +1269,64 @@
               "focused_window_id": {
                 "nullable": true,
                 "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "palette_context": {
+                "properties": {
+                  "desktop_window_count": {
+                    "type": "integer"
+                  },
+                  "destination_intent": {
+                    "nullable": true,
+                    "properties": {
+                      "pathname": {
+                        "type": "string"
+                      },
+                      "search": {
+                        "additionalProperties": {},
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "pathname",
+                      "search"
+                    ],
+                    "type": "object"
+                  },
+                  "focused_session_state": {
+                    "type": "string"
+                  },
+                  "scope_global": {
+                    "type": "boolean"
+                  },
+                  "shell_desktop": {
+                    "type": "boolean"
+                  },
+                  "window_floating": {
+                    "type": "boolean"
+                  },
+                  "window_focused": {
+                    "type": "boolean"
+                  },
+                  "window_stacked": {
+                    "type": "boolean"
+                  },
+                  "workspace_trusted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "desktop_window_count",
+                  "scope_global",
+                  "shell_desktop",
+                  "window_floating",
+                  "window_focused",
+                  "window_stacked",
+                  "workspace_trusted"
+                ],
+                "type": "object"
               },
               "presentation_revision": {
                 "maximum": 9007199254740991,
@@ -1281,7 +1347,10 @@
               "active_desktop_id",
               "client_id",
               "connected_at",
+              "context_revision",
               "focus_order",
+              "kind",
+              "palette_context",
               "presentation_revision",
               "stack_active",
               "workspace_id"
@@ -1320,11 +1389,50 @@
           "client_id": {
             "type": "string"
           },
+          "context": {
+            "properties": {
+              "destination_intent": {
+                "nullable": true,
+                "properties": {
+                  "pathname": {
+                    "type": "string"
+                  },
+                  "search": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "pathname",
+                  "search"
+                ],
+                "type": "object"
+              },
+              "focused_session_state": {
+                "type": "string"
+              },
+              "scope_global": {
+                "type": "boolean"
+              },
+              "workspace_trusted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "scope_global",
+              "workspace_trusted"
+            ],
+            "type": "object"
+          },
+          "kind": {
+            "type": "string"
+          },
           "workspace_id": {
             "type": "string"
           }
         },
         "required": [
+          "context",
           "workspace_id"
         ],
         "type": "object"
@@ -1335,12 +1443,20 @@
           "active_desktop_id": {
             "type": "string"
           },
+          "attachment_token": {
+            "type": "string"
+          },
           "client_id": {
             "type": "string"
           },
           "connected_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "context_revision": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
           },
           "focus_order": {
             "items": {
@@ -1351,6 +1467,64 @@
           "focused_window_id": {
             "nullable": true,
             "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "palette_context": {
+            "properties": {
+              "desktop_window_count": {
+                "type": "integer"
+              },
+              "destination_intent": {
+                "nullable": true,
+                "properties": {
+                  "pathname": {
+                    "type": "string"
+                  },
+                  "search": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "pathname",
+                  "search"
+                ],
+                "type": "object"
+              },
+              "focused_session_state": {
+                "type": "string"
+              },
+              "scope_global": {
+                "type": "boolean"
+              },
+              "shell_desktop": {
+                "type": "boolean"
+              },
+              "window_floating": {
+                "type": "boolean"
+              },
+              "window_focused": {
+                "type": "boolean"
+              },
+              "window_stacked": {
+                "type": "boolean"
+              },
+              "workspace_trusted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "desktop_window_count",
+              "scope_global",
+              "shell_desktop",
+              "window_floating",
+              "window_focused",
+              "window_stacked",
+              "workspace_trusted"
+            ],
+            "type": "object"
           },
           "presentation_revision": {
             "maximum": 9007199254740991,
@@ -1371,7 +1545,10 @@
           "active_desktop_id",
           "client_id",
           "connected_at",
+          "context_revision",
           "focus_order",
+          "kind",
+          "palette_context",
           "presentation_revision",
           "stack_active",
           "workspace_id"
@@ -1387,12 +1564,20 @@
                 "active_desktop_id": {
                   "type": "string"
                 },
+                "attachment_token": {
+                  "type": "string"
+                },
                 "client_id": {
                   "type": "string"
                 },
                 "connected_at": {
                   "format": "date-time",
                   "type": "string"
+                },
+                "context_revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "focus_order": {
                   "items": {
@@ -1403,6 +1588,64 @@
                 "focused_window_id": {
                   "nullable": true,
                   "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "palette_context": {
+                  "properties": {
+                    "desktop_window_count": {
+                      "type": "integer"
+                    },
+                    "destination_intent": {
+                      "nullable": true,
+                      "properties": {
+                        "pathname": {
+                          "type": "string"
+                        },
+                        "search": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "pathname",
+                        "search"
+                      ],
+                      "type": "object"
+                    },
+                    "focused_session_state": {
+                      "type": "string"
+                    },
+                    "scope_global": {
+                      "type": "boolean"
+                    },
+                    "shell_desktop": {
+                      "type": "boolean"
+                    },
+                    "window_floating": {
+                      "type": "boolean"
+                    },
+                    "window_focused": {
+                      "type": "boolean"
+                    },
+                    "window_stacked": {
+                      "type": "boolean"
+                    },
+                    "workspace_trusted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "desktop_window_count",
+                    "scope_global",
+                    "shell_desktop",
+                    "window_floating",
+                    "window_focused",
+                    "window_stacked",
+                    "workspace_trusted"
+                  ],
+                  "type": "object"
                 },
                 "presentation_revision": {
                   "maximum": 9007199254740991,
@@ -1423,7 +1666,10 @@
                 "active_desktop_id",
                 "client_id",
                 "connected_at",
+                "context_revision",
                 "focus_order",
+                "kind",
+                "palette_context",
                 "presentation_revision",
                 "stack_active",
                 "workspace_id"
@@ -6278,12 +6524,20 @@
               "active_desktop_id": {
                 "type": "string"
               },
+              "attachment_token": {
+                "type": "string"
+              },
               "client_id": {
                 "type": "string"
               },
               "connected_at": {
                 "format": "date-time",
                 "type": "string"
+              },
+              "context_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
               },
               "focus_order": {
                 "items": {
@@ -6294,6 +6548,64 @@
               "focused_window_id": {
                 "nullable": true,
                 "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "palette_context": {
+                "properties": {
+                  "desktop_window_count": {
+                    "type": "integer"
+                  },
+                  "destination_intent": {
+                    "nullable": true,
+                    "properties": {
+                      "pathname": {
+                        "type": "string"
+                      },
+                      "search": {
+                        "additionalProperties": {},
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "pathname",
+                      "search"
+                    ],
+                    "type": "object"
+                  },
+                  "focused_session_state": {
+                    "type": "string"
+                  },
+                  "scope_global": {
+                    "type": "boolean"
+                  },
+                  "shell_desktop": {
+                    "type": "boolean"
+                  },
+                  "window_floating": {
+                    "type": "boolean"
+                  },
+                  "window_focused": {
+                    "type": "boolean"
+                  },
+                  "window_stacked": {
+                    "type": "boolean"
+                  },
+                  "workspace_trusted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "desktop_window_count",
+                  "scope_global",
+                  "shell_desktop",
+                  "window_floating",
+                  "window_focused",
+                  "window_stacked",
+                  "workspace_trusted"
+                ],
+                "type": "object"
               },
               "presentation_revision": {
                 "maximum": 9007199254740991,
@@ -6314,7 +6626,10 @@
               "active_desktop_id",
               "client_id",
               "connected_at",
+              "context_revision",
               "focus_order",
+              "kind",
+              "palette_context",
               "presentation_revision",
               "stack_active",
               "workspace_id"
@@ -7720,12 +8035,20 @@
               "active_desktop_id": {
                 "type": "string"
               },
+              "attachment_token": {
+                "type": "string"
+              },
               "client_id": {
                 "type": "string"
               },
               "connected_at": {
                 "format": "date-time",
                 "type": "string"
+              },
+              "context_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
               },
               "focus_order": {
                 "items": {
@@ -7736,6 +8059,64 @@
               "focused_window_id": {
                 "nullable": true,
                 "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "palette_context": {
+                "properties": {
+                  "desktop_window_count": {
+                    "type": "integer"
+                  },
+                  "destination_intent": {
+                    "nullable": true,
+                    "properties": {
+                      "pathname": {
+                        "type": "string"
+                      },
+                      "search": {
+                        "additionalProperties": {},
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "pathname",
+                      "search"
+                    ],
+                    "type": "object"
+                  },
+                  "focused_session_state": {
+                    "type": "string"
+                  },
+                  "scope_global": {
+                    "type": "boolean"
+                  },
+                  "shell_desktop": {
+                    "type": "boolean"
+                  },
+                  "window_floating": {
+                    "type": "boolean"
+                  },
+                  "window_focused": {
+                    "type": "boolean"
+                  },
+                  "window_stacked": {
+                    "type": "boolean"
+                  },
+                  "workspace_trusted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "desktop_window_count",
+                  "scope_global",
+                  "shell_desktop",
+                  "window_floating",
+                  "window_focused",
+                  "window_stacked",
+                  "workspace_trusted"
+                ],
+                "type": "object"
               },
               "presentation_revision": {
                 "maximum": 9007199254740991,
@@ -7756,7 +8137,10 @@
               "active_desktop_id",
               "client_id",
               "connected_at",
+              "context_revision",
               "focus_order",
+              "kind",
+              "palette_context",
               "presentation_revision",
               "stack_active",
               "workspace_id"
@@ -9077,12 +9461,20 @@
               "active_desktop_id": {
                 "type": "string"
               },
+              "attachment_token": {
+                "type": "string"
+              },
               "client_id": {
                 "type": "string"
               },
               "connected_at": {
                 "format": "date-time",
                 "type": "string"
+              },
+              "context_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
               },
               "focus_order": {
                 "items": {
@@ -9093,6 +9485,64 @@
               "focused_window_id": {
                 "nullable": true,
                 "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "palette_context": {
+                "properties": {
+                  "desktop_window_count": {
+                    "type": "integer"
+                  },
+                  "destination_intent": {
+                    "nullable": true,
+                    "properties": {
+                      "pathname": {
+                        "type": "string"
+                      },
+                      "search": {
+                        "additionalProperties": {},
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "pathname",
+                      "search"
+                    ],
+                    "type": "object"
+                  },
+                  "focused_session_state": {
+                    "type": "string"
+                  },
+                  "scope_global": {
+                    "type": "boolean"
+                  },
+                  "shell_desktop": {
+                    "type": "boolean"
+                  },
+                  "window_floating": {
+                    "type": "boolean"
+                  },
+                  "window_focused": {
+                    "type": "boolean"
+                  },
+                  "window_stacked": {
+                    "type": "boolean"
+                  },
+                  "workspace_trusted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "desktop_window_count",
+                  "scope_global",
+                  "shell_desktop",
+                  "window_floating",
+                  "window_focused",
+                  "window_stacked",
+                  "workspace_trusted"
+                ],
+                "type": "object"
               },
               "presentation_revision": {
                 "maximum": 9007199254740991,
@@ -9113,7 +9563,10 @@
               "active_desktop_id",
               "client_id",
               "connected_at",
+              "context_revision",
               "focus_order",
+              "kind",
+              "palette_context",
               "presentation_revision",
               "stack_active",
               "workspace_id"
@@ -68767,6 +69220,904 @@
         "summary": "Register the configured provider webhook",
         "tags": [
           "bridges"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/cmd-palette/clients": {
+      "get": {
+        "operationId": "listCmdPaletteClients",
+        "parameters": [
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "attached_at": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "client_id": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "workspace": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "attached_at",
+                      "client_id",
+                      "kind",
+                      "workspace"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "List attached command palette clients",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/cmd-palette/commands": {
+      "get": {
+        "operationId": "listCmdPaletteCommands",
+        "parameters": [
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Attached client whose context resolves availability",
+            "in": "query",
+            "name": "client",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "catalog_revision": {
+                      "type": "string"
+                    },
+                    "commands": {
+                      "items": {
+                        "properties": {
+                          "action": {
+                            "properties": {
+                              "app": {
+                                "type": "string"
+                              },
+                              "args": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "op": {
+                                "type": "string"
+                              },
+                              "tool": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "view": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "type": "object"
+                          },
+                          "alias": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "arguments": {
+                            "items": {
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "options": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "placeholder": {
+                                  "type": "string"
+                                },
+                                "required": {
+                                  "type": "boolean"
+                                },
+                                "type": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "required",
+                                "type"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "availability_exempt": {
+                            "type": "boolean"
+                          },
+                          "available": {
+                            "type": "boolean"
+                          },
+                          "bindings": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "confirmation": {
+                            "nullable": true,
+                            "properties": {
+                              "body": {
+                                "type": "string"
+                              },
+                              "confirm": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "confirm",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "destructive": {
+                            "type": "boolean"
+                          },
+                          "execution": {
+                            "properties": {
+                              "retry_safe": {
+                                "type": "boolean"
+                              },
+                              "single_flight": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "retry_safe",
+                              "single_flight"
+                            ],
+                            "type": "object"
+                          },
+                          "icon": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "keywords": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "section": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "when": {
+                            "items": {
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "operator": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "value": {}
+                              },
+                              "required": [
+                                "key",
+                                "value"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "action",
+                          "alias",
+                          "arguments",
+                          "availability_exempt",
+                          "available",
+                          "bindings",
+                          "destructive",
+                          "execution",
+                          "icon",
+                          "id",
+                          "section",
+                          "source",
+                          "title"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "context_revision": {
+                      "type": "string"
+                    },
+                    "sources": {
+                      "items": {
+                        "properties": {
+                          "reason": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "source",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "catalog_revision",
+                    "commands",
+                    "sources"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "List command palette commands",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/cmd-palette/commands/{id}/invoke": {
+      "post": {
+        "operationId": "invokeCmdPaletteCommand",
+        "parameters": [
+          {
+            "description": "Canonical command id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "args": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "client": {
+                    "type": "string"
+                  },
+                  "workspace": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "args",
+                  "workspace"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "approval_id": {
+                      "type": "string"
+                    },
+                    "result": {},
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Completed"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "approval_id": {
+                      "type": "string"
+                    },
+                    "result": {},
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Approval pending"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid client attachment"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invocation conflict"
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command unavailable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid command arguments"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Invoke one command palette command",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/cmd-palette/stream": {
+      "get": {
+        "operationId": "streamCmdPalette",
+        "parameters": [
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "properties": {
+                    "catalog_revision": {
+                      "type": "string"
+                    },
+                    "workspace": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "catalog_revision",
+                    "workspace"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Catalog invalidation stream"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Stream command palette catalog invalidations",
+        "tags": [
+          "cmd-palette"
         ],
         "x-compozy-transports": [
           "http",
@@ -209199,6 +210550,294 @@
         ]
       }
     },
+    "/api/tools/approvals/{id}": {
+      "get": {
+        "operationId": "getPendingToolApproval",
+        "parameters": [
+          {
+            "description": "Stable approval id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "approval_status": {
+                      "type": "string"
+                    },
+                    "error": {},
+                    "execution_status": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "result": {}
+                  },
+                  "required": [
+                    "approval_status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Approval not found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Tool approval unavailable"
+          }
+        },
+        "summary": "Get one pending tool approval lifecycle",
+        "tags": [
+          "tools"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/tools/approvals/{id}/cancel": {
+      "post": {
+        "operationId": "cancelPendingToolApproval",
+        "parameters": [
+          {
+            "description": "Stable approval id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "approval_status": {
+                      "type": "string"
+                    },
+                    "error": {},
+                    "execution_status": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "result": {}
+                  },
+                  "required": [
+                    "approval_status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Canceled"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Approval not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Approval already terminal"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Tool approval unavailable"
+          }
+        },
+        "summary": "Cancel one pending tool approval",
+        "tags": [
+          "tools"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/tools/search": {
       "post": {
         "operationId": "searchTools",
@@ -318274,12 +319913,20 @@
                           "active_desktop_id": {
                             "type": "string"
                           },
+                          "attachment_token": {
+                            "type": "string"
+                          },
                           "client_id": {
                             "type": "string"
                           },
                           "connected_at": {
                             "format": "date-time",
                             "type": "string"
+                          },
+                          "context_revision": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
                           },
                           "focus_order": {
                             "items": {
@@ -318290,6 +319937,64 @@
                           "focused_window_id": {
                             "nullable": true,
                             "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "palette_context": {
+                            "properties": {
+                              "desktop_window_count": {
+                                "type": "integer"
+                              },
+                              "destination_intent": {
+                                "nullable": true,
+                                "properties": {
+                                  "pathname": {
+                                    "type": "string"
+                                  },
+                                  "search": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "pathname",
+                                  "search"
+                                ],
+                                "type": "object"
+                              },
+                              "focused_session_state": {
+                                "type": "string"
+                              },
+                              "scope_global": {
+                                "type": "boolean"
+                              },
+                              "shell_desktop": {
+                                "type": "boolean"
+                              },
+                              "window_floating": {
+                                "type": "boolean"
+                              },
+                              "window_focused": {
+                                "type": "boolean"
+                              },
+                              "window_stacked": {
+                                "type": "boolean"
+                              },
+                              "workspace_trusted": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "desktop_window_count",
+                              "scope_global",
+                              "shell_desktop",
+                              "window_floating",
+                              "window_focused",
+                              "window_stacked",
+                              "workspace_trusted"
+                            ],
+                            "type": "object"
                           },
                           "presentation_revision": {
                             "maximum": 9007199254740991,
@@ -318310,7 +320015,10 @@
                           "active_desktop_id",
                           "client_id",
                           "connected_at",
+                          "context_revision",
                           "focus_order",
+                          "kind",
+                          "palette_context",
                           "presentation_revision",
                           "stack_active",
                           "workspace_id"
@@ -318545,11 +320253,50 @@
                   "client_id": {
                     "type": "string"
                   },
+                  "context": {
+                    "properties": {
+                      "destination_intent": {
+                        "nullable": true,
+                        "properties": {
+                          "pathname": {
+                            "type": "string"
+                          },
+                          "search": {
+                            "additionalProperties": {},
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "pathname",
+                          "search"
+                        ],
+                        "type": "object"
+                      },
+                      "focused_session_state": {
+                        "type": "string"
+                      },
+                      "scope_global": {
+                        "type": "boolean"
+                      },
+                      "workspace_trusted": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "scope_global",
+                      "workspace_trusted"
+                    ],
+                    "type": "object"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
                   "workspace_id": {
                     "type": "string"
                   }
                 },
                 "required": [
+                  "context",
                   "workspace_id"
                 ],
                 "type": "object"
@@ -318568,12 +320315,20 @@
                     "active_desktop_id": {
                       "type": "string"
                     },
+                    "attachment_token": {
+                      "type": "string"
+                    },
                     "client_id": {
                       "type": "string"
                     },
                     "connected_at": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "context_revision": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
                     },
                     "focus_order": {
                       "items": {
@@ -318584,6 +320339,64 @@
                     "focused_window_id": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "palette_context": {
+                      "properties": {
+                        "desktop_window_count": {
+                          "type": "integer"
+                        },
+                        "destination_intent": {
+                          "nullable": true,
+                          "properties": {
+                            "pathname": {
+                              "type": "string"
+                            },
+                            "search": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "pathname",
+                            "search"
+                          ],
+                          "type": "object"
+                        },
+                        "focused_session_state": {
+                          "type": "string"
+                        },
+                        "scope_global": {
+                          "type": "boolean"
+                        },
+                        "shell_desktop": {
+                          "type": "boolean"
+                        },
+                        "window_floating": {
+                          "type": "boolean"
+                        },
+                        "window_focused": {
+                          "type": "boolean"
+                        },
+                        "window_stacked": {
+                          "type": "boolean"
+                        },
+                        "workspace_trusted": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "desktop_window_count",
+                        "scope_global",
+                        "shell_desktop",
+                        "window_floating",
+                        "window_focused",
+                        "window_stacked",
+                        "workspace_trusted"
+                      ],
+                      "type": "object"
                     },
                     "presentation_revision": {
                       "maximum": 9007199254740991,
@@ -318604,7 +320417,10 @@
                     "active_desktop_id",
                     "client_id",
                     "connected_at",
+                    "context_revision",
                     "focus_order",
+                    "kind",
+                    "palette_context",
                     "presentation_revision",
                     "stack_active",
                     "workspace_id"
@@ -319557,12 +321373,20 @@
                         "active_desktop_id": {
                           "type": "string"
                         },
+                        "attachment_token": {
+                          "type": "string"
+                        },
                         "client_id": {
                           "type": "string"
                         },
                         "connected_at": {
                           "format": "date-time",
                           "type": "string"
+                        },
+                        "context_revision": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
                         },
                         "focus_order": {
                           "items": {
@@ -319573,6 +321397,64 @@
                         "focused_window_id": {
                           "nullable": true,
                           "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "palette_context": {
+                          "properties": {
+                            "desktop_window_count": {
+                              "type": "integer"
+                            },
+                            "destination_intent": {
+                              "nullable": true,
+                              "properties": {
+                                "pathname": {
+                                  "type": "string"
+                                },
+                                "search": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "pathname",
+                                "search"
+                              ],
+                              "type": "object"
+                            },
+                            "focused_session_state": {
+                              "type": "string"
+                            },
+                            "scope_global": {
+                              "type": "boolean"
+                            },
+                            "shell_desktop": {
+                              "type": "boolean"
+                            },
+                            "window_floating": {
+                              "type": "boolean"
+                            },
+                            "window_focused": {
+                              "type": "boolean"
+                            },
+                            "window_stacked": {
+                              "type": "boolean"
+                            },
+                            "workspace_trusted": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "desktop_window_count",
+                            "scope_global",
+                            "shell_desktop",
+                            "window_floating",
+                            "window_focused",
+                            "window_stacked",
+                            "workspace_trusted"
+                          ],
+                          "type": "object"
                         },
                         "presentation_revision": {
                           "maximum": 9007199254740991,
@@ -319593,7 +321475,10 @@
                         "active_desktop_id",
                         "client_id",
                         "connected_at",
+                        "context_revision",
                         "focus_order",
+                        "kind",
+                        "palette_context",
                         "presentation_revision",
                         "stack_active",
                         "workspace_id"
@@ -322193,12 +324078,20 @@
                         "active_desktop_id": {
                           "type": "string"
                         },
+                        "attachment_token": {
+                          "type": "string"
+                        },
                         "client_id": {
                           "type": "string"
                         },
                         "connected_at": {
                           "format": "date-time",
                           "type": "string"
+                        },
+                        "context_revision": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
                         },
                         "focus_order": {
                           "items": {
@@ -322209,6 +324102,64 @@
                         "focused_window_id": {
                           "nullable": true,
                           "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "palette_context": {
+                          "properties": {
+                            "desktop_window_count": {
+                              "type": "integer"
+                            },
+                            "destination_intent": {
+                              "nullable": true,
+                              "properties": {
+                                "pathname": {
+                                  "type": "string"
+                                },
+                                "search": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "pathname",
+                                "search"
+                              ],
+                              "type": "object"
+                            },
+                            "focused_session_state": {
+                              "type": "string"
+                            },
+                            "scope_global": {
+                              "type": "boolean"
+                            },
+                            "shell_desktop": {
+                              "type": "boolean"
+                            },
+                            "window_floating": {
+                              "type": "boolean"
+                            },
+                            "window_focused": {
+                              "type": "boolean"
+                            },
+                            "window_stacked": {
+                              "type": "boolean"
+                            },
+                            "workspace_trusted": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "desktop_window_count",
+                            "scope_global",
+                            "shell_desktop",
+                            "window_floating",
+                            "window_focused",
+                            "window_stacked",
+                            "workspace_trusted"
+                          ],
+                          "type": "object"
                         },
                         "presentation_revision": {
                           "maximum": 9007199254740991,
@@ -322229,7 +324180,10 @@
                         "active_desktop_id",
                         "client_id",
                         "connected_at",
+                        "context_revision",
                         "focus_order",
+                        "kind",
+                        "palette_context",
                         "presentation_revision",
                         "stack_active",
                         "workspace_id"
@@ -326940,12 +328894,20 @@
                         "active_desktop_id": {
                           "type": "string"
                         },
+                        "attachment_token": {
+                          "type": "string"
+                        },
                         "client_id": {
                           "type": "string"
                         },
                         "connected_at": {
                           "format": "date-time",
                           "type": "string"
+                        },
+                        "context_revision": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
                         },
                         "focus_order": {
                           "items": {
@@ -326956,6 +328918,64 @@
                         "focused_window_id": {
                           "nullable": true,
                           "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "palette_context": {
+                          "properties": {
+                            "desktop_window_count": {
+                              "type": "integer"
+                            },
+                            "destination_intent": {
+                              "nullable": true,
+                              "properties": {
+                                "pathname": {
+                                  "type": "string"
+                                },
+                                "search": {
+                                  "additionalProperties": {},
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "pathname",
+                                "search"
+                              ],
+                              "type": "object"
+                            },
+                            "focused_session_state": {
+                              "type": "string"
+                            },
+                            "scope_global": {
+                              "type": "boolean"
+                            },
+                            "shell_desktop": {
+                              "type": "boolean"
+                            },
+                            "window_floating": {
+                              "type": "boolean"
+                            },
+                            "window_focused": {
+                              "type": "boolean"
+                            },
+                            "window_stacked": {
+                              "type": "boolean"
+                            },
+                            "workspace_trusted": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "desktop_window_count",
+                            "scope_global",
+                            "shell_desktop",
+                            "window_floating",
+                            "window_focused",
+                            "window_stacked",
+                            "workspace_trusted"
+                          ],
+                          "type": "object"
                         },
                         "presentation_revision": {
                           "maximum": 9007199254740991,
@@ -326976,7 +328996,10 @@
                         "active_desktop_id",
                         "client_id",
                         "connected_at",
+                        "context_revision",
                         "focus_order",
+                        "kind",
+                        "palette_context",
                         "presentation_revision",
                         "stack_active",
                         "workspace_id"
@@ -328058,12 +330081,20 @@
                             "active_desktop_id": {
                               "type": "string"
                             },
+                            "attachment_token": {
+                              "type": "string"
+                            },
                             "client_id": {
                               "type": "string"
                             },
                             "connected_at": {
                               "format": "date-time",
                               "type": "string"
+                            },
+                            "context_revision": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
                             },
                             "focus_order": {
                               "items": {
@@ -328074,6 +330105,64 @@
                             "focused_window_id": {
                               "nullable": true,
                               "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "palette_context": {
+                              "properties": {
+                                "desktop_window_count": {
+                                  "type": "integer"
+                                },
+                                "destination_intent": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "pathname": {
+                                      "type": "string"
+                                    },
+                                    "search": {
+                                      "additionalProperties": {},
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "pathname",
+                                    "search"
+                                  ],
+                                  "type": "object"
+                                },
+                                "focused_session_state": {
+                                  "type": "string"
+                                },
+                                "scope_global": {
+                                  "type": "boolean"
+                                },
+                                "shell_desktop": {
+                                  "type": "boolean"
+                                },
+                                "window_floating": {
+                                  "type": "boolean"
+                                },
+                                "window_focused": {
+                                  "type": "boolean"
+                                },
+                                "window_stacked": {
+                                  "type": "boolean"
+                                },
+                                "workspace_trusted": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "desktop_window_count",
+                                "scope_global",
+                                "shell_desktop",
+                                "window_floating",
+                                "window_focused",
+                                "window_stacked",
+                                "workspace_trusted"
+                              ],
+                              "type": "object"
                             },
                             "presentation_revision": {
                               "maximum": 9007199254740991,
@@ -328094,7 +330183,10 @@
                             "active_desktop_id",
                             "client_id",
                             "connected_at",
+                            "context_revision",
                             "focus_order",
+                            "kind",
+                            "palette_context",
                             "presentation_revision",
                             "stack_active",
                             "workspace_id"
@@ -328902,12 +330994,20 @@
                             "active_desktop_id": {
                               "type": "string"
                             },
+                            "attachment_token": {
+                              "type": "string"
+                            },
                             "client_id": {
                               "type": "string"
                             },
                             "connected_at": {
                               "format": "date-time",
                               "type": "string"
+                            },
+                            "context_revision": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
                             },
                             "focus_order": {
                               "items": {
@@ -328918,6 +331018,64 @@
                             "focused_window_id": {
                               "nullable": true,
                               "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "palette_context": {
+                              "properties": {
+                                "desktop_window_count": {
+                                  "type": "integer"
+                                },
+                                "destination_intent": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "pathname": {
+                                      "type": "string"
+                                    },
+                                    "search": {
+                                      "additionalProperties": {},
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "pathname",
+                                    "search"
+                                  ],
+                                  "type": "object"
+                                },
+                                "focused_session_state": {
+                                  "type": "string"
+                                },
+                                "scope_global": {
+                                  "type": "boolean"
+                                },
+                                "shell_desktop": {
+                                  "type": "boolean"
+                                },
+                                "window_floating": {
+                                  "type": "boolean"
+                                },
+                                "window_focused": {
+                                  "type": "boolean"
+                                },
+                                "window_stacked": {
+                                  "type": "boolean"
+                                },
+                                "workspace_trusted": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "desktop_window_count",
+                                "scope_global",
+                                "shell_desktop",
+                                "window_floating",
+                                "window_focused",
+                                "window_stacked",
+                                "workspace_trusted"
+                              ],
+                              "type": "object"
                             },
                             "presentation_revision": {
                               "maximum": 9007199254740991,
@@ -328938,7 +331096,10 @@
                             "active_desktop_id",
                             "client_id",
                             "connected_at",
+                            "context_revision",
                             "focus_order",
+                            "kind",
+                            "palette_context",
                             "presentation_revision",
                             "stack_active",
                             "workspace_id"
@@ -336046,6 +338207,9 @@
     },
     {
       "name": "tools"
+    },
+    {
+      "name": "cmd-palette"
     },
     {
       "name": "toolsets"

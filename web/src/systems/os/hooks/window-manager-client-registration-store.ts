@@ -1,6 +1,6 @@
 import { createStoreLogic } from "@xstate/store";
 
-import type { WindowManagerClientView } from "../lib/window-manager-types";
+import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
 
 export type WindowManagerRegistrationPhase =
   | "idle"
@@ -31,7 +31,7 @@ export type WindowManagerRegistrationContext =
       workspaceId: string;
     })
   | (WindowManagerRegistrationBase & {
-      client: WindowManagerClientView;
+      client: WindowManagerAttachedClientView;
       error: null;
       phase: "registered";
       retryCount: 0;
@@ -48,7 +48,7 @@ type WindowManagerRegistrationEvents = {
   documentVisibilityChanged: { visible: boolean };
   recoveryRequested: Record<never, never>;
   registrationFailed: { error: Error; epoch: number };
-  registrationSucceeded: { client: WindowManagerClientView; epoch: number };
+  registrationSucceeded: { client: WindowManagerAttachedClientView; epoch: number };
   retryElapsed: Record<never, never>;
 };
 

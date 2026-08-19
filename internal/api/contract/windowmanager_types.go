@@ -139,14 +139,30 @@ type WindowManagerLayoutDocument struct {
 
 // WindowManagerClientView is transient presentation state for one connected client.
 type WindowManagerClientView struct {
-	WorkspaceID          windowmanager.WorkspaceID `json:"workspace_id"`
-	ClientID             windowmanager.ClientID    `json:"client_id"`
-	PresentationRevision WindowManagerRevision     `json:"presentation_revision"`
-	ActiveDesktopID      windowmanager.DesktopID   `json:"active_desktop_id"`
-	FocusedWindowID      *windowmanager.WindowID   `json:"focused_window_id,omitempty"`
-	FocusOrder           []windowmanager.WindowID  `json:"focus_order"`
-	StackActive          map[string]string         `json:"stack_active"`
-	ConnectedAt          time.Time                 `json:"connected_at"`
+	WorkspaceID          windowmanager.WorkspaceID   `json:"workspace_id"`
+	ClientID             windowmanager.ClientID      `json:"client_id"`
+	Kind                 windowmanager.ClientKind    `json:"kind"`
+	PresentationRevision WindowManagerRevision       `json:"presentation_revision"`
+	ContextRevision      WindowManagerRevision       `json:"context_revision"`
+	ActiveDesktopID      windowmanager.DesktopID     `json:"active_desktop_id"`
+	FocusedWindowID      *windowmanager.WindowID     `json:"focused_window_id,omitempty"`
+	FocusOrder           []windowmanager.WindowID    `json:"focus_order"`
+	StackActive          map[string]string           `json:"stack_active"`
+	PaletteContext       WindowManagerPaletteContext `json:"palette_context"`
+	ConnectedAt          time.Time                   `json:"connected_at"`
+	AttachmentToken      string                      `json:"attachment_token,omitempty"`
+}
+
+type WindowManagerPaletteContext struct {
+	WindowFocused       bool                       `json:"window_focused"`
+	WindowFloating      bool                       `json:"window_floating"`
+	WindowStacked       bool                       `json:"window_stacked"`
+	DesktopWindowCount  int                        `json:"desktop_window_count"`
+	ScopeGlobal         bool                       `json:"scope_global"`
+	ShellDesktop        bool                       `json:"shell_desktop"`
+	FocusedSessionState string                     `json:"focused_session_state,omitempty"`
+	WorkspaceTrusted    bool                       `json:"workspace_trusted"`
+	DestinationIntent   *windowmanager.RouteIntent `json:"destination_intent,omitempty"`
 }
 
 // WindowManagerClientsResponse lists client-local views in one workspace partition.
@@ -157,9 +173,18 @@ type WindowManagerClientsResponse struct {
 
 // WindowManagerClientRegistration requests one live client view.
 type WindowManagerClientRegistration struct {
-	WorkspaceID     windowmanager.WorkspaceID `json:"workspace_id"`
-	ClientID        windowmanager.ClientID    `json:"client_id,omitempty"`
-	ActiveDesktopID windowmanager.DesktopID   `json:"active_desktop_id,omitempty"`
+	WorkspaceID     windowmanager.WorkspaceID       `json:"workspace_id"`
+	ClientID        windowmanager.ClientID          `json:"client_id,omitempty"`
+	Kind            windowmanager.ClientKind        `json:"kind,omitempty"`
+	ActiveDesktopID windowmanager.DesktopID         `json:"active_desktop_id,omitempty"`
+	Context         WindowManagerClientContextInput `json:"context"`
+}
+
+type WindowManagerClientContextInput struct {
+	ScopeGlobal         bool                       `json:"scope_global"`
+	FocusedSessionState string                     `json:"focused_session_state,omitempty"`
+	WorkspaceTrusted    bool                       `json:"workspace_trusted"`
+	DestinationIntent   *windowmanager.RouteIntent `json:"destination_intent,omitempty"`
 }
 
 // WindowManagerLayoutValidationRequest validates a declarative document without writing it.

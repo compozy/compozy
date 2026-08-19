@@ -142,6 +142,15 @@ A **bundled procedural instruction** that a CompozyOS session can activate befor
 
 ---
 
+### Command palette identifiers
+
+**Command palette** is the prose name for the daemon-canonical command catalog and invocation surface.
+Use `cmd_palette` for Go packages, config and event families; `cmd-palette` for CLI verbs and URL-facing
+slugs; and `compozy__cmd_palette_*` for native tool IDs. These spellings name one registry, not separate
+features.
+
+---
+
 ### Sandbox
 
 The CompozyOS execution boundary selected for a workspace or session. A sandbox profile is configured under `[sandboxes.<name>]`, selected by `sandbox_ref` or runtime flags, and carried through the session lifecycle as sandbox metadata.

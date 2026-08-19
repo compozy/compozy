@@ -2,6 +2,7 @@ package daemon
 
 import (
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -17,6 +18,7 @@ func (d *Daemon) nativeToolsDeps(
 	marketplaceSkills := d.nativeMarketplaceSkills(state)
 	return daemonNativeToolsDeps{
 		Registry:                   registryRef,
+		CmdPalette:                 func() cmdpalette.Registry { return state.cmdPalette },
 		ToolArtifacts:              state.toolArtifacts,
 		Config:                     state.cfg,
 		Skills:                     skillsRegistryAPI(state.skillsRegistry),

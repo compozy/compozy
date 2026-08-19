@@ -143,11 +143,22 @@ export function windowManagerClientFixture(
   return {
     workspace_id: workspaceId,
     client_id: clientId,
+    kind: "browser",
     presentation_revision: 1,
+    context_revision: 1,
     active_desktop_id: windowManagerStoryDesktopId,
     focused_window_id: focusedWindowId,
     focus_order: [focusedWindowId],
     stack_active: {},
+    palette_context: {
+      window_focused: true,
+      window_floating: false,
+      window_stacked: true,
+      desktop_window_count: 1,
+      scope_global: false,
+      shell_desktop: false,
+      workspace_trusted: true,
+    },
     connected_at: "2026-07-23T01:00:00Z",
   };
 }

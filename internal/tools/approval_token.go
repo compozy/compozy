@@ -19,8 +19,8 @@ import (
 
 const approvalTokenBytes = 32
 
-// ApprovalRequest describes one concrete local approval-token issuance request.
-type ApprovalRequest struct {
+// ApprovalTokenRequest describes one concrete local approval-token issuance request.
+type ApprovalTokenRequest struct {
 	ToolID      ToolID          `json:"tool_id"`
 	SessionID   string          `json:"session_id"`
 	WorkspaceID string          `json:"workspace_id,omitempty"`
@@ -39,7 +39,7 @@ type ApprovalTokenGrant struct {
 
 // ApprovalTokenIssuer mints local single-use approval references.
 type ApprovalTokenIssuer interface {
-	CreateToolApproval(ctx context.Context, scope Scope, req ApprovalRequest) (ApprovalTokenGrant, error)
+	CreateToolApproval(ctx context.Context, scope Scope, req ApprovalTokenRequest) (ApprovalTokenGrant, error)
 }
 
 // ApprovalTokenConsumer validates and consumes local approval references.
@@ -116,7 +116,7 @@ var _ ApprovalTokenConsumer = (*ApprovalTokenStore)(nil)
 func (s *ApprovalTokenStore) CreateToolApproval(
 	ctx context.Context,
 	scope Scope,
-	req ApprovalRequest,
+	req ApprovalTokenRequest,
 ) (ApprovalTokenGrant, error) {
 	if s == nil {
 		return ApprovalTokenGrant{}, approvalTokenError(
@@ -255,18 +255,18 @@ func ApprovalInputDigest(input json.RawMessage, suppliedDigest string) (string, 
 	return computed, nil
 }
 
-func normalizeApprovalRequest(scope Scope, req ApprovalRequest) (ApprovalRequest, error) {
+func normalizeApprovalRequest(scope Scope, req ApprovalTokenRequest) (ApprovalTokenRequest, error) {
 	sessionID, err := approvalScopeValue("session_id", scope.SessionID, req.SessionID)
 	if err != nil {
-		return ApprovalRequest{}, err
+		return ApprovalTokenRequest{}, err
 	}
 	workspaceID, err := approvalScopeValue("workspace_id", scope.WorkspaceID, req.WorkspaceID)
 	if err != nil {
-		return ApprovalRequest{}, err
+		return ApprovalTokenRequest{}, err
 	}
 	agentName, err := approvalScopeValue("agent_name", scope.AgentName, req.AgentName)
 	if err != nil {
-		return ApprovalRequest{}, err
+		return ApprovalTokenRequest{}, err
 	}
 	req.SessionID = sessionID
 	req.WorkspaceID = workspaceID

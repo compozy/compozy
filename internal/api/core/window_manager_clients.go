@@ -67,7 +67,14 @@ func (h *BaseHandlers) RegisterWindowManagerClient(c *gin.Context) {
 		return
 	}
 	client, err := h.WindowManager.RegisterClient(c.Request.Context(), windowmanager.ClientRegistration{
-		WorkspaceID: workspaceID, ClientID: canonicalClientID, ActiveDesktopID: request.ActiveDesktopID,
+		WorkspaceID: workspaceID, ClientID: canonicalClientID, Kind: request.Kind,
+		ActiveDesktopID: request.ActiveDesktopID,
+		Context: windowmanager.ClientContextInput{
+			ScopeGlobal:         request.Context.ScopeGlobal,
+			FocusedSessionState: request.Context.FocusedSessionState,
+			WorkspaceTrusted:    request.Context.WorkspaceTrusted,
+			DestinationIntent:   request.Context.DestinationIntent,
+		},
 	})
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)

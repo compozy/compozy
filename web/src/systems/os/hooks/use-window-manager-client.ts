@@ -5,7 +5,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 import { registerWindowManagerClient } from "../adapters/window-manager-api";
-import type { WindowManagerClientView } from "../lib/window-manager-types";
+import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
 import {
   windowManagerClientRegistrationLogic,
   windowManagerRetryDelay,
@@ -41,7 +41,7 @@ export function stableWindowManagerClientId(): string {
 export interface WindowManagerClientRegistrationState {
   clientId: string;
   registrationEpoch: number;
-  client: WindowManagerClientView | null;
+  client: WindowManagerAttachedClientView | null;
   status: "idle" | "registering" | "registered" | "error";
   error: Error | null;
   reregister: () => void;

@@ -5,6 +5,7 @@ export type GroupId = string;
 export type LayoutNodeId = string;
 export type WindowId = string;
 export type WindowManagerClientId = string;
+export type WindowManagerClientKind = "shell" | "browser";
 export type WindowManagerConnectionStatus =
   | "disconnected"
   | "connecting"
@@ -252,6 +253,37 @@ export interface WindowManagerClientView {
   connectedAt: string;
 }
 
+/** Full daemon attachment projection; presentation-only consumers use the base view above. */
+export interface WindowManagerAttachedClientView extends WindowManagerClientView {
+  kind: WindowManagerClientKind;
+  contextRevision: LayoutRevision;
+  paletteContext: WindowManagerPaletteContext;
+  /** Present only on the registration response; list and stream projections omit it. */
+  attachmentToken: string | null;
+}
+
+export interface WindowManagerPaletteContext {
+  windowFocused: boolean;
+  windowFloating: boolean;
+  windowStacked: boolean;
+  desktopWindowCount: number;
+  scopeGlobal: boolean;
+  shellDesktop: boolean;
+  focusedSessionState: string | null;
+  workspaceTrusted: boolean;
+  destinationIntent: {
+    pathname: string;
+    search: Readonly<Record<string, unknown>>;
+  } | null;
+}
+
+export interface WindowManagerClientCommand {
+  workspaceId: string;
+  commandId: string;
+  op: string;
+  payload: unknown;
+}
+
 export type WindowManagerCommandId =
   | "desktop.create"
   | "desktop.update"
@@ -328,7 +360,7 @@ export type WindowManagerStreamFrame =
       workspaceId: string;
       revision: LayoutRevision;
       snapshot: WindowManagerSnapshot;
-      client: WindowManagerClientView | null;
+      client: WindowManagerAttachedClientView | null;
     }
   | {
       type: "event";
@@ -340,8 +372,9 @@ export type WindowManagerStreamFrame =
       type: "client";
       workspaceId: string;
       revision: LayoutRevision;
-      client: WindowManagerClientView;
+      client: WindowManagerAttachedClientView;
     }
+  | { type: "client_command"; command: WindowManagerClientCommand }
   | { type: "error"; error: WindowManagerErrorPayload };
 
 export interface ProjectionGaps {

@@ -9,6 +9,7 @@ import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { createStreamWebSocket } from "@/lib/ticketed-web-socket";
 
 class FakeWebSocket {
+  static OPEN = 1;
   static instances: FakeWebSocket[] = [];
 
   onopen: ((event: Event) => void) | null = null;
@@ -16,6 +17,8 @@ class FakeWebSocket {
   onclose: ((event: CloseEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   closed = false;
+  readyState = FakeWebSocket.OPEN;
+  send = vi.fn();
 
   constructor(readonly url: string) {
     FakeWebSocket.instances.push(this);
@@ -79,6 +82,19 @@ describe("ticketed web socket", () => {
 
     expect(FakeWebSocket.instances[0].url).toBe(`ws://${window.location.host}${STREAM_PATH}`);
     socket.close();
+  });
+
+  it("Should send through the authorized native connection only while it is open", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
+
+    const socket = createStreamWebSocket(STREAM_PATH);
+    expect(() => socket.send("before-open")).toThrow("The stream WebSocket is not open.");
+    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+
+    socket.send("client-result");
+    expect(FakeWebSocket.instances[0].send).toHaveBeenCalledWith("client-result");
+    socket.close();
+    expect(() => socket.send("after-close")).toThrow("The stream WebSocket is not open.");
   });
 
   it("Should give every upgrade attempt its own freshly minted ticket", async () => {

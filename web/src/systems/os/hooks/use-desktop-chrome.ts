@@ -91,6 +91,12 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     clientId: client.clientId,
     registrationEpoch: client.registrationEpoch,
     currentClient: client.client,
+    clientContext: {
+      scopeGlobal: client.client?.paletteContext.scopeGlobal ?? false,
+      focusedSessionState: client.client?.paletteContext.focusedSessionState ?? null,
+      workspaceTrusted: client.client?.paletteContext.workspaceTrusted ?? true,
+      destinationIntent: client.client?.paletteContext.destinationIntent ?? null,
+    },
     enabled: client.status === "registered",
     afterRevision: query.data?.revision ?? 0,
     onStatusChange: status => manager.setConnectionStatus(status),

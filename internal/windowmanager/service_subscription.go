@@ -104,9 +104,12 @@ func (m *Manager) DeleteWorkspace(ctx context.Context, workspaceID WorkspaceID) 
 	m.retireWorkspaceLock(workspaceID, lock)
 	m.mu.Lock()
 	delete(m.clients, workspaceID)
+	delete(m.clientTokens, workspaceID)
+	endpoints := m.takeCommandEndpointsLocked(workspaceID)
 	hub := m.hubs[workspaceID]
 	delete(m.hubs, workspaceID)
 	m.mu.Unlock()
+	closeClientCommandEndpoints(endpoints, ErrWorkspaceNotFound)
 	if hub != nil {
 		hub.closeAll(ErrWorkspaceNotFound)
 	}
@@ -123,9 +126,12 @@ func (m *Manager) ForgetWorkspace(workspaceID WorkspaceID) {
 	}
 	m.mu.Lock()
 	delete(m.clients, workspaceID)
+	delete(m.clientTokens, workspaceID)
+	endpoints := m.takeCommandEndpointsLocked(workspaceID)
 	hub := m.hubs[workspaceID]
 	delete(m.hubs, workspaceID)
 	m.mu.Unlock()
+	closeClientCommandEndpoints(endpoints, ErrWorkspaceNotFound)
 	if hub != nil {
 		hub.closeAll(ErrWorkspaceNotFound)
 	}

@@ -2028,6 +2028,26 @@ type ToolApprovalGrant struct {
 	LastUsedAt  string `json:"last_used_at"`
 }
 
+type ToolApprovalPending struct {
+	ApprovalID      string         `json:"approval_id"`
+	WorkspaceID     string         `json:"workspace_id"`
+	InvocationID    string         `json:"invocation_id"`
+	TargetKind      string         `json:"target_kind"`
+	ToolID          sql.NullString `json:"tool_id"`
+	TargetJson      string         `json:"target_json"`
+	CommandID       sql.NullString `json:"command_id"`
+	ArgsJson        string         `json:"args_json"`
+	ApprovalStatus  string         `json:"approval_status"`
+	ExecutionStatus sql.NullString `json:"execution_status"`
+	ResultJson      sql.NullString `json:"result_json"`
+	ErrorJson       sql.NullString `json:"error_json"`
+	RequestedAt     int64          `json:"requested_at"`
+	ExpiresAt       int64          `json:"expires_at"`
+	ResolvedAt      sql.NullInt64  `json:"resolved_at"`
+	ExecutedAt      sql.NullInt64  `json:"executed_at"`
+	ResumeFence     int64          `json:"resume_fence"`
+}
+
 type ToolProcess struct {
 	ID             string         `json:"id"`
 	Source         string         `json:"source"`

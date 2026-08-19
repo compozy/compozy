@@ -1,0 +1,4 @@
+{
+    "title": "Cmd Palette",
+    "pages": ["index", "clients", "inspect", "invoke", "list"]
+}

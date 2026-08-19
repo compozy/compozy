@@ -599,6 +599,143 @@ func TestClientLifecycle(t *testing.T) {
 		},
 	)
 
+	t.Run("Should bind attachment tokens and palette context to one workspace client", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		registered, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a",
+			ClientID:    "client-shell",
+			Kind:        ClientKindShell,
+			Context: ClientContextInput{
+				WorkspaceTrusted:    true,
+				FocusedSessionState: "waiting",
+			},
+		})
+		if err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+		if registered.AttachmentToken == "" || registered.Kind != ClientKindShell ||
+			registered.ContextRevision != 1 || !registered.PaletteContext.ShellDesktop ||
+			!registered.PaletteContext.WorkspaceTrusted {
+			t.Fatalf("registered client = %+v", registered)
+		}
+		if err := environment.manager.AuthorizeClient(
+			t.Context(), "workspace-a", "client-shell", registered.AttachmentToken,
+		); err != nil {
+			t.Fatalf("AuthorizeClient(valid) error = %v", err)
+		}
+		if err := environment.manager.AuthorizeClient(
+			t.Context(), "workspace-a", "client-shell", "forged",
+		); !errors.Is(err, ErrClientUnauthorized) {
+			t.Fatalf("AuthorizeClient(forged) error = %v", err)
+		}
+		clients, err := environment.manager.Clients(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("Clients() error = %v", err)
+		}
+		if len(clients) != 1 || clients[0].AttachmentToken != "" {
+			t.Fatalf("listed clients = %+v, want token-free projection", clients)
+		}
+		updated, err := environment.manager.UpdateClientContext(t.Context(), ClientContextUpdate{
+			WorkspaceID: "workspace-a",
+			ClientID:    "client-shell",
+			Context: ClientContextInput{
+				ScopeGlobal:         true,
+				WorkspaceTrusted:    true,
+				FocusedSessionState: "running",
+			},
+		})
+		if err != nil {
+			t.Fatalf("UpdateClientContext() error = %v", err)
+		}
+		if updated.ContextRevision != 2 || updated.PresentationRevision != 2 ||
+			!updated.PaletteContext.ScopeGlobal || updated.PaletteContext.FocusedSessionState != "running" {
+			t.Fatalf("updated context = %+v", updated)
+		}
+		rotated, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a", ClientID: "client-shell", Kind: ClientKindShell,
+			Context: ClientContextInput{ScopeGlobal: true, WorkspaceTrusted: true, FocusedSessionState: "running"},
+		})
+		if err != nil {
+			t.Fatalf("RegisterClient(rotation) error = %v", err)
+		}
+		if rotated.AttachmentToken == registered.AttachmentToken {
+			t.Fatal("registration did not rotate the attachment token")
+		}
+		if err := environment.manager.AuthorizeClient(
+			t.Context(), "workspace-a", "client-shell", registered.AttachmentToken,
+		); !errors.Is(err, ErrClientUnauthorized) {
+			t.Fatalf("AuthorizeClient(rotated old token) error = %v", err)
+		}
+	})
+
+	t.Run("Should correlate one client command channel and fail pending work on disconnect", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		if _, err := environment.manager.RegisterClient(t.Context(), ClientRegistration{
+			WorkspaceID: "workspace-a", ClientID: "client-shell", Kind: ClientKindShell,
+		}); err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+		connection, err := environment.manager.AttachClientCommands(
+			t.Context(), "workspace-a", "client-shell",
+		)
+		if err != nil {
+			t.Fatalf("AttachClientCommands() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := connection.Close(); err != nil {
+				t.Errorf("ClientCommandConnection.Close() error = %v", err)
+			}
+		})
+		terminal := make(chan ClientCommandResponse, 1)
+		dispatchErrors := make(chan error, 1)
+		go func() {
+			response, dispatchErr := environment.manager.DispatchClientCommand(
+				t.Context(), "workspace-a", "client-shell",
+				ClientCommand{CommandID: "inv-1", Op: "palette.open", Payload: json.RawMessage(`{"query":"go"}`)},
+			)
+			terminal <- response
+			dispatchErrors <- dispatchErr
+		}()
+		command := <-connection.Commands()
+		if command.CommandID != "inv-1" || command.Op != "palette.open" {
+			t.Fatalf("client command = %+v", command)
+		}
+		if err := connection.Resolve(ClientCommandResponse{
+			CommandID: "inv-1", Status: ClientCommandAcknowledged,
+		}); err != nil {
+			t.Fatalf("Resolve(ack) error = %v", err)
+		}
+		if err := connection.Resolve(ClientCommandResponse{
+			CommandID: "inv-1", Status: ClientCommandCompleted, Result: json.RawMessage(`{"opened":true}`),
+		}); err != nil {
+			t.Fatalf("Resolve(result) error = %v", err)
+		}
+		if err := <-dispatchErrors; err != nil {
+			t.Fatalf("DispatchClientCommand() error = %v", err)
+		}
+		if response := <-terminal; string(response.Result) != `{"opened":true}` {
+			t.Fatalf("terminal response = %+v", response)
+		}
+
+		pendingErrors := make(chan error, 1)
+		go func() {
+			_, dispatchErr := environment.manager.DispatchClientCommand(
+				t.Context(), "workspace-a", "client-shell",
+				ClientCommand{CommandID: "inv-2", Op: "window.close"},
+			)
+			pendingErrors <- dispatchErr
+		}()
+		<-connection.Commands()
+		if err := connection.Close(); err != nil {
+			t.Fatalf("ClientCommandConnection.Close() error = %v", err)
+		}
+		if err := <-pendingErrors; !errors.Is(err, ErrClientDisconnected) {
+			t.Fatalf("pending dispatch error = %v, want ErrClientDisconnected", err)
+		}
+	})
+
 	t.Run("Should reject changes once a presentation revision reaches the wire maximum", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")

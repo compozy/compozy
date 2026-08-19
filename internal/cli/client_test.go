@@ -68,6 +68,115 @@ type stagedResponseReader struct {
 	terminalErr error
 }
 
+func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(handler roundTripperFunc) *daemonClient {
+		client := &daemonClient{
+			target:     LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: handler},
+		}
+		client.streamClient = client.httpClient
+		return client
+	}
+
+	t.Run("Should encode catalog filters", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodGet || request.URL.Path != "/api/cmd-palette/commands" {
+				t.Fatalf("request = %s %s", request.Method, request.URL.Path)
+			}
+			if request.URL.Query().Get("workspace") != "workspace-1" || request.URL.Query().Get("client") != "client-1" {
+				t.Fatalf("query = %s", request.URL.RawQuery)
+			}
+			return newHTTPResponse(http.StatusOK, `{"commands":[],"sources":[],"catalog_revision":"revision-1"}`), nil
+		})
+		response, err := client.ListCmdPaletteCommands(t.Context(), "workspace-1", "client-1")
+		if err != nil {
+			t.Fatalf("ListCmdPaletteCommands() error = %v", err)
+		}
+		if response.CatalogRevision != "revision-1" {
+			t.Fatalf("catalog revision = %q, want revision-1", response.CatalogRevision)
+		}
+	})
+
+	t.Run("Should encode invocation path and body", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(func(request *http.Request) (*http.Response, error) {
+			if request.Method != http.MethodPost || request.URL.EscapedPath() != "/api/cmd-palette/commands/core.sessions%2Fnew/invoke" {
+				t.Fatalf("request = %s %s", request.Method, request.URL.EscapedPath())
+			}
+			var body contract.CmdPaletteInvokeRequest
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatalf("decode invocation body error = %v", err)
+			}
+			if err := request.Body.Close(); err != nil {
+				t.Fatalf("close invocation body error = %v", err)
+			}
+			if body.Workspace != "workspace-1" || body.Client != "client-1" || body.Args["name"] != "demo" {
+				t.Fatalf("invocation body = %#v", body)
+			}
+			return newHTTPResponse(http.StatusOK, `{"status":"completed","result":{"ok":true}}`), nil
+		})
+		response, err := client.InvokeCmdPaletteCommand(
+			t.Context(),
+			"core.sessions/new",
+			contract.CmdPaletteInvokeRequest{
+				Workspace: "workspace-1", Client: "client-1", Args: map[string]any{"name": "demo"},
+			},
+		)
+		if err != nil {
+			t.Fatalf("InvokeCmdPaletteCommand() error = %v", err)
+		}
+		if response.Status != "completed" {
+			t.Fatalf("invocation status = %q, want completed", response.Status)
+		}
+	})
+
+	t.Run("Should preserve structured invocation validation errors", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(func(*http.Request) (*http.Response, error) {
+			return newHTTPResponse(
+				http.StatusUnprocessableEntity,
+				`{"error":"invalid_arguments","fields":{"title":"required"}}`,
+			), nil
+		})
+		_, err := client.InvokeCmdPaletteCommand(
+			t.Context(),
+			"ext.notes.capture",
+			contract.CmdPaletteInvokeRequest{Workspace: "workspace-1", Args: map[string]any{}},
+		)
+		var paletteErr *cmdPaletteAPIError
+		if !errors.As(err, &paletteErr) || err.Error() != `invalid arguments — missing required "title"` {
+			t.Fatalf("InvokeCmdPaletteCommand() error = %#v", err)
+		}
+	})
+
+	t.Run("Should use approval lifecycle paths", func(t *testing.T) {
+		t.Parallel()
+		var calls int
+		client := newClient(func(request *http.Request) (*http.Response, error) {
+			calls++
+			wantMethod := http.MethodGet
+			wantPath := "/api/tools/approvals/approval-1"
+			if calls == 2 {
+				wantMethod = http.MethodPost
+				wantPath += "/cancel"
+			}
+			if request.Method != wantMethod || request.URL.Path != wantPath {
+				t.Fatalf("request %d = %s %s, want %s %s", calls, request.Method, request.URL.Path, wantMethod, wantPath)
+			}
+			return newHTTPResponse(http.StatusOK, `{"approval_status":"denied","execution_status":"canceled","expires_at":"2026-08-19T12:00:00Z"}`), nil
+		})
+		if _, err := client.GetPendingToolApproval(t.Context(), "approval-1"); err != nil {
+			t.Fatalf("GetPendingToolApproval() error = %v", err)
+		}
+		if _, err := client.CancelPendingToolApproval(t.Context(), "approval-1"); err != nil {
+			t.Fatalf("CancelPendingToolApproval() error = %v", err)
+		}
+	})
+}
+
 func (r *stagedResponseReader) Read(buffer []byte) (int, error) {
 	if len(r.chunks) == 0 {
 		if r.terminalErr != nil {

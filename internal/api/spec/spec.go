@@ -178,6 +178,7 @@ const (
 	specSupportKey                                           = "support"
 	specTasksKey                                             = "tasks"
 	specToolsKey                                             = "tools"
+	specCmdPaletteKey                                        = "cmd-palette"
 	specToolsetsKey                                          = "toolsets"
 	specVaultKey                                             = "vault"
 	specWorkspacesKey                                        = "workspaces"
@@ -295,6 +296,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specSkillsKey},
 			{Name: specTasksKey},
 			{Name: specToolsKey},
+			{Name: specCmdPaletteKey},
 			{Name: specToolsetsKey},
 			{Name: specVaultKey},
 			{Name: specWorkspacesKey},

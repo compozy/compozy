@@ -9,7 +9,7 @@ import {
   registerWindowManagerClient,
   unregisterWindowManagerClient,
 } from "../../adapters/window-manager-api";
-import type { WindowManagerClientView } from "../../lib/window-manager-types";
+import type { WindowManagerAttachedClientView } from "../../lib/window-manager-types";
 import { useWindowManagerClient } from "../use-window-manager-client";
 
 vi.mock("../../adapters/window-manager-api", () => ({
@@ -19,16 +19,30 @@ vi.mock("../../adapters/window-manager-api", () => ({
 
 const STORAGE_KEY = "compozy.window-manager.client-id";
 
-function client(presentationRevision = 1): WindowManagerClientView {
+function client(presentationRevision = 1): WindowManagerAttachedClientView {
   return {
     workspaceId: "workspace:test",
     clientId: "client:stable",
+    kind: "browser",
     presentationRevision,
+    contextRevision: 1,
     activeDesktopId: "desktop:main",
     focusedWindowId: null,
     focusOrder: [],
     stackActive: {},
+    paletteContext: {
+      windowFocused: false,
+      windowFloating: false,
+      windowStacked: false,
+      desktopWindowCount: 0,
+      scopeGlobal: false,
+      shellDesktop: false,
+      focusedSessionState: null,
+      workspaceTrusted: true,
+      destinationIntent: null,
+    },
     connectedAt: "2026-07-22T00:00:00Z",
+    attachmentToken: "attachment-token",
   };
 }
 
@@ -141,7 +155,7 @@ describe("useWindowManagerClient", () => {
   });
 
   it("Should hide a registered client immediately when the workspace changes", async () => {
-    let resolveNext!: (view: WindowManagerClientView) => void;
+    let resolveNext!: (view: WindowManagerAttachedClientView) => void;
     vi.mocked(registerWindowManagerClient)
       .mockResolvedValueOnce(client())
       .mockImplementationOnce(() => new Promise(resolve => (resolveNext = resolve)));

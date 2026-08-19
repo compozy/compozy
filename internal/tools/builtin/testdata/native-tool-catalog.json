@@ -378,6 +378,32 @@
     "output_schema_digest": "64171711abe36c366e04ff318f6424d525ba2b1a53db625f6a73adc0f4753bf3"
   },
   {
+    "tool_id": "compozy__cmd_palette_invoke",
+    "native_name": "cmd_palette_invoke",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "94f2e8743f49352d0dbeb68c517ef495fab6719c3be80e2494700dc8f7849067",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__cmd_palette_list",
+    "native_name": "cmd_palette_list",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "0a7d98df6da120602dfab7f08416e90d4560064eae1b343265f5ffdcba0279be",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__command_list",
     "native_name": "command_list",
     "toolsets": [

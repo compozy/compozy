@@ -1,16 +1,21 @@
 package contract
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 const (
-	WindowManagerFrameSnapshot = "snapshot"
-	WindowManagerFrameEvent    = "event"
-	WindowManagerFrameClient   = "client"
-	WindowManagerFrameError    = "error"
+	WindowManagerFrameSnapshot            = "snapshot"
+	WindowManagerFrameEvent               = "event"
+	WindowManagerFrameClient              = "client"
+	WindowManagerFrameClientCommand       = "client_command"
+	WindowManagerFrameClientCommandAck    = "client_command_ack"
+	WindowManagerFrameClientCommandResult = "client_command_result"
+	WindowManagerFrameClientContext       = "client_context"
+	WindowManagerFrameError               = "error"
 )
 
 // WindowManagerEvent is one committed semantic mutation.
@@ -47,6 +52,35 @@ type WindowManagerClientFrame struct {
 	WorkspaceID windowmanager.WorkspaceID `json:"workspace_id"`
 	Revision    WindowManagerRevision     `json:"revision"`
 	Client      WindowManagerClientView   `json:"client"`
+}
+
+// WindowManagerClientCommandFrame carries one daemon-to-client UI operation.
+type WindowManagerClientCommandFrame struct {
+	Type        string                    `json:"type"`
+	WorkspaceID windowmanager.WorkspaceID `json:"workspace_id"`
+	CommandID   string                    `json:"command_id"`
+	Op          string                    `json:"op"`
+	Payload     json.RawMessage           `json:"payload,omitempty"`
+}
+
+// WindowManagerClientCommandAckFrame acknowledges delivery before client execution completes.
+type WindowManagerClientCommandAckFrame struct {
+	Type      string `json:"type"`
+	CommandID string `json:"command_id"`
+}
+
+// WindowManagerClientCommandResultFrame terminates one correlated client operation.
+type WindowManagerClientCommandResultFrame struct {
+	Type      string          `json:"type"`
+	CommandID string          `json:"command_id"`
+	Result    json.RawMessage `json:"result,omitempty"`
+	Error     string          `json:"error,omitempty"`
+}
+
+// WindowManagerClientContextFrame replaces the client-owned palette context on one bound stream.
+type WindowManagerClientContextFrame struct {
+	Type    string                          `json:"type"`
+	Context WindowManagerClientContextInput `json:"context"`
 }
 
 // WindowManagerErrorFrame closes a stream with one stable structured error.

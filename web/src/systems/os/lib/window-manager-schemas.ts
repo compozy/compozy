@@ -6,8 +6,8 @@ import type {
   LayoutNode,
   NormalizedRect,
   WindowManagerActor,
+  WindowManagerAttachedClientView,
   WindowManagerChangeSet,
-  WindowManagerClientView,
   WindowManagerCommandResult,
   WindowManagerConflictPayload,
   WindowManagerDiagnosticPayload,
@@ -289,23 +289,51 @@ export const windowManagerClientViewSchema = z
   .strictObject({
     workspace_id: identifierSchema,
     client_id: identifierSchema,
+    kind: z.enum(["shell", "browser"]),
     presentation_revision: safeRevisionSchema,
+    context_revision: safeRevisionSchema,
     active_desktop_id: identifierSchema,
     focused_window_id: identifierSchema.optional(),
     focus_order: z.array(identifierSchema),
     stack_active: z.record(z.string(), identifierSchema),
+    palette_context: z.strictObject({
+      window_focused: z.boolean(),
+      window_floating: z.boolean(),
+      window_stacked: z.boolean(),
+      desktop_window_count: z.number().int().nonnegative(),
+      scope_global: z.boolean(),
+      shell_desktop: z.boolean(),
+      focused_session_state: z.string().optional(),
+      workspace_trusted: z.boolean(),
+      destination_intent: routeSchema.optional(),
+    }),
     connected_at: timestampSchema,
+    attachment_token: identifierSchema.optional(),
   })
   .transform(
-    (client): WindowManagerClientView => ({
+    (client): WindowManagerAttachedClientView => ({
       workspaceId: client.workspace_id,
       clientId: client.client_id,
+      kind: client.kind,
       presentationRevision: client.presentation_revision,
+      contextRevision: client.context_revision,
       activeDesktopId: client.active_desktop_id,
       focusedWindowId: client.focused_window_id ?? null,
       focusOrder: client.focus_order,
       stackActive: client.stack_active,
+      paletteContext: {
+        windowFocused: client.palette_context.window_focused,
+        windowFloating: client.palette_context.window_floating,
+        windowStacked: client.palette_context.window_stacked,
+        desktopWindowCount: client.palette_context.desktop_window_count,
+        scopeGlobal: client.palette_context.scope_global,
+        shellDesktop: client.palette_context.shell_desktop,
+        focusedSessionState: client.palette_context.focused_session_state ?? null,
+        workspaceTrusted: client.palette_context.workspace_trusted,
+        destinationIntent: client.palette_context.destination_intent ?? null,
+      },
       connectedAt: client.connected_at,
+      attachmentToken: client.attachment_token ?? null,
     })
   );
 
@@ -397,7 +425,7 @@ export function parseWindowManagerSnapshot(value: unknown): WindowManagerSnapsho
   return windowManagerSnapshotSchema.parse(value);
 }
 
-export function parseWindowManagerClientView(value: unknown): WindowManagerClientView {
+export function parseWindowManagerClientView(value: unknown): WindowManagerAttachedClientView {
   return windowManagerClientViewSchema.parse(value);
 }
 

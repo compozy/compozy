@@ -182,6 +182,77 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 		}
 	})
 
+	t.Run("Should replace client-owned palette context over the bound stream", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		registered, err := fixture.manager.RegisterClient(t.Context(), windowmanager.ClientRegistration{
+			WorkspaceID: "workspace-a",
+			ClientID:    "client-a",
+			Kind:        windowmanager.ClientKindBrowser,
+			Context: windowmanager.ClientContextInput{
+				WorkspaceTrusted: true,
+			},
+		})
+		if err != nil {
+			t.Fatalf("RegisterClient() error = %v", err)
+		}
+
+		server := httptest.NewServer(fixture.router)
+		t.Cleanup(server.Close)
+		streamURL := "ws" + strings.TrimPrefix(server.URL, "http") +
+			windowManagerTestPath("workspace-a") + "/stream?client_id=client-a"
+		connection, response, err := websocket.DefaultDialer.DialContext(t.Context(), streamURL, nil)
+		if err != nil {
+			closeWindowManagerDialResponse(t, response)
+			t.Fatalf("DialContext() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := connection.Close(); closeErr != nil {
+				t.Errorf("websocket Close() error = %v", closeErr)
+			}
+		})
+
+		var snapshotFrame contract.WindowManagerSnapshotFrame
+		if readErr := connection.ReadJSON(&snapshotFrame); readErr != nil {
+			t.Fatalf("ReadJSON(snapshot) error = %v", readErr)
+		}
+		if snapshotFrame.Client == nil ||
+			snapshotFrame.Client.ContextRevision != contract.WindowManagerRevision(registered.ContextRevision) {
+			t.Fatalf("client snapshot frame = %+v", snapshotFrame)
+		}
+
+		if writeErr := connection.WriteJSON(contract.WindowManagerClientContextFrame{
+			Type: contract.WindowManagerFrameClientContext,
+			Context: contract.WindowManagerClientContextInput{
+				ScopeGlobal:         true,
+				FocusedSessionState: "running",
+				WorkspaceTrusted:    true,
+				DestinationIntent: &windowmanager.RouteIntent{
+					Pathname: "/sessions/session-a",
+					Search:   windowmanager.RouteSearch{},
+				},
+			},
+		}); writeErr != nil {
+			t.Fatalf("WriteJSON(client context) error = %v", writeErr)
+		}
+
+		var clientFrame contract.WindowManagerClientFrame
+		if readErr := connection.ReadJSON(&clientFrame); readErr != nil {
+			t.Fatalf("ReadJSON(client) error = %v", readErr)
+		}
+		context := clientFrame.Client.PaletteContext
+		if clientFrame.Type != contract.WindowManagerFrameClient ||
+			clientFrame.Client.ContextRevision != 2 ||
+			!context.ScopeGlobal ||
+			context.FocusedSessionState != "running" ||
+			!context.WorkspaceTrusted ||
+			context.DestinationIntent == nil ||
+			context.DestinationIntent.Pathname != "/sessions/session-a" ||
+			context.WindowFocused || context.DesktopWindowCount != 0 {
+			t.Fatalf("client context frame = %+v", clientFrame)
+		}
+	})
+
 	t.Run("Should broadcast grouped and closed tab revisions to every subscriber", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)

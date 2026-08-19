@@ -11,6 +11,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
+	"github.com/compozy/compozy/internal/cmdpalette"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
@@ -113,6 +114,8 @@ type bootState struct {
 	sessionAttachments    attachmentspkg.Store
 	toolsets              core.ToolsetRegistry
 	toolApprovals         toolspkg.ApprovalTokenIssuer
+	approvalCoordinator   toolspkg.ApprovalCoordinator
+	cmdPalette            cmdpalette.Registry
 	clarify               *clarifyBridge
 	attentionMuteMutator  attentionWorkspaceMuteMutator
 	observer              Observer

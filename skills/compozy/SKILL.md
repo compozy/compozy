@@ -29,6 +29,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                                  | references/runtime-operations.md                                   |
 | Create or review CompozyOS agent definitions, provider defaults, permissions, or MCP sidecars                                  | references/agent-definitions.md + references/tools-and-skills.md   |
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
+| List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
 | Participate in a Compozy Network channel, thread, direct room, work item, receipt, trace, or capability exchange               | references/network.md                                              |
 | Read, write, clean, or consolidate CompozyOS memory                                                                            | references/memory.md                                               |
 | Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                          | references/tasks-and-orchestration.md                              |

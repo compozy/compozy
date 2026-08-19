@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 
@@ -12,7 +12,9 @@ import { parseWindowManagerStreamFrame } from "../lib/window-manager-stream-sche
 import { reconcileWindowManagerSnapshot, windowManagerKeys } from "../lib/window-manager-query";
 import type {
   LayoutRevision,
+  WindowManagerAttachedClientView,
   WindowManagerClientView,
+  WindowManagerClientCommand,
   WindowManagerConnectionStatus,
   WindowManagerErrorPayload,
   WindowManagerSnapshot,
@@ -22,6 +24,7 @@ import { workspaceKeys } from "@/systems/workspace";
 
 export interface WindowManagerSocket {
   close: () => void;
+  send: (data: string) => void;
   onopen: ((event: Event) => void) | null;
   onmessage: ((event: MessageEvent<unknown>) => void) | null;
   onclose: ((event: CloseEvent) => void) | null;
@@ -29,6 +32,16 @@ export interface WindowManagerSocket {
 }
 
 export type WindowManagerSocketFactory = (url: string) => WindowManagerSocket;
+
+export interface WindowManagerClientContextInput {
+  scopeGlobal: boolean;
+  focusedSessionState: string | null;
+  workspaceTrusted: boolean;
+  destinationIntent: {
+    pathname: string;
+    search: Readonly<Record<string, unknown>>;
+  } | null;
+}
 
 function browserWindowManagerSocket(url: string): WindowManagerSocket {
   return createStreamWebSocket(url);
@@ -39,12 +52,14 @@ export interface UseWindowManagerStreamOptions {
   clientId: string | null;
   registrationEpoch: number;
   currentClient: WindowManagerClientView | null;
+  clientContext?: WindowManagerClientContextInput;
   enabled: boolean;
   afterRevision: LayoutRevision;
   socketFactory?: WindowManagerSocketFactory;
   onStatusChange: (status: WindowManagerConnectionStatus) => void;
   onSnapshot: (snapshot: WindowManagerSnapshot) => void;
-  onClient: (client: WindowManagerClientView) => void;
+  onClient: (client: WindowManagerAttachedClientView) => void;
+  onClientCommand?: (command: WindowManagerClientCommand) => unknown | Promise<unknown>;
   onClientInvalidated: () => void;
   onError: (error: Error | WindowManagerErrorPayload) => void;
 }
@@ -54,12 +69,14 @@ export function useWindowManagerStream({
   clientId,
   registrationEpoch,
   currentClient,
+  clientContext,
   enabled,
   afterRevision,
   socketFactory,
   onStatusChange,
   onSnapshot,
   onClient,
+  onClientCommand,
   onClientInvalidated,
   onError,
 }: UseWindowManagerStreamOptions): void {
@@ -71,12 +88,65 @@ export function useWindowManagerStream({
   const publishStatus = useEffectEvent(onStatusChange);
   const publishSnapshot = useEffectEvent(onSnapshot);
   const publishClient = useEffectEvent(onClient);
+  const executeClientCommand = useEffectEvent(
+    onClientCommand ??
+      (command => {
+        throw new Error(`Unsupported client operation: ${command.op}`);
+      })
+  );
   const publishClientInvalidated = useEffectEvent(onClientInvalidated);
   const publishError = useEffectEvent(onError);
+  const boundSocketRef = useRef<{
+    bindingKey: string;
+    ready: boolean;
+    socket: WindowManagerSocket;
+  } | null>(null);
+  const contextRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bindingKey =
     workspaceId !== null && clientId !== null
       ? `${workspaceId}\u0000${clientId}\u0000${registrationEpoch}`
       : null;
+  const clientContextFrame =
+    clientContext === undefined
+      ? null
+      : JSON.stringify({
+          type: "client_context",
+          context: {
+            scope_global: clientContext.scopeGlobal,
+            ...(clientContext.focusedSessionState === null
+              ? {}
+              : { focused_session_state: clientContext.focusedSessionState }),
+            workspace_trusted: clientContext.workspaceTrusted,
+            ...(clientContext.destinationIntent === null
+              ? {}
+              : { destination_intent: clientContext.destinationIntent }),
+          },
+        });
+  const scheduleContextRefresh = useEffectEvent(() => {
+    if (contextRefreshTimerRef.current !== null) {
+      clearTimeout(contextRefreshTimerRef.current);
+    }
+    contextRefreshTimerRef.current = setTimeout(() => {
+      contextRefreshTimerRef.current = null;
+      const bound = boundSocketRef.current;
+      if (
+        bound === null ||
+        !bound.ready ||
+        bindingKey === null ||
+        bound.bindingKey !== bindingKey ||
+        clientContextFrame === null
+      ) {
+        return;
+      }
+      try {
+        bound.socket.send(clientContextFrame);
+      } catch (cause) {
+        publishError(
+          cause instanceof Error ? cause : new Error("Unable to refresh the client context.")
+        );
+      }
+    }, 75);
+  });
 
   useEffect(() => {
     const boundClient =
@@ -89,6 +159,17 @@ export function useWindowManagerStream({
       topologyRevision: afterRevision,
     });
   }, [afterRevision, bindingKey, clientId, currentClient, lifecycleStore, workspaceId]);
+
+  useEffect(() => {
+    if (clientContextFrame === null || bindingKey === null || !enabled) return undefined;
+    scheduleContextRefresh();
+    return () => {
+      if (contextRefreshTimerRef.current !== null) {
+        clearTimeout(contextRefreshTimerRef.current);
+        contextRefreshTimerRef.current = null;
+      }
+    };
+  }, [bindingKey, clientContextFrame, enabled]);
 
   useEffect(() => {
     if (
@@ -122,6 +203,8 @@ export function useWindowManagerStream({
     const socket = (socketFactory ?? browserWindowManagerSocket)(
       buildWindowManagerStreamUrl(workspaceId, clientId, topologyFence)
     );
+    const activeBindingKey = `${workspaceId}\u0000${clientId}\u0000${registrationEpoch}`;
+    boundSocketRef.current = { bindingKey: activeBindingKey, ready: false, socket };
 
     const applySnapshot = (snapshot: WindowManagerSnapshot) => {
       if (snapshot.workspaceId !== workspaceId) return;
@@ -133,7 +216,7 @@ export function useWindowManagerStream({
       publishSnapshot(snapshot);
     };
 
-    const applyClient = (client: WindowManagerClientView) => {
+    const applyClient = (client: WindowManagerAttachedClientView) => {
       if (client.workspaceId !== workspaceId || client.clientId !== clientId) return;
       if (
         client.presentationRevision <= lifecycleStore.getSnapshot().context.presentationRevision
@@ -205,7 +288,11 @@ export function useWindowManagerStream({
     };
 
     socket.onopen = () => {
-      if (!stopped) publishStatus("connecting");
+      if (stopped) return;
+      const bound = boundSocketRef.current;
+      if (bound?.socket === socket) bound.ready = true;
+      scheduleContextRefresh();
+      publishStatus("connecting");
     };
     socket.onmessage = event => {
       if (stopped || typeof event.data !== "string") return;
@@ -219,6 +306,45 @@ export function useWindowManagerStream({
             void queryClient.invalidateQueries({ queryKey: workspaceKeys.list(), exact: true });
           }
           publishError(frame.error);
+          return;
+        }
+        if (frame.type === "client_command") {
+          if (frame.command.workspaceId !== workspaceId) return;
+          socket.send(
+            JSON.stringify({ type: "client_command_ack", command_id: frame.command.commandId })
+          );
+          void Promise.resolve()
+            .then(() => executeClientCommand(frame.command))
+            .then(result => {
+              if (stopped) return;
+              socket.send(
+                JSON.stringify({
+                  type: "client_command_result",
+                  command_id: frame.command.commandId,
+                  ...(result === undefined ? {} : { result }),
+                })
+              );
+            })
+            .catch(cause => {
+              if (stopped) return;
+              const error =
+                cause instanceof Error ? cause : new Error("The client operation failed.");
+              try {
+                socket.send(
+                  JSON.stringify({
+                    type: "client_command_result",
+                    command_id: frame.command.commandId,
+                    error: error.message,
+                  })
+                );
+              } catch (sendCause) {
+                publishError(
+                  sendCause instanceof Error
+                    ? sendCause
+                    : new Error("Unable to return the client operation result.")
+                );
+              }
+            });
           return;
         }
         if (frame.workspaceId !== workspaceId) return;
@@ -262,6 +388,11 @@ export function useWindowManagerStream({
 
     return () => {
       stopped = true;
+      if (boundSocketRef.current?.socket === socket) boundSocketRef.current = null;
+      if (contextRefreshTimerRef.current !== null) {
+        clearTimeout(contextRefreshTimerRef.current);
+        contextRefreshTimerRef.current = null;
+      }
       refreshController.abort();
       socket.onopen = null;
       socket.onmessage = null;

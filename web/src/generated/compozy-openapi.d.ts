@@ -1008,6 +1008,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cmd-palette/clients": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List attached command palette clients */
+    get: operations["listCmdPaletteClients"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/commands": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List command palette commands */
+    get: operations["listCmdPaletteCommands"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/commands/{id}/invoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Invoke one command palette command */
+    post: operations["invokeCmdPaletteCommand"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream command palette catalog invalidations */
+    get: operations["streamCmdPalette"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/doctor": {
     parameters: {
       query?: never;
@@ -4434,6 +4502,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tools/approvals/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one pending tool approval lifecycle */
+    get: operations["getPendingToolApproval"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tools/approvals/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel one pending tool approval */
+    post: operations["cancelPendingToolApproval"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tools/search": {
     parameters: {
       query?: never;
@@ -7092,11 +7194,30 @@ export interface components {
     WindowManagerClientFrame: {
       client: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -7111,15 +7232,46 @@ export interface components {
     WindowManagerClientRegistration: {
       active_desktop_id?: string;
       client_id?: string;
+      context: {
+        destination_intent?: {
+          pathname: string;
+          search: {
+            [key: string]: unknown;
+          };
+        } | null;
+        focused_session_state?: string;
+        scope_global: boolean;
+        workspace_trusted: boolean;
+      };
+      kind?: string;
       workspace_id: string;
     };
     WindowManagerClientView: {
       active_desktop_id: string;
+      attachment_token?: string;
       client_id: string;
       /** Format: date-time */
       connected_at: string;
+      context_revision: number;
       focus_order: string[];
       focused_window_id?: string | null;
+      kind: string;
+      palette_context: {
+        desktop_window_count: number;
+        destination_intent?: {
+          pathname: string;
+          search: {
+            [key: string]: unknown;
+          };
+        } | null;
+        focused_session_state?: string;
+        scope_global: boolean;
+        shell_desktop: boolean;
+        window_floating: boolean;
+        window_focused: boolean;
+        window_stacked: boolean;
+        workspace_trusted: boolean;
+      };
       presentation_revision: number;
       stack_active: {
         [key: string]: string;
@@ -7129,11 +7281,30 @@ export interface components {
     WindowManagerClientsResponse: {
       clients: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -8464,11 +8635,30 @@ export interface components {
       };
       client?: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -8848,11 +9038,30 @@ export interface components {
       };
       client?: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -9212,11 +9421,30 @@ export interface components {
     WindowManagerSnapshotFrame: {
       client?: {
         active_desktop_id: string;
+        attachment_token?: string;
         client_id: string;
         /** Format: date-time */
         connected_at: string;
+        context_revision: number;
         focus_order: string[];
         focused_window_id?: string | null;
+        kind: string;
+        palette_context: {
+          desktop_window_count: number;
+          destination_intent?: {
+            pathname: string;
+            search: {
+              [key: string]: unknown;
+            };
+          } | null;
+          focused_session_state?: string;
+          scope_global: boolean;
+          shell_desktop: boolean;
+          window_floating: boolean;
+          window_focused: boolean;
+          window_stacked: boolean;
+          workspace_trusted: boolean;
+        };
         presentation_revision: number;
         stack_active: {
           [key: string]: string;
@@ -30682,6 +30910,396 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+    };
+  };
+  listCmdPaletteClients: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            attached_at: string;
+            client_id: string;
+            kind: string;
+            workspace: string;
+          }[];
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  listCmdPaletteCommands: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+        /** @description Attached client whose context resolves availability */
+        client?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            catalog_revision: string;
+            commands: {
+              action: {
+                app?: string;
+                args?: {
+                  [key: string]: unknown;
+                };
+                kind: string;
+                op?: string;
+                tool?: string;
+                url?: string;
+                view?: string;
+              };
+              alias: string | null;
+              arguments: {
+                name: string;
+                options?: string[];
+                placeholder?: string;
+                required: boolean;
+                type: string;
+              }[];
+              availability_exempt: boolean;
+              available: boolean;
+              bindings: string[];
+              confirmation?: {
+                body?: string;
+                confirm: string;
+                title: string;
+              } | null;
+              destructive: boolean;
+              execution: {
+                retry_safe: boolean;
+                single_flight: boolean;
+              };
+              icon: string;
+              id: string;
+              keywords?: string[];
+              reason?: string;
+              section: string;
+              source: string;
+              title: string;
+              when?: {
+                key: string;
+                operator?: string;
+                reason?: string;
+                value: unknown;
+              }[];
+            }[];
+            context_revision?: string;
+            sources: {
+              reason?: string;
+              source: string;
+              status: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  invokeCmdPaletteCommand: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Canonical command id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          args: {
+            [key: string]: unknown;
+          };
+          client?: string;
+          workspace: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Completed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_id?: string;
+            result?: unknown;
+            status: string;
+          };
+        };
+      };
+      /** @description Approval pending */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_id?: string;
+            result?: unknown;
+            status: string;
+          };
+        };
+      };
+      /** @description Invalid client attachment */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invocation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command unavailable */
+      412: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Invalid command arguments */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  streamCmdPalette: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Catalog invalidation stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            catalog_revision: string;
+            workspace: string;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
           };
         };
       };
@@ -84377,6 +84995,151 @@ export interface operations {
       };
     };
   };
+  getPendingToolApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Stable approval id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_status: string;
+            error?: unknown;
+            execution_status?: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            result?: unknown;
+          };
+        };
+      };
+      /** @description Approval not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Tool approval unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  cancelPendingToolApproval: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Stable approval id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Canceled */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            approval_status: string;
+            error?: unknown;
+            execution_status?: string;
+            /** Format: date-time */
+            expires_at?: string | null;
+            result?: unknown;
+          };
+        };
+      };
+      /** @description Approval not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Approval already terminal */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Tool approval unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
   searchTools: {
     parameters: {
       query?: never;
@@ -126886,11 +127649,30 @@ export interface operations {
           "application/json": {
             clients: {
               active_desktop_id: string;
+              attachment_token?: string;
               client_id: string;
               /** Format: date-time */
               connected_at: string;
+              context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              kind: string;
+              palette_context: {
+                desktop_window_count: number;
+                destination_intent?: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                } | null;
+                focused_session_state?: string;
+                scope_global: boolean;
+                shell_desktop: boolean;
+                window_floating: boolean;
+                window_focused: boolean;
+                window_stacked: boolean;
+                workspace_trusted: boolean;
+              };
               presentation_revision: number;
               stack_active: {
                 [key: string]: string;
@@ -126999,6 +127781,18 @@ export interface operations {
         "application/json": {
           active_desktop_id?: string;
           client_id?: string;
+          context: {
+            destination_intent?: {
+              pathname: string;
+              search: {
+                [key: string]: unknown;
+              };
+            } | null;
+            focused_session_state?: string;
+            scope_global: boolean;
+            workspace_trusted: boolean;
+          };
+          kind?: string;
           workspace_id: string;
         };
       };
@@ -127012,11 +127806,30 @@ export interface operations {
         content: {
           "application/json": {
             active_desktop_id: string;
+            attachment_token?: string;
             client_id: string;
             /** Format: date-time */
             connected_at: string;
+            context_revision: number;
             focus_order: string[];
             focused_window_id?: string | null;
+            kind: string;
+            palette_context: {
+              desktop_window_count: number;
+              destination_intent?: {
+                pathname: string;
+                search: {
+                  [key: string]: unknown;
+                };
+              } | null;
+              focused_session_state?: string;
+              scope_global: boolean;
+              shell_desktop: boolean;
+              window_floating: boolean;
+              window_focused: boolean;
+              window_stacked: boolean;
+              workspace_trusted: boolean;
+            };
             presentation_revision: number;
             stack_active: {
               [key: string]: string;
@@ -127451,11 +128264,30 @@ export interface operations {
             };
             client?: {
               active_desktop_id: string;
+              attachment_token?: string;
               client_id: string;
               /** Format: date-time */
               connected_at: string;
+              context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              kind: string;
+              palette_context: {
+                desktop_window_count: number;
+                destination_intent?: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                } | null;
+                focused_session_state?: string;
+                scope_global: boolean;
+                shell_desktop: boolean;
+                window_floating: boolean;
+                window_focused: boolean;
+                window_stacked: boolean;
+                workspace_trusted: boolean;
+              };
               presentation_revision: number;
               stack_active: {
                 [key: string]: string;
@@ -128282,11 +129114,30 @@ export interface operations {
             };
             client?: {
               active_desktop_id: string;
+              attachment_token?: string;
               client_id: string;
               /** Format: date-time */
               connected_at: string;
+              context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              kind: string;
+              palette_context: {
+                desktop_window_count: number;
+                destination_intent?: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                } | null;
+                focused_session_state?: string;
+                scope_global: boolean;
+                shell_desktop: boolean;
+                window_floating: boolean;
+                window_focused: boolean;
+                window_stacked: boolean;
+                workspace_trusted: boolean;
+              };
               presentation_revision: number;
               stack_active: {
                 [key: string]: string;
@@ -130034,11 +130885,30 @@ export interface operations {
             };
             client?: {
               active_desktop_id: string;
+              attachment_token?: string;
               client_id: string;
               /** Format: date-time */
               connected_at: string;
+              context_revision: number;
               focus_order: string[];
               focused_window_id?: string | null;
+              kind: string;
+              palette_context: {
+                desktop_window_count: number;
+                destination_intent?: {
+                  pathname: string;
+                  search: {
+                    [key: string]: unknown;
+                  };
+                } | null;
+                focused_session_state?: string;
+                scope_global: boolean;
+                shell_desktop: boolean;
+                window_floating: boolean;
+                window_focused: boolean;
+                window_stacked: boolean;
+                workspace_trusted: boolean;
+              };
               presentation_revision: number;
               stack_active: {
                 [key: string]: string;
@@ -130412,11 +131282,30 @@ export interface operations {
             | {
                 client?: {
                   active_desktop_id: string;
+                  attachment_token?: string;
                   client_id: string;
                   /** Format: date-time */
                   connected_at: string;
+                  context_revision: number;
                   focus_order: string[];
                   focused_window_id?: string | null;
+                  kind: string;
+                  palette_context: {
+                    desktop_window_count: number;
+                    destination_intent?: {
+                      pathname: string;
+                      search: {
+                        [key: string]: unknown;
+                      };
+                    } | null;
+                    focused_session_state?: string;
+                    scope_global: boolean;
+                    shell_desktop: boolean;
+                    window_floating: boolean;
+                    window_focused: boolean;
+                    window_stacked: boolean;
+                    workspace_trusted: boolean;
+                  };
                   presentation_revision: number;
                   stack_active: {
                     [key: string]: string;
@@ -130655,11 +131544,30 @@ export interface operations {
             | {
                 client: {
                   active_desktop_id: string;
+                  attachment_token?: string;
                   client_id: string;
                   /** Format: date-time */
                   connected_at: string;
+                  context_revision: number;
                   focus_order: string[];
                   focused_window_id?: string | null;
+                  kind: string;
+                  palette_context: {
+                    desktop_window_count: number;
+                    destination_intent?: {
+                      pathname: string;
+                      search: {
+                        [key: string]: unknown;
+                      };
+                    } | null;
+                    focused_session_state?: string;
+                    scope_global: boolean;
+                    shell_desktop: boolean;
+                    window_floating: boolean;
+                    window_focused: boolean;
+                    window_stacked: boolean;
+                    workspace_trusted: boolean;
+                  };
                   presentation_revision: number;
                   stack_active: {
                     [key: string]: string;

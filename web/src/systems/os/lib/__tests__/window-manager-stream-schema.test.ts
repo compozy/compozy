@@ -31,10 +31,21 @@ function clientFrame(frameRevision: number, presentationRevision: number) {
     client: {
       workspace_id: "workspace:test",
       client_id: "client:web",
+      kind: "browser",
       presentation_revision: presentationRevision,
+      context_revision: 1,
       active_desktop_id: "desktop:main",
       focus_order: [],
       stack_active: {},
+      palette_context: {
+        window_focused: false,
+        window_floating: false,
+        window_stacked: false,
+        desktop_window_count: 0,
+        scope_global: false,
+        shell_desktop: false,
+        workspace_trusted: true,
+      },
       connected_at: "2026-07-22T00:00:00Z",
     },
   };
@@ -123,5 +134,34 @@ describe("parseWindowManagerStreamFrame", () => {
     expect(() => parseWindowManagerStreamFrame(clientFrame(4, 3))).toThrow(
       "Client frame revision must match presentation_revision."
     );
+  });
+
+  it("Should accept only strict daemon-to-client command envelopes", () => {
+    expect(
+      parseWindowManagerStreamFrame({
+        type: "client_command",
+        workspace_id: "workspace:test",
+        command_id: "invocation-a",
+        op: "palette.open",
+        payload: { args: {} },
+      })
+    ).toEqual({
+      type: "client_command",
+      command: {
+        workspaceId: "workspace:test",
+        commandId: "invocation-a",
+        op: "palette.open",
+        payload: { args: {} },
+      },
+    });
+    expect(() =>
+      parseWindowManagerStreamFrame({
+        type: "client_command",
+        workspace_id: "workspace:test",
+        command_id: "invocation-a",
+        op: "palette.open",
+        unexpected: true,
+      })
+    ).toThrow();
   });
 });

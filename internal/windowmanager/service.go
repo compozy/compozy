@@ -23,12 +23,14 @@ type Manager struct {
 	workspaceConfig    WorkspaceConfigResolver
 	defaultsMu         sync.RWMutex
 
-	mu             sync.Mutex
-	closed         bool
-	workspaceLocks map[WorkspaceID]*workspaceLock
-	clients        map[WorkspaceID]map[ClientID]ClientView
-	hubs           map[WorkspaceID]*subscriptionHub
-	coalescer      *activeCoalescer
+	mu               sync.Mutex
+	closed           bool
+	workspaceLocks   map[WorkspaceID]*workspaceLock
+	clients          map[WorkspaceID]map[ClientID]ClientView
+	clientTokens     map[WorkspaceID]map[ClientID][32]byte
+	commandEndpoints map[WorkspaceID]map[ClientID]*clientCommandEndpoint
+	hubs             map[WorkspaceID]*subscriptionHub
+	coalescer        *activeCoalescer
 }
 
 type workspaceLock struct {
@@ -99,6 +101,8 @@ func NewService(
 		workspaceConfig:    resolved.workspaceConfig,
 		workspaceLocks:     make(map[WorkspaceID]*workspaceLock),
 		clients:            make(map[WorkspaceID]map[ClientID]ClientView),
+		clientTokens:       make(map[WorkspaceID]map[ClientID][32]byte),
+		commandEndpoints:   make(map[WorkspaceID]map[ClientID]*clientCommandEndpoint),
 		hubs:               make(map[WorkspaceID]*subscriptionHub),
 	}
 	manager.coalescer = newActiveCoalescer(resolved.lifecycleContext, manager)

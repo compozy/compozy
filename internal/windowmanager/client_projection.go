@@ -27,6 +27,13 @@ func (m *Manager) projectClientViews(
 				return clientViewProjection{}, fmt.Errorf("advance client %q: %w", clientID, err)
 			}
 			projected.PresentationRevision = next
+			if !paletteContextsEqual(current.PaletteContext, projected.PaletteContext) {
+				contextRevision, contextErr := nextContextRevision(current.ContextRevision)
+				if contextErr != nil {
+					return clientViewProjection{}, fmt.Errorf("advance client %q context: %w", clientID, contextErr)
+				}
+				projected.ContextRevision = contextRevision
+			}
 			projection.changed = append(projection.changed, cloneClientView(projected))
 		}
 		if request.ClientID != nil && clientID == *request.ClientID {
@@ -197,6 +204,7 @@ func repairClientView(view ClientView, snapshot Snapshot) ClientView {
 			view.FocusOrder = prependFocus(view.FocusOrder, *focused)
 		}
 	}
+	view.PaletteContext = derivePaletteContext(view, snapshot)
 	return view
 }
 
@@ -303,9 +311,11 @@ func prependFocus(order []WindowID, windowID WindowID) []WindowID {
 }
 
 func clientViewsEqual(left, right ClientView) bool {
-	if left.ActiveDesktopID != right.ActiveDesktopID ||
+	if left.Kind != right.Kind ||
+		left.ActiveDesktopID != right.ActiveDesktopID ||
 		valueOrZero(left.FocusedWindowID) != valueOrZero(right.FocusedWindowID) ||
-		len(left.FocusOrder) != len(right.FocusOrder) {
+		len(left.FocusOrder) != len(right.FocusOrder) ||
+		!paletteContextsEqual(left.PaletteContext, right.PaletteContext) {
 		return false
 	}
 	if len(left.StackActive) != len(right.StackActive) {
