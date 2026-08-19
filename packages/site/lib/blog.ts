@@ -11,6 +11,12 @@ const FEATURED_COVER_BY_SLUG: Record<string, BlogCover> = {
     width: 1600,
     height: 1000,
   },
+  "posts/graph-loop-editor-local-gateway": {
+    src: "/static/blog/graph-loop-editor-local-gateway.png",
+    alt: "CompozyOS graph/loop editor and local gateway triggers",
+    width: 1536,
+    height: 1024,
+  },
 };
 
 const sortedPostsCache = posts.toSorted(
