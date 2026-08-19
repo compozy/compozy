@@ -15,6 +15,10 @@ type ClientsResponse =
   operations["listCmdPaletteClients"]["responses"][200]["content"]["application/json"];
 type InvokeResponse =
   operations["invokeCmdPaletteCommand"]["responses"][200]["content"]["application/json"];
+type RankSignalsResponse =
+  operations["getCmdPaletteRankSignals"]["responses"][200]["content"]["application/json"];
+type PersonalizationResponse =
+  operations["getCmdPalettePersonalization"]["responses"][200]["content"]["application/json"];
 
 /** One command exactly as the daemon serves it. */
 export type CmdPaletteCommand = CommandsResponse["commands"][number];
@@ -26,6 +30,8 @@ export type CmdPaletteSourceStatus = CommandsResponse["sources"][number];
 export type CmdPaletteCatalogResponse = CommandsResponse;
 export type CmdPaletteAttachedClient = ClientsResponse[number];
 export type CmdPaletteInvokeResult = InvokeResponse;
+export type CmdPaletteRankSignals = RankSignalsResponse;
+export type CmdPalettePersonalization = PersonalizationResponse;
 
 /** The action kinds the dispatch seam routes (BR-2: closed union). */
 export type CmdPaletteActionKind = "client_op" | "tool" | "view" | "navigate" | "url";

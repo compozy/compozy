@@ -161,7 +161,7 @@ func (n *daemonNativeTools) hooksDelete(
 	}
 	payload := map[string]any{
 		nativeConfigHookToolsNameKey:   strings.TrimSpace(input.Name),
-		"action":                       nativeConfigHookToolsDeletedKey,
+		cmdPaletteActionKey:            nativeConfigHookToolsDeletedKey,
 		nativeConfigHookToolsScopeKey:  string(target.Scope()),
 		nativeConfigHookToolsTargetKey: target.Path(),
 	}

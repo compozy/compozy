@@ -12,9 +12,9 @@ type appDefinition struct {
 var appDefinitions = []appDefinition{
 	{id: "dashboard", title: "Home", icon: "home"},
 	{id: "session", title: "Session", icon: "square-terminal", keywords: []string{"agent", "terminal"}},
-	{id: "new-tab", title: "New tab", icon: "plus"},
+	{id: "new-tab", title: "New tab", icon: coreIconPlus},
 	{id: "agents", title: "Agents", icon: "bot"},
-	{id: "network", title: "Network", icon: "globe"},
+	{id: coreNetworkKey, title: "Network", icon: "globe"},
 	{id: "tasks", title: "Tasks", icon: "list-checks"},
 	{id: "loops", title: "Loops", icon: "repeat-2"},
 	{id: "jobs", title: "Jobs", icon: "clock-3"},
@@ -24,7 +24,7 @@ var appDefinitions = []appDefinition{
 	{id: "knowledge", title: "Knowledge", icon: "book-open"},
 	{id: "sandbox", title: "Sandbox", icon: "boxes"},
 	{id: "vault", title: "Vault", icon: "key-round"},
-	{id: "settings", title: "Settings", icon: "settings"},
+	{id: coreSettingsKey, title: "Settings", icon: coreSettingsKey},
 }
 
 func appCommands() []cmdpalette.Descriptor {

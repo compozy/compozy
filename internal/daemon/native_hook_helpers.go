@@ -241,7 +241,7 @@ func nativeHookMutationResult(
 ) (toolspkg.ToolResult, error) {
 	payload := map[string]any{
 		nativeConfigHookToolsNameKey:   decl.Name,
-		"action":                       action,
+		cmdPaletteActionKey:            action,
 		nativeConfigHookToolsScopeKey:  string(target.Scope()),
 		nativeConfigHookToolsTargetKey: target.Path(),
 		nativeConfigHookToolsHookKey:   nativeHookDeclPayload(decl),

@@ -133,7 +133,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{automationAutomationKey, automationTriggersKey, "catalog"},
+		[]string{automationAutomationKey, automationTriggersKey, hooksCatalogKey},
 		[]string{"automation triggers", "event triggers"},
 	),
 	nativeAutomationDescriptor(

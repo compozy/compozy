@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
+
+const cmdPaletteActionKey = "action"
 
 type cmdPaletteClientDirectory struct {
 	windowManager windowmanager.Service
@@ -117,7 +120,7 @@ func (e *cmdPaletteActionExecutor) ApprovalCompletionStatus(
 	case toolspkg.ApprovalCompleted:
 		return "ok", nil
 	case toolspkg.ApprovalFailed:
-		return "failed", nil
+		return hookAgentEventsFailedKey, nil
 	case toolspkg.ApprovalUncertain:
 		return "uncertain", nil
 	}
@@ -127,7 +130,7 @@ func (e *cmdPaletteActionExecutor) ApprovalCompletionStatus(
 	case toolspkg.ApprovalTimedOut:
 		return "timeout", nil
 	case toolspkg.ApprovalCanceled:
-		return "canceled", nil
+		return nativeMemoryAdminToolsCanceledKey, nil
 	default:
 		return "", nil
 	}
@@ -225,10 +228,14 @@ func (e *cmdPaletteActionExecutor) DispatchApproval(
 		if err != nil {
 			return nil, fmt.Errorf("cmd palette: encode resumed approval arguments: %w", err)
 		}
-		grant, err := e.approvalTokens.CreateToolApproval(ctx, cmdPaletteToolScope(request), toolspkg.ApprovalTokenRequest{
-			ToolID: toolspkg.ToolID(target.Action.Tool), SessionID: approvalSessionID(status.InvocationID),
-			WorkspaceID: status.WorkspaceID, Input: approvalInput,
-		})
+		grant, err := e.approvalTokens.CreateToolApproval(
+			ctx,
+			cmdPaletteToolScope(request),
+			toolspkg.ApprovalTokenRequest{
+				ToolID: toolspkg.ToolID(target.Action.Tool), SessionID: approvalSessionID(status.InvocationID),
+				WorkspaceID: status.WorkspaceID, Input: approvalInput,
+			},
+		)
 		if err != nil {
 			return nil, fmt.Errorf("cmd palette: mint resumed approval token: %w", err)
 		}
@@ -274,8 +281,8 @@ func (e *cmdPaletteActionExecutor) dispatch(
 		return nil, cmdpalette.ErrNoAttachedShell
 	}
 	payload, err := json.Marshal(map[string]any{
-		"action": request.Descriptor.Action,
-		"args":   mergedCmdPaletteArgs(request.Descriptor.Action.Args, request.Args),
+		cmdPaletteActionKey: request.Descriptor.Action,
+		"args":              mergedCmdPaletteArgs(request.Descriptor.Action.Args, request.Args),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: encode client command: %w", err)
@@ -303,12 +310,8 @@ func approvalSessionID(invocationID string) string { return "cmd-palette:" + inv
 
 func mergedCmdPaletteArgs(bound map[string]any, supplied map[string]any) map[string]any {
 	merged := make(map[string]any, len(bound)+len(supplied))
-	for key, value := range bound {
-		merged[key] = value
-	}
-	for key, value := range supplied {
-		merged[key] = value
-	}
+	maps.Copy(merged, bound)
+	maps.Copy(merged, supplied)
 	return merged
 }
 

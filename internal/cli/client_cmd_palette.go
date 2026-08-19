@@ -18,6 +18,8 @@ type CmdPaletteClient interface {
 		string,
 		contract.CmdPaletteInvokeRequest,
 	) (contract.CmdPaletteInvokeResult, error)
+	GetCmdPalettePersonalization(context.Context, string) (contract.CmdPalettePersonalizationResponse, error)
+	ResetCmdPalettePersonalization(context.Context, string) (contract.CmdPalettePersonalizationResetResponse, error)
 	GetPendingToolApproval(context.Context, string) (contract.ToolApprovalStatusResponse, error)
 	CancelPendingToolApproval(context.Context, string) (contract.ToolApprovalStatusResponse, error)
 }
@@ -29,7 +31,7 @@ func (c *daemonClient) ListCmdPaletteCommands(
 	workspace string,
 	clientID string,
 ) (contract.CmdPaletteCommandsResponse, error) {
-	query := url.Values{"workspace": {workspace}}
+	query := url.Values{cmdPaletteWorkspaceFlag: {workspace}}
 	if client := strings.TrimSpace(clientID); client != "" {
 		query.Set("client", client)
 	}
@@ -44,7 +46,7 @@ func (c *daemonClient) ListCmdPaletteClients(
 	ctx context.Context,
 	workspace string,
 ) ([]contract.CmdPaletteClient, error) {
-	query := url.Values{"workspace": {workspace}}
+	query := url.Values{cmdPaletteWorkspaceFlag: {workspace}}
 	var response []contract.CmdPaletteClient
 	if err := c.doJSON(ctx, http.MethodGet, "/api/cmd-palette/clients", query, nil, &response); err != nil {
 		return nil, err
@@ -61,6 +63,37 @@ func (c *daemonClient) InvokeCmdPaletteCommand(
 	path := "/api/cmd-palette/commands/" + url.PathEscape(strings.TrimSpace(commandID)) + "/invoke"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return contract.CmdPaletteInvokeResult{}, err
+	}
+	return response, nil
+}
+
+func (c *daemonClient) GetCmdPalettePersonalization(
+	ctx context.Context,
+	workspace string,
+) (contract.CmdPalettePersonalizationResponse, error) {
+	query := url.Values{cmdPaletteWorkspaceFlag: {workspace}}
+	var response contract.CmdPalettePersonalizationResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/cmd-palette/personalization", query, nil, &response); err != nil {
+		return contract.CmdPalettePersonalizationResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *daemonClient) ResetCmdPalettePersonalization(
+	ctx context.Context,
+	workspace string,
+) (contract.CmdPalettePersonalizationResetResponse, error) {
+	query := url.Values{cmdPaletteWorkspaceFlag: {workspace}}
+	var response contract.CmdPalettePersonalizationResetResponse
+	if err := c.doJSON(
+		ctx,
+		http.MethodDelete,
+		"/api/cmd-palette/personalization",
+		query,
+		nil,
+		&response,
+	); err != nil {
+		return contract.CmdPalettePersonalizationResetResponse{}, err
 	}
 	return response, nil
 }

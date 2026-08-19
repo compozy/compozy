@@ -1,30 +1,19 @@
-import type { PaletteRegistry, ResolvedPaletteCommand } from "./cmd-palette-types";
+import type {
+  CmdPaletteRankSignals,
+  PaletteRegistry,
+  ResolvedPaletteCommand,
+} from "./cmd-palette-types";
+import { ghostCompletion } from "./ranking/ghost";
+import { rankCandidates } from "./ranking/rank";
+import { assembleRankingSections } from "./ranking/sections";
+import type { RankingCandidate } from "./ranking/types";
 
 /**
  * Section assembly for the palette root and destination mode.
  *
- * Ordering here is deterministic and text-only: frecency, query learning and
- * pins arrive with the personalization slice and replace the comparator without
- * touching the section grammar. What this file already owns for good is the
- * honesty of a bounded list — a capped group either scrolls or says exactly how
- * many rows it withheld (BR-18).
+ * The daemon-served snapshot supplies every ranking constant. The cold path is
+ * deliberately unranked and uncapped while that session-only snapshot loads.
  */
-export const PALETTE_GROUP_CAP = 6;
-
-/** Fixed group precedence; unknown sections keep catalog order after these. */
-const SECTION_ORDER: readonly string[] = [
-  "Views",
-  "Shell",
-  "Window",
-  "Tabs",
-  "Tiling",
-  "Layout",
-  "Sessions",
-  "Desktops",
-  "Workspaces",
-  "Apps",
-  "Settings",
-];
 
 export interface PaletteSection {
   readonly title: string;
@@ -48,11 +37,6 @@ export function commandMatchesQuery(command: ResolvedPaletteCommand, query: stri
   return haystack.some(entry => normalize(entry).includes(needle));
 }
 
-function sectionRank(title: string): number {
-  const index = SECTION_ORDER.indexOf(title);
-  return index === -1 ? SECTION_ORDER.length : index;
-}
-
 /**
  * Available commands sort above disabled ones inside a group: a blocked row
  * stays visible and honest (BR-8) without pushing runnable commands out of the
@@ -71,18 +55,71 @@ export interface PaletteSectionInput {
    * targets. Ineligible groups are absent, not disabled (`_uiux.md` S10).
    */
   readonly destination: boolean;
-  readonly cap?: number;
+  readonly signals: CmdPaletteRankSignals | null;
+}
+
+interface CommandRankingCandidate extends RankingCandidate {
+  readonly command: ResolvedPaletteCommand;
+}
+
+function commandRankingCandidates(
+  registry: PaletteRegistry,
+  destination: boolean
+): readonly CommandRankingCandidate[] {
+  const candidates: CommandRankingCandidate[] = [];
+  for (const command of registry.commands) {
+    if (destination && command.action.kind !== "navigate") continue;
+    candidates.push({
+      stableKey: command.id,
+      id: command.id,
+      label: command.title,
+      group: command.section.trim() || "Commands",
+      aliases: command.alias ? [command.alias] : [],
+      keywords: command.keywords ?? [],
+      contextual: command.available && (command.when?.length ?? 0) > 0,
+      available: command.available,
+      curated: true,
+      subtype: "command",
+      command,
+    });
+  }
+  return candidates;
+}
+
+export function paletteGhostCompletion(
+  registry: PaletteRegistry,
+  query: string,
+  destination: boolean,
+  signals: CmdPaletteRankSignals | null
+): string | null {
+  if (signals === null) return null;
+  return ghostCompletion(
+    query,
+    rankCandidates(query, commandRankingCandidates(registry, destination), signals),
+    signals.weights
+  );
 }
 
 export function assemblePaletteSections({
   registry,
   query,
   destination,
-  cap = PALETTE_GROUP_CAP,
+  signals,
 }: PaletteSectionInput): readonly PaletteSection[] {
+  const eligible = registry.commands.filter(
+    command => !destination || command.action.kind === "navigate"
+  );
+  if (signals !== null) {
+    const candidates = commandRankingCandidates(registry, destination);
+    return assembleRankingSections(query, candidates, signals).map(section => ({
+      title: section.title,
+      commands: section.candidates.map(candidate => candidate.candidate.command),
+      total: section.total,
+    }));
+  }
+
   const grouped = new Map<string, ResolvedPaletteCommand[]>();
-  for (const command of registry.commands) {
-    if (destination && command.action.kind !== "navigate") continue;
+  for (const command of eligible) {
     if (!commandMatchesQuery(command, query)) continue;
     const title = command.section.trim() || "Commands";
     const bucket = grouped.get(title);
@@ -92,12 +129,9 @@ export function assemblePaletteSections({
   const sections: PaletteSection[] = [];
   for (const [title, commands] of grouped) {
     const sorted = [...commands].sort(compareCommands);
-    sections.push({ title, commands: sorted.slice(0, cap), total: sorted.length });
+    sections.push({ title, commands: sorted, total: sorted.length });
   }
-  return sections.sort((left, right) => {
-    const rank = sectionRank(left.title) - sectionRank(right.title);
-    return rank === 0 ? left.title.localeCompare(right.title) : rank;
-  });
+  return sections;
 }
 
 /** The exact overflow note for a capped group — never a vague "and more". */

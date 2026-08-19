@@ -15,7 +15,7 @@ func cmdPaletteDescriptors() []toolspkg.Descriptor {
 			false,
 			false,
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
-			[]string{"commands", "palette", "catalog"},
+			[]string{"commands", "palette", hooksCatalogKey},
 			[]string{"list command palette", "available commands"},
 		),
 		nativeDescriptor(

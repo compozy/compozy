@@ -16,7 +16,7 @@ func newCmdPaletteListCommand(deps commandDeps) *cobra.Command {
 	var source string
 	var available bool
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   bridgeListKey,
 		Short: "List commands and their current availability",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -46,7 +46,7 @@ func newCmdPaletteListCommand(deps commandDeps) *cobra.Command {
 func newCmdPaletteInspectCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
 	cmd := &cobra.Command{
-		Use:   "inspect <id>",
+		Use:   cmdPaletteInspectUse,
 		Short: "Inspect one command descriptor",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -76,7 +76,7 @@ func newCmdPaletteInspectCommand(deps commandDeps) *cobra.Command {
 func newCmdPaletteClientsCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
 	cmd := &cobra.Command{
-		Use:   "clients",
+		Use:   cmdPaletteClientsUse,
 		Short: "List clients attached to the workspace",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -131,7 +131,7 @@ func cmdPaletteListOutput(workspace string, commands []contract.CmdPaletteComman
 		"COMMANDS (workspace: "+workspace+")",
 		[]string{"ID", "TITLE", "SOURCE", "AVAILABLE", "BINDINGS"},
 		"commands",
-		[]string{"id", "title", "source", "available", "bindings"},
+		[]string{"id", networkTitleKey, automationSourceKey, cmdPaletteAvailableFlag, "bindings"},
 		func(command contract.CmdPaletteCommand) []string {
 			return []string{
 				string(command.ID), command.Title, command.Source,
@@ -155,7 +155,7 @@ func cmdPaletteInspectOutput(command contract.CmdPaletteCommand) outputBundle {
 			return renderHumanSectionResult("Command", []keyValue{
 				{Label: "ID", Value: string(command.ID)},
 				{Label: "Title", Value: command.Title},
-				{Label: "Source", Value: command.Source},
+				{Label: authoredContextSourceValue, Value: command.Source},
 				{Label: "Available", Value: strconv.FormatBool(command.Available)},
 				{Label: "Reason", Value: command.Reason},
 			})
@@ -163,8 +163,14 @@ func cmdPaletteInspectOutput(command contract.CmdPaletteCommand) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"command",
-				[]string{"id", "title", "source", "available", "reason"},
-				[]string{string(command.ID), command.Title, command.Source, strconv.FormatBool(command.Available), command.Reason},
+				[]string{"id", networkTitleKey, automationSourceKey, cmdPaletteAvailableFlag, "reason"},
+				[]string{
+					string(command.ID),
+					command.Title,
+					command.Source,
+					strconv.FormatBool(command.Available),
+					command.Reason,
+				},
 			), nil
 		},
 	}
@@ -177,12 +183,22 @@ func cmdPaletteClientsOutput(clients []contract.CmdPaletteClient) outputBundle {
 		"ATTACHED CLIENTS",
 		[]string{"CLIENT", "KIND", "WORKSPACE", "ATTACHED"},
 		"clients",
-		[]string{"client_id", "kind", "workspace", "attached_at"},
+		[]string{"client_id", networkKindKey, cmdPaletteWorkspaceFlag, "attached_at"},
 		func(client contract.CmdPaletteClient) []string {
-			return []string{string(client.ClientID), client.Kind, string(client.Workspace), client.AttachedAt.Format(time.RFC3339)}
+			return []string{
+				string(client.ClientID),
+				client.Kind,
+				string(client.Workspace),
+				client.AttachedAt.Format(time.RFC3339),
+			}
 		},
 		func(client contract.CmdPaletteClient) []string {
-			return []string{string(client.ClientID), client.Kind, string(client.Workspace), client.AttachedAt.Format(time.RFC3339)}
+			return []string{
+				string(client.ClientID),
+				client.Kind,
+				string(client.Workspace),
+				client.AttachedAt.Format(time.RFC3339),
+			}
 		},
 	)
 }

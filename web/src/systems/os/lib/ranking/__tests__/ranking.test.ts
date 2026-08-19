@@ -1,0 +1,221 @@
+// Suite: command-palette ranking.
+// Invariant: one pure scorer turns the daemon's versioned weights and workspace
+// signals into a deterministic total order, section grammar, and ghost tail.
+// Owning layer: web/src/systems/os/lib/ranking. Canonical suite: this file.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import {
+  acceptGhostCompletion,
+  assembleRankingSections,
+  compareRankedCandidates,
+  decayFrecency,
+  ghostCompletion,
+  isPrunableSignal,
+  matchRankingCandidate,
+  rankCandidates,
+  type RankedCandidate,
+  type RankingCandidate,
+  type RankingSnapshot,
+  type RankingWeights,
+} from "..";
+
+const weights = JSON.parse(
+  readFileSync(
+    resolve(process.cwd(), "../internal/cmdpalette/testdata/ranking_weights_v1.json"),
+    "utf8"
+  )
+) as RankingWeights;
+
+function snapshot(overrides: Partial<RankingSnapshot> = {}): RankingSnapshot {
+  return {
+    weights,
+    usage: [],
+    query_hits: [],
+    pins: [],
+    revision: "ps_fixture",
+    ...overrides,
+  };
+}
+
+function candidate(
+  id: string,
+  label: string,
+  overrides: Partial<RankingCandidate> = {}
+): RankingCandidate {
+  return {
+    stableKey: id,
+    id,
+    label,
+    group: "Commands",
+    available: true,
+    subtype: "command",
+    ...overrides,
+  };
+}
+
+describe("command palette ranking", () => {
+  it("matches word-boundary subsequences inside the documented band [UT-020]", () => {
+    const match = matchRankingCandidate("nwt", candidate("window.tab.new", "New tab"), weights);
+    expect(match?.kind).toBe("word-boundary");
+    expect(match?.score).toBeGreaterThanOrEqual(weights.match_word_boundary_min);
+    expect(match?.score).toBeLessThanOrEqual(weights.match_word_boundary_max);
+  });
+
+  it("folds diacritics and rejects candidates when any term drops [UT-021, UT-022]", () => {
+    expect(
+      matchRankingCandidate("sessao", candidate("session.open", "Sessão"), weights)
+    ).not.toBeNull();
+    expect(
+      matchRankingCandidate("new missing", candidate("window.tab.new", "New tab"), weights)
+    ).toBeNull();
+  });
+
+  it("keeps exact aliases above exact titles and applies context boost [UT-023, UT-024]", () => {
+    const aliases = candidate("github", "Open source", { aliases: ["gh"] });
+    const title = candidate("gh-command", "gh");
+    expect(rankCandidates("gh", [title, aliases], snapshot()).map(row => row.candidate.id)).toEqual(
+      ["github", "gh-command"]
+    );
+
+    const contextual = candidate("contextual", "Open", { contextual: true });
+    const global = candidate("global", "Open");
+    expect(rankCandidates("open", [global, contextual], snapshot())[0]?.candidate.id).toBe(
+      "contextual"
+    );
+  });
+
+  it("defines a transitive antisymmetric order stable across input shuffles [UT-025]", () => {
+    const candidates = Array.from({ length: 18 }, (_, index) =>
+      candidate(`command-${index}`, `Command ${String.fromCharCode(65 + index)}`, {
+        group: index % 3 === 0 ? "Apps" : index % 3 === 1 ? "Commands" : "Settings",
+        contextual: index % 4 === 0,
+      })
+    );
+    const signals = snapshot({
+      usage: candidates.map((entry, index) => ({
+        command_id: entry.id,
+        weight: index / 3,
+        last_used_at: index,
+      })),
+    });
+    const baseline = rankCandidates("command", candidates, signals);
+    const reversed = rankCandidates("command", [...candidates].reverse(), signals);
+    expect(reversed.map(row => row.candidate.id)).toEqual(baseline.map(row => row.candidate.id));
+    for (const left of baseline) {
+      for (const right of baseline) {
+        const forward = Math.sign(compareRankedCandidates(left, right, weights));
+        const backward = Math.sign(compareRankedCandidates(right, left, weights));
+        if (left.candidate.stableKey === right.candidate.stableKey) expect(forward).toBe(0);
+        else expect(forward).toBe(-backward);
+      }
+    }
+    for (const left of baseline) {
+      for (const middle of baseline) {
+        for (const right of baseline) {
+          if (
+            compareRankedCandidates(left, middle, weights) <= 0 &&
+            compareRankedCandidates(middle, right, weights) <= 0
+          ) {
+            expect(compareRankedCandidates(left, right, weights)).toBeLessThanOrEqual(0);
+          }
+        }
+      }
+    }
+  });
+
+  it("treats regex metacharacters as literal input [UT-026]", () => {
+    expect(() =>
+      rankCandidates("(*\\", [candidate("literal", "Run (*\\ safely")], snapshot())
+    ).not.toThrow();
+    expect(
+      rankCandidates("(*\\", [candidate("literal", "Run (*\\ safely")], snapshot())
+    ).toHaveLength(1);
+  });
+
+  it("decays frecency exactly and flags only old weak signals [UT-027, UT-028]", () => {
+    const now = Date.UTC(2026, 7, 19, 12);
+    expect(
+      decayFrecency(
+        10,
+        now - weights.frecency_half_life_days * 86_400_000,
+        now,
+        weights.frecency_half_life_days
+      )
+    ).toBe(5);
+    expect(
+      isPrunableSignal(
+        weights.prune_threshold / 2,
+        now - weights.prune_after_days * 86_400_000,
+        now,
+        weights
+      )
+    ).toBe(true);
+    const sameText = [candidate("used", "Open"), candidate("unused", "Open")];
+    expect(
+      rankCandidates(
+        "open",
+        sameText,
+        snapshot({ usage: [{ command_id: "used", weight: 10, last_used_at: now }] })
+      )[0]?.candidate.id
+    ).toBe("used");
+  });
+
+  it("lets the strongest learned query association dominate deterministically [UT-029]", () => {
+    const rows = [candidate("x", "GH tool"), candidate("y", "GH tool")];
+    const ranked = rankCandidates(
+      "gh",
+      rows,
+      snapshot({
+        query_hits: [
+          { query: "gh", command_id: "x", weight: 1 },
+          { query: "gh", command_id: "y", weight: 3 },
+        ],
+      })
+    );
+    expect(ranked.map(row => row.candidate.id)).toEqual(["y", "x"]);
+  });
+
+  it("assembles empty and typed sections with caps and promotion floors [UT-030]", () => {
+    const rows = [
+      candidate("pinned", "Pinned command"),
+      candidate("recent", "Recent command"),
+      candidate("curated", "Curated command"),
+      candidate("tab", "Tab target", { group: "Tabs", subtype: "tab" }),
+    ];
+    const signals = snapshot({
+      pins: ["pinned"],
+      usage: [{ command_id: "recent", weight: 1, last_used_at: 10 }],
+    });
+    expect(assembleRankingSections("", rows, signals).map(section => section.title)).toEqual([
+      "Pinned",
+      "Recents",
+      "Curated",
+    ]);
+    expect(assembleRankingSections("target", rows, signals)).toEqual([]);
+    expect(
+      assembleRankingSections("tab target", rows, signals).map(section => section.title)
+    ).toEqual(["Tabs"]);
+  });
+
+  it("returns and accepts an unambiguous casing-preserving ghost only at end of input [UT-118, UT-119]", () => {
+    const ranked = rankCandidates("Ne", [candidate("new", "New tab")], snapshot());
+    const tail = ghostCompletion("Ne", ranked as readonly RankedCandidate[], weights);
+    expect(tail).toBe("w tab");
+    expect(acceptGhostCompletion("Ne", tail, 2, 2)).toBe("New tab");
+    expect(acceptGhostCompletion("Ne", tail, 1, 1)).toBeNull();
+    expect(
+      ghostCompletion(
+        "Ne",
+        rankCandidates(
+          "Ne",
+          [candidate("new", "New tab"), candidate("news", "News")],
+          snapshot()
+        ) as readonly RankedCandidate[],
+        weights
+      )
+    ).toBeNull();
+  });
+});

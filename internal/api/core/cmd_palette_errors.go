@@ -40,7 +40,7 @@ func cmdPaletteErrorPayload(err error) (int, contract.CmdPaletteError) {
 		}
 	case errors.Is(err, cmdpalette.ErrNoAttachedShell):
 		return http.StatusPreconditionFailed, contract.CmdPaletteError{
-			Error: "no_attached_shell", Message: "command changes UI state and needs an open Compozy shell",
+			Error: "no_attached_shell", Message: "command changes UI state and needs an open CompozyOS shell",
 		}
 	case errors.As(err, &multiple):
 		return http.StatusConflict, contract.CmdPaletteError{

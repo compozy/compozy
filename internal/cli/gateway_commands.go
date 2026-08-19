@@ -199,7 +199,7 @@ func pairingArtifactOutput(record gatewayPairingArtifactReference) outputBundle 
 			{Label: "Expires", Value: record.ExpiresAt.Format(time.RFC3339)},
 		})
 	}, func() string {
-		return renderToonObject("pairing", []string{"artifact_ref", "expires_at"}, []string{
+		return renderToonObject("pairing", []string{"artifact_ref", mcpAuthExpiresAtKey}, []string{
 			record.ArtifactRef,
 			record.ExpiresAt.Format(time.RFC3339),
 		})

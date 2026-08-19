@@ -157,7 +157,9 @@ func roleBundle(role RoleRecord) outputBundle {
 					[]string{"Provider", "Model", "Reasoning Effort"},
 					roleFallbackRows(role),
 				),
-				renderHumanTable("Provenance", []string{cliFieldValue, "Source"}, roleProvenanceRows(role)),
+				renderHumanTable(
+					"Provenance", []string{cliFieldValue, authoredContextSourceValue}, roleProvenanceRows(role),
+				),
 				renderHumanTable(
 					"Diagnostics",
 					[]string{"Code", lifecycleMessageValue, authoredContextAgentValue},

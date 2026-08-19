@@ -49,6 +49,14 @@ availability, targeting, single-flight, and approval rules still apply. An `appr
 returns `approval_id`; operators inspect or cancel it with `compozy approvals show|cancel <id>`.
 CLI catalog fallback is `compozy cmd-palette list|inspect|invoke|clients`.
 
+Palette personalization is workspace-scoped and management-only. Inspect or reset it with
+`compozy cmd-palette personalization show|reset --workspace <workspace>`. HTTP/UDS clients use
+`GET /api/cmd-palette/rank-signals`, `POST /api/cmd-palette/usage`, `PUT|DELETE
+/api/cmd-palette/pins/{id}`, and `GET|DELETE /api/cmd-palette/personalization`; keep rank signals in
+session memory and report only the normalized pre-selection query.
+Observe cross-client changes through `cmd_palette.pin.changed`,
+`cmd_palette.personalization.reset`, and the following `cmd_palette.catalog.changed` invalidation.
+
 ## Runtime And Workspace Tools
 
 Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__session_prompt`,

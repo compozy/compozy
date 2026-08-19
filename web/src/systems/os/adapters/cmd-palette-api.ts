@@ -4,6 +4,8 @@ import type {
   CmdPaletteAttachedClient,
   CmdPaletteCatalogResponse,
   CmdPaletteInvokeResult,
+  CmdPalettePersonalization,
+  CmdPaletteRankSignals,
 } from "../lib/cmd-palette-types";
 
 export type CmdPaletteApiErrorKind = "daemon" | "malformed_response" | "transport";
@@ -195,4 +197,74 @@ export async function invokeCmdPaletteCommand(
   const fallback = `Failed to run ${input.commandId}`;
   if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
   return responseData(data, response, fallback);
+}
+
+export async function getCmdPaletteRankSignals(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<CmdPaletteRankSignals> {
+  const { data, error, response } = await apiClient.GET("/api/cmd-palette/rank-signals", {
+    params: { query: { workspace: workspaceId } },
+    signal,
+  });
+  const fallback = "Failed to load command palette rank signals";
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  return responseData(data, response, fallback);
+}
+
+export async function recordCmdPaletteUsage(
+  workspaceId: string,
+  commandId: string,
+  query: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.POST("/api/cmd-palette/usage", {
+    body: { workspace: workspaceId, command_id: commandId, query },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw responseError("Failed to record command palette usage", response, error);
+  }
+}
+
+export async function setCmdPalettePin(
+  workspaceId: string,
+  commandId: string,
+  pinned: boolean,
+  signal?: AbortSignal
+): Promise<boolean> {
+  const request = pinned ? apiClient.PUT : apiClient.DELETE;
+  const { data, error, response } = await request("/api/cmd-palette/pins/{id}", {
+    params: { path: { id: commandId }, query: { workspace: workspaceId } },
+    signal,
+  });
+  const fallback = pinned ? "Failed to pin command" : "Failed to unpin command";
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  return responseData(data, response, fallback).pinned;
+}
+
+export async function getCmdPalettePersonalization(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<CmdPalettePersonalization> {
+  const { data, error, response } = await apiClient.GET("/api/cmd-palette/personalization", {
+    params: { query: { workspace: workspaceId } },
+    signal,
+  });
+  const fallback = "Failed to load command palette personalization";
+  if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
+  return responseData(data, response, fallback);
+}
+
+export async function resetCmdPalettePersonalization(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE("/api/cmd-palette/personalization", {
+    params: { query: { workspace: workspaceId } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw responseError("Failed to reset command palette personalization", response, error);
+  }
 }

@@ -22,6 +22,10 @@ func (d *Daemon) bootCmdPalette(
 	if !ok {
 		return errors.New("daemon: global registry does not support pending tool approvals")
 	}
+	personalizationStore, ok := state.registry.(cmdpalette.PersonalizationStore)
+	if !ok {
+		return errors.New("daemon: global registry does not support command palette personalization")
+	}
 	provider, err := corecmds.New()
 	if err != nil {
 		return fmt.Errorf("daemon: build core command palette provider: %w", err)
@@ -48,6 +52,7 @@ func (d *Daemon) bootCmdPalette(
 		}},
 		&cmdPaletteClientDirectory{windowManager: state.windowManager}, nil, executor,
 		cmdpalette.WithEventRecorder(eventRecorder), cmdpalette.WithClock(d.now),
+		cmdpalette.WithPersonalizationStore(personalizationStore), cmdpalette.WithLogger(d.logger),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create command palette registry: %w", err)

@@ -12,7 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const cmdPaletteClientTokenHeader = "X-Compozy-Client-Token"
+const (
+	cmdPaletteClientAttachmentHeader = "X-Compozy-Client-Token"
+	cmdPaletteInvalidRequestError    = "invalid_request"
+)
 
 func (h *BaseHandlers) ListCmdPaletteCommands(c *gin.Context) {
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
@@ -57,14 +60,17 @@ func (h *BaseHandlers) InvokeCmdPaletteCommand(c *gin.Context) {
 	}
 	var body contract.CmdPaletteInvokeRequest
 	if err := decodeStrictJSONBody(c, &body); err != nil {
-		c.JSON(http.StatusBadRequest, contract.CmdPaletteError{Error: "invalid_request", Message: err.Error()})
+		c.JSON(
+			http.StatusBadRequest,
+			contract.CmdPaletteError{Error: cmdPaletteInvalidRequestError, Message: err.Error()},
+		)
 		return
 	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, body.Workspace)
 	if !ok {
 		return
 	}
-	token := strings.TrimSpace(c.GetHeader(cmdPaletteClientTokenHeader))
+	token := strings.TrimSpace(c.GetHeader(cmdPaletteClientAttachmentHeader))
 	caller := cmdpalette.CallerControlPlane
 	if token != "" {
 		caller = cmdpalette.CallerAttachedClient
@@ -109,7 +115,11 @@ func (h *BaseHandlers) resolveCmdPaletteWorkspace(
 	}
 	workspaceID := strings.TrimSpace(resolved.ID)
 	if workspaceID == "" {
-		h.respondError(c, http.StatusInternalServerError, fmt.Errorf("%s: resolved workspace id is empty", h.transportName()))
+		h.respondError(
+			c,
+			http.StatusInternalServerError,
+			fmt.Errorf("%s: resolved workspace id is empty", h.transportName()),
+		)
 		return "", false
 	}
 	return cmdpalette.WorkspaceID(workspaceID), true

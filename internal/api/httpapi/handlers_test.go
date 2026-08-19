@@ -58,6 +58,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 	sort.Strings(got)
 
 	want := []string{
+		"DELETE /api/cmd-palette/personalization",
+		"DELETE /api/cmd-palette/pins/:id",
 		"DELETE /api/agents/:name/heartbeat",
 		"DELETE /api/agents/:name/soul",
 		"DELETE /api/automation/jobs/:id",
@@ -115,6 +117,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/automation/jobs/:id/runs",
 		"GET /api/cmd-palette/clients",
 		"GET /api/cmd-palette/commands",
+		"GET /api/cmd-palette/personalization",
+		"GET /api/cmd-palette/rank-signals",
 		"GET /api/cmd-palette/stream",
 		"GET /api/automation/runs",
 		"GET /api/automation/runs/:id",
@@ -482,7 +486,9 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/tasks/:id/triage/dismiss",
 		"POST /api/tasks/:id/triage/read",
 		"POST /api/cmd-palette/commands/:id/invoke",
+		"POST /api/cmd-palette/usage",
 		"POST /api/tools/approvals/:id/cancel",
+		"PUT /api/cmd-palette/pins/:id",
 		"POST /api/tools/:id/approvals",
 		"POST /api/tools/:id/invoke",
 		"POST /api/tools/search",

@@ -228,7 +228,7 @@ func hookListBundle(hooks []HookCatalogRecord) outputBundle {
 			automationSourceKey,
 			"skill_source",
 			hooksModeKey,
-			"required",
+			configRequiredKey,
 			"priority",
 		},
 		func(item HookCatalogRecord) []string {

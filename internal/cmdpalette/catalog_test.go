@@ -53,53 +53,59 @@ func TestRegistryCatalog(t *testing.T) {
 		}
 	})
 
-	t.Run("Should change only structural revision inputs and expose context revision separately [UT-003]", func(t *testing.T) {
-		t.Parallel()
-		descriptor := testDescriptor("window.close")
-		descriptor.Action = Action{Kind: ActionKindClientOp, Op: "window.close"}
-		descriptor.When = []Predicate{{
-			Key: ContextWindowFocused, Value: true, Reason: "needs a focused window",
-		}}
-		provider := &dynamicTestProvider{commands: []Descriptor{descriptor}}
-		directory := &testClientDirectory{
-			clients: []Client{{ID: "client-a"}, {ID: "client-b"}},
-			contexts: map[ClientID]ContextSnapshot{
-				"client-a": {Revision: "ctx-a", Values: map[ContextKey]any{ContextWindowFocused: true}},
-				"client-b": {Revision: "ctx-b", Values: map[ContextKey]any{ContextWindowFocused: false}},
-			},
-		}
-		bindings := &testBindings{bindings: map[CommandID][]string{}, aliases: map[CommandID]string{}}
-		service := testRegistry(provider, directory, bindings, &testExecutor{})
-		clientA, err := service.Catalog(t.Context(), "ws-1", "client-a")
-		if err != nil {
-			t.Fatalf("Catalog(client-a) error = %v", err)
-		}
-		clientB, err := service.Catalog(t.Context(), "ws-1", "client-b")
-		if err != nil {
-			t.Fatalf("Catalog(client-b) error = %v", err)
-		}
-		if clientA.Revision != clientB.Revision || clientA.ContextRevision == clientB.ContextRevision {
-			t.Fatalf("catalog revisions = %#v / %#v", clientA, clientB)
-		}
-		if !clientA.Commands[0].Available || clientB.Commands[0].Available {
-			t.Fatalf("availability = %#v / %#v", clientA.Commands[0], clientB.Commands[0])
-		}
-		provider.commands[0].Title = "Changed title"
-		changed, err := service.Catalog(t.Context(), "ws-1", "client-a")
-		if err != nil {
-			t.Fatalf("Catalog(changed) error = %v", err)
-		}
-		if changed.Revision == clientA.Revision {
-			t.Fatal("descriptor change did not advance structural revision")
-		}
-	})
+	t.Run(
+		"Should change only structural revision inputs and expose context revision separately [UT-003]",
+		func(t *testing.T) {
+			t.Parallel()
+			descriptor := testDescriptor("window.close")
+			descriptor.Action = Action{Kind: ActionKindClientOp, Op: "window.close"}
+			descriptor.When = []Predicate{{
+				Key: ContextWindowFocused, Value: true, Reason: "needs a focused window",
+			}}
+			provider := &dynamicTestProvider{commands: []Descriptor{descriptor}}
+			directory := &testClientDirectory{
+				clients: []Client{{ID: "client-a"}, {ID: "client-b"}},
+				contexts: map[ClientID]ContextSnapshot{
+					"client-a": {Revision: "ctx-a", Values: map[ContextKey]any{ContextWindowFocused: true}},
+					"client-b": {Revision: "ctx-b", Values: map[ContextKey]any{ContextWindowFocused: false}},
+				},
+			}
+			bindings := &testBindings{bindings: map[CommandID][]string{}, aliases: map[CommandID]string{}}
+			service := testRegistry(provider, directory, bindings, &testExecutor{})
+			clientA, err := service.Catalog(t.Context(), "ws-1", "client-a")
+			if err != nil {
+				t.Fatalf("Catalog(client-a) error = %v", err)
+			}
+			clientB, err := service.Catalog(t.Context(), "ws-1", "client-b")
+			if err != nil {
+				t.Fatalf("Catalog(client-b) error = %v", err)
+			}
+			if clientA.Revision != clientB.Revision || clientA.ContextRevision == clientB.ContextRevision {
+				t.Fatalf("catalog revisions = %#v / %#v", clientA, clientB)
+			}
+			if !clientA.Commands[0].Available || clientB.Commands[0].Available {
+				t.Fatalf("availability = %#v / %#v", clientA.Commands[0], clientB.Commands[0])
+			}
+			provider.commands[0].Title = "Changed title"
+			changed, err := service.Catalog(t.Context(), "ws-1", "client-a")
+			if err != nil {
+				t.Fatalf("Catalog(changed) error = %v", err)
+			}
+			if changed.Revision == clientA.Revision {
+				t.Fatal("descriptor change did not advance structural revision")
+			}
+		},
+	)
 
 	t.Run("Should reject duplicate IDs at boot and dynamic provider load [UT-004]", func(t *testing.T) {
 		t.Parallel()
 		descriptor := testDescriptor("duplicate.command")
 		_, err := NewRegistry(
 			[]ProviderRegistration{
-				{Source: Source{Kind: SourceKindCore}, Provider: staticTestProvider{commands: []Descriptor{descriptor}}},
+				{
+					Source:   Source{Kind: SourceKindCore},
+					Provider: staticTestProvider{commands: []Descriptor{descriptor}},
+				},
 				{Source: Source{Kind: SourceKindExtension, Extension: "notes"}, Provider: staticTestProvider{
 					commands: []Descriptor{func() Descriptor {
 						duplicate := descriptor
@@ -119,7 +125,10 @@ func TestRegistryCatalog(t *testing.T) {
 		service, err := NewRegistry(
 			[]ProviderRegistration{
 				{Source: descriptor.Source, Provider: dynamicTestProvider{commands: []Descriptor{descriptor}}},
-				{Source: extensionDuplicate.Source, Provider: dynamicTestProvider{commands: []Descriptor{extensionDuplicate}}},
+				{
+					Source:   extensionDuplicate.Source,
+					Provider: dynamicTestProvider{commands: []Descriptor{extensionDuplicate}},
+				},
 			}, nil, nil, &testExecutor{},
 		)
 		if err != nil {
@@ -137,7 +146,10 @@ func TestRegistryCatalog(t *testing.T) {
 		service, err := NewRegistry(
 			[]ProviderRegistration{
 				{Source: descriptor.Source, Provider: dynamicTestProvider{commands: []Descriptor{descriptor}}},
-				{Source: Source{Kind: SourceKindExtension, Extension: "broken"}, Provider: dynamicTestProvider{err: errors.New("crash loop")}},
+				{
+					Source:   Source{Kind: SourceKindExtension, Extension: "broken"},
+					Provider: dynamicTestProvider{err: errors.New("crash loop")},
+				},
 			}, nil, nil, &testExecutor{},
 		)
 		if err != nil {

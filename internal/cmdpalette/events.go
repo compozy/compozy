@@ -10,9 +10,11 @@ import (
 type EventName string
 
 const (
-	EventCatalogChanged  EventName = "cmd_palette.catalog.changed"
-	EventCommandInvoked  EventName = "cmd_palette.command.invoked"
-	eventSubscriberLimit           = 32
+	EventCatalogChanged       EventName = "cmd_palette.catalog.changed"
+	EventCommandInvoked       EventName = "cmd_palette.command.invoked"
+	EventPinChanged           EventName = "cmd_palette.pin.changed"
+	EventPersonalizationReset EventName = "cmd_palette.personalization.reset"
+	eventSubscriberLimit                = 32
 )
 
 type Event struct {
@@ -20,6 +22,7 @@ type Event struct {
 	WorkspaceID     WorkspaceID `json:"workspace"`
 	CatalogRevision string      `json:"catalog_revision,omitempty"`
 	CommandID       CommandID   `json:"command_id,omitempty"`
+	Pinned          *bool       `json:"pinned,omitempty"`
 	Source          string      `json:"source,omitempty"`
 	ExecutionSite   ActionKind  `json:"exec_site,omitempty"`
 	Outcome         string      `json:"outcome,omitempty"`

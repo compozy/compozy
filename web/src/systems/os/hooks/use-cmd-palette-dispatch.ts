@@ -1,9 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffectEvent } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-import { invokeCmdPaletteCommand } from "../adapters/cmd-palette-api";
+import { invokeCmdPaletteCommand, recordCmdPaletteUsage } from "../adapters/cmd-palette-api";
 import { paletteClientOp, type PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import {
   dispatchPaletteCommand,
@@ -11,7 +10,6 @@ import {
   type PaletteDispatchOutcome,
 } from "../lib/cmd-palette-dispatch";
 import type { PaletteRegistry, ResolvedPaletteCommand } from "../lib/cmd-palette-types";
-import { noopUsageReporter } from "../lib/cmd-palette-usage";
 import { cmdPaletteKeys } from "../lib/cmd-palette-query-keys";
 import type { OsAppId, OsWindowRoute } from "../lib/os-types";
 import { useOsShell } from "./use-os-shell";
@@ -59,61 +57,76 @@ export function useCmdPaletteDispatch({
   const { manager } = useOsShell();
   const queryClient = useQueryClient();
 
-  const runCommand = useEffectEvent(
-    (
-      command: ResolvedPaletteCommand,
-      args?: Readonly<Record<string, unknown>>,
-      query = ""
-    ): Promise<PaletteDispatchOutcome> =>
-      dispatchPaletteCommand({
-        command,
-        args,
-        query,
-        ports: {
-          clientOps: { manager, shell },
-          invoke: async (commandId, invokeArgs) => {
-            if (workspaceId === null) {
-              throw new Error("This workspace is still connecting. Try again in a moment.");
-            }
-            return await invokeCmdPaletteCommand({ workspaceId, commandId, args: invokeArgs });
-          },
-          navigate: (app, pathname) =>
-            openApp(app as OsAppId, pathname === null ? null : { pathname, search: {} }),
-          pushView: viewId => shell.openPaletteView(viewId),
-          openUrl: url => window.open(url, "_blank", "noopener,noreferrer"),
-          reportUsage: noopUsageReporter,
-          refresh: () => {
-            if (workspaceId === null) return;
-            void queryClient.invalidateQueries({
-              queryKey: cmdPaletteKeys.workspaceCatalogs(workspaceId),
-            });
-          },
-          onFailure: (failed, reason) =>
-            notifyUser({ message: `${failed.title} — ${reason}`, tone: "error" }),
+  const runCommand = (
+    command: ResolvedPaletteCommand,
+    args?: Readonly<Record<string, unknown>>,
+    query = ""
+  ): Promise<PaletteDispatchOutcome> =>
+    dispatchPaletteCommand({
+      command,
+      args,
+      query,
+      ports: {
+        clientOps: { manager, shell },
+        invoke: async (commandId, invokeArgs) => {
+          if (workspaceId === null) {
+            throw new Error("This workspace is still connecting. Try again in a moment.");
+          }
+          const result = await invokeCmdPaletteCommand({
+            workspaceId,
+            commandId,
+            args: invokeArgs,
+          });
+          void queryClient.invalidateQueries({
+            queryKey: cmdPaletteKeys.rankSignals(workspaceId),
+          });
+          return result;
         },
-      })
-  );
+        navigate: (app, pathname) =>
+          openApp(app as OsAppId, pathname === null ? null : { pathname, search: {} }),
+        pushView: viewId => shell.openPaletteView(viewId),
+        openUrl: url => window.open(url, "_blank", "noopener,noreferrer"),
+        reportUsage: (commandId, preselectionQuery) => {
+          if (workspaceId === null) return;
+          void recordCmdPaletteUsage(workspaceId, commandId, preselectionQuery)
+            .then(() =>
+              queryClient.invalidateQueries({
+                queryKey: cmdPaletteKeys.rankSignals(workspaceId),
+              })
+            )
+            .catch(error => {
+              console.warn("Failed to record command palette usage", error);
+            });
+        },
+        refresh: () => {
+          if (workspaceId === null) return;
+          void queryClient.invalidateQueries({
+            queryKey: cmdPaletteKeys.workspaceCatalogs(workspaceId),
+          });
+        },
+        onFailure: (failed, reason) =>
+          notifyUser({ message: `${failed.title} — ${reason}`, tone: "error" }),
+      },
+    });
 
-  const runById = useEffectEvent(
-    async (
-      commandId: string,
-      args?: Readonly<Record<string, unknown>>
-    ): Promise<PaletteDispatchOutcome> => {
-      const command = registry.byId.get(commandId);
-      if (command === undefined) {
-        // Truthful UI: a chord or menu item pointing at a command the catalog no
-        // longer carries reports that rather than doing nothing.
-        return { status: "refused", reason: UNSUPPORTED_CLIENT_OP_REASON };
-      }
-      return await runCommand(command, args);
+  const runById = async (
+    commandId: string,
+    args?: Readonly<Record<string, unknown>>
+  ): Promise<PaletteDispatchOutcome> => {
+    const command = registry.byId.get(commandId);
+    if (command === undefined) {
+      // Truthful UI: a chord or menu item pointing at a command the catalog no
+      // longer carries reports that rather than doing nothing.
+      return { status: "refused", reason: UNSUPPORTED_CLIENT_OP_REASON };
     }
-  );
+    return await runCommand(command, args);
+  };
 
-  const executeClientOp = useEffectEvent(async (op: string, payload: unknown) => {
+  const executeClientOp = async (op: string, payload: unknown) => {
     const handler = paletteClientOp(op);
     if (handler === null) throw new Error(`Unsupported client operation: ${op}`);
     return await handler({ manager, shell }, payload);
-  });
+  };
 
   return { run: runCommand, runById, executeClientOp };
 }

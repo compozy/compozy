@@ -28,10 +28,18 @@ func (g *ApprovalPendingRepo) CreateApproval(
 		targetJSON = json.RawMessage(`{}`)
 	}
 	row, err := g.queries.CreatePendingToolApproval(ctx, sqlcgen.CreatePendingToolApprovalParams{
-		ApprovalID: approvalID, WorkspaceID: request.WorkspaceID, InvocationID: request.InvocationID,
-		TargetKind: string(request.Target.Kind), ToolID: nullableApprovalString(string(request.Target.ToolID)),
-		TargetJson: string(targetJSON), CommandID: nullableApprovalString(request.CommandID), ArgsJson: string(request.Args),
-		RequestedAt: requestedAt.UnixMilli(), ExpiresAt: request.ExpiresAt.UnixMilli(),
+		ApprovalID:   approvalID,
+		WorkspaceID:  request.WorkspaceID,
+		InvocationID: request.InvocationID,
+		TargetKind:   string(request.Target.Kind),
+		ToolID:       nullableApprovalString(string(request.Target.ToolID)),
+		TargetJson: string(
+			targetJSON,
+		),
+		CommandID:   nullableApprovalString(request.CommandID),
+		ArgsJson:    string(request.Args),
+		RequestedAt: requestedAt.UnixMilli(),
+		ExpiresAt:   request.ExpiresAt.UnixMilli(),
 	})
 	if err != nil {
 		return toolspkg.ApprovalStatus{}, fmt.Errorf("store: create pending tool approval %q: %w", approvalID, err)

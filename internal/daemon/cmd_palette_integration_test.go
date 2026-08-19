@@ -1,3 +1,5 @@
+//go:build integration
+
 package daemon
 
 import (
@@ -67,7 +69,12 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		decodeCmdPaletteIntegrationResponse(t, response, &catalog)
 		if len(catalog.Commands) != len(coreProvider.StaticCommands())+1 || catalog.CatalogRevision == "" ||
 			len(catalog.Sources) != 2 {
-			t.Fatalf("catalog summary = commands %d revision %q sources %#v", len(catalog.Commands), catalog.CatalogRevision, catalog.Sources)
+			t.Fatalf(
+				"catalog summary = commands %d revision %q sources %#v",
+				len(catalog.Commands),
+				catalog.CatalogRevision,
+				catalog.Sources,
+			)
 		}
 		var extensionCommand *contract.CmdPaletteCommand
 		for index := range catalog.Commands {
@@ -163,8 +170,13 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		if _, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
 			WorkspaceID: "workspace-acme", ExpectedRevision: 0, ClientID: &clientA,
 			Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
-				ID: "window-a", App: "sessions", DesktopID: "desktop-default",
-				Route:        windowmanager.RouteIntent{Pathname: "/sessions/session-a", Search: windowmanager.RouteSearch{}},
+				ID:        "window-a",
+				App:       "sessions",
+				DesktopID: "desktop-default",
+				Route: windowmanager.RouteIntent{
+					Pathname: "/sessions/session-a",
+					Search:   windowmanager.RouteSearch{},
+				},
 				FloatingRect: windowmanager.NormalizedRect{X: 0.1, Y: 0.1, Width: 0.5, Height: 0.5},
 			}},
 		}); err != nil {

@@ -149,6 +149,8 @@ var baseRegistryEntries = []Metadata{
 	global(warning(ToolApprovalGrantRevoked, "tool.approval_grant", ComponentTools)),
 	global(info(CmdPaletteCatalogChanged, "cmd_palette", ComponentCmdPalette)),
 	global(info(CmdPaletteCommandInvoked, "cmd_palette", ComponentCmdPalette)),
+	global(info(CmdPalettePinChanged, "cmd_palette", ComponentCmdPalette)),
+	global(info(CmdPalettePersonalizationReset, "cmd_palette", ComponentCmdPalette)),
 
 	notify(global(warning(ProviderAuthRequired, "provider", ComponentProvider))),
 	global(success(ProviderAuthRecovered, "provider", ComponentProvider)),

@@ -15,6 +15,10 @@ const (
 	cmdPaletteSourceFlag    = "source"
 	cmdPaletteAvailableFlag = "available"
 	cmdPaletteArgFlag       = "arg"
+	cmdPaletteInspectUse    = "inspect <id>"
+	cmdPaletteClientsUse    = "clients"
+	cmdPaletteInvalidArgs   = "invalid_arguments"
+	cmdPaletteNoShell       = "no_attached_shell"
 )
 
 type cmdPaletteScopeFlags struct {
@@ -48,6 +52,7 @@ func newCmdPaletteCommand(deps commandDeps) *cobra.Command {
 		newCmdPaletteInspectCommand(deps),
 		newCmdPaletteInvokeCommand(deps),
 		newCmdPaletteClientsCommand(deps),
+		newCmdPalettePersonalizationCommand(deps),
 	)
 	return cmd
 }

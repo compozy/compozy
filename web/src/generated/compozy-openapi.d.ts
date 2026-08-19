@@ -1059,6 +1059,59 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cmd-palette/personalization": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get command palette personalization summary */
+    get: operations["getCmdPalettePersonalization"];
+    put?: never;
+    post?: never;
+    /** Reset command palette personalization */
+    delete: operations["resetCmdPalettePersonalization"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/pins/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Pin one command palette command */
+    put: operations["pinCmdPaletteCommand"];
+    post?: never;
+    /** Unpin one command palette command */
+    delete: operations["unpinCmdPaletteCommand"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/rank-signals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get command palette rank signals */
+    get: operations["getCmdPaletteRankSignals"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/cmd-palette/stream": {
     parameters: {
       query?: never;
@@ -1070,6 +1123,23 @@ export interface paths {
     get: operations["streamCmdPalette"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/cmd-palette/usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Record command palette usage */
+    post: operations["recordCmdPaletteUsage"];
     delete?: never;
     options?: never;
     head?: never;
@@ -31245,6 +31315,384 @@ export interface operations {
       };
     };
   };
+  getCmdPalettePersonalization: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            frecency_entries: number;
+            pins: string[];
+            query_associations: number;
+            recents: number;
+            workspace: string;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  resetCmdPalettePersonalization: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Reset */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            status: string;
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  pinCmdPaletteCommand: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical command id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Pinned */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            pinned: boolean;
+          };
+        };
+      };
+      /** @description Command not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  unpinCmdPaletteCommand: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical command id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Unpinned */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            pinned: boolean;
+          };
+        };
+      };
+      /** @description Command not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  getCmdPaletteRankSignals: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            pins: string[];
+            query_hits: {
+              command_id: string;
+              query: string;
+              /** Format: double */
+              weight: number;
+            }[];
+            revision: string;
+            usage: {
+              command_id: string;
+              /** Format: int64 */
+              last_used_at: number;
+              /** Format: double */
+              weight: number;
+            }[];
+            weights: {
+              /** Format: double */
+              context_boost: number;
+              /** Format: double */
+              deadband: number;
+              domain_view_mount_cap: number;
+              entity_section_visible_cap: number;
+              /** Format: double */
+              fallback_weak_match_threshold: number;
+              /** Format: double */
+              frecency_cap: number;
+              frecency_half_life_days: number;
+              /** Format: double */
+              frecency_scale: number;
+              /** Format: double */
+              ghost_min_score: number;
+              group_order: string[];
+              /** Format: double */
+              match_alias_exact: number;
+              /** Format: double */
+              match_compact_prefix: number;
+              /** Format: double */
+              match_contains: number;
+              /** Format: double */
+              match_exact: number;
+              /** Format: double */
+              match_prefix: number;
+              /** Format: double */
+              match_subsequence_max: number;
+              /** Format: double */
+              match_subsequence_min: number;
+              /** Format: double */
+              match_token_prefix: number;
+              /** Format: double */
+              match_word_boundary_max: number;
+              /** Format: double */
+              match_word_boundary_min: number;
+              max_query_length: number;
+              min_entity_query_length: number;
+              /** Format: double */
+              promotion_command_floor: number;
+              /** Format: double */
+              promotion_default_floor: number;
+              /** Format: double */
+              promotion_path_floor: number;
+              /** Format: double */
+              promotion_tab_floor: number;
+              prune_after_days: number;
+              /** Format: double */
+              prune_threshold: number;
+              query_half_life_days: number;
+              /** Format: double */
+              query_learning_cap: number;
+              /** Format: double */
+              secondary_field_cap: number;
+              /** Format: double */
+              secondary_field_multiplier: number;
+              version: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid workspace */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
   streamCmdPalette: {
     parameters: {
       query: {
@@ -31271,6 +31719,84 @@ export interface operations {
       };
       /** @description Invalid workspace */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command palette unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+    };
+  };
+  recordCmdPaletteUsage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          command_id: string;
+          query: string;
+          workspace: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Recorded */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            clients?: string[];
+            error: string;
+            fields?: {
+              [key: string]: string;
+            };
+            message?: string;
+            reason?: string;
+          };
+        };
+      };
+      /** @description Command not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };

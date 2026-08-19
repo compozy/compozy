@@ -70005,6 +70005,842 @@
         ]
       }
     },
+    "/api/cmd-palette/personalization": {
+      "delete": {
+        "operationId": "resetCmdPalettePersonalization",
+        "parameters": [
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Reset"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Reset command palette personalization",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "get": {
+        "operationId": "getCmdPalettePersonalization",
+        "parameters": [
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "frecency_entries": {
+                      "type": "integer"
+                    },
+                    "pins": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "query_associations": {
+                      "type": "integer"
+                    },
+                    "recents": {
+                      "type": "integer"
+                    },
+                    "workspace": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "frecency_entries",
+                    "pins",
+                    "query_associations",
+                    "recents",
+                    "workspace"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Get command palette personalization summary",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/cmd-palette/pins/{id}": {
+      "delete": {
+        "operationId": "unpinCmdPaletteCommand",
+        "parameters": [
+          {
+            "description": "Canonical command id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "pinned": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "pinned"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unpinned"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command not found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Unpin one command palette command",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "put": {
+        "operationId": "pinCmdPaletteCommand",
+        "parameters": [
+          {
+            "description": "Canonical command id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "pinned": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "pinned"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Pinned"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command not found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Pin one command palette command",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/cmd-palette/rank-signals": {
+      "get": {
+        "operationId": "getCmdPaletteRankSignals",
+        "parameters": [
+          {
+            "description": "Workspace id, name, or path",
+            "in": "query",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "pins": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "query_hits": {
+                      "items": {
+                        "properties": {
+                          "command_id": {
+                            "type": "string"
+                          },
+                          "query": {
+                            "type": "string"
+                          },
+                          "weight": {
+                            "format": "double",
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "command_id",
+                          "query",
+                          "weight"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "revision": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "items": {
+                        "properties": {
+                          "command_id": {
+                            "type": "string"
+                          },
+                          "last_used_at": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "weight": {
+                            "format": "double",
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "command_id",
+                          "last_used_at",
+                          "weight"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "weights": {
+                      "properties": {
+                        "context_boost": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "deadband": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "domain_view_mount_cap": {
+                          "type": "integer"
+                        },
+                        "entity_section_visible_cap": {
+                          "type": "integer"
+                        },
+                        "fallback_weak_match_threshold": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "frecency_cap": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "frecency_half_life_days": {
+                          "type": "integer"
+                        },
+                        "frecency_scale": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "ghost_min_score": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "group_order": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "match_alias_exact": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_compact_prefix": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_contains": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_exact": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_prefix": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_subsequence_max": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_subsequence_min": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_token_prefix": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_word_boundary_max": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "match_word_boundary_min": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "max_query_length": {
+                          "type": "integer"
+                        },
+                        "min_entity_query_length": {
+                          "type": "integer"
+                        },
+                        "promotion_command_floor": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "promotion_default_floor": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "promotion_path_floor": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "promotion_tab_floor": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "prune_after_days": {
+                          "type": "integer"
+                        },
+                        "prune_threshold": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "query_half_life_days": {
+                          "type": "integer"
+                        },
+                        "query_learning_cap": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "secondary_field_cap": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "secondary_field_multiplier": {
+                          "format": "double",
+                          "type": "number"
+                        },
+                        "version": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "context_boost",
+                        "deadband",
+                        "domain_view_mount_cap",
+                        "entity_section_visible_cap",
+                        "fallback_weak_match_threshold",
+                        "frecency_cap",
+                        "frecency_half_life_days",
+                        "frecency_scale",
+                        "ghost_min_score",
+                        "group_order",
+                        "match_alias_exact",
+                        "match_compact_prefix",
+                        "match_contains",
+                        "match_exact",
+                        "match_prefix",
+                        "match_subsequence_max",
+                        "match_subsequence_min",
+                        "match_token_prefix",
+                        "match_word_boundary_max",
+                        "match_word_boundary_min",
+                        "max_query_length",
+                        "min_entity_query_length",
+                        "promotion_command_floor",
+                        "promotion_default_floor",
+                        "promotion_path_floor",
+                        "promotion_tab_floor",
+                        "prune_after_days",
+                        "prune_threshold",
+                        "query_half_life_days",
+                        "query_learning_cap",
+                        "secondary_field_cap",
+                        "secondary_field_multiplier",
+                        "version"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "pins",
+                    "query_hits",
+                    "revision",
+                    "usage",
+                    "weights"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid workspace"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Get command palette rank signals",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/cmd-palette/stream": {
       "get": {
         "operationId": "streamCmdPalette",
@@ -70116,6 +70952,159 @@
           }
         },
         "summary": "Stream command palette catalog invalidations",
+        "tags": [
+          "cmd-palette"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/cmd-palette/usage": {
+      "post": {
+        "operationId": "recordCmdPaletteUsage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "command_id": {
+                    "type": "string"
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "workspace": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "command_id",
+                  "query",
+                  "workspace"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command not found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "fields": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Command palette unavailable"
+          }
+        },
+        "summary": "Record command palette usage",
         "tags": [
           "cmd-palette"
         ],

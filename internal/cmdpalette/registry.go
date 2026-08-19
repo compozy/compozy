@@ -3,6 +3,7 @@ package cmdpalette
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -11,12 +12,15 @@ import (
 )
 
 type Service struct {
-	providers []ProviderRegistration
-	clients   ClientDirectory
-	bindings  BindingsResolver
-	executor  ActionExecutor
-	newID     func() string
-	now       func() time.Time
+	providers       []ProviderRegistration
+	clients         ClientDirectory
+	bindings        BindingsResolver
+	executor        ActionExecutor
+	newID           func() string
+	now             func() time.Time
+	personalization PersonalizationStore
+	logger          *slog.Logger
+	degradedOnce    sync.Once
 
 	eventRecorder    EventRecorder
 	eventMu          sync.Mutex
@@ -59,6 +63,26 @@ func WithClock(clock func() time.Time) Option {
 	}
 }
 
+func WithPersonalizationStore(store PersonalizationStore) Option {
+	return func(service *Service) error {
+		if store == nil {
+			return errors.New("cmd palette: personalization store is required")
+		}
+		service.personalization = store
+		return nil
+	}
+}
+
+func WithLogger(logger *slog.Logger) Option {
+	return func(service *Service) error {
+		if logger == nil {
+			return errors.New("cmd palette: logger is required")
+		}
+		service.logger = logger
+		return nil
+	}
+}
+
 func NewRegistry(
 	providers []ProviderRegistration,
 	clients ClientDirectory,
@@ -79,6 +103,7 @@ func NewRegistry(
 		executor:         executor,
 		newID:            func() string { return "inv_" + uuid.NewString() },
 		now:              time.Now,
+		logger:           slog.Default(),
 		flights:          make(map[string]struct{}),
 		eventSubscribers: make(map[uint64]eventSubscription),
 	}

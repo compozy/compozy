@@ -4,63 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 )
 
 func (s *Service) Invoke(ctx context.Context, request InvokeRequest) (InvokeResult, error) {
-	if ctx == nil {
-		return InvokeResult{}, errors.New("cmd palette: invoke context is required")
-	}
-	if request.WorkspaceID == "" {
-		return InvokeResult{}, errors.New("cmd palette: workspace ID is required")
-	}
-	if request.CommandID == "" {
-		return InvokeResult{}, fmt.Errorf("%w: empty command id", ErrCommandNotFound)
-	}
-	baseCatalog, err := s.Catalog(ctx, request.WorkspaceID, "")
+	execution, resolved, err := s.prepareInvocation(ctx, request)
 	if err != nil {
-		return InvokeResult{}, err
-	}
-	command, exists := findCommand(baseCatalog.Commands, request.CommandID)
-	if !exists {
-		return InvokeResult{}, fmt.Errorf("%w: unknown command: %s", ErrCommandNotFound, request.CommandID)
-	}
-	if fields := validateInvocationArguments(command.Arguments, request.Args); len(fields) > 0 {
-		return InvokeResult{}, &InvalidArgumentsError{Fields: fields}
-	}
-	clientID, err := s.resolveInvocationClient(ctx, request, command.Descriptor)
-	if err != nil {
-		return InvokeResult{}, err
-	}
-	request.ClientID = clientID
-	if err := s.authorizeInvocationClient(ctx, request); err != nil {
-		return InvokeResult{}, err
-	}
-	resolvedCatalog, err := s.Catalog(ctx, request.WorkspaceID, clientID)
-	if err != nil {
-		return InvokeResult{}, err
-	}
-	resolved, exists := findCommand(resolvedCatalog.Commands, request.CommandID)
-	if !exists {
-		return InvokeResult{}, fmt.Errorf("%w: unknown command: %s", ErrCommandNotFound, request.CommandID)
-	}
-	if !resolved.Available {
-		return InvokeResult{}, &UnavailableError{Reason: resolved.UnavailableReason}
-	}
-	invocationID := strings.TrimSpace(s.newID())
-	if invocationID == "" {
-		return InvokeResult{}, errors.New("cmd palette: generated invocation ID is empty")
-	}
-	execution := ExecutionRequest{
-		WorkspaceID:  request.WorkspaceID,
-		InvocationID: invocationID,
-		ClientID:     clientID,
-		Descriptor:   cloneDescriptor(resolved.Descriptor),
-		Args:         cloneAnyMap(request.Args),
-	}
-	if err := s.rejectDeferredSecrets(ctx, execution); err != nil {
 		return InvokeResult{}, err
 	}
 	guarded := resolved.Policy.SingleFlight
@@ -77,36 +29,112 @@ func (s *Service) Invoke(ctx context.Context, request InvokeRequest) (InvokeResu
 		return InvokeResult{}, err
 	}
 	if result.ApprovalID != "" {
-		if result.Completion == nil {
-			if guarded {
-				s.releaseFlight(request.WorkspaceID, request.CommandID)
-			}
-			return InvokeResult{}, fmt.Errorf("%w: approval-pending result requires completion fence", ErrInvalidExecution)
-		}
-		if guarded {
-			go s.releaseFlightOnCompletion(request.WorkspaceID, request.CommandID, result.Completion)
-		}
-		if reader, ok := s.executor.(ApprovalCompletionReader); ok {
-			go s.emitApprovalCompletion(execution, result.ApprovalID, startedAt, result.Completion, reader)
-		}
-		return InvokeResult{
-			Status:       InvokeStatusApprovalPending,
-			ApprovalID:   result.ApprovalID,
-			InvocationID: invocationID,
-		}, nil
+		return s.pendingApprovalResult(ctx, execution, resolved, result, startedAt)
 	}
 	if guarded {
 		s.releaseFlight(request.WorkspaceID, request.CommandID)
 	}
+	s.recordDaemonUsage(ctx, execution)
 	s.emitInvocation(ctx, execution, "ok", "", startedAt)
 	return InvokeResult{
-		Status:       InvokeStatusOK,
-		Result:       append([]byte(nil), result.Result...),
+		Status: InvokeStatusOK, Result: append([]byte(nil), result.Result...), InvocationID: execution.InvocationID,
+	}, nil
+}
+
+func (s *Service) prepareInvocation(
+	ctx context.Context,
+	request InvokeRequest,
+) (ExecutionRequest, ResolvedCommand, error) {
+	if ctx == nil {
+		return ExecutionRequest{}, ResolvedCommand{}, errors.New("cmd palette: invoke context is required")
+	}
+	if request.WorkspaceID == "" {
+		return ExecutionRequest{}, ResolvedCommand{}, errors.New("cmd palette: workspace ID is required")
+	}
+	if request.CommandID == "" {
+		return ExecutionRequest{}, ResolvedCommand{}, fmt.Errorf("%w: empty command id", ErrCommandNotFound)
+	}
+	baseCatalog, err := s.Catalog(ctx, request.WorkspaceID, "")
+	if err != nil {
+		return ExecutionRequest{}, ResolvedCommand{}, err
+	}
+	command, exists := findCommand(baseCatalog.Commands, request.CommandID)
+	if !exists {
+		return ExecutionRequest{}, ResolvedCommand{}, fmt.Errorf(
+			"%w: unknown command: %s", ErrCommandNotFound, request.CommandID,
+		)
+	}
+	if fields := validateInvocationArguments(command.Arguments, request.Args); len(fields) > 0 {
+		return ExecutionRequest{}, ResolvedCommand{}, &InvalidArgumentsError{Fields: fields}
+	}
+	clientID, err := s.resolveInvocationClient(ctx, request, command.Descriptor)
+	if err != nil {
+		return ExecutionRequest{}, ResolvedCommand{}, err
+	}
+	request.ClientID = clientID
+	if err := s.authorizeInvocationClient(ctx, request); err != nil {
+		return ExecutionRequest{}, ResolvedCommand{}, err
+	}
+	resolvedCatalog, err := s.Catalog(ctx, request.WorkspaceID, clientID)
+	if err != nil {
+		return ExecutionRequest{}, ResolvedCommand{}, err
+	}
+	resolved, exists := findCommand(resolvedCatalog.Commands, request.CommandID)
+	if !exists {
+		return ExecutionRequest{}, ResolvedCommand{}, fmt.Errorf(
+			"%w: unknown command: %s", ErrCommandNotFound, request.CommandID,
+		)
+	}
+	if !resolved.Available {
+		return ExecutionRequest{}, ResolvedCommand{}, &UnavailableError{Reason: resolved.UnavailableReason}
+	}
+	invocationID := strings.TrimSpace(s.newID())
+	if invocationID == "" {
+		return ExecutionRequest{}, ResolvedCommand{}, errors.New("cmd palette: generated invocation ID is empty")
+	}
+	execution := ExecutionRequest{
+		WorkspaceID:  request.WorkspaceID,
 		InvocationID: invocationID,
+		ClientID:     clientID,
+		Descriptor:   cloneDescriptor(resolved.Descriptor),
+		Args:         cloneAnyMap(request.Args),
+	}
+	if err := s.rejectDeferredSecrets(ctx, execution); err != nil {
+		return ExecutionRequest{}, ResolvedCommand{}, err
+	}
+	return execution, resolved, nil
+}
+
+func (s *Service) pendingApprovalResult(
+	ctx context.Context,
+	execution ExecutionRequest,
+	resolved ResolvedCommand,
+	result ExecutionResult,
+	startedAt time.Time,
+) (InvokeResult, error) {
+	if result.Completion == nil {
+		if resolved.Policy.SingleFlight {
+			s.releaseFlight(execution.WorkspaceID, execution.Descriptor.ID)
+		}
+		return InvokeResult{}, fmt.Errorf(
+			"%w: approval-pending result requires completion fence", ErrInvalidExecution,
+		)
+	}
+	if resolved.Policy.SingleFlight {
+		go s.releaseFlightOnCompletion(execution.WorkspaceID, execution.Descriptor.ID, result.Completion)
+	}
+	if reader, ok := s.executor.(ApprovalCompletionReader); ok {
+		go s.emitApprovalCompletion(
+			context.WithoutCancel(ctx), execution, result.ApprovalID, startedAt, result.Completion, reader,
+		)
+	}
+	return InvokeResult{
+		Status: InvokeStatusApprovalPending, ApprovalID: result.ApprovalID, InvocationID: execution.InvocationID,
 	}, nil
 }
 
 func (s *Service) emitApprovalCompletion(
+	ctx context.Context,
 	execution ExecutionRequest,
 	approvalID string,
 	startedAt time.Time,
@@ -114,11 +142,14 @@ func (s *Service) emitApprovalCompletion(
 	reader ApprovalCompletionReader,
 ) {
 	<-completion
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	outcome, err := reader.ApprovalCompletionStatus(ctx, approvalID)
 	if err != nil || outcome == "" {
 		return
+	}
+	if outcome == "completed" {
+		s.recordDaemonUsage(ctx, execution)
 	}
 	s.emitInvocation(ctx, execution, outcome, approvalID, startedAt)
 }
@@ -281,12 +312,7 @@ func argumentValueMatches(argument Argument, value any) bool {
 		if !ok {
 			return false
 		}
-		for _, option := range argument.Options {
-			if selected == option {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(argument.Options, selected)
 	default:
 		return false
 	}

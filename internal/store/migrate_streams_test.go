@@ -258,6 +258,104 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 	}
 }
 
+// Suite: command-palette migration tail.
+// Invariant: 00069 remains the approval boundary and 00070 adds the three
+// workspace-scoped personalization tables plus their deletion trigger.
+// Owning layer: global migration stream. Canonical suite: this file.
+func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should upgrade 00069 to 00070 and cascade workspace personalization [IT-020]", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openStreamTestDB(t, "global-command-palette-tail.db")
+		stream := globaldb.MigrationStream()
+		stream.Bootstrap = nil
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 69)); err != nil {
+			t.Fatalf("Apply(global through 00069) error = %v", err)
+		}
+		if !sqliteTableExists(t, db, "tool_approval_pending") {
+			t.Fatal("tool_approval_pending missing at 00069")
+		}
+		for _, table := range []string{"cmd_palette_usage", "cmd_palette_query_hits", "cmd_palette_pins"} {
+			if sqliteTableExists(t, db, table) {
+				t.Fatalf("table %q exists before 00070", table)
+			}
+		}
+
+		if err := store.Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply(global through 00070) error = %v", err)
+		}
+		for _, table := range []string{"cmd_palette_usage", "cmd_palette_query_hits", "cmd_palette_pins"} {
+			if !sqliteTableExists(t, db, table) {
+				t.Fatalf("table %q missing after 00070", table)
+			}
+		}
+		var triggerCount int
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = ?`,
+			"cmd_palette_workspace_delete",
+		).Scan(&triggerCount); err != nil {
+			t.Fatalf("query command palette delete trigger: %v", err)
+		}
+		if triggerCount != 1 {
+			t.Fatalf("command palette delete trigger count = %d, want 1", triggerCount)
+		}
+
+		workspaceID := "workspace-migration-tail"
+		if _, err := db.ExecContext(ctx, `INSERT INTO workspaces (
+			id, root_dir, add_dirs, name, default_agent, sandbox_ref, created_at, updated_at
+		) VALUES (?, ?, '[]', ?, '', '', ?, ?)`,
+			workspaceID,
+			"/tmp/workspace-migration-tail",
+			"migration-tail",
+			"2026-08-19T12:00:00Z",
+			"2026-08-19T12:00:00Z",
+		); err != nil {
+			t.Fatalf("insert migration-tail workspace: %v", err)
+		}
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO cmd_palette_usage (
+				workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+			) VALUES (?, 'session.new', 1, 1, 1, 1)`, workspaceID,
+		); err != nil {
+			t.Fatalf("insert command palette usage: %v", err)
+		}
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO cmd_palette_query_hits (
+				workspace_id, query, command_id, weight, last_used_at
+			) VALUES (?, 'new', 'session.new', 1, 1)`, workspaceID,
+		); err != nil {
+			t.Fatalf("insert command palette query hit: %v", err)
+		}
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO cmd_palette_pins (workspace_id, command_id, pinned_at)
+			 VALUES (?, 'session.new', 1)`, workspaceID,
+		); err != nil {
+			t.Fatalf("insert command palette pin: %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID); err != nil {
+			t.Fatalf("delete migration-tail workspace: %v", err)
+		}
+		var remainingRows int
+		if err := db.QueryRowContext(ctx, `SELECT
+			(SELECT COUNT(*) FROM cmd_palette_usage WHERE workspace_id = ?) +
+			(SELECT COUNT(*) FROM cmd_palette_query_hits WHERE workspace_id = ?) +
+			(SELECT COUNT(*) FROM cmd_palette_pins WHERE workspace_id = ?)`,
+			workspaceID,
+			workspaceID,
+			workspaceID,
+		).Scan(&remainingRows); err != nil {
+			t.Fatalf("query command palette cascade count: %v", err)
+		}
+		if remainingRows != 0 {
+			t.Fatalf("command palette cascade count = %d, want 0", remainingRows)
+		}
+		assertSQLiteIntegrity(t, "global command palette migration tail", db)
+	})
+}
+
 func TestGlobalExtensionManifestV2Migration(t *testing.T) {
 	t.Run("Should migrate extension manifests to the v2 contract", func(t *testing.T) {
 		t.Parallel()

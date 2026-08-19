@@ -22,17 +22,44 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 	if err != nil {
 		return ClientView{}, err
 	}
+	prepared, err := m.prepareClientRegistration(snapshot, registration)
+	if err != nil {
+		return ClientView{}, err
+	}
+	stored, changed, err := m.storeRegisteredClient(snapshot, registration, prepared)
+	if err != nil {
+		return ClientView{}, err
+	}
+	if changed {
+		m.publishClient(stored)
+	}
+	result := cloneClientView(stored)
+	result.AttachmentToken = prepared.token
+	return result, nil
+}
+
+type preparedClientRegistration struct {
+	clientID ClientID
+	kind     ClientKind
+	token    string
+	digest   [32]byte
+}
+
+func (m *Manager) prepareClientRegistration(
+	snapshot Snapshot,
+	registration ClientRegistration,
+) (preparedClientRegistration, error) {
 	clientID := registration.ClientID
 	if clientID == "" {
 		generated, generateErr := m.generate("client")
 		if generateErr != nil {
-			return ClientView{}, fmt.Errorf("generate client ID: %w", generateErr)
+			return preparedClientRegistration{}, fmt.Errorf("generate client ID: %w", generateErr)
 		}
 		clientID = ClientID(generated)
 	}
 	if registration.ActiveDesktopID != "" {
 		if _, exists := desktopIndexByID(&snapshot, registration.ActiveDesktopID); !exists {
-			return ClientView{}, fmt.Errorf(
+			return preparedClientRegistration{}, fmt.Errorf(
 				"desktop %q: %w",
 				registration.ActiveDesktopID,
 				ErrDesktopNotFound,
@@ -41,25 +68,34 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 	}
 	kind, err := normalizeClientKind(registration.Kind)
 	if err != nil {
-		return ClientView{}, err
+		return preparedClientRegistration{}, err
 	}
 	token, digest, err := newAttachmentToken()
 	if err != nil {
-		return ClientView{}, fmt.Errorf("mint client attachment token: %w", err)
+		return preparedClientRegistration{}, fmt.Errorf("mint client attachment token: %w", err)
 	}
+	return preparedClientRegistration{clientID: clientID, kind: kind, token: token, digest: digest}, nil
+}
+
+func (m *Manager) storeRegisteredClient(
+	snapshot Snapshot,
+	registration ClientRegistration,
+	prepared preparedClientRegistration,
+) (ClientView, bool, error) {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	workspaceClients := m.clients[registration.WorkspaceID]
 	if workspaceClients == nil {
 		workspaceClients = make(map[ClientID]ClientView)
 		m.clients[registration.WorkspaceID] = workspaceClients
 	}
-	view, exists := workspaceClients[clientID]
+	view, exists := workspaceClients[prepared.clientID]
 	var before ClientView
 	if !exists {
 		view = ClientView{
 			WorkspaceID:          registration.WorkspaceID,
-			ClientID:             clientID,
-			Kind:                 kind,
+			ClientID:             prepared.clientID,
+			Kind:                 prepared.kind,
 			PresentationRevision: 1,
 			ContextRevision:      1,
 			ConnectedAt:          m.now().UTC(),
@@ -69,7 +105,7 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 	} else {
 		before = cloneClientView(view)
 	}
-	view.Kind = kind
+	view.Kind = prepared.kind
 	activeID := registration.ActiveDesktopID
 	if activeID == "" {
 		if exists {
@@ -85,39 +121,34 @@ func (m *Manager) RegisterClient(ctx context.Context, registration ClientRegistr
 	view.PaletteContext.DestinationIntent = cloneRouteIntentPointer(registration.Context.DestinationIntent)
 	view = repairClientView(view, snapshot)
 	changed := !exists || !clientViewsEqual(before, view)
-	contextChanged := !exists || before.Kind != view.Kind || !paletteContextsEqual(before.PaletteContext, view.PaletteContext)
+	contextChanged := !exists || before.Kind != view.Kind ||
+		!paletteContextsEqual(before.PaletteContext, view.PaletteContext)
 	if exists && changed {
 		next, revisionErr := nextPresentationRevision(before.PresentationRevision)
 		if revisionErr != nil {
-			m.mu.Unlock()
-			return ClientView{}, fmt.Errorf("advance client %q: %w", clientID, revisionErr)
+			return ClientView{}, false, fmt.Errorf("advance client %q: %w", prepared.clientID, revisionErr)
 		}
 		view.PresentationRevision = next
 	}
 	if exists && contextChanged {
 		next, revisionErr := nextContextRevision(before.ContextRevision)
 		if revisionErr != nil {
-			m.mu.Unlock()
-			return ClientView{}, fmt.Errorf("advance client %q context: %w", clientID, revisionErr)
+			return ClientView{}, false, fmt.Errorf(
+				"advance client %q context: %w", prepared.clientID, revisionErr,
+			)
 		}
 		view.ContextRevision = next
 	}
 	stored := cloneClientView(view)
 	stored.AttachmentToken = ""
-	workspaceClients[clientID] = stored
+	workspaceClients[prepared.clientID] = stored
 	workspaceTokens := m.clientTokens[registration.WorkspaceID]
 	if workspaceTokens == nil {
 		workspaceTokens = make(map[ClientID][32]byte)
 		m.clientTokens[registration.WorkspaceID] = workspaceTokens
 	}
-	workspaceTokens[clientID] = digest
-	m.mu.Unlock()
-	if changed {
-		m.publishClient(stored)
-	}
-	result := cloneClientView(stored)
-	result.AttachmentToken = token
-	return result, nil
+	workspaceTokens[prepared.clientID] = prepared.digest
+	return stored, changed, nil
 }
 
 // UnregisterClient removes transient presentation state only.
@@ -243,43 +274,9 @@ func (m *Manager) applyPresentation(
 	}
 	view = cloneClientView(view)
 	before := cloneClientView(view)
-	switch command := request.Payload.(type) {
-	case SwitchDesktopCommand:
-		if _, exists := desktopIndexByID(&snapshot, command.DesktopID); !exists {
-			return ClientView{}, false, ChangeSet{}, fmt.Errorf("desktop %q: %w", command.DesktopID, ErrDesktopNotFound)
-		}
-		view.ActiveDesktopID = command.DesktopID
-		view = repairClientView(view, snapshot)
-	case FocusWindowCommand:
-		focused, focusErr := resolveFocusTarget(view, snapshot, command)
-		if focusErr != nil {
-			return ClientView{}, false, ChangeSet{}, focusErr
-		}
-		if focused != "" {
-			// Focusing a window on another desktop activates that desktop for the client.
-			if window, exists := snapshot.Windows[focused]; exists &&
-				window.DesktopID != view.ActiveDesktopID {
-				view.ActiveDesktopID = window.DesktopID
-			}
-			view.FocusedWindowID = &focused
-			view.FocusOrder = prependFocus(view.FocusOrder, focused)
-			if location, stacked := findStackByWindow(&snapshot, focused); stacked {
-				if view.StackActive == nil {
-					view.StackActive = make(map[NodeID]WindowID)
-				}
-				view.StackActive[location.id()] = focused
-				if persist {
-					m.noteStackActive(request.WorkspaceID, location.id(), focused)
-				}
-			}
-			view = repairClientView(view, snapshot)
-		}
-	default:
-		return ClientView{}, false, ChangeSet{}, fmt.Errorf(
-			"command %T is not presentation state: %w",
-			request.Payload,
-			ErrInvalidCommand,
-		)
+	view, err := m.applyPresentationCommand(snapshot, request, view, persist)
+	if err != nil {
+		return ClientView{}, false, ChangeSet{}, err
 	}
 	changed := !clientViewsEqual(before, view)
 	if changed {
@@ -312,6 +309,53 @@ func (m *Manager) applyPresentation(
 		changes.ClientIDs = []ClientID{view.ClientID}
 	}
 	return cloneClientView(view), changed, changes, nil
+}
+
+func (m *Manager) applyPresentationCommand(
+	snapshot Snapshot,
+	request CommandRequest,
+	view ClientView,
+	persist bool,
+) (ClientView, error) {
+	switch command := request.Payload.(type) {
+	case SwitchDesktopCommand:
+		if _, exists := desktopIndexByID(&snapshot, command.DesktopID); !exists {
+			return ClientView{}, fmt.Errorf("desktop %q: %w", command.DesktopID, ErrDesktopNotFound)
+		}
+		view.ActiveDesktopID = command.DesktopID
+		view = repairClientView(view, snapshot)
+	case FocusWindowCommand:
+		focused, focusErr := resolveFocusTarget(view, snapshot, command)
+		if focusErr != nil {
+			return ClientView{}, focusErr
+		}
+		if focused != "" {
+			// Focusing a window on another desktop activates that desktop for the client.
+			if window, exists := snapshot.Windows[focused]; exists &&
+				window.DesktopID != view.ActiveDesktopID {
+				view.ActiveDesktopID = window.DesktopID
+			}
+			view.FocusedWindowID = &focused
+			view.FocusOrder = prependFocus(view.FocusOrder, focused)
+			if location, stacked := findStackByWindow(&snapshot, focused); stacked {
+				if view.StackActive == nil {
+					view.StackActive = make(map[NodeID]WindowID)
+				}
+				view.StackActive[location.id()] = focused
+				if persist {
+					m.noteStackActive(request.WorkspaceID, location.id(), focused)
+				}
+			}
+			view = repairClientView(view, snapshot)
+		}
+	default:
+		return ClientView{}, fmt.Errorf(
+			"command %T is not presentation state: %w",
+			request.Payload,
+			ErrInvalidCommand,
+		)
+	}
+	return view, nil
 }
 
 func resolveFocusTarget(view ClientView, snapshot Snapshot, command FocusWindowCommand) (WindowID, error) {

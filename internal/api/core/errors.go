@@ -477,7 +477,7 @@ func openAIErrorTypeForStatus(status int) string {
 func openAIErrorCodeForStatus(status int) string {
 	switch status {
 	case http.StatusBadRequest:
-		return "invalid_request"
+		return cmdPaletteInvalidRequestError
 	case http.StatusUnauthorized:
 		return "unauthorized"
 	case http.StatusForbidden:

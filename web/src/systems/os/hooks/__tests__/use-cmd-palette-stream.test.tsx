@@ -101,9 +101,17 @@ describe("useCmdPaletteStream (UT-104)", () => {
       catalog_revision: "sha256:catalog-2",
     });
     await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["cmd-palette", "catalog", WORKSPACE],
-    });
+    const call = invalidate.mock.calls[0]?.[0];
+    expect(call).toEqual({ predicate: expect.any(Function) });
+    expect(
+      call?.predicate?.({ queryKey: ["cmd-palette", "catalog", WORKSPACE, "client-a"] } as never)
+    ).toBe(true);
+    expect(
+      call?.predicate?.({ queryKey: ["cmd-palette", "rank-signals", WORKSPACE] } as never)
+    ).toBe(true);
+    expect(call?.predicate?.({ queryKey: ["cmd-palette", "catalog", "ws-other"] } as never)).toBe(
+      false
+    );
   });
 
   it("Should reconcile on open because the stream carries no replay cursor", async () => {

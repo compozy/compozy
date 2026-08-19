@@ -20,7 +20,7 @@ func loopInspectOutputBundle(response *contract.LoopResponse) outputBundle {
 		definition := renderHumanSection("Loop", []keyValue{
 			{Label: automationNameValue, Value: response.Loop.Name},
 			{Label: versionValue, Value: strconv.Itoa(response.Loop.Version)},
-			{Label: "Source", Value: string(response.Loop.Source)},
+			{Label: authoredContextSourceValue, Value: string(response.Loop.Source)},
 		})
 		defaults := renderHumanSection("Effective lifecycle defaults", []keyValue{
 			{Label: "Retry attempts", Value: strconv.Itoa(lifecycle.RetryMaxAttempts)},

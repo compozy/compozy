@@ -59,6 +59,36 @@ type CmdPaletteCatalogChangedEvent struct {
 	CatalogRevision string                 `json:"catalog_revision"`
 }
 
+type CmdPaletteUsageRequest struct {
+	Workspace string               `json:"workspace"`
+	CommandID cmdpalette.CommandID `json:"command_id"`
+	Query     string               `json:"query"`
+}
+
+type CmdPalettePinResponse struct {
+	Pinned bool `json:"pinned"`
+}
+
+type CmdPaletteRankSignalsResponse struct {
+	Weights   cmdpalette.Weights       `json:"weights"`
+	Usage     []cmdpalette.UsageSignal `json:"usage"`
+	QueryHits []cmdpalette.QueryHit    `json:"query_hits"`
+	Pins      []cmdpalette.CommandID   `json:"pins"`
+	Revision  string                   `json:"revision"`
+}
+
+type CmdPalettePersonalizationResponse struct {
+	Workspace         cmdpalette.WorkspaceID `json:"workspace"`
+	Pins              []cmdpalette.CommandID `json:"pins"`
+	Recents           int                    `json:"recents"`
+	FrecencyEntries   int                    `json:"frecency_entries"`
+	QueryAssociations int                    `json:"query_associations"`
+}
+
+type CmdPalettePersonalizationResetResponse struct {
+	Status string `json:"status"`
+}
+
 type CmdPaletteError struct {
 	Error   string                `json:"error"`
 	Message string                `json:"message,omitempty"`
@@ -103,6 +133,28 @@ func CmdPaletteClientsFromDomain(clients []cmdpalette.Client) []CmdPaletteClient
 		})
 	}
 	return result
+}
+
+func CmdPaletteRankSignalsFromDomain(snapshot cmdpalette.Snapshot) CmdPaletteRankSignalsResponse {
+	pins := make([]cmdpalette.CommandID, 0, len(snapshot.Pins))
+	for _, pin := range snapshot.Pins {
+		pins = append(pins, pin.CommandID)
+	}
+	return CmdPaletteRankSignalsResponse{
+		Weights: snapshot.Weights, Usage: append([]cmdpalette.UsageSignal(nil), snapshot.Usage...),
+		QueryHits: append([]cmdpalette.QueryHit(nil), snapshot.QueryHits...),
+		Pins:      pins, Revision: snapshot.Revision,
+	}
+}
+
+func CmdPalettePersonalizationFromDomain(
+	summary cmdpalette.PersonalizationSummary,
+) CmdPalettePersonalizationResponse {
+	return CmdPalettePersonalizationResponse{
+		Workspace: summary.Workspace, Pins: append([]cmdpalette.CommandID(nil), summary.Pins...),
+		Recents: summary.Recents, FrecencyEntries: summary.FrecencyEntries,
+		QueryAssociations: summary.QueryAssociations,
+	}
 }
 
 func ToolApprovalStatusFromDomain(status toolspkg.ApprovalStatus) ToolApprovalStatusResponse {

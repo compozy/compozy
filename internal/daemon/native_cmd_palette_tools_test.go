@@ -44,6 +44,47 @@ func (s *nativeCmdPaletteRegistryStub) Invoke(
 	return s.invokeResult, nil
 }
 
+func (s *nativeCmdPaletteRegistryStub) RecordUsage(context.Context, cmdpalette.Usage) error {
+	return errors.New("unexpected RecordUsage call")
+}
+
+func (s *nativeCmdPaletteRegistryStub) Personalization(
+	context.Context,
+	cmdpalette.WorkspaceID,
+) (cmdpalette.Snapshot, error) {
+	return cmdpalette.Snapshot{}, errors.New("unexpected Personalization call")
+}
+
+func (s *nativeCmdPaletteRegistryStub) PersonalizationSummary(
+	context.Context,
+	cmdpalette.WorkspaceID,
+) (cmdpalette.PersonalizationSummary, error) {
+	return cmdpalette.PersonalizationSummary{}, errors.New("unexpected PersonalizationSummary call")
+}
+
+func (s *nativeCmdPaletteRegistryStub) ResetPersonalization(
+	context.Context,
+	cmdpalette.WorkspaceID,
+) error {
+	return errors.New("unexpected ResetPersonalization call")
+}
+
+func (s *nativeCmdPaletteRegistryStub) Pin(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.CommandID,
+) error {
+	return errors.New("unexpected Pin call")
+}
+
+func (s *nativeCmdPaletteRegistryStub) Unpin(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.CommandID,
+) error {
+	return errors.New("unexpected Unpin call")
+}
+
 type nativeCmdPaletteWorkspaceStub struct {
 	core.WorkspaceService
 	resolved map[string]string
@@ -75,9 +116,15 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 	t.Run("Should return the catalog command set with source filtering [UT-011]", func(t *testing.T) {
 		t.Parallel()
 		registry := &nativeCmdPaletteRegistryStub{catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
-			{Descriptor: cmdpalette.Descriptor{ID: "core.sessions.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore}}},
+			{
+				Descriptor: cmdpalette.Descriptor{
+					ID:     "core.sessions.new",
+					Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				},
+			},
 			{Descriptor: cmdpalette.Descriptor{
-				ID: "ext.notes.capture", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindExtension, Extension: "notes"},
+				ID:     "ext.notes.capture",
+				Source: cmdpalette.Source{Kind: cmdpalette.SourceKindExtension, Extension: "notes"},
 			}},
 		}}}
 		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
@@ -156,65 +203,68 @@ func TestNativeCmdPaletteTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should honor the real tool approval gate before native dispatch [IT-021][E2E-024][E2E-026]", func(t *testing.T) {
-		t.Parallel()
-		completion := make(chan struct{})
-		t.Cleanup(func() { close(completion) })
-		coordinator := &recordingCmdPaletteApprovalCoordinator{ticket: toolspkg.ApprovalTicket{
-			ApprovalID: "approval-native", InvocationID: "invocation-native", Completion: completion,
-		}}
-		toolRegistry := &recordingCmdPaletteToolRegistry{approvalRequired: true}
-		executor := &cmdPaletteActionExecutor{
-			tools: toolRegistry, approvals: coordinator, now: time.Now, approvalTTL: time.Minute,
-		}
-		descriptor := cmdpalette.Descriptor{
-			ID: "notes.purge", Title: "Purge notes", Section: "Notes", Icon: "trash-2",
-			Source:    cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
-			Action:    cmdpalette.Action{Kind: cmdpalette.ActionKindTool, Tool: "compozy__notes_purge"},
-			Arguments: []cmdpalette.Argument{}, Destructive: true,
-			Confirmation: &cmdpalette.Confirmation{Title: "Purge notes?", Confirm: "Purge"},
-			Policy:       cmdpalette.ExecutionPolicy{SingleFlight: true},
-		}
-		registry, err := cmdpalette.NewRegistry(
-			[]cmdpalette.ProviderRegistration{{
-				Source:   descriptor.Source,
-				Provider: nativeCmdPaletteStaticProvider{commands: []cmdpalette.Descriptor{descriptor}},
-			}},
-			nil,
-			nil,
-			executor,
-			cmdpalette.WithInvocationIDGenerator(func() string { return "invocation-native" }),
-		)
-		if err != nil {
-			t.Fatalf("NewRegistry() error = %v", err)
-		}
-		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
-			CmdPalette: func() cmdpalette.Registry { return registry },
-			Workspaces: &nativeCmdPaletteWorkspaceStub{resolved: map[string]string{"acme": "workspace-1"}},
-		}}
-		result, err := tools.cmdPaletteInvoke(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDCmdPaletteInvoke,
-			Input:  json.RawMessage(`{"id":"notes.purge","workspace":"acme"}`),
-		})
-		if err != nil {
-			t.Fatalf("cmdPaletteInvoke() error = %v", err)
-		}
-		var payload contract.CmdPaletteInvokeResult
-		if err := json.Unmarshal(result.Structured, &payload); err != nil {
-			t.Fatalf("json.Unmarshal(result) error = %v", err)
-		}
-		if payload.Status != cmdpalette.InvokeStatusApprovalPending ||
-			payload.ApprovalID != "approval-native" ||
-			coordinator.request.Target.ToolID != "compozy__notes_purge" ||
-			toolRegistry.call.ToolID != "" {
-			t.Fatalf(
-				"native approval = payload %#v request %#v premature call %#v",
-				payload,
-				coordinator.request,
-				toolRegistry.call,
+	t.Run(
+		"Should honor the real tool approval gate before native dispatch [IT-021][E2E-024][E2E-026]",
+		func(t *testing.T) {
+			t.Parallel()
+			completion := make(chan struct{})
+			t.Cleanup(func() { close(completion) })
+			coordinator := &recordingCmdPaletteApprovalCoordinator{ticket: toolspkg.ApprovalTicket{
+				ApprovalID: "approval-native", InvocationID: "invocation-native", Completion: completion,
+			}}
+			toolRegistry := &recordingCmdPaletteToolRegistry{approvalRequired: true}
+			executor := &cmdPaletteActionExecutor{
+				tools: toolRegistry, approvals: coordinator, now: time.Now, approvalTTL: time.Minute,
+			}
+			descriptor := cmdpalette.Descriptor{
+				ID: "notes.purge", Title: "Purge notes", Section: "Notes", Icon: "trash-2",
+				Source:    cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				Action:    cmdpalette.Action{Kind: cmdpalette.ActionKindTool, Tool: "compozy__notes_purge"},
+				Arguments: []cmdpalette.Argument{}, Destructive: true,
+				Confirmation: &cmdpalette.Confirmation{Title: "Purge notes?", Confirm: "Purge"},
+				Policy:       cmdpalette.ExecutionPolicy{SingleFlight: true},
+			}
+			registry, err := cmdpalette.NewRegistry(
+				[]cmdpalette.ProviderRegistration{{
+					Source:   descriptor.Source,
+					Provider: nativeCmdPaletteStaticProvider{commands: []cmdpalette.Descriptor{descriptor}},
+				}},
+				nil,
+				nil,
+				executor,
+				cmdpalette.WithInvocationIDGenerator(func() string { return "invocation-native" }),
 			)
-		}
-	})
+			if err != nil {
+				t.Fatalf("NewRegistry() error = %v", err)
+			}
+			tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+				CmdPalette: func() cmdpalette.Registry { return registry },
+				Workspaces: &nativeCmdPaletteWorkspaceStub{resolved: map[string]string{"acme": "workspace-1"}},
+			}}
+			result, err := tools.cmdPaletteInvoke(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDCmdPaletteInvoke,
+				Input:  json.RawMessage(`{"id":"notes.purge","workspace":"acme"}`),
+			})
+			if err != nil {
+				t.Fatalf("cmdPaletteInvoke() error = %v", err)
+			}
+			var payload contract.CmdPaletteInvokeResult
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(result) error = %v", err)
+			}
+			if payload.Status != cmdpalette.InvokeStatusApprovalPending ||
+				payload.ApprovalID != "approval-native" ||
+				coordinator.request.Target.ToolID != "compozy__notes_purge" ||
+				toolRegistry.call.ToolID != "" {
+				t.Fatalf(
+					"native approval = payload %#v request %#v premature call %#v",
+					payload,
+					coordinator.request,
+					toolRegistry.call,
+				)
+			}
+		},
+	)
 }
 
 type nativeCmdPaletteStaticProvider struct {

@@ -38,7 +38,11 @@ func TestRegistryInvoke(t *testing.T) {
 			t.Fatalf("Invoke() error = %v, want UnavailableError", err)
 		}
 		if unavailable.Reason != catalog.Commands[0].UnavailableReason {
-			t.Fatalf("invoke reason = %q, catalog reason = %q", unavailable.Reason, catalog.Commands[0].UnavailableReason)
+			t.Fatalf(
+				"invoke reason = %q, catalog reason = %q",
+				unavailable.Reason,
+				catalog.Commands[0].UnavailableReason,
+			)
 		}
 	})
 
@@ -80,7 +84,11 @@ func TestRegistryInvoke(t *testing.T) {
 			descriptor.Policy = ExecutionPolicy{SingleFlight: true, RetrySafe: false}
 			started := make(chan struct{}, 1)
 			release := make(chan struct{})
-			executor := &testExecutor{started: started, release: release, result: ExecutionResult{Result: rawResult(map[string]bool{"ok": true})}}
+			executor := &testExecutor{
+				started: started,
+				release: release,
+				result:  ExecutionResult{Result: rawResult(map[string]bool{"ok": true})},
+			}
 			service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
 			firstDone := make(chan error, 1)
 			go func() {
@@ -109,12 +117,10 @@ func TestRegistryInvoke(t *testing.T) {
 			errorsByCall := make(chan error, 2)
 			var wait sync.WaitGroup
 			for range 2 {
-				wait.Add(1)
-				go func() {
-					defer wait.Done()
+				wait.Go(func() {
 					_, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
 					errorsByCall <- err
-				}()
+				})
 			}
 			<-started
 			<-started
@@ -174,10 +180,32 @@ func TestRegistryInvoke(t *testing.T) {
 		}
 	})
 
+	t.Run("Should record successful daemon usage without invocation arguments [UT-092]", func(t *testing.T) {
+		t.Parallel()
+		descriptor := testDescriptor("vault.unlock")
+		descriptor.Arguments = []Argument{{Name: "password", Type: ArgumentTypePassword, Required: true}}
+		store := &personalizationStoreStub{recordErr: errors.New("usage store unavailable")}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, &testExecutor{},
+			WithPersonalizationStore(store),
+		)
+		result, err := service.Invoke(t.Context(), InvokeRequest{
+			WorkspaceID: "workspace-a",
+			CommandID:   descriptor.ID,
+			Args:        map[string]any{"password": "never-persist-this"},
+		})
+		if err != nil || result.Status != InvokeStatusOK {
+			t.Fatalf("Invoke() = %#v, error = %v, want success despite usage failure", result, err)
+		}
+		if store.recorded.WorkspaceID != "workspace-a" || store.recorded.CommandID != descriptor.ID ||
+			store.recorded.Query != "" {
+			t.Fatalf("recorded usage = %#v, want identifiers and no argument-derived data", store.recorded)
+		}
+	})
+
 	t.Run("Should release approval-held single-flight on denial and timeout [IT-010]", func(t *testing.T) {
 		t.Parallel()
 		for _, outcome := range []string{"denial", "timeout"} {
-			outcome := outcome
 			t.Run("Should release after "+outcome, func(t *testing.T) {
 				t.Parallel()
 				descriptor := testDescriptor("note.purge." + CommandID(outcome))

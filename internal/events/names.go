@@ -153,8 +153,10 @@ const (
 	ToolApprovalGrantPut     = "tool.approval_grant_put"
 	ToolApprovalGrantRevoked = "tool.approval_grant_revoked"
 
-	CmdPaletteCatalogChanged = "cmd_palette.catalog.changed"
-	CmdPaletteCommandInvoked = "cmd_palette.command.invoked"
+	CmdPaletteCatalogChanged       = "cmd_palette.catalog.changed"
+	CmdPaletteCommandInvoked       = "cmd_palette.command.invoked"
+	CmdPalettePinChanged           = "cmd_palette.pin.changed"
+	CmdPalettePersonalizationReset = "cmd_palette.personalization.reset"
 
 	ProviderAuthRequired          = "provider.auth_required"
 	ProviderAuthRecovered         = "provider.auth_recovered"

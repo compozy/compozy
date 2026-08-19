@@ -20,9 +20,9 @@ func (e *cmdPaletteAPIError) Error() string {
 		return nilToolErrorString
 	}
 	switch e.payload.Error {
-	case "invalid_arguments":
+	case cmdPaletteInvalidArgs:
 		return cmdPaletteInvalidArgumentsMessage(e.payload.Fields)
-	case "no_attached_shell":
+	case cmdPaletteNoShell:
 		return "no attached shell client — " + strings.TrimSpace(e.payload.Message)
 	case "multiple_clients":
 		clients := make([]string, len(e.payload.Clients))
@@ -59,7 +59,7 @@ func parseCmdPaletteAPIError(statusCode int, status string, body []byte) (bool, 
 
 func cmdPaletteErrorCode(code string) bool {
 	switch strings.TrimSpace(code) {
-	case "command_not_found", "invalid_arguments", "command_unavailable", "no_attached_shell",
+	case "command_not_found", cmdPaletteInvalidArgs, "command_unavailable", cmdPaletteNoShell,
 		"multiple_clients", "already_running", "cannot_defer_secrets", "client_unauthorized",
 		"approval_not_found", "approval_terminal", "runtime_unavailable":
 		return true
@@ -71,7 +71,7 @@ func cmdPaletteErrorCode(code string) bool {
 func cmdPaletteInvalidArgumentsMessage(fields map[string]string) string {
 	if len(fields) == 1 {
 		for field, reason := range fields {
-			if reason == "required" {
+			if reason == configRequiredKey {
 				return fmt.Sprintf("invalid arguments — missing required %q", field)
 			}
 		}

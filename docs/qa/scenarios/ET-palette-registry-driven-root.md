@@ -20,3 +20,6 @@ Covers the P1 web absorption: one registry projection behind every command surfa
 resolved against this client's context, and honest degradation when the daemon is cold or
 reconnecting. Walk the disabled-with-reason and cross-surface parity paths explicitly — they are the
 invariants the projection exists to hold.
+
+2026-08-19 qa-impact: Ranking, personalization, ghost completion, and asynchronous entity sections
+changed this root journey. It remains `untested` for the task_12 tail QA walk.

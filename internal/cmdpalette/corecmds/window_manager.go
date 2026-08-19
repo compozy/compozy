@@ -47,13 +47,13 @@ func windowManagerCommands() []cmdpalette.Descriptor {
 		if _, exists := shellIDs[id]; exists {
 			continue
 		}
-		section := "Window"
-		icon := "panel-top"
+		section := coreSectionWindow
+		icon := coreIconPanelTop
 		switch {
 		case strings.HasPrefix(string(id), "desktop."):
-			section, icon = "Desktops", "monitor"
+			section, icon = coreSectionDesktops, coreIconMonitor
 		case strings.HasPrefix(string(id), "layout."):
-			section, icon = "Layout", "layout-grid"
+			section, icon = coreSectionLayout, "layout-grid"
 		}
 		command := clientCommand(id, windowManagerTitles[windowManagerID], section, icon)
 		command.When = clientContextRequirement(id)

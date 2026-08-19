@@ -110,7 +110,7 @@ func mcpServerDiagnosticItem(status contract.MCPServerStatusPayload) contract.Di
 
 func mcpServerDiagnosticSeverityAndCode(status contract.MCPServerStatusPayload) (string, string) {
 	switch strings.TrimSpace(status.RuntimeStatus) {
-	case "running":
+	case statusStateRunning:
 		return contract.SeverityOK, contract.CodeMCPServerReady
 	case "auth_required":
 		return contract.SeverityWarn, contract.CodeMCPAuthRequired

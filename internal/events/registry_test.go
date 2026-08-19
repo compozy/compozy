@@ -132,7 +132,12 @@ func TestRegistryMetadata(t *testing.T) {
 
 	t.Run("Should expose the workspace command-palette event family", func(t *testing.T) {
 		t.Parallel()
-		for _, name := range []string{CmdPaletteCatalogChanged, CmdPaletteCommandInvoked} {
+		for _, name := range []string{
+			CmdPaletteCatalogChanged,
+			CmdPaletteCommandInvoked,
+			CmdPalettePinChanged,
+			CmdPalettePersonalizationReset,
+		} {
 			metadata, ok := Lookup(name)
 			if !ok {
 				t.Fatalf("Lookup(%q) = false", name)

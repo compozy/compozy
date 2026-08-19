@@ -252,4 +252,10 @@ type Registry interface {
 	Catalog(context.Context, WorkspaceID, ClientID) (Catalog, error)
 	Clients(context.Context, WorkspaceID) ([]Client, error)
 	Invoke(context.Context, InvokeRequest) (InvokeResult, error)
+	RecordUsage(context.Context, Usage) error
+	Personalization(context.Context, WorkspaceID) (Snapshot, error)
+	PersonalizationSummary(context.Context, WorkspaceID) (PersonalizationSummary, error)
+	ResetPersonalization(context.Context, WorkspaceID) error
+	Pin(context.Context, WorkspaceID, CommandID) error
+	Unpin(context.Context, WorkspaceID, CommandID) error
 }

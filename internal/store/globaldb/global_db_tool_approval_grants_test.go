@@ -179,7 +179,6 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 			t.Fatalf("approval grant cascade count = %d, want 0", count)
 		}
 	})
-
 }
 
 func TestGlobalDBToolApprovalGrantMigration(t *testing.T) {

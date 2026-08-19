@@ -13,7 +13,9 @@ import { useCmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
 import { useOsPaletteRoot } from "../hooks/use-os-palette-root";
 import { useOsPaletteViewStack } from "../hooks/use-os-palette-view-stack";
 import { paletteViewDefinition } from "../lib/palette-view-registry";
+import { acceptGhostCompletion } from "../lib/ranking/ghost";
 import { OsPaletteEntitySections } from "./os-palette-entity-sections";
+import { OsPaletteDomainSections } from "./os-palette-domain-sections";
 import { OsPaletteFooter } from "./os-palette-footer";
 import { OsPaletteResults } from "./os-palette-results";
 import { OsPaletteViewStack } from "./os-palette-view-stack";
@@ -57,6 +59,7 @@ export function OsCommandPalette({ open, onOpenChange, dispatch }: OsCommandPale
     ...model.entities.sessions.map(session => `session:${session.sessionId}`),
     ...(model.destination ? [] : model.entities.tabs.map(tab => `tab:${tab.windowId}`)),
     ...(model.destination ? [] : model.entities.worktrees.map(entry => `worktree:${entry.key}`)),
+    ...model.domainSections.flatMap(section => section.rows.map(row => row.key)),
   ];
   const [selection, setSelection] = useState<{ previous: readonly string[]; value: string }>(
     () => ({ previous: values, value: values[0] ?? "" })
@@ -87,14 +90,38 @@ export function OsCommandPalette({ open, onOpenChange, dispatch }: OsCommandPale
           value={selected}
           onValueChange={next => setSelection({ previous: values, value: next })}
         >
-          <CommandInput
-            autoFocus
-            placeholder={
-              model.destination ? "Open in this tab…" : "Search apps, sessions, and actions…"
-            }
-            value={model.query}
-            onValueChange={model.setQuery}
-          />
+          <div className="relative">
+            <CommandInput
+              autoFocus
+              placeholder={
+                model.destination ? "Open in this tab…" : "Search apps, sessions, and actions…"
+              }
+              value={model.query}
+              onKeyDown={event => {
+                if (event.key !== "ArrowRight") return;
+                const accepted = acceptGhostCompletion(
+                  model.query,
+                  model.ghostTail,
+                  event.currentTarget.selectionStart,
+                  event.currentTarget.selectionEnd
+                );
+                if (accepted === null) return;
+                event.preventDefault();
+                model.setQuery(accepted);
+              }}
+              onValueChange={model.setQuery}
+            />
+            {model.ghostTail === null ? null : (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1 left-11 flex h-control-compact items-center text-small-body"
+                data-testid="os-palette-ghost"
+              >
+                <span className="invisible whitespace-pre">{model.query}</span>
+                <span className="whitespace-pre text-faint">{model.ghostTail}</span>
+              </div>
+            )}
+          </div>
           <CommandList className="max-h-[46vh] px-2 pb-3">
             {empty ? (
               <CommandEmpty data-testid="os-palette-empty">
@@ -113,6 +140,7 @@ export function OsCommandPalette({ open, onOpenChange, dispatch }: OsCommandPale
               onOpenSession={model.openSession}
               onSelectWorktree={model.selectWorktree}
             />
+            <OsPaletteDomainSections sections={model.domainSections} onOpen={model.openDomainRow} />
           </CommandList>
           <OsPaletteFooter enterHint={model.destination ? "open here" : "open"} />
         </Command>

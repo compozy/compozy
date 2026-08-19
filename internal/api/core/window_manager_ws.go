@@ -139,25 +139,7 @@ func (s *windowManagerSocket) run(ctx context.Context) error {
 	if err := s.configureReader(); err != nil {
 		return s.cleanup(nil, err, false)
 	}
-	fence := s.subscription.Fence()
-	snapshot, err := contract.WindowManagerSnapshotFromDomain(fence.Snapshot)
-	if err != nil {
-		encodeErr := fmt.Errorf("encode window-manager stream snapshot: %w", err)
-		return s.cleanup(nil, errors.Join(encodeErr, s.writeError(encodeErr)), false)
-	}
-	var client *contract.WindowManagerClientView
-	if fence.Client != nil {
-		converted, convertErr := contract.WindowManagerClientFromDomain(*fence.Client)
-		if convertErr != nil {
-			encodeErr := fmt.Errorf("encode window-manager stream client fence: %w", convertErr)
-			return s.cleanup(nil, errors.Join(encodeErr, s.writeError(encodeErr)), false)
-		}
-		client = &converted
-	}
-	if err := s.writeJSON(contract.WindowManagerSnapshotFrame{
-		Type: contract.WindowManagerFrameSnapshot, WorkspaceID: s.workspaceID,
-		Revision: snapshot.Revision, Snapshot: snapshot, Client: client,
-	}); err != nil {
+	if err := s.writeInitialFence(); err != nil {
 		return s.cleanup(nil, err, false)
 	}
 
@@ -174,22 +156,49 @@ func (s *windowManagerSocket) run(ctx context.Context) error {
 		clientCommandsDone = s.clientCommands.Done()
 	}
 
+	return s.runEventLoop(ctx, readDone, ticker.C, clientCommandUpdates, clientCommandsDone)
+}
+
+func (s *windowManagerSocket) writeInitialFence() error {
+	fence := s.subscription.Fence()
+	snapshot, err := contract.WindowManagerSnapshotFromDomain(fence.Snapshot)
+	if err != nil {
+		encodeErr := fmt.Errorf("encode window-manager stream snapshot: %w", err)
+		return errors.Join(encodeErr, s.writeError(encodeErr))
+	}
+	var client *contract.WindowManagerClientView
+	if fence.Client != nil {
+		converted, convertErr := contract.WindowManagerClientFromDomain(*fence.Client)
+		if convertErr != nil {
+			encodeErr := fmt.Errorf("encode window-manager stream client fence: %w", convertErr)
+			return errors.Join(encodeErr, s.writeError(encodeErr))
+		}
+		client = &converted
+	}
+	if err := s.writeJSON(contract.WindowManagerSnapshotFrame{
+		Type: contract.WindowManagerFrameSnapshot, WorkspaceID: s.workspaceID,
+		Revision: snapshot.Revision, Snapshot: snapshot, Client: client,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *windowManagerSocket) runEventLoop(
+	ctx context.Context,
+	readDone chan error,
+	pings <-chan time.Time,
+	clientCommandUpdates <-chan windowmanager.ClientCommand,
+	clientCommandsDone <-chan struct{},
+) error {
 	var readObserved bool
 	for {
 		select {
 		case update, ok := <-s.subscription.Updates():
 			if !ok {
-				runErr := s.subscription.Err()
-				if runErr != nil {
-					runErr = errors.Join(runErr, s.writeError(runErr))
-				}
-				return s.cleanup(readDone, runErr, readObserved)
+				return s.cleanup(readDone, s.subscriptionError(), readObserved)
 			}
-			encoded, convertErr := encodeWindowManagerUpdate(s.workspaceID, update)
-			if convertErr != nil {
-				return s.cleanup(readDone, errors.Join(convertErr, s.writeError(convertErr)), readObserved)
-			}
-			if writeErr := encoded.write(s); writeErr != nil {
+			if writeErr := s.writeSubscriptionUpdate(update); writeErr != nil {
 				return s.cleanup(readDone, writeErr, readObserved)
 			}
 		case command := <-clientCommandUpdates:
@@ -200,27 +209,11 @@ func (s *windowManagerSocket) run(ctx context.Context) error {
 				return s.cleanup(readDone, writeErr, readObserved)
 			}
 		case <-clientCommandsDone:
-			commandErr := s.clientCommands.Err()
-			if commandErr == nil {
-				commandErr = windowmanager.ErrClientDisconnected
-			}
-			if errors.Is(commandErr, windowmanager.ErrClientNotFound) ||
-				errors.Is(commandErr, windowmanager.ErrWorkspaceNotFound) ||
-				errors.Is(commandErr, windowmanager.ErrClosed) {
-				commandErr = errors.Join(commandErr, s.writeError(commandErr))
-			}
-			return s.cleanup(readDone, commandErr, readObserved)
+			return s.cleanup(readDone, s.clientCommandError(), readObserved)
 		case readErr := <-readDone:
 			readObserved = true
-			if errors.Is(readErr, errWindowManagerClientMessage) {
-				readErr = errors.Join(readErr, s.writeError(windowmanager.ErrInvalidCommand))
-			} else if errors.Is(readErr, windowmanager.ErrClientNotFound) ||
-				errors.Is(readErr, windowmanager.ErrWorkspaceNotFound) ||
-				errors.Is(readErr, windowmanager.ErrClosed) {
-				readErr = errors.Join(readErr, s.writeError(readErr))
-			}
-			return s.cleanup(readDone, readErr, readObserved)
-		case <-ticker.C:
+			return s.cleanup(readDone, s.decorateReadError(readErr), readObserved)
+		case <-pings:
 			if pingErr := s.writePing(); pingErr != nil {
 				return s.cleanup(readDone, pingErr, readObserved)
 			}
@@ -375,7 +368,11 @@ func decodeWindowManagerClientFrame(payload []byte, target any) error {
 		return fmt.Errorf("decode window-manager client frame: %v: %w", err, errWindowManagerClientMessage)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("decode window-manager client frame trailing data: %v: %w", err, errWindowManagerClientMessage)
+		return fmt.Errorf(
+			"decode window-manager client frame trailing data: %v: %w",
+			err,
+			errWindowManagerClientMessage,
+		)
 	}
 	return nil
 }

@@ -86,7 +86,8 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 			if request.Method != http.MethodGet || request.URL.Path != "/api/cmd-palette/commands" {
 				t.Fatalf("request = %s %s", request.Method, request.URL.Path)
 			}
-			if request.URL.Query().Get("workspace") != "workspace-1" || request.URL.Query().Get("client") != "client-1" {
+			if request.URL.Query().Get("workspace") != "workspace-1" ||
+				request.URL.Query().Get("client") != "client-1" {
 				t.Fatalf("query = %s", request.URL.RawQuery)
 			}
 			return newHTTPResponse(http.StatusOK, `{"commands":[],"sources":[],"catalog_revision":"revision-1"}`), nil
@@ -103,7 +104,8 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 	t.Run("Should encode invocation path and body", func(t *testing.T) {
 		t.Parallel()
 		client := newClient(func(request *http.Request) (*http.Response, error) {
-			if request.Method != http.MethodPost || request.URL.EscapedPath() != "/api/cmd-palette/commands/core.sessions%2Fnew/invoke" {
+			if request.Method != http.MethodPost ||
+				request.URL.EscapedPath() != "/api/cmd-palette/commands/core.sessions%2Fnew/invoke" {
 				t.Fatalf("request = %s %s", request.Method, request.URL.EscapedPath())
 			}
 			var body contract.CmdPaletteInvokeRequest
@@ -164,9 +166,19 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 				wantPath += "/cancel"
 			}
 			if request.Method != wantMethod || request.URL.Path != wantPath {
-				t.Fatalf("request %d = %s %s, want %s %s", calls, request.Method, request.URL.Path, wantMethod, wantPath)
+				t.Fatalf(
+					"request %d = %s %s, want %s %s",
+					calls,
+					request.Method,
+					request.URL.Path,
+					wantMethod,
+					wantPath,
+				)
 			}
-			return newHTTPResponse(http.StatusOK, `{"approval_status":"denied","execution_status":"canceled","expires_at":"2026-08-19T12:00:00Z"}`), nil
+			return newHTTPResponse(
+				http.StatusOK,
+				`{"approval_status":"denied","execution_status":"canceled","expires_at":"2026-08-19T12:00:00Z"}`,
+			), nil
 		})
 		if _, err := client.GetPendingToolApproval(t.Context(), "approval-1"); err != nil {
 			t.Fatalf("GetPendingToolApproval() error = %v", err)

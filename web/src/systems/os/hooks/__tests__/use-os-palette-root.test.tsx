@@ -9,6 +9,9 @@
 // availability evaluation (cmd-palette-availability), overlay lifetime
 // (use-desktop-overlays), stack and filter mechanics (palette-view-stack,
 // palette-session-filters), and daemon command transport.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -19,8 +22,32 @@ import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { OsCommandPalette } from "../../components/os-command-palette";
 import { useOsPaletteRoot } from "../use-os-palette-root";
 import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
-import type { PaletteRegistry, ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
+import type {
+  CmdPaletteRankSignals,
+  PaletteRegistry,
+  ResolvedPaletteCommand,
+} from "../../lib/cmd-palette-types";
 import { PALETTE_SESSION_ROW_LIMIT } from "../use-os-palette-sessions-view";
+import {
+  isPaletteDomainSearchEnabled,
+  projectVaultRows,
+  type OsPaletteDomainSection,
+} from "../use-os-palette-domain-search";
+
+const TEST_WEIGHTS = JSON.parse(
+  readFileSync(
+    resolve(process.cwd(), "../internal/cmdpalette/testdata/ranking_weights_v1.json"),
+    "utf8"
+  )
+) as CmdPaletteRankSignals["weights"];
+
+const TEST_RANK_SIGNALS: CmdPaletteRankSignals = {
+  weights: TEST_WEIGHTS,
+  usage: [],
+  query_hits: [],
+  pins: [],
+  revision: "ps_test",
+};
 
 type PaletteSessionFixture = {
   id: string;
@@ -80,6 +107,8 @@ const paletteMocks = vi.hoisted(() => {
       failed: boolean;
       retry: () => void;
     }>,
+    rankSignals: null as CmdPaletteRankSignals | null,
+    domainSections: [] as OsPaletteDomainSection[],
     workspaces: [
       { id: "workspace:alpha", name: "Alpha" },
       { id: "workspace:beta", name: "Beta" },
@@ -107,6 +136,7 @@ vi.mock("@/systems/session/hooks/use-session-create", () => ({
 
 vi.mock("@/systems/workspace/hooks/use-worktrees", () => ({
   useWorktrees: () => ({ data: undefined }),
+  useWorktreeListings: () => ({}),
 }));
 vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
   useScopedWorktreeFilter: () => ({ worktreeId: undefined, resolved: true }),
@@ -134,6 +164,19 @@ vi.mock("@/systems/session/hooks/use-workspace-session-groups", () => ({
 }));
 vi.mock("../use-attention-jump", () => ({
   useAttentionJump: () => paletteMocks.jumpToSession,
+}));
+
+vi.mock("../use-cmd-palette-rank-signals", () => ({
+  useCmdPaletteRankSignals: () => ({
+    data: paletteMocks.rankSignals,
+    loading: false,
+    failed: false,
+  }),
+}));
+
+vi.mock("../use-os-palette-domain-search", async importOriginal => ({
+  ...(await importOriginal<typeof import("../use-os-palette-domain-search")>()),
+  useOsPaletteDomainSearch: () => paletteMocks.domainSections,
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
@@ -393,6 +436,8 @@ describe("useOsPaletteRoot", () => {
     paletteMocks.paletteIntentCleared.mockClear();
     paletteMocks.paletteIntentRequested.mockClear();
     paletteMocks.pending = false;
+    paletteMocks.rankSignals = null;
+    paletteMocks.domainSections = [];
     paletteMocks.sessions = [];
     paletteMocks.sessionsLoading = false;
     paletteMocks.sessionsWorkspaceId.mockClear();
@@ -820,7 +865,7 @@ describe("palette nested views", () => {
     expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
   });
 
-  it("Should keep the keyboard selection while the catalog moves underneath it [UT-076]", async () => {
+  it("Should keep the keyboard selection while the session catalog moves underneath it [UT-076]", async () => {
     const user = userEvent.setup();
     const stamped = (id: string, minute: string) =>
       paletteSession({ id, name: id, attention_changed_at: `2026-08-16T10:0${minute}:00Z` });
@@ -868,6 +913,52 @@ describe("palette nested views", () => {
     );
   });
 
+  it("Should keep the selected domain row when an earlier async domain arrives [UT-114]", async () => {
+    const user = userEvent.setup();
+    const taskRows = ["alpha", "beta"].map(id => ({
+      key: `task:${id}`,
+      label: `Task ${id}`,
+      app: "tasks" as const,
+      route: { pathname: "/tasks", search: { q: id } },
+    }));
+    paletteMocks.domainSections = [
+      { title: "Tasks", rows: taskRows, total: taskRows.length, loading: false, error: null },
+    ];
+    const rendered = renderPalette();
+
+    const selectedTask = screen.getByTestId("os-palette-domain-row-task:beta");
+    await user.hover(selectedTask);
+    expect(selectedTask).toHaveAttribute("aria-selected", "true");
+
+    paletteMocks.domainSections = [
+      {
+        title: "Agents",
+        rows: [
+          {
+            key: "agent:codex",
+            label: "Codex",
+            app: "agents",
+            route: { pathname: "/agents", search: {} },
+          },
+        ],
+        total: 1,
+        loading: false,
+        error: null,
+      },
+      { title: "Tasks", rows: taskRows, total: taskRows.length, loading: false, error: null },
+    ];
+    rendered.rerender(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </PaletteHarness>
+    );
+
+    expect(screen.getByTestId("os-palette-domain-row-task:beta")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+
   it("Should bound the rendered rows and say how many matches went unrendered", async () => {
     const user = userEvent.setup();
     paletteMocks.sessions = Array.from({ length: PALETTE_SESSION_ROW_LIMIT + 12 }, (_, index) =>
@@ -886,5 +977,151 @@ describe("palette nested views", () => {
         { exact: false }
       )
     ).toBeInTheDocument();
+  });
+
+  it("Should gate every domain read by the daemon query bounds [UT-110, UT-111]", () => {
+    expect(isPaletteDomainSearchEnabled(true, "ab", TEST_WEIGHTS)).toBe(true);
+    expect(isPaletteDomainSearchEnabled(true, "a", TEST_WEIGHTS)).toBe(false);
+    expect(
+      isPaletteDomainSearchEnabled(
+        true,
+        "x".repeat(TEST_WEIGHTS.max_query_length + 1),
+        TEST_WEIGHTS
+      )
+    ).toBe(false);
+    expect(isPaletteDomainSearchEnabled(false, "ab", TEST_WEIGHTS)).toBe(false);
+  });
+
+  it("Should project Vault names and metadata without any secret value [UT-112]", () => {
+    type HasValue = "value" extends keyof ReturnType<typeof projectVaultRows>[number]
+      ? true
+      : false;
+    const hasValue: HasValue = false;
+    const rows = projectVaultRows(
+      [
+        {
+          ref: "vault:providers/codex/api_key",
+          namespace: "providers",
+          kind: "api_key",
+          present: true,
+          created_at: "2026-08-19T12:00:00Z",
+          updated_at: "2026-08-19T12:00:00Z",
+          value: "must-never-cross-the-projection",
+        } as never,
+      ],
+      "workspace",
+      new Map()
+    );
+
+    expect(hasValue).toBe(false);
+    expect(rows).toEqual([
+      expect.objectContaining({ label: "api_key", namespace: "providers", kind: "api_key" }),
+    ]);
+    expect(rows[0]).not.toHaveProperty("value");
+  });
+
+  it("Should cap a domain, preserve siblings, name failures, and label global rows [UT-113, UT-115, UT-116]", () => {
+    paletteMocks.domainSections = [
+      {
+        title: "Tasks",
+        rows: Array.from({ length: TEST_WEIGHTS.entity_section_visible_cap }, (_, index) => ({
+          key: `task:${index}`,
+          label: `Task ${index}`,
+          workspaceLabel: "Alpha",
+          app: "tasks" as const,
+          route: { pathname: "/tasks", search: { q: `Task ${index}` } },
+        })),
+        total: TEST_WEIGHTS.entity_section_visible_cap + 4,
+        loading: false,
+        error: null,
+      },
+      {
+        title: "Bridges",
+        rows: [],
+        total: 0,
+        loading: false,
+        error: "Bridges: transport offline",
+      },
+    ];
+    renderPalette();
+
+    expect(screen.getAllByTestId(/^os-palette-domain-row-task:/)).toHaveLength(
+      TEST_WEIGHTS.entity_section_visible_cap
+    );
+    expect(
+      screen.getByText(
+        `showing ${TEST_WEIGHTS.entity_section_visible_cap} of ${TEST_WEIGHTS.entity_section_visible_cap + 4}`
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-domain-error-bridges")).toHaveTextContent(
+      "Bridges: transport offline"
+    );
+    for (const row of screen.getAllByTestId(/^os-palette-domain-row-task:/)) {
+      expect(within(row).getByText("Alpha")).toBeInTheDocument();
+    }
+  });
+
+  it("Should keep matching commands and settings destinations in separate groups [UT-117]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.rankSignals = TEST_RANK_SIGNALS;
+    paletteMocks.domainSections = [
+      {
+        title: "Settings",
+        rows: [
+          {
+            key: "settings:shortcuts",
+            label: "Keyboard shortcuts",
+            app: "settings",
+            route: { pathname: "/settings/shortcuts", search: {} },
+          },
+        ],
+        total: 1,
+        loading: false,
+        error: null,
+      },
+    ];
+    const shortcut = {
+      ...PALETTE_REGISTRY.commands[0],
+      id: "cheatsheet.shortcuts",
+      title: "Keyboard shortcuts",
+      section: "Commands",
+    } as ResolvedPaletteCommand;
+    const registry = {
+      ...PALETTE_REGISTRY,
+      commands: [...PALETTE_REGISTRY.commands, shortcut],
+      byId: new Map([...PALETTE_REGISTRY.byId, [shortcut.id, shortcut]]),
+    };
+    render(
+      <CmdPaletteRegistryProvider registry={registry}>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </CmdPaletteRegistryProvider>
+    );
+
+    await user.type(
+      screen.getByPlaceholderText("Search apps, sessions, and actions…"),
+      "shortcuts"
+    );
+    expect(screen.getByTestId("os-palette-section-commands")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-domain-settings")).toBeInTheDocument();
+  });
+
+  it("Should render and accept a casing-preserving ghost only at the input end [UT-118, UT-119]", async () => {
+    const user = userEvent.setup();
+    paletteMocks.rankSignals = TEST_RANK_SIGNALS;
+    renderPalette();
+    const input = screen.getByPlaceholderText(
+      "Search apps, sessions, and actions…"
+    ) as HTMLInputElement;
+
+    await user.type(input, "Ne");
+    expect(screen.getByTestId("os-palette-ghost")).toHaveTextContent("w tab");
+    await user.keyboard("{ArrowRight}");
+    expect(input).toHaveValue("New tab");
+
+    await user.clear(input);
+    await user.type(input, "Ne");
+    input.setSelectionRange(1, 1);
+    await user.keyboard("{ArrowRight}");
+    expect(input).toHaveValue("Ne");
   });
 });

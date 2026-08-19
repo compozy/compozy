@@ -11,7 +11,7 @@ import (
 
 func newApprovalsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "approvals",
+		Use:   observeApprovalsLabel,
 		Short: "Inspect or cancel pending tool approvals",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -101,7 +101,7 @@ func approvalStatusOutput(status contract.ToolApprovalStatusResponse) outputBund
 		toon: func() (string, error) {
 			return renderToonObject(
 				"approval",
-				[]string{"approval_status", "execution_status", "expires_at"},
+				[]string{"approval_status", "execution_status", mcpAuthExpiresAtKey},
 				[]string{
 					string(status.ApprovalStatus), string(status.ExecutionStatus), expiresAt,
 				},

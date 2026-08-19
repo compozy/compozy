@@ -43,8 +43,17 @@ export function useCmdPaletteStream({
     const reconcile = () => {
       // Every client key under this workspace: the catalog is keyed by the
       // attachment whose context resolved it, and all of them just went stale.
+      const catalogs = cmdPaletteKeys.workspaceCatalogs(workspace);
+      const signals = cmdPaletteKeys.rankSignals(workspace);
       void queryClient.invalidateQueries({
-        queryKey: cmdPaletteKeys.workspaceCatalogs(workspace),
+        predicate: query => {
+          const key = query.queryKey;
+          return (
+            (key.length >= catalogs.length &&
+              catalogs.every((part, index) => key[index] === part)) ||
+            (key.length === signals.length && signals.every((part, index) => key[index] === part))
+          );
+        },
       });
     };
     const close = openCmdPaletteStream(

@@ -385,6 +385,29 @@ type BridgeTaskSubscription struct {
 	UpdatedAt        string         `json:"updated_at"`
 }
 
+type CmdPalettePin struct {
+	WorkspaceID string `json:"workspace_id"`
+	CommandID   string `json:"command_id"`
+	PinnedAt    int64  `json:"pinned_at"`
+}
+
+type CmdPaletteQueryHit struct {
+	WorkspaceID string  `json:"workspace_id"`
+	Query       string  `json:"query"`
+	CommandID   string  `json:"command_id"`
+	Weight      float64 `json:"weight"`
+	LastUsedAt  int64   `json:"last_used_at"`
+}
+
+type CmdPaletteUsage struct {
+	WorkspaceID    string  `json:"workspace_id"`
+	CommandID      string  `json:"command_id"`
+	UseCount       int64   `json:"use_count"`
+	FrecencyWeight float64 `json:"frecency_weight"`
+	LastUsedAt     int64   `json:"last_used_at"`
+	UpdatedAt      int64   `json:"updated_at"`
+}
+
 type ConfigApplyRecord struct {
 	ID                string         `json:"id"`
 	DesiredConfigHash string         `json:"desired_config_hash"`

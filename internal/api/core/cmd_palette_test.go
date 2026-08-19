@@ -41,10 +41,11 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		engine := gin.New()
 		engine.GET("/api/cmd-palette/commands", handlers.ListCmdPaletteCommands)
 		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodGet,
 			"/api/cmd-palette/commands?workspace=alpha&client=client-a",
-			nil,
+			http.NoBody,
 		)
 		engine.ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusOK {
@@ -77,8 +78,10 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		}{
 			{name: "unknown", err: cmdpalette.ErrCommandNotFound, wantStatus: 404, wantCode: "command_not_found"},
 			{
-				name: "invalid arguments", err: &cmdpalette.InvalidArgumentsError{Fields: map[string]string{"title": "required"}},
-				wantStatus: 422, wantCode: "invalid_arguments",
+				name:       "invalid arguments",
+				err:        &cmdpalette.InvalidArgumentsError{Fields: map[string]string{"title": "required"}},
+				wantStatus: 422,
+				wantCode:   "invalid_arguments",
 			},
 			{
 				name: "unavailable", err: &cmdpalette.UnavailableError{Reason: "needs two windows"},
@@ -86,11 +89,18 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 			},
 			{name: "no shell", err: cmdpalette.ErrNoAttachedShell, wantStatus: 412, wantCode: "no_attached_shell"},
 			{
-				name: "multiple clients", err: &cmdpalette.MultipleClientsError{Clients: []cmdpalette.ClientID{"a", "b"}},
-				wantStatus: 409, wantCode: "multiple_clients",
+				name:       "multiple clients",
+				err:        &cmdpalette.MultipleClientsError{Clients: []cmdpalette.ClientID{"a", "b"}},
+				wantStatus: 409,
+				wantCode:   "multiple_clients",
 			},
 			{name: "running", err: cmdpalette.ErrAlreadyRunning, wantStatus: 409, wantCode: "already_running"},
-			{name: "forged token", err: cmdpalette.ErrClientUnauthorized, wantStatus: 401, wantCode: "client_unauthorized"},
+			{
+				name:       "forged token",
+				err:        cmdpalette.ErrClientUnauthorized,
+				wantStatus: 401,
+				wantCode:   "client_unauthorized",
+			},
 		}
 		for _, test := range tests {
 			t.Run("Should map "+test.name, func(t *testing.T) {
@@ -100,7 +110,8 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 				engine := gin.New()
 				engine.POST("/api/cmd-palette/commands/:id/invoke", handlers.InvokeCmdPaletteCommand)
 				body := bytes.NewBufferString(`{"workspace":"alpha","args":{},"client":"client-a"}`)
-				request := httptest.NewRequest(
+				request := httptest.NewRequestWithContext(
+					t.Context(),
 					http.MethodPost,
 					"/api/cmd-palette/commands/window.close/invoke",
 					body,
@@ -140,12 +151,16 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		engine.POST("/api/tools/approvals/:id/cancel", handlers.CancelPendingToolApproval)
 
 		get := httptest.NewRecorder()
-		engine.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/api/tools/approvals/apr_test", nil))
+		engine.ServeHTTP(get, httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet, "/api/tools/approvals/apr_test", http.NoBody,
+		))
 		if get.Code != http.StatusOK {
 			t.Fatalf("GET status = %d, want 200; body=%s", get.Code, get.Body.String())
 		}
 		cancel := httptest.NewRecorder()
-		engine.ServeHTTP(cancel, httptest.NewRequest(http.MethodPost, "/api/tools/approvals/apr_test/cancel", nil))
+		engine.ServeHTTP(cancel, httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "/api/tools/approvals/apr_test/cancel", http.NoBody,
+		))
 		if cancel.Code != http.StatusOK || coordinator.canceled != "apr_test" {
 			t.Fatalf("cancel = status %d id %q; body=%s", cancel.Code, coordinator.canceled, cancel.Body.String())
 		}
@@ -170,10 +185,11 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		engine := gin.New()
 		engine.GET("/api/cmd-palette/stream", handlers.StreamCmdPalette)
 		recorder := httptest.NewRecorder()
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodGet,
 			"/api/cmd-palette/stream?workspace=alpha",
-			nil,
+			http.NoBody,
 		)
 		engine.ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusOK || recorder.Header().Get("Content-Type") != "text/event-stream" {
@@ -182,6 +198,121 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		want := "event: cmd_palette.catalog.changed\ndata: {\"workspace\":\"workspace-canonical\",\"catalog_revision\":\"cr_current\"}\n\n"
 		if recorder.Body.String() != want {
 			t.Fatalf("stream body = %q, want %q", recorder.Body.String(), want)
+		}
+	})
+
+	t.Run("Should serve the frozen personalization route family on the shared handlers", func(t *testing.T) {
+		t.Parallel()
+		registry := &cmdPaletteRegistryStub{
+			snapshot: cmdpalette.Snapshot{
+				Weights: cmdpalette.WeightsV1,
+				Usage: []cmdpalette.UsageSignal{{
+					CommandID: "session.new", Weight: 2.5, LastUsedAt: 1765995000123,
+				}},
+				QueryHits: []cmdpalette.QueryHit{{Query: "ns", CommandID: "session.new", Weight: 1.5}},
+				Pins:      []cmdpalette.Pin{{CommandID: "session.new", PinnedAt: 1}},
+				Revision:  "ps_test",
+			},
+			summary: cmdpalette.PersonalizationSummary{
+				Workspace: "workspace-canonical", Pins: []cmdpalette.CommandID{"session.new"},
+				Recents: 1, FrecencyEntries: 1, QueryAssociations: 1,
+			},
+		}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.GET("/api/cmd-palette/rank-signals", handlers.GetCmdPaletteRankSignals)
+		engine.POST("/api/cmd-palette/usage", handlers.RecordCmdPaletteUsage)
+		engine.PUT("/api/cmd-palette/pins/:id", handlers.PinCmdPaletteCommand)
+		engine.DELETE("/api/cmd-palette/pins/:id", handlers.UnpinCmdPaletteCommand)
+		engine.GET("/api/cmd-palette/personalization", handlers.GetCmdPalettePersonalization)
+		engine.DELETE("/api/cmd-palette/personalization", handlers.ResetCmdPalettePersonalization)
+
+		rank := httptest.NewRecorder()
+		engine.ServeHTTP(rank, httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/api/cmd-palette/rank-signals?workspace=alpha",
+			http.NoBody,
+		))
+		if rank.Code != http.StatusOK {
+			t.Fatalf("rank signals status = %d, want 200; body=%s", rank.Code, rank.Body.String())
+		}
+		var signals contract.CmdPaletteRankSignalsResponse
+		if err := json.Unmarshal(rank.Body.Bytes(), &signals); err != nil {
+			t.Fatalf("json.Unmarshal(rank signals) error = %v", err)
+		}
+		if signals.Revision != "ps_test" || signals.Weights.Version != 1 ||
+			len(signals.Pins) != 1 || signals.Pins[0] != "session.new" {
+			t.Fatalf("rank signals = %#v, want frozen snapshot", signals)
+		}
+
+		usage := httptest.NewRecorder()
+		usageRequest := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			"/api/cmd-palette/usage",
+			bytes.NewBufferString(`{"workspace":"alpha","command_id":"session.new","query":"ns"}`),
+		)
+		usageRequest.Header.Set("Content-Type", "application/json")
+		engine.ServeHTTP(usage, usageRequest)
+		if usage.Code != http.StatusNoContent || usage.Body.Len() != 0 {
+			t.Fatalf("usage response = status %d body %q, want 204/empty", usage.Code, usage.Body.String())
+		}
+		if registry.usage.WorkspaceID != "workspace-canonical" ||
+			registry.usage.CommandID != "session.new" || registry.usage.Query != "ns" {
+			t.Fatalf("usage domain request = %#v", registry.usage)
+		}
+
+		for _, method := range []string{http.MethodPut, http.MethodDelete} {
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, httptest.NewRequestWithContext(
+				t.Context(),
+				method,
+				"/api/cmd-palette/pins/session.new?workspace=alpha",
+				http.NoBody,
+			))
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("%s pin status = %d, want 200; body=%s", method, recorder.Code, recorder.Body.String())
+			}
+			var response contract.CmdPalettePinResponse
+			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+				t.Fatalf("json.Unmarshal(%s pin) error = %v", method, err)
+			}
+			if response.Pinned != (method == http.MethodPut) {
+				t.Fatalf("%s pin response = %#v", method, response)
+			}
+		}
+
+		getSummary := httptest.NewRecorder()
+		engine.ServeHTTP(getSummary, httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/api/cmd-palette/personalization?workspace=alpha",
+			http.NoBody,
+		))
+		if getSummary.Code != http.StatusOK {
+			t.Fatalf("personalization status = %d, want 200; body=%s", getSummary.Code, getSummary.Body.String())
+		}
+		var summary contract.CmdPalettePersonalizationResponse
+		if err := json.Unmarshal(getSummary.Body.Bytes(), &summary); err != nil {
+			t.Fatalf("json.Unmarshal(personalization) error = %v", err)
+		}
+		if summary.Workspace != "workspace-canonical" || summary.QueryAssociations != 1 {
+			t.Fatalf("personalization summary = %#v", summary)
+		}
+
+		reset := httptest.NewRecorder()
+		engine.ServeHTTP(reset, httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodDelete,
+			"/api/cmd-palette/personalization?workspace=alpha",
+			http.NoBody,
+		))
+		if reset.Code != http.StatusOK || reset.Body.String() != "{\"status\":\"reset\"}" {
+			t.Fatalf("reset response = status %d body %q", reset.Code, reset.Body.String())
+		}
+		if registry.resetWorkspace != "workspace-canonical" {
+			t.Fatalf("reset workspace = %q, want workspace-canonical", registry.resetWorkspace)
 		}
 	})
 }
@@ -214,6 +345,13 @@ type cmdPaletteRegistryStub struct {
 	invokeResult     cmdpalette.InvokeResult
 	invokeErr        error
 	eventUpdates     <-chan cmdpalette.Event
+	snapshot         cmdpalette.Snapshot
+	summary          cmdpalette.PersonalizationSummary
+	usage            cmdpalette.Usage
+	pinWorkspace     cmdpalette.WorkspaceID
+	pinCommand       cmdpalette.CommandID
+	pinned           bool
+	resetWorkspace   cmdpalette.WorkspaceID
 }
 
 func (s *cmdPaletteRegistryStub) Catalog(
@@ -239,6 +377,55 @@ func (s *cmdPaletteRegistryStub) Invoke(
 ) (cmdpalette.InvokeResult, error) {
 	s.invokeRequest = request
 	return s.invokeResult, s.invokeErr
+}
+
+func (s *cmdPaletteRegistryStub) RecordUsage(_ context.Context, usage cmdpalette.Usage) error {
+	s.usage = usage
+	return nil
+}
+
+func (s *cmdPaletteRegistryStub) Personalization(
+	context.Context,
+	cmdpalette.WorkspaceID,
+) (cmdpalette.Snapshot, error) {
+	return s.snapshot, nil
+}
+
+func (s *cmdPaletteRegistryStub) PersonalizationSummary(
+	context.Context,
+	cmdpalette.WorkspaceID,
+) (cmdpalette.PersonalizationSummary, error) {
+	return s.summary, nil
+}
+
+func (s *cmdPaletteRegistryStub) ResetPersonalization(
+	_ context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+) error {
+	s.resetWorkspace = workspaceID
+	return nil
+}
+
+func (s *cmdPaletteRegistryStub) Pin(
+	_ context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	commandID cmdpalette.CommandID,
+) error {
+	s.pinWorkspace = workspaceID
+	s.pinCommand = commandID
+	s.pinned = true
+	return nil
+}
+
+func (s *cmdPaletteRegistryStub) Unpin(
+	_ context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	commandID cmdpalette.CommandID,
+) error {
+	s.pinWorkspace = workspaceID
+	s.pinCommand = commandID
+	s.pinned = false
+	return nil
 }
 
 func (s *cmdPaletteRegistryStub) SubscribeCmdPaletteEvents(

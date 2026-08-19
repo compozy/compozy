@@ -4,7 +4,7 @@ import { CommandGroup, CommandItem, MonoId, cn } from "@compozy/ui";
 
 import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import type { OsPaletteEntities } from "../hooks/use-os-palette-entities";
-import type { WorktreeNestEntry } from "@/systems/workspace";
+import type { OsPaletteWorktreeResult } from "../hooks/use-os-palette-entities";
 
 const GROUP_CLASS = "mt-2 border-t border-line-soft px-2 pt-2 pb-0.5";
 const HEADING_CLASS = "**:[[cmdk-group-heading]]:text-faint";
@@ -16,7 +16,7 @@ export interface OsPaletteEntitySectionsProps {
   destination: boolean;
   onOpenSession: (session: OsPaletteEntities["sessions"][number]) => void;
   onGoToTab: (windowId: string) => void;
-  onSelectWorktree: (entry: WorktreeNestEntry) => void;
+  onSelectWorktree: (entry: OsPaletteWorktreeResult) => void;
 }
 
 /**
@@ -53,7 +53,10 @@ export function OsPaletteEntitySections({
             >
               <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted" />
               <span className="min-w-0 truncate">{session.title}</span>
-              <span className="ml-auto shrink-0 text-micro text-subtle">{session.agentName}</span>
+              <span className="ml-auto shrink-0 text-micro text-subtle">
+                {session.agentName}
+                {session.workspaceLabel ? ` · ${session.workspaceLabel}` : ""}
+              </span>
             </CommandItem>
           ))}
         </CommandGroup>
@@ -111,6 +114,9 @@ export function OsPaletteEntitySections({
               <FolderGit2 className="size-3.5 text-muted" />
               <span className="min-w-0 truncate">{entry.name}</span>
               <MonoId className="ml-auto" preserveCase size="sm" value={entry.branch} />
+              {entry.workspaceLabel ? (
+                <span className="shrink-0 text-micro text-faint">{entry.workspaceLabel}</span>
+              ) : null}
             </CommandItem>
           ))}
         </CommandGroup>

@@ -85,7 +85,11 @@ func (e *clientCommandEndpoint) dispatch(
 	}
 	if _, exists := e.pending[command.CommandID]; exists {
 		e.mu.Unlock()
-		return ClientCommandResponse{}, fmt.Errorf("client command %q already pending: %w", command.CommandID, ErrInvalidCommand)
+		return ClientCommandResponse{}, fmt.Errorf(
+			"client command %q already pending: %w",
+			command.CommandID,
+			ErrInvalidCommand,
+		)
 	}
 	e.pending[command.CommandID] = responses
 	e.mu.Unlock()

@@ -39,7 +39,7 @@ func sessionInteractionsBundle(response SessionInteractionsRecord) outputBundle 
 		[]string{"INTERACTION", "KIND", "REQUEST", cliStatusHeader, "TITLE"},
 		"interactions",
 		[]string{
-			"interaction_id", agentKernelKindKey, "provider_request_id", automationStatusKey, "title",
+			"interaction_id", agentKernelKindKey, "provider_request_id", automationStatusKey, networkTitleKey,
 		},
 		sessionInteractionOutputRow,
 		sessionInteractionOutputRow,

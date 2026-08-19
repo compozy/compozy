@@ -4,6 +4,7 @@ package corecmds
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -52,9 +53,7 @@ func cloneCommands(source []cmdpalette.Descriptor) []cmdpalette.Descriptor {
 		cloned[index].When = append([]cmdpalette.Predicate(nil), source[index].When...)
 		if source[index].Action.Args != nil {
 			cloned[index].Action.Args = make(map[string]any, len(source[index].Action.Args))
-			for key, value := range source[index].Action.Args {
-				cloned[index].Action.Args[key] = value
-			}
+			maps.Copy(cloned[index].Action.Args, source[index].Action.Args)
 		}
 	}
 	return cloned

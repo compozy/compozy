@@ -129,9 +129,7 @@ func (c *asyncApprovalCoordinator) Recover(ctx context.Context) error {
 }
 
 func (c *asyncApprovalCoordinator) dispatch(status ApprovalStatus) {
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 		ctx, cancel := context.WithTimeout(c.ctx, approvalExecutionTimeout)
 		defer cancel()
 		result, dispatchErr := c.dispatcher.DispatchApproval(ctx, status)
@@ -159,14 +157,11 @@ func (c *asyncApprovalCoordinator) dispatch(status ApprovalStatus) {
 			return
 		}
 		c.complete(status.ApprovalID)
-	}()
+	})
 }
 
 func (c *asyncApprovalCoordinator) armExpiry(status ApprovalStatus) {
-	delay := status.ExpiresAt.Sub(c.now().UTC())
-	if delay < 0 {
-		delay = 0
-	}
+	delay := max(status.ExpiresAt.Sub(c.now().UTC()), 0)
 	c.mu.Lock()
 	if previous := c.timers[status.ApprovalID]; previous != nil {
 		previous.Stop()

@@ -15,15 +15,34 @@ import (
 
 type cmdPaletteTestClient struct {
 	DaemonClient
-	commands       contract.CmdPaletteCommandsResponse
-	invokeResult   contract.CmdPaletteInvokeResult
-	invokeErr      error
-	invokeCommand  string
-	invokeRequest  contract.CmdPaletteInvokeRequest
-	listWorkspace  string
-	listClient     string
-	approvalStatus contract.ToolApprovalStatusResponse
-	canceledID     string
+	commands        contract.CmdPaletteCommandsResponse
+	invokeResult    contract.CmdPaletteInvokeResult
+	invokeErr       error
+	invokeCommand   string
+	invokeRequest   contract.CmdPaletteInvokeRequest
+	listWorkspace   string
+	listClient      string
+	approvalStatus  contract.ToolApprovalStatusResponse
+	canceledID      string
+	personalization contract.CmdPalettePersonalizationResponse
+	resetResponse   contract.CmdPalettePersonalizationResetResponse
+	resetWorkspace  string
+}
+
+func (c *cmdPaletteTestClient) GetCmdPalettePersonalization(
+	_ context.Context,
+	workspace string,
+) (contract.CmdPalettePersonalizationResponse, error) {
+	c.personalization.Workspace = cmdpalette.WorkspaceID(workspace)
+	return c.personalization, nil
+}
+
+func (c *cmdPaletteTestClient) ResetCmdPalettePersonalization(
+	_ context.Context,
+	workspace string,
+) (contract.CmdPalettePersonalizationResetResponse, error) {
+	c.resetWorkspace = workspace
+	return c.resetResponse, nil
 }
 
 func (c *cmdPaletteTestClient) ListCmdPaletteCommands(
@@ -105,16 +124,27 @@ func TestCmdPaletteCommands(t *testing.T) {
 	t.Run("Should parse typed arguments and return pending approval", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
-		client.commands.Commands = []contract.CmdPaletteCommand{{
-			ID: "core.tools.run", Arguments: []cmdpalette.Argument{{Name: "force", Type: cmdpalette.ArgumentTypeCheckbox}},
-		}}
+		client.commands.Commands = []contract.CmdPaletteCommand{
+			{
+				ID:        "core.tools.run",
+				Arguments: []cmdpalette.Argument{{Name: "force", Type: cmdpalette.ArgumentTypeCheckbox}},
+			},
+		}
 		client.invokeResult = contract.CmdPaletteInvokeResult{
 			Status: cmdpalette.InvokeStatusApprovalPending, ApprovalID: "approval-1",
 		}
 		stdout, _, err := executeRootCommand(
 			t,
 			newTestDeps(t, client),
-			"cmd-palette", "invoke", "core.tools.run", "--workspace", "workspace-1", "--arg", "force=true", "-o", "json",
+			"cmd-palette",
+			"invoke",
+			"core.tools.run",
+			"--workspace",
+			"workspace-1",
+			"--arg",
+			"force=true",
+			"-o",
+			"json",
 		)
 		if err != nil {
 			t.Fatalf("cmd-palette invoke error = %v", err)
@@ -138,7 +168,10 @@ func TestCmdPaletteCommands(t *testing.T) {
 		t.Parallel()
 		client := newClient()
 		client.commands.Commands = []contract.CmdPaletteCommand{{ID: "core.invalid"}}
-		client.invokeErr = &daemonAPIError{statusCode: http.StatusUnprocessableEntity, status: "422 Unprocessable Entity"}
+		client.invokeErr = &daemonAPIError{
+			statusCode: http.StatusUnprocessableEntity,
+			status:     "422 Unprocessable Entity",
+		}
 		exitCode, _, _ := executeRootCommandWithExit(
 			t,
 			newTestDeps(t, client),
@@ -152,9 +185,12 @@ func TestCmdPaletteCommands(t *testing.T) {
 	t.Run("Should reject invalid checkbox arguments before invocation", func(t *testing.T) {
 		t.Parallel()
 		client := newClient()
-		client.commands.Commands = []contract.CmdPaletteCommand{{
-			ID: "core.tools.run", Arguments: []cmdpalette.Argument{{Name: "force", Type: cmdpalette.ArgumentTypeCheckbox}},
-		}}
+		client.commands.Commands = []contract.CmdPaletteCommand{
+			{
+				ID:        "core.tools.run",
+				Arguments: []cmdpalette.Argument{{Name: "force", Type: cmdpalette.ArgumentTypeCheckbox}},
+			},
+		}
 		exitCode, _, _ := executeRootCommandWithExit(
 			t,
 			newTestDeps(t, client),
@@ -178,6 +214,45 @@ func TestCmdPaletteCommands(t *testing.T) {
 		}
 		if client.canceledID != "approval-1" {
 			t.Fatalf("canceled approval = %q, want approval-1", client.canceledID)
+		}
+	})
+
+	t.Run("Should show and reset workspace personalization", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.personalization = contract.CmdPalettePersonalizationResponse{
+			Pins: []cmdpalette.CommandID{"session.new"}, Recents: 18,
+			FrecencyEntries: 64, QueryAssociations: 21,
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "personalization", "show", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette personalization show error = %v", err)
+		}
+		var summary contract.CmdPalettePersonalizationResponse
+		if err := json.Unmarshal([]byte(stdout), &summary); err != nil {
+			t.Fatalf("json.Unmarshal(personalization) error = %v", err)
+		}
+		if summary.Workspace != "workspace-1" || len(summary.Pins) != 1 ||
+			summary.FrecencyEntries != 64 || summary.QueryAssociations != 21 {
+			t.Fatalf("personalization summary = %#v", summary)
+		}
+
+		client.resetResponse.Status = "reset"
+		stdout, _, err = executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "personalization", "reset", "--workspace", "workspace-1",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette personalization reset error = %v", err)
+		}
+		want := "Reset palette personalization for workspace workspace-1 (pins, recents, frecency, query learning)."
+		if strings.TrimSpace(stdout) != want || client.resetWorkspace != "workspace-1" {
+			t.Fatalf("reset output/workspace = %q/%q, want %q/workspace-1", stdout, client.resetWorkspace, want)
 		}
 	})
 
@@ -217,16 +292,18 @@ func TestCmdPaletteCommands(t *testing.T) {
 
 	t.Run("Should resolve ID name path and nested cwd to one workspace [IT-032]", func(t *testing.T) {
 		client := newClient()
-		client.DaemonClient = &stubClient{getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
-			switch ref {
-			case "workspace-acme", "acme", "/repo/acme", "/repo/acme/nested":
-				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
-					ID: "workspace-acme", Name: "acme", RootDir: "/repo/acme",
-				}}, nil
-			default:
-				return WorkspaceDetailRecord{}, errors.New("workspace not found")
-			}
-		}}
+		client.DaemonClient = &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				switch ref {
+				case "workspace-acme", "acme", "/repo/acme", "/repo/acme/nested":
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+						ID: "workspace-acme", Name: "acme", RootDir: "/repo/acme",
+					}}, nil
+				default:
+					return WorkspaceDetailRecord{}, errors.New("workspace not found")
+				}
+			},
+		}
 		for _, ref := range []string{"workspace-acme", "acme", "/repo/acme"} {
 			if _, _, err := executeRootCommand(
 				t, newTestDeps(t, client), "cmd-palette", "list", "--workspace", ref, "-o", "json",
@@ -326,7 +403,7 @@ func TestCmdPaletteCommands(t *testing.T) {
 				status:     "412 Precondition Failed",
 				payload: contract.CmdPaletteError{
 					Error:   "no_attached_shell",
-					Message: "command changes UI state and needs an open Compozy shell",
+					Message: "command changes UI state and needs an open CompozyOS shell",
 				},
 			}
 			exitCode, _, stderr := executeRootCommandWithExit(

@@ -1,9 +1,14 @@
 import { useState } from "react";
 
-import { useActiveWorkspace, type WorktreeNestEntry } from "@/systems/workspace";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 import { usePaletteRegistry } from "./use-palette-registry";
-import { assemblePaletteSections, type PaletteSection } from "../lib/cmd-palette-sections";
+import { useCmdPaletteRankSignals } from "./use-cmd-palette-rank-signals";
+import {
+  assemblePaletteSections,
+  paletteGhostCompletion,
+  type PaletteSection,
+} from "../lib/cmd-palette-sections";
 import type { PaletteRegistry, ResolvedPaletteCommand } from "../lib/cmd-palette-types";
 import type { OsAppId, OsWindowRoute } from "../lib/os-types";
 import { windowManagerStore } from "../stores/window-manager-store";
@@ -13,14 +18,22 @@ import {
   useOsPaletteEntities,
   type OsPaletteEntities,
   type OsPaletteSessionResult,
+  type OsPaletteWorktreeResult,
 } from "./use-os-palette-entities";
+import {
+  useOsPaletteDomainSearch,
+  type OsPaletteDomainRow,
+  type OsPaletteDomainSection,
+} from "./use-os-palette-domain-search";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
 
 export interface OsPaletteRootModel {
   readonly registry: PaletteRegistry;
   readonly sections: readonly PaletteSection[];
   readonly entities: OsPaletteEntities;
+  readonly domainSections: readonly OsPaletteDomainSection[];
   readonly query: string;
+  readonly ghostTail: string | null;
   setQuery(query: string): void;
   /** Non-null while the palette is picking the surface one new tab becomes (US-036). */
   readonly destinationWindowId: string | null;
@@ -30,7 +43,8 @@ export interface OsPaletteRootModel {
   runCommand(command: ResolvedPaletteCommand): void;
   openSession(session: OsPaletteSessionResult): void;
   goToTab(windowId: string): void;
-  selectWorktree(entry: WorktreeNestEntry): void;
+  selectWorktree(entry: OsPaletteWorktreeResult): void;
+  openDomainRow(row: OsPaletteDomainRow): void;
 }
 
 export interface UseOsPaletteRootOptions {
@@ -56,20 +70,39 @@ export function useOsPaletteRoot({
   const { manager, coordinator } = useOsShell();
   const registry = usePaletteRegistry();
   const jumpToSession = useAttentionJump();
-  const { activeWorkspaceId, runtimeWorkspaceId, scope } = useActiveWorkspace();
+  const { activeWorkspaceId, runtimeWorkspaceId, scope, workspaces } = useActiveWorkspace();
   const [query, setQuery] = useState("");
   const paletteIntent = useWindowPaletteIntent();
   const destinationWindowId =
     open && paletteIntent?.kind === "destination" ? paletteIntent.windowId : null;
   const destination = destinationWindowId !== null;
+  const rankSignals = useCmdPaletteRankSignals(runtimeWorkspaceId, open);
   const entities = useOsPaletteEntities({
     open,
     activeWorkspaceId,
     runtimeWorkspaceId,
     scope,
     destinationWindowId,
+    destination,
+    query,
+    signals: rankSignals.data,
+    workspaces,
   });
-  const sections = assemblePaletteSections({ registry, query, destination });
+  const sections = assemblePaletteSections({
+    registry,
+    query,
+    destination,
+    signals: rankSignals.data,
+  });
+  const ghostTail = paletteGhostCompletion(registry, query, destination, rankSignals.data);
+  const domainSections = useOsPaletteDomainSearch({
+    open: open && !destination,
+    query,
+    workspaceId: runtimeWorkspaceId,
+    scope,
+    workspaceNames: new Map(workspaces.map(workspace => [workspace.id, workspace.name])),
+    signals: rankSignals.data,
+  });
 
   const close = () => onOpenChange(false);
   const pickDestination = (target: {
@@ -92,7 +125,9 @@ export function useOsPaletteRoot({
     registry,
     sections,
     entities,
+    domainSections,
     query,
+    ghostTail,
     setQuery,
     destinationWindowId,
     destination,
@@ -132,6 +167,10 @@ export function useOsPaletteRoot({
     selectWorktree: entry => {
       close();
       entities.selectWorktree(entry);
+    },
+    openDomainRow: row => {
+      close();
+      void coordinator.userOpen({ app: row.app, route: row.route });
     },
   };
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 )
 
@@ -164,9 +165,7 @@ func cloneAnyMap(source map[string]any) map[string]any {
 		return nil
 	}
 	cloned := make(map[string]any, len(source))
-	for key, value := range source {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, source)
 	return cloned
 }
 
