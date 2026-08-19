@@ -1,0 +1,119 @@
+---
+title: "How CompozyOS's Graph/Loop Editor and Local Gateway Triggers Beat Cloud-Only Agent Orchestration"
+description: "CompozyOS's built-in visual graph editor and local webhook gateway let you design and test agent workflows entirely on your machine — no public endpoint, no cloud intermediary required."
+date: 2026-08-19
+category: runtime
+tags:
+  - runtime
+  - graph-editor
+  - local-gateway
+  - webhooks
+  - agent-orchestration
+  - local-first
+author: pedronauck
+featured: false
+---
+
+Most agent orchestration tools put you in an uncomfortable spot. Either you write every loop, branch, and retry condition in code with no visual representation of what's actually happening, or you hand your execution environment to a cloud provider and expose a public endpoint just to receive a webhook. Neither option is great when you're building locally and trying to move fast.
+
+LangGraph, Temporal, and Inngest are capable tools. But they're built around cloud-hosted trigger models. If you want a GitHub push or a Linear issue to kick off an agent job, you typically need a public URL — which means deploying early, running a tunnel like ngrok, or wiring up a cloud function just to catch the event. The graph you define in code stays in code, invisible unless you add a separate visualization layer that may or may not reflect what actually runs.
+
+CompozyOS takes a different approach. Two specific features set it apart: a built-in visual graph and loop editor where what you draw is what executes, and a local gateway that lets webhooks from services like GitHub or Linear trigger agent jobs directly on your machine — no public endpoint required. This article explains both, and why they matter for developers who want to iterate quickly without giving up control.
+
+---
+
+## The Problem With Code-Only Graphs and Cloud-Hosted Triggers
+
+### Graphs That Live Only in Your Head
+
+LangGraph is a well-regarded framework for building stateful, multi-step agent workflows. The graph is defined entirely in Python — nodes, edges, conditional branches — and the mental model of the flow lives in your head or in documentation you maintain separately. When the workflow gets complex, with multiple loops, parallel branches, and conditional retries, the gap between the code and the actual execution path widens fast.
+
+Temporal takes a similar stance. Workflows are code-first, and while Temporal Cloud provides a UI for observing runs, the graph itself isn't something you design visually. You write it, deploy it, and then observe it.
+
+CrewAI has moved toward a visual editor in its enterprise offering, which is a genuine step forward. But that editor sits on top of CrewAI's hosted runtime. The visual representation and the execution environment are separate concerns, and the infrastructure layers — memory, queues, permissions — aren't natively part of what the editor manages.
+
+### Triggers That Require a Public Internet Address
+
+Cloud-hosted orchestration platforms handle triggers well once you're deployed. Inngest, for example, is built around the idea that your functions register with Inngest's cloud and events flow through that cloud to invoke them. That works cleanly in production. During local development, you run a local Inngest server or use a dev server that proxies events — which adds a setup step and ties your local environment to an external service's availability.
+
+Temporal Cloud and LangGraph Platform follow a similar pattern. Webhooks from external services need to reach a cloud-hosted endpoint. If you want to test a GitHub webhook locally, you're setting up a tunnel or standing up a staging environment. Neither is catastrophic, but both add friction at exactly the moment when you want to iterate.
+
+---
+
+## CompozyOS's Two Differentiators
+
+### 1. A Visual Graph and Loop Editor Backed by the Same Runtime
+
+CompozyOS includes a built-in visual graph and loop editor. You design the workflow visually — nodes, loops, branches, the connections between them — and that visual definition *is* the workflow. There's no separate code representation to keep in sync.
+
+This matters because the editor is backed by the same session, queue, and permission runtime layers that execute every run. When you draw a loop that retries an agent task on failure, that loop runs exactly as drawn. Memory state, task queue, and permission checks are all managed by the same runtime that interprets the graph. There's no translation step between what you designed and what actually executes.
+
+Compare that to LangGraph, where the graph is a Python object and any visual representation is a rendering of that object after the fact. Or CrewAI's visual editor, which generates workflow definitions but relies on a separate runtime that doesn't natively own the infrastructure layers the editor implies.
+
+The practical result: when you change a branch condition or add a retry loop in CompozyOS's editor, the change is reflected in the next run immediately. You're not updating code, redeploying, and hoping the visualization catches up.
+
+### 2. A Local Gateway for Webhook Triggers Without a Public Endpoint
+
+The second differentiator is the gateway. CompozyOS includes a local gateway that accepts webhook payloads from external services — GitHub, Linear, and others — and routes them to agent jobs running on your local machine. No public endpoint. No tunnel. No cloud intermediary.
+
+That's a meaningful architectural difference. When a GitHub push event arrives, the gateway receives it locally and triggers the corresponding agent session directly. The agent job runs in your local CompozyOS runtime, with full access to your local file system, environment, and the session state you've defined. You get the same trigger-to-execution path you'd have in production, but entirely on your machine during development.
+
+For developers working across multiple services — a code push triggers a review agent, a Linear status change triggers a documentation agent — this means you can wire up the full event-driven workflow locally before making any deployment decisions. The trigger model doesn't push you into the cloud before you're ready.
+
+Cloud-hosted platforms handle this differently by design. Their trigger models are built for production environments where services communicate over the public internet. That's the right model for deployed applications. It's the wrong model for a developer who wants to test a webhook-triggered agent workflow on a Tuesday afternoon without standing up infrastructure.
+
+---
+
+## What This Looks Like in Practice
+
+Say you're building a workflow where a Linear issue moving to "In Progress" triggers an agent that reads the issue, pulls relevant context from a codebase, and drafts a technical spec. With a cloud-hosted orchestration tool, you'd need a deployed endpoint to receive the Linear webhook, a cloud function or worker to process it, and a way to pass context to your agent runtime.
+
+With CompozyOS, you define the workflow in the visual editor — the trigger, the agent session, the loop that handles retries if the agent needs more context, the output step. You configure the local gateway to receive Linear webhooks. When the issue moves, the gateway catches the event and the workflow runs locally, with full visibility into every step in the editor.
+
+You can adjust the loop condition, swap the agent provider (CompozyOS connects to 26 built-in providers, including Claude Code), and rerun the workflow without redeploying anything. When you're satisfied, you move to production with the same workflow definition.
+
+---
+
+## Who This Is For
+
+CompozyOS is a beta product, free to self-host. It's built for developers who are comfortable with a CLI and want infrastructure that handles the operational concerns of agent workflows — loops, memory, queues, permissions — without having to write that infrastructure themselves.
+
+If you're already running agent workflows in production on LangGraph Platform or Temporal Cloud and the cloud-hosted trigger model works for your team, CompozyOS isn't solving a problem you have. But if you're in the phase where you're building, iterating, and testing locally — and you're tired of the gap between how you design a workflow and how it actually runs — the combination of a runtime-backed visual editor and a local webhook gateway is worth a look.
+
+The visual editor and local gateway aren't features bolted onto an existing framework. They're part of how CompozyOS is designed: a runtime environment that wraps agents with the infrastructure they need to get work done, visible and controllable from the start.
+
+---
+
+Install the beta and explore the documentation at [compozy.com](https://compozy.com).
+
+---
+
+## Frequently Asked Questions
+
+**What is agent orchestration local webhook triggers, and why does it matter for local development?**
+
+Webhook triggers let external services like GitHub or Linear start an agent workflow when an event occurs. For local development, receiving those webhooks without a public endpoint means you can test the full trigger-to-execution path on your machine before deploying anything.
+
+**How does CompozyOS's local gateway work?**
+
+The CompozyOS gateway runs locally and listens for incoming webhook payloads from configured services. When a matching event arrives, it routes the payload to the appropriate agent session in your local runtime, starting the workflow without requiring a public URL or cloud intermediary.
+
+**What makes CompozyOS's visual graph editor different from CrewAI's?**
+
+CompozyOS's editor is backed by the same runtime that executes the workflow. Session state, task queue, memory, and permissions are all managed by the same infrastructure layer that interprets the graph. CrewAI's visual editor generates workflow definitions but relies on a separate runtime that doesn't natively own those infrastructure layers.
+
+**Does CompozyOS require a cloud account to run?**
+
+No. CompozyOS is designed to be self-hosted. The beta is free to self-host, and the local gateway, visual editor, and agent runtime all run on your machine without requiring a cloud account or external service.
+
+**Which agent providers does CompozyOS support?**
+
+CompozyOS connects to 26 built-in agent providers, including Claude Code. Workflows defined in the editor can use any of these providers, and you can switch providers without changing the workflow structure.
+
+**How is CompozyOS different from Temporal or Inngest for webhook-triggered workflows?**
+
+Temporal and Inngest are built around cloud-hosted trigger models where webhooks reach a deployed endpoint. CompozyOS's local gateway lets webhooks trigger agent jobs directly on your local machine, which is useful during development when you want to iterate without deploying to a cloud environment.
+
+**Is CompozyOS suitable for production use?**
+
+CompozyOS is currently in beta. It's well-suited for developers building and testing agent workflows locally. For production use, you can self-host the runtime and use the same workflow definitions you developed locally — but as a beta product, it's most actively being used for development and evaluation.
