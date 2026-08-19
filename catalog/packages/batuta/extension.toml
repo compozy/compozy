@@ -1,0 +1,11 @@
+[extension]
+name = "batuta"
+version = "0.1.0-beta.3"
+description = "Batuta, the conductor: routes CompozyOS spec-cycle work to the cheapest capable executor and never writes code itself."
+# Manifest grammar floor only; scripts/check-compozy-version.sh enforces the operational floor.
+min_compozy_version = "0.3.0-beta.13"
+
+[resources]
+agents = ["agents"]
+skills = ["resources/skills"]
+loops = ["loops"]
