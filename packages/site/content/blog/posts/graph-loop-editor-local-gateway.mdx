@@ -1,0 +1,456 @@
+---
+title: "How CompozyOS's Graph/Loop Editor and Local Gateway Triggers Beat Cloud-Only Agent Orchestration"
+description: "CompozyOS's graph editor shares a single canonical definition with the file-based path, and its local gateway lets signed webhooks trigger agent work on your machine — with explicit, granular exposure controls."
+date: 2026-08-19
+category: runtime
+tags:
+  - graph-editor
+  - loop-editor
+  - local-gateway
+  - webhooks
+  - agent-orchestration
+  - runtime
+author: pedronauck
+kinds:
+  - say
+  - capability
+featured: false
+---
+
+Most agent orchestration tools put you in an uncomfortable spot. Either you write every loop, branch,
+and retry condition in code with no visual representation of what's actually happening, or you hand
+your execution environment to a cloud provider and expose a public endpoint just to receive a
+webhook. Neither option is great when you're building locally and trying to move fast.
+
+LangGraph, Temporal, Inngest, CrewAI, and Windmill are capable tools. But their trigger models are
+built for cloud-hosted environments. If you want a GitHub push or a Linear issue to kick off agent
+work, you typically need a public URL — which means deploying early, running a tunnel like ngrok, or
+wiring up a cloud function just to catch the event. The graph you define in code stays in code, and
+while some of these tools have added inspection surfaces, those surfaces reflect LLM-call graph
+execution rather than a durable agent session with permissions and memory.
+
+CompozyOS takes a different approach. Two specific features set it apart: a built-in graph editor
+where a single canonical definition drives both the visual surface and execution, and a local gateway
+that lets signed webhooks trigger work directly on your machine — with explicit, granular controls
+over what is and isn't exposed. This article explains both, with the real commands and definitions.
+
+## The problem with code-only graphs and cloud-hosted triggers
+
+### Graphs that live only in your head
+
+LangGraph is a well-regarded framework for building stateful, multi-step agent workflows. The graph
+is defined entirely in Python — nodes, edges, conditional branches — and the mental model of the flow
+lives in your head or in documentation you maintain separately. LangGraph Studio provides a visual
+inspection surface, but it renders the graph after the fact from the code definition. When the
+workflow gets complex, with multiple loops, parallel branches, and conditional retries, the gap
+between the code and the actual execution path widens fast.
+
+Temporal takes a similar stance. Workflows are code-first, and Temporal's Web UI provides event
+history and run inspection — which is genuinely useful. But that inspection is of workflow execution
+history, not of a durable agent session with its own permission model, memory state, and task queue.
+The graph itself isn't something you design visually; you write it, deploy it, and then observe it.
+
+CrewAI has moved toward a visual editor in its enterprise offering, which is a genuine step forward.
+But that editor generates workflow definitions that run on CrewAI's hosted runtime. The visual
+representation and the execution environment are separate concerns, and there's no single canonical
+definition that the editor and the file-based path both validate against.
+
+### Triggers that need a public address
+
+Cloud-hosted orchestration platforms handle triggers well once you're deployed. Inngest, for example,
+is built around the idea that your functions register with Inngest's cloud and events flow through
+that cloud to invoke them. That works cleanly in production. During local development, you run a
+local Inngest dev server that proxies events — which adds a setup step and ties your local
+environment to an external service's availability.
+
+Temporal Cloud and LangGraph Platform follow a similar pattern. Webhooks from external services need
+to reach a cloud-hosted endpoint. If you want to test a GitHub webhook locally, you're setting up a
+tunnel or standing up a staging environment. Neither is catastrophic, but both add friction at
+exactly the moment when you want to iterate.
+
+## One canonical definition, three surfaces
+
+### What the definition actually looks like
+
+A Loop is `compozy.loop/v1` YAML on disk, one directory per Loop, always named `loop.yaml`. It is
+data, not a program of inline functions — which is what makes it renderable as a graph without a
+translation step. Here is a trimmed version of `review-and-fix`, a Loop that ships inside the
+CompozyOS spec-cycle extension:
+
+```yaml
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: review-and-fix
+  description: Review a task with an agent and remediate every finding until a round comes back clean.
+
+concurrency: forbid
+
+inputs:
+  task_name:
+    type: string
+    required: true
+  reviewer:
+    type: agent
+    default: reviewer
+  fixer:
+    type: agent
+    default: review_fixer
+
+contract:
+  goal: "Review the work for task {{ .inputs.task_name }} and remediate every valid finding."
+  stop_when: "nodes.review.status == 'succeeded' && size(nodes.review.output.issues) == 0"
+  iteration_cap: 3
+  no_progress:
+    window: 2
+    hash_fields: [nodes.review.output.issues]
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: review
+      class: action
+      kind: run-agent
+      timeout: 45m
+      retry:
+        max_attempts: 2
+      params:
+        agent: "{{ .inputs.reviewer }}"
+        prompt: "Review the workspace changes for task {{ .inputs.task_name }}."
+
+    - id: has_issues
+      class: control
+      kind: branch
+      condition: "size(nodes.review.output.issues) > 0"
+
+    - id: fix_issues
+      class: control
+      kind: fan-out
+      collection: "{{ .nodes.review.output.issues }}"
+      max_parallel: 1
+      max_fan_out: 64
+
+    - id: fix_issue
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.fixer }}"
+        prompt: "Remediate {{ .item.title }} in {{ .item.file }}."
+
+  edges:
+    - from: review
+      to: has_issues
+    - from: has_issues
+      to: fix_issues
+    - from: fix_issues
+      to: fix_issue
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: webhook
+```
+
+Two grammars share the file, and the split is deliberate. String values are Go templates —
+`{{ .inputs.task_name }}`, `{{ .item.file }}`. Conditions are CEL — `condition`, `stop_when`, and
+event filters. A condition that doesn't evaluate to a boolean is a lint error, not a runtime
+surprise.
+
+Note what is _not_ in the graph. Retry has two distinct meanings and the DSL keeps them apart:
+`retry.max_attempts` on a node is operational retry for a transport failure or an attempt timeout,
+while the _actual_ review loop is generational — `stop_when`, `iteration_cap`, and `no_progress`
+bound the whole body, and a `gate` node maps a verdict to a route like `revise` under a
+`max_revisions` ceiling.
+
+### The editor lints with the daemon's linter
+
+The visual editor at `/loops/:name/editor` is a fork-and-edit surface, not a blank-canvas builder:
+you fork an existing Loop and edit its body. A palette on the left, a canvas of node cards and edges
+in the center, an inspector on the right whose fields are generated from the canonical DSL types and
+the tool registry's own schemas — never an editor-local model.
+
+The part that matters is the linter dock. It reports; it never computes. The editor calls the same
+route the CLI calls:
+
+```bash
+$ compozy loop validate --file loop.yaml -o json
+```
+
+A clean definition returns `200` with `{"valid": true}`. A broken one comes back `422` with
+per-node, deterministic codes:
+
+```json
+{
+  "valid": false,
+  "errors": [
+    {
+      "node_id": "fix_issues",
+      "code": "fan_out_ceiling_exceeded",
+      "message": "max_fan_out (80) exceeds the daemon ceiling of 64",
+      "severity": "error"
+    }
+  ]
+}
+```
+
+Those codes are a closed catalog owned by the runtime — `cycle`, `unreachable_node`,
+`non_terminating_structure`, `node_id_invalid`, `verdict_policy_requires_judge`, `unknown_reference`,
+`unsafe_command_interpolation`, and around fifty more. Validate lints and compiles the draft without
+saving it. Publish is a separate, compare-and-swap operation: `PATCH /loops/:name` with an
+`expected_version`, rejected `409` if the stored version moved while your editor was open.
+
+<Callout tone="info" eyebrow="Scope">
+  The Graph/DSL toggle switches between the canvas and the `compozy.loop/v1` YAML over one document
+  — the graph is the editing surface in this version, and structural edits such as `start[]` come
+  from the file or from agent authoring. Node layout positions live in a separate annotation store
+  keyed by workspace, Loop, and node, so layout never leaks into the canonical definition.
+</Callout>
+
+That's a checkable property, not a claim about visual fidelity. Compare it to CrewAI Studio, where
+the visual editor and the file-based path are separate surfaces with separate validation, so a
+workflow that looks correct in the editor may behave differently when run from a file.
+
+## A local gateway with explicit exposure
+
+### There is no "expose everything" flag
+
+CompozyOS binds to loopback by default and nothing becomes reachable implicitly. Exposure is a
+**tier × surface** matrix, and each cell is an explicit transition you run on purpose. Two tiers —
+`private` (your own Tailscale tailnet) and `public` — and two surfaces — `operator_ui` and
+`webhook_ingress`.
+
+`gateway.enabled` in `config.toml` is a machine-wide ceiling, not a switch that exposes anything by
+itself:
+
+```bash
+$ compozy config set gateway.enabled true
+$ compozy gateway provider enable tailscale --tier private --source bundled
+
+# Private overlay: the web UI over your own tailnet, nothing public
+$ compozy gateway surface enable operator_ui --tier private
+
+# Public delivery: signed webhooks only — the listener is built with delivery routes and nothing else
+$ compozy gateway surface enable webhook_ingress --tier public
+
+# Public operator access: requires explicit consent, on top of device pairing
+$ compozy gateway surface enable operator_ui --tier public --consent
+```
+
+Each cell is independent — enabling one does not enable another. Skip the ceiling and every later
+transition refuses, naming both the cause and the fix:
+
+```text
+gateway exposure refused: gateway.enabled is false and blocks every remote transition; fix: set gateway.enabled=true, then retry the explicit transition
+```
+
+Exposure intent is durable daemon state, not a config value, which is why there's no
+`gateway.public_ui.enabled` key to find. `compozy gateway status -o json` is where the proof lives:
+
+```json
+{
+  "tiers": [{ "tier": "private", "observed": "up", "advertised": true }],
+  "providers": [{ "name": "tailscale", "tier": "private", "health": "healthy" }],
+  "addresses": [
+    {
+      "tier": "private",
+      "address": "https://compozy-gateway.<your-tailnet>.ts.net:8443",
+      "live": true
+    }
+  ]
+}
+```
+
+### Reachability is proven before an address is advertised
+
+Before the daemon advertises any address, it mints a one-time challenge — a random nonce served at
+`/.well-known/compozy/gateway-challenge/<id>` — and fetches it back _through_ the address the
+provider just claimed. The address goes `live: true` only on a byte-exact nonce echo.
+
+On the public tier that check is deliberately paranoid: HTTPS is mandatory, redirects are refused,
+the response body is capped, and DNS resolves through an authenticated DNS-over-TLS resolver rather
+than the host resolver — specifically so a Tailscale MagicDNS answer can't be mistaken for proof that
+a public Funnel address works.
+
+This is a reachability check, not authentication. Trust is separate and never conflated with it:
+every device completes a pairing step, and every delivery is signed, regardless of which address
+reached the daemon.
+
+### Remote reach is not remote authority
+
+Being reachable doesn't make a daemon fully operable from the outside. The remote operation matrix is
+enforced twice — structurally, because remote listeners are built with a fixed route set so local-only
+routes literally do not exist on them, and again as a client-side denylist.
+
+<Callout tone="accent" eyebrow="Remote operation matrix">
+  **Remote-capable:** sessions, task reads, loops, memory, settings, bridges, extensions, and
+  gateway management. **Local-only:** task mutations, task-run queue and scheduler authority, agent
+  kernel, hosted MCP and the MCP Host API, and resource mutation. The split is method-aware —
+  resource and task *reads* travel fine; their mutations don't. Use a local daemon or an SSH forward
+  for the rest.
+</Callout>
+
+### Honest limits
+
+<Callout tone="warning" eyebrow="Limits">
+  **No store-and-forward.** If the daemon is offline when a delivery arrives, that delivery is lost.
+  Configure retries at the sender and treat a connection failure as a failed delivery.
+  **Fixed-window rate limit** of 60 requests per minute, keyed on endpoint path and transport
+  source, covering webhook ingress and bridge callbacks. It is not configurable, and it fails
+  closed. **Payloads cap at 1 MiB.** These are intentional boundaries for a local-first tool;
+  always-on availability and event buffering belong to a hosted tier, not to this one.
+</Callout>
+
+The relevant comparison for the gateway isn't LangGraph, Temporal, or Inngest — those are cloud-hosted
+by design, so "local beats cloud" illuminates nothing. The useful comparison is against other
+local-first tools: OpenHands, Orca, Conductor, Emdash, and Smithers. They share the local-execution
+posture, but none of them prove reachability before announcing an address, and none expose the same
+granular, independently managed cells.
+
+## Putting it together: an event that starts a Loop
+
+Say a Linear issue moving to "In Progress" should start the `review-and-fix` Loop. That's one
+automation trigger:
+
+```bash
+$ compozy automation triggers create \
+    --name spec-review \
+    --scope workspace \
+    --workspace /Users/you/src/checkout-api \
+    --event webhook \
+    --endpoint-slug spec-review \
+    --webhook-secret-value "$SPEC_REVIEW_SECRET" \
+    --loop review-and-fix \
+    --loop-input-mapping 'task_name={{ .trigger.payload.issue.identifier }}'
+```
+
+The equivalent declarative form in `config.toml`:
+
+```toml
+[[automation.triggers]]
+scope = "workspace"
+workspace = "/Users/you/src/checkout-api"
+name = "spec-review"
+event = "webhook"
+endpoint_slug = "spec-review"
+webhook_secret_ref = "env:SPEC_REVIEW_SECRET"
+target_kind = "loop"
+enabled = true
+fire_limit = { max = 6, window = "1h" }
+
+[automation.triggers.loop_target]
+loop_name = "review-and-fix"
+input_mapping = { task_name = "{{ .trigger.payload.issue.identifier }}" }
+```
+
+Deliveries land on a path that carries both the slug and the webhook id:
+
+```text
+POST /api/webhooks/workspaces/<workspace-id>/spec-review--wbh_<id>
+```
+
+Now the part most articles would gloss over: **CompozyOS verifies its own signature contract, not
+GitHub's or Linear's.** Every delivery carries three headers, and the signature is an HMAC-SHA256
+over the timestamp, a literal `.`, and the raw body:
+
+```bash
+$ TS=$(date +%s)
+$ BODY='{"issue":{"identifier":"CHK-421"}}'
+$ SIG=$(printf '%s.%s' "$TS" "$BODY" \
+    | openssl dgst -sha256 -hmac "$SPEC_REVIEW_SECRET" -hex \
+    | awk '{print $2}')
+
+$ curl -X POST "https://compozy-gateway.<your-tailnet>.ts.net/api/webhooks/workspaces/$WS/spec-review--wbh_$ID" \
+    -H "X-Compozy-Webhook-Timestamp: $TS" \
+    -H "X-Compozy-Webhook-Signature: sha256=$SIG" \
+    -H "X-Compozy-Webhook-Delivery-ID: $(uuidgen)" \
+    -H 'Content-Type: application/json' \
+    -d "$BODY"
+```
+
+Timestamps outside a five-minute freshness window are rejected, and a replayed delivery id is
+rejected while it's still inside that window.
+
+<Callout tone="danger" eyebrow="Signature contract">
+  A GitHub repository webhook pointed straight at this URL is **rejected** — GitHub signs with
+  `X-Hub-Signature-256`, a different contract. Send from a GitHub Actions workflow that signs the
+  CompozyOS shape, or use the dedicated GitHub bridge, which verifies GitHub's native signature
+  itself. The same applies to any sender with its own signing scheme.
+</Callout>
+
+Publishing the URL is its own confirmation step, too. A trigger read exposes an `ingress` object once
+the public surface has a verified address, and you confirm the binding explicitly via
+`POST /api/gateway/ingress-bindings`. If the public address changes, the endpoint generation changes
+and the trigger reports `reconfirmation_required` until you confirm again. A URL existing is never
+proof that delivery is on.
+
+From there you can adjust the Loop's `stop_when`, swap the agent — CompozyOS ships 26 built-in
+providers, including Claude Code — and rerun without redeploying anything. The same definition, lint
+codes and all, is what moves to production when you're ready.
+
+## Who this is for
+
+CompozyOS is a beta product, free to self-host. It's built for developers comfortable with a CLI who
+want infrastructure that handles the operational concerns of agent work — loops, memory, queues,
+permissions — without writing that infrastructure themselves.
+
+If you're already running agent workflows in production on LangGraph Platform or Temporal Cloud and
+the cloud-hosted trigger model works for your team, CompozyOS isn't solving a problem you have. But if
+you're in the phase where you're building, iterating, and testing locally — and you want one canonical
+definition that validates identically whether you edit it visually or in a file, plus a gateway that
+makes every inch of exposure an explicit decision — the combination is worth a look.
+
+Start with the [Loops DSL reference](/docs/loops/dsl-reference), the
+[visual editor](/docs/loops/visual-editor), and the [gateway quickstart](/docs/gateway/quickstart).
+
+## Frequently asked questions
+
+**Why does receiving a webhook locally matter?**
+Webhook triggers let external services start agent work when an event occurs. Receiving them without
+a public endpoint means you can test the full trigger-to-execution path on your machine before
+deploying anything — no tunnel, no staging environment.
+
+**How does the local gateway control exposure?**
+Exposure is a tier × surface matrix: `private` and `public` tiers, `operator_ui` and
+`webhook_ingress` surfaces. Each cell is enabled by an explicit
+`compozy gateway surface enable <surface> --tier <tier>` transition, and the public operator UI
+additionally requires `--consent`. `gateway.enabled` in `config.toml` is a ceiling above all of them,
+not a switch. Exposure intent is durable daemon state — there is no config key that turns the public
+UI on.
+
+**What are the gateway's real limitations?**
+No store-and-forward: a delivery arriving while the daemon is offline is lost. A fixed-window rate
+limit of 60 requests per minute per endpoint path and transport source, not configurable, covering
+webhook ingress and bridge callbacks. Payloads cap at 1 MiB. And remote reach is not remote
+authority — task mutations, scheduler authority, the agent kernel, hosted MCP, and resource mutations
+stay local-only.
+
+**Can GitHub or Linear deliver to it directly?**
+Not with their native signatures. CompozyOS verifies `X-Compozy-Webhook-Timestamp`,
+`X-Compozy-Webhook-Signature`, and `X-Compozy-Webhook-Delivery-ID` — an HMAC-SHA256 over
+`"<timestamp>." + body`. Send from a workflow step that signs that contract, or use the dedicated
+GitHub bridge, which verifies GitHub's own signature.
+
+**What makes the graph editor different from CrewAI Studio?**
+The editor and the file-based path share one canonical `compozy.loop/v1` document and one linter. The
+editor calls `POST /loops/:name/validate` — the same route the CLI calls — and surfaces the daemon's
+own per-node codes such as `fan_out_ceiling_exceeded` and `verdict_policy_requires_judge`. CrewAI
+Studio's editor and file path are separate surfaces with separate validation.
+
+**How is this different from Temporal's Web UI or LangGraph Studio?**
+Temporal's Web UI shows event history for workflow runs, and LangGraph Studio renders LLM-call graph
+execution — both genuinely useful. The CompozyOS editor inspects a durable agent session: permissions,
+memory state, task queue, and the definition itself, all validated by the same path. You're looking at
+the session's infrastructure state, not just a trace of LLM calls.
+
+**Does CompozyOS require a cloud account?**
+No. It's designed to be self-hosted, and the beta is free to self-host. The private overlay uses your
+own Tailscale account — CompozyOS operates no relay and no Tailscale infrastructure of its own.
+
+**Which agent providers does it support?**
+26 built-in providers, including Claude Code, Codex, Gemini, OpenCode, Goose, OpenHands, and Cursor.
+Swapping the provider on a node doesn't change the Loop's structure.
+
+**Is it suitable for production?**
+CompozyOS is in beta. It suits developers building and testing agent work locally, and you can
+self-host the runtime with the same definitions you developed locally. But the gateway's lack of
+store-and-forward makes missed deliveries during downtime a real operational consideration.
