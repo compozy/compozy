@@ -14,7 +14,7 @@ import (
 
 // Suite: durable asynchronous tool approvals.
 // Invariant: pending approvals are workspace-owned, resolve once, atomically fence dispatch,
-// recover ambiguous execution without replay, and survive the 00069 upgrade/reopen boundary.
+// recover ambiguous execution without replay, and survive the 00078 upgrade/reopen boundary.
 // Owning layer: GlobalDB pending-approval repository. Canonical suite: this file.
 func TestGlobalDBToolApprovalPending(t *testing.T) {
 	t.Parallel()
@@ -82,27 +82,27 @@ func TestGlobalDBToolApprovalPending(t *testing.T) {
 }
 
 func TestGlobalDBToolApprovalPendingMigration(t *testing.T) {
-	t.Run("Should upgrade 00068 to 00069 and preserve pending state across reopen [IT-020]", func(t *testing.T) {
+	t.Run("Should upgrade 00077 to 00078 and preserve pending state across reopen [IT-020]", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prefixDB, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixBefore(t, "00069_schema.sql"),
+			globalMigrationPrefixBefore(t, "00078_schema.sql"),
 		)
 		if err != nil {
-			t.Fatalf("open 00068 prefix error = %v", err)
+			t.Fatalf("open 00077 prefix error = %v", err)
 		}
 		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: approvalGrantTestTime}
 		prefixGlobalDB.initializeRepositories(openConfig{})
-		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "approval-00069", t.TempDir())
+		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "approval-00078", t.TempDir())
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
 		}
 
 		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
-			t.Fatalf("OpenGlobalDB(00069 upgrade) error = %v", err)
+			t.Fatalf("OpenGlobalDB(00078 upgrade) error = %v", err)
 		}
 		ctx := testutil.Context(t)
 		assertTableHasColumns(t, upgraded.db, "tool_approval_pending", []string{

@@ -259,36 +259,36 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 }
 
 // Suite: command-palette migration tail.
-// Invariant: 00069 remains the approval boundary and 00070 adds the three
+// Invariant: 00078 remains the approval boundary and 00079 adds the three
 // workspace-scoped personalization tables plus their deletion trigger.
 // Owning layer: global migration stream. Canonical suite: this file.
 func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should upgrade 00069 to 00070 and cascade workspace personalization [IT-020]", func(t *testing.T) {
+	t.Run("Should upgrade 00078 to 00079 and cascade workspace personalization [IT-020]", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
 		db := openStreamTestDB(t, "global-command-palette-tail.db")
 		stream := globaldb.MigrationStream()
 		stream.Bootstrap = nil
-		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 69)); err != nil {
-			t.Fatalf("Apply(global through 00069) error = %v", err)
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 78)); err != nil {
+			t.Fatalf("Apply(global through 00078) error = %v", err)
 		}
 		if !sqliteTableExists(t, db, "tool_approval_pending") {
-			t.Fatal("tool_approval_pending missing at 00069")
+			t.Fatal("tool_approval_pending missing at 00078")
 		}
 		for _, table := range []string{"cmd_palette_usage", "cmd_palette_query_hits", "cmd_palette_pins"} {
 			if sqliteTableExists(t, db, table) {
-				t.Fatalf("table %q exists before 00070", table)
+				t.Fatalf("table %q exists before 00079", table)
 			}
 		}
 
 		if err := store.Apply(ctx, db, stream); err != nil {
-			t.Fatalf("Apply(global through 00070) error = %v", err)
+			t.Fatalf("Apply(global through 00079) error = %v", err)
 		}
 		for _, table := range []string{"cmd_palette_usage", "cmd_palette_query_hits", "cmd_palette_pins"} {
 			if !sqliteTableExists(t, db, table) {
-				t.Fatalf("table %q missing after 00070", table)
+				t.Fatalf("table %q missing after 00079", table)
 			}
 		}
 		var triggerCount int
