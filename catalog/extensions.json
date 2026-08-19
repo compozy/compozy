@@ -1,6 +1,6 @@
 {
     "manifest_version": 2,
-    "generated_at": "2026-07-17T00:40:00Z",
+    "generated_at": "2026-08-19T01:14:05Z",
     "entries": [
         {
             "entry_id": "repository-orientation",
@@ -15,6 +15,20 @@
             "format": "compozy",
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/repository-orientation"
+        },
+        {
+            "entry_id": "batuta",
+            "name": "Batuta",
+            "description": "Route CompozyOS spec-cycle work to the cheapest capable executor while preserving review and verification gates",
+            "version": "0.1.0-beta.3",
+            "published_at": "2026-08-18T17:41:41Z",
+            "install_slug": "franciscpd/batuta-compozy",
+            "artifact_url": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/artifacts/batuta-v0.1.0-beta.3.tar.gz",
+            "digest_sha256": "ff6bde8f421c1caf7b99698f083568c54ceb2111f3ad701a6ff635d5b73400d8",
+            "tier": "community",
+            "format": "compozy",
+            "author": "Francisross Soares de Oliveira",
+            "repository": "https://github.com/franciscpd/batuta-compozy"
         }
     ]
 }

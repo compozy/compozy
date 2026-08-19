@@ -1,0 +1,114 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: batuta-deliver
+  description: Batuta's full delivery cycle - implement every task for a slug, then review and fix until a round comes back clean.
+  catalog:
+    use_when: "You have authored tasks under .compozy/tasks/<slug> and want the full batuta cycle: implementation with atomic commits, then review rounds until clean."
+    keywords: [batuta, deliver, implement, review]
+    category: Engineering
+
+concurrency: queue
+
+inputs:
+  slug:
+    type: string
+    required: true
+  origin_session_id:
+    type: string
+    required: true
+  auto_commit:
+    type: boolean
+    default: true
+
+contract:
+  goal: >
+    Deliver the feature for .compozy/tasks/{{ .inputs.slug }} end to end: implement every
+    authored task in dependency order, then review and remediate until a review round is clean.
+  definition_of_done: >
+    The implement-tasks child run ended done and the review-and-fix child run ended done or no-op.
+  iteration_cap: 1
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, canceled, exhausted, stalled]
+  on_done:
+    - &return_to_origin
+      tool: compozy__session_prompt
+      with:
+        session_id: "{{ .inputs.origin_session_id }}"
+        message_id: "batuta-terminal-{{ .effect.identity.loop_run_id }}"
+        idempotency_key: "batuta-terminal-{{ .effect.identity.loop_run_id }}"
+        mode: queue
+        message: |
+          Batuta delivery run {{ .effect.identity.loop_run_id }} reached terminal
+          trigger {{ .effect.identity.trigger }}. Inspect the run with
+          `compozy__loop_status`, then report its exact terminal outcome, child run
+          IDs, commits, and blocker in this conversation. Decide any redispatch or
+          escalation with the operator. Never approve a gate, edit code, push, or
+          mutate routing from this return prompt.
+  on_noop:
+    - *return_to_origin
+  on_blocked:
+    - *return_to_origin
+  on_failed:
+    - *return_to_origin
+  on_exhausted:
+    - *return_to_origin
+  on_stalled:
+    - *return_to_origin
+  on_canceled:
+    - *return_to_origin
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: schedule
+
+graph:
+  nodes:
+    - id: slug_input
+      class: source
+      kind: input
+      input_ref: slug
+
+    # The agent's direct import preflight detects a missing task set before dry-run.
+    # This graph remains fail-closed for direct submissions that skip that preflight.
+    - id: load_check
+      class: action
+      kind: ext__spec_cycle__import_tasks
+      params:
+        pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md"
+      produces:
+        tasks: array
+        count: integer
+
+    - id: implement
+      class: action
+      kind: run-loop
+      params:
+        loop: implement-tasks
+        inputs:
+          slug: "{{ .inputs.slug }}"
+          auto_commit: "{{ .inputs.auto_commit }}"
+
+    - id: review
+      class: action
+      kind: run-loop
+      params:
+        loop: review-and-fix
+        inputs:
+          task_name: "{{ .inputs.slug }}"
+          auto_commit: "{{ .inputs.auto_commit }}"
+
+  edges:
+    - from: slug_input
+      to: load_check
+    - from: load_check
+      to: implement
+    - from: implement
+      to: review
