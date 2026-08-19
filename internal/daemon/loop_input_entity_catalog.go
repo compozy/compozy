@@ -18,6 +18,14 @@ type daemonLoopInputEntityCatalog struct {
 	state *bootState
 }
 
+type loopInputEntityValidator func(context.Context, string, string) (bool, error)
+
+type loopInputEntityDescriptor struct {
+	ListSurface string
+	IDShape     string
+	Validate    loopInputEntityValidator
+}
+
 var _ looppkg.InputEntityCatalog = daemonLoopInputEntityCatalog{}
 
 func (c daemonLoopInputEntityCatalog) HasInputEntity(
@@ -30,23 +38,45 @@ func (c daemonLoopInputEntityCatalog) HasInputEntity(
 	if target == "" || c.state == nil {
 		return false, nil
 	}
-	switch kind {
-	case dsl.EntityKindAgent:
-		return c.hasAgent(ctx, string(workspaceID), target)
-	case dsl.EntityKindSkill:
-		return c.hasSkill(ctx, string(workspaceID), target)
-	case dsl.EntityKindLoop:
-		return c.hasLoop(string(workspaceID), target), nil
-	case dsl.EntityKindWorktree:
-		return c.hasWorktree(ctx, string(workspaceID), target)
-	case dsl.EntityKindSession:
-		return c.hasSession(ctx, string(workspaceID), target)
-	case dsl.EntityKindWorkspace:
-		return c.hasWorkspace(ctx, target)
-	case dsl.EntityKindSecret:
-		return c.hasSecret(ctx, target)
-	default:
+	descriptor, exists := c.entityRegistry()[kind]
+	if !exists {
 		return false, nil
+	}
+	return descriptor.Validate(ctx, string(workspaceID), target)
+}
+
+func (c daemonLoopInputEntityCatalog) entityRegistry() map[dsl.EntityKind]loopInputEntityDescriptor {
+	return map[dsl.EntityKind]loopInputEntityDescriptor{
+		dsl.EntityKindAgent: {
+			ListSurface: "agents.list", IDShape: "agent name", Validate: c.hasAgent,
+		},
+		dsl.EntityKindSkill: {
+			ListSurface: "skills.list", IDShape: "skill name", Validate: c.hasSkill,
+		},
+		dsl.EntityKindLoop: {
+			ListSurface: "loops.list", IDShape: "Loop name",
+			Validate: func(_ context.Context, workspaceID string, value string) (bool, error) {
+				return c.hasLoop(workspaceID, value), nil
+			},
+		},
+		dsl.EntityKindWorktree: {
+			ListSurface: "worktrees.list", IDShape: "worktree id", Validate: c.hasWorktree,
+		},
+		dsl.EntityKindSession: {
+			ListSurface: "sessions.list", IDShape: "session id", Validate: c.hasSession,
+		},
+		dsl.EntityKindWorkspace: {
+			ListSurface: "workspaces.list", IDShape: "workspace id",
+			Validate: func(ctx context.Context, _ string, value string) (bool, error) {
+				return c.hasWorkspace(ctx, value)
+			},
+		},
+		dsl.EntityKindSecret: {
+			ListSurface: "vault.list", IDShape: "vault reference",
+			Validate: func(ctx context.Context, _ string, value string) (bool, error) {
+				return c.hasSecret(ctx, value)
+			},
+		},
 	}
 }
 
@@ -178,6 +208,9 @@ func (c daemonLoopInputEntityCatalog) hasWorkspace(ctx context.Context, id strin
 
 func (c daemonLoopInputEntityCatalog) hasSecret(ctx context.Context, ref string) (bool, error) {
 	if c.state.providerVault == nil {
+		return false, nil
+	}
+	if err := vault.ValidateSecretRef(ref); err != nil {
 		return false, nil
 	}
 	metadata, err := c.state.providerVault.GetMetadata(ctx, ref)

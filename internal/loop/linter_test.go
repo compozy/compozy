@@ -290,6 +290,34 @@ func TestLinterShouldValidateActionReviews(t *testing.T) {
 		node.Review = &dsl.ReviewSpec{OnReject: &dsl.RejectPolicy{Route: "missing"}}
 		requireLintDiagnostic(t, loop.NewLinter().Lint(invalid), loop.CodeErrorRouteBackward, loop.SeverityError)
 	})
+
+	t.Run("Should reject an unknown entity kind in an external tool edit schema", func(t *testing.T) {
+		t.Parallel()
+
+		invalid := validDefinition()
+		node := requireNode(t, &invalid, "agent")
+		node.Kind = "compozy__custom_publish"
+		node.Review = &dsl.ReviewSpec{Decisions: []dsl.ReviewDecision{dsl.ReviewDecisionEdit}}
+		linter := loop.NewLinter(loop.WithToolSchemaSource(fakeToolSchemas{
+			node.Kind: {
+				ToolID: node.Kind,
+				InputSchema: mustJSON(t, map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"reviewer": map[string]any{
+							"type": "string", "x-compozy-kind": "recipe",
+						},
+					},
+				}),
+			},
+		}))
+		requireLintDiagnostic(
+			t,
+			linter.Lint(invalid),
+			loop.CodeRequestEntityKindInvalid,
+			loop.SeverityError,
+		)
+	})
 }
 
 func TestLinterShouldValidatePredicateErrorPolicies(t *testing.T) {

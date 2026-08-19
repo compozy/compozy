@@ -6,7 +6,7 @@ persona: Lea
 journey: J-01
 expected: Shared Web controls, CLI prompts, and structured start surfaces preserve exact entity and runtime values, reject stale references with input_validation, and create no run on failure
 entry_points: web /loops/:name run form; CLI compozy loop run --input; HTTP/UDS Loop run route; compozy__loop_run
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260729-tool-invoke-structural-redaction; BUG-20260818-runtime-input-split-controls
 fix_status: fixed
 retest_status: pass

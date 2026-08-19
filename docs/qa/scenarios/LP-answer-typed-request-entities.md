@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-supervise-loop-request
 expected: Nested x-compozy-kind fields use the shared exact-entity controls, enum takes precedence, and a missing entity returns input_validation without closing or resuming the request
 entry_points: web /loop-runs/:runId Needs-you card; CLI compozy loop respond; HTTP/UDS Loop respond route; compozy__loop_respond
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260818-nested-entity-picker-missing
 fix_status: fixed
 retest_status: pass

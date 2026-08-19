@@ -47,7 +47,7 @@ func loopRequestOperations() []OperationSpec {
 			[]ResponseSpec{ok(contract.RespondLoopRequestResponse{}), badRequest(), forbidden(),
 				notFound("Loop request not found"), conflict(),
 				{Status: 410, Description: "Loop request is closed", Body: contract.ErrorPayload{}},
-				loopUnprocessable(), loopUnavailable(), internalError()},
+				loopInputUnprocessable(), loopUnavailable(), internalError()},
 		),
 		loopOperation(
 			httpMethodPost,
@@ -57,7 +57,7 @@ func loopRequestOperations() []OperationSpec {
 			contract.LoopNodeAmendRequest{},
 			[]ParameterSpec{workspaceIDParam(), loopRunIDParam(), pathParam("node_id", "Loop node id")},
 			[]ResponseSpec{ok(contract.LoopNodeAmendResponse{}), badRequest(), forbidden(),
-				notFound(specLoopRunNotFound), conflict(), loopUnprocessable(), loopUnavailable(), internalError()},
+				notFound(specLoopRunNotFound), conflict(), loopInputUnprocessable(), loopUnavailable(), internalError()},
 		),
 	}
 }
@@ -104,7 +104,7 @@ func loopTimeTravelOperations() []OperationSpec {
 					"Loop generation not found",
 				),
 				conflict(),
-				loopUnprocessable(),
+				loopInputUnprocessable(),
 				loopUnavailable(),
 				internalError(),
 			},

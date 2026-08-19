@@ -264,6 +264,12 @@ type stubClient struct {
 		contract.PutLoopConfigRequest,
 		agentidentity.Credentials,
 	) (contract.LoopConfigResponse, error)
+	getLoopInputDefaultsFn func(
+		context.Context, string, string, contract.LoopInputDefaultsScope,
+	) (contract.LoopInputDefaultsResponse, error)
+	putLoopInputDefaultFn func(
+		context.Context, string, string, string, contract.PutLoopInputDefaultRequest,
+	) (contract.LoopInputDefaultResponse, error)
 	listLoopRunsFn    func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
 	listGoalTurnsFn   func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
 	getLoopRunFn      func(context.Context, string, string) (contract.LoopRunResponse, error)
@@ -2234,6 +2240,33 @@ func (s *stubClient) PutLoopConfig(
 		return s.putLoopConfigFn(ctx, workspaceID, name, request, credentials)
 	}
 	return contract.LoopConfigResponse{}, errors.New("unexpected PutLoopConfig call")
+}
+
+func (s *stubClient) GetLoopInputDefaults(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	scope contract.LoopInputDefaultsScope,
+) (contract.LoopInputDefaultsResponse, error) {
+	if s.getLoopInputDefaultsFn != nil {
+		return s.getLoopInputDefaultsFn(ctx, workspaceID, name, scope)
+	}
+	return contract.LoopInputDefaultsResponse{
+		LoopName: name, Scope: scope, Values: map[string]any{},
+	}, nil
+}
+
+func (s *stubClient) PutLoopInputDefault(
+	ctx context.Context,
+	workspaceID string,
+	name string,
+	key string,
+	request contract.PutLoopInputDefaultRequest,
+) (contract.LoopInputDefaultResponse, error) {
+	if s.putLoopInputDefaultFn != nil {
+		return s.putLoopInputDefaultFn(ctx, workspaceID, name, key, request)
+	}
+	return contract.LoopInputDefaultResponse{}, errors.New("unexpected PutLoopInputDefault call")
 }
 
 func (s *stubClient) ListLoopRuns(

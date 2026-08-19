@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1077,6 +1079,75 @@ func TestLoopRunInputsShouldNormalizeRuntimeAndRespectPromptMode(t *testing.T) {
 		}
 		if len(values) != 0 {
 			t.Fatalf("values = %#v, want missing values untouched", values)
+		}
+	})
+
+	t.Run("Should treat configured defaults as satisfied without copying them into run inputs", func(t *testing.T) {
+		t.Parallel()
+
+		definition := testLoopDefinition("release", 1)
+		definition.Inputs["target"] = dsl.Input{Type: dsl.InputTypeString, Required: true}
+		calls := 0
+		client := &stubClient{getLoopInputDefaultsFn: func(
+			_ context.Context,
+			workspaceID string,
+			name string,
+			scope contract.LoopInputDefaultsScope,
+		) (contract.LoopInputDefaultsResponse, error) {
+			calls++
+			if workspaceID != "ws-alpha" || name != "release" {
+				t.Fatalf("GetLoopInputDefaults target = %s/%s", workspaceID, name)
+			}
+			values := map[string]any{}
+			if scope == contract.LoopInputDefaultsScopeGlobal {
+				values["target"] = "configured"
+			}
+			return contract.LoopInputDefaultsResponse{LoopName: name, Scope: scope, Values: values}, nil
+		}}
+		cmd := &cobra.Command{Use: "loop-input-default-prompt-test"}
+		cmd.PersistentFlags().String(outputFlagName, string(OutputHuman), "output")
+		cmd.PersistentFlags().Bool(jsonFlagName, false, "json")
+		cmd.SetIn(strings.NewReader(""))
+		cmd.SetErr(io.Discard)
+		values, err := promptForMissingLoopInputs(
+			cmd,
+			commandDeps{inputIsTerminal: func(io.Reader) bool { return true }},
+			client,
+			"ws-alpha",
+			definition,
+			map[string]any{},
+			false,
+		)
+		if err != nil {
+			t.Fatalf("promptForMissingLoopInputs() error = %v", err)
+		}
+		if calls != 2 || len(values) != 0 {
+			t.Fatalf("configured default calls/values = %d/%#v, want 2 and daemon-resolved input", calls, values)
+		}
+	})
+
+	t.Run("Should preserve prompted strings and sanitize authored terminal choices", func(t *testing.T) {
+		t.Parallel()
+
+		if got, err := parsePromptedLoopInput(dsl.Input{Type: dsl.InputTypeString}, "null"); err != nil || got != "null" {
+			t.Fatalf("parsePromptedLoopInput(string) = %#v, %v, want literal null", got, err)
+		}
+		var output bytes.Buffer
+		selected, err := promptLoopInputValue(
+			&output,
+			bufio.NewReader(strings.NewReader("1\n")),
+			"target\x1b",
+			dsl.Input{Type: dsl.InputTypeString},
+			[]string{"prod\x1b[31m\n"},
+		)
+		if err != nil {
+			t.Fatalf("promptLoopInputValue() error = %v", err)
+		}
+		if selected != "prod\x1b[31m\n" {
+			t.Fatalf("selected = %q, want exact authored value", selected)
+		}
+		if strings.ContainsAny(output.String(), "\x1b\r") {
+			t.Fatalf("prompt output contains terminal controls: %q", output.String())
 		}
 	})
 }

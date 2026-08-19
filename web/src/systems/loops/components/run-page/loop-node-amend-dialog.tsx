@@ -29,7 +29,10 @@ import {
 } from "../../lib/loop-request-payload";
 import { LoopControlAnswerAlert } from "./loop-control-answer-alert";
 import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
-import { LoopEntityValueControl } from "../input/loop-typed-input-control";
+import {
+  LoopEntityListValueControl,
+  LoopEntityValueControl,
+} from "../input/loop-typed-input-control";
 import type { LoopEntityKind } from "../../lib/loop-input-kinds";
 
 export interface LoopNodeAmendDialogProps {
@@ -80,7 +83,9 @@ function LoopNodeAmendDialogForm({
   const fields = loopRequestFields(outputSchema);
   const entityKinds = new Set<LoopEntityKind>();
   for (const field of fields) {
-    if (field.control.kind === "entity") entityKinds.add(field.control.entityKind);
+    if (field.control.kind === "entity" || field.control.kind === "entity-list") {
+      entityKinds.add(field.control.entityKind);
+    }
   }
   const structured = isLoopRequestFieldSchema(outputSchema);
   const [values, setValues] = useState(() => loopRequestFieldSeed(fields, originalOutput));
@@ -255,6 +260,19 @@ function AmendFieldControl({
   if (field.control.kind === "entity") {
     return (
       <LoopEntityValueControl
+        controlId={id}
+        disabled={disabled}
+        invalid={invalid}
+        kind={field.control.entityKind}
+        onChange={onChange}
+        testId={id}
+        value={value}
+      />
+    );
+  }
+  if (field.control.kind === "entity-list") {
+    return (
+      <LoopEntityListValueControl
         controlId={id}
         disabled={disabled}
         invalid={invalid}

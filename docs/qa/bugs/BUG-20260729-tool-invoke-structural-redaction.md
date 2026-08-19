@@ -49,7 +49,7 @@ keys and secret-shaped free text remain redacted.
 - Rebuilt generic CLI tool invocation matches the caller workspace's HTTP payload, preserves stable
   bundle IDs and `next_cursor`, and excludes the other workspace's activation.
 - The fixture activation, extension, and policy override were removed after the replay.
-- **Retested:** rebuilt candidate green; governed fix commit pending
+- **Retested:** rebuilt candidate green; governed fix commit `f3b8837`
 
 ## Re-found (2026-08-18)
 

@@ -1,16 +1,16 @@
 package tools
 
 import (
-	"fmt"
 	"sort"
 )
 
 var publicInputDeclarationKeys = map[string]struct{}{
-	"default":  {},
-	"enum":     {},
-	"ref":      {},
-	"required": {},
-	"type":     {},
+	"default":     {},
+	"description": {},
+	"enum":        {},
+	"ref":         {},
+	"required":    {},
+	"type":        {},
 }
 
 func publicInputDeclaration(value any) (map[string]any, bool) {
@@ -32,6 +32,30 @@ func publicInputDeclaration(value any) (map[string]any, bool) {
 			return nil, false
 		}
 	}
+	if description, exists := declaration["description"]; exists {
+		if _, ok := description.(string); !ok {
+			return nil, false
+		}
+	}
+	if required, exists := declaration["required"]; exists {
+		if _, ok := required.(bool); !ok {
+			return nil, false
+		}
+	}
+	if enum, exists := declaration["enum"]; exists {
+		if _, ok := enum.([]any); !ok {
+			return nil, false
+		}
+	}
+	if ref, exists := declaration["ref"]; exists {
+		refValue, ok := ref.(map[string]any)
+		if !ok || len(refValue) != 1 {
+			return nil, false
+		}
+		if _, ok := refValue["kind"].(string); !ok {
+			return nil, false
+		}
+	}
 	return declaration, true
 }
 
@@ -40,27 +64,6 @@ func publicInputDeclaration(value any) (map[string]any, bool) {
 func IsPublicInputDeclaration(value any) bool {
 	_, ok := publicInputDeclaration(value)
 	return ok
-}
-
-func redactSensitiveDeclarationValues(
-	declaration map[string]any,
-	path string,
-	redactions []Redaction,
-) (bool, []Redaction) {
-	changed := false
-	for _, key := range []string{"default", "enum"} {
-		value, present := declaration[key]
-		if !present {
-			continue
-		}
-		declaration[key] = redactedJSONValue
-		redactions = append(redactions, Redaction{
-			Path: path + "." + key, Reason: ReasonSecretMetadata,
-			Bytes: int64(len(fmt.Sprint(value))),
-		})
-		changed = true
-	}
-	return changed, redactions
 }
 
 func sortedAnyKeys(values map[string]any) []string {

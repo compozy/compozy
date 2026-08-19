@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 
 import { useAgents } from "@/systems/agent";
 import { useRuntimeModelCatalog } from "@/systems/model-catalog";
@@ -71,6 +71,12 @@ export function useLoopInputCatalogValue(
     { limit: 100, sort: "name" },
     needs.entities.has("loop")
   );
+
+  useEffect(() => {
+    if (loopsQuery.hasNextPage && !loopsQuery.isFetchingNextPage) {
+      void loopsQuery.fetchNextPage();
+    }
+  }, [loopsQuery.hasNextPage, loopsQuery.isFetchingNextPage, loopsQuery.fetchNextPage]);
   const worktreesQuery = useWorktrees(workspaceId, {
     enabled: needs.entities.has("worktree"),
   });

@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -23,6 +24,7 @@ func (c *lintContext) lintReview(node dsl.Node) {
 	}
 	seen := make(map[dsl.ReviewDecision]struct{})
 	hasRespond := false
+	hasEdit := false
 	for _, decision := range review.EffectiveDecisions() {
 		if !decision.Valid() {
 			c.add(node.ID, CodeReviewShapeInvalid, "review decision %q is not supported", decision)
@@ -40,6 +42,12 @@ func (c *lintContext) lintReview(node dsl.Node) {
 					"review respond requires a declared action output shape")
 			}
 		}
+		if decision == dsl.ReviewDecisionEdit {
+			hasEdit = true
+		}
+	}
+	if hasEdit {
+		c.lintReviewEditSchema(node)
 	}
 	if hasRespond {
 		if schema, ok := c.outputSchema(node); ok {
@@ -57,4 +65,19 @@ func (c *lintContext) lintReview(node dsl.Node) {
 		c.add(node.ID, CodeErrorRouteBackward,
 			"review on_reject.route %q must be a direct forward edge", review.OnReject.Route)
 	}
+}
+
+func (c *lintContext) lintReviewEditSchema(node dsl.Node) {
+	if dsl.IsReservedActionKind(node.Kind) || c.linter.tools == nil {
+		return
+	}
+	snapshot, ok := c.linter.tools.Snapshot(node.Kind)
+	if !ok || len(snapshot.InputSchema) == 0 {
+		return
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(snapshot.InputSchema, &schema); err != nil {
+		return
+	}
+	c.lintEntityKindAnnotations(node.ID, schema)
 }

@@ -1,12 +1,5 @@
-export const LOOP_ENTITY_KINDS = [
-  "agent",
-  "skill",
-  "loop",
-  "worktree",
-  "session",
-  "workspace",
-  "secret",
-] as const;
+export { LOOP_ENTITY_KINDS } from "@/generated/loop-enums";
+import { LOOP_ENTITY_KINDS } from "@/generated/loop-enums";
 
 export type LoopEntityKind = (typeof LOOP_ENTITY_KINDS)[number];
 

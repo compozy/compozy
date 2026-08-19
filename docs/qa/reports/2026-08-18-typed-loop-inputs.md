@@ -85,3 +85,18 @@ None.
 **PASS** for targeted behavioral QA. All four scenarios passed after fixes on a rebuilt candidate.
 The strict evidence audit, clean lab teardown, one requested deep-review round, and workstream gate
 remain delivery gates outside this behavioral verdict.
+
+## Compozy Impact Audit
+
+- **Native tools:** `compozy__loop_run` and `compozy__config_set` now return the shared
+  `input_validation` contract for typed Loop values. Tool descriptors and IDs are unchanged; native
+  run/default lifecycle tests cover the changed validation path.
+- **Extensibility and hooks:** `x-compozy-kind` is linted in ask, review-edit, and response schemas;
+  entity resolution uses the daemon catalog registry. Extensions, hooks, MCP sidecars, bridge SDKs,
+  and capability gates are unchanged because they consume the same Loop and tool contracts.
+- **Workspace data isolation:** declarations are global definition data; configured defaults remain
+  global or workspace-scoped, and entity lookup carries `workspace_id` through CLI, HTTP, UDS,
+  native tools, daemon service, and web catalog reads. Global Vault refs expose metadata only.
+- **Official Compozy skill:** `skills/compozy/references/loops.md` documents typed values,
+  default-aware prompting, `--no-prompt`, and the stable error payload. No skill command or tool ID
+  changed.

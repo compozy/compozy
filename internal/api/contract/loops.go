@@ -184,6 +184,15 @@ type LoopInputValidationErrorPayload struct {
 	Reason string `json:"reason"`
 }
 
+// LoopUnprocessableResponse preserves either a reason envelope or a field-addressed input failure.
+type LoopUnprocessableResponse struct {
+	Error           string                           `json:"error,omitempty"`
+	Code            string                           `json:"code,omitempty"`
+	Details         map[string]string                `json:"details,omitempty"`
+	Valid           bool                             `json:"valid,omitempty"`
+	InputValidation *LoopInputValidationErrorPayload `json:"input_validation,omitempty"`
+}
+
 // LoopLintErrorPayload is the per-node 422 payload surfaced to authoring clients.
 type LoopLintErrorPayload struct {
 	NodeID   string           `json:"node_id,omitempty"`

@@ -35,6 +35,18 @@ export const LOOP_RUN_TERMINAL_STATUSES = [
   "canceled",
 ] as const;
 
+export const LOOP_ENTITY_KINDS = [
+  "agent",
+  "skill",
+  "loop",
+  "worktree",
+  "session",
+  "workspace",
+  "secret",
+] as const;
+
+export type LoopEntityKindValue = (typeof LOOP_ENTITY_KINDS)[number];
+
 export const LOOP_RUN_EVENT_KINDS = [
   "node_running",
   "node_succeeded",

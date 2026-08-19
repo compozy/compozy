@@ -83,7 +83,9 @@ export function LoopRequestCard({
   const fields = carriesPayload ? loopRequestFields(schema) : [];
   const entityKinds = new Set<LoopEntityKind>();
   for (const field of fields) {
-    if (field.control.kind === "entity") entityKinds.add(field.control.entityKind);
+    if (field.control.kind === "entity" || field.control.kind === "entity-list") {
+      entityKinds.add(field.control.entityKind);
+    }
   }
 
   const isRaw = carriesPayload && !isLoopRequestFieldSchema(schema);

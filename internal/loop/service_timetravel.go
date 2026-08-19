@@ -190,6 +190,19 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 	if err != nil {
 		return StartResult{}, err
 	}
+	origins := make(map[string]InputOrigin, len(values))
+	for field := range values {
+		origins[field] = InputOriginRun
+	}
+	if err := s.validateResolvedInputEntities(
+		ctx,
+		input.WorkspaceID,
+		resolved.Definition.Meta.Name,
+		resolved.Definition,
+		ResolvedInputs{Values: values, Origins: origins},
+	); err != nil {
+		return StartResult{}, err
+	}
 	child, err := s.forkChildRun(ctx, source, snapshot.Definition, values, input)
 	if err != nil {
 		return StartResult{}, err

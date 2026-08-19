@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
+import { Plus, X } from "lucide-react";
 
 import {
+  Button,
   CommandEmpty,
   CommandItem,
   CommandList,
@@ -15,7 +17,11 @@ import {
 } from "@compozy/ui";
 
 import { AgentCommandSelect } from "@/systems/agent";
-import { RuntimeSelector, type RuntimeSelectorValue } from "@/systems/runtime";
+import {
+  REASONING_EFFORT_ORDER,
+  RuntimeSelector,
+  type RuntimeSelectorValue,
+} from "@/systems/runtime";
 import { WorktreeRefSelect } from "@/systems/workspace";
 
 import type { LoopInputSchemaField } from "../../types";
@@ -205,13 +211,102 @@ export function LoopEntityValueControl({
   );
 }
 
+function entityListValues(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every(entry => typeof entry === "string") ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function LoopEntityListValueControl({
+  kind,
+  value,
+  controlId,
+  testId,
+  disabled,
+  invalid,
+  describedBy,
+  onChange,
+}: EntityValueControlProps) {
+  const entries = entityListValues(value);
+  const shownEntries = entries.length > 0 ? entries : [""];
+  const rowKeyPrefix = useId();
+  const rowKeys = useRef<string[]>([]);
+  const nextRowKey = useRef(0);
+  while (rowKeys.current.length < shownEntries.length) {
+    rowKeys.current.push(`${rowKeyPrefix}-${nextRowKey.current}`);
+    nextRowKey.current += 1;
+  }
+  rowKeys.current.length = shownEntries.length;
+  const emit = (next: string[]) => onChange(JSON.stringify(next));
+
+  return (
+    <div className="flex flex-col gap-2" data-testid={testId}>
+      {shownEntries.map((entry, index) => {
+        const entryId = index === 0 ? controlId : `${controlId}-${index}`;
+        const rowKey = rowKeys.current[index];
+        return (
+          <div className="flex items-center gap-2" key={rowKey}>
+            <div className="min-w-0 flex-1">
+              <LoopEntityValueControl
+                controlId={entryId}
+                describedBy={describedBy}
+                disabled={disabled}
+                invalid={invalid}
+                kind={kind}
+                onChange={next => {
+                  const updated = [...shownEntries];
+                  updated[index] = next;
+                  emit(updated);
+                }}
+                testId={`${testId}-${index}`}
+                value={entry}
+              />
+            </div>
+            <Button
+              aria-label={`Remove ${kind} ${index + 1}`}
+              disabled={disabled || shownEntries.length === 1}
+              onClick={() => {
+                rowKeys.current.splice(index, 1);
+                emit(shownEntries.filter((_, position) => position !== index));
+              }}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </div>
+        );
+      })}
+      <Button
+        className="self-start"
+        disabled={disabled}
+        onClick={() => {
+          rowKeys.current.push(`${rowKeyPrefix}-${nextRowKey.current}`);
+          nextRowKey.current += 1;
+          emit([...shownEntries, ""]);
+        }}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <Plus aria-hidden="true" />
+        Add {kind}
+      </Button>
+    </div>
+  );
+}
+
 function runtimeValue(value: unknown): RuntimeSelectorValue {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return { provider: "", model: "", reasoning_effort: "" };
   }
   const record = value as Record<string, unknown>;
   const reasoning = typeof record.reasoning === "string" ? record.reasoning : "";
-  const knownReasoning = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+  const knownReasoning = new Set<string>(REASONING_EFFORT_ORDER);
   return {
     provider: typeof record.provider === "string" ? record.provider : "",
     model: typeof record.model === "string" ? record.model : "",
@@ -244,6 +339,7 @@ function RuntimeValueControl({
   const current = runtimeValue(value);
   return (
     <RuntimeSelector
+      allowCustomProvider
       ariaLabelledby={undefined}
       catalogStatus={catalogs.runtimeError}
       className={cn("w-full", invalid && "border-danger")}

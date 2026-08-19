@@ -162,7 +162,7 @@ func runLoopOperation() OperationSpec {
 			badRequest(),
 			forbidden(),
 			conflict(),
-			loopUnprocessable(),
+			loopInputUnprocessable(),
 			loopUnavailable(),
 			internalError(),
 		},
@@ -455,6 +455,12 @@ func lintFailed() ResponseSpec {
 
 func loopUnprocessable() ResponseSpec {
 	return ResponseSpec{Status: 422, Description: "Loop operation rejected", Body: contract.ErrorPayload{}}
+}
+
+func loopInputUnprocessable() ResponseSpec {
+	return ResponseSpec{
+		Status: 422, Description: "Loop operation rejected", Body: contract.LoopUnprocessableResponse{},
+	}
 }
 
 func notFound(description string) ResponseSpec {

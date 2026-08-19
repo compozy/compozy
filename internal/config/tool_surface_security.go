@@ -27,11 +27,14 @@ func flattenConfigValue(entries *[]Entry, path string, value any, redacted bool)
 			if path != "" {
 				nextPath = path + "." + key
 			}
+			nestedLoopInput := strings.HasPrefix(path, LoopsConfigKey+"."+LoopInputsConfigKey+".") &&
+				len(strings.Split(path, ".")) >= 4
 			flattenConfigValue(
 				entries,
 				nextPath,
 				typed[key],
-				redacted || key == "env" || key == "secret_env" || key == toolSurfaceAuthLoginCommandKey,
+				redacted || key == "env" || key == "secret_env" || key == toolSurfaceAuthLoginCommandKey ||
+					(nestedLoopInput && configPathIsSecret([]string{key})),
 			)
 		}
 	case []any:
@@ -46,6 +49,9 @@ func flattenConfigValue(entries *[]Entry, path string, value any, redacted bool)
 		}
 	default:
 		if path != "" {
+			if redacted {
+				typed = RedactedValue()
+			}
 			*entries = append(*entries, Entry{Path: path, Value: typed, Redacted: redacted})
 		}
 	}

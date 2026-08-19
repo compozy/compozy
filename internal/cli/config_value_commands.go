@@ -5,6 +5,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/spf13/cobra"
@@ -245,6 +246,9 @@ func runConfigSetCommand(
 	if err != nil {
 		return err
 	}
+	if kind == configSetLoopInput {
+		return runLoopInputConfigSet(cmd, deps, target, workspaceRoot, path, value)
+	}
 	liveRecord, err := maybeApplyConfigSetViaDaemon(cmd.Context(), deps, target, path, value, redacted)
 	if err != nil {
 		return err
@@ -279,6 +283,38 @@ func runConfigSetCommand(
 	if reloadRecord != nil {
 		record = *reloadRecord
 	}
+	return writeCommandOutput(cmd, configSetBundle(record))
+}
+
+func runLoopInputConfigSet(
+	cmd *cobra.Command,
+	deps commandDeps,
+	target compozyconfig.WriteTarget,
+	workspaceRef string,
+	path []string,
+	value any,
+) error {
+	client, err := loopClientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
+	if err != nil {
+		return err
+	}
+	scope := contract.LoopInputDefaultsScope(target.Scope())
+	response, err := client.PutLoopInputDefault(
+		cmd.Context(), resolution.ID, path[2], path[3],
+		contract.PutLoopInputDefaultRequest{Scope: scope, Value: value},
+	)
+	if err != nil {
+		return fmt.Errorf("cli: set Loop input default: %w", err)
+	}
+	lifecycle := classifyConfigSetLifecycle(path)
+	record := configSetRecordForLocalWrite(path, response.Value, target, false, lifecycle)
+	record.Applied = true
 	return writeCommandOutput(cmd, configSetBundle(record))
 }
 

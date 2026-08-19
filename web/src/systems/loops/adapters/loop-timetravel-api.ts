@@ -6,9 +6,11 @@ import {
 } from "@/lib/api-client";
 
 import {
+  LoopInputValidationError,
   LoopRequestError,
   LoopsApiError,
   LoopTimetravelError,
+  inputValidationPayload,
   reasonEnvelope,
 } from "./loops-api-errors";
 import type {
@@ -34,6 +36,8 @@ interface NodePath extends RunPath {
 const TIMETRAVEL_REASON_STATUSES = new Set([403, 404, 409, 422]);
 
 function timetravelError(action: string, response: Response, error: unknown): LoopsApiError {
+  const validation = inputValidationPayload(error);
+  if (response.status === 422 && validation) return new LoopInputValidationError(validation);
   if (TIMETRAVEL_REASON_STATUSES.has(response.status)) {
     const { code, details } = reasonEnvelope(error);
     return new LoopTimetravelError(
@@ -123,6 +127,8 @@ export async function amendLoopNode(
       throw new LoopsApiError(`Loop run or node not found: ${nodeId}`, 404);
     }
     if (AMEND_REASON_STATUSES.has(response.status)) {
+      const validation = inputValidationPayload(error);
+      if (validation) throw new LoopInputValidationError(validation);
       const { code, details } = reasonEnvelope(error);
       throw new LoopRequestError(
         defaultApiErrorMessage(`Cannot amend node "${nodeId}"`, response, error),

@@ -1830,6 +1830,24 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve an empty partial runtime object", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"runtime": {Type: dsl.InputTypeRuntime, Required: true},
+		}
+		resolved, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{
+			"runtime": map[string]any{},
+		}})
+		if err != nil {
+			t.Fatalf("ResolveInputs() error = %v", err)
+		}
+		if runtime, ok := resolved["runtime"].(map[string]any); !ok || len(runtime) != 0 {
+			t.Fatalf("resolved runtime = %#v, want empty object", resolved["runtime"])
+		}
+	})
+
 	t.Run("Should reject values outside a declared enum", func(t *testing.T) {
 		t.Parallel()
 
@@ -2479,21 +2497,28 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 
 		store := newTimeTravelFakeStore()
 		resolver := loopTestParticipationResolver(t, true)
+		definition := validDefinition()
+		definition.Inputs["tasks"] = dsl.Input{Type: dsl.InputTypeAgent, Required: true}
+		entityCatalog := inputEntityCatalogStub{
+			missingKind: dsl.EntityKindAgent, missingValue: "removed-reviewer",
+		}
 		svc := newTestServiceWithOptions(
 			t,
 			store,
-			validDefinition(),
+			definition,
 			loop.WithRunIDFactory(func() (loop.RunID, error) { return "fork-child", nil }),
 			loop.WithParticipationResolver(resolver),
+			loop.WithInputEntityCatalog(entityCatalog),
 		).(loop.TimeTravelService)
 		starter := newTestServiceWithOptions(
 			t,
 			store,
-			validDefinition(),
+			definition,
 			loop.WithRunIDFactory(func() (loop.RunID, error) {
 				return "fork-source", nil
 			}),
 			loop.WithParticipationResolver(resolver),
+			loop.WithInputEntityCatalog(entityCatalog),
 		)
 		mode, strategy := participation.ModeLive, participation.StrategyLoopRun
 		source, err := starter.Start(context.Background(), "ws-1", "valid-loop", loop.Inputs{
@@ -2526,9 +2551,18 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		store.generationOutputs[source.ID][0].Status = "succeeded"
 		store.mu.Unlock()
 		before := store.mustRun(t, source.ID)
+		_, err = svc.ForkRun(context.Background(), loop.ForkInput{
+			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1,
+			Inputs: map[string]any{"tasks": "removed-reviewer"}, Actor: humanActor(t),
+		})
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "tasks" || validation.Value != "removed-reviewer" ||
+			validation.Origin != loop.InputOriginRun {
+			t.Fatalf("ForkRun(stale input) error = %#v, want typed input validation", err)
+		}
 		result, err := svc.ForkRun(context.Background(), loop.ForkInput{
 			WorkspaceID: source.WorkspaceID, RunID: source.ID, Generation: 1,
-			Inputs: map[string]any{"tasks": "override-ref"}, Reason: "try a safer path",
+			Inputs: map[string]any{"tasks": "reviewer"}, Reason: "try a safer path",
 			RequestID: "fork-1", Actor: humanActor(t),
 		})
 		if err != nil {
@@ -2539,7 +2573,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			forkedFrom.RunID != source.ID || forkedFrom.Generation != 1 {
 			t.Fatalf("fork result = %#v", result)
 		}
-		if result.Run.DefinitionDigest != source.DefinitionDigest || result.Run.Inputs["tasks"] != "override-ref" {
+		if result.Run.DefinitionDigest != source.DefinitionDigest || result.Run.Inputs["tasks"] != "reviewer" {
 			t.Fatalf("fork snapshot/inputs = digest %q inputs %#v", result.Run.DefinitionDigest, result.Run.Inputs)
 		}
 		sourceNetwork, childNetwork := source.NetworkSpecSnapshot(), result.Run.NetworkSpecSnapshot()
@@ -3254,83 +3288,95 @@ func (s *nodePauseRetryStore) ResumeNode(
 
 func TestServiceRespondShouldValidateAnnotatedEntityReferences(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject a stale nested response entity before admitting the request", func(t *testing.T) {
+		t.Parallel()
 
-	definition := validDefinition()
-	definition.Graph = dsl.Graph{Nodes: []dsl.Node{{
-		ID: "assign", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk),
-		Params: dsl.NodeParams{
-			"prompt": "Choose a reviewer",
-			"expect": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"assignment": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"reviewer": map[string]any{
-								"type": "string", "x-compozy-kind": "agent",
+		definition := validDefinition()
+		definition.Graph = dsl.Graph{Nodes: []dsl.Node{{
+			ID: "assign", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk),
+			Params: dsl.NodeParams{
+				"prompt": "Choose a reviewer",
+				"expect": map[string]any{
+					"allOf": []any{
+						map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"assignment": map[string]any{
+									"type": "object",
+									"properties": map[string]any{
+										"reviewers": map[string]any{
+											"type": "array",
+											"items": map[string]any{
+												"oneOf": []any{map[string]any{
+													"type": "string", "x-compozy-kind": "agent",
+												}},
+											},
+										},
+									},
+								},
 							},
 						},
 					},
 				},
 			},
-		},
-	}}}
-	expect := json.RawMessage(
-		`{"type":"object","properties":{"assignment":{"type":"object","properties":{"reviewer":{"type":"string","x-compozy-kind":"agent"}}}}}`,
-	)
-	store := &requestValidationStore{
-		fakeLoopStore: newFakeLoopStore(),
-		request: loop.Request{
-			Kind:   loop.RequestKindAsk,
-			Expect: expect,
-		},
-	}
-	svc := newTestServiceWithOptions(
-		t,
-		store,
-		definition,
-		loop.WithInputEntityCatalog(inputEntityCatalogStub{
-			missingKind: dsl.EntityKindAgent, missingValue: "removed-reviewer",
-		}),
-	)
-	run, err := svc.Start(context.Background(), "ws-response", definition.Meta.Name, loop.Inputs{
-		Values: map[string]any{"tasks": "task-ref"},
-	}, humanActor(t))
-	if err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	respond := func(reviewer string) error {
-		_, respondErr := svc.Respond(context.Background(), loop.RespondInput{
-			WorkspaceID: run.WorkspaceID,
-			RunID:       run.ID,
-			Generation:  run.Generation,
-			NodeID:      "assign",
-			Decision:    loop.RequestDecisionRespond,
-			Payload: json.RawMessage(
-				fmt.Sprintf(`{"assignment":{"reviewer":%q}}`, reviewer),
-			),
-			Actor: humanActor(t),
-		})
-		return respondErr
-	}
+		}}}
+		expect := json.RawMessage(
+			`{"allOf":[{"type":"object","properties":{"assignment":{"type":"object","properties":{"reviewers":{"type":"array","items":{"oneOf":[{"type":"string","x-compozy-kind":"agent"}]}}}}}}]}`,
+		)
+		store := &requestValidationStore{
+			fakeLoopStore: newFakeLoopStore(),
+			request: loop.Request{
+				Kind:   loop.RequestKindAsk,
+				Expect: expect,
+			},
+		}
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithInputEntityCatalog(inputEntityCatalogStub{
+				missingKind: dsl.EntityKindAgent, missingValue: "removed-reviewer",
+			}),
+		)
+		run, err := svc.Start(context.Background(), "ws-response", definition.Meta.Name, loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		}, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		respond := func(reviewer string) error {
+			_, respondErr := svc.Respond(context.Background(), loop.RespondInput{
+				WorkspaceID: run.WorkspaceID,
+				RunID:       run.ID,
+				Generation:  run.Generation,
+				NodeID:      "assign",
+				Decision:    loop.RequestDecisionRespond,
+				Payload: json.RawMessage(
+					fmt.Sprintf(`{"assignment":{"reviewers":[%q]}}`, reviewer),
+				),
+				Actor: humanActor(t),
+			})
+			return respondErr
+		}
 
-	err = respond("removed-reviewer")
-	validation, ok := loop.AsInputValidationError(err)
-	if !ok || validation.Field != "assignment.reviewer" || validation.Kind != "agent" ||
-		validation.Value != "removed-reviewer" || validation.Origin != loop.InputOriginResponse ||
-		validation.Reason != loop.InputValidationReasonUnknownReference {
-		t.Fatalf("Respond() error = %#v, want recursive stale agent diagnostic", err)
-	}
-	if store.respondCalls != 0 {
-		t.Fatalf("RespondRequest calls = %d, want 0 after entity rejection", store.respondCalls)
-	}
+		err = respond("removed-reviewer")
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "assignment.reviewers.0" || validation.Kind != "agent" ||
+			validation.Value != "removed-reviewer" || validation.Origin != loop.InputOriginResponse ||
+			validation.Reason != loop.InputValidationReasonUnknownReference {
+			t.Fatalf("Respond() error = %#v, want recursive stale agent diagnostic", err)
+		}
+		if store.respondCalls != 0 {
+			t.Fatalf("RespondRequest calls = %d, want 0 after entity rejection", store.respondCalls)
+		}
 
-	if err := respond("reviewer"); err != nil {
-		t.Fatalf("Respond(valid reviewer) error = %v", err)
-	}
-	if store.respondCalls != 1 {
-		t.Fatalf("RespondRequest calls = %d, want 1 after valid response", store.respondCalls)
-	}
+		if err := respond("reviewer"); err != nil {
+			t.Fatalf("Respond(valid reviewer) error = %v", err)
+		}
+		if store.respondCalls != 1 {
+			t.Fatalf("RespondRequest calls = %d, want 1 after valid response", store.respondCalls)
+		}
+	})
 }
 
 func newTestServiceWithOptions(

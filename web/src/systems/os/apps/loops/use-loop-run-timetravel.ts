@@ -6,6 +6,7 @@ import { toast } from "@compozy/ui";
 
 import {
   type LoopInputSchema,
+  LoopInputValidationError,
   type LoopRunGeneration,
   LoopTimetravelError,
   useForkLoopRun,
@@ -92,6 +93,10 @@ export function useLoopRunTimetravel({
       setForkGeneration(null);
       openRun(result.run.id);
     } catch (failure) {
+      if (failure instanceof LoopInputValidationError) {
+        setForkFieldErrors(failure.fieldErrors);
+        return;
+      }
       if (failure instanceof LoopTimetravelError) {
         if (failure.status === 422 && Object.keys(failure.details).length > 0) {
           setForkFieldErrors(failure.details);

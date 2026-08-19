@@ -10,6 +10,7 @@ import {
   type LoopControlAnswer,
   type LoopDefinition,
   type LoopGraph,
+  LoopInputValidationError,
   type LoopNodeLifecycle,
   type LoopNodeTimetravelCapability,
   type LoopNodeVerb,
@@ -222,6 +223,11 @@ export function useLoopNodeControls(
       toast.success(`${node.nodeId} output amended`);
       closeTimetravel();
     } catch (failure) {
+      if (failure instanceof LoopInputValidationError) {
+        setAmendFieldErrors(failure.fieldErrors);
+        setTimetravelRefusal(null);
+        return;
+      }
       if (failure instanceof LoopRequestError && Object.keys(failure.fieldErrors).length > 0) {
         setAmendFieldErrors(failure.fieldErrors);
         setTimetravelRefusal(null);

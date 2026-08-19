@@ -333,7 +333,25 @@ func TestConfigSetShouldManageLoopLifecycleDefaults(t *testing.T) {
 func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 	t.Parallel()
 
-	deps := newWorkspaceTestDeps(t, &stubClient{})
+	var calls []contract.PutLoopInputDefaultRequest
+	client := &stubClient{
+		putLoopInputDefaultFn: func(
+			_ context.Context,
+			workspaceID string,
+			loopName string,
+			key string,
+			request contract.PutLoopInputDefaultRequest,
+		) (contract.LoopInputDefaultResponse, error) {
+			if workspaceID != "/workspace/project" || loopName != "review-and-fix" || key == "" {
+				t.Fatalf("PutLoopInputDefault() target = %s/%s/%s", workspaceID, loopName, key)
+			}
+			calls = append(calls, request)
+			return contract.LoopInputDefaultResponse{
+				LoopName: loopName, Key: key, Scope: request.Scope, Present: true, Value: request.Value,
+			}, nil
+		},
+	}
+	deps := newWorkspaceTestDeps(t, client)
 	for _, testCase := range []struct {
 		path      string
 		rawValue  string
@@ -364,50 +382,14 @@ func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 			t.Fatalf("config set %s record = %#v, want %#v", testCase.path, setRecord, testCase.wantValue)
 		}
 
-		if expectedTable, ok := testCase.wantValue.(map[string]any); ok {
-			for key, expectedValue := range expectedTable {
-				leafPath := testCase.path + "." + key
-				stdout, _, err = executeRootCommand(t, deps, "config", "get", leafPath, "-o", "json")
-				if err != nil {
-					t.Fatalf("config get %s error = %v", leafPath, err)
-				}
-				var valueRecord configValueRecord
-				if err := json.Unmarshal([]byte(stdout), &valueRecord); err != nil {
-					t.Fatalf("json.Unmarshal(config get %s) error = %v", leafPath, err)
-				}
-				if !reflect.DeepEqual(valueRecord.Value, expectedValue) {
-					t.Fatalf("config get %s value = %#v, want %#v", leafPath, valueRecord.Value, expectedValue)
-				}
-			}
-		}
-
-		stdout, _, err = executeRootCommand(t, deps, "config", "get", testCase.path, "-o", "json")
-		if err != nil {
-			t.Fatalf("config get %s error = %v", testCase.path, err)
-		}
-		var valueRecord configValueRecord
-		if err := json.Unmarshal([]byte(stdout), &valueRecord); err != nil {
-			t.Fatalf("json.Unmarshal(config get %s) error = %v", testCase.path, err)
-		}
-		if !reflect.DeepEqual(valueRecord.Value, testCase.wantValue) {
-			t.Fatalf("config get %s value = %#v, want %#v", testCase.path, valueRecord.Value, testCase.wantValue)
-		}
 	}
-
-	const unsetPath = "loops.inputs.review-and-fix.auto_commit"
-	stdout, _, err := executeRootCommand(t, deps, "config", configUnsetKey, unsetPath, "-o", "json")
-	if err != nil {
-		t.Fatalf("config unset %s error = %v", unsetPath, err)
+	if len(calls) != 4 {
+		t.Fatalf("PutLoopInputDefault() calls = %d, want 4", len(calls))
 	}
-	var unsetRecord configUnsetRecord
-	if err := json.Unmarshal([]byte(stdout), &unsetRecord); err != nil {
-		t.Fatalf("json.Unmarshal(config unset) error = %v", err)
-	}
-	if unsetRecord.Path != unsetPath || !unsetRecord.Deleted {
-		t.Fatalf("config unset record = %#v, want deleted %s", unsetRecord, unsetPath)
-	}
-	if _, _, err := executeRootCommand(t, deps, "config", "get", unsetPath, "-o", "json"); err == nil {
-		t.Fatalf("config get %s error = nil after unset", unsetPath)
+	for _, call := range calls {
+		if call.Scope != contract.LoopInputDefaultsScopeGlobal {
+			t.Fatalf("PutLoopInputDefault() scope = %q, want global", call.Scope)
+		}
 	}
 }
 

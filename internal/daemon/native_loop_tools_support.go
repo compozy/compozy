@@ -213,7 +213,7 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 		}
 		return toolErr.WithPartialResult(toolspkg.ToolResult{
 			Structured: structured,
-			Preview:    "loop input default validation failed",
+			Preview:    "loop input validation failed",
 		})
 	}
 	return toolErr

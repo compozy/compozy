@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "@compozy/ui";
 
 import {
+  LoopInputValidationError,
   type LoopRequestAnswerInput,
   LoopRequestError,
   useLoopRequestDetail,
@@ -85,6 +86,11 @@ export function useLoopRunRequestsState(workspaceId: string, runId: string) {
       setWantsFullContext(false);
       clearFeedback();
     } catch (failure) {
+      if (failure instanceof LoopInputValidationError) {
+        setFieldErrors(failure.fieldErrors);
+        setRefusal(undefined);
+        return;
+      }
       if (failure instanceof LoopRequestError) {
         const daemonFields = failure.fieldErrors;
 

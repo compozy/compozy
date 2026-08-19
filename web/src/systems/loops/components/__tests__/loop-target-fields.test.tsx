@@ -156,7 +156,7 @@ describe("LoopTargetFields", () => {
     expect(screen.getByTestId("loop-mapping-field-slug")).toBeInTheDocument();
   });
 
-  it("Should render a load error instead of the empty workspace copy", () => {
+  it("Should preserve exact Loop entry when the catalog is unavailable", () => {
     loopsState.current = {
       loops: [],
       error: new Error("catalog unavailable"),
@@ -167,8 +167,11 @@ describe("LoopTargetFields", () => {
       isLoading: false,
     };
     render(<Harness />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Could not load Loops");
-    expect(screen.queryByText("No Loops are available in this workspace.")).not.toBeInTheDocument();
+    const exact = screen.getByTestId("loop-target-select");
+    expect(exact.tagName).toBe("INPUT");
+    fireEvent.change(exact, { target: { value: "release-loop" } });
+    expect(screen.getByTestId("loop-target-value")).toHaveTextContent('"loop_name":"release-loop"');
+    expect(screen.getByText(/catalog unavailable.*Enter the exact value/)).toBeInTheDocument();
   });
 
   it("Should filter by the authoritative start contract and preserve an incompatible edit target", () => {
@@ -187,5 +190,23 @@ describe("LoopTargetFields", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "review-and-fix does not declare the schedule start kind"
     );
+  });
+
+  it("Should assign unique availability status IDs to concurrent target forms", () => {
+    render(
+      <>
+        <Harness
+          initialValue={{ loop_name: "review-and-fix", inputs: {}, input_mapping: {} }}
+          requiredStartKind="schedule"
+        />
+        <Harness
+          initialValue={{ loop_name: "review-and-fix", inputs: {}, input_mapping: {} }}
+          requiredStartKind="schedule"
+        />
+      </>
+    );
+
+    const ids = screen.getAllByRole("alert").map(alert => alert.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

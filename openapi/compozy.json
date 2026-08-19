@@ -236761,59 +236761,43 @@
                       },
                       "type": "object"
                     },
-                    "diagnostic": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "input_validation": {
                       "nullable": true,
                       "properties": {
-                        "category": {
+                        "field": {
                           "type": "string"
                         },
-                        "code": {
+                        "kind": {
                           "type": "string"
                         },
-                        "data_freshness": {
+                        "loop": {
                           "type": "string"
                         },
-                        "doc_url": {
+                        "origin": {
                           "type": "string"
                         },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
+                        "reason": {
                           "type": "string"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "value": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "field",
+                        "loop",
+                        "origin",
+                        "reason"
                       ],
                       "type": "object"
                     },
-                    "error": {
-                      "type": "string"
+                    "valid": {
+                      "type": "boolean"
                     }
                   },
-                  "required": [
-                    "error"
-                  ],
                   "type": "object"
                 }
               }
@@ -238097,59 +238081,43 @@
                       },
                       "type": "object"
                     },
-                    "diagnostic": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "input_validation": {
                       "nullable": true,
                       "properties": {
-                        "category": {
+                        "field": {
                           "type": "string"
                         },
-                        "code": {
+                        "kind": {
                           "type": "string"
                         },
-                        "data_freshness": {
+                        "loop": {
                           "type": "string"
                         },
-                        "doc_url": {
+                        "origin": {
                           "type": "string"
                         },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
+                        "reason": {
                           "type": "string"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "value": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "field",
+                        "loop",
+                        "origin",
+                        "reason"
                       ],
                       "type": "object"
                     },
-                    "error": {
-                      "type": "string"
+                    "valid": {
+                      "type": "boolean"
                     }
                   },
-                  "required": [
-                    "error"
-                  ],
                   "type": "object"
                 }
               }
@@ -241966,59 +241934,43 @@
                       },
                       "type": "object"
                     },
-                    "diagnostic": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "input_validation": {
                       "nullable": true,
                       "properties": {
-                        "category": {
+                        "field": {
                           "type": "string"
                         },
-                        "code": {
+                        "kind": {
                           "type": "string"
                         },
-                        "data_freshness": {
+                        "loop": {
                           "type": "string"
                         },
-                        "doc_url": {
+                        "origin": {
                           "type": "string"
                         },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
+                        "reason": {
                           "type": "string"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "value": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "field",
+                        "loop",
+                        "origin",
+                        "reason"
                       ],
                       "type": "object"
                     },
-                    "error": {
-                      "type": "string"
+                    "valid": {
+                      "type": "boolean"
                     }
                   },
-                  "required": [
-                    "error"
-                  ],
                   "type": "object"
                 }
               }
@@ -261206,6 +261158,63 @@
             },
             "description": "Workspace root is missing"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "input_validation": {
+                      "nullable": true,
+                      "properties": {
+                        "field": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "loop": {
+                          "type": "string"
+                        },
+                        "origin": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "loop",
+                        "origin",
+                        "reason"
+                      ],
+                      "type": "object"
+                    },
+                    "valid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Loop operation rejected"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -262559,6 +262568,63 @@
               }
             },
             "description": "Workspace root is missing"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "input_validation": {
+                      "nullable": true,
+                      "properties": {
+                        "field": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "loop": {
+                          "type": "string"
+                        },
+                        "origin": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "loop",
+                        "origin",
+                        "reason"
+                      ],
+                      "type": "object"
+                    },
+                    "valid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Loop operation rejected"
           },
           "500": {
             "content": {
@@ -267258,59 +267324,43 @@
                       },
                       "type": "object"
                     },
-                    "diagnostic": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "input_validation": {
                       "nullable": true,
                       "properties": {
-                        "category": {
+                        "field": {
                           "type": "string"
                         },
-                        "code": {
+                        "kind": {
                           "type": "string"
                         },
-                        "data_freshness": {
+                        "loop": {
                           "type": "string"
                         },
-                        "doc_url": {
+                        "origin": {
                           "type": "string"
                         },
-                        "evidence": {
-                          "additionalProperties": {},
-                          "type": "object"
-                        },
-                        "id": {
+                        "reason": {
                           "type": "string"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "value": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "field",
+                        "loop",
+                        "origin",
+                        "reason"
                       ],
                       "type": "object"
                     },
-                    "error": {
-                      "type": "string"
+                    "valid": {
+                      "type": "boolean"
                     }
                   },
-                  "required": [
-                    "error"
-                  ],
                   "type": "object"
                 }
               }

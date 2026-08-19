@@ -96352,21 +96352,16 @@ export interface operations {
             details?: {
               [key: string]: string;
             };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
+            error?: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
+              loop: string;
+              origin: string;
+              reason: string;
+              value?: string;
             } | null;
-            error: string;
+            valid?: boolean;
           };
         };
       };
@@ -96872,21 +96867,16 @@ export interface operations {
             details?: {
               [key: string]: string;
             };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
+            error?: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
+              loop: string;
+              origin: string;
+              reason: string;
+              value?: string;
             } | null;
-            error: string;
+            valid?: boolean;
           };
         };
       };
@@ -98366,21 +98356,16 @@ export interface operations {
             details?: {
               [key: string]: string;
             };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
+            error?: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
+              loop: string;
+              origin: string;
+              reason: string;
+              value?: string;
             } | null;
-            error: string;
+            valid?: boolean;
           };
         };
       };
@@ -105242,6 +105227,30 @@ export interface operations {
           };
         };
       };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            error?: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
+              loop: string;
+              origin: string;
+              reason: string;
+              value?: string;
+            } | null;
+            valid?: boolean;
+          };
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -105606,6 +105615,30 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+      /** @description Loop operation rejected */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            error?: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
+              loop: string;
+              origin: string;
+              reason: string;
+              value?: string;
+            } | null;
+            valid?: boolean;
           };
         };
       };
@@ -107339,21 +107372,16 @@ export interface operations {
             details?: {
               [key: string]: string;
             };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
+            error?: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
+              loop: string;
+              origin: string;
+              reason: string;
+              value?: string;
             } | null;
-            error: string;
+            valid?: boolean;
           };
         };
       };

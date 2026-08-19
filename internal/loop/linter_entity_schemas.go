@@ -35,7 +35,15 @@ func (c *lintContext) walkEntityKindSchema(nodeID dsl.NodeID, path string, schem
 		}
 	}
 	c.walkEntitySchemaMap(nodeID, path, schema[jsonSchemaPropertiesKey])
+	for _, keyword := range []string{"patternProperties", "dependentSchemas"} {
+		c.walkEntitySchemaMap(nodeID, appendSchemaPath(path, keyword), schema[keyword])
+	}
 	c.walkEntitySchemaValue(nodeID, appendSchemaPath(path, jsonSchemaItemsKey), schema[jsonSchemaItemsKey])
+	for _, keyword := range []string{
+		jsonSchemaAdditionalPropertiesKey, "unevaluatedProperties", "propertyNames",
+	} {
+		c.walkEntitySchemaValue(nodeID, appendSchemaPath(path, keyword), schema[keyword])
+	}
 	for _, keyword := range []string{jsonSchemaAllOfKey, jsonSchemaAnyOfKey, jsonSchemaOneOfKey, "prefixItems"} {
 		values, ok := entitySchemaList(schema[keyword])
 		if !ok {

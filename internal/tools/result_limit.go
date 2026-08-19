@@ -224,13 +224,12 @@ func redactJSONValue(value any, path string, fields []string, redactions []Redac
 			childPath := path + "." + key
 			if sensitiveFieldName(key, fields) {
 				if declaration, ok := publicInputDeclaration(typed[key]); ok {
-					declarationChanged, next := redactSensitiveDeclarationValues(
-						declaration,
-						childPath,
-						redactions,
+					childChanged, childValue, next := redactJSONValue(
+						declaration, childPath, fields, redactions,
 					)
 					redactions = next
-					if declarationChanged {
+					if childChanged {
+						typed[key] = childValue
 						changed = true
 					}
 					continue

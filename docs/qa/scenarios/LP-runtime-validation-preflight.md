@@ -6,8 +6,8 @@ persona: Dora
 journey: J-02
 expected: Static and runtime-routing errors remain deterministic `runtime_validation` items, while invalid declared runtime inputs return field-addressed `input_validation`; unknown providers fail before ACP spawn, exact model IDs pass unchanged for known providers, and every preflight-rejected path materializes no run or session.
 entry_points: compozy loop validate; compozy loop run --dry-run; POST /api/workspaces/:workspace_id/loops/:name/validate and /run over HTTP and UDS
-qa_status: pass
-bug_ids:
+qa_status: untested
+bug_ids: BUG-20260819-empty-runtime-default-rejected
 fix_status:
 retest_status: pass
 fix_commits:

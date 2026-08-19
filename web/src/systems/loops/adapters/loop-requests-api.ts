@@ -5,7 +5,13 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 
-import { LoopRequestError, LoopsApiError, reasonEnvelope } from "./loops-api-errors";
+import {
+  inputValidationPayload,
+  LoopInputValidationError,
+  LoopRequestError,
+  LoopsApiError,
+  reasonEnvelope,
+} from "./loops-api-errors";
 import type {
   LoopRequestDetail,
   LoopRequestFilter,
@@ -32,6 +38,8 @@ function requestError(nodeId: string, response: Response, error: unknown): Loops
     return new LoopsApiError(`Loop request not found: ${nodeId}`, 404);
   }
   if (REQUEST_ANSWER_STATUSES.has(response.status)) {
+    const validation = inputValidationPayload(error);
+    if (validation) return new LoopInputValidationError(validation);
     const { code, details } = reasonEnvelope(error);
     return new LoopRequestError(
       defaultApiErrorMessage(`Cannot answer request on "${nodeId}"`, response, error),

@@ -43,7 +43,7 @@ Each input names a type; a caller supplies values at run time.
 inputs:
   slug: { type: string, required: true }
   implementer: { type: agent, default: code_implementer }
-  reviewer: { type: agent, enum: [code_reviewer, security_reviewer] }
+  reviewer: { type: agent, default: code_reviewer }
   worker_runtime:
     { type: runtime, default: { provider: codex, model: gpt-5.5-codex, reasoning: high } }
   verify_command: { type: string, default: "" }

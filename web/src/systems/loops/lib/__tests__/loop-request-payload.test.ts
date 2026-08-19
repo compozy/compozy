@@ -166,6 +166,57 @@ describe("loop request payload fields", () => {
     });
   });
 
+  it("Should keep entity pickers through arrays and composed object schemas", () => {
+    const fields = loopRequestFields({
+      type: "object",
+      allOf: [
+        {
+          required: ["reviewers"],
+          properties: {
+            reviewers: {
+              type: "array",
+              items: {
+                oneOf: [
+                  { type: "string", "x-compozy-kind": "agent" },
+                  { type: "string", "x-compozy-kind": "agent" },
+                ],
+              },
+            },
+          },
+        },
+        {
+          properties: {
+            escalation: {
+              anyOf: [{ type: "string", "x-compozy-kind": "session" }, { type: "null" }],
+            },
+          },
+        },
+      ],
+    });
+
+    expect(field(fields, "reviewers")).toMatchObject({
+      required: true,
+      control: { kind: "entity-list", entityKind: "agent" },
+    });
+    expect(field(fields, "escalation").control).toEqual({
+      kind: "entity",
+      entityKind: "session",
+    });
+    expect(
+      checkLoopRequestFields(fields, {
+        reviewers: '["reviewer-a","reviewer-b"]',
+        escalation: "session-1",
+      })
+    ).toEqual({
+      ok: true,
+      errors: {},
+      payload: {
+        reviewers: ["reviewer-a", "reviewer-b"],
+        escalation: "session-1",
+      },
+    });
+  });
+
   it("Should reject values a control cannot serialize and leave schema constraints to the daemon", () => {
     const fields = loopRequestFields({
       type: "object",

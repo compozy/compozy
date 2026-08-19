@@ -494,6 +494,22 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 	if !global.Present || global.Value != false {
 		t.Fatalf("global input default = %#v, want present explicit false", global)
 	}
+	emptyRuntime, err := service.PutLoopInputDefault(
+		t.Context(),
+		"ws-input-defaults",
+		"review-and-fix",
+		"runtime",
+		contract.PutLoopInputDefaultRequest{
+			Scope: contract.LoopInputDefaultsScopeWorkspace,
+			Value: map[string]any{},
+		},
+	)
+	if err != nil {
+		t.Fatalf("PutLoopInputDefault(empty runtime) error = %v", err)
+	}
+	if runtime, ok := emptyRuntime.Value.(map[string]any); !emptyRuntime.Present || !ok || len(runtime) != 0 {
+		t.Fatalf("empty runtime default = %#v, want present empty object", emptyRuntime)
+	}
 
 	workspace, err := service.PutLoopInputDefaults(
 		t.Context(),

@@ -52,7 +52,7 @@ export function LoopTargetFields({
   const selectedIsUnavailable =
     value.loop_name !== "" &&
     (catalog.status === "incompatible" || catalog.status === "unavailable");
-  const noticeId = "loop-target-availability";
+  const noticeId = `${instanceId}-loop-target-availability`;
   const compatibilityMessage = loopTargetAvailabilityMessage(catalog, mode);
   const hasSelectableContent = catalog.options.length > 0 || selectedIsUnavailable;
 
@@ -66,9 +66,20 @@ export function LoopTargetFields({
             Loading Loops…
           </div>
         ) : catalog.error && catalog.options.length === 0 && !selected ? (
-          <p className="text-form-hint text-danger" role="alert">
-            Could not load Loops for this workspace.
-          </p>
+          <LoopCatalogValueSelect
+            describedBy={compatibilityMessage ? noticeId : undefined}
+            catalog={{
+              options: [],
+              loading: false,
+              error: catalog.error.message,
+            }}
+            controlId={loopControlId}
+            disabled={identityDisabled}
+            label="Loop"
+            onChange={next => onChange(setLoopTargetLoop(value, next))}
+            testId="loop-target-select"
+            value={value.loop_name}
+          />
         ) : !hasSelectableContent && catalog.hasNextPage ? (
           <p className="text-form-hint text-subtle">No compatible Loops loaded yet.</p>
         ) : !hasSelectableContent ? (

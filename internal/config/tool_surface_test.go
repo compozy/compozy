@@ -881,6 +881,13 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 		AuthMode:     ProviderAuthModeNativeCLI,
 		AuthLoginCmd: "provider login --token raw-login-secret",
 	}
+	cfg.Loops.Inputs = LoopInputDefaults{
+		"release": {
+			"settings": map[string]any{
+				"mode": "safe", "password": "loop-secret", "nested": map[string]any{"api_token": "nested-secret"},
+			},
+		},
+	}
 
 	configMap := RedactedConfigMap(&cfg)
 	entries := FlattenConfigEntries(configMap)
@@ -933,6 +940,19 @@ func TestRedactedConfigMapEntriesAndDiff(t *testing.T) {
 	}
 	if configText := fmt.Sprint(configMap); strings.Contains(configText, "raw-login-secret") {
 		t.Fatalf("RedactedConfigMap leaked login command: %s", configText)
+	}
+	for _, path := range []string{
+		"loops.inputs.release.settings.password",
+		"loops.inputs.release.settings.nested.api_token",
+	} {
+		entry, exists := EntryByPath(entries, path)
+		if !exists || entry.Value != RedactedValue() || !entry.Redacted {
+			t.Fatalf("EntryByPath(%s) = %#v/%v, want redacted Loop input member", path, entry, exists)
+		}
+	}
+	mode, exists := EntryByPath(entries, "loops.inputs.release.settings.mode")
+	if !exists || mode.Value != "safe" || mode.Redacted {
+		t.Fatalf("Loop input mode = %#v/%v, want visible safe value", mode, exists)
 	}
 
 	before := FlattenConfigEntries(RedactedConfigMap(&Config{Defaults: DefaultsConfig{Agent: DefaultAgentName}}))

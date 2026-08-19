@@ -7,6 +7,7 @@ export type LoopRequestFieldControl =
   | { kind: "boolean" }
   | { kind: "json" }
   | { kind: "entity"; entityKind: LoopEntityKind }
+  | { kind: "entity-list"; entityKind: LoopEntityKind }
   | { kind: "select"; options: readonly LoopRequestSelectOption[] };
 
 export interface LoopRequestSelectOption {
@@ -57,6 +58,31 @@ function selectControl(values: readonly unknown[]): LoopRequestFieldControl {
   };
 }
 
+const COMPOSITION_KEYS = ["allOf", "anyOf", "oneOf"] as const;
+
+function childSchemas(schema: Record<string, unknown>): Record<string, unknown>[] {
+  return COMPOSITION_KEYS.flatMap(key =>
+    Array.isArray(schema[key])
+      ? schema[key].flatMap(value => {
+          const child = asRecord(value);
+          return child ? [child] : [];
+        })
+      : []
+  );
+}
+
+function entityKindForSchema(schema: Record<string, unknown>): LoopEntityKind | null {
+  if (schema.type === "string" && isLoopEntityKind(schema["x-compozy-kind"])) {
+    return schema["x-compozy-kind"];
+  }
+  const kinds = new Set(
+    childSchemas(schema)
+      .map(entityKindForSchema)
+      .filter((kind): kind is LoopEntityKind => kind !== null)
+  );
+  return kinds.size === 1 ? [...kinds][0] : null;
+}
+
 function fieldControl(schema: Record<string, unknown>): LoopRequestFieldControl {
   if (Array.isArray(schema.enum)) {
     return selectControl(schema.enum);
@@ -64,8 +90,13 @@ function fieldControl(schema: Record<string, unknown>): LoopRequestFieldControl 
   if (Object.hasOwn(schema, "const")) {
     return selectControl([schema.const]);
   }
-  if (schema.type === "string" && isLoopEntityKind(schema["x-compozy-kind"])) {
-    return { kind: "entity", entityKind: schema["x-compozy-kind"] };
+  const entityKind = entityKindForSchema(schema);
+  if (entityKind) {
+    return { kind: "entity", entityKind };
+  }
+  if (schema.type === "array") {
+    const itemKind = entityKindForSchema(asRecord(schema.items) ?? {});
+    if (itemKind) return { kind: "entity-list", entityKind: itemKind };
   }
   if (schema.oneOf !== undefined || schema.anyOf !== undefined || schema.allOf !== undefined) {
     return { kind: "json" };
@@ -91,11 +122,35 @@ export function loopRequestFields(schema: unknown): LoopRequestField[] {
 }
 
 function schemaContainsEntityField(schema: Record<string, unknown>): boolean {
-  if (schema.type === "string" && isLoopEntityKind(schema["x-compozy-kind"])) return true;
+  if (entityKindForSchema(schema)) return true;
+  if (schema.type === "array" && schemaContainsEntityField(asRecord(schema.items) ?? {}))
+    return true;
   const properties = asRecord(schema.properties);
-  return properties
-    ? Object.values(properties).some(value => schemaContainsEntityField(asRecord(value) ?? {}))
-    : false;
+  if (
+    properties &&
+    Object.values(properties).some(value => schemaContainsEntityField(asRecord(value) ?? {}))
+  ) {
+    return true;
+  }
+  return childSchemas(schema).some(schemaContainsEntityField);
+}
+
+interface ObjectShape {
+  properties: Record<string, unknown>;
+  required: Set<string>;
+}
+
+function objectShape(schema: Record<string, unknown>): ObjectShape {
+  const properties: Record<string, unknown> = { ...asRecord(schema.properties) };
+  const required = new Set(stringList(schema.required));
+  for (const child of childSchemas(schema)) {
+    const shape = objectShape(child);
+    for (const [name, property] of Object.entries(shape.properties)) {
+      properties[name] ??= property;
+    }
+    for (const name of shape.required) required.add(name);
+  }
+  return { properties, required };
 }
 
 function collectRequestFields(
@@ -103,15 +158,15 @@ function collectRequestFields(
   prefix: string,
   ancestorsRequired: boolean
 ): LoopRequestField[] {
-  const properties = asRecord(schema.properties);
-  if (!properties) return [];
-  const required = new Set(stringList(schema.required));
+  const { properties, required } = objectShape(schema);
+  if (Object.keys(properties).length === 0) return [];
   const fields: LoopRequestField[] = [];
   for (const [name, raw] of Object.entries(properties)) {
     const property = asRecord(raw) ?? {};
     const path = prefix === "" ? name : `${prefix}.${name}`;
     const fieldRequired = ancestorsRequired && required.has(name);
-    if (asRecord(property.properties) && schemaContainsEntityField(property)) {
+    const nestedShape = objectShape(property);
+    if (Object.keys(nestedShape.properties).length > 0 && schemaContainsEntityField(property)) {
       fields.push(...collectRequestFields(property, path, fieldRequired));
       continue;
     }
@@ -170,6 +225,16 @@ function parseFieldValue(
     case "text":
     case "entity":
       return { value: trimmed };
+    case "entity-list": {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        return Array.isArray(parsed) && parsed.every(value => typeof value === "string")
+          ? { value: parsed }
+          : { error: `${label} must contain only entity IDs.` };
+      } catch {
+        return { error: `${label} must contain only entity IDs.` };
+      }
+    }
     default:
       try {
         return { value: JSON.parse(trimmed) as unknown };
@@ -283,6 +348,7 @@ export function loopRequestFieldKind(field: LoopRequestField): string {
   if (field.control.kind === "text") return "string";
   if (field.control.kind === "select") return "enum";
   if (field.control.kind === "entity") return field.control.entityKind;
+  if (field.control.kind === "entity-list") return `${field.control.entityKind}[]`;
   return field.control.kind;
 }
 

@@ -16,6 +16,26 @@ import (
 func TestLoopOpenAPIContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should register the complete typed input vocabularies", func(t *testing.T) {
+		t.Parallel()
+
+		assertStringSetEqual(
+			t,
+			schemaEnumValues[reflect.TypeFor[dsl.InputType]()],
+			contract.LoopInputTypeValues(),
+		)
+		assertStringSetEqual(
+			t,
+			schemaEnumValues[reflect.TypeFor[dsl.InputRefKind]()],
+			contract.LoopInputRefKindValues(),
+		)
+		assertStringSetEqual(
+			t,
+			schemaEnumValues[reflect.TypeFor[dsl.EntityKind]()],
+			contract.LoopEntityKindValues(),
+		)
+	})
+
 	t.Run("Should keep zero-omitted Loop fields optional", func(t *testing.T) {
 		t.Parallel()
 
@@ -132,7 +152,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				name:       "replace input defaults",
 				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
 				method:     "PUT",
-				statuses:   []int{200, 400, 404, 410, 503, 500},
+				statuses:   []int{200, 400, 404, 410, 422, 503, 500},
 				parameters: []string{"workspace_id", "name"},
 			},
 			{
@@ -146,7 +166,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				name:       "set input default",
 				path:       "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
 				method:     "PUT",
-				statuses:   []int{200, 400, 404, 410, 503, 500},
+				statuses:   []int{200, 400, 404, 410, 422, 503, 500},
 				parameters: []string{"workspace_id", "name", "key"},
 			},
 			{
@@ -329,7 +349,11 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		propertySchema(t, patchLintSchema, "errors")
 
 		runLoop := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}/run", "POST")
-		assertRequired(t, jsonResponseSchema(t, runLoop, 422), "error")
+		runUnprocessable := jsonResponseSchema(t, runLoop, 422)
+		inputValidation := propertySchema(t, runUnprocessable, "input_validation")
+		assertRequired(t, inputValidation, "loop", "field", "origin", "reason")
+		propertySchema(t, inputValidation, "kind")
+		propertySchema(t, inputValidation, "value")
 		runConfig := propertySchema(t, jsonRequestSchema(t, runLoop), "config_overrides")
 		assertRequired(t, propertySchema(t, runConfig, "environment"), "mode")
 
@@ -659,6 +683,13 @@ func TestLoopOpenAPIContract(t *testing.T) {
 			propertySchema(t, edges.Items.Value, field)
 		}
 	})
+}
+
+func assertStringSetEqual(t *testing.T, got []string, want []string) {
+	t.Helper()
+	if !slices.Equal(got, want) {
+		t.Fatalf("enum values = %v, want %v", got, want)
+	}
 }
 
 func serializedStructFields(value reflect.Type) []string {

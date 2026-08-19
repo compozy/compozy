@@ -1520,9 +1520,9 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 					bool,
 				) (contract.RunLoopResponse, error) {
 					return contract.RunLoopResponse{}, &looppkg.InputValidationError{
-						Loop: "review-and-fix", Field: "unknown", Origin: looppkg.InputOriginRun,
-						Reason: looppkg.InputValidationReasonUnknownInput,
-						Err:    errors.New("input is not declared"),
+						Loop: "review-and-fix", Field: "reviewer", Kind: "agent", Value: "missing-agent",
+						Origin: looppkg.InputOriginRun, Reason: looppkg.InputValidationReasonUnknownReference,
+						Err: errors.New("agent does not exist"),
 					}
 				}
 				_, engine := newLoopHandlerFixture(t, transport, service)
@@ -1539,9 +1539,10 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 				if payload.Valid || payload.InputValidation == nil {
 					t.Fatalf("input validation payload = %#v, want one typed item", payload)
 				}
-				if got := payload.InputValidation; got.Loop != "review-and-fix" || got.Field != "unknown" ||
+				if got := payload.InputValidation; got.Loop != "review-and-fix" || got.Field != "reviewer" ||
+					got.Kind != "agent" || got.Value != "missing-agent" ||
 					got.Origin != string(looppkg.InputOriginRun) ||
-					got.Reason != string(looppkg.InputValidationReasonUnknownInput) {
+					got.Reason != string(looppkg.InputValidationReasonUnknownReference) {
 					t.Fatalf("input validation item = %#v, want stable structured fields", got)
 				}
 			})

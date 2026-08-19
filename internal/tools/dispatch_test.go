@@ -965,7 +965,10 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 					`{"password":"secret","token_present":true,"canonical_token":"/review",` +
 						`"max_input_tokens":1050000,` +
 						`"max_output_tokens":128000,"visible":"ok",` +
-						`"inputs":{"token":{"type":"agent","required":true}}}`,
+						`"inputs":{` +
+						`"token":{"type":"string","required":true,"description":"Public deployment token name",` +
+						`"enum":["staging","production"],"default":"staging"},` +
+						`"secret":{"type":"ref","ref":{"kind":"secret"}}}}`,
 				),
 				Metadata: map[string]json.RawMessage{
 					"api_key": json.RawMessage(`"secret"`),
@@ -984,8 +987,12 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 				if err != nil {
 					t.Fatalf("json.Marshal(result) error = %v", err)
 				}
-				if strings.Contains(string(data), `"secret"`) {
-					t.Fatalf("post-call result leaked secret: %s", data)
+				for _, leak := range []string{
+					`"access_token":"secret"`, `"password":"secret"`, `"refresh_token":"secret"`,
+				} {
+					if strings.Contains(string(data), leak) {
+						t.Fatalf("post-call result leaked secret material %s: %s", leak, data)
+					}
 				}
 				if _, ok := result.Metadata["api_key"]; ok {
 					t.Fatalf("result.Metadata contains api_key after redaction: %#v", result.Metadata)
@@ -1022,8 +1029,12 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal(result) error = %v", err)
 		}
-		if strings.Contains(string(data), `"secret"`) {
-			t.Fatalf("result leaked secret: %s", data)
+		for _, leak := range []string{
+			`"access_token":"secret"`, `"password":"secret"`, `"refresh_token":"secret"`,
+		} {
+			if strings.Contains(string(data), leak) {
+				t.Fatalf("result leaked secret material %s: %s", leak, data)
+			}
 		}
 		for _, leaked := range []string{
 			"preview-secret",
@@ -1052,8 +1063,11 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			!strings.Contains(string(data), `"max_output_tokens":128000`) {
 			t.Fatalf("result = %s, want public model token limits preserved", data)
 		}
-		if !strings.Contains(string(data), `"token":{"required":true,"type":"agent"}`) {
+		if !strings.Contains(string(data), `"token":{"default":"staging","description":"Public deployment token name","enum":["staging","production"],"required":true,"type":"string"}`) {
 			t.Fatalf("result = %s, want token-named input declaration preserved", data)
+		}
+		if !strings.Contains(string(data), `"secret":{"ref":{"kind":"secret"},"type":"ref"}`) {
+			t.Fatalf("result = %s, want secret-named ref declaration preserved", data)
 		}
 		if slices.ContainsFunc(result.Redactions, func(redaction Redaction) bool {
 			return redaction.Path == "$.structured.inputs.token"
@@ -1064,8 +1078,12 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal(events) error = %v", err)
 		}
-		if strings.Contains(string(eventData), `"secret"`) {
-			t.Fatalf("events leaked secret: %s", eventData)
+		for _, leak := range []string{
+			`"access_token":"secret"`, `"password":"secret"`, `"refresh_token":"secret"`,
+		} {
+			if strings.Contains(string(eventData), leak) {
+				t.Fatalf("events leaked secret material %s: %s", leak, eventData)
+			}
 		}
 		eventSnapshot := events.snapshot()
 		if len(eventSnapshot[0].RedactedInputFields) == 0 {

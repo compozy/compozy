@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -187,7 +188,13 @@ func runtimeInputSpec(value any) (dsl.RuntimeSpec, error) {
 
 func runtimeInputSpecFromMap(value map[string]any) (dsl.RuntimeSpec, error) {
 	runtime := dsl.RuntimeSpec{}
-	for key, raw := range value {
+	keys := make([]string, 0, len(value))
+	for key := range value {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		raw := value[key]
 		text, ok := raw.(string)
 		if !ok {
 			return dsl.RuntimeSpec{}, fmt.Errorf("%s must be a string", key)

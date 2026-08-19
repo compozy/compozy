@@ -9,7 +9,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/spf13/cobra"
@@ -56,8 +58,7 @@ func promptForMissingLoopInputs(
 	values map[string]any,
 	noPrompt bool,
 ) (map[string]any, error) {
-	missing := missingRequiredLoopInputs(definition, values)
-	if len(missing) == 0 || noPrompt {
+	if noPrompt {
 		return values, nil
 	}
 	mode, err := resolveInheritedOutputFormat(cmd)
@@ -66,6 +67,23 @@ func promptForMissingLoopInputs(
 	}
 	input := cmd.InOrStdin()
 	if mode != OutputHuman || deps.inputIsTerminal == nil || !deps.inputIsTerminal(input) {
+		return values, nil
+	}
+	configured, err := effectiveConfiguredLoopInputs(
+		cmd.Context(), client, workspaceID, definition.Meta.Name,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cli: resolve configured Loop input defaults: %w", err)
+	}
+	satisfied := make(map[string]any, len(configured)+len(values))
+	for field, value := range configured {
+		satisfied[field] = value
+	}
+	for field, value := range values {
+		satisfied[field] = value
+	}
+	missing := missingRequiredLoopInputs(definition, satisfied)
+	if len(missing) == 0 {
 		return values, nil
 	}
 	reader := bufio.NewReader(input)
@@ -127,17 +145,7 @@ func loopInputChoices(
 		return []string{toolBoolTrue, toolBoolFalse}, nil
 	}
 	if input.Type == dsl.InputTypeRef && input.Ref != nil && input.Ref.Kind == dsl.InputRefKindLoop {
-		response, err := client.ListLoops(ctx, workspaceID, LoopListQuery{Limit: 200})
-		if err != nil {
-			return nil, err
-		}
-		values := make([]string, 0, len(response.Loops))
-		for _, item := range response.Loops {
-			if item.Name != loopName {
-				values = append(values, item.Name)
-			}
-		}
-		return values, nil
+		return listAllLoopInputChoices(ctx, client, workspaceID, loopName)
 	}
 	catalog, ok := client.(loopInputCatalogClient)
 	if !ok {
@@ -177,7 +185,14 @@ func loopRuntimeCatalogChoices(ctx context.Context, client loopInputCatalogClien
 	}
 	values := make([]string, 0, len(models.Models))
 	for _, model := range models.Models {
-		values = append(values, model.ProviderID+"/"+model.ModelID)
+		base := model.ProviderID + "/" + model.ModelID
+		if len(model.ReasoningEfforts) == 0 {
+			values = append(values, base)
+			continue
+		}
+		for _, effort := range model.ReasoningEfforts {
+			values = append(values, base+"@"+string(effort))
+		}
 	}
 	return sortedUniqueStrings(values), nil
 }
@@ -220,15 +235,7 @@ func loopEntityCatalogChoices(
 		}
 		return sortedUniqueStrings(values), nil
 	case dsl.EntityKindSession:
-		items, err := client.ListSessions(ctx, SessionListQuery{Workspace: workspaceID, Limit: 200})
-		if err != nil {
-			return nil, err
-		}
-		values := make([]string, 0, len(items.Sessions))
-		for _, item := range items.Sessions {
-			values = append(values, item.ID)
-		}
-		return sortedUniqueStrings(values), nil
+		return listAllSessionInputChoices(ctx, client, workspaceID)
 	case dsl.EntityKindWorkspace:
 		items, err := client.ListWorkspaces(ctx)
 		if err != nil {
@@ -261,11 +268,13 @@ func promptLoopInputValue(
 	input dsl.Input,
 	choices []string,
 ) (string, error) {
-	if _, err := fmt.Fprintf(output, "%s (%s)\n", field, effectivePromptInputKind(input)); err != nil {
+	if _, err := fmt.Fprintf(
+		output, "%s (%s)\n", safeLoopPromptText(field), safeLoopPromptText(effectivePromptInputKind(input)),
+	); err != nil {
 		return "", fmt.Errorf("cli: write Loop input prompt: %w", err)
 	}
 	for index, choice := range choices {
-		if _, err := fmt.Fprintf(output, "  %d) %s\n", index+1, choice); err != nil {
+		if _, err := fmt.Fprintf(output, "  %d) %s\n", index+1, safeLoopPromptText(choice)); err != nil {
 			return "", fmt.Errorf("cli: write Loop input choice: %w", err)
 		}
 	}
@@ -291,7 +300,96 @@ func parsePromptedLoopInput(input dsl.Input, raw string) (any, error) {
 		}
 		return runtimeInputMap(runtime), nil
 	}
-	return parseLoopValue(raw), nil
+	switch input.Type {
+	case dsl.InputTypeBoolean, dsl.InputTypeNumber:
+		return parseLoopValue(raw), nil
+	default:
+		return raw, nil
+	}
+}
+
+func effectiveConfiguredLoopInputs(
+	ctx context.Context,
+	client loopCommandClient,
+	workspaceID string,
+	loopName string,
+) (map[string]any, error) {
+	global, err := client.GetLoopInputDefaults(
+		ctx, workspaceID, loopName, contract.LoopInputDefaultsScopeGlobal,
+	)
+	if err != nil {
+		return nil, err
+	}
+	workspace, err := client.GetLoopInputDefaults(
+		ctx, workspaceID, loopName, contract.LoopInputDefaultsScopeWorkspace,
+	)
+	if err != nil {
+		return nil, err
+	}
+	values := make(map[string]any, len(global.Values)+len(workspace.Values))
+	for field, value := range global.Values {
+		values[field] = value
+	}
+	for field, value := range workspace.Values {
+		values[field] = value
+	}
+	return values, nil
+}
+
+func listAllLoopInputChoices(
+	ctx context.Context,
+	client loopCommandClient,
+	workspaceID string,
+	currentLoop string,
+) ([]string, error) {
+	var values []string
+	cursor := ""
+	for {
+		response, err := client.ListLoops(ctx, workspaceID, LoopListQuery{Cursor: cursor, Limit: 100})
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range response.Loops {
+			if item.Name != currentLoop {
+				values = append(values, item.Name)
+			}
+		}
+		if !response.Page.HasMore || response.Page.NextCursor == "" {
+			return sortedUniqueStrings(values), nil
+		}
+		cursor = response.Page.NextCursor
+	}
+}
+
+func listAllSessionInputChoices(
+	ctx context.Context,
+	client loopInputCatalogClient,
+	workspaceID string,
+) ([]string, error) {
+	var values []string
+	cursor := ""
+	for {
+		page, err := client.ListSessions(ctx, SessionListQuery{Workspace: workspaceID, Cursor: cursor, Limit: 100})
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range page.Sessions {
+			values = append(values, item.ID)
+		}
+		if !page.Page.HasMore || page.Page.NextCursor == "" {
+			return sortedUniqueStrings(values), nil
+		}
+		cursor = page.Page.NextCursor
+	}
+}
+
+func safeLoopPromptText(value string) string {
+	return strings.Map(func(char rune) rune {
+		if unicode.IsControl(char) {
+			return unicode.ReplacementChar
+		}
+		return char
+	}, value)
 }
 
 func runtimeInputMap(runtime loop.RuntimeSpec) map[string]any {
