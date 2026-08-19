@@ -50,8 +50,8 @@ var (
 	ErrActionDependencyMissing = errors.New("loop: action dependency missing")
 	// ErrActionStalled reports a harvest that must wait for an external result.
 	ErrActionStalled = errors.New("loop: action stalled")
-	// ErrActionSchemaInvalid reports run-agent structured output that failed output_schema validation.
-	ErrActionSchemaInvalid = errors.New("loop: action schema validation failed")
+	// ErrActionInvalidOutput reports run-agent structured output that failed output_schema validation.
+	ErrActionInvalidOutput = errors.New("loop: action output schema validation failed")
 	// ErrActionMaterialization reports authored templates that cannot resolve against the runtime namespace.
 	ErrActionMaterialization = errors.New("loop: action materialization failed")
 	// ErrActionTimeout reports an action turn canceled by the node timeout.
@@ -65,8 +65,8 @@ const (
 	ReasonCodeActionDependencyMissing ReasonCode = "action_dependency_missing"
 	// ReasonCodeActionStalled reports a harvest window that produced no designated result.
 	ReasonCodeActionStalled ReasonCode = "action_stalled"
-	// ReasonCodeActionSchemaInvalid reports run-agent output_schema validation failure.
-	ReasonCodeActionSchemaInvalid ReasonCode = "action_schema_invalid"
+	// ReasonCodeInvalidOutput reports run-agent output_schema validation failure.
+	ReasonCodeInvalidOutput ReasonCode = "invalid_output"
 	// ReasonCodeActionMaterializationFailed reports an authored value that could not be materialized.
 	ReasonCodeActionMaterializationFailed ReasonCode = "action_materialization_failed"
 	// ReasonCodeActionTimeout reports timeout cancellation of an action turn.

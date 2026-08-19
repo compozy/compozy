@@ -266,6 +266,13 @@ func refreshCompletedTaskRunOutput(
 	if !found {
 		return invalidCompletedActionOwnerOutput(output), false, nil, nil, nil
 	}
+	if failure := completedRunAgentOutputFailure(node, payload); failure != nil {
+		output.Status = generationOutputFailed
+		if failureRef, ok := ActionFailureOutputRef(*failure); ok {
+			setGenerationOutputRef(&output, failureRef)
+		}
+		return output, false, nil, nil, nil
+	}
 	inspection := InspectPayloadFailure(payload, nodeResultContract(node))
 	if inspection.Failure != nil {
 		output.Status = generationOutputFailed

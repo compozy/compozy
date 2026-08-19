@@ -80,6 +80,9 @@ func (g *TaskRunRepo) completeRunLeaseWithExecutor(
 	if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
 		return taskpkg.Run{}, err
 	}
+	if err := taskpkg.RequireLeaseSettlementActor(current, normalized.Actor); err != nil {
+		return taskpkg.Run{}, err
+	}
 	if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusCompleted); err != nil {
 		return taskpkg.Run{}, err
 	}

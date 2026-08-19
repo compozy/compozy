@@ -80,7 +80,7 @@ func (e *RunAgentActionExecutor) Execute(
 		first.TokensUsed = tokensUsed
 		return rawFromPromptResult(binding, first, structured, resolvedRuntime), nil
 	}
-	if !errors.Is(err, ErrActionSchemaInvalid) {
+	if !errors.Is(err, ErrActionInvalidOutput) {
 		return ActionRawResult{}, err
 	}
 	retryPrompt, retryErr := schemaRetryPrompt(spec.Prompt, spec.OutputSchema, err)

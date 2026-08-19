@@ -57,8 +57,10 @@ type CreateOpts struct {
 	ParentSoulDigest          string
 	// AllowedToolsOverride is a concrete subset narrowing of the resolved agent tool policy.
 	AllowedToolsOverride []string
-	CreationProfile      *store.SessionCreationProfile
-	CreationIdentity     *store.SessionCreationIdentity
+	// DeniedToolsOverride adds internal deny patterns without widening the resolved agent policy.
+	DeniedToolsOverride []string
+	CreationProfile     *store.SessionCreationProfile
+	CreationIdentity    *store.SessionCreationIdentity
 	// DiscardStartFailure prevents internal retry attempts from leaving durable
 	// session artifacts when provider startup fails before Create returns.
 	DiscardStartFailure bool

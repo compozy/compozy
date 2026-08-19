@@ -101,7 +101,7 @@ func invalidAwaitedChildIdentityOutput(output GenerationOutput) GenerationOutput
 // invalidActionOutput records a stable authoring failure and drops any untrusted child ID.
 func invalidActionOutput(output GenerationOutput, target, cause, hint string) GenerationOutput {
 	failure := NewActionFailure(
-		string(ReasonCodeActionSchemaInvalid),
+		string(ReasonCodeInvalidOutput),
 		cause,
 		hint,
 	)

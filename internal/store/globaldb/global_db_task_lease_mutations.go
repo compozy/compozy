@@ -193,6 +193,9 @@ func (g *TaskRunRepo) failCurrentRunLeaseWithExecutor(
 	if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
 		return taskpkg.FailedRunLeaseMutation{}, err
 	}
+	if err := taskpkg.RequireLeaseSettlementActor(current, normalized.Actor); err != nil {
+		return taskpkg.FailedRunLeaseMutation{}, err
+	}
 	if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusFailed); err != nil {
 		return taskpkg.FailedRunLeaseMutation{}, err
 	}

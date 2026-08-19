@@ -226,6 +226,9 @@ func (r *loopActionRuntime) executeQueuedRun(
 	if controlled {
 		return err
 	}
+	if err == nil {
+		err = looppkg.ValidateActionRunResult(claim.Run, result)
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return err

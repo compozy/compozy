@@ -399,6 +399,11 @@ declares exactly one of `for`, `until`, or `event`, with optional `expect`, `ahe
 `expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
 A fan-out requires positive `max_fan_out`; logical lanes may exceed 64, while only its
 `max_parallel` window materializes at once.
+A `run-agent` result is validated against its pinned `output_schema` before the owning daemon
+settles the task and again before node success is published. A mismatch fails with
+`invalid_output`; content-addressed storage preserves the exact structured value. The bound agent
+session may call `compozy__task_run_heartbeat`, but only the owning daemon may call the terminal
+complete or fail operations for that task.
 A gate's
 `verdict_policy: revise_until_clean` requires an `agent-judge` or `human` criterion. For a command
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout

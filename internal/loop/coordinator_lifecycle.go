@@ -435,7 +435,7 @@ func classifyGenerationOutputFailure(output GenerationOutput, taskRun task.Run) 
 		string(tools.ErrorCodeTimedOut), childLoopStatusRef(StatusFailed):
 		evidence.Transport = true
 	case string(ReasonCodeUnknownActionKind), string(ReasonCodeActionDependencyMissing),
-		string(ReasonCodeActionSchemaInvalid), string(ReasonCodeActionContractStale),
+		string(ReasonCodeInvalidOutput), string(ReasonCodeActionContractStale),
 		string(ReasonCodeActionMaterializationFailed):
 		evidence.Authoring = true
 	default:

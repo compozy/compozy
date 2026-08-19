@@ -54,6 +54,7 @@ func sessionStartSpecFromMeta(
 	if spec.creationProfile != nil {
 		spec.runtimeMode = spec.creationProfile.RuntimeMode
 		spec.allowedToolsOverride = append([]string(nil), spec.creationProfile.AllowedTools...)
+		spec.deniedToolsOverride = append([]string(nil), spec.creationProfile.DeniedTools...)
 		if err := applyCreationProfileSandbox(&spec); err != nil {
 			return sessionStartSpec{}, err
 		}

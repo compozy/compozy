@@ -36,6 +36,13 @@ func coordinatorNodeMetadataWithFanOutItem(
 	actionKind := dsl.ActionKind(node.Kind)
 	switch actionKind {
 	case dsl.ActionRunAgent:
+		var params dsl.RunAgentParams
+		if err := node.Params.Decode(&params); err != nil {
+			return nil, fmt.Errorf("loop: decode run-agent metadata for %s: %w", node.ID, err)
+		}
+		if len(params.OutputSchema) > 0 {
+			payload[outputSchemaParamKey] = params.OutputSchema
+		}
 		handle := actionSessionHandle(node.Session)
 		payload["session_handle"] = actionSessionSharedKey(generation, node.ID, itemIndex, handle)
 	case dsl.ActionGoal:

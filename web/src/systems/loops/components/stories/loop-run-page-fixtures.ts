@@ -195,7 +195,7 @@ export function failedScenario(): LoopRunStoryScenario {
       cause: "coordinator_failure",
       failure: {
         kind: "action_failure",
-        code: "action_schema_invalid",
+        code: "invalid_output",
         cause: "The fixer result did not include one entry per issue file.",
         recovery: "Correct the fixer output and start a new run.",
       },

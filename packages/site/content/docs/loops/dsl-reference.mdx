@@ -159,6 +159,10 @@ extension, and MCP tool is a Loop action for free.
 
 A `run-agent` node with an `output_schema` publishes typed output, so the next node can reference
 `nodes.<id>.output.<field>` — the type-safe chaining pattern.
+The daemon validates the agent's exact structured result against that schema before it settles the
+task and revalidates it before publishing node success. A mismatch fails with `invalid_output`.
+Large results keep the same structured value when stored by content reference. The bound agent
+session may heartbeat its task, but only the owning daemon can complete or fail it.
 Cross-generation references keep the same authored shape on every pass. On generation 1,
 `previous.generation` is `0`; before a best candidate exists, `best.generation` is `0`. Authored
 node outputs use zero values from their declared schemas and verdict lists are empty, so a valid

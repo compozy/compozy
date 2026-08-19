@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -110,6 +111,31 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "allowed_tools[0]") {
 			t.Fatalf("normalizeAllowedToolsOverride(blank) error = %v, want indexed message", err)
+		}
+	})
+
+	t.Run("Should merge internal deny patterns without removing heartbeat", func(t *testing.T) {
+		t.Parallel()
+
+		spec := sessionStartSpec{deniedToolsOverride: []string{
+			toolspkg.ToolIDTaskRunFail.String(),
+			toolspkg.ToolIDTaskRunComplete.String(),
+			toolspkg.ToolIDTaskRunFail.String(),
+		}}
+		resolved := compozyconfig.ResolvedAgent{DenyTools: []string{"compozy__config_*"}}
+		if err := spec.applyDeniedToolsOverride(&resolved); err != nil {
+			t.Fatalf("applyDeniedToolsOverride() error = %v", err)
+		}
+		want := []string{
+			"compozy__config_*",
+			toolspkg.ToolIDTaskRunComplete.String(),
+			toolspkg.ToolIDTaskRunFail.String(),
+		}
+		if !slices.Equal(resolved.DenyTools, want) {
+			t.Fatalf("resolved.DenyTools = %#v, want %#v", resolved.DenyTools, want)
+		}
+		if slices.Contains(resolved.DenyTools, toolspkg.ToolIDTaskRunHeartbeat.String()) {
+			t.Fatalf("resolved.DenyTools = %#v, heartbeat must remain available", resolved.DenyTools)
 		}
 	})
 }

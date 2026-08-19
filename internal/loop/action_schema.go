@@ -32,17 +32,17 @@ func ValidateActionStructured(schema dsl.Schema, result ActionPromptResult) (jso
 	}
 	if len(bytes.TrimSpace(result.Structured)) > 0 {
 		if !json.Valid(result.Structured) {
-			return nil, actionSchemaInvalidError(errors.New("structured result is not valid JSON"))
+			return nil, actionInvalidOutputError(errors.New("structured result is not valid JSON"))
 		}
 		raw := cloneRawMessage(result.Structured)
 		if err := validateJSONSchema(schema, raw); err != nil {
-			return nil, actionSchemaInvalidError(err)
+			return nil, actionInvalidOutputError(err)
 		}
 		return raw, nil
 	}
 	candidates := extractJSONObjectCandidates(result.Text)
 	if len(candidates) == 0 {
-		return nil, actionSchemaInvalidError(errors.New("no JSON object found"))
+		return nil, actionInvalidOutputError(errors.New("no JSON object found"))
 	}
 	var newestErr error
 	for _, candidate := range slices.Backward(candidates) {
@@ -54,14 +54,14 @@ func ValidateActionStructured(schema dsl.Schema, result ActionPromptResult) (jso
 			newestErr = err
 		}
 	}
-	return nil, actionSchemaInvalidError(newestErr)
+	return nil, actionInvalidOutputError(newestErr)
 }
 
-func actionSchemaInvalidError(err error) error {
+func actionInvalidOutputError(err error) error {
 	return newSafeActionFailureError(
-		reasonError(ReasonCodeActionSchemaInvalid, errors.Join(ErrActionSchemaInvalid, err), nil),
+		reasonError(ReasonCodeInvalidOutput, errors.Join(ErrActionInvalidOutput, err), nil),
 		NewActionFailure(
-			string(ReasonCodeActionSchemaInvalid),
+			string(ReasonCodeInvalidOutput),
 			schemaInvalidCause(err),
 			"Return one JSON object that satisfies every required output field, then retry the action.",
 		),

@@ -518,7 +518,9 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 		t.Parallel()
 
 		largeSummary := strings.Repeat("summary-", LoopOutputInlineLimitBytes/8+1)
-		payload, err := json.Marshal(map[string]any{"summary": largeSummary})
+		payload, err := json.Marshal(map[string]any{
+			"status": "done", "tipo": "backend", "resumo": largeSummary,
+		})
 		if err != nil {
 			t.Fatalf("json.Marshal(output payload) error = %v", err)
 		}
@@ -531,9 +533,17 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
 		definition := dsl.Definition{Graph: dsl.Graph{
 			Nodes: []dsl.Node{
-				{ID: "load", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+				{ID: "load", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+					Params: dsl.NodeParams{"output_schema": map[string]any{
+						"type": "object", "properties": map[string]any{
+							"status": map[string]any{"type": "string"},
+							"tipo":   map[string]any{"type": "string"},
+							"resumo": map[string]any{"type": "string"},
+						}, "required": []string{"status", "tipo", "resumo"},
+					}},
+				},
 				{ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
-					Params: dsl.NodeParams{"agent": "codex", "prompt": "Use {{ .nodes.load.output.summary }}"}},
+					Params: dsl.NodeParams{"agent": "codex", "prompt": "Use {{ .nodes.load.output.resumo }}"}},
 			},
 			Edges: []dsl.Edge{{From: "load", To: "agent"}},
 		}}
@@ -593,8 +603,39 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedGoalPolicy(t *testing.T
 			t.Fatalf("namespace load = %#v, want map", nodes["load"])
 		}
 		loaded, ok := load[namespaceOutputKey].(map[string]any)
-		if !ok || loaded["summary"] != largeSummary {
-			t.Fatalf("namespace load output = %#v, want externalized summary", load[namespaceOutputKey])
+		if !ok || loaded["status"] != "done" || loaded["tipo"] != "backend" ||
+			loaded["resumo"] != largeSummary {
+			t.Fatalf("namespace load output = %#v, want every externalized required field", load[namespaceOutputKey])
+		}
+		rendered, err := renderNodeParams(definition.Graph.Nodes[1], capture.input.Namespace)
+		if err != nil {
+			t.Fatalf("renderNodeParams(externalized output) error = %v", err)
+		}
+		if got := rendered["prompt"]; got != "Use "+largeSummary {
+			t.Fatalf("rendered prompt length = %d, want exact externalized summary", len(got.(string)))
+		}
+		conditionCompiler, err := refs.NewConditionCompiler(refs.Namespace{Nodes: map[string]refs.NodeSchema{
+			"load": {
+				HasOutput: true,
+				Output: refs.Schema{"type": "object", "properties": map[string]any{
+					"status": map[string]any{"type": "string"},
+					"tipo":   map[string]any{"type": "string"},
+					"resumo": map[string]any{"type": "string"},
+				}},
+			},
+		}})
+		if err != nil {
+			t.Fatalf("NewConditionCompiler() error = %v", err)
+		}
+		condition, err := conditionCompiler.Compile(
+			`nodes.load.output.status == "done" && nodes.load.output.tipo == "backend" && nodes.load.output.resumo.size() > 16000`,
+		)
+		if err != nil {
+			t.Fatalf("Compile(externalized output CEL) error = %v", err)
+		}
+		evaluation, err := condition.Evaluate(capture.input.Namespace)
+		if err != nil || !evaluation.Value {
+			t.Fatalf("Evaluate(externalized output CEL) = %#v, error = %v, want true", evaluation, err)
 		}
 		if got := outputStore.outputs[1][0].OutputRef; got != outputRef {
 			t.Fatalf("stored output_ref = %q, want %q", got, outputRef)
@@ -1826,12 +1867,70 @@ func TestRefreshCompletedTaskRunOutputShouldValidateRunLoopAwaitResult(t *testin
 				)
 			}
 			failure := classifyGenerationOutputFailure(output, task.Run{})
-			if failure.Class != FailureAuthoring || failure.Code != string(ReasonCodeActionSchemaInvalid) ||
+			if failure.Class != FailureAuthoring || failure.Code != string(ReasonCodeInvalidOutput) ||
 				failure.Cause != wantCause || failure.Target != "child" {
 				t.Fatalf("classified invalid result = %#v", failure)
 			}
 		})
 	}
+}
+
+func TestRefreshCompletedTaskRunOutputShouldRevalidateRunAgentSchema(t *testing.T) {
+	t.Parallel()
+
+	node := dsl.Node{
+		ID: "worker", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+		Params: dsl.NodeParams{"output_schema": map[string]any{
+			"type": "object", "properties": map[string]any{
+				"status":  map[string]any{"type": "string"},
+				"summary": map[string]any{"type": "string"},
+			}, "required": []string{"status", "summary"},
+		}},
+	}
+	graph := dsl.Graph{Nodes: []dsl.Node{node}}
+
+	t.Run("Should fail a completed capture missing a required field", func(t *testing.T) {
+		t.Parallel()
+
+		output, live, stops, terminal, err := refreshCompletedTaskRunOutput(
+			Run{ID: "looprun-parent", WorkspaceID: "ws-1"},
+			graph,
+			GenerationOutput{NodeID: "worker", Status: generationOutputEnqueued},
+			task.Run{Status: task.TaskRunStatusCompleted, Result: json.RawMessage(`{"status":"done"}`)},
+		)
+		if err != nil {
+			t.Fatalf("refreshCompletedTaskRunOutput() error = %v", err)
+		}
+		if live || len(stops) != 0 || terminal != nil || output.Status != generationOutputFailed {
+			t.Fatalf("completed output = %#v live=%t stops=%#v terminal=%#v", output, live, stops, terminal)
+		}
+		failure := classifyGenerationOutputFailure(output, task.Run{})
+		if failure.Class != FailureAuthoring || failure.Code != string(ReasonCodeInvalidOutput) {
+			t.Fatalf("classified invalid output = %#v, want authoring invalid_output", failure)
+		}
+	})
+
+	t.Run("Should accept the exact resolved externalized payload", func(t *testing.T) {
+		t.Parallel()
+
+		payload := json.RawMessage(`{"status":"done","summary":"complete"}`)
+		output := GenerationOutput{
+			NodeID: "worker", Status: generationOutputEnqueued, OutputRef: OutputRefForPayload(payload),
+			runtimePayload: payload,
+		}
+		refreshed, live, stops, terminal, err := refreshCompletedTaskRunOutput(
+			Run{ID: "looprun-parent", WorkspaceID: "ws-1"},
+			graph,
+			output,
+			task.Run{Status: task.TaskRunStatusCompleted},
+		)
+		if err != nil {
+			t.Fatalf("refreshCompletedTaskRunOutput() error = %v", err)
+		}
+		if live || len(stops) != 0 || terminal != nil || refreshed.Status != generationOutputSucceeded {
+			t.Fatalf("completed output = %#v live=%t stops=%#v terminal=%#v", refreshed, live, stops, terminal)
+		}
+	})
 }
 
 func TestRefreshCompletedTaskRunOutputShouldPreserveRunLoopDetachSuccess(t *testing.T) {
@@ -2156,7 +2255,7 @@ func TestCoordinatorRunnerShouldRejectAwaitedChildOutsideParentBoundary(t *testi
 			}
 			failure := classifyGenerationOutputFailure(output, task.Run{})
 			if failure.Class != FailureAuthoring || failure.Target != string(testCase.child.ID) ||
-				failure.Code != string(ReasonCodeActionSchemaInvalid) ||
+				failure.Code != string(ReasonCodeInvalidOutput) ||
 				failure.Cause != "awaited child Loop is outside the parent boundary" {
 				t.Fatalf("classified boundary failure = %#v", failure)
 			}
@@ -2210,7 +2309,7 @@ func TestCoordinatorRunnerShouldRejectMalformedAwaitedChildIdentity(t *testing.T
 			t.Fatalf("malformed child_loop_run_id = %q, want cleared", output.ChildLoopRunID)
 		}
 		failure := classifyGenerationOutputFailure(output, task.Run{})
-		if failure.Class != FailureAuthoring || failure.Code != string(ReasonCodeActionSchemaInvalid) ||
+		if failure.Class != FailureAuthoring || failure.Code != string(ReasonCodeInvalidOutput) ||
 			failure.Cause != "awaited child Loop identity is invalid" {
 			t.Fatalf("classified malformed child identity = %#v", failure)
 		}

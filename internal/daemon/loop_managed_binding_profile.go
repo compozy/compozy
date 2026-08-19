@@ -114,9 +114,10 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 			Kind: participation.OwnerKindLoopRun,
 			ID:   string(req.LoopRunID),
 		}),
-		PromptOverlay:   strings.TrimSpace(req.ContractBlock),
-		ContractOverlay: strings.TrimSpace(req.ContractBlock),
-		Type:            session.SessionTypeSystem,
+		PromptOverlay:       strings.TrimSpace(req.ContractBlock),
+		ContractOverlay:     strings.TrimSpace(req.ContractBlock),
+		Type:                session.SessionTypeSystem,
+		DeniedToolsOverride: loopActionTerminalTools(),
 	}
 	applyLoopDirectoryBeforePolicy(&opts, req.EnvironmentValue())
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
@@ -176,6 +177,7 @@ func createOptionsFromProfile(
 		RuntimeMode:          profile.RuntimeMode,
 		Type:                 session.SessionTypeSystem,
 		AllowedToolsOverride: append([]string(nil), profile.AllowedTools...),
+		DeniedToolsOverride:  mergeLoopActionDeniedTools(profile.DeniedTools, loopActionTerminalTools()),
 	}
 }
 

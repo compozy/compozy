@@ -146,7 +146,7 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
 			Scope:            taskpkg.ScopeGlobal,
 			ClaimerSessionID: "worker-goal-reentry",
-			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "worker"},
+			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
 			LeaseDuration:    time.Minute,
 			Now:              now,
 		})

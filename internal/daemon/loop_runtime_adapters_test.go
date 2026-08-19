@@ -171,6 +171,20 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 				allowedTools,
 			)
 		}
+		wantDenied := loopActionTerminalTools()
+		if !slices.Equal(createCall.DeniedToolsOverride, wantDenied) {
+			t.Fatalf(
+				"CreateOpts.DeniedToolsOverride = %#v, want %#v",
+				createCall.DeniedToolsOverride,
+				wantDenied,
+			)
+		}
+		if slices.Contains(createCall.DeniedToolsOverride, toolspkg.ToolIDTaskRunHeartbeat.String()) {
+			t.Fatalf(
+				"CreateOpts.DeniedToolsOverride = %#v, heartbeat must remain available",
+				createCall.DeniedToolsOverride,
+			)
+		}
 		if createCall.Provider != "codex" || createCall.Model != "gpt-5.6-terra" ||
 			createCall.ReasoningEffort != "high" {
 			t.Fatalf("CreateOpts runtime = %#v, want codex/gpt-5.6-terra@high", createCall)

@@ -141,7 +141,7 @@ func (r *CoordinatorRunner) resolvePinnedActionExecutor(
 		if !ok {
 			return nil, reasonError(
 				ReasonCodeActionContractStale,
-				fmt.Errorf("%w: pinned action schema is missing", ErrActionSchemaInvalid),
+				fmt.Errorf("%w: pinned action schema is missing", ErrActionInvalidOutput),
 				map[string]string{actionKindMetaKey: actionCtx.node.Kind},
 			)
 		}

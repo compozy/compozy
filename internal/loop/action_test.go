@@ -120,8 +120,8 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 			toolID.String(),
 			expected,
 		)
-		if !errors.Is(err, loop.ErrActionSchemaInvalid) {
-			t.Fatalf("ResolvePinned() error = %v, want ErrActionSchemaInvalid", err)
+		if !errors.Is(err, loop.ErrActionInvalidOutput) {
+			t.Fatalf("ResolvePinned() error = %v, want ErrActionInvalidOutput", err)
 		}
 		reason, reasonMatched := errors.AsType[*loop.ReasonError](err)
 		if !reasonMatched || reason.Code != loop.ReasonCodeActionContractStale {
