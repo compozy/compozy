@@ -180,10 +180,16 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 					Path: path, Value: discovery, Redacted: false,
 				}))
 			}
-			for _, entry := range flattenConfigEntries(redactedConfigMap(&cfg)) {
+			configMap := redactedConfigMap(&cfg)
+			for _, entry := range flattenConfigEntries(configMap) {
 				if entry.Path == path {
 					return writeCommandOutput(cmd, configValueBundle(configValueRecord(entry)))
 				}
+			}
+			if value, found := configValueAtPath(configMap, path); found {
+				return writeCommandOutput(cmd, configValueBundle(configValueRecord{
+					Path: path, Value: value, Redacted: configValueContainsRedaction(value),
+				}))
 			}
 			return fmt.Errorf("cli: config path %q not found", path)
 		},
@@ -251,12 +257,14 @@ func runConfigSetCommand(
 		workspace,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			if kind == configSetTable {
+			if kind == configSetTable || kind == configSetLoopInput {
 				table, ok := value.(map[string]any)
-				if !ok {
+				if ok {
+					return editor.SetTable(path, table)
+				}
+				if kind == configSetTable {
 					return fmt.Errorf("cli: config path %q requires an object", strings.Join(path, "."))
 				}
-				return editor.SetTable(path, table)
 			}
 			return editor.SetValue(path, value)
 		},

@@ -232,6 +232,7 @@ export function AutomationJobForm({
                     identityDisabled={mode === "edit"}
                     mode={mode}
                     value={form.loopTarget}
+                    workspaceId={form.loopWorkspaceId}
                     onChange={form.onLoopTargetChange}
                   />
                 ) : form.targetMode === "task" && draft.task ? (

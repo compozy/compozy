@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -341,6 +342,11 @@ func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 		{path: "loops.inputs.review-and-fix.auto_commit", rawValue: "false", wantValue: false},
 		{path: "loops.inputs.review-and-fix.retries", rawValue: "0", wantValue: float64(0)},
 		{path: "loops.inputs.review-and-fix.reviewer", rawValue: "", wantValue: ""},
+		{
+			path:      "loops.inputs.review-and-fix.runtime",
+			rawValue:  `{"provider":"codex","model":"gpt-5.6","reasoning":"high"}`,
+			wantValue: map[string]any{"provider": "codex", "model": "gpt-5.6", "reasoning": "high"},
+		},
 	} {
 		stdout, _, err := executeRootCommand(
 			t,
@@ -354,8 +360,25 @@ func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &setRecord); err != nil {
 			t.Fatalf("json.Unmarshal(config set %s) error = %v", testCase.path, err)
 		}
-		if setRecord.Path != testCase.path || setRecord.Value != testCase.wantValue {
+		if setRecord.Path != testCase.path || !reflect.DeepEqual(setRecord.Value, testCase.wantValue) {
 			t.Fatalf("config set %s record = %#v, want %#v", testCase.path, setRecord, testCase.wantValue)
+		}
+
+		if expectedTable, ok := testCase.wantValue.(map[string]any); ok {
+			for key, expectedValue := range expectedTable {
+				leafPath := testCase.path + "." + key
+				stdout, _, err = executeRootCommand(t, deps, "config", "get", leafPath, "-o", "json")
+				if err != nil {
+					t.Fatalf("config get %s error = %v", leafPath, err)
+				}
+				var valueRecord configValueRecord
+				if err := json.Unmarshal([]byte(stdout), &valueRecord); err != nil {
+					t.Fatalf("json.Unmarshal(config get %s) error = %v", leafPath, err)
+				}
+				if !reflect.DeepEqual(valueRecord.Value, expectedValue) {
+					t.Fatalf("config get %s value = %#v, want %#v", leafPath, valueRecord.Value, expectedValue)
+				}
+			}
 		}
 
 		stdout, _, err = executeRootCommand(t, deps, "config", "get", testCase.path, "-o", "json")
@@ -366,7 +389,7 @@ func TestConfigCommandsManageDynamicLoopInputDefaults(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &valueRecord); err != nil {
 			t.Fatalf("json.Unmarshal(config get %s) error = %v", testCase.path, err)
 		}
-		if valueRecord.Value != testCase.wantValue {
+		if !reflect.DeepEqual(valueRecord.Value, testCase.wantValue) {
 			t.Fatalf("config get %s value = %#v, want %#v", testCase.path, valueRecord.Value, testCase.wantValue)
 		}
 	}

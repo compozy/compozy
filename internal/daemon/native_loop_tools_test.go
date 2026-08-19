@@ -685,7 +685,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		)
 	})
 
-	t.Run("Should return typed input-default diagnostics for native submissions", func(t *testing.T) {
+	t.Run("Should return typed input validation diagnostics for native submissions", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -701,10 +701,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						taskpkg.ActorContext,
 						bool,
 					) (contract.RunLoopResponse, error) {
-						return contract.RunLoopResponse{}, &looppkg.InputDefaultError{
-							Loop:   "review-and-fix",
-							Key:    "unknown",
-							Reason: looppkg.InputDefaultReasonUnknownInput,
+						return contract.RunLoopResponse{}, &looppkg.InputValidationError{
+							Loop: "review-and-fix", Field: "unknown", Origin: looppkg.InputOriginRun,
+							Reason: looppkg.InputValidationReasonUnknownInput,
 							Err:    errors.New("input is not declared"),
 						}
 					},
@@ -722,20 +721,21 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		)
 		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
 		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("Registry.Call(loop_run input default) error = %#v, want invalid-input ToolError", err)
+			t.Fatalf("Registry.Call(loop_run input validation) error = %#v, want invalid-input ToolError", err)
 		}
 		if toolErr.PartialResult == nil {
-			t.Fatalf("loop_run input-default ToolError = %#v, want structured partial result", toolErr)
+			t.Fatalf("loop_run input validation ToolError = %#v, want structured partial result", toolErr)
 		}
 		structured := string(toolErr.PartialResult.Structured)
 		for _, want := range []string{
-			`"input_default"`,
+			`"input_validation"`,
 			`"loop":"review-and-fix"`,
-			`"key":"unknown"`,
+			`"field":"unknown"`,
+			`"origin":"run"`,
 			`"reason":"unknown_input"`,
 		} {
 			if !strings.Contains(structured, want) {
-				t.Fatalf("loop_run input-default structured payload = %s, want %s", structured, want)
+				t.Fatalf("loop_run input validation structured payload = %s, want %s", structured, want)
 			}
 		}
 	})

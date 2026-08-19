@@ -58,6 +58,10 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
+		undecoded = withoutDynamicLoopInputKeys(undecoded)
+		if len(undecoded) == 0 {
+			return overlay, nil
+		}
 		if err := rejectRemovedLoopRuntimeKeys(source, undecoded); err != nil {
 			return overlay, err
 		}
@@ -71,6 +75,17 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	}
 
 	return overlay, nil
+}
+
+func withoutDynamicLoopInputKeys(keys []burnttoml.Key) []burnttoml.Key {
+	filtered := make([]burnttoml.Key, 0, len(keys))
+	for _, key := range keys {
+		if len(key) >= 4 && key[0] == LoopsConfigKey && key[1] == LoopInputsConfigKey {
+			continue
+		}
+		filtered = append(filtered, key)
+	}
+	return filtered
 }
 
 func rejectRemovedExtensionMarketplaceKeys(source string, keys []burnttoml.Key) error {

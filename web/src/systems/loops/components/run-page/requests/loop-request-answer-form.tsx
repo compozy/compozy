@@ -10,6 +10,7 @@ import {
 } from "@compozy/ui";
 
 import { type LoopRequestField, loopRequestFieldLabel } from "../../../lib/loop-request-payload";
+import { LoopEntityValueControl } from "../../input/loop-typed-input-control";
 
 export interface LoopRequestAnswerFormProps {
   idPrefix: string;
@@ -60,7 +61,7 @@ export function LoopRequestAnswerForm({
           field={field}
           idPrefix={idPrefix}
           key={field.name}
-          labelledBy={lone ? promptId : undefined}
+          labelledBy={lone && field.control.kind !== "entity" ? promptId : undefined}
           onChange={onChange}
           value={values[field.name] ?? ""}
         />
@@ -175,6 +176,20 @@ function AnswerControl({
         name={field.name}
         onChange={onChange}
         options={field.control.kind === "select" ? field.control.options : BOOLEAN_OPTIONS}
+        value={value}
+      />
+    );
+  }
+  if (field.control.kind === "entity") {
+    return (
+      <LoopEntityValueControl
+        controlId={controlId}
+        describedBy={describedBy}
+        disabled={disabled}
+        invalid={invalid}
+        kind={field.control.entityKind}
+        onChange={next => onChange(field.name, next)}
+        testId={`loop-request-field-${field.name}`}
         value={value}
       />
     );

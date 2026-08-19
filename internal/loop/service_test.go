@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -800,8 +802,10 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			loop.Inputs{Values: map[string]any{"tasks": "task-ref"}},
 			humanActor(t),
 		)
-		validation, ok := loop.AsInputDefaultError(err)
-		if !ok || validation.Key != "auto_commit" || validation.Reason != loop.InputDefaultReasonTypeMismatch {
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "auto_commit" ||
+			validation.Origin != loop.InputOriginWorkspace ||
+			validation.Reason != loop.InputValidationReasonTypeMismatch {
 			t.Fatalf("Start() error = %#v, want typed auto_commit type mismatch", err)
 		}
 		if store.createCount() != 0 {
@@ -1803,6 +1807,44 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should normalize runtime objects and accept enum members", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"environment": {
+				Type: dsl.InputTypeString, Enum: []string{"dev", "prod"}, Required: true,
+			},
+			"runtime": {Type: dsl.InputTypeRuntime, Required: true},
+		}
+		resolved, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{
+			"environment": "prod",
+			"runtime":     map[string]any{"model": " gpt-5 ", "reasoning": "high"},
+		}})
+		if err != nil {
+			t.Fatalf("ResolveInputs() error = %v", err)
+		}
+		wantRuntime := map[string]any{"model": "gpt-5", "reasoning": "high"}
+		if !reflect.DeepEqual(resolved["runtime"], wantRuntime) {
+			t.Fatalf("resolved runtime = %#v, want %#v", resolved["runtime"], wantRuntime)
+		}
+	})
+
+	t.Run("Should reject values outside a declared enum", func(t *testing.T) {
+		t.Parallel()
+
+		def := validDefinition()
+		def.Inputs = map[string]dsl.Input{
+			"environment": {Type: dsl.InputTypeString, Enum: []string{"dev", "prod"}},
+		}
+		_, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{"environment": "staging"}})
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "environment" ||
+			validation.Reason != loop.InputValidationReasonEnumMismatch {
+			t.Fatalf("ResolveInputs() error = %#v, want environment enum mismatch", err)
+		}
+	})
+
 	t.Run("Should resolve run workspace global and definition values by presence", func(t *testing.T) {
 		t.Parallel()
 
@@ -1858,7 +1900,8 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 			run    map[string]any
 			layers loop.InputDefaultLayers
 			key    string
-			reason loop.InputDefaultReason
+			reason loop.InputValidationReason
+			origin loop.InputOrigin
 		}{
 			{
 				name: "Should reject an unknown configured key",
@@ -1866,12 +1909,14 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 				layers: loop.InputDefaultLayers{
 					Workspace: map[string]any{"legacy_provider": "coderabbit"},
 				},
-				key: "legacy_provider", reason: loop.InputDefaultReasonUnknownInput,
+				key: "legacy_provider", reason: loop.InputValidationReasonUnknownInput,
+				origin: loop.InputOriginWorkspace,
 			},
 			{
 				name: "Should reject an unknown run key",
 				run:  map[string]any{"task_name": "task-09", "legacy_provider": "coderabbit"},
-				key:  "legacy_provider", reason: loop.InputDefaultReasonUnknownInput,
+				key:  "legacy_provider", reason: loop.InputValidationReasonUnknownInput,
+				origin: loop.InputOriginRun,
 			},
 			{
 				name: "Should reject a configured type mismatch",
@@ -1879,16 +1924,17 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 				layers: loop.InputDefaultLayers{
 					Global: map[string]any{"auto_commit": "true"},
 				},
-				key: "auto_commit", reason: loop.InputDefaultReasonTypeMismatch,
+				key: "auto_commit", reason: loop.InputValidationReasonTypeMismatch,
+				origin: loop.InputOriginGlobal,
 			},
 		}
 		for _, tt := range cases {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				_, err := loop.ResolveInputDefaults(def, "valid-loop", tt.run, tt.layers)
-				validation, ok := loop.AsInputDefaultError(err)
-				if !ok || validation.Loop != "valid-loop" || validation.Key != tt.key ||
-					validation.Reason != tt.reason {
+				validation, ok := loop.AsInputValidationError(err)
+				if !ok || validation.Loop != "valid-loop" || validation.Field != tt.key ||
+					validation.Reason != tt.reason || validation.Origin != tt.origin {
 					t.Fatalf("ResolveInputDefaults() error = %#v, want valid-loop/%s/%s", err, tt.key, tt.reason)
 				}
 			})
@@ -1903,9 +1949,11 @@ func TestResolveInputsShouldApplyDefaultsAndValidateTypes(t *testing.T) {
 			"auto_commit": {Type: dsl.InputTypeBoolean, Default: "true"},
 		}
 		_, err := loop.NewCompiler().Compile(def)
-		validation, ok := loop.AsInputDefaultError(err)
-		if !ok || validation.Key != "auto_commit" || validation.Reason != loop.InputDefaultReasonTypeMismatch {
-			t.Fatalf("Compile() error = %#v, want typed input_default type mismatch", err)
+		lintFailure, ok := errors.AsType[*loop.LintFailedError](err)
+		if !ok || !slices.ContainsFunc(lintFailure.Errors, func(item loop.LintError) bool {
+			return item.Path == "inputs.auto_commit.default" && item.Code == loop.CodeInputDefaultInvalid
+		}) {
+			t.Fatalf("Compile() error = %#v, want input default lint finding", err)
 		}
 	})
 }
@@ -1990,6 +2038,88 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		}
 		if store.createCount() != 0 {
 			t.Fatalf("CreateLoopRun calls = %d, want 0 after runtime validation", store.createCount())
+		}
+	})
+
+	t.Run("Should reject stale entity defaults with their winning origin", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs["reviewer"] = dsl.Input{
+			Type: dsl.InputTypeAgent, Required: true,
+		}
+		store := newFakeLoopStore()
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithInputDefaultsResolver(func(
+				context.Context,
+				loop.WorkspaceID,
+				string,
+			) (loop.InputDefaultLayers, error) {
+				return loop.InputDefaultLayers{
+					Workspace: map[string]any{"reviewer": "deleted-agent"},
+				}, nil
+			}),
+			loop.WithInputEntityCatalog(inputEntityCatalogStub{
+				missingKind: dsl.EntityKindAgent, missingValue: "deleted-agent",
+			}),
+		)
+
+		_, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values: map[string]any{"tasks": "task-ref"},
+		})
+		validation, ok := loop.AsInputValidationError(err)
+		if !ok || validation.Field != "reviewer" || validation.Kind != "agent" ||
+			validation.Value != "deleted-agent" || validation.Origin != loop.InputOriginWorkspace ||
+			validation.Reason != loop.InputValidationReasonUnknownReference {
+			t.Fatalf("DryRun() error = %#v, want stale workspace agent diagnostic", err)
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("CreateLoopRun calls = %d, want 0 after entity validation", store.createCount())
+		}
+	})
+
+	t.Run("Should reject an invalid runtime input before start and dry-run", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs["runtime"] = dsl.Input{Type: dsl.InputTypeRuntime, Required: true}
+		store := newFakeLoopStore()
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithRuntimeCatalog(rejectingServiceRuntimeCatalogFactory{}),
+		)
+		inputs := loop.Inputs{Values: map[string]any{
+			"tasks": "task-ref", "runtime": map[string]any{"provider": "flarp"},
+		}}
+		for _, invoke := range []struct {
+			name string
+			call func() error
+		}{
+			{name: "Should reject dry-run", call: func() error {
+				_, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", inputs)
+				return err
+			}},
+			{name: "Should reject start", call: func() error {
+				_, err := svc.Start(context.Background(), "ws-1", "valid-loop", inputs, humanActor(t))
+				return err
+			}},
+		} {
+			t.Run(invoke.name, func(t *testing.T) {
+				err := invoke.call()
+				validation, ok := loop.AsInputValidationError(err)
+				if !ok || validation.Field != "runtime" ||
+					validation.Reason != loop.InputValidationReasonInvalidRuntime {
+					t.Fatalf("service error = %#v, want runtime input diagnostic", err)
+				}
+			})
+		}
+		if store.createCount() != 0 {
+			t.Fatalf("CreateLoopRun calls = %d, want 0 after runtime input validation", store.createCount())
 		}
 	})
 
@@ -3084,6 +3214,20 @@ func newTestService(t *testing.T, store *fakeLoopStore, def dsl.Definition) loop
 	return newTestServiceWithOptions(t, store, def)
 }
 
+type inputEntityCatalogStub struct {
+	missingKind  dsl.EntityKind
+	missingValue string
+}
+
+func (s inputEntityCatalogStub) HasInputEntity(
+	_ context.Context,
+	_ loop.WorkspaceID,
+	kind dsl.EntityKind,
+	value string,
+) (bool, error) {
+	return kind != s.missingKind || value != s.missingValue, nil
+}
+
 type nodePauseRetryStore struct {
 	loop.Store
 	calls int
@@ -3106,6 +3250,87 @@ func (s *nodePauseRetryStore) ResumeNode(
 	loop.NodeResumeMutation,
 ) (loop.NodeResumeResult, error) {
 	return loop.NodeResumeResult{}, errors.New("unexpected ResumeNode call")
+}
+
+func TestServiceRespondShouldValidateAnnotatedEntityReferences(t *testing.T) {
+	t.Parallel()
+
+	definition := validDefinition()
+	definition.Graph = dsl.Graph{Nodes: []dsl.Node{{
+		ID: "assign", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk),
+		Params: dsl.NodeParams{
+			"prompt": "Choose a reviewer",
+			"expect": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"assignment": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"reviewer": map[string]any{
+								"type": "string", "x-compozy-kind": "agent",
+							},
+						},
+					},
+				},
+			},
+		},
+	}}}
+	expect := json.RawMessage(
+		`{"type":"object","properties":{"assignment":{"type":"object","properties":{"reviewer":{"type":"string","x-compozy-kind":"agent"}}}}}`,
+	)
+	store := &requestValidationStore{
+		fakeLoopStore: newFakeLoopStore(),
+		request: loop.Request{
+			Kind:   loop.RequestKindAsk,
+			Expect: expect,
+		},
+	}
+	svc := newTestServiceWithOptions(
+		t,
+		store,
+		definition,
+		loop.WithInputEntityCatalog(inputEntityCatalogStub{
+			missingKind: dsl.EntityKindAgent, missingValue: "removed-reviewer",
+		}),
+	)
+	run, err := svc.Start(context.Background(), "ws-response", definition.Meta.Name, loop.Inputs{
+		Values: map[string]any{"tasks": "task-ref"},
+	}, humanActor(t))
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	respond := func(reviewer string) error {
+		_, respondErr := svc.Respond(context.Background(), loop.RespondInput{
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			Generation:  run.Generation,
+			NodeID:      "assign",
+			Decision:    loop.RequestDecisionRespond,
+			Payload: json.RawMessage(
+				fmt.Sprintf(`{"assignment":{"reviewer":%q}}`, reviewer),
+			),
+			Actor: humanActor(t),
+		})
+		return respondErr
+	}
+
+	err = respond("removed-reviewer")
+	validation, ok := loop.AsInputValidationError(err)
+	if !ok || validation.Field != "assignment.reviewer" || validation.Kind != "agent" ||
+		validation.Value != "removed-reviewer" || validation.Origin != loop.InputOriginResponse ||
+		validation.Reason != loop.InputValidationReasonUnknownReference {
+		t.Fatalf("Respond() error = %#v, want recursive stale agent diagnostic", err)
+	}
+	if store.respondCalls != 0 {
+		t.Fatalf("RespondRequest calls = %d, want 0 after entity rejection", store.respondCalls)
+	}
+
+	if err := respond("reviewer"); err != nil {
+		t.Fatalf("Respond(valid reviewer) error = %v", err)
+	}
+	if store.respondCalls != 1 {
+		t.Fatalf("RespondRequest calls = %d, want 1 after valid response", store.respondCalls)
+	}
 }
 
 func newTestServiceWithOptions(
@@ -3349,6 +3574,37 @@ type fakeLoopStore struct {
 	waitResumeMutation               *loop.WaitResumeMutation
 	creates                          int
 	getRunByID                       func(loop.RunID) (loop.Run, error)
+}
+
+type requestValidationStore struct {
+	*fakeLoopStore
+	request      loop.Request
+	respondCalls int
+}
+
+func (s *requestValidationStore) ListRequests(
+	context.Context,
+	loop.WorkspaceID,
+	loop.RequestQuery,
+) (loop.RequestPage, error) {
+	return loop.RequestPage{Items: []loop.Request{}}, nil
+}
+
+func (s *requestValidationStore) GetRequest(
+	context.Context,
+	loop.WorkspaceID,
+	loop.RequestRef,
+	bool,
+) (loop.Request, error) {
+	return s.request, nil
+}
+
+func (s *requestValidationStore) RespondRequest(
+	_ context.Context,
+	_ loop.RespondInput,
+) (loop.RespondResult, error) {
+	s.respondCalls++
+	return loop.RespondResult{Request: s.request, Won: true}, nil
 }
 
 type amendmentFakeStore struct {

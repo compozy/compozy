@@ -161,6 +161,11 @@ func (s *service) prepareResolvedStart(
 	if err != nil {
 		return Run{}, err
 	}
+	if err := s.validateResolvedInputEntities(
+		ctx, ws, loopName, resolved.Definition, resolvedInputs,
+	); err != nil {
+		return Run{}, err
+	}
 	effective, err := s.effectiveConfig(
 		ctx,
 		ws,

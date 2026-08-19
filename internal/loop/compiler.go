@@ -82,16 +82,16 @@ type ResolvedDefaults struct {
 // Compile lints, parses templates/CEL, snapshots tool schemas, and folds defaults.
 func (c *Compiler) Compile(def dsl.Definition) (*ResolvedDefinition, error) {
 	def.Normalize()
-	if err := ValidateDefinitionInputDefaults(def); err != nil {
-		return nil, err
-	}
-	if err := ValidateDefinitionRuntime(context.Background(), nil, def); err != nil {
-		return nil, err
-	}
 	lintErrors := c.linter.Lint(def)
 	blockingErrors := blockingLintErrors(lintErrors)
 	if len(blockingErrors) > 0 {
 		return nil, &LintFailedError{Errors: blockingErrors}
+	}
+	if err := ValidateDefinitionInputs(def); err != nil {
+		return nil, err
+	}
+	if err := ValidateDefinitionRuntime(context.Background(), nil, def); err != nil {
+		return nil, err
 	}
 	if err := normalizeDefinitionParticipation(&def); err != nil {
 		return nil, fmt.Errorf("normalize Loop definition participation: %w", err)

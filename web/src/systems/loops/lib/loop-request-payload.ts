@@ -1,9 +1,12 @@
+import { isLoopEntityKind, type LoopEntityKind } from "./loop-input-kinds";
+
 export type LoopRequestFieldControl =
   | { kind: "text" }
   | { kind: "number" }
   | { kind: "integer" }
   | { kind: "boolean" }
   | { kind: "json" }
+  | { kind: "entity"; entityKind: LoopEntityKind }
   | { kind: "select"; options: readonly LoopRequestSelectOption[] };
 
 export interface LoopRequestSelectOption {
@@ -61,6 +64,9 @@ function fieldControl(schema: Record<string, unknown>): LoopRequestFieldControl 
   if (Object.hasOwn(schema, "const")) {
     return selectControl([schema.const]);
   }
+  if (schema.type === "string" && isLoopEntityKind(schema["x-compozy-kind"])) {
+    return { kind: "entity", entityKind: schema["x-compozy-kind"] };
+  }
   if (schema.oneOf !== undefined || schema.anyOf !== undefined || schema.allOf !== undefined) {
     return { kind: "json" };
   }
@@ -81,18 +87,42 @@ function fieldControl(schema: Record<string, unknown>): LoopRequestFieldControl 
 export function loopRequestFields(schema: unknown): LoopRequestField[] {
   const record = asRecord(schema);
   if (!record) return [];
-  const properties = asRecord(record.properties);
+  return collectRequestFields(record, "", true);
+}
+
+function schemaContainsEntityField(schema: Record<string, unknown>): boolean {
+  if (schema.type === "string" && isLoopEntityKind(schema["x-compozy-kind"])) return true;
+  const properties = asRecord(schema.properties);
+  return properties
+    ? Object.values(properties).some(value => schemaContainsEntityField(asRecord(value) ?? {}))
+    : false;
+}
+
+function collectRequestFields(
+  schema: Record<string, unknown>,
+  prefix: string,
+  ancestorsRequired: boolean
+): LoopRequestField[] {
+  const properties = asRecord(schema.properties);
   if (!properties) return [];
-  const required = new Set(stringList(record.required));
-  return Object.entries(properties).map(([name, raw]) => {
+  const required = new Set(stringList(schema.required));
+  const fields: LoopRequestField[] = [];
+  for (const [name, raw] of Object.entries(properties)) {
     const property = asRecord(raw) ?? {};
-    return {
-      name,
-      required: required.has(name),
+    const path = prefix === "" ? name : `${prefix}.${name}`;
+    const fieldRequired = ancestorsRequired && required.has(name);
+    if (asRecord(property.properties) && schemaContainsEntityField(property)) {
+      fields.push(...collectRequestFields(property, path, fieldRequired));
+      continue;
+    }
+    fields.push({
+      name: path,
+      required: fieldRequired,
       description: typeof property.description === "string" ? property.description : "",
       control: fieldControl(property),
-    };
-  });
+    });
+  }
+  return fields;
 }
 
 export function isLoopRequestFieldSchema(schema: unknown): boolean {
@@ -101,7 +131,8 @@ export function isLoopRequestFieldSchema(schema: unknown): boolean {
 
 /** Human label for a schema field: "migration_url" / "dryRun" → "Migration url" / "Dry run". */
 export function loopRequestFieldLabel(field: Pick<LoopRequestField, "name">): string {
-  const words = field.name
+  const leaf = field.name.split(".").at(-1) ?? field.name;
+  const words = leaf
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
     .trim();
@@ -137,6 +168,7 @@ function parseFieldValue(
       return { value: parsed };
     }
     case "text":
+    case "entity":
       return { value: trimmed };
     default:
       try {
@@ -159,7 +191,7 @@ export function checkLoopRequestFields(
       errors[field.name] = error;
       continue;
     }
-    if (value !== undefined) payload[field.name] = value;
+    if (value !== undefined) setPathValue(payload, field.name, value);
   }
   const ok = Object.keys(errors).length === 0;
   return ok ? { ok, errors, payload } : { ok, errors };
@@ -205,7 +237,7 @@ export function loopRequestFieldSeed(
   const record = asRecord(source) ?? {};
   const seed: Record<string, string> = {};
   for (const field of fields) {
-    const value = record[field.name];
+    const value = pathValue(record, field.name);
     if (value === undefined) {
       seed[field.name] = "";
       continue;
@@ -220,9 +252,37 @@ export function loopRequestFieldSeed(
   return seed;
 }
 
+function pathValue(record: Record<string, unknown>, path: string): unknown {
+  let current: unknown = record;
+  for (const part of path.split(".")) {
+    const object = asRecord(current);
+    if (!object || !Object.hasOwn(object, part)) return undefined;
+    current = object[part];
+  }
+  return current;
+}
+
+function setPathValue(record: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split(".");
+  let current = record;
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const part = parts[index];
+    const existing = asRecord(current[part]);
+    if (existing) {
+      current = existing;
+      continue;
+    }
+    const child: Record<string, unknown> = {};
+    current[part] = child;
+    current = child;
+  }
+  current[parts[parts.length - 1]] = value;
+}
+
 export function loopRequestFieldKind(field: LoopRequestField): string {
   if (field.control.kind === "text") return "string";
   if (field.control.kind === "select") return "enum";
+  if (field.control.kind === "entity") return field.control.entityKind;
   return field.control.kind;
 }
 

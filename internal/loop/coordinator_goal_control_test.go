@@ -528,7 +528,7 @@ func goalCoordinatorDefinition() dsl.Definition {
 		Kind:       dsl.KindLoop,
 		Meta:       dsl.Meta{Name: "goal-coordinator", Version: 1},
 		Inputs: map[string]dsl.Input{
-			"items": {Type: dsl.InputTypeRef},
+			"items": {Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill}},
 		},
 		Contract: dsl.Contract{
 			Goal:             "Converge",

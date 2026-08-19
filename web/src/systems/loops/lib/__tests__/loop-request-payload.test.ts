@@ -122,6 +122,50 @@ describe("loop request payload fields", () => {
     });
   });
 
+  it("Should project nested entity annotations while keeping enum precedence", () => {
+    const fields = loopRequestFields({
+      type: "object",
+      required: ["assignment", "decision"],
+      properties: {
+        assignment: {
+          type: "object",
+          required: ["reviewer"],
+          properties: {
+            reviewer: { type: "string", "x-compozy-kind": "agent" },
+          },
+        },
+        decision: {
+          type: "string",
+          enum: ["approve", "reject"],
+          "x-compozy-kind": "agent",
+        },
+      },
+    });
+
+    expect(field(fields, "assignment.reviewer")).toMatchObject({
+      name: "assignment.reviewer",
+      required: true,
+    });
+    expect(field(fields, "assignment.reviewer").control).toEqual({
+      kind: "entity",
+      entityKind: "agent",
+    });
+    expect(field(fields, "decision").control.kind).toBe("select");
+    expect(
+      checkLoopRequestFields(fields, {
+        "assignment.reviewer": "reviewer",
+        decision: optionToken(fields, "decision", 1),
+      })
+    ).toEqual({
+      ok: true,
+      errors: {},
+      payload: { assignment: { reviewer: "reviewer" }, decision: "reject" },
+    });
+    expect(loopRequestFieldSeed(fields, { assignment: { reviewer: "reviewer" } })).toMatchObject({
+      "assignment.reviewer": "reviewer",
+    });
+  });
+
   it("Should reject values a control cannot serialize and leave schema constraints to the daemon", () => {
     const fields = loopRequestFields({
       type: "object",
@@ -170,6 +214,7 @@ describe("loop request payload fields", () => {
     expect(loopRequestFieldLabel({ name: "migration_url" })).toBe("Migration url");
     expect(loopRequestFieldLabel({ name: "dryRun" })).toBe("Dry run");
     expect(loopRequestFieldLabel({ name: "retry-count" })).toBe("Retry count");
+    expect(loopRequestFieldLabel({ name: "assignment.reviewer" })).toBe("Reviewer");
   });
 
   it("Should seed controls from exact typed values without confusing null or empty string with unset", () => {

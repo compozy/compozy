@@ -28,6 +28,9 @@ import {
   loopRequestFieldSeed,
 } from "../../lib/loop-request-payload";
 import { LoopControlAnswerAlert } from "./loop-control-answer-alert";
+import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
+import { LoopEntityValueControl } from "../input/loop-typed-input-control";
+import type { LoopEntityKind } from "../../lib/loop-input-kinds";
 
 export interface LoopNodeAmendDialogProps {
   open: boolean;
@@ -39,6 +42,7 @@ export interface LoopNodeAmendDialogProps {
   isPending?: boolean;
 
   fieldErrors?: Readonly<Record<string, string>>;
+  workspaceId?: string;
 
   answer?: LoopControlAnswer | null;
   onOpenChange: (open: boolean) => void;
@@ -68,11 +72,16 @@ function LoopNodeAmendDialogForm({
   outputSchema,
   isPending,
   fieldErrors,
+  workspaceId = "",
   answer,
   onOpenChange,
   onConfirm,
 }: OpenLoopNodeAmendDialogProps) {
   const fields = loopRequestFields(outputSchema);
+  const entityKinds = new Set<LoopEntityKind>();
+  for (const field of fields) {
+    if (field.control.kind === "entity") entityKinds.add(field.control.entityKind);
+  }
   const structured = isLoopRequestFieldSchema(outputSchema);
   const [values, setValues] = useState(() => loopRequestFieldSeed(fields, originalOutput));
   const [rawPayload, setRawPayload] = useState(() => rawSeed(originalOutput));
@@ -129,18 +138,25 @@ function LoopNodeAmendDialogForm({
                 Amended
               </Eyebrow>
               {structured ? (
-                <div className="flex min-w-0 flex-col gap-2.5">
-                  {fields.map(field => (
-                    <AmendField
-                      disabled={disabled}
-                      error={errors[field.name]}
-                      field={field}
-                      key={field.name}
-                      onChange={next => setValues(current => ({ ...current, [field.name]: next }))}
-                      value={values[field.name] ?? ""}
-                    />
-                  ))}
-                </div>
+                <LoopInputCatalogBoundary
+                  workspaceId={workspaceId}
+                  needs={{ entities: entityKinds, runtime: false }}
+                >
+                  <div className="flex min-w-0 flex-col gap-2.5">
+                    {fields.map(field => (
+                      <AmendField
+                        disabled={disabled}
+                        error={errors[field.name]}
+                        field={field}
+                        key={field.name}
+                        onChange={next =>
+                          setValues(current => ({ ...current, [field.name]: next }))
+                        }
+                        value={values[field.name] ?? ""}
+                      />
+                    ))}
+                  </div>
+                </LoopInputCatalogBoundary>
               ) : (
                 <Field data-invalid={errors.payload !== undefined || undefined}>
                   <Textarea
@@ -236,6 +252,19 @@ function AmendFieldControl({
     required: field.required,
     value,
   };
+  if (field.control.kind === "entity") {
+    return (
+      <LoopEntityValueControl
+        controlId={id}
+        disabled={disabled}
+        invalid={invalid}
+        kind={field.control.entityKind}
+        onChange={onChange}
+        testId={id}
+        value={value}
+      />
+    );
+  }
   if (field.control.kind === "select") {
     return (
       <NativeSelect {...shared} className="w-full" onChange={event => onChange(event.target.value)}>

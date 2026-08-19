@@ -120,6 +120,8 @@ const (
 	ToolIDAgentHeartbeatWake ToolID = "compozy__agent_heartbeat_wake"
 	// ToolIDWorkspaceList lists registered workspaces.
 	ToolIDWorkspaceList ToolID = "compozy__workspace_list"
+	// ToolIDAgentList lists agent definitions visible in one workspace scope.
+	ToolIDAgentList ToolID = "compozy__agent_list"
 	// ToolIDWorkspaceInfo reads one registered workspace record.
 	ToolIDWorkspaceInfo ToolID = "compozy__workspace_info"
 	// ToolIDWorkspaceDescribe reads one resolved workspace detail projection.
@@ -142,6 +144,8 @@ const (
 	ToolIDProviderModelsStatus ToolID = "compozy__provider_models_status"
 	// ToolIDProviderModelsCurate mutates one provider model's global curation metadata.
 	ToolIDProviderModelsCurate ToolID = "compozy__provider_models_curate"
+	// ToolIDVaultList lists global redacted Vault secret metadata.
+	ToolIDVaultList ToolID = "compozy__vault_list"
 	// ToolIDMemoryList lists memory headers visible for a scope.
 	ToolIDMemoryList ToolID = "compozy__memory_list"
 	// ToolIDMemoryShow reads one memory document through the current memory store.

@@ -1502,11 +1502,11 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return structured input-default validation over HTTP and UDS", func(t *testing.T) {
+	t.Run("Should return structured input validation over HTTP and UDS", func(t *testing.T) {
 		t.Parallel()
 
 		for _, transport := range []string{"httpapi", "udsapi"} {
-			t.Run("Should preserve input-default validation through "+transport, func(t *testing.T) {
+			t.Run("Should preserve input validation through "+transport, func(t *testing.T) {
 				t.Parallel()
 
 				service := happyLoopService(t)
@@ -1519,10 +1519,9 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 					taskpkg.ActorContext,
 					bool,
 				) (contract.RunLoopResponse, error) {
-					return contract.RunLoopResponse{}, &looppkg.InputDefaultError{
-						Loop:   "review-and-fix",
-						Key:    "unknown",
-						Reason: looppkg.InputDefaultReasonUnknownInput,
+					return contract.RunLoopResponse{}, &looppkg.InputValidationError{
+						Loop: "review-and-fix", Field: "unknown", Origin: looppkg.InputOriginRun,
+						Reason: looppkg.InputValidationReasonUnknownInput,
 						Err:    errors.New("input is not declared"),
 					}
 				}
@@ -1537,12 +1536,13 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 				assertLoopStatus(t, resp.Code, http.StatusUnprocessableEntity, resp.Body.String())
 				var payload contract.LoopValidationResponse
 				testutil.DecodeJSONResponse(t, resp, &payload)
-				if payload.Valid || payload.InputDefault == nil {
-					t.Fatalf("input-default validation payload = %#v, want one typed item", payload)
+				if payload.Valid || payload.InputValidation == nil {
+					t.Fatalf("input validation payload = %#v, want one typed item", payload)
 				}
-				if got := payload.InputDefault; got.Loop != "review-and-fix" || got.Key != "unknown" ||
-					got.Reason != string(looppkg.InputDefaultReasonUnknownInput) {
-					t.Fatalf("input-default validation item = %#v, want stable structured fields", got)
+				if got := payload.InputValidation; got.Loop != "review-and-fix" || got.Field != "unknown" ||
+					got.Origin != string(looppkg.InputOriginRun) ||
+					got.Reason != string(looppkg.InputValidationReasonUnknownInput) {
+					t.Fatalf("input validation item = %#v, want stable structured fields", got)
 				}
 			})
 		}
@@ -1839,7 +1839,7 @@ func happyLoopService(t testing.TB) *stubLoopService {
 					CreatedAt: time.Date(2026, 7, 10, 11, 0, 0, 0, time.UTC),
 				},
 				Inputs: map[string]contract.LoopInput{
-					"ticket": {Type: string(dsl.InputTypeString), Required: true},
+					"ticket": {Type: dsl.InputTypeString, Required: true},
 				},
 				Start: []contract.LoopStartBinding{{Kind: string(dsl.StartHTTP)}},
 				Contract: contract.LoopContract{

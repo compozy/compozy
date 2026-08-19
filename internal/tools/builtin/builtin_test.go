@@ -447,6 +447,27 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose agent and Vault discovery as read-only catalog tools", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDAgentList,
+			toolspkg.ToolIDVaultList,
+		} {
+			descriptor, ok := descriptors[id]
+			if !ok {
+				t.Fatalf("descriptor %s is missing", id)
+			}
+			if descriptor.Risk != toolspkg.RiskRead || !descriptor.ReadOnly || descriptor.Destructive {
+				t.Fatalf("descriptor %s risk = %#v, want read-only", id, descriptor)
+			}
+			if !slices.Contains(descriptor.Toolsets, toolspkg.ToolsetIDCatalog) {
+				t.Fatalf("descriptor %s toolsets = %#v, want catalog", id, descriptor.Toolsets)
+			}
+		}
+	})
+
 	t.Run("Should derive descriptor presence and risk from one expectation table", func(t *testing.T) {
 		t.Parallel()
 
@@ -997,6 +1018,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__agent_heartbeat_wake", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__agent_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__automation_jobs_create", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__automation_jobs_delete", risk: toolspkg.RiskDestructive,
@@ -1487,6 +1510,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__window_group", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__vault_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__window_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__window_move", risk: toolspkg.RiskMutating,
@@ -2803,6 +2828,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(workspace) error = %v", err)
 		}
 		if !slices.Contains(workspace, toolspkg.ToolIDWorkspaceList) ||
+			!slices.Contains(workspace, toolspkg.ToolIDAgentList) ||
 			!slices.Contains(workspace, toolspkg.ToolIDWorkspaceDescribe) ||
 			!slices.Contains(workspace, toolspkg.ToolIDAgentCreate) ||
 			slices.Contains(workspace, toolspkg.ToolID("compozy__workspace_remove")) {

@@ -297,7 +297,7 @@ func inferredReviewSchema(value any) map[string]any {
 		sort.Strings(required)
 		return map[string]any{
 			jsonSchemaTypeKey: jsonSchemaObjectType, jsonSchemaPropertiesKey: properties,
-			jsonSchemaRequiredKey: required, "additionalProperties": false,
+			jsonSchemaRequiredKey: required, jsonSchemaAdditionalPropertiesKey: false,
 		}
 	case []any:
 		items := map[string]any{}

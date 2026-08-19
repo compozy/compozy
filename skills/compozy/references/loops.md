@@ -69,6 +69,38 @@ Opaque cursors bind workspace, search, kind, category, status, and sort; limit m
 `compozy loop runs` / `compozy__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
 Each run summary exposes `best_generation`/`best_score` but never embeds generation history.
 
+## Typed Inputs
+
+The input grammar is closed to `string`, `number`, `boolean`, `file`, `agent`, `runtime`, and `ref`.
+`ref.kind` is closed to `skill`, `loop`, `worktree`, `session`, `workspace`, or `secret`. An `enum`
+on a string-like field takes precedence over catalog discovery. `file` is plain text: CompozyOS does
+not browse or check the path.
+
+Catalog discovery uses exact stored identifiers:
+
+| Kind        | Native read                     |
+| ----------- | ------------------------------- |
+| `agent`     | `compozy__agent_list`           |
+| `skill`     | `compozy__skill_list`           |
+| `loop`      | `compozy__loop_list`            |
+| `worktree`  | `compozy__worktree_list`        |
+| `session`   | `compozy__session_list`         |
+| `workspace` | `compozy__workspace_list`       |
+| `secret`    | `compozy__vault_list`           |
+| `runtime`   | `compozy__provider_models_list` |
+
+Agent, skill, Loop, worktree, and session reads resolve the exact workspace. Workspace reads follow
+the caller's workspace-access policy. Vault reads are global and return reference metadata only.
+Runtime accepts a partial `{provider, model, reasoning}` object; exact custom model IDs remain valid.
+For CLI input, `provider/model@reasoning` is the compact form and `-` leaves provider or model unset.
+
+Values resolve per field as run > workspace config > global config > definition default. Validation
+runs after resolution for normal starts, dry runs, automation starts, fork/amend reuse, and annotated
+human responses. Failures return `input_validation` with
+`{loop, field, kind?, value?, origin, reason}` and create no run or side effect. In a human TTY,
+`compozy loop run` prompts only for supported required values still missing after defaults;
+`--no-prompt`, structured output, and non-interactive input fail without prompting.
+
 ## Human Requests
 
 An `ask` control parks one node cell until a valid answer arrives. Use `compozy__loop_requests` to

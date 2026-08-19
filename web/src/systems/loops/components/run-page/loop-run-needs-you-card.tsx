@@ -32,6 +32,7 @@ interface LoopRunNeedsYouCardProps {
   requests?: readonly LoopRequestView[];
   requestFocus?: LoopRequestFocusTarget;
   requestState?: LoopRunRequestState;
+  workspaceId?: string;
   onOpenQuarantine?: (nodeId: string) => void;
   onDecision: (decision: LoopGateDecision, gateId: string) => void;
 }
@@ -90,6 +91,7 @@ export function LoopRunNeedsYouCard({
   requests = NO_REQUEST_VIEWS,
   requestFocus,
   requestState,
+  workspaceId = "",
   onOpenQuarantine,
   onDecision,
 }: LoopRunNeedsYouCardProps) {
@@ -115,6 +117,7 @@ export function LoopRunNeedsYouCard({
             requestFocus={requestFocus}
             requests={requests}
             requestState={requestState}
+            workspaceId={workspaceId}
           />
         ) : null}
         {showApproval ? (

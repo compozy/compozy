@@ -195,13 +195,11 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 		reason = toolspkg.ReasonDependencyMissing
 	}
 	toolErr := toolspkg.NewToolError(code, id, err.Error(), fmt.Errorf("%w: %w", cause, err), reason)
-	if inputDefault, ok := errors.AsType[*looppkg.InputDefaultError](err); ok {
+	if inputValidation, ok := errors.AsType[*looppkg.InputValidationError](err); ok {
 		structured, marshalErr := json.Marshal(map[string]any{
 			nativeLoopValidationKey: contract.LoopValidationResponse{
-				Valid: false,
-				InputDefault: &contract.LoopInputDefaultErrorPayload{
-					Loop: inputDefault.Loop, Key: inputDefault.Key, Reason: string(inputDefault.Reason),
-				},
+				Valid:           false,
+				InputValidation: loopInputValidationPayload(inputValidation),
 			},
 		})
 		if marshalErr != nil {
@@ -219,6 +217,19 @@ func nativeLoopToolError(id toolspkg.ToolID, err error) error {
 		})
 	}
 	return toolErr
+}
+
+func loopInputValidationPayload(
+	validation *looppkg.InputValidationError,
+) *contract.LoopInputValidationErrorPayload {
+	if validation == nil {
+		return nil
+	}
+	return &contract.LoopInputValidationErrorPayload{
+		Loop: validation.Loop, Field: validation.Field,
+		Kind: validation.Kind, Value: validation.Value,
+		Origin: string(validation.Origin), Reason: string(validation.Reason),
+	}
 }
 
 func nativeLoopReasonToolError(id toolspkg.ToolID, err error) error {

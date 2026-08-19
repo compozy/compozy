@@ -964,7 +964,8 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 				Structured: json.RawMessage(
 					`{"password":"secret","token_present":true,"canonical_token":"/review",` +
 						`"max_input_tokens":1050000,` +
-						`"max_output_tokens":128000,"visible":"ok"}`,
+						`"max_output_tokens":128000,"visible":"ok",` +
+						`"inputs":{"token":{"type":"agent","required":true}}}`,
 				),
 				Metadata: map[string]json.RawMessage{
 					"api_key": json.RawMessage(`"secret"`),
@@ -1050,6 +1051,14 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		if !strings.Contains(string(data), `"max_input_tokens":1050000`) ||
 			!strings.Contains(string(data), `"max_output_tokens":128000`) {
 			t.Fatalf("result = %s, want public model token limits preserved", data)
+		}
+		if !strings.Contains(string(data), `"token":{"required":true,"type":"agent"}`) {
+			t.Fatalf("result = %s, want token-named input declaration preserved", data)
+		}
+		if slices.ContainsFunc(result.Redactions, func(redaction Redaction) bool {
+			return redaction.Path == "$.structured.inputs.token"
+		}) {
+			t.Fatalf("result.Redactions = %#v, want structural input declaration preserved", result.Redactions)
 		}
 		eventData, err := json.Marshal(events.snapshot())
 		if err != nil {

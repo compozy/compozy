@@ -27,6 +27,8 @@ func TestNewAutomationLoopStarter(t *testing.T) {
 			compozyconfig.HomePaths{},
 			nil,
 			nil,
+			nil,
+			nil,
 		)
 
 		if err == nil {

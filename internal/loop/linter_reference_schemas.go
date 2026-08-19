@@ -9,7 +9,22 @@ import (
 )
 
 func inputSchema(input dsl.Input) refs.Schema {
-	return refs.Schema{jsonSchemaTypeKey: string(input.Type)}
+	switch input.Type {
+	case dsl.InputTypeAgent, dsl.InputTypeRef, dsl.InputTypeFile:
+		return refs.Schema{jsonSchemaTypeKey: jsonSchemaStringType}
+	case dsl.InputTypeRuntime:
+		return refs.Schema{
+			jsonSchemaTypeKey: jsonSchemaObjectType,
+			jsonSchemaPropertiesKey: map[string]any{
+				runtimeFieldProvider:  map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+				runtimeFieldModel:     map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+				runtimeFieldReasoning: map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+			},
+			jsonSchemaAdditionalPropertiesKey: false,
+		}
+	default:
+		return refs.Schema{jsonSchemaTypeKey: string(input.Type)}
+	}
 }
 
 func (c *lintContext) outputSchema(node dsl.Node) (refs.Schema, bool) {

@@ -838,6 +838,18 @@ func TestNormalizeToolConfigValue(t *testing.T) {
 		if !ok || table["auto_title"] == nil {
 			t.Fatalf("NormalizeToolConfigValue(table) = %#v, want normalized object", tableValue)
 		}
+		loopRuntime, err := NormalizeToolConfigValue(ConfigValueLoopInput, map[string]any{
+			"provider":  "codex",
+			"model":     "gpt-5.6",
+			"reasoning": "high",
+		})
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(loop runtime) error = %v", err)
+		}
+		runtimeTable, ok := loopRuntime.(map[string]any)
+		if !ok || runtimeTable["provider"] != "codex" || runtimeTable["reasoning"] != "high" {
+			t.Fatalf("NormalizeToolConfigValue(loop runtime) = %#v, want runtime object", loopRuntime)
+		}
 
 		if _, err := NormalizeToolConfigValue(ConfigValueDuration, "not-a-duration"); err == nil {
 			t.Fatal("NormalizeToolConfigValue(invalid duration) error = nil, want non-nil")

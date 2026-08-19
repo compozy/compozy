@@ -43,6 +43,7 @@ export function useLoopRunForm({
   });
   const {
     inputs,
+    fieldErrors,
     networkParticipation,
     networkParticipationOverridden,
     overrides,
@@ -122,6 +123,7 @@ export function useLoopRunForm({
     contract,
     schema,
     inputs,
+    fieldErrors,
     overrides,
     networkParticipation,
     configOverrides,

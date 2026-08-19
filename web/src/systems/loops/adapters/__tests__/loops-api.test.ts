@@ -6,6 +6,7 @@ import { handlers } from "@/systems/loops/mocks";
 import { loopEffectiveConfigFixture } from "@/systems/loops/mocks/fixtures";
 import { SPEC_CYCLE_IMPORT_TASKS_KIND } from "@/systems/loops/mocks/fixture-action-kinds";
 import {
+  LoopInputValidationError,
   LoopRequestError,
   LoopsApiError,
   LoopTimetravelError,
@@ -332,6 +333,40 @@ describe("loops-api (request construction + error mapping)", () => {
     await expect(
       approveLoopRun(WS, "run_1", { decision: "approve", gate_id: "g" })
     ).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("Should preserve a run input rejection as a field-addressed error", async () => {
+    mockJsonResponse(
+      {
+        valid: false,
+        input_validation: {
+          loop: "implement-tasks",
+          field: "agent",
+          kind: "agent",
+          value: "missing-agent",
+          origin: "run",
+          reason: "unknown_reference",
+        },
+      },
+      { status: 422 }
+    );
+
+    const rejection = runLoop(WS, "implement-tasks", {
+      inputs: { agent: "missing-agent" },
+    });
+
+    await expect(rejection).rejects.toEqual(
+      expect.objectContaining<Partial<LoopInputValidationError>>({
+        name: "LoopInputValidationError",
+        status: 422,
+        fieldErrors: { agent: "agent references an unavailable agent." },
+        validation: expect.objectContaining({
+          field: "agent",
+          origin: "run",
+          reason: "unknown_reference",
+        }),
+      })
+    );
   });
 });
 

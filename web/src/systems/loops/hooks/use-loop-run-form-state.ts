@@ -5,6 +5,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 import type { NetworkParticipationDraft } from "@/lib/network-participation";
 import { notifyUser } from "@/lib/user-feedback";
 
+import { LoopInputValidationError } from "../adapters/loops-api";
 import { initialOverrideDraft, type LoopOverrideDraft } from "../lib/loop-overrides";
 import { initialRunInputs, type LoopRunInputs } from "../lib/loop-run-form";
 import type {
@@ -22,6 +23,7 @@ interface LoopRunFormPendingRequest {
 
 interface LoopRunFormState {
   dryRunGeneration: number;
+  fieldErrors: Record<string, string>;
   inputs: LoopRunInputs;
   networkParticipation: NetworkParticipationDraft;
   networkParticipationOverridden: boolean;
@@ -85,6 +87,7 @@ export const loopRunFormLogic = createStoreLogic<
 >({
   context: (input: LoopRunFormStateInput): LoopRunFormState => ({
     dryRunGeneration: 0,
+    fieldErrors: {},
     inputs: initialRunInputs(input.schema),
     networkParticipation: input.networkParticipation,
     networkParticipationOverridden: false,
@@ -97,6 +100,9 @@ export const loopRunFormLogic = createStoreLogic<
   on: {
     inputChanged: (current, event: { name: string; value: unknown }) => ({
       ...draftChanged(current),
+      fieldErrors: Object.fromEntries(
+        Object.entries(current.fieldErrors).filter(([name]) => name !== event.name)
+      ),
       inputs: { ...current.inputs, [event.name]: event.value },
     }),
     overridesChanged: (current, event: { overrides: LoopOverrideDraft }) => ({
@@ -119,7 +125,11 @@ export const loopRunFormLogic = createStoreLogic<
       enqueue.effect(() =>
         notifyUser({ message: errorMessage(event.error, "Dry run failed"), tone: "error" })
       );
-      return { ...current, pendingRequest: null };
+      return {
+        ...current,
+        fieldErrors: inputFieldErrors(event.error),
+        pendingRequest: null,
+      };
     },
     dryRunRequested: (current, event, enqueue) => {
       if (current.pendingRequest) return;
@@ -172,7 +182,11 @@ export const loopRunFormLogic = createStoreLogic<
           tone: "error",
         })
       );
-      return { ...current, pendingRequest: null };
+      return {
+        ...current,
+        fieldErrors: inputFieldErrors(event.error),
+        pendingRequest: null,
+      };
     },
     runRequested: (current, event, enqueue) => {
       if (current.pendingRequest) return;
@@ -215,11 +229,16 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() !== "" ? error.message : fallback;
 }
 
+function inputFieldErrors(error: unknown): Record<string, string> {
+  return error instanceof LoopInputValidationError ? { ...error.fieldErrors } : {};
+}
+
 export function useLoopRunFormState(input: LoopRunFormStateInput) {
   const { store } = useStoreBinding(scopeKey(input.scope), () =>
     loopRunFormLogic.createStore(input)
   );
   const inputs = useSelector(store, state => state.context.inputs);
+  const fieldErrors = useSelector(store, state => state.context.fieldErrors);
   const networkParticipation = useSelector(store, state => state.context.networkParticipation);
   const networkParticipationOverridden = useSelector(
     store,
@@ -232,6 +251,7 @@ export function useLoopRunFormState(input: LoopRunFormStateInput) {
 
   return {
     inputs,
+    fieldErrors,
     networkParticipation,
     networkParticipationOverridden,
     overrides,

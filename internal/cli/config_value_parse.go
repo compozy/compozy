@@ -39,7 +39,7 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 		return parseFloatSliceValue(trimmed)
 	case configSetTable:
 		return parseConfigSetTableValue(raw, trimmed)
-	case configSetScalar:
+	case configSetScalar, configSetLoopInput:
 		value := parseLoopValue(raw)
 		normalized, err := normalizeConfigSetJSONValue(value)
 		if err != nil {
@@ -48,12 +48,16 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 		switch normalized.(type) {
 		case string, bool, int64, float64:
 			return normalized, nil
-		default:
-			return nil, fmt.Errorf(
-				"cli: loop input default %q must be a string, boolean, or number",
-				raw,
-			)
+		case map[string]any:
+			if kind == configSetLoopInput {
+				return normalized, nil
+			}
 		}
+		expected := "a string, boolean, or number"
+		if kind == configSetLoopInput {
+			expected += ", or object"
+		}
+		return nil, fmt.Errorf("cli: loop input default %q must be %s", raw, expected)
 	case configSetStringOrStringSlice:
 		if strings.HasPrefix(trimmed, "[") {
 			var values []string

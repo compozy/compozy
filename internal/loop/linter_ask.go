@@ -20,6 +20,8 @@ func (c *lintContext) lintAsk(node dsl.Node) {
 	}
 	if len(params.Expect) == 0 {
 		c.add(node.ID, CodeAskExpectRequired, "ask expect is required and defines the answer shape")
+	} else {
+		c.lintEntityKindAnnotations(node.ID, map[string]any(params.Expect))
 	}
 	if params.Responders != nil && !params.Responders.Agents.Valid() {
 		c.add(node.ID, CodeResponderPolicyInvalid, "responders.agents must be allow or deny")

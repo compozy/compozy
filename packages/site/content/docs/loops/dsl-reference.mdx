@@ -43,22 +43,35 @@ Each input names a type; a caller supplies values at run time.
 inputs:
   slug: { type: string, required: true }
   implementer: { type: agent, default: code_implementer }
+  reviewer: { type: agent, enum: [code_reviewer, security_reviewer] }
+  worker_runtime:
+    { type: runtime, default: { provider: codex, model: gpt-5.5-codex, reasoning: high } }
   verify_command: { type: string, default: "" }
   auto_commit: { type: boolean, default: false }
   spec: { type: ref, ref: { kind: skill } }
+  release_token: { type: ref, ref: { kind: secret } }
 ```
 
-| Type      | Accepts                  | Notes                                                             |
-| --------- | ------------------------ | ----------------------------------------------------------------- |
-| `string`  | text                     |                                                                   |
-| `number`  | int or float             |                                                                   |
-| `boolean` | bool                     |                                                                   |
-| `file`    | a file path (string)     |                                                                   |
-| `agent`   | an agent name (string)   | Web picker uses the agent list.                                   |
-| `ref`     | a resource name (string) | `ref.kind` names the resource kind; picker uses that kind's list. |
+| Type      | Accepts                             | Notes                                                             |
+| --------- | ----------------------------------- | ----------------------------------------------------------------- |
+| `string`  | text                                |                                                                   |
+| `number`  | int or float                        |                                                                   |
+| `boolean` | bool                                |                                                                   |
+| `file`    | text                                | The value is not browsed or checked for existence.                |
+| `agent`   | an exact agent name                 | The daemon checks the workspace agent catalog.                    |
+| `ref`     | an exact resource name              | `ref.kind` selects the catalog used for validation.               |
+| `runtime` | `{ provider?, model?, reasoning? }` | A partial object; exact custom model IDs are valid when accepted. |
 
 Per-input fields: `type` (required), `required` (default `false`), `description`, `default`, and
-`ref` (for `type: ref`). Values are type-checked at run start.
+`ref` (for `type: ref`). String-like inputs may also declare `enum`; those choices take precedence
+over a catalog picker. `ref.kind` is closed to `skill`, `loop`, `worktree`, `session`, `workspace`,
+or `secret`.
+
+Effective values resolve one field at a time in this order: run input, workspace config, global
+config, then the definition default. The daemon validates the winning value immediately before a
+dry run or run starts, including entity existence and runtime support. A failure starts no run and
+returns `input_validation` with `{ loop, field, kind?, value?, origin, reason }`. Secret inputs expose
+Vault reference names and metadata only; secret values never enter the catalog or error payload.
 
 ## The contract
 

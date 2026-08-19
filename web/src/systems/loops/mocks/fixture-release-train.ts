@@ -119,7 +119,7 @@ export const releaseTrainDetail: LoopDetail = {
     contract: releaseTrainContract,
     graph: releaseTrainGraph,
     inputs: {
-      services: { type: "array", required: true, description: "Services in this train." },
+      services: { type: "string", required: true, description: "Services in this train." },
       severity: { type: "string", required: false, default: "p1" },
     },
     start: [{ kind: "manual" }, { kind: "cli" }, { kind: "http" }],

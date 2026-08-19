@@ -4,15 +4,15 @@ area: LP
 title: Validate runtime selections at their owning boundaries
 persona: Dora
 journey: J-02
-expected: Static loop validation reports definition-owned runtime errors, while dry-run and submission report effective workspace/run errors as deterministic `runtime_validation` items; unknown providers fail before ACP spawn, exact model IDs pass unchanged for known providers, provider model rejection stays at the ACP bind/prompt boundary, missing bound secrets fail before ACP spawn, and every preflight-rejected path materializes no session.
+expected: Static and runtime-routing errors remain deterministic `runtime_validation` items, while invalid declared runtime inputs return field-addressed `input_validation`; unknown providers fail before ACP spawn, exact model IDs pass unchanged for known providers, and every preflight-rejected path materializes no run or session.
 entry_points: compozy loop validate; compozy loop run --dry-run; POST /api/workspaces/:workspace_id/loops/:name/validate and /run over HTTP and UDS
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/invalid-input.stdout.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/invalid-runtime.http.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/runs-before-invalid.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/loop-parity/runs-after-invalid.normalized.json; /Users/pedronauck/dev/qa-labs/compozy-issue-312-cursor-models-20260805-200518-943803-lab/qa-artifacts/qa/issue-312-evidence.md;/Users/pedronauck/dev/qa-labs/compozy-issue-312-review-remediation-final-20260805-230015-520918-lab/qa-artifacts/qa/issue-312-review-evidence.md
-last_report: docs/qa/reports/2026-08-05-issue-312-review-remediation.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-20260819-015537-040869-lab/qa-artifacts/qa/journey-log.jsonl
+last_report: docs/qa/reports/2026-08-18-typed-loop-inputs.md
 overlaps: LP-022; LP-runtime-selection-overrides
 ---
 
@@ -33,3 +33,6 @@ contract gained stronger integration coverage. Reset for the exact-ID public rea
 
 QA 2026-08-05 (review remediation): CLI, HTTP, and UDS dry-runs preserved
 `worker=cursor/composer-2.5`; unknown provider still failed and no Loop run was created.
+
+QA 2026-08-18: CLI, HTTP/UDS, native dry-run, and Web preserved an exact custom model and partial
+runtime. Invalid provider/entity values returned field-addressed `input_validation` before a run.

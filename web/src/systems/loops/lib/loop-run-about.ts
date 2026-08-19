@@ -4,11 +4,9 @@ export interface LoopRunInputRow {
   key: string;
   label: string;
   value: string;
-  /** Declared `ref.kind === "agent"` inputs render with an avatar seed. */
+  /** Declared `type: agent` inputs render with an avatar seed. */
   isAgent: boolean;
 }
-
-type DeclaredInputs = NonNullable<LoopDefinition["inputs"]>;
 
 function isScalar(value: unknown): value is string | number | boolean {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
@@ -19,10 +17,6 @@ export function humanizeInputKey(key: string): string {
   const spaced = key.replace(/[_-]+/g, " ").trim();
   if (spaced.length <= 3 && !spaced.includes(" ")) return spaced.toUpperCase();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-function declaredRefKind(declared: DeclaredInputs | undefined, key: string): string {
-  return declared?.[key]?.ref?.kind ?? "";
 }
 
 function scalarEntries(run: LoopRunRecord): [string, string | number | boolean][] {
@@ -58,7 +52,7 @@ export function buildInputRows(
     key,
     label: humanizeInputKey(key),
     value: String(value),
-    isAgent: declaredRefKind(definition?.inputs, key) === "agent",
+    isAgent: definition?.inputs?.[key]?.type === "agent",
   }));
 }
 

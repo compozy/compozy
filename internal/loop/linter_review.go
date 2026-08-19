@@ -22,6 +22,7 @@ func (c *lintContext) lintReview(node dsl.Node) {
 		c.add(node.ID, CodeResponderPolicyInvalid, "review responders.agents must be allow or deny")
 	}
 	seen := make(map[dsl.ReviewDecision]struct{})
+	hasRespond := false
 	for _, decision := range review.EffectiveDecisions() {
 		if !decision.Valid() {
 			c.add(node.ID, CodeReviewShapeInvalid, "review decision %q is not supported", decision)
@@ -33,10 +34,16 @@ func (c *lintContext) lintReview(node dsl.Node) {
 		}
 		seen[decision] = struct{}{}
 		if decision == dsl.ReviewDecisionRespond {
+			hasRespond = true
 			if _, ok := c.outputSchema(node); !ok {
 				c.add(node.ID, CodeReviewRespondSchemaRequired,
 					"review respond requires a declared action output shape")
 			}
+		}
+	}
+	if hasRespond {
+		if schema, ok := c.outputSchema(node); ok {
+			c.lintEntityKindAnnotations(node.ID, map[string]any(schema))
 		}
 	}
 	if review.OnReject == nil {

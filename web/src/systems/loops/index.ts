@@ -38,6 +38,7 @@ export {
 
 // Adapters
 export {
+  LoopInputValidationError,
   LoopLifecycleConflictError,
   LoopRequestError,
   LoopsApiError,

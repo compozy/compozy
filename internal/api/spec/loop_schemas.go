@@ -65,7 +65,7 @@ func loopResultContractSchema() *openapi3.Schema {
 
 func loopErrorPolicySchema() *openapi3.Schema {
 	return openapi3.NewObjectSchema().
-		WithProperty("route", openapi3.NewStringSchema()).
+		WithProperty(windowManagerRouteProperty, openapi3.NewStringSchema()).
 		WithProperty("allow_fail", openapi3.NewBoolSchema()).
 		WithProperty("effects", loopEffectListSchema()).
 		WithoutAdditionalProperties()
@@ -185,7 +185,7 @@ func loopReviewSchema() *openapi3.Schema {
 	onReject := openapi3.NewObjectSchema().
 		WithProperty("route", openapi3.NewStringSchema()).
 		WithAdditionalProperties(openapi3.NewSchema())
-	onReject.Required = []string{"route"}
+	onReject.Required = []string{windowManagerRouteProperty}
 	return openapi3.NewObjectSchema().
 		WithProperty("decisions", openapi3.NewArraySchema().WithItems(
 			openapi3.NewStringSchema().WithEnum(
@@ -224,11 +224,11 @@ func loopStrategySchema() *openapi3.Schema {
 		{Value: count},
 	}}
 	object := openapi3.NewObjectSchema().
-		WithProperty("kind", openapi3.NewStringSchema().WithEnum(kinds...)).
+		WithProperty(loopKindField, openapi3.NewStringSchema().WithEnum(kinds...)).
 		WithProperty("threshold", threshold).
 		WithProperty("missing", openapi3.NewStringSchema().WithEnum(string(dsl.MissingAcceptable))).
 		WithoutAdditionalProperties()
-	object.Required = []string{"kind"}
+	object.Required = []string{loopKindField}
 	return &openapi3.Schema{OneOf: []*openapi3.SchemaRef{
 		{Value: openapi3.NewStringSchema().WithEnum(shorthandKinds...)},
 		{Value: object},

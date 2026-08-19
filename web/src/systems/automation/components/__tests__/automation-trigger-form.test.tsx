@@ -3,6 +3,7 @@
 // Boundary IN: controlled Trigger form, pure preview projection, and rendered preview cards.
 // Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
 import { agentFixtures } from "@/systems/agent/mocks";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -70,7 +71,14 @@ function renderTriggerForm({
     );
   }
 
-  render(<Harness />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Harness />
+    </QueryClientProvider>
+  );
 
   return { onCancel, onChange, onSubmit };
 }
@@ -99,6 +107,16 @@ function showPreview() {
 function showForm() {
   if (screen.queryByTestId("trigger-name-input")) return;
   fireEvent.click(screen.getByTestId("trigger-preview-toggle"));
+}
+
+function openLoopOptions() {
+  const trigger = screen.getByTestId("loop-target-select");
+  if (trigger.getAttribute("aria-expanded") !== "true") fireEvent.click(trigger);
+  return screen.getByRole("listbox", { name: "Suggestions" });
+}
+
+function selectLoop(name: string) {
+  fireEvent.click(within(openLoopOptions()).getByText(name, { selector: "[cmdk-item] *" }));
 }
 
 describe("AutomationTriggerForm", () => {
@@ -391,9 +409,7 @@ describe("AutomationTriggerForm", () => {
       })
     );
 
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
+    selectLoop("implement-tasks");
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         loop_target: expect.objectContaining({ loop_name: "implement-tasks" }),
@@ -407,16 +423,24 @@ describe("AutomationTriggerForm", () => {
     const { onChange } = renderTriggerForm();
     fireEvent.click(screen.getByTestId("target-mode-loop"));
 
-    let select = screen.getByRole("combobox", { name: "Loop" });
-    expect(select).toHaveTextContent("implement-tasks");
-    expect(select).toHaveTextContent("review-and-fix");
-    expect(select).not.toHaveTextContent("webhook-intake");
+    let options = openLoopOptions();
+    expect(
+      within(options).getByText("implement-tasks", { selector: "[cmdk-item] *" })
+    ).toBeInTheDocument();
+    expect(
+      within(options).getByText("review-and-fix", { selector: "[cmdk-item] *" })
+    ).toBeInTheDocument();
+    expect(within(options).queryByText("webhook-intake", { selector: "[cmdk-item] *" })).toBeNull();
 
     fireEvent.click(screen.getByTestId("trigger-event-webhook"));
-    select = screen.getByRole("combobox", { name: "Loop" });
-    expect(select).toHaveTextContent("webhook-intake");
-    expect(select).not.toHaveTextContent("implement-tasks");
-    expect(select).not.toHaveTextContent("review-and-fix");
+    options = openLoopOptions();
+    expect(
+      within(options).getByText("webhook-intake", { selector: "[cmdk-item] *" })
+    ).toBeInTheDocument();
+    expect(
+      within(options).queryByText("implement-tasks", { selector: "[cmdk-item] *" })
+    ).toBeNull();
+    expect(within(options).queryByText("review-and-fix", { selector: "[cmdk-item] *" })).toBeNull();
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         loop_target: expect.objectContaining({ loop_name: "" }),
@@ -435,9 +459,7 @@ describe("AutomationTriggerForm", () => {
       target: { value: "review-on-stop" },
     });
     fireEvent.click(screen.getByTestId("target-mode-loop"));
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "review-and-fix" },
-    });
+    selectLoop("review-and-fix");
     fireEvent.change(screen.getByTestId("loop-input-field-pr"), {
       target: { value: "2" },
     });
@@ -488,8 +510,8 @@ describe("AutomationTriggerForm", () => {
     expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
     fireEvent.click(screen.getByTestId("trigger-event-webhook"));
 
-    expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("implement-tasks");
-    expect(screen.getByRole("combobox", { name: "Loop" })).toBeDisabled();
+    expect(screen.getByTestId("loop-target-select")).toHaveTextContent("implement-tasks");
+    expect(screen.getByTestId("loop-target-select")).toBeDisabled();
     expect(screen.getByTestId("target-mode-agent")).toBeDisabled();
     expect(screen.getByTestId("target-mode-loop")).toBeDisabled();
     expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(

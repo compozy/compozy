@@ -2,8 +2,6 @@ package loop
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -19,48 +17,9 @@ const (
 	InputOriginWorkspace  InputOrigin = "workspace"
 	InputOriginGlobal     InputOrigin = "global"
 	InputOriginDefinition InputOrigin = "definition"
+	InputOriginAutomation InputOrigin = "automation"
+	InputOriginResponse   InputOrigin = "response"
 )
-
-const (
-	InputDefaultReasonUnknownInput InputDefaultReason = "unknown_input"
-	InputDefaultReasonTypeMismatch InputDefaultReason = "type_mismatch"
-	InputDefaultReasonRequired     InputDefaultReason = "required"
-)
-
-// InputDefaultReason is the closed machine-readable input resolution failure vocabulary.
-type InputDefaultReason string
-
-// InputDefaultError is the typed validation error shared by static defaults and effective starts.
-type InputDefaultError struct {
-	Loop   string             `json:"loop"`
-	Key    string             `json:"key"`
-	Reason InputDefaultReason `json:"reason"`
-	Err    error              `json:"-"`
-}
-
-func (e *InputDefaultError) Error() string {
-	if e == nil {
-		return ""
-	}
-	message := fmt.Sprintf("input_default: loop=%s key=%s reason=%s", e.Loop, e.Key, e.Reason)
-	if e.Err != nil {
-		message += ": " + e.Err.Error()
-	}
-	return message
-}
-
-// Unwrap keeps input-default failures in the Loop validation family.
-func (e *InputDefaultError) Unwrap() error {
-	if e == nil || e.Err == nil {
-		return ErrValidation
-	}
-	return errors.Join(ErrValidation, e.Err)
-}
-
-// AsInputDefaultError extracts the structured input-default diagnostic.
-func AsInputDefaultError(err error) (*InputDefaultError, bool) {
-	return errors.AsType[*InputDefaultError](err)
-}
 
 // InputDefaultLayers carries source-preserving configured values for one named Loop.
 type InputDefaultLayers struct {
@@ -88,16 +47,18 @@ func (s *service) resolveEffectiveInputs(
 	return ResolveInputDefaults(def, loopName, run, layers)
 }
 
-// ValidateDefinitionInputDefaults validates only author-contained defaults.
-func ValidateDefinitionInputDefaults(def dsl.Definition) error {
+// ValidateDefinitionInputs validates author-contained defaults without resolving configured layers.
+func ValidateDefinitionInputs(def dsl.Definition) error {
 	loopName := strings.TrimSpace(def.Meta.Name)
 	for _, key := range sortedInputKeys(def.Inputs) {
 		input := def.Inputs[key]
 		if input.Default == nil {
 			continue
 		}
-		if err := validateInputType(key, input.Type, input.Default); err != nil {
-			return inputDefaultError(loopName, key, InputDefaultReasonTypeMismatch, err)
+		if _, reason, err := validateInputValue(key, input, input.Default); err != nil {
+			return newInputValidationError(
+				loopName, key, input, input.Default, InputOriginDefinition, reason, err,
+			)
 		}
 	}
 	return nil
@@ -112,6 +73,34 @@ func ResolveInputs(def dsl.Definition, inputs Inputs) (map[string]any, error) {
 	return resolved.Values, nil
 }
 
+// ValidateInputLayer validates the values present in one precedence layer without requiring omissions.
+func ValidateInputLayer(
+	def dsl.Definition,
+	loopName string,
+	values map[string]any,
+	origin InputOrigin,
+) error {
+	name := strings.TrimSpace(loopName)
+	if key := firstUnknownInput(def.Inputs, values); key != "" {
+		return &InputValidationError{
+			Loop: name, Field: key, Origin: origin,
+			Reason: InputValidationReasonUnknownInput,
+			Err:    fmt.Errorf("input %q is not declared", key),
+		}
+	}
+	for _, key := range sortedInputKeys(def.Inputs) {
+		value, present := values[key]
+		if !present {
+			continue
+		}
+		input := def.Inputs[key]
+		if _, reason, err := validateInputValue(key, input, value); err != nil {
+			return newInputValidationError(name, key, input, value, origin, reason, err)
+		}
+	}
+	return nil
+}
+
 // ResolveInputDefaults applies run > workspace > global > definition precedence per key.
 func ResolveInputDefaults(
 	def dsl.Definition,
@@ -120,14 +109,20 @@ func ResolveInputDefaults(
 	layers InputDefaultLayers,
 ) (ResolvedInputs, error) {
 	name := strings.TrimSpace(loopName)
-	for _, source := range []map[string]any{run, layers.Workspace, layers.Global} {
-		if key := firstUnknownInput(def.Inputs, source); key != "" {
-			return ResolvedInputs{}, inputDefaultError(
-				name,
-				key,
-				InputDefaultReasonUnknownInput,
-				fmt.Errorf("input %q is not declared", key),
-			)
+	for _, source := range []struct {
+		values map[string]any
+		origin InputOrigin
+	}{
+		{values: run, origin: InputOriginRun},
+		{values: layers.Workspace, origin: InputOriginWorkspace},
+		{values: layers.Global, origin: InputOriginGlobal},
+	} {
+		if key := firstUnknownInput(def.Inputs, source.values); key != "" {
+			return ResolvedInputs{}, &InputValidationError{
+				Loop: name, Field: key, Origin: source.origin,
+				Reason: InputValidationReasonUnknownInput,
+				Err:    fmt.Errorf("input %q is not declared", key),
+			}
 		}
 	}
 
@@ -140,19 +135,20 @@ func ResolveInputDefaults(
 		value, origin, present := selectInputValue(key, input, run, layers)
 		if !present {
 			if input.Required {
-				return ResolvedInputs{}, inputDefaultError(
-					name,
-					key,
-					InputDefaultReasonRequired,
+				return ResolvedInputs{}, newInputValidationError(
+					name, key, input, nil, InputOriginRun, InputValidationReasonRequired,
 					fmt.Errorf("input %q is required", key),
 				)
 			}
 			continue
 		}
-		if err := validateInputType(key, input.Type, value); err != nil {
-			return ResolvedInputs{}, inputDefaultError(name, key, InputDefaultReasonTypeMismatch, err)
+		normalized, reason, err := validateInputValue(key, input, value)
+		if err != nil {
+			return ResolvedInputs{}, newInputValidationError(
+				name, key, input, value, origin, reason, err,
+			)
 		}
-		resolved.Values[key] = cloneAnyValue(value)
+		resolved.Values[key] = cloneAnyValue(normalized)
 		resolved.Origins[key] = origin
 	}
 	return resolved, nil
@@ -200,40 +196,4 @@ func sortedInputKeys(inputs map[string]dsl.Input) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func inputDefaultError(
-	loopName string,
-	key string,
-	reason InputDefaultReason,
-	err error,
-) error {
-	return &InputDefaultError{
-		Loop: strings.TrimSpace(loopName), Key: strings.TrimSpace(key), Reason: reason, Err: err,
-	}
-}
-
-func validateInputType(name string, inputType dsl.InputType, value any) error {
-	switch inputType {
-	case dsl.InputTypeString, dsl.InputTypeFile, dsl.InputTypeAgent, dsl.InputTypeRef:
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("input %q must be a string", name)
-		}
-	case dsl.InputTypeNumber:
-		switch value.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64,
-			float64, float32, json.Number:
-		default:
-			return fmt.Errorf("input %q must be a number", name)
-		}
-	case dsl.InputTypeBoolean:
-		if _, ok := value.(bool); !ok {
-			return fmt.Errorf("input %q must be a boolean", name)
-		}
-	case "":
-		return fmt.Errorf("input %q type is required", name)
-	default:
-		return fmt.Errorf("input %q type is invalid: %q", name, inputType)
-	}
-	return nil
 }

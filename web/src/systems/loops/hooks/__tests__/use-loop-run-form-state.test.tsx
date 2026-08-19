@@ -5,6 +5,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { LoopInputValidationError } from "../../adapters/loops-api";
 import { loopEffectiveConfigFixture } from "../../mocks/fixtures";
 import type { LoopDryRunPreview, LoopInputSchema } from "../../types";
 import { loopRunFormLogic, useLoopRunFormState } from "../use-loop-run-form-state";
@@ -56,6 +57,37 @@ const plan: LoopDryRunPreview = {
 };
 
 describe("useLoopRunFormState", () => {
+  it("Should own a daemon input rejection until that field changes", () => {
+    const store = loopRunFormLogic.createStore({
+      effectiveConfig: loopEffectiveConfigFixture,
+      networkParticipation: { channelId: "", channelStrategy: "", mode: "local" },
+      schema,
+      scope: { loopName: "delivery", workspaceId: "workspace-alpha" },
+    });
+    store.trigger.runRequested({
+      execute: () => new Promise<never>(() => undefined),
+      loopName: "delivery",
+    });
+    store.trigger.runFailed({
+      attempt: 1,
+      loopName: "delivery",
+      error: new LoopInputValidationError({
+        field: "goal",
+        kind: "string",
+        loop: "delivery",
+        origin: "run",
+        reason: "type_mismatch",
+      }),
+    });
+
+    expect(store.getSnapshot().context.fieldErrors).toEqual({
+      goal: "goal has an invalid value.",
+    });
+
+    store.trigger.inputChanged({ name: "goal", value: "Ship it" });
+    expect(store.getSnapshot().context.fieldErrors).toEqual({});
+  });
+
   it("Should reject a late plan after the active draft changes", () => {
     const store = loopRunFormLogic.createStore({
       effectiveConfig: loopEffectiveConfigFixture,

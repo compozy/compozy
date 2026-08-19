@@ -62,6 +62,13 @@ func WithRuntimeCatalog(catalog WorkspaceRuntimeCatalog) Option {
 	}
 }
 
+// WithInputEntityCatalog injects workspace-aware exact entity lookup authority.
+func WithInputEntityCatalog(catalog InputEntityCatalog) Option {
+	return func(s *service) {
+		s.inputEntities = catalog
+	}
+}
+
 // WithClock injects a deterministic clock.
 func WithClock(now func() time.Time) Option {
 	return func(s *service) {

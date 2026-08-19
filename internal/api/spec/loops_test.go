@@ -663,8 +663,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 func serializedStructFields(value reflect.Type) []string {
 	fields := make([]string, 0, value.NumField())
-	for index := range value.NumField() {
-		field := value.Field(index)
+	for field := range value.Fields() {
 		tag := field.Tag.Get("json")
 		name, _, _ := strings.Cut(tag, ",")
 		if name == "-" {

@@ -138,15 +138,13 @@ func (n *daemonNativeTools) loopValidate(
 				},
 			}, "loop runtime validation failed")
 		}
-		if inputDefault, ok := errors.AsType[*looppkg.InputDefaultError](err); ok {
+		if inputValidation, ok := errors.AsType[*looppkg.InputValidationError](err); ok {
 			return structuredResult(map[string]any{
 				nativeLoopValidationKey: contract.LoopValidationResponse{
-					Valid: false,
-					InputDefault: &contract.LoopInputDefaultErrorPayload{
-						Loop: inputDefault.Loop, Key: inputDefault.Key, Reason: string(inputDefault.Reason),
-					},
+					Valid:           false,
+					InputValidation: loopInputValidationPayload(inputValidation),
 				},
-			}, "loop input default validation failed")
+			}, "loop input validation failed")
 		}
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}

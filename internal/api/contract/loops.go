@@ -171,19 +171,23 @@ type LoopValidationResponse struct {
 	Valid             bool                               `json:"valid"`
 	Errors            []LoopLintErrorPayload             `json:"errors,omitempty"`
 	RuntimeValidation []LoopRuntimeValidationItemPayload `json:"runtime_validation,omitempty"`
-	InputDefault      *LoopInputDefaultErrorPayload      `json:"input_default,omitempty"`
+	InputValidation   *LoopInputValidationErrorPayload   `json:"input_validation,omitempty"`
 }
 
-// LoopInputDefaultErrorPayload reports one input resolution failure.
-type LoopInputDefaultErrorPayload struct {
+// LoopInputValidationErrorPayload reports one field-addressed input failure.
+type LoopInputValidationErrorPayload struct {
 	Loop   string `json:"loop"`
-	Key    string `json:"key"`
+	Field  string `json:"field"`
+	Kind   string `json:"kind,omitempty"`
+	Value  string `json:"value,omitempty"`
+	Origin string `json:"origin"`
 	Reason string `json:"reason"`
 }
 
 // LoopLintErrorPayload is the per-node 422 payload surfaced to authoring clients.
 type LoopLintErrorPayload struct {
 	NodeID   string           `json:"node_id,omitempty"`
+	Path     string           `json:"path,omitempty"`
 	Code     string           `json:"code"`
 	Message  string           `json:"message"`
 	Severity LoopLintSeverity `json:"severity"`
@@ -326,15 +330,16 @@ type PutLoopAnnotationsRequest struct {
 
 // LoopInput is the bounded input projection returned by the Loop catalog.
 type LoopInput struct {
-	Type        string        `json:"type"`
+	Type        dsl.InputType `json:"type"`
 	Required    bool          `json:"required,omitempty"`
 	Description string        `json:"description,omitempty"`
 	Ref         *LoopInputRef `json:"ref,omitempty"`
+	Enum        []string      `json:"enum,omitempty"`
 	Default     any           `json:"default,omitempty"`
 }
 
 type LoopInputRef struct {
-	Kind string `json:"kind"`
+	Kind dsl.InputRefKind `json:"kind"`
 }
 
 type LoopContract struct {

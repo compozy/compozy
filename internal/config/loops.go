@@ -54,14 +54,7 @@ func (c *LoopsConfig) InputDefaultLayers(loopName string) (global map[string]any
 }
 
 func cloneLoopInputDefaultValue(value any) any {
-	switch typed := value.(type) {
-	case []string:
-		return append([]string(nil), typed...)
-	case []any:
-		return append([]any(nil), typed...)
-	default:
-		return typed
-	}
+	return cloneConfigAnyValue(value)
 }
 
 // LoopsDefaultsConfig separates delivery and watch loop seed defaults.

@@ -39,6 +39,20 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__agent_list",
+    "native_name": "agent_list",
+    "toolsets": [
+      "compozy__catalog",
+      "compozy__workspace"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "2eb2a2ce74f9818d512ed8d36f3ee2410ab27da83b5f325e28ff974ed070cbd6",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__automation_jobs_create",
     "native_name": "automation_jobs_create",
     "toolsets": [
@@ -3243,6 +3257,19 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "235b68f12aa4b9763d295705e9fe8170b86623970f5decd3e16e4468e0f0598a",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__vault_list",
+    "native_name": "vault_list",
+    "toolsets": [
+      "compozy__catalog"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "45f84e4c64e01b91646d84306b6eb76811bf93f2a3b53ea1ff7739a9158e8852",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

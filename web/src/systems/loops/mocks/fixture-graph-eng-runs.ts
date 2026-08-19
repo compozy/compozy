@@ -41,7 +41,7 @@ function buildReleaseTrainRun(
     definition_version: 3,
     definition_digest: "sha256:release-train-v3",
     start_metadata: {},
-    inputs: { services: ["api", "web", "worker"], severity: "p1" },
+    inputs: { services: "api,web,worker", severity: "p1" },
     ...overrides,
     forks: overrides.forks ?? [],
   };
@@ -65,7 +65,7 @@ export const releaseTrainForkRun: LoopRun = buildReleaseTrainRun({
   id: GRAPH_ENG_FORK_RUN_ID,
   status: "running",
   generation: 2,
-  inputs: { services: ["api", "web", "worker"], severity: "p0" },
+  inputs: { services: "api,web,worker", severity: "p0" },
   forked_from: { run_id: GRAPH_ENG_RUN_ID, generation: 2 },
 });
 

@@ -5,9 +5,11 @@ flowchart TD
     A[Entry: attention bell, run page, CLI, HTTP/UDS, or native tool] --> B[Start a Loop that reaches ask or review]
     B --> C[Request opens and the run parks]
     C --> D[Find the pending request and read its full redacted detail]
-    D --> E{Responder action}
+    D --> D2[Choose an exact annotated entity from its catalog or keep a manual value]
+    D2 --> E{Responder action}
     E -->|valid answer or decision| F[One response wins and the exact parked cell resumes]
     E -->|invalid payload| G[Field error; request remains pending]
+    E -->|missing annotated entity| G2[input_validation names the nested field; request remains pending]
     E -->|self-operation or missing capability| H[Deterministic denial; no state changes]
     C -->|expiry or cancellation wins| I[Request closes once and its declared outcome runs]
     F --> J[Fresh CLI, HTTP/UDS, native, SSE, and Web reads agree]
@@ -41,7 +43,7 @@ journey:
       expected_observable: "The full redacted context, schema, decisions, expiry, and provenance are reachable inside the workspace."
     - step: 3
       verb: "Submit an answer or review decision"
-      expected_observable: "One schema-valid response wins; invalid, duplicate, expired, canceled, unauthorized, and self responses return deterministic errors without corrupting state."
+      expected_observable: "One schema- and entity-valid response wins; missing annotated entities and invalid, duplicate, expired, canceled, unauthorized, or self responses return field-addressed errors without corrupting state."
     - step: 4
       verb: "Refresh and compare every public read"
       expected_observable: "The run resumes or closes by the recorded cause, the request drains from live attention, and structured surfaces agree."
@@ -60,4 +62,3 @@ journey:
       resume: "A fresh read reveals one committed winner or a still-actionable request; resubmission cannot execute the action twice."
   crosses: [request-store, scheduler-expiry, config-lifecycle, CLI, HTTP, UDS, native-tools, SSE, web-attention]
 ```
-

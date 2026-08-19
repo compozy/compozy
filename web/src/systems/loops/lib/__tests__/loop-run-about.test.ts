@@ -14,7 +14,7 @@ function run(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
 }
 
 function definitionInputs(
-  inputs: Record<string, { required?: boolean; ref?: { kind: string } }>
+  inputs: Record<string, { required?: boolean; type?: "agent" | "string" }>
 ): Pick<LoopDefinition, "inputs"> {
   return {
     inputs: Object.fromEntries(
@@ -46,10 +46,10 @@ describe("watchedSubject", () => {
 });
 
 describe("buildInputRows", () => {
-  it("Should flag agent-bound inputs from the declared ref kind", () => {
+  it("Should flag agent-bound inputs from the closed input type", () => {
     const rows = buildInputRows(
       run({ inputs: { fixer: "review-fixer", pr: "128" } }),
-      definitionInputs({ fixer: { ref: { kind: "agent" } }, pr: {} })
+      definitionInputs({ fixer: { type: "agent" }, pr: {} })
     );
     expect(rows).toEqual([
       { key: "fixer", label: "Fixer", value: "review-fixer", isAgent: true },

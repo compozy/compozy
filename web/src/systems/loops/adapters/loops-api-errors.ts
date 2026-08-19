@@ -26,6 +26,71 @@ export class LoopsApiError extends Error {
   }
 }
 
+export interface LoopInputValidationPayload {
+  field: string;
+  kind?: string;
+  loop: string;
+  origin: string;
+  reason: string;
+  value?: string;
+}
+
+function inputValidationMessage(payload: LoopInputValidationPayload): string {
+  const label = payload.field || "Input";
+  switch (payload.reason) {
+    case "required":
+      return `${label} is required.`;
+    case "enum_mismatch":
+      return `${label} must use one of the allowed values.`;
+    case "unknown_reference":
+      return payload.kind
+        ? `${label} references an unavailable ${payload.kind}.`
+        : `${label} references an unavailable value.`;
+    case "invalid_runtime":
+      return `${label} uses an unavailable runtime.`;
+    case "type_mismatch":
+    case "invalid_kind_payload":
+      return `${label} has an invalid value.`;
+    case "unknown_input":
+      return `${label} is not declared by this Loop.`;
+    default:
+      return `${label} could not be validated.`;
+  }
+}
+
+/** A run rejection tied to one declared input field. */
+export class LoopInputValidationError extends LoopsApiError {
+  constructor(public readonly validation: LoopInputValidationPayload) {
+    super(inputValidationMessage(validation), 422);
+    this.name = "LoopInputValidationError";
+  }
+
+  get fieldErrors(): Readonly<Record<string, string>> {
+    return this.validation.field === "" ? {} : { [this.validation.field]: this.message };
+  }
+}
+
+export function inputValidationPayload(error: unknown): LoopInputValidationPayload | null {
+  const body = asRecord(error);
+  const validation = asRecord(body?.input_validation);
+  if (
+    typeof validation?.field !== "string" ||
+    typeof validation.loop !== "string" ||
+    typeof validation.origin !== "string" ||
+    typeof validation.reason !== "string"
+  ) {
+    return null;
+  }
+  return {
+    field: validation.field,
+    loop: validation.loop,
+    origin: validation.origin,
+    reason: validation.reason,
+    ...(typeof validation.kind === "string" ? { kind: validation.kind } : {}),
+    ...(typeof validation.value === "string" ? { value: validation.value } : {}),
+  };
+}
+
 /** A structured 422 lint rejection that the editor can map back onto nodes. */
 export class LoopValidationError extends LoopsApiError {
   constructor(

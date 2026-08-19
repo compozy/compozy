@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/spf13/cobra"
 )
 
@@ -231,85 +232,136 @@ func newLoopValidateCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
+type loopRunOptions struct {
+	workspaceRef string
+	name         string
+	parentRunID  string
+	configPath   string
+	inputs       []string
+	runtimeFlags []string
+	dry          bool
+	noPrompt     bool
+	networkFlags networkParticipationFlags
+}
+
 func newLoopRunCommand(deps commandDeps) *cobra.Command {
-	var workspaceRef, name, parentRunID, configPath string
-	var inputs []string
-	var runtimeFlags []string
-	var dry bool
-	var networkFlags networkParticipationFlags
+	options := loopRunOptions{}
 	cmd := &cobra.Command{
 		Use:   loopRunKey,
 		Short: "Start or dry-run one Loop",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
-			if err != nil {
-				return err
-			}
-			loopName, err := requiredLoopFlag(loopNameKey, name)
-			if err != nil {
-				return err
-			}
-			values, err := parseLoopInputFlags(inputs)
-			if err != nil {
-				return err
-			}
-			var overrides *looppkg.LoopConfig
-			if strings.TrimSpace(configPath) != "" {
-				cfg, err := readLoopConfigFile(configPath)
-				if err != nil {
-					return err
-				}
-				overrides = &cfg
-			}
-			runtimeOverrides, err := parseLoopRuntimeFlags(runtimeFlags)
-			if err != nil {
-				return err
-			}
-			if runtimeOverrides.RuntimeDefaults != nil || runtimeOverrides.RuntimeRules != nil {
-				if overrides == nil {
-					overrides = &looppkg.LoopConfig{}
-				}
-				mergeLoopRuntimeFlags(overrides, runtimeOverrides)
-			}
-			configOverrides, err := loopConfigPayloadFromDomain(cmd.Context(), overrides)
-			if err != nil {
-				return err
-			}
-			participationRequest, err := networkFlags.request()
-			if err != nil {
-				return err
-			}
-			response, err := client.RunLoop(cmd.Context(), workspaceID, loopName, contract.RunLoopRequest{
-				Inputs:               values,
-				ParentLoopRunID:      strings.TrimSpace(parentRunID),
-				ConfigOverrides:      configOverrides,
-				NetworkParticipation: participationRequest,
-			}, dry, agentCredentialsFromEnv(deps))
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(
-				cmd,
-				loopRunOutputBundle(response, fmt.Sprintf("Loop %s run requested", loopName)),
-			)
+			return executeLoopRun(cmd, deps, options)
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
-	cmd.Flags().StringVar(&name, loopNameKey, "", "Loop name")
-	cmd.Flags().StringArrayVar(&inputs, loopInputKey, nil, "Input key=value (repeatable; JSON values supported)")
+	cmd.Flags().StringVar(&options.workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
+	cmd.Flags().StringVar(&options.name, loopNameKey, "", "Loop name")
 	cmd.Flags().StringArrayVar(
-		&runtimeFlags,
+		&options.inputs,
+		loopInputKey,
+		nil,
+		"Input key=value (repeatable; JSON values supported)",
+	)
+	cmd.Flags().StringArrayVar(
+		&options.runtimeFlags,
 		loopRuntimeKey,
 		nil,
 		"Runtime worker|judge|id|type|complexity selector (repeatable)",
 	)
-	cmd.Flags().StringVar(&parentRunID, "parent-loop-run-id", "", "Parent Loop run ID")
-	cmd.Flags().StringVar(&configPath, loopConfigFileKey, "", "Per-run config override YAML or JSON file")
-	cmd.Flags().BoolVar(&dry, loopDryRunKey, false, "Preview the plan without creating a run")
-	bindNetworkParticipationFlags(cmd, &networkFlags)
+	cmd.Flags().StringVar(&options.parentRunID, "parent-loop-run-id", "", "Parent Loop run ID")
+	cmd.Flags().StringVar(&options.configPath, loopConfigFileKey, "", "Per-run config override YAML or JSON file")
+	cmd.Flags().BoolVar(&options.dry, loopDryRunKey, false, "Preview the plan without creating a run")
+	cmd.Flags().BoolVar(
+		&options.noPrompt,
+		"no-prompt",
+		false,
+		"Disable interactive prompts for missing required inputs",
+	)
+	bindNetworkParticipationFlags(cmd, &options.networkFlags)
 	mustMarkFlagRequired(cmd, loopNameKey)
 	return cmd
+}
+
+func executeLoopRun(cmd *cobra.Command, deps commandDeps, options loopRunOptions) error {
+	client, workspaceID, err := loopClientAndWorkspace(cmd, deps, options.workspaceRef)
+	if err != nil {
+		return err
+	}
+	loopName, err := requiredLoopFlag(loopNameKey, options.name)
+	if err != nil {
+		return err
+	}
+	values, err := prepareLoopRunInputs(cmd, deps, client, workspaceID, loopName, options)
+	if err != nil {
+		return err
+	}
+	overrides, err := prepareLoopRunOverrides(cmd, options)
+	if err != nil {
+		return err
+	}
+	participationRequest, err := options.networkFlags.request()
+	if err != nil {
+		return err
+	}
+	response, err := client.RunLoop(cmd.Context(), workspaceID, loopName, contract.RunLoopRequest{
+		Inputs:               values,
+		ParentLoopRunID:      strings.TrimSpace(options.parentRunID),
+		ConfigOverrides:      overrides,
+		NetworkParticipation: participationRequest,
+	}, options.dry, agentCredentialsFromEnv(deps))
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, loopRunOutputBundle(response, fmt.Sprintf("Loop %s run requested", loopName)))
+}
+
+func prepareLoopRunInputs(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client loopCommandClient,
+	workspaceID string,
+	loopName string,
+	options loopRunOptions,
+) (map[string]any, error) {
+	values, err := parseLoopInputFlags(options.inputs)
+	if err != nil {
+		return nil, err
+	}
+	loopResponse, err := client.GetLoop(cmd.Context(), workspaceID, loopName)
+	if err != nil {
+		return nil, err
+	}
+	var definition dsl.Definition
+	if err := loopResponse.Loop.Definition.Decode(&definition); err != nil {
+		return nil, fmt.Errorf("cli: decode Loop input declarations: %w", err)
+	}
+	values, err = normalizeLoopRunInputs(definition, values)
+	if err != nil {
+		return nil, err
+	}
+	return promptForMissingLoopInputs(cmd, deps, client, workspaceID, definition, values, options.noPrompt)
+}
+
+func prepareLoopRunOverrides(cmd *cobra.Command, options loopRunOptions) (*contract.LoopConfig, error) {
+	var overrides *looppkg.LoopConfig
+	if strings.TrimSpace(options.configPath) != "" {
+		cfg, err := readLoopConfigFile(options.configPath)
+		if err != nil {
+			return nil, err
+		}
+		overrides = &cfg
+	}
+	runtimeOverrides, err := parseLoopRuntimeFlags(options.runtimeFlags)
+	if err != nil {
+		return nil, err
+	}
+	if runtimeOverrides.RuntimeDefaults != nil || runtimeOverrides.RuntimeRules != nil {
+		if overrides == nil {
+			overrides = &looppkg.LoopConfig{}
+		}
+		mergeLoopRuntimeFlags(overrides, runtimeOverrides)
+	}
+	return loopConfigPayloadFromDomain(cmd.Context(), overrides)
 }
 
 func newLoopConfigureCommand(deps commandDeps) *cobra.Command {

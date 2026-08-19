@@ -10,6 +10,8 @@ import {
 } from "../../lib/loop-run-form";
 import type { LoopInputSchema } from "../../types";
 import { LoopRunInputField } from "../run-form/loop-run-input-field";
+import { loopInputCatalogNeeds } from "../../lib/loop-input-catalogs";
+import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
 
 export interface LoopForkDialogProps {
   open: boolean;
@@ -21,6 +23,7 @@ export interface LoopForkDialogProps {
   inputSchema?: LoopInputSchema;
 
   sourceInputs: Readonly<Record<string, unknown>>;
+  workspaceId?: string;
   isPending?: boolean;
 
   fieldErrors?: Readonly<Record<string, string>>;
@@ -70,6 +73,7 @@ function LoopForkDialogForm({
   defaultGeneration,
   inputSchema,
   sourceInputs,
+  workspaceId = "",
   isPending,
   fieldErrors,
   blockedReason,
@@ -170,21 +174,26 @@ function LoopForkDialogForm({
               </p>
             ) : null}
             {entries.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                <span className="eyebrow text-subtle">Inputs</span>
-                {entries.map(([name, field]) => (
-                  <div data-testid={`loop-fork-input-${name}`} key={name}>
-                    <LoopRunInputField
-                      disabled={isPending}
-                      error={errorFor(name)}
-                      field={field}
-                      name={name}
-                      onChange={value => setInputs(current => ({ ...current, [name]: value }))}
-                      value={inputs[name]}
-                    />
-                  </div>
-                ))}
-              </div>
+              <LoopInputCatalogBoundary
+                workspaceId={workspaceId}
+                needs={loopInputCatalogNeeds(inputSchema)}
+              >
+                <div className="flex flex-col gap-3">
+                  <span className="eyebrow text-subtle">Inputs</span>
+                  {entries.map(([name, field]) => (
+                    <div data-testid={`loop-fork-input-${name}`} key={name}>
+                      <LoopRunInputField
+                        disabled={isPending}
+                        error={errorFor(name)}
+                        field={field}
+                        name={name}
+                        onChange={value => setInputs(current => ({ ...current, [name]: value }))}
+                        value={inputs[name]}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </LoopInputCatalogBoundary>
             ) : null}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="loop-fork-reason">

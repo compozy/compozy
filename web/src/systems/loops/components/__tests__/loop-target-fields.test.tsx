@@ -77,14 +77,19 @@ describe("LoopTargetFields", () => {
     };
   });
 
+  function selectLoop(name: string) {
+    fireEvent.click(screen.getByTestId("loop-target-select"));
+    fireEvent.click(screen.getByText(name, { selector: "[cmdk-item] *" }));
+  }
+
   it("Should list selectable loops and auto-generate a typed input form for the chosen loop", () => {
     render(<Harness />);
     const select = screen.getByTestId("loop-target-select");
-    expect(select).toHaveTextContent("implement-tasks");
+    expect(select.tagName).toBe("BUTTON");
     // No inputs render until a loop is picked.
     expect(screen.queryByTestId("loop-target-inputs")).not.toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: "implement-tasks" } });
+    selectLoop("implement-tasks");
     const controls = screen.getAllByTestId("loop-input-control").map(node => node.dataset.input);
     expect(controls).toEqual(["slug", "implementer", "auto_commit"]);
     expect(screen.getByTestId("loop-input-field-slug")).toBeInTheDocument();
@@ -94,9 +99,7 @@ describe("LoopTargetFields", () => {
 
   it("Should write static input values onto the loop target", () => {
     render(<Harness />);
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
+    selectLoop("implement-tasks");
     fireEvent.change(screen.getByTestId("loop-input-field-slug"), {
       target: { value: "billing-webhooks" },
     });
@@ -145,15 +148,10 @@ describe("LoopTargetFields", () => {
 
   it("Should render the event-payload mapping table only when enabled", () => {
     const { rerender } = render(<Harness />);
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
+    selectLoop("implement-tasks");
     expect(screen.queryByTestId("loop-input-mapping")).not.toBeInTheDocument();
 
     rerender(<Harness showMapping />);
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
     expect(screen.getByTestId("loop-input-mapping")).toBeInTheDocument();
     expect(screen.getByTestId("loop-mapping-field-slug")).toBeInTheDocument();
   });
@@ -181,10 +179,11 @@ describe("LoopTargetFields", () => {
       />
     );
 
-    const select = screen.getByRole("combobox", { name: "Loop" });
-    expect(select).toHaveValue("review-and-fix");
-    expect(select).toHaveTextContent("implement-tasks");
-    expect(select).toHaveTextContent("review-and-fix (unavailable for schedule)");
+    const select = screen.getByTestId("loop-target-select");
+    expect(select).toHaveTextContent("review-and-fix");
+    expect(select).toHaveTextContent("Not available");
+    fireEvent.click(select);
+    expect(screen.getByText("implement-tasks", { selector: "[cmdk-item] *" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
       "review-and-fix does not declare the schedule start kind"
     );

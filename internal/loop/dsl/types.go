@@ -118,7 +118,67 @@ const (
 	InputTypeAgent InputType = "agent"
 	// InputTypeRef declares a typed resource reference input.
 	InputTypeRef InputType = "ref"
+	// InputTypeRuntime declares a partial Loop runtime object.
+	InputTypeRuntime InputType = "runtime"
 )
+
+// Valid reports whether the input type belongs to the closed DSL vocabulary.
+func (t InputType) Valid() bool {
+	switch t {
+	case InputTypeString, InputTypeNumber, InputTypeBoolean, InputTypeFile,
+		InputTypeAgent, InputTypeRef, InputTypeRuntime:
+		return true
+	default:
+		return false
+	}
+}
+
+// InputRefKind is the closed vocabulary for ref-backed Loop inputs.
+type InputRefKind string
+
+const (
+	InputRefKindSkill     InputRefKind = "skill"
+	InputRefKindLoop      InputRefKind = "loop"
+	InputRefKindWorktree  InputRefKind = "worktree"
+	InputRefKindSession   InputRefKind = "session"
+	InputRefKindWorkspace InputRefKind = "workspace"
+	InputRefKindSecret    InputRefKind = "secret"
+)
+
+// Valid reports whether the ref kind belongs to the closed DSL vocabulary.
+func (k InputRefKind) Valid() bool {
+	switch k {
+	case InputRefKindSkill, InputRefKindLoop, InputRefKindWorktree,
+		InputRefKindSession, InputRefKindWorkspace, InputRefKindSecret:
+		return true
+	default:
+		return false
+	}
+}
+
+// EntityKind is the closed vocabulary accepted by x-compozy-kind.
+type EntityKind string
+
+const (
+	EntityKindAgent     EntityKind = "agent"
+	EntityKindSkill     EntityKind = "skill"
+	EntityKindLoop      EntityKind = "loop"
+	EntityKindWorktree  EntityKind = "worktree"
+	EntityKindSession   EntityKind = "session"
+	EntityKindWorkspace EntityKind = "workspace"
+	EntityKindSecret    EntityKind = "secret"
+)
+
+// Valid reports whether the entity kind belongs to the closed annotation vocabulary.
+func (k EntityKind) Valid() bool {
+	switch k {
+	case EntityKindAgent, EntityKindSkill, EntityKindLoop, EntityKindWorktree,
+		EntityKindSession, EntityKindWorkspace, EntityKindSecret:
+		return true
+	default:
+		return false
+	}
+}
 
 // Input declares one named loop input.
 type Input struct {
@@ -126,12 +186,13 @@ type Input struct {
 	Required    bool           `json:"required,omitempty"    yaml:"required,omitempty"`
 	Description string         `json:"description,omitempty" yaml:"description,omitempty"`
 	Ref         *InputRef      `json:"ref,omitempty"         yaml:"ref,omitempty"`
+	Enum        []string       `json:"enum,omitempty"        yaml:"enum,omitempty"`
 	Default     any            `json:"default,omitempty"     yaml:"default,omitempty"`
 	Extra       map[string]any `json:"-"                     yaml:",inline"`
 }
 
 // InputRef narrows an input of type ref to one resource kind.
 type InputRef struct {
-	Kind  string         `json:"kind" yaml:"kind"`
+	Kind  InputRefKind   `json:"kind" yaml:"kind"`
 	Extra map[string]any `json:"-"    yaml:",inline"`
 }

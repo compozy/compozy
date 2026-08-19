@@ -231373,10 +231373,24 @@
                               "description": {
                                 "type": "string"
                               },
+                              "enum": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
                               "ref": {
                                 "nullable": true,
                                 "properties": {
                                   "kind": {
+                                    "enum": [
+                                      "skill",
+                                      "loop",
+                                      "worktree",
+                                      "session",
+                                      "workspace",
+                                      "secret"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -231389,6 +231403,15 @@
                                 "type": "boolean"
                               },
                               "type": {
+                                "enum": [
+                                  "string",
+                                  "number",
+                                  "boolean",
+                                  "file",
+                                  "agent",
+                                  "ref",
+                                  "runtime"
+                                ],
                                 "type": "string"
                               }
                             },
@@ -246174,10 +246197,24 @@
                                 "description": {
                                   "type": "string"
                                 },
+                                "enum": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
                                 "ref": {
                                   "nullable": true,
                                   "properties": {
                                     "kind": {
+                                      "enum": [
+                                        "skill",
+                                        "loop",
+                                        "worktree",
+                                        "session",
+                                        "workspace",
+                                        "secret"
+                                      ],
                                       "type": "string"
                                     }
                                   },
@@ -246190,6 +246227,15 @@
                                   "type": "boolean"
                                 },
                                 "type": {
+                                  "enum": [
+                                    "string",
+                                    "number",
+                                    "boolean",
+                                    "file",
+                                    "agent",
+                                    "ref",
+                                    "runtime"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -248261,10 +248307,24 @@
                             "description": {
                               "type": "string"
                             },
+                            "enum": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
                             "ref": {
                               "nullable": true,
                               "properties": {
                                 "kind": {
+                                  "enum": [
+                                    "skill",
+                                    "loop",
+                                    "worktree",
+                                    "session",
+                                    "workspace",
+                                    "secret"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -248277,6 +248337,15 @@
                               "type": "boolean"
                             },
                             "type": {
+                              "enum": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "file",
+                                "agent",
+                                "ref",
+                                "runtime"
+                              ],
                               "type": "string"
                             }
                           },
@@ -250128,10 +250197,24 @@
                                   "description": {
                                     "type": "string"
                                   },
+                                  "enum": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
                                   "ref": {
                                     "nullable": true,
                                     "properties": {
                                       "kind": {
+                                        "enum": [
+                                          "skill",
+                                          "loop",
+                                          "worktree",
+                                          "session",
+                                          "workspace",
+                                          "secret"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -250144,6 +250227,15 @@
                                     "type": "boolean"
                                   },
                                   "type": {
+                                    "enum": [
+                                      "string",
+                                      "number",
+                                      "boolean",
+                                      "file",
+                                      "agent",
+                                      "ref",
+                                      "runtime"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -250762,6 +250854,9 @@
                           "node_id": {
                             "type": "string"
                           },
+                          "path": {
+                            "type": "string"
+                          },
                           "severity": {
                             "enum": [
                               "error",
@@ -250779,22 +250874,32 @@
                       },
                       "type": "array"
                     },
-                    "input_default": {
+                    "input_validation": {
                       "nullable": true,
                       "properties": {
-                        "key": {
+                        "field": {
+                          "type": "string"
+                        },
+                        "kind": {
                           "type": "string"
                         },
                         "loop": {
                           "type": "string"
                         },
+                        "origin": {
+                          "type": "string"
+                        },
                         "reason": {
+                          "type": "string"
+                        },
+                        "value": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "key",
+                        "field",
                         "loop",
+                        "origin",
                         "reason"
                       ],
                       "type": "object"
@@ -252974,10 +253079,24 @@
                                   "description": {
                                     "type": "string"
                                   },
+                                  "enum": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
                                   "ref": {
                                     "nullable": true,
                                     "properties": {
                                       "kind": {
+                                        "enum": [
+                                          "skill",
+                                          "loop",
+                                          "worktree",
+                                          "session",
+                                          "workspace",
+                                          "secret"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -252990,6 +253109,15 @@
                                     "type": "boolean"
                                   },
                                   "type": {
+                                    "enum": [
+                                      "string",
+                                      "number",
+                                      "boolean",
+                                      "file",
+                                      "agent",
+                                      "ref",
+                                      "runtime"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -255232,10 +255360,24 @@
                             "description": {
                               "type": "string"
                             },
+                            "enum": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
                             "ref": {
                               "nullable": true,
                               "properties": {
                                 "kind": {
+                                  "enum": [
+                                    "skill",
+                                    "loop",
+                                    "worktree",
+                                    "session",
+                                    "workspace",
+                                    "secret"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -255248,6 +255390,15 @@
                               "type": "boolean"
                             },
                             "type": {
+                              "enum": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "file",
+                                "agent",
+                                "ref",
+                                "runtime"
+                              ],
                               "type": "string"
                             }
                           },
@@ -257103,10 +257254,24 @@
                                   "description": {
                                     "type": "string"
                                   },
+                                  "enum": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  },
                                   "ref": {
                                     "nullable": true,
                                     "properties": {
                                       "kind": {
+                                        "enum": [
+                                          "skill",
+                                          "loop",
+                                          "worktree",
+                                          "session",
+                                          "workspace",
+                                          "secret"
+                                        ],
                                         "type": "string"
                                       }
                                     },
@@ -257119,6 +257284,15 @@
                                     "type": "boolean"
                                   },
                                   "type": {
+                                    "enum": [
+                                      "string",
+                                      "number",
+                                      "boolean",
+                                      "file",
+                                      "agent",
+                                      "ref",
+                                      "runtime"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -257759,6 +257933,9 @@
                           "node_id": {
                             "type": "string"
                           },
+                          "path": {
+                            "type": "string"
+                          },
                           "severity": {
                             "enum": [
                               "error",
@@ -257776,22 +257953,32 @@
                       },
                       "type": "array"
                     },
-                    "input_default": {
+                    "input_validation": {
                       "nullable": true,
                       "properties": {
-                        "key": {
+                        "field": {
+                          "type": "string"
+                        },
+                        "kind": {
                           "type": "string"
                         },
                         "loop": {
                           "type": "string"
                         },
+                        "origin": {
+                          "type": "string"
+                        },
                         "reason": {
+                          "type": "string"
+                        },
+                        "value": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "key",
+                        "field",
                         "loop",
+                        "origin",
                         "reason"
                       ],
                       "type": "object"
@@ -268846,10 +269033,24 @@
                             "description": {
                               "type": "string"
                             },
+                            "enum": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
                             "ref": {
                               "nullable": true,
                               "properties": {
                                 "kind": {
+                                  "enum": [
+                                    "skill",
+                                    "loop",
+                                    "worktree",
+                                    "session",
+                                    "workspace",
+                                    "secret"
+                                  ],
                                   "type": "string"
                                 }
                               },
@@ -268862,6 +269063,15 @@
                               "type": "boolean"
                             },
                             "type": {
+                              "enum": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "file",
+                                "agent",
+                                "ref",
+                                "runtime"
+                              ],
                               "type": "string"
                             }
                           },
@@ -269175,6 +269385,9 @@
                           "node_id": {
                             "type": "string"
                           },
+                          "path": {
+                            "type": "string"
+                          },
                           "severity": {
                             "enum": [
                               "error",
@@ -269192,22 +269405,32 @@
                       },
                       "type": "array"
                     },
-                    "input_default": {
+                    "input_validation": {
                       "nullable": true,
                       "properties": {
-                        "key": {
+                        "field": {
+                          "type": "string"
+                        },
+                        "kind": {
                           "type": "string"
                         },
                         "loop": {
                           "type": "string"
                         },
+                        "origin": {
+                          "type": "string"
+                        },
                         "reason": {
+                          "type": "string"
+                        },
+                        "value": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "key",
+                        "field",
                         "loop",
+                        "origin",
                         "reason"
                       ],
                       "type": "object"
@@ -269340,6 +269563,9 @@
                           "node_id": {
                             "type": "string"
                           },
+                          "path": {
+                            "type": "string"
+                          },
                           "severity": {
                             "enum": [
                               "error",
@@ -269357,22 +269583,32 @@
                       },
                       "type": "array"
                     },
-                    "input_default": {
+                    "input_validation": {
                       "nullable": true,
                       "properties": {
-                        "key": {
+                        "field": {
+                          "type": "string"
+                        },
+                        "kind": {
                           "type": "string"
                         },
                         "loop": {
                           "type": "string"
                         },
+                        "origin": {
+                          "type": "string"
+                        },
                         "reason": {
+                          "type": "string"
+                        },
+                        "value": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "key",
+                        "field",
                         "loop",
+                        "origin",
                         "reason"
                       ],
                       "type": "object"

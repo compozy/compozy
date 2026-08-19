@@ -19,6 +19,7 @@ interface TriggerTargetStepProps {
   onPromptChange: (next: string) => void;
   /** Loop-mode fields. */
   catalog: LoopTargetCatalog;
+  workspaceId: string;
   editorMode: "create" | "edit";
   loopTarget: LoopTargetDraft;
   onLoopTargetChange: (next: LoopTargetDraft) => void;
@@ -46,6 +47,7 @@ export function TriggerTargetStep({
   onAgentChange,
   onPromptChange,
   catalog,
+  workspaceId,
   editorMode,
   loopTarget,
   onLoopTargetChange,
@@ -65,6 +67,7 @@ export function TriggerTargetStep({
           identityDisabled={editorMode === "edit"}
           mode={editorMode}
           value={loopTarget}
+          workspaceId={workspaceId}
           onChange={onLoopTargetChange}
           showMapping
         />

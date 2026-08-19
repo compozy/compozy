@@ -56,7 +56,7 @@ describe("LoopRunInputField", () => {
     );
   });
 
-  it("Should render an avatar-prefixed control for agent types", () => {
+  it("Should render an agent picker and keep an unresolved value visible", () => {
     render(
       <LoopRunInputField
         name="implementer"
@@ -67,7 +67,34 @@ describe("LoopRunInputField", () => {
     );
     const wrapper = screen.getByTestId("loop-run-field-implementer");
     expect(wrapper).toHaveAttribute("data-input-type", "agent");
-    expect(wrapper).toHaveTextContent("co");
+    expect(screen.getByTestId("loop-run-field-input-implementer").tagName).toBe("BUTTON");
+    expect(wrapper).toHaveTextContent("code_implementer");
+    expect(wrapper).toHaveTextContent("Not available");
+  });
+
+  it("Should render enum and runtime declarations as closed typed controls", () => {
+    const enumRender = render(
+      <LoopRunInputField
+        name="environment"
+        field={field({ type: "string", enum: ["dev", "staging", "prod"] })}
+        value="staging"
+        onChange={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-run-field-input-environment").tagName).toBe("BUTTON");
+    expect(screen.getByTestId("loop-run-field-environment")).toHaveTextContent("staging");
+    enumRender.unmount();
+
+    render(
+      <LoopRunInputField
+        name="runtime"
+        field={field({ type: "runtime" })}
+        value={{ provider: "codex", model: "gpt-5.6" }}
+        onChange={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-run-field-input-runtime").tagName).toBe("BUTTON");
+    expect(screen.getByTestId("loop-run-field-runtime")).toHaveTextContent("runtime");
   });
 
   it("Should render the declared type verbatim in the badge (boolean, not bool)", () => {

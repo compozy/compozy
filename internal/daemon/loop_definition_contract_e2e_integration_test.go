@@ -79,7 +79,10 @@ func graphAuthoringContractDefinition() contract.LoopDefinitionDocument {
 			Version:     1,
 		},
 		Inputs: map[string]dsl.Input{
-			"tasks": {Type: dsl.InputTypeRef, Required: true},
+			"tasks": {
+				Type: dsl.InputTypeRef, Required: true,
+				Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill},
+			},
 		},
 		Contract: dsl.Contract{
 			Goal:             "Process every task after an operator review.",

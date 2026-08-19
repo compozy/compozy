@@ -57,12 +57,15 @@ func (n *daemonNativeTools) configSet(
 		workspaceRoot,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			if policy.Kind == compozyconfig.ConfigValueTable {
+			if policy.Kind == compozyconfig.ConfigValueTable ||
+				policy.Kind == compozyconfig.ConfigValueLoopInput {
 				table, ok := value.(map[string]any)
-				if !ok {
+				if ok {
+					return editor.SetTable(policy.Segments, table)
+				}
+				if policy.Kind == compozyconfig.ConfigValueTable {
 					return fmt.Errorf("daemon: config path %q requires an object", path)
 				}
-				return editor.SetTable(policy.Segments, table)
 			}
 			return editor.SetValue(policy.Segments, value)
 		},

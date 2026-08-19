@@ -77,6 +77,29 @@ export const pendingEnumAskRequest = request({
   expires_at: "2026-08-18T09:00:00Z",
 });
 
+export const pendingEntityAskRequest = request({
+  node_id: "choose-reviewer",
+  kind: "ask",
+  prompt: "Who reviews this rollout?",
+  context: { train: "release-train" },
+  expect: {
+    type: "object",
+    required: ["assignment"],
+    properties: {
+      assignment: {
+        type: "object",
+        required: ["reviewer"],
+        properties: {
+          reviewer: { type: "string", "x-compozy-kind": "agent" },
+        },
+      },
+    },
+  },
+  decisions: ["respond"],
+  agents: "allow",
+  expires_at: "2026-08-18T09:00:00Z",
+});
+
 export const pendingReviewRequest = request({
   node_id: "apply-migration",
   kind: "review",

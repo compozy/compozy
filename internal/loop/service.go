@@ -43,6 +43,7 @@ type service struct {
 	responderPolicy       ResponderPolicy
 	participationResolver participation.Resolver
 	runtimeCatalog        WorkspaceRuntimeCatalog
+	inputEntities         InputEntityCatalog
 	logger                *slog.Logger
 	now                   func() time.Time
 	newRunID              func() (RunID, error)
@@ -100,6 +101,11 @@ func (s *service) DryRun(
 	}
 	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, loopName, resolved.Definition, inputs.Values)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateResolvedInputEntities(
+		ctx, ws, loopName, resolved.Definition, resolvedInputs,
+	); err != nil {
 		return nil, err
 	}
 	effective, err := s.effectiveConfig(

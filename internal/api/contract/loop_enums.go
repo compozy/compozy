@@ -1,6 +1,35 @@
 package contract
 
-import looppkg "github.com/compozy/compozy/internal/loop"
+import (
+	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
+)
+
+// LoopInputTypeValues returns the closed Loop input type vocabulary.
+func LoopInputTypeValues() []string {
+	return []string{
+		string(dsl.InputTypeString), string(dsl.InputTypeNumber), string(dsl.InputTypeBoolean),
+		string(dsl.InputTypeFile), string(dsl.InputTypeAgent), string(dsl.InputTypeRef),
+		string(dsl.InputTypeRuntime),
+	}
+}
+
+// LoopInputRefKindValues returns the closed ref-backed input kind vocabulary.
+func LoopInputRefKindValues() []string {
+	return []string{
+		string(dsl.InputRefKindSkill), string(dsl.InputRefKindLoop), string(dsl.InputRefKindWorktree),
+		string(dsl.InputRefKindSession), string(dsl.InputRefKindWorkspace), string(dsl.InputRefKindSecret),
+	}
+}
+
+// LoopEntityKindValues returns the closed x-compozy-kind vocabulary.
+func LoopEntityKindValues() []string {
+	return []string{
+		string(dsl.EntityKindAgent), string(dsl.EntityKindSkill), string(dsl.EntityKindLoop),
+		string(dsl.EntityKindWorktree), string(dsl.EntityKindSession), string(dsl.EntityKindWorkspace),
+		string(dsl.EntityKindSecret),
+	}
+}
 
 // LoopRunEventKind is the public loop run event stream vocabulary.
 type LoopRunEventKind = looppkg.RunEventKind

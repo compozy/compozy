@@ -453,7 +453,7 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 		{
 			name: "Should allow dynamic per Loop input defaults",
 			path: []string{"loops", "inputs", "review-and-fix", "auto_commit"},
-			kind: ConfigValueScalar,
+			kind: ConfigValueLoopInput,
 		},
 	}
 

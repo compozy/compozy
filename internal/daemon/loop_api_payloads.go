@@ -196,6 +196,7 @@ func loopLintErrorsPayload(errors []looppkg.LintError) []contract.LoopLintErrorP
 	for _, item := range errors {
 		payloads = append(payloads, contract.LoopLintErrorPayload{
 			NodeID:   string(item.NodeID),
+			Path:     item.Path,
 			Code:     item.Code,
 			Message:  item.Message,
 			Severity: contract.LoopLintSeverity(item.Severity),
@@ -204,6 +205,9 @@ func loopLintErrorsPayload(errors []looppkg.LintError) []contract.LoopLintErrorP
 	sort.SliceStable(payloads, func(left, right int) bool {
 		if payloads[left].NodeID != payloads[right].NodeID {
 			return payloads[left].NodeID < payloads[right].NodeID
+		}
+		if payloads[left].Path != payloads[right].Path {
+			return payloads[left].Path < payloads[right].Path
 		}
 		return payloads[left].Code < payloads[right].Code
 	})

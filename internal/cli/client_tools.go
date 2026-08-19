@@ -14,6 +14,7 @@ import (
 	redactpkg "github.com/compozy/compozy/internal/redact"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 const (
@@ -352,7 +353,20 @@ func redactToolRawJSON(raw json.RawMessage) json.RawMessage {
 		return json.RawMessage(redacted)
 	}
 	engine := redactpkg.New(redactpkg.Options{Disabled: !redactpkg.Enabled()})
-	return engine.RedactJSON(raw, toolResultDisplayJSONFields)
+	return engine.RedactJSONWithProtection(
+		raw,
+		toolResultDisplayJSONFields,
+		publicToolResultString,
+		publicToolResultObject,
+	)
+}
+
+func publicToolResultString(key string, value string) bool {
+	return strings.EqualFold(strings.TrimSpace(key), "ref") && vault.ValidateSecretRef(value) == nil
+}
+
+func publicToolResultObject(_ string, value any) bool {
+	return toolspkg.IsPublicInputDeclaration(value)
 }
 
 func redactToolMetadata(metadata map[string]json.RawMessage) map[string]json.RawMessage {

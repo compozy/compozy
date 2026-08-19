@@ -48,6 +48,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -87,6 +88,69 @@ type nativeOrchestrationSessionManager struct {
 
 type nativeCoreOnlySessionManager struct {
 	core.SessionManager
+}
+
+type nativeEntityAgentCatalog struct {
+	global          []core.AgentCatalogEntry
+	workspace       []core.AgentCatalogEntry
+	listedWorkspace string
+}
+
+func (c *nativeEntityAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
+	return slices.Clone(c.global), nil
+}
+
+func (c *nativeEntityAgentCatalog) ListAgentsForWorkspace(
+	_ context.Context,
+	workspace *workspacepkg.ResolvedWorkspace,
+) ([]core.AgentCatalogEntry, error) {
+	if workspace != nil {
+		c.listedWorkspace = workspace.ID
+	}
+	return slices.Clone(c.workspace), nil
+}
+
+func (c *nativeEntityAgentCatalog) GetAgent(
+	_ context.Context,
+	name string,
+) (core.AgentCatalogEntry, error) {
+	entries := append(slices.Clone(c.global), c.workspace...)
+	for _, entry := range entries {
+		if entry.Def.Name == name {
+			return entry, nil
+		}
+	}
+	return core.AgentCatalogEntry{}, os.ErrNotExist
+}
+
+type nativeEntityVaultService struct {
+	prefix string
+	rows   []vault.Metadata
+}
+
+func (s *nativeEntityVaultService) GetMetadata(context.Context, string) (vault.Metadata, error) {
+	return vault.Metadata{}, vault.ErrSecretNotFound
+}
+
+func (s *nativeEntityVaultService) ListMetadata(
+	_ context.Context,
+	prefix string,
+) ([]vault.Metadata, error) {
+	s.prefix = prefix
+	return slices.Clone(s.rows), nil
+}
+
+func (s *nativeEntityVaultService) PutSecret(
+	context.Context,
+	string,
+	string,
+	string,
+) (vault.Metadata, error) {
+	return vault.Metadata{}, nil
+}
+
+func (s *nativeEntityVaultService) DeleteSecret(context.Context, string) error {
+	return nil
 }
 
 func (m *nativeOrchestrationSessionManager) WaitForBadge(
@@ -1528,6 +1592,64 @@ func TestDaemonNativeTools(t *testing.T) {
 		if viewPayload.Content != expectedContent || len(viewResult.Content) != 1 ||
 			viewResult.Content[0].Text != expectedContent {
 			t.Fatalf("skill_view did not return the resolved bundled resource")
+		}
+	})
+
+	t.Run("Should list workspace agents and redacted global Vault refs", func(t *testing.T) {
+		t.Parallel()
+
+		agents := &nativeEntityAgentCatalog{
+			global: []core.AgentCatalogEntry{{
+				Def: compozyconfig.AgentDef{Name: "global-only"},
+			}},
+			workspace: []core.AgentCatalogEntry{{
+				Def:         compozyconfig.AgentDef{Name: "reviewer"},
+				WorkspaceID: "ws-entity",
+			}},
+		}
+		secrets := &nativeEntityVaultService{rows: []vault.Metadata{{
+			Ref:     "vault:providers/openai/api_key",
+			Kind:    "api_key",
+			Present: true,
+		}}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			AgentCatalog: agents,
+			Vault:        secrets,
+			Workspaces:   nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+
+		agentResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentList,
+				Input:  json.RawMessage(`{"workspace":"ws-entity"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(agent_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, agentResult, []byte(`"name":"reviewer"`))
+		requireNativeStructuredExcludes(t, agentResult, []byte(`"global-only"`))
+		if agents.listedWorkspace != "ws-entity" {
+			t.Fatalf("agent catalog workspace = %q, want ws-entity", agents.listedWorkspace)
+		}
+
+		vaultResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDVaultList,
+				Input:  json.RawMessage(`{"prefix":"vault:providers/openai/"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(vault_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, vaultResult, []byte(`"ref":"vault:providers/openai/api_key"`))
+		requireNativeStructuredExcludes(t, vaultResult, []byte(`"secret_value"`))
+		if secrets.prefix != "vault:providers/openai/" {
+			t.Fatalf("Vault list prefix = %q, want normalized provider prefix", secrets.prefix)
 		}
 	})
 
@@ -3414,6 +3536,54 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(config_get Loop input default) error = %v", err)
 		}
 		requireNativeStructuredContains(t, loopInputResult, []byte(`"value":false`))
+		loopRuntimePath := "loops.inputs.review-and-fix.runtime"
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigSet,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"path":%q,"value":{"provider":"codex","model":"gpt-5.6","reasoning":"high"},"scope":"workspace","workspace":%q}`,
+					loopRuntimePath,
+					loopInputWorkspace,
+				)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_set Loop runtime input default) error = %v", err)
+		}
+		loopRuntimeResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigGet,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"path":%q,"workspace":%q}`,
+					loopRuntimePath+".provider",
+					loopInputWorkspace,
+				)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_get Loop runtime provider default) error = %v", err)
+		}
+		requireNativeStructuredContains(t, loopRuntimeResult, []byte(`"value":"codex"`))
+		loopRuntimeResult, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigGet,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"path":%q,"workspace":%q}`,
+					loopRuntimePath+".reasoning",
+					loopInputWorkspace,
+				)),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(config_get Loop runtime reasoning default) error = %v", err)
+		}
+		requireNativeStructuredContains(t, loopRuntimeResult, []byte(`"value":"high"`))
 		unsetLoopInputResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{Operator: true},

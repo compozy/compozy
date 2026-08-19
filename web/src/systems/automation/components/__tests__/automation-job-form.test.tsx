@@ -3,6 +3,7 @@
 // Boundary IN: controlled Job form, pure preview projection, and rendered preview cards.
 // Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
 import { agentFixtures } from "@/systems/agent/mocks";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -84,7 +85,14 @@ function renderJobForm({
     );
   }
 
-  const view = render(<Harness />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const view = render(
+    <QueryClientProvider client={queryClient}>
+      <Harness />
+    </QueryClientProvider>
+  );
 
   return { onCancel, onChange, onSubmit, ...view };
 }
@@ -101,6 +109,16 @@ function showPreview() {
 function showForm() {
   if (screen.queryByTestId("job-name-input")) return;
   fireEvent.click(screen.getByTestId("job-preview-toggle"));
+}
+
+function openLoopOptions() {
+  const trigger = screen.getByTestId("loop-target-select");
+  if (trigger.getAttribute("aria-expanded") !== "true") fireEvent.click(trigger);
+  return screen.getByRole("listbox", { name: "Suggestions" });
+}
+
+function selectLoop(name: string) {
+  fireEvent.click(within(openLoopOptions()).getByText(name, { selector: "[cmdk-item] *" }));
 }
 
 describe("AutomationJobForm", () => {
@@ -251,9 +269,7 @@ describe("AutomationJobForm", () => {
     expect(screen.getByTestId("loop-target-fields")).toBeInTheDocument();
     expect(screen.queryByTestId("job-prompt-input")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
+    selectLoop("implement-tasks");
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         loop_target: expect.objectContaining({ loop_name: "implement-tasks" }),
@@ -288,18 +304,18 @@ describe("AutomationJobForm", () => {
 
     fireEvent.click(screen.getByTestId("job-target-loop"));
 
-    const select = screen.getByRole("combobox", { name: "Loop" });
-    expect(select).toHaveTextContent("implement-tasks");
-    expect(select).not.toHaveTextContent("review-and-fix");
+    const options = openLoopOptions();
+    expect(
+      within(options).getByText("implement-tasks", { selector: "[cmdk-item] *" })
+    ).toBeInTheDocument();
+    expect(within(options).queryByText("review-and-fix", { selector: "[cmdk-item] *" })).toBeNull();
   });
 
   it("Should preserve the explicit Loop workspace when a Job is global", () => {
     const { onChange } = renderJobForm({ draft: createAutomationJobDraft(null) });
 
     fireEvent.click(screen.getByTestId("job-target-loop"));
-    fireEvent.change(screen.getByTestId("loop-target-select"), {
-      target: { value: "implement-tasks" },
-    });
+    selectLoop("implement-tasks");
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -358,8 +374,8 @@ describe("AutomationJobForm", () => {
       },
     });
 
-    expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("review-and-fix");
-    expect(screen.getByRole("combobox", { name: "Loop" })).toBeDisabled();
+    expect(screen.getByTestId("loop-target-select")).toHaveTextContent("review-and-fix");
+    expect(screen.getByTestId("loop-target-select")).toBeDisabled();
     expect(screen.getByTestId("job-target-agent")).toBeDisabled();
     expect(screen.getByTestId("job-target-task")).toBeDisabled();
     expect(screen.getByTestId("job-target-loop")).toBeDisabled();

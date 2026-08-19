@@ -28,7 +28,7 @@ const { LoopRunAttentionPanel, LoopRunWaitingPanel } =
   await import("../run-page/loop-run-parked-panels");
 const { LoopRunNeedsYouCard } = await import("../run-page/loop-run-needs-you-card");
 const { projectLoopRequest } = await import("../../lib/loop-request-model");
-const { answeredAskRequest, pendingReviewRequest } =
+const { answeredAskRequest, pendingEntityAskRequest, pendingReviewRequest } =
   await import("../../mocks/fixture-graph-eng-requests");
 const { LoopRunOutcomeCard } = await import("../run-page/loop-run-outcome-card");
 const { LoopRunControls } = await import("../run-page/loop-run-controls");
@@ -37,6 +37,7 @@ const { LoopNodeRowActions } = await import("../run-page/loop-node-row-actions")
 const { LoopRunOverflowMenu } = await import("../run-page/loop-run-overflow-menu");
 const { LoopRunControlDialog } = await import("../run-page/loop-run-control-dialog");
 const { LoopNodeControlDialog } = await import("../run-page/loop-node-control-dialog");
+const { LoopNodeAmendDialog } = await import("../run-page/loop-node-amend-dialog");
 const { LoopQuarantineSheet } = await import("../run-page/loop-quarantine-sheet");
 const { LoopRunWaitsRail } = await import("../run-page/loop-run-waits-rail");
 const { LOOP_NODE_VERB_PRESENTATION, loopNodeVerbs, loopNodeWaitResumeItemIndex } =
@@ -542,6 +543,28 @@ describe("LoopRunNeedsYouCard", () => {
     expect(screen.getByTestId("loop-request-decision-approve")).toHaveFocus();
   });
 
+  it("Should render an entity-annotated answer with the shared picker", () => {
+    render(
+      <LoopRunNeedsYouCard
+        fallbackFacts={[]}
+        onDecision={vi.fn()}
+        request={null}
+        requests={[
+          projectLoopRequest(pendingEntityAskRequest, {
+            nowMs: Date.parse("2026-08-17T10:00:00Z"),
+            runStatus: "running",
+          }),
+        ]}
+        run={run({ status: "running" })}
+        showApproval={false}
+      />
+    );
+
+    const picker = screen.getByTestId("loop-request-field-assignment.reviewer");
+    expect(picker.tagName).toBe("BUTTON");
+    expect(screen.getByText("Reviewer")).toBeInTheDocument();
+  });
+
   it("Should route each closed decision with the streamed gate id", () => {
     const onDecision = vi.fn();
     render(
@@ -647,6 +670,32 @@ describe("LoopRunNeedsYouCard", () => {
     fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-1-g2"));
     expect(onOpenQuarantine).toHaveBeenNthCalledWith(1, "fix_batch");
     expect(onOpenQuarantine).toHaveBeenNthCalledWith(2, "fix_batch");
+  });
+});
+
+describe("LoopNodeAmendDialog typed fields", () => {
+  it("Should render an entity annotation with the shared picker and preserve its value", () => {
+    render(
+      <LoopNodeAmendDialog
+        node={loopNodeLifecycleFixture({ nodeId: "review", outputStatus: "succeeded" })}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        open
+        originalOutput={{ reviewer: "reviewer" }}
+        outputSchema={{
+          type: "object",
+          required: ["reviewer"],
+          properties: {
+            reviewer: { type: "string", "x-compozy-kind": "agent" },
+          },
+        }}
+      />
+    );
+
+    const picker = screen.getByTestId("loop-amend-field-reviewer");
+    expect(picker.tagName).toBe("BUTTON");
+    expect(picker).toHaveTextContent("reviewer");
+    expect(picker).toHaveTextContent("Not available");
   });
 });
 

@@ -40,6 +40,7 @@ export interface LoopRequestQuestionnaireProps {
   requests: readonly LoopRequestView[];
   requestFocus?: LoopRequestFocusTarget;
   requestState?: LoopRunRequestState;
+  workspaceId?: string;
 }
 
 function matchesFocus(view: LoopRequestView, focus: LoopRequestFocusTarget): boolean {
@@ -69,6 +70,7 @@ export function LoopRequestQuestionnaire({
   requests,
   requestFocus,
   requestState,
+  workspaceId = "",
 }: LoopRequestQuestionnaireProps) {
   const open = requests.filter(view => view.isAnswerable);
   const settled = requests.filter(view => !view.isAnswerable);
@@ -159,6 +161,7 @@ export function LoopRequestQuestionnaire({
             }
             refusal={isEngaged ? requestState?.refusal : undefined}
             view={active}
+            workspaceId={workspaceId}
           />
         </div>
       ) : null}

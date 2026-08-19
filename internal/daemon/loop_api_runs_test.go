@@ -462,7 +462,24 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 		workspaceRoot,
 		time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC),
 	)
-	service := &daemonLoopAPIService{homePaths: homePaths, workspaceResolver: resolver}
+	service := &daemonLoopAPIService{
+		homePaths: homePaths, workspaceResolver: resolver,
+		resolver: looppkg.DefinitionResolverFunc(func(
+			context.Context,
+			looppkg.WorkspaceID,
+			string,
+		) (*looppkg.ResolvedDefinition, error) {
+			return &looppkg.ResolvedDefinition{Definition: dsl.Definition{
+				Meta: dsl.Meta{Name: "review-and-fix"},
+				Inputs: map[string]dsl.Input{
+					"auto_commit": {Type: dsl.InputTypeBoolean},
+					"retries":     {Type: dsl.InputTypeNumber},
+					"reviewer":    {Type: dsl.InputTypeString},
+					"runtime":     {Type: dsl.InputTypeRuntime},
+				},
+			}}, nil
+		}),
+	}
 
 	global, err := service.PutLoopInputDefault(
 		t.Context(),
@@ -488,6 +505,7 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 				"auto_commit": true,
 				"retries":     float64(0),
 				"reviewer":    "",
+				"runtime":     map[string]any{"model": "gpt-5", "reasoning": "high"},
 			},
 		},
 	)
@@ -511,6 +529,10 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 	}
 	if reviewer, present := workspace.Values["reviewer"]; !present || reviewer != "" {
 		t.Fatalf("workspace reviewer = %#v/%v, want present empty string", reviewer, present)
+	}
+	runtime, ok := workspace.Values["runtime"].(map[string]any)
+	if !ok || runtime["model"] != "gpt-5" || runtime["reasoning"] != "high" {
+		t.Fatalf("workspace runtime = %#v, want typed runtime object", workspace.Values["runtime"])
 	}
 
 	globalLayer, err := service.GetLoopInputDefaults(

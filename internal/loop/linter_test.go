@@ -37,6 +37,116 @@ graph:
 	requireLintMessageContains(t, errList, loop.CodeUnknownParameter, "contract.no_progress.hash_fields")
 }
 
+// Invariant: every declared input has a closed shape and a valid author-owned default.
+// The canonical linter suite owns Loop input declaration diagnostics.
+func TestLinterShouldValidateInputDeclarations(t *testing.T) {
+	t.Parallel()
+
+	valid := validDefinition()
+	valid.Inputs = map[string]dsl.Input{
+		"environment": {
+			Type: dsl.InputTypeString, Enum: []string{"dev", "prod"}, Default: "dev",
+		},
+		"reviewer": {Type: dsl.InputTypeAgent, Default: "reviewer"},
+		"runtime": {
+			Type: dsl.InputTypeRuntime, Default: map[string]any{"model": "gpt-5"},
+		},
+		"skill": {
+			Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill},
+		},
+		"tasks": {
+			Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill}, Required: true,
+		},
+	}
+	if _, err := loop.NewCompiler().Compile(valid); err != nil {
+		t.Fatalf("Compile(valid inputs) error = %v", err)
+	}
+
+	for _, testCase := range []struct {
+		name   string
+		path   string
+		code   string
+		mutate func(*dsl.Definition)
+	}{
+		{
+			name: "Should require an input type", path: "inputs.environment.type",
+			code: loop.CodeInputTypeRequired,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["environment"]
+				input.Type = ""
+				definition.Inputs["environment"] = input
+			},
+		},
+		{
+			name: "Should reject an unknown input field", path: "inputs.environment.kind",
+			code: loop.CodeInputFieldUnknown,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["environment"]
+				input.Extra = map[string]any{"kind": "string"}
+				definition.Inputs["environment"] = input
+			},
+		},
+		{
+			name: "Should require ref kind", path: "inputs.skill.ref",
+			code: loop.CodeInputRefRequired,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["skill"]
+				input.Ref = nil
+				definition.Inputs["skill"] = input
+			},
+		},
+		{
+			name: "Should reject an unknown ref kind", path: "inputs.skill.ref.kind",
+			code: loop.CodeInputRefKindInvalid,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["skill"]
+				input.Ref = &dsl.InputRef{Kind: "recipe"}
+				definition.Inputs["skill"] = input
+			},
+		},
+		{
+			name: "Should reject enum outside string inputs", path: "inputs.environment.enum",
+			code: loop.CodeInputEnumInvalid,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["environment"]
+				input.Type = dsl.InputTypeAgent
+				definition.Inputs["environment"] = input
+			},
+		},
+		{
+			name: "Should reject a default outside the enum", path: "inputs.environment.default",
+			code: loop.CodeInputDefaultInvalid,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["environment"]
+				input.Default = "staging"
+				definition.Inputs["environment"] = input
+			},
+		},
+		{
+			name: "Should reject an unknown runtime field", path: "inputs.runtime.default",
+			code: loop.CodeInputDefaultInvalid,
+			mutate: func(definition *dsl.Definition) {
+				input := definition.Inputs["runtime"]
+				input.Default = map[string]any{"speed": "fast"}
+				definition.Inputs["runtime"] = input
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			definition := valid
+			definition.Inputs = maps.Clone(valid.Inputs)
+			testCase.mutate(&definition)
+			requireLintPathDiagnostic(
+				t,
+				loop.NewLinter().Lint(definition),
+				testCase.path,
+				testCase.code,
+			)
+		})
+	}
+}
+
 // Invariant: ask controls declare a valid answer shape and only route expiry forward.
 // The canonical linter suite owns authoring diagnostics and output-schema derivation.
 func TestLinterShouldValidateAskControls(t *testing.T) {
@@ -54,8 +164,15 @@ func TestLinterShouldValidateAskControls(t *testing.T) {
 				{
 					ID: "select", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk),
 					Params: dsl.NodeParams{
-						"prompt":     "Which environment?",
-						"expect":     map[string]any{"environment": "string"},
+						"prompt": "Which environment?",
+						"expect": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"environment": map[string]any{
+									"type": "string", "x-compozy-kind": "workspace",
+								},
+							},
+						},
 						"responders": map[string]any{"agents": "allow"},
 						"expires":    map[string]any{"after": "1h", "route": "expired"},
 					},
@@ -104,6 +221,20 @@ func TestLinterShouldValidateAskControls(t *testing.T) {
 				definition.Graph.Nodes[0].Params["responders"] = map[string]any{"agents": "sometimes"}
 			},
 			code: loop.CodeResponderPolicyInvalid,
+		},
+		{
+			name: "Should reject an unknown entity annotation",
+			edit: func(definition *dsl.Definition) {
+				definition.Graph.Nodes[0].Params["expect"] = map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"environment": map[string]any{
+							"type": "string", "x-compozy-kind": "recipe",
+						},
+					},
+				}
+			},
+			code: loop.CodeRequestEntityKindInvalid,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2184,6 +2315,16 @@ func requireLintDiagnostic(t *testing.T, diagnostics []loop.LintError, code stri
 	t.Fatalf("Lint() diagnostics = %#v, want %s %q", diagnostics, severity, code)
 }
 
+func requireLintPathDiagnostic(t *testing.T, diagnostics []loop.LintError, path string, code string) {
+	t.Helper()
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Path == path && diagnostic.Code == code && diagnostic.Severity == loop.SeverityError {
+			return
+		}
+	}
+	t.Fatalf("Lint() diagnostics = %#v, want error %q at %q", diagnostics, code, path)
+}
+
 type identityToolSchemas struct{}
 
 func (identityToolSchemas) Snapshot(string) (loop.ToolSchemaSnapshot, bool) {
@@ -2204,7 +2345,10 @@ func validDefinition() dsl.Definition {
 			Version: 1,
 		},
 		Inputs: map[string]dsl.Input{
-			"tasks": {Type: dsl.InputTypeRef, Required: true},
+			"tasks": {
+				Type: dsl.InputTypeRef, Required: true,
+				Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill},
+			},
 		},
 		Contract: dsl.Contract{
 			Goal:             "Complete task list",
@@ -2343,7 +2487,7 @@ func singleNodeDefinition(node dsl.Node) dsl.Definition {
 		Kind:       dsl.KindLoop,
 		Meta:       dsl.Meta{Name: "single-node"},
 		Inputs: map[string]dsl.Input{
-			"items": {Type: dsl.InputTypeRef},
+			"items": {Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill}},
 		},
 		Contract: dsl.Contract{
 			Goal:             "Validate",

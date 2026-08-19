@@ -36,6 +36,7 @@ const (
 // LintError is the per-node shape surfaced to authoring clients.
 type LintError struct {
 	NodeID   dsl.NodeID   `json:"node_id,omitempty"`
+	Path     string       `json:"path,omitempty"`
 	Code     string       `json:"code"`
 	Message  string       `json:"message"`
 	Severity LintSeverity `json:"severity"`

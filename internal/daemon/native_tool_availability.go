@@ -34,6 +34,8 @@ type nativeToolAvailabilitySet struct {
 	worktrees            toolspkg.NativeAvailabilityFunc
 	workspaceDetails     toolspkg.NativeAvailabilityFunc
 	agentCreate          toolspkg.NativeAvailabilityFunc
+	agentCatalog         toolspkg.NativeAvailabilityFunc
+	vault                toolspkg.NativeAvailabilityFunc
 	tasks                toolspkg.NativeAvailabilityFunc
 	taskNotifications    toolspkg.NativeAvailabilityFunc
 	memory               toolspkg.NativeAvailabilityFunc
@@ -138,6 +140,10 @@ func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nat
 	availability.agentCreate = n.dependencyAvailability(func() bool {
 		return n.deps.Workspaces != nil && strings.TrimSpace(n.deps.HomePaths.AgentsDir) != ""
 	})
+	availability.agentCatalog = n.dependencyAvailability(func() bool {
+		return n.deps.AgentCatalog != nil && n.deps.Workspaces != nil
+	})
+	availability.vault = n.dependencyAvailability(func() bool { return n.deps.Vault != nil })
 	n.applyTaskNativeToolAvailability(availability)
 }
 

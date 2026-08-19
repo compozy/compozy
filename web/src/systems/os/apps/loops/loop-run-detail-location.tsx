@@ -185,6 +185,7 @@ function LoopRunDetail({
     <>
       <LoopRunPageBody
         run={page.effectiveRun}
+        workspaceId={workspaceId}
         definition={page.definition}
         materializedContract={page.materializedContract}
         graph={page.graph}
@@ -280,6 +281,7 @@ function LoopRunDetail({
         open={nodeControls.amendNode !== null}
         originalOutput={nodeControls.amendOriginalOutput}
         outputSchema={nodeControls.amendOutputSchema}
+        workspaceId={workspaceId}
       />
       <LoopNodeRerunDialog
         answer={nodeControls.timetravelAnswer}
@@ -310,6 +312,7 @@ function LoopRunDetail({
         }}
         open={timetravel.forkGeneration !== null}
         sourceInputs={timetravel.forkSourceInputs}
+        workspaceId={workspaceId}
       />
       <LoopRunControlDialog
         answer={dialogs.runVerb === "kill" ? page.killAnswer : page.cancelAnswer}

@@ -22,7 +22,19 @@ graph:
           release: "{{ .inputs.release }}"
           candidates: [staging, production]
         expect:
-          environment: string
+          type: object
+          required: [environment, assignment]
+          properties:
+            environment:
+              type: string
+              enum: [staging, production]
+            assignment:
+              type: object
+              required: [reviewer]
+              properties:
+                reviewer:
+                  type: string
+                  x-compozy-kind: agent
         responders:
           agents: deny
         expires:
@@ -58,7 +70,13 @@ graph:
     - { from: choose_environment_result, to: request_expired }
 ```
 
-`expect` is required and becomes the output shape. `responders.agents` defaults to `deny`; set it
+`expect` is required and becomes the output shape. A string property may add `x-compozy-kind` with
+`agent`, `skill`, `loop`, `worktree`, `session`, `workspace`, or `secret`. The annotation is checked
+recursively in nested objects and arrays. It drives the same catalog control used by Loop inputs and
+requires the submitted string to name an entity that exists in the request's workspace; `secret`
+uses redacted global Vault-reference metadata. An `enum` on the same property wins over the catalog.
+
+`responders.agents` defaults to `deny`; set it
 to `allow` only when capability-gated agents should answer. An agent still cannot answer a run it
 started, including through a spawned-child chain. `expires.route` must be a direct forward edge.
 
@@ -88,7 +106,9 @@ expiring a request removes the live row.
 One transaction wins among answer, expiry, and cancellation. An identical retry by the recorded
 responder returns the durable answer without resuming twice. Other late writes return
 `request_already_answered`, `request_expired`, or `request_canceled`. A payload outside `expect`
-returns `request_validation_failed` with field details while the request stays pending.
+returns `request_validation_failed` with field details while the request stays pending. A schema-valid
+payload that names a missing annotated entity returns `input_validation` with `origin: response` and
+the exact nested field path; the request also stays pending.
 
 ## Review an action before it runs
 

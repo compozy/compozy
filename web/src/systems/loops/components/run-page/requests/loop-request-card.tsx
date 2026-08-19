@@ -23,10 +23,13 @@ import { LoopRequestAnswerForm } from "./loop-request-answer-form";
 import { LoopRequestDecisionBar } from "./loop-request-decision-bar";
 import { LoopRequestDetails } from "./loop-request-details";
 import { LoopReviewProposedArgs } from "./loop-review-proposed-args";
+import { LoopInputCatalogBoundary } from "../../input/loop-input-catalogs";
+import type { LoopEntityKind } from "../../../lib/loop-input-kinds";
 
 export interface LoopRequestCardProps {
   /** An answerable request; settled requests render as `LoopRequestSettledRow`. */
   view: LoopRequestView;
+  workspaceId?: string;
   isPending?: boolean;
   focusOnMount?: boolean;
 
@@ -57,6 +60,7 @@ const EMPTY_DRAFT: LoopRequestDraft = { decision: null, values: {}, raw: "", not
 
 export function LoopRequestCard({
   view,
+  workspaceId = "",
   isPending,
   focusOnMount,
   fieldErrors,
@@ -77,6 +81,10 @@ export function LoopRequestCard({
   const schema = decision ? loopRequestDecisionSchema(view.request, decision) : undefined;
   const carriesPayload = decision !== null && loopRequestDecisionCarriesPayload(decision);
   const fields = carriesPayload ? loopRequestFields(schema) : [];
+  const entityKinds = new Set<LoopEntityKind>();
+  for (const field of fields) {
+    if (field.control.kind === "entity") entityKinds.add(field.control.entityKind);
+  }
 
   const isRaw = carriesPayload && !isLoopRequestFieldSchema(schema);
 
@@ -173,18 +181,23 @@ export function LoopRequestCard({
           />
         ) : null}
         {carriesPayload ? (
-          <LoopRequestAnswerForm
-            disabled={isPending}
-            errors={{ ...draft.errors, ...fieldErrors }}
-            fields={fields}
-            idPrefix={idPrefix}
-            isRaw={isRaw}
-            onChange={changeField}
-            onRawChange={raw => setDraft(previous => ({ ...previous, raw }))}
-            promptId={promptId}
-            rawValue={draft.raw}
-            values={draft.values}
-          />
+          <LoopInputCatalogBoundary
+            workspaceId={workspaceId}
+            needs={{ entities: entityKinds, runtime: false }}
+          >
+            <LoopRequestAnswerForm
+              disabled={isPending}
+              errors={{ ...draft.errors, ...fieldErrors }}
+              fields={fields}
+              idPrefix={idPrefix}
+              isRaw={isRaw}
+              onChange={changeField}
+              onRawChange={raw => setDraft(previous => ({ ...previous, raw }))}
+              promptId={promptId}
+              rawValue={draft.raw}
+              values={draft.values}
+            />
+          </LoopInputCatalogBoundary>
         ) : null}
         {decision ? (
           <div className="flex flex-wrap items-center gap-2.5">

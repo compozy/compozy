@@ -28,12 +28,35 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		return errors.New("daemon: automation manager factory is required")
 	}
 
+	manager, err := d.newAutomationManager(d.automationManagerDependencies(state, store))
+	if err != nil {
+		return fmt.Errorf("daemon: create automation manager: %w", err)
+	}
+	if manager == nil {
+		return errors.New("daemon: automation manager factory returned nil")
+	}
+	if err := manager.Start(ctx); err != nil {
+		return fmt.Errorf("daemon: start automation manager: %w", err)
+	}
+
+	cleanup.add(func(ctx context.Context) error {
+		return manager.Shutdown(ctx)
+	})
+	wireAutomationObservers(state, manager)
+	state.automation = manager
+	state.deps.Automation = manager
+	return nil
+}
+
+func (d *Daemon) automationManagerDependencies(
+	state *bootState,
+	store automationpkg.Store,
+) automationManagerDeps {
 	var tasks taskpkg.Manager
 	if state.tasks != nil {
 		tasks = state.tasks.manager
 	}
-
-	manager, err := d.newAutomationManager(automationManagerDeps{
+	return automationManagerDeps{
 		Store:                 store,
 		Sessions:              state.sessions,
 		Tasks:                 tasks,
@@ -48,6 +71,10 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 		LoopCatalog:           state.loopCatalog,
 		ToolRegistry:          state.deps.ToolRegistry,
 		ParticipationResolver: state.participationResolver,
+		LoopInputEntities:     daemonLoopInputEntityCatalog{state: state},
+		LoopRuntimeCatalog: loopRuntimeCatalogFactory{
+			homePaths: d.homePaths, workspaceResolver: state.workspaceResolver,
+		},
 		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {
 				return nil
@@ -55,20 +82,10 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 			_, err := state.resourceReconcile.Trigger(ctx, kind, reason)
 			return err
 		},
-	})
-	if err != nil {
-		return fmt.Errorf("daemon: create automation manager: %w", err)
 	}
-	if manager == nil {
-		return errors.New("daemon: automation manager factory returned nil")
-	}
-	if err := manager.Start(ctx); err != nil {
-		return fmt.Errorf("daemon: start automation manager: %w", err)
-	}
+}
 
-	cleanup.add(func(ctx context.Context) error {
-		return manager.Shutdown(ctx)
-	})
+func wireAutomationObservers(state *bootState, manager automationRuntime) {
 	if state.dreamRuntime != nil {
 		memoryObserver := manager.MemoryObserver()
 		state.dreamRuntime.SetCompletionObserver(func(
@@ -87,8 +104,4 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 	if state.hookTelemetrySinks != nil {
 		state.hookTelemetrySinks.Add(manager.HookTelemetrySink())
 	}
-
-	state.automation = manager
-	state.deps.Automation = manager
-	return nil
 }

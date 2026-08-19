@@ -209,10 +209,10 @@ export const graphEngHandlers: HttpHandler[] = [
         );
       }
       const services = body.inputs?.services;
-      if (Array.isArray(services) && services.length === 0) {
+      if (services !== undefined && typeof services !== "string") {
         return HttpResponse.json(
           reason("input_validation_failed", "inputs do not satisfy the loop's declared shape", {
-            services: "minItems: array must have at least 1 items",
+            services: "services must be a string",
           }),
           { status: 422 }
         );

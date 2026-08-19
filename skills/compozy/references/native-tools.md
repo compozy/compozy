@@ -29,7 +29,7 @@ Management-only surfaces include diagnostics, support bundles, scheduler control
 ## Discovery And Catalog Toolsets
 
 - Toolset `compozy__bootstrap`: `compozy__tool_list`, `compozy__tool_search`, `compozy__tool_info`.
-- Toolset `compozy__catalog`: command and skill catalog access plus bootstrap tools.
+- Toolset `compozy__catalog`: agent, command, skill, and redacted Vault-reference catalog access plus bootstrap tools.
 
 Bare managed sessions receive the full availability-gated callable catalog through hosted MCP. CompozyOS
 does not add an automatic bootstrap/catalog allowlist over the hosted projection. Explicit agent
@@ -141,7 +141,12 @@ the CLI fallback is `compozy session rename <id> <name>`.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
 
-Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy__workspace_describe`, `compozy__agent_create`. `compozy__agent_create` authors one public `AGENT.md` at `global` or `workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider, model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the target project runtime defaults.
+Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy__workspace_describe`,
+`compozy__agent_list`, `compozy__agent_create`. `compozy__agent_list` returns exact names from the
+resolved workspace catalog. `compozy__agent_create` authors one public `AGENT.md` at `global` or
+`workspace` scope; provide `scope`, `name`, `prompt`, and `workspace` for workspace scope. Provider,
+model, and reasoning are optional agent-level overrides; when omitted, the definition inherits the
+target project runtime defaults.
 
 Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `compozy__workspace_list` should return at least that workspace on a clean install.
 
@@ -154,6 +159,9 @@ path through the workspace management surface instead of browsing interactively.
 Workspace unregister is atomic with credential cleanup: it removes workspace-scoped MCP OAuth rows and their encrypted access/refresh values, preserves global and sibling-workspace credentials, and leaves all state intact when cleanup fails.
 
 Provider model tools: `compozy__provider_models_list`, `compozy__provider_models_curate`, `compozy__provider_models_refresh`, `compozy__provider_models_status`.
+
+Vault catalog tool: `compozy__vault_list`. It returns global reference names and redacted metadata,
+optionally filtered by prefix. It never returns secret values.
 
 Gateway tool: `compozy__gateway`, in toolset `compozy__gateway`. Resolve its live descriptor before
 calling it. `status`, `audit`, and `device_list` are read actions and remain callable in every

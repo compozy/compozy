@@ -5,7 +5,13 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 
-import { LoopLifecycleConflictError, LoopsApiError, reasonEnvelope } from "./loops-api-errors";
+import {
+  LoopInputValidationError,
+  LoopLifecycleConflictError,
+  LoopsApiError,
+  inputValidationPayload,
+  reasonEnvelope,
+} from "./loops-api-errors";
 import type {
   ApproveLoopRunRequest,
   LoopRun,
@@ -67,6 +73,10 @@ export async function runLoop(
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) throw new LoopsApiError(`Loop not found: ${name}`, 404);
+    if (response.status === 422) {
+      const validation = inputValidationPayload(error);
+      if (validation) throw new LoopInputValidationError(validation);
+    }
     if (response.status === 409) {
       throw new LoopsApiError(
         defaultApiErrorMessage(`Loop "${name}" is already running`, response, error),

@@ -10,7 +10,12 @@ plan, then watch the run stream live until it reaches one named outcome.
 
 The run form is generated from the Loop's [declared inputs](/docs/loops/dsl-reference#declared-inputs)
 — a typed field per input, each with a type badge, a required marker, and inline validation. An
-`agent` input renders a picker; a `boolean` renders a switch. A sticky preview beside the form shows
+`agent` or `ref` input renders the matching workspace catalog, a `secret` ref lists redacted Vault
+metadata, a `runtime` input offers provider models while accepting exact custom model IDs, and a
+`boolean` renders a switch. An authored `enum` always replaces catalog choices. If a saved reference
+is no longer listed, the field keeps the exact value visible so the daemon can return the field-level
+error instead of silently replacing it. `file` remains a text field; the form does not browse or
+check the path. A sticky preview beside the form shows
 "what will run" — the contract, the verification rows, the seven terminal chips, and a lifecycle line
 — and recomputes on every change. After a successful dry-run, the preview switches to the returned
 `materialized_contract`, so input-backed goal text is exactly what the runtime will use.
@@ -27,6 +32,20 @@ budget, no-progress window, fan-out window, and gate max revisions — plus the 
 policy. Each numeric field shows the per-Loop default and its runtime bound. The fan-out window has
 no fixed daemon cap; logical width remains bounded by each node's positive `max_fan_out`. The
 summary changes from "loop defaults" to "overrides set" only when a value actually differs.
+
+The same typed controls appear wherever Loop inputs are edited: scheduled automation, event-trigger
+mappings, fork and amend flows, and human-request answers annotated with `x-compozy-kind`. Every
+surface submits the exact stored identifier; display labels are never treated as references.
+
+From the CLI, repeat `--input key=value`. Number, boolean, and JSON values are decoded normally;
+runtime inputs also accept `provider/model@reasoning`, with `-` leaving provider or model unset. In
+an interactive terminal, `compozy loop run` prompts only for supported required inputs that remain
+missing after defaults. Use `--no-prompt` to fail instead. Structured output and non-interactive
+input never prompt, so scripts keep deterministic behavior.
+
+If validation fails, HTTP/UDS, CLI, native tools, and the web form receive the stable
+`input_validation` payload: `{ loop, field, kind?, value?, origin, reason }`. The web form attaches
+the reason to that field. No run row, task, or external action is created.
 
 <OperatorNote label="What the run form does not offer">
   There is no cost cap — cost is [display-only](/docs/loops/guardrails#cost-is-a-meter-not-a-cap).

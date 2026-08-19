@@ -127,6 +127,18 @@ func (s *service) Respond(ctx context.Context, input RespondInput) (RespondResul
 	if !ok {
 		return RespondResult{}, fmt.Errorf("%w: request store is unavailable", ErrActionDependencyMissing)
 	}
+	request, err := store.GetRequest(ctx, input.WorkspaceID, RequestRef{
+		RunID: input.RunID, Generation: input.Generation,
+		NodeID: input.NodeID, ItemIndex: input.ItemIndex,
+	}, true)
+	if err != nil {
+		return RespondResult{}, err
+	}
+	if err := s.validateResponseEntities(
+		ctx, input.WorkspaceID, run.LoopName, request, input.Decision, input.Payload,
+	); err != nil {
+		return RespondResult{}, err
+	}
 	result, err := store.RespondRequest(ctx, input)
 	if err != nil {
 		return RespondResult{}, err

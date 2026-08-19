@@ -94323,11 +94323,14 @@ export interface operations {
                 [key: string]: {
                   default?: unknown;
                   description?: string;
+                  enum?: string[];
                   ref?: {
-                    kind: string;
+                    /** @enum {string} */
+                    kind: "skill" | "loop" | "worktree" | "session" | "workspace" | "secret";
                   } | null;
                   required?: boolean;
-                  type: string;
+                  /** @enum {string} */
+                  type: "string" | "number" | "boolean" | "file" | "agent" | "ref" | "runtime";
                 };
               };
               kind: string;
@@ -100041,11 +100044,14 @@ export interface operations {
                 [key: string]: {
                   default?: unknown;
                   description?: string;
+                  enum?: string[];
                   ref?: {
-                    kind: string;
+                    /** @enum {string} */
+                    kind: "skill" | "loop" | "worktree" | "session" | "workspace" | "secret";
                   } | null;
                   required?: boolean;
-                  type: string;
+                  /** @enum {string} */
+                  type: "string" | "number" | "boolean" | "file" | "agent" | "ref" | "runtime";
                 };
               };
               last_run?: {
@@ -100770,11 +100776,14 @@ export interface operations {
               [key: string]: {
                 default?: unknown;
                 description?: string;
+                enum?: string[];
                 ref?: {
-                  kind: string;
+                  /** @enum {string} */
+                  kind: "skill" | "loop" | "worktree" | "session" | "workspace" | "secret";
                 } | null;
                 required?: boolean;
-                type: string;
+                /** @enum {string} */
+                type: "string" | "number" | "boolean" | "file" | "agent" | "ref" | "runtime";
               };
             };
             kind: string;
@@ -101389,11 +101398,14 @@ export interface operations {
                   [key: string]: {
                     default?: unknown;
                     description?: string;
+                    enum?: string[];
                     ref?: {
-                      kind: string;
+                      /** @enum {string} */
+                      kind: "skill" | "loop" | "worktree" | "session" | "workspace" | "secret";
                     } | null;
                     required?: boolean;
-                    type: string;
+                    /** @enum {string} */
+                    type: "string" | "number" | "boolean" | "file" | "agent" | "ref" | "runtime";
                   };
                 };
                 kind: string;
@@ -101599,13 +101611,17 @@ export interface operations {
               code: string;
               message: string;
               node_id?: string;
+              path?: string;
               /** @enum {string} */
               severity: "error" | "warning";
             }[];
-            input_default?: {
-              key: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
               loop: string;
+              origin: string;
               reason: string;
+              value?: string;
             } | null;
             runtime_validation?: {
               field: string;
@@ -102217,11 +102233,14 @@ export interface operations {
                   [key: string]: {
                     default?: unknown;
                     description?: string;
+                    enum?: string[];
                     ref?: {
-                      kind: string;
+                      /** @enum {string} */
+                      kind: "skill" | "loop" | "worktree" | "session" | "workspace" | "secret";
                     } | null;
                     required?: boolean;
-                    type: string;
+                    /** @enum {string} */
+                    type: "string" | "number" | "boolean" | "file" | "agent" | "ref" | "runtime";
                   };
                 };
                 kind: string;
@@ -103144,11 +103163,14 @@ export interface operations {
               [key: string]: {
                 default?: unknown;
                 description?: string;
+                enum?: string[];
                 ref?: {
-                  kind: string;
+                  /** @enum {string} */
+                  kind: "skill" | "loop" | "worktree" | "session" | "workspace" | "secret";
                 } | null;
                 required?: boolean;
-                type: string;
+                /** @enum {string} */
+                type: "string" | "number" | "boolean" | "file" | "agent" | "ref" | "runtime";
               };
             };
             kind: string;
@@ -103763,11 +103785,14 @@ export interface operations {
                   [key: string]: {
                     default?: unknown;
                     description?: string;
+                    enum?: string[];
                     ref?: {
-                      kind: string;
+                      /** @enum {string} */
+                      kind: "skill" | "loop" | "worktree" | "session" | "workspace" | "secret";
                     } | null;
                     required?: boolean;
-                    type: string;
+                    /** @enum {string} */
+                    type: "string" | "number" | "boolean" | "file" | "agent" | "ref" | "runtime";
                   };
                 };
                 kind: string;
@@ -103985,13 +104010,17 @@ export interface operations {
               code: string;
               message: string;
               node_id?: string;
+              path?: string;
               /** @enum {string} */
               severity: "error" | "warning";
             }[];
-            input_default?: {
-              key: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
               loop: string;
+              origin: string;
               reason: string;
+              value?: string;
             } | null;
             runtime_validation?: {
               field: string;
@@ -107917,11 +107946,14 @@ export interface operations {
               [key: string]: {
                 default?: unknown;
                 description?: string;
+                enum?: string[];
                 ref?: {
-                  kind: string;
+                  /** @enum {string} */
+                  kind: "skill" | "loop" | "worktree" | "session" | "workspace" | "secret";
                 } | null;
                 required?: boolean;
-                type: string;
+                /** @enum {string} */
+                type: "string" | "number" | "boolean" | "file" | "agent" | "ref" | "runtime";
               };
             };
             kind: string;
@@ -108020,13 +108052,17 @@ export interface operations {
               code: string;
               message: string;
               node_id?: string;
+              path?: string;
               /** @enum {string} */
               severity: "error" | "warning";
             }[];
-            input_default?: {
-              key: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
               loop: string;
+              origin: string;
               reason: string;
+              value?: string;
             } | null;
             runtime_validation?: {
               field: string;
@@ -108078,13 +108114,17 @@ export interface operations {
               code: string;
               message: string;
               node_id?: string;
+              path?: string;
               /** @enum {string} */
               severity: "error" | "warning";
             }[];
-            input_default?: {
-              key: string;
+            input_validation?: {
+              field: string;
+              kind?: string;
               loop: string;
+              origin: string;
               reason: string;
+              value?: string;
             } | null;
             runtime_validation?: {
               field: string;

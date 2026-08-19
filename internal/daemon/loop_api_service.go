@@ -54,7 +54,7 @@ type daemonLoopAPIService struct {
 	persistence       loopAPIPersistence
 	catalogRuns       looppkg.CatalogRunReader
 	goalPersistence   loopGoalAPIPersistence
-	resolver          *daemonLoopDefinitionResolver
+	resolver          looppkg.DefinitionResolver
 	catalog           *resourceCatalog[looppkg.ResourceSpec]
 	publisher         loopResourcePublisher
 	toolRegistry      toolspkg.Registry
@@ -167,6 +167,7 @@ func loopAPIServiceOptions(
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
 		looppkg.WithCoordinatorRunActivator(loopCoordinatorRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
+		looppkg.WithInputEntityCatalog(daemonLoopInputEntityCatalog{state: state}),
 		looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: state.sessions}),
 		looppkg.WithResponderPolicy(responderPolicy),
 	}

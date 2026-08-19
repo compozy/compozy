@@ -102,6 +102,7 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   inputRows: LoopRunInputRow[];
   startedBy: string;
   workspaceLabel: string;
+  workspaceId?: string;
   /** `v3 · pinned` when the run pins its executed definition. */
   versionLabel?: string;
   nextNote: string | null;
@@ -178,6 +179,7 @@ export function LoopRunPageBody({
   inputRows,
   startedBy,
   workspaceLabel,
+  workspaceId = "",
   versionLabel,
   nextNote,
   showNowCard,
@@ -280,6 +282,7 @@ export function LoopRunPageBody({
                 requests={requests}
                 run={run}
                 showApproval={status === "needs-approval"}
+                workspaceId={workspaceId}
               />
             ) : null}
             <LoopRunAttentionPanel

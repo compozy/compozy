@@ -89,7 +89,7 @@ func (e *Engine) redactLogStructuredValue(key string, value any) (any, bool) {
 		return value, false
 	}
 	namedFields := map[string]struct{}{normalizeFieldName(key): {}}
-	redacted := e.redactJSONValue(decoded, key, namedFields, false)
+	redacted := e.redactJSONValue(decoded, key, namedFields, false, nil, nil)
 	// Structured slog values decode to dynamic JSON shapes. Reflection avoids
 	// rebuilding an unchanged value; BenchmarkEngineRedactStructuredLogValue owns the cost.
 	if reflect.DeepEqual(decoded, redacted) {
