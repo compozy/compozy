@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-02
 expected: Global and workspace `[loops.inputs.<loop-name>]` values resolve per key as run, workspace, global, then definition; scalar and partial runtime objects round-trip through CLI, HTTP, UDS, and native config surfaces; dry-run reports identical values/origins; invalid values return `input_validation` and create no run or ACP session.
 entry_points: config.toml; compozy config get/set/unset loops.inputs.<loop-name>.<key>; compozy loop run --dry-run -o json; GET/PUT/DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults over HTTP and UDS; native config tools
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260818-loop-input-object-get; BUG-20260819-empty-runtime-default-rejected
 fix_status: fixed
 retest_status: pass
-fix_commits: f3b8837
-evidence: /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-20260819-015537-040869-lab/qa-artifacts/qa/journey-log.jsonl
-last_report: docs/qa/reports/2026-08-18-typed-loop-inputs.md
+fix_commits: f3b8837; 46dd8ae
+evidence: /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-remediation-20260819-062429-798135-lab/qa-artifacts/qa/journey-log.jsonl
+last_report: docs/qa/reports/2026-08-19-typed-loop-inputs-remediation.md
 overlaps: LP-runtime-selection-overrides; LP-runtime-validation-preflight
 ---
 

@@ -1,6 +1,6 @@
 # BUG-20260819-empty-runtime-default-rejected: Empty runtime default cannot be saved
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Ada
@@ -33,10 +33,12 @@ combination of provider, model, and reasoning, including no selected fields.
 
 - **Root cause:** The config editor rejected empty TOML tables before the Loop default endpoint could
   persist the contract-valid empty runtime object.
-- **Fix commit:** pending remediation commit
+- **Fix commit:** `46dd8ae`
 - **Regression test:** `internal/config/persistence_test.go` and
   `internal/daemon/loop_api_runs_test.go`
 
 ## Verification
 
-Pending a clean persona re-walk.
+The public config read returned `{}` and a fresh CLI dry-run resolved the value from workspace
+scope while preserving the global `slug` origin. The API defaults endpoint returned the same empty
+object.

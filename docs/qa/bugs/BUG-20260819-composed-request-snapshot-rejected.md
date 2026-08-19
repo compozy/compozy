@@ -1,6 +1,6 @@
 # BUG-20260819-composed-request-snapshot-rejected: Composed request schema cannot start
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Bruno
@@ -37,9 +37,11 @@ manifest, so the start fails with `manifest key ... added during hydration`.
 
 - **Root cause:** YAML composition arrays remained `[]dsl.Schema` during the first compile, while
   JSON hydration represented them as `[]any`; the template-source walker only traversed the latter.
-- **Fix commit:** pending current fix commit
+- **Fix commit:** `4e102c1`
 - **Regression test:** `internal/loop/coordinator_snapshot_test.go`
 
 ## Verification
 
-Pending a clean persona re-walk through request rejection and acceptance.
+The Loop created a pending request from the composed schema. CLI rejected the stale nested agent at
+`reviewers.0` without resolving the request, then accepted `reviewer`. A separate Web run rendered
+the shared agent selector and reached `Done` after submission.
