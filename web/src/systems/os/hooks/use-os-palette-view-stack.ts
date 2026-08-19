@@ -31,7 +31,11 @@ export function useOsPaletteViewStack(): OsPaletteViewStackModel {
   return {
     stack,
     activeViewId: activePaletteViewId(stack),
-    breadcrumb: paletteBreadcrumb(stack.map(frame => paletteViewDefinition(frame.viewId).title)),
+    // An id without a renderer still gets a crumb — its own id — so the path
+    // stays readable instead of collapsing around the level that is unavailable.
+    breadcrumb: paletteBreadcrumb(
+      stack.map(frame => paletteViewDefinition(frame.viewId)?.title ?? frame.viewId)
+    ),
     push: viewId => windowManagerStore.trigger.paletteViewPushed({ viewId }),
     pop: () => windowManagerStore.trigger.paletteViewPopped(),
   };

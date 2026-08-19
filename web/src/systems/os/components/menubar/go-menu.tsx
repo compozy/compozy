@@ -1,69 +1,39 @@
 import { Fragment } from "react";
 
-import {
-  MenubarContent,
-  MenubarItem,
-  MenubarMenu,
-  MenubarSeparator,
-  MenubarShortcut,
-  MenubarTrigger,
-} from "@compozy/ui";
+import { MenubarContent, MenubarMenu, MenubarSeparator, MenubarTrigger } from "@compozy/ui";
 
 import { dockApps } from "../../lib/app-registry";
-import type { OsAppId } from "../../lib/os-types";
+import { MenubarCommandItem } from "./menubar-command-item";
 
 export interface GoMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opening an app window needs a live window-manager client. */
-  canOpenApps: boolean;
-  onOpenPalette: () => void;
-  onOpenApp: (app: OsAppId) => void;
-  onOpenWorkspaces: () => void;
-  paletteShortcutLabel?: string;
+  /** Runs a registry command through the one dispatch seam. */
+  onRun: (commandId: string) => void;
 }
 
 /**
  * Navigation menu. Groups and order mirror the dock strip exactly, so the two
- * ways to reach a surface teach the same map (recognition over recall).
+ * ways to reach a surface teach the same map (recognition over recall). The
+ * app rows themselves are `app.open.*` registry commands, so their availability
+ * tracks the live client instead of a locally-computed flag.
  */
-export function GoMenu({
-  open,
-  onOpenChange,
-  canOpenApps,
-  onOpenPalette,
-  onOpenApp,
-  onOpenWorkspaces,
-  paletteShortcutLabel,
-}: GoMenuProps) {
+export function GoMenu({ open, onOpenChange, onRun }: GoMenuProps) {
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       <MenubarTrigger>Go</MenubarTrigger>
       <MenubarContent align="start" data-testid="os-menu-go">
-        <MenubarItem data-testid="os-menu-palette" onClick={onOpenPalette}>
-          Command palette…
-          {paletteShortcutLabel ? <MenubarShortcut>{paletteShortcutLabel}</MenubarShortcut> : null}
-        </MenubarItem>
+        <MenubarCommandItem commandId="palette.open" onRun={onRun} />
         {dockApps().map(group => (
           <Fragment key={group[0].id}>
             <MenubarSeparator />
             {group.map(app => (
-              <MenubarItem
-                key={app.id}
-                data-testid={`os-menu-app-${app.id}`}
-                disabled={!canOpenApps}
-                onClick={() => onOpenApp(app.id)}
-              >
-                <app.icon className="size-3.5 text-muted" />
-                {app.title}
-              </MenubarItem>
+              <MenubarCommandItem commandId={`app.open.${app.id}`} key={app.id} onRun={onRun} />
             ))}
           </Fragment>
         ))}
         <MenubarSeparator />
-        <MenubarItem data-testid="os-menu-workspaces-overview" onClick={onOpenWorkspaces}>
-          Workspaces…
-        </MenubarItem>
+        <MenubarCommandItem commandId="workspace.picker" onRun={onRun} />
       </MenubarContent>
     </MenubarMenu>
   );

@@ -197,8 +197,8 @@ function SessionsModalFixture() {
           sessions={CATALOG}
           disconnected={false}
           view={SESSION_LIST_VIEW}
-          onNewSession={fn()}
           sessionActions={SESSION_ACTIONS}
+          onNewSession={fn()}
         />
         <OsDockZone items={dockItems} onSelect={fn()} onNewSession={fn()} />
       </DesktopShell>
@@ -218,13 +218,9 @@ function BellFixture() {
           <DesktopMenubar
             workspaces={[WORKSPACE]}
             activeWorkspace={WORKSPACE}
-            onOpenWorkspaces={fn()}
             onSelectWorkspace={fn()}
             onAddWorkspace={fn()}
-            onNewSession={fn()}
-            onOpenPalette={fn()}
-            onOpenDesktops={fn()}
-            onToggleSessions={fn()}
+            onRunCommand={fn()}
             activeOverlay="bell"
             onOverlayOpenChange={fn()}
             attention={ATTENTION}

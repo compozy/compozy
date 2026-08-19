@@ -5,22 +5,21 @@ import {
   findShortcutConflicts,
   type ShortcutConflict,
   type ShortcutMap,
-  type WindowManagerActionId,
   type WindowManagerShortcutMap,
 } from "@/systems/os";
 
 type RecorderMode = "replace" | "alternate";
 
 export interface ShortcutRecorderModel {
-  recording: WindowManagerActionId | null;
+  recording: string | null;
   recordingMode: RecorderMode | null;
   announcement: string;
   conflicts: readonly ShortcutConflict[];
-  blocked: ReadonlySet<WindowManagerActionId>;
-  shadowed: ReadonlySet<WindowManagerActionId>;
-  start: (actionId: WindowManagerActionId, mode?: RecorderMode) => void;
+  blocked: ReadonlySet<string>;
+  shadowed: ReadonlySet<string>;
+  start: (actionId: string, mode?: RecorderMode) => void;
   cancel: () => void;
-  reset: (actionId: WindowManagerActionId) => void;
+  reset: (actionId: string) => void;
   resetAll: () => void;
 }
 
@@ -34,7 +33,7 @@ export function useWindowManagerShortcutRecorder(
   defaults: ShortcutMap,
   onChange: (next: WindowManagerShortcutMap) => void
 ): ShortcutRecorderModel {
-  const [recording, setRecording] = useState<WindowManagerActionId | null>(null);
+  const [recording, setRecording] = useState<string | null>(null);
   const [recordingMode, setRecordingMode] = useState<RecorderMode | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
@@ -75,8 +74,8 @@ export function useWindowManagerShortcutRecorder(
   }, [defaults, onChange, overrides, recording, recordingMode]);
 
   const conflicts = findShortcutConflicts(overrides, defaults);
-  const blocked = new Set<WindowManagerActionId>();
-  const shadowed = new Set<WindowManagerActionId>();
+  const blocked = new Set<string>();
+  const shadowed = new Set<string>();
   for (const conflict of conflicts) {
     const bucket = conflict.kind === "blocked" ? blocked : shadowed;
     for (const actionId of conflict.actionIds) bucket.add(actionId);

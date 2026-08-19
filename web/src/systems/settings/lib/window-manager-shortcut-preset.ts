@@ -2,6 +2,7 @@ import {
   deriveShortcutCheatsheet,
   effectiveShortcutMap,
   findShortcutConflicts,
+  type ShortcutActionDefinition,
   type ShortcutConflict,
   type ShortcutMap,
 } from "@/systems/os";
@@ -71,17 +72,18 @@ function sameBinding(left: readonly string[] | undefined, right: readonly string
 
 export function previewTerminalShortcutPreset(
   overrides: ShortcutMap,
-  defaults: ShortcutMap
+  defaults: ShortcutMap,
+  actions: readonly ShortcutActionDefinition[]
 ): readonly ShortcutPresetChange[] {
   const before = effectiveShortcutMap(defaults, overrides);
   const afterOverrides = applyTerminalShortcutPreset(overrides).overrides;
   const after = effectiveShortcutMap(defaults, afterOverrides);
   const conflicts = findShortcutConflicts(afterOverrides, defaults);
   const beforeRows = new Map(
-    deriveShortcutCheatsheet(before, overrides).map(row => [row.id, row.bindings])
+    deriveShortcutCheatsheet(before, overrides, actions).map(row => [row.id, row.bindings])
   );
   const afterRows = new Map(
-    deriveShortcutCheatsheet(after, afterOverrides).map(row => [row.id, row.bindings])
+    deriveShortcutCheatsheet(after, afterOverrides, actions).map(row => [row.id, row.bindings])
   );
   return Object.keys(TERMINAL_SHORTCUT_PRESET).flatMap(actionId => {
     const next = TERMINAL_SHORTCUT_PRESET[actionId] ?? [];

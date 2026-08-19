@@ -3,45 +3,32 @@ import {
   MenubarItem,
   MenubarMenu,
   MenubarSeparator,
-  MenubarShortcut,
   MenubarTrigger,
 } from "@compozy/ui";
+
+import { MenubarCommandItem } from "./menubar-command-item";
 
 export interface SessionMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onNewSession: () => void;
+  /** Runs a registry command through the one dispatch seam. */
+  onRun: (commandId: string) => void;
+  /** Agent creation is a dialog the shell owns, not a registry command. */
   onNewAgent: () => void;
-  onOpenSessions: () => void;
-  newSessionShortcutLabel?: string;
 }
 
 /** Session menu: create work, or reach the global sessions catalog. */
-export function SessionMenu({
-  open,
-  onOpenChange,
-  onNewSession,
-  onNewAgent,
-  onOpenSessions,
-  newSessionShortcutLabel,
-}: SessionMenuProps) {
+export function SessionMenu({ open, onOpenChange, onRun, onNewAgent }: SessionMenuProps) {
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       <MenubarTrigger>Session</MenubarTrigger>
       <MenubarContent align="start" data-testid="os-menu-session">
-        <MenubarItem data-testid="os-menu-new-session" onClick={onNewSession}>
-          New session
-          {newSessionShortcutLabel ? (
-            <MenubarShortcut>{newSessionShortcutLabel}</MenubarShortcut>
-          ) : null}
-        </MenubarItem>
+        <MenubarCommandItem commandId="session.new" onRun={onRun} />
         <MenubarItem data-testid="os-menu-new-agent" onClick={onNewAgent}>
           New agent…
         </MenubarItem>
         <MenubarSeparator />
-        <MenubarItem data-testid="os-menu-sessions" onClick={onOpenSessions}>
-          Sessions…
-        </MenubarItem>
+        <MenubarCommandItem commandId="shell.sessions.toggle" onRun={onRun} />
       </MenubarContent>
     </MenubarMenu>
   );

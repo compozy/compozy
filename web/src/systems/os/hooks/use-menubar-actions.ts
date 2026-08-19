@@ -38,19 +38,16 @@ export interface MenubarActionsModel {
   canOpenApps: boolean;
   windowCommands: OsWindowCommandsModel;
   openApp(app: OsAppId): void;
-  openSettings(): void;
   /** Settings → General, where the Updates section lives (ADR-006). */
   openUpdates(): void;
-  openAppearance(): void;
-  openLayouts(): void;
-  openSupport(): void;
   newAgent(): void;
 }
 
 /**
- * Menubar view-model: the coordinator-backed navigation actions, the shared
- * window-command model, and the compact-collapse decision. Menu components stay
- * declarative lists and receive every predicate and callback as props.
+ * Menubar view-model: the compact-collapse decision plus the few affordances
+ * that are chrome rather than commands (the update indicator, the agent
+ * dialog). Command items project from the registry and dispatch through the
+ * seam, so they need nothing from here.
  */
 export function useMenubarActions(): MenubarActionsModel {
   const { coordinator } = useOsShell();
@@ -62,26 +59,20 @@ export function useMenubarActions(): MenubarActionsModel {
   const openApp = (app: OsAppId) => {
     if (canOpenApps) void coordinator.userOpen({ app });
   };
-  const openSettingsRoute = (pathname: string) => {
-    const route = { pathname, search: {} };
-    if (canOpenApps) {
-      void coordinator.userOpen({ app: "settings", route });
-      return;
-    }
-    coordinator.userNavigate(route);
-  };
-  const openGeneralSettings = () => openSettingsRoute(settingsSectionPath("general"));
 
   return {
     menusVisible: !compact,
     canOpenApps,
     windowCommands,
     openApp,
-    openSettings: openGeneralSettings,
-    openUpdates: openGeneralSettings,
-    openAppearance: () => openSettingsRoute("/settings/appearance"),
-    openLayouts: () => openSettingsRoute("/settings/layouts"),
-    openSupport: () => openSettingsRoute("/settings/observability"),
+    openUpdates: () => {
+      const route = { pathname: settingsSectionPath("general"), search: {} };
+      if (canOpenApps) {
+        void coordinator.userOpen({ app: "settings", route });
+        return;
+      }
+      coordinator.userNavigate(route);
+    },
     newAgent: () => agentCreate.openDialog(),
   };
 }

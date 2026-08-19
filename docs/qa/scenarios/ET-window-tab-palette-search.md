@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-organize-tabbed-work
 expected: Command-K lists live tabs with disambiguating app, desktop, leaf-title, attention, and minimized context; selecting a result restores and activates that exact window without changing its route depth, and an empty or closed result group disappears without stale rows.
 entry_points: Command-K; command palette Go to tab; web desktop URL
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-03-palette-tabs.png
 last_report: docs/qa/reports/2026-08-01-window-tabs.md

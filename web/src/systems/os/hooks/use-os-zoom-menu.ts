@@ -4,8 +4,10 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import type { OsArrangePreset } from "../lib/os-types";
 import { arrangePeerWindows } from "../lib/window-manager-navigation";
-import { dispatchWindowPlacement } from "../lib/window-manager-action-dispatch";
-import type { WindowPlacementCommand } from "../lib/window-manager-command-registry";
+import {
+  dispatchWindowPlacement,
+  type WindowPlacementCommand,
+} from "../lib/window-placement-presets";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";

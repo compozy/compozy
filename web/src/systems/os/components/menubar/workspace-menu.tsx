@@ -21,6 +21,8 @@ import {
   type WorktreeNestEntry,
 } from "@/systems/workspace";
 
+import { MenubarCommandItem } from "./menubar-command-item";
+
 export interface WorkspaceMenuProps {
   /** The workspace chip, already built as a `MenubarTrigger` by the chrome. */
   trigger: React.ReactNode;
@@ -31,7 +33,8 @@ export interface WorkspaceMenuProps {
   globalScopeOn?: boolean;
   monogram: (name: string) => string;
   onSelectWorkspace: (workspaceId: string) => void;
-  onOpenWorkspaces: () => void;
+  /** Runs a registry command through the one dispatch seam. */
+  onRun: (commandId: string) => void;
   onAddWorkspace: () => void;
   /** Same query as the S1 switcher — the two surfaces must not diverge. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
@@ -75,7 +78,7 @@ export function WorkspaceMenu({
   globalScopeOn = false,
   monogram,
   onSelectWorkspace,
-  onOpenWorkspaces,
+  onRun,
   onAddWorkspace,
   worktreesByWorkspace,
   userHomeDir,
@@ -177,9 +180,7 @@ export function WorkspaceMenu({
           );
         })}
         <MenubarSeparator />
-        <MenubarItem data-testid="os-workspace-overview" onClick={onOpenWorkspaces}>
-          Workspaces overview…
-        </MenubarItem>
+        <MenubarCommandItem commandId="workspace.picker" onRun={onRun} />
         <MenubarItem data-testid="os-workspace-add" onClick={onAddWorkspace}>
           Add workspace…
         </MenubarItem>

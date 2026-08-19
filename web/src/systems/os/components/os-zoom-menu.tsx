@@ -17,7 +17,7 @@ import {
   WINDOW_ARRANGE_COMMANDS,
   WINDOW_PLACEMENT_COMMANDS,
   type WindowPlacementId,
-} from "../lib/window-manager-command-registry";
+} from "../lib/window-placement-presets";
 
 /**
  * macOS-style zoom-button menu (Sequoia green-button posture): hovering the

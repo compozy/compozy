@@ -5,9 +5,9 @@ import { userEvent, within } from "storybook/test";
 import type { ShortcutMap } from "@/systems/os";
 import { CenteredSurface } from "@/storybook/story-layout";
 import {
-  STORY_SHORTCUT_DEFAULTS,
-  STORY_SHORTCUT_DIAGNOSTIC_OVERRIDES,
-} from "@/storybook/window-manager-shortcut-fixtures";
+  cmdPaletteStoryOverrides,
+  cmdPaletteStoryShortcuts,
+} from "@/systems/os/mocks/cmd-palette-fixtures";
 
 import { useWindowManagerShortcutRecorder } from "../../hooks/use-window-manager-shortcut-recorder";
 import { ShortcutPresetCard } from "../layouts/shortcut-preset-card";
@@ -17,13 +17,13 @@ function ShortcutTableFixture({ initial }: { initial: ShortcutMap }) {
   const [overrides, setOverrides] = useState(initial);
   const recorder = useWindowManagerShortcutRecorder(
     overrides,
-    STORY_SHORTCUT_DEFAULTS,
+    cmdPaletteStoryShortcuts,
     setOverrides
   );
   return (
     <div className="max-h-190 w-240 overflow-y-auto rounded-lg border border-line bg-canvas-soft">
       <WindowManagerShortcutTable
-        defaults={STORY_SHORTCUT_DEFAULTS}
+        defaults={cmdPaletteStoryShortcuts}
         overrides={overrides}
         recorder={recorder}
       />
@@ -36,7 +36,7 @@ function PresetFixture({ initial }: { initial: ShortcutMap }) {
   return (
     <div className="w-240 overflow-hidden rounded-lg border border-line bg-canvas-soft">
       <ShortcutPresetCard
-        defaults={STORY_SHORTCUT_DEFAULTS}
+        defaults={cmdPaletteStoryShortcuts}
         overrides={overrides}
         onChange={setOverrides}
       />
@@ -70,7 +70,7 @@ export const TableDefaults: Story = {
 };
 
 export const BlockedAndPartialRange: Story = {
-  args: { initial: STORY_SHORTCUT_DIAGNOSTIC_OVERRIDES },
+  args: { initial: cmdPaletteStoryOverrides },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: /^Shell/ }));

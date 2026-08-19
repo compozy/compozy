@@ -2,6 +2,7 @@ import { HttpResponse, type HttpHandler } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
+import { cmdPaletteCatalogFixture, cmdPaletteClientsFixture } from "./cmd-palette-fixtures";
 import {
   windowManagerSnapshotFixture,
   windowManagerStorySnapshot,
@@ -122,5 +123,12 @@ export const handlers: HttpHandler[] = [
         client: outcome.client,
       });
     }
+  ),
+  compozyApiMock.get("/api/cmd-palette/commands", () =>
+    HttpResponse.json(cmdPaletteCatalogFixture)
+  ),
+  compozyApiMock.get("/api/cmd-palette/clients", () => HttpResponse.json(cmdPaletteClientsFixture)),
+  compozyApiMock.post("/api/cmd-palette/commands/{id}/invoke", () =>
+    HttpResponse.json({ status: "ok" })
   ),
 ];

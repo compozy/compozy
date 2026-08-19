@@ -230,9 +230,17 @@ describe("useWindowManagerConfigEditor", () => {
   });
 });
 
+/**
+ * The preset preview reports rows by label, so it needs the catalog the daemon
+ * would project — every id the preset touches, plus the defaults it displaces.
+ */
+const PRESET_ACTIONS = [
+  ...new Set([...Object.keys(TERMINAL_SHORTCUT_PRESET), ...Object.keys(SHORTCUT_DEFAULTS)]),
+].map(id => ({ id, label: id, section: "Window" }));
+
 describe("Terminal shortcut preset", () => {
   it("Should preview every changed key and flag layout hazards [UT-063]", () => {
-    const preview = previewTerminalShortcutPreset({}, SHORTCUT_DEFAULTS);
+    const preview = previewTerminalShortcutPreset({}, SHORTCUT_DEFAULTS, PRESET_ACTIONS);
 
     expect(preview.map(change => change.actionId)).toEqual(Object.keys(TERMINAL_SHORTCUT_PRESET));
     expect(preview.some(change => change.hazards.includes("altgr"))).toBe(true);
@@ -248,7 +256,8 @@ describe("Terminal shortcut preset", () => {
     ]);
     const conflicted = previewTerminalShortcutPreset(
       { "layout.undo": ["control+ArrowLeft"] },
-      SHORTCUT_DEFAULTS
+      SHORTCUT_DEFAULTS,
+      PRESET_ACTIONS
     );
     expect(
       conflicted

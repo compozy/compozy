@@ -1,15 +1,3 @@
-import {
-  WINDOW_ARRANGE_COMMANDS,
-  WINDOW_PLACEMENT_COMMANDS,
-  type WindowArrangeCommand,
-  type WindowManagerActionId,
-  type WindowPlacementCommand,
-} from "../lib/window-manager-command-registry";
-import { dispatchWindowPlacement } from "../lib/window-manager-action-dispatch";
-import {
-  primaryShortcutModifier,
-  resolveWindowManagerActions,
-} from "../lib/window-manager-shortcuts";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import type { FocusDirection } from "../lib/window-manager-types";
 import { useDesktop } from "./use-desktop";
@@ -27,19 +15,12 @@ export interface OsFocusedWindowActions {
 export interface OsWindowCommandsModel {
   /** The daemon fence: an authoritative snapshot plus a live registered client. */
   commandsAvailable: boolean;
-  shortcutLabels: Readonly<Partial<Record<WindowManagerActionId, string>>>;
   /**
    * Lifecycle actions for the focused window, routed through the routing
    * coordinator so the URL follows successor focus (Safety Invariant 13).
    * Null when no window is focused or commands are unavailable.
    */
   focusedWindowActions: OsFocusedWindowActions | null;
-  /** Placement presets; empty without a focused floating window (truthful UI). */
-  placementCommands: readonly WindowPlacementCommand[];
-  /** Arrange presets; empty without a second visible window (truthful UI). */
-  arrangeCommands: readonly WindowArrangeCommand[];
-  dispatchPlacement(command: WindowPlacementCommand): void;
-  dispatchArrange(command: WindowArrangeCommand): void;
   canToggleFloating: boolean;
   toggleFloating(): void;
   canBalanceLayout: boolean;
@@ -55,14 +36,12 @@ export interface OsWindowCommandsModel {
 }
 
 /**
- * The one window / layout / desktop command model. The ⌘K palette and the
- * menubar's Window menu both read it, so their enablement predicates and their
- * dispatch path cannot drift.
+ * Window and layout affordances for surfaces that act on the focused window
+ * directly — the zoom menu and the window chrome.
  *
- * Actions here run immediately; a caller that must dismiss its own surface
- * first (the palette) wraps them. The keyboard registry keeps its own
- * `dispatchWindowManagerAction` path, which still bypasses the coordinator for
- * close/minimize — a pre-existing divergence, tracked separately.
+ * Command *invocation* no longer flows through here: palette rows, menubar
+ * items and chords all go through the one dispatch seam against the registry.
+ * What remains is the enablement state those direct-manipulation controls need.
  */
 export function useOsWindowCommands(): OsWindowCommandsModel {
   const { coordinator, manager } = useOsShell();
@@ -73,30 +52,8 @@ export function useOsWindowCommands(): OsWindowCommandsModel {
   );
   const focusedId = useDesktop(state => state.focusedId);
   const presentation = useDesktop(state => state.presentation);
-  const windowManagerConfig = useDesktop(state => state.windowManagerConfig);
   const desktopCount = useDesktop(state => state.desktops.length);
   const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
-  const hasArrangePeer = useDesktop(state => {
-    if (state.presentation !== "floating" || state.focusedId === null) return false;
-    for (const win of Object.values(state.windows)) {
-      if (win.id !== state.focusedId && win.desktopId === state.activeDesktopId && !win.minimized) {
-        return true;
-      }
-    }
-    return false;
-  });
-
-  const shortcutLabels = Object.fromEntries(
-    resolveWindowManagerActions(
-      windowManagerConfig?.effectiveShortcuts ?? {},
-      primaryShortcutModifier(typeof navigator === "undefined" ? "" : navigator.platform)
-    ).flatMap(action =>
-      action.shortcutLabels.length > 0
-        ? [[action.id, action.shortcutLabels.join(" / ")] as const]
-        : []
-    )
-  ) as Partial<Record<WindowManagerActionId, string>>;
-
   const hasFocusedWindow = commandsAvailable && focusedId !== null;
   const focusedWindowActions: OsFocusedWindowActions | null =
     !commandsAvailable || focusedId === null
@@ -113,27 +70,7 @@ export function useOsWindowCommands(): OsWindowCommandsModel {
 
   return {
     commandsAvailable,
-    shortcutLabels,
     focusedWindowActions,
-    placementCommands:
-      commandsAvailable && focusedWindow && windowManagerConfig ? WINDOW_PLACEMENT_COMMANDS : [],
-    arrangeCommands: commandsAvailable && hasArrangePeer ? WINDOW_ARRANGE_COMMANDS : [],
-    dispatchPlacement: command => {
-      const state = manager.getState();
-      if (
-        !windowManagerCommandsAvailable(state) ||
-        state.focusedId === null ||
-        state.windowManagerConfig === null
-      ) {
-        return;
-      }
-      dispatchWindowPlacement(manager, state.focusedId, command);
-    },
-    dispatchArrange: command => {
-      const state = manager.getState();
-      if (!windowManagerCommandsAvailable(state) || state.focusedId === null) return;
-      manager.arrangeLayout(state.focusedId, command.preset);
-    },
     canToggleFloating: hasFocusedWindow,
     toggleFloating: () => {
       if (focusedId !== null) manager.toggleFloating(focusedId);

@@ -1,11 +1,12 @@
 // Suite: window-manager shortcut grammar
-// Invariant: the web mirror normalizes arrays/ranges exactly once, resolves only daemon-fed
-// bindings, and reports every expanded collision before Settings can save it.
-// Owning layer: OS shortcut grammar and registry projection.
+// Invariant: the chord layer normalizes arrays/ranges exactly once, binds only
+// the actions its caller supplies against daemon-fed chords, and reports every
+// expanded collision before Settings can save it.
+// Owning layer: OS chord grammar. The command inventory itself is the daemon's
+// and reaches this layer as a parameter (cmd-palette registry suites own it).
 // Boundary OUT: recorder state, React rendering, and transport parsing.
 import { describe, expect, it } from "vitest";
 
-import { WINDOW_MANAGER_ACTIONS } from "../window-manager-command-registry";
 import {
   chordFromKeyboardEvent,
   deriveShortcutCheatsheet,
@@ -18,8 +19,29 @@ import {
   shortcutKeyGlyphs,
   shortcutMatches,
   shortcutLabel,
+  type ShortcutActionDefinition,
   type ShortcutMap,
 } from "../window-manager-shortcuts";
+
+/** The catalog the daemon would project; this layer only ever receives it. */
+const ACTIONS: readonly ShortcutActionDefinition[] = [
+  { id: "window.close", label: "Close window", section: "Window" },
+  { id: "window.tile.left", label: "Tile left half", section: "Tiling" },
+  { id: "window.focus.up", label: "Focus up", section: "Window" },
+  { id: "window.focus.down", label: "Focus down", section: "Window" },
+  { id: "sidebar.toggle", label: "Toggle sidebar", section: "Shell" },
+  ...Array.from({ length: 9 }, (_, index) => ({
+    id: `desktop.switch.${index + 1}`,
+    label: `Switch to desktop ${index + 1}`,
+    section: "Desktops",
+  })),
+  ...Array.from({ length: 8 }, (_, index) => ({
+    id: `window.tab.jump.${index + 1}`,
+    label: `Go to tab ${index + 1}`,
+    section: "Tabs",
+  })),
+  { id: "layout.arrange.grid", label: "Arrange in grid", section: "Layout" },
+];
 
 const DEFAULTS: ShortcutMap = {
   "window.close": ["meta+KeyW"],
@@ -130,12 +152,12 @@ describe("effective conflicts", () => {
 });
 
 describe("daemon-fed registry", () => {
-  it("Should keep chord literals out of action metadata [IT-015 parity]", () => {
-    expect(WINDOW_MANAGER_ACTIONS.every(action => !("defaultChord" in action))).toBe(true);
-    expect(JSON.stringify(WINDOW_MANAGER_ACTIONS)).not.toMatch(
-      /(?:meta|control|alt|shift)\+(?:Key|Digit|Arrow|Bracket|Slash|Tab|Enter|Space|Backspace|Delete)/
-    );
-    expect(resolveWindowManagerActions({}).every(action => action.chords.length === 0)).toBe(true);
+  it("Should bind no chord when the daemon keymap is empty [IT-015 parity]", () => {
+    // The chord layer holds no defaults of its own: with an empty effective
+    // keymap every action resolves unbound, whatever the catalog says.
+    expect(
+      resolveWindowManagerActions({}, ACTIONS).every(action => action.chords.length === 0)
+    ).toBe(true);
   });
 
   it("Should surface arrays once and collapse numeric families in the cheatsheet [UT-075]", () => {
@@ -143,10 +165,14 @@ describe("daemon-fed registry", () => {
       "window.focus.up": ["control+ArrowUp", "alt+KeyK"],
       "window.tab.jump": ["control+alt+Digit1..2"],
     });
-    const rows = deriveShortcutCheatsheet(effective, {
-      "window.focus.up": ["control+ArrowUp", "alt+KeyK"],
-      "window.tab.jump": ["control+alt+Digit1..2"],
-    });
+    const rows = deriveShortcutCheatsheet(
+      effective,
+      {
+        "window.focus.up": ["control+ArrowUp", "alt+KeyK"],
+        "window.tab.jump": ["control+alt+Digit1..2"],
+      },
+      ACTIONS
+    );
     expect(rows.filter(row => row.id === "window.focus.up")).toEqual([
       expect.objectContaining({ bindings: ["control+ArrowUp", "alt+KeyK"], overridden: true }),
     ]);

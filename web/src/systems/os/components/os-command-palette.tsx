@@ -1,55 +1,79 @@
-import { Command, CommandDialog, CommandEmpty, CommandInput, CommandList } from "@compozy/ui";
+import { useState } from "react";
 
-import { useOsCommandPalette } from "../hooks/use-os-command-palette";
+import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandInput,
+  CommandList,
+  resolveCommandSelection,
+} from "@compozy/ui";
+
+import { useCmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
+import { useOsPaletteRoot } from "../hooks/use-os-palette-root";
 import { useOsPaletteViewStack } from "../hooks/use-os-palette-view-stack";
 import { paletteViewDefinition } from "../lib/palette-view-registry";
-import { OsCommandPaletteResults } from "./os-command-palette-results";
-import { OsCommandPaletteShellActions } from "./os-command-palette-shell-actions";
-import { OsCommandPaletteViews } from "./os-command-palette-views";
-import { OsCommandPaletteWindowActions } from "./os-command-palette-window-actions";
+import { OsPaletteEntitySections } from "./os-palette-entity-sections";
 import { OsPaletteFooter } from "./os-palette-footer";
+import { OsPaletteResults } from "./os-palette-results";
 import { OsPaletteViewStack } from "./os-palette-view-stack";
 
 export interface OsCommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opens the daemon-backed Desktops overview. */
-  onOpenDesktops?: () => void;
-  /** Toggles the global Sessions catalog modal. */
-  onToggleSessions?: () => void;
+  /** The bound dispatch seam; the shell owns the coordinators it closes over. */
+  dispatch: ReturnType<typeof useCmdPaletteDispatch>;
 }
 
+const EMPTY_COPY = "No matches — try an app, a session title, or an action.";
+const DESTINATION_EMPTY_COPY = "No matches — try an app or a session title.";
+const ZERO_ELIGIBLE_COPY = "Nothing can open in this tab yet.";
+
 /**
- * The global ⌘K palette (ADR-005): a desktop-level overlay above the win-layer
- * that delegates each independently-owned result group to a focused component.
+ * The global ⌘K palette: a desktop-level overlay above the win-layer.
  *
- * The root is one level of a stack (ADR-003). A pushed view replaces the root's
- * results with its own — a scoped picker inside the surface the operator
- * already reaches for, rather than another window to learn.
+ * Every row is a projection of the one client registry (ADR-001), so this
+ * component owns presentation and nothing else — no command lists, no
+ * availability rules, no dispatch branches. cmdk filters nothing
+ * (`shouldFilter={false}`): the projection decides membership and order, and
+ * `resolveCommandSelection` keeps the highlight steady while a live catalog
+ * churns underneath it.
+ *
+ * The root is one level of a stack. A pushed view replaces the root's results
+ * with its own — a scoped picker inside the surface the operator already
+ * reaches for, rather than another window to learn.
  */
-export function OsCommandPalette({
-  open,
-  onOpenChange,
-  onOpenDesktops,
-  onToggleSessions,
-}: OsCommandPaletteProps) {
-  const model = useOsCommandPalette(open, onOpenChange, {
-    onOpenDesktops,
-    onToggleSessions,
-  });
+export function OsCommandPalette({ open, onOpenChange, dispatch }: OsCommandPaletteProps) {
   const viewStack = useOsPaletteViewStack();
-  const destination = model.destinationWindowId !== null;
+  const model = useOsPaletteRoot({
+    open,
+    onOpenChange,
+    dispatch: (command, query) => void dispatch.run(command, undefined, query),
+  });
   const activeView =
     viewStack.activeViewId === null ? null : paletteViewDefinition(viewStack.activeViewId);
+  const values = [
+    ...model.sections.flatMap(section => section.commands.map(command => command.id)),
+    ...model.entities.sessions.map(session => `session:${session.sessionId}`),
+    ...(model.destination ? [] : model.entities.tabs.map(tab => `tab:${tab.windowId}`)),
+    ...(model.destination ? [] : model.entities.worktrees.map(entry => `worktree:${entry.key}`)),
+  ];
+  const [selection, setSelection] = useState<{ previous: readonly string[]; value: string }>(
+    () => ({ previous: values, value: values[0] ?? "" })
+  );
+  const selected = resolveCommandSelection(selection.previous, values, selection.value);
+  const empty = values.length === 0;
 
   return (
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={activeView?.title ?? (destination ? "Choose a destination" : "Command palette")}
+      title={activeView?.title ?? (model.destination ? "Choose a destination" : "Command palette")}
       description={
         activeView?.description ??
-        (destination ? "Pick the surface this tab becomes" : "Search apps, sessions, and actions")
+        (model.destination
+          ? "Pick the surface this tab becomes"
+          : "Search apps, sessions, and actions")
       }
       // Compact clamps to the phone canvas (os-v2.css `.palette-overlay{padding-top:9vh}`).
       className="top-[9vh] min-[960px]:top-[16vh] sm:max-w-(--width-modal-sm)"
@@ -57,25 +81,40 @@ export function OsCommandPalette({
       {viewStack.activeViewId === null ? (
         <Command
           data-testid="os-command-palette"
-          data-destination={destination ? "" : undefined}
-          shouldFilter
+          data-destination={model.destination ? "" : undefined}
+          data-stale={model.registry.stale ? "" : undefined}
+          shouldFilter={false}
+          value={selected}
+          onValueChange={next => setSelection({ previous: values, value: next })}
         >
           <CommandInput
             autoFocus
-            placeholder={destination ? "Open in this tab…" : "Search apps, sessions, and actions…"}
+            placeholder={
+              model.destination ? "Open in this tab…" : "Search apps, sessions, and actions…"
+            }
+            value={model.query}
+            onValueChange={model.setQuery}
           />
-          <CommandList className="max-h-[46vh]">
-            <CommandEmpty>
-              {destination
-                ? "No matches — try an app or a session title."
-                : "No matches — try an app, a session title, or an action."}
-            </CommandEmpty>
-            {destination ? null : <OsCommandPaletteViews onPushView={viewStack.push} />}
-            <OsCommandPaletteResults destination={destination} model={model} />
-            <OsCommandPaletteWindowActions destination={destination} model={model} />
-            <OsCommandPaletteShellActions destination={destination} model={model} />
+          <CommandList className="max-h-[46vh] px-2 pb-3">
+            {empty ? (
+              <CommandEmpty data-testid="os-palette-empty">
+                {model.destinationEmpty
+                  ? ZERO_ELIGIBLE_COPY
+                  : model.destination
+                    ? DESTINATION_EMPTY_COPY
+                    : EMPTY_COPY}
+              </CommandEmpty>
+            ) : null}
+            <OsPaletteResults onSelect={model.runCommand} sections={model.sections} />
+            <OsPaletteEntitySections
+              destination={model.destination}
+              entities={model.entities}
+              onGoToTab={model.goToTab}
+              onOpenSession={model.openSession}
+              onSelectWorktree={model.selectWorktree}
+            />
           </CommandList>
-          <OsPaletteFooter enterHint={destination ? "open here" : "open"} />
+          <OsPaletteFooter enterHint={model.destination ? "open here" : "open"} />
         </Command>
       ) : (
         <OsPaletteViewStack

@@ -119,11 +119,7 @@ function MenubarFixture({
             onToggleGlobalScope={onToggleGlobalScope}
             onSelectWorkspace={fn()}
             onAddWorkspace={fn()}
-            onNewSession={fn()}
-            onOpenPalette={fn()}
-            onOpenDesktops={fn()}
-            onOpenWorkspaces={fn()}
-            onToggleSessions={fn()}
+            onRunCommand={fn()}
             activeOverlay={active}
             onOverlayOpenChange={(id, open) =>
               setActive(current => (open ? id : current === id ? null : current))

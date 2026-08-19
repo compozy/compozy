@@ -70,18 +70,31 @@ export type {
   WindowMinimums,
 } from "./lib/window-manager-types";
 
-// Keyboard grammar. The action registry is the shipped default keymap; Settings
-// edits overrides against it rather than restating the list.
+// The one command-palette registry projection. Every surface that renders a
+// command — palette, menubar, cheatsheet, settings shortcut table — reads it,
+// which is what makes their ids, labels and chords identical by construction.
+export { CmdPaletteRegistryProvider } from "./contexts/cmd-palette-registry-context";
+export { usePaletteCommand, usePaletteRegistry } from "./hooks/use-palette-registry";
+export { registryBindableIds, registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
+export type {
+  CmdPaletteCommand,
+  PaletteRegistry,
+  ResolvedPaletteCommand,
+} from "./lib/cmd-palette-types";
+
+// Window geometry presets for direct manipulation (the zoom menu, the tiling
+// diagrams in Settings). Not a command catalog — invocation goes through the
+// registry projection above.
 export {
-  WINDOW_MANAGER_ACTIONS,
+  WINDOW_ARRANGE_COMMANDS,
   WINDOW_PLACEMENT_COMMANDS,
-  isWindowManagerActionId,
-  type WindowManagerActionDefinition,
-  type WindowManagerActionId,
-  type WindowManagerActionSection,
   type WindowPlacementId,
-} from "./lib/window-manager-command-registry";
+} from "./lib/window-placement-presets";
+
+// Keyboard grammar. Chord parsing and conflict detection live here; which
+// commands exist comes from the registry above.
 export {
+  type ShortcutActionDefinition,
   chordFromKeyboardEvent,
   deriveShortcutCheatsheet,
   effectiveShortcutMap,

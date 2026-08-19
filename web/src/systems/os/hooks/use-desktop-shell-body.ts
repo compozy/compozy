@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { shallowEqual } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
@@ -13,6 +13,8 @@ import { useWorktreeListings } from "@/systems/workspace";
 
 import { frameSeamEdits } from "../lib/frame-seams";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
+import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
+import type { ClientCommandChannel } from "../lib/client-command-channel";
 import type { OsDesktopRuntimeStore } from "../lib/os-types";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import type { ProjectedFrameSeam, ProjectedSeam } from "../lib/window-manager-types";
@@ -26,6 +28,7 @@ import type { DesktopShellModel } from "./use-desktop-shell-model";
 import { useDesktopTransitionIntent } from "./use-window-manager-store";
 import { useAttentionNotifier } from "./use-attention-notifier";
 import { useAttentionJump } from "./use-attention-jump";
+import { useCmdPaletteDispatch } from "./use-cmd-palette-dispatch";
 import { useDocumentTitleBadge } from "./use-document-title-badge";
 import { useFocusedSessionId } from "./use-focused-session-id";
 import { useOsAttention } from "./use-os-attention";
@@ -34,11 +37,14 @@ import { useOsReducedMotion } from "./use-os-reduced-motion";
 import { useOsShell } from "./use-os-shell";
 import { useOsShortcuts } from "./use-os-shortcuts";
 import { useOsWinLayer } from "./use-os-win-layer";
+import { usePaletteRegistry } from "./use-palette-registry";
 export interface DesktopShellBodyOptions {
   /** First-run setup owns the shell; the chrome is inert and shortcuts are off. */
   firstRun?: boolean;
   onNewSession: () => void;
   sessionListView: SessionListViewModel;
+  /** The daemon's client-command channel reads the current shell seam through this port. */
+  clientCommandChannel: ClientCommandChannel;
 }
 
 function setSeamPreview(seam: ProjectedSeam, deltaPx: number): void {
@@ -132,7 +138,8 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const winLayer = useOsWinLayer();
   const reducedMotion = useOsReducedMotion();
   const transition = useDesktopTransitionIntent();
-  const { manager } = useOsShell();
+  const { manager, coordinator } = useOsShell();
+  const paletteRegistry = usePaletteRegistry();
   const { collapsedThreadIds } = useSessionSidebarState();
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
@@ -156,67 +163,100 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     shallowEqual
   );
 
-  useOsShortcuts(
-    {
-      onPalette: () => overlays.toggleOverlay("palette"),
-      onPaletteSessions: () => {
-        // Opening resets the stack to the root, so the push has to follow it.
-        overlays.setOverlayOpen("palette", true);
-        openPaletteView("sessions");
-      },
-      onNewSession: options.onNewSession,
-      onDesktops: () => overlays.toggleOverlay("desktops"),
-      onWorkspaces: () => overlays.toggleOverlay("workspaces"),
-      onCycleWorkspace: direction => {
-        const target = adjacentShortcutItem(model.workspaces, model.activeWorkspaceId, direction);
-        if (target) model.setActiveWorkspaceId(target.id);
-      },
-      onCycleSession: direction => {
-        const state = manager.getState();
-        const visibleSessions = visibleSessionOrder(attention.sessions, {
-          scope: options.sessionListView.scope,
-          collapsedThreadIds: new Set(collapsedThreadIds),
-          collapsedWorkspaceIds: options.sessionListView.collapsedWorkspaceIds,
-          workspaceGroups: options.sessionListView.workspaceGroups,
-        });
-        const target = adjacentShortcutItem<SessionPayload>(
-          visibleSessions,
-          focusedSessionId(state),
-          direction
-        );
-        if (target) {
-          jumpToSession({
-            sessionId: target.id,
-            agentName: target.agent_name,
-            workspaceId: target.workspace_id ?? model.runtimeWorkspaceId ?? "",
-          });
-        } else {
-          notifyUser({ message: "No other visible session.", tone: "info" });
-        }
-      },
-      onFocusAttention: () => {
-        const target = shortcutAttentionTarget(attention.sections);
-        if (target) {
-          jumpToSession({
-            sessionId: target.id,
-            agentName: target.agentName,
-            workspaceId: target.workspaceId,
-          });
-        } else {
-          notifyUser({ message: "No session needs attention.", tone: "info" });
-        }
-      },
-      onToggleSidebar: toggleSessionSidebar,
-      onCheatsheet: () => overlays.setOverlayOpen("shortcuts", true),
-      onToggleGlobalScope: model.toggleGlobalScope,
-      onEscape: () => {
-        if (overlays.activeOverlay !== null) return;
-        if (document.querySelector('[data-slot="dialog-content"]')) return;
-        desktopRef.current?.focus();
-      },
+  // The shell's half of the dispatch seam: what a `client_op` is allowed to
+  // reach in this client. The seam owns which operation runs; this owns what it
+  // can touch.
+  const paletteShell: PaletteShellHandlers = {
+    openPalette: () => overlays.toggleOverlay("palette"),
+    openPaletteView: viewId => {
+      // Opening resets the stack to the root, so the push has to follow it.
+      overlays.setOverlayOpen("palette", true);
+      openPaletteView(viewId);
     },
-    { enabled: !firstRun }
+    openCheatsheet: () => overlays.setOverlayOpen("shortcuts", true),
+    openDesktops: () => overlays.toggleOverlay("desktops"),
+    openWorkspaces: () => overlays.toggleOverlay("workspaces"),
+    openNewSession: options.onNewSession,
+    toggleSessions: () => overlays.toggleOverlay("sessions"),
+    toggleSidebar: toggleSessionSidebar,
+    toggleGlobalScope: model.toggleGlobalScope,
+    cycleWorkspace: direction => {
+      const target = adjacentShortcutItem(model.workspaces, model.activeWorkspaceId, direction);
+      if (target) model.setActiveWorkspaceId(target.id);
+    },
+    cycleSession: direction => {
+      const state = manager.getState();
+      const visibleSessions = visibleSessionOrder(attention.sessions, {
+        scope: options.sessionListView.scope,
+        collapsedThreadIds: new Set(collapsedThreadIds),
+        collapsedWorkspaceIds: options.sessionListView.collapsedWorkspaceIds,
+        workspaceGroups: options.sessionListView.workspaceGroups,
+      });
+      const target = adjacentShortcutItem<SessionPayload>(
+        visibleSessions,
+        focusedSessionId(state),
+        direction
+      );
+      if (target) {
+        jumpToSession({
+          sessionId: target.id,
+          agentName: target.agent_name,
+          workspaceId: target.workspace_id ?? model.runtimeWorkspaceId ?? "",
+        });
+      } else {
+        notifyUser({ message: "No other visible session.", tone: "info" });
+      }
+    },
+    focusAttention: () => {
+      const target = shortcutAttentionTarget(attention.sections);
+      if (target) {
+        jumpToSession({
+          sessionId: target.id,
+          agentName: target.agentName,
+          workspaceId: target.workspaceId,
+        });
+      } else {
+        notifyUser({ message: "No session needs attention.", tone: "info" });
+      }
+    },
+    openNewTab: stackTargetWindowId => {
+      void coordinator
+        .userOpen({
+          app: "new-tab",
+          ...(stackTargetWindowId ? { stackTargetWindowId } : {}),
+        })
+        .then(windowId => {
+          if (windowId !== null) {
+            windowManagerStore.trigger.paletteIntentRequested({
+              intent: { kind: "destination", windowId },
+            });
+          }
+        });
+    },
+    activateWindow: windowId => void coordinator.userFocus(windowId),
+  };
+  const paletteDispatch = useCmdPaletteDispatch({
+    registry: paletteRegistry,
+    workspaceId: model.runtimeWorkspaceId,
+    shell: paletteShell,
+    openApp: (app, route) => void coordinator.userOpen({ app, ...(route ? { route } : {}) }),
+  });
+  // The daemon forwards agent-initiated client operations over the same
+  // channel; they enter the same table as ⌘W and the palette row (SI-17).
+  const executeClientOp = paletteDispatch.executeClientOp;
+  useEffect(
+    () => options.clientCommandChannel.connect(executeClientOp),
+    [executeClientOp, options.clientCommandChannel]
   );
+
+  useOsShortcuts(paletteRegistry, commandId => void paletteDispatch.runById(commandId), {
+    enabled: !firstRun,
+    onEscape: () => {
+      if (overlays.activeOverlay !== null) return;
+      if (document.querySelector('[data-slot="dialog-content"]')) return;
+      desktopRef.current?.focus();
+    },
+  });
 
   const onResize = (splitId: string, boundaryIndex: number, delta: number) => {
     // Clear the live seam preview only after the resize reconciles, so panes go
@@ -249,6 +289,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     onTransitionComplete: completeDesktopTransition,
     overlays,
     pager,
+    paletteDispatch,
     reducedMotion,
     shortcutLabels,
     transition,

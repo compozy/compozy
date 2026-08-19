@@ -1,7 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
 import { loopRequestLocation } from "@/systems/loops";
-
+import { usePaletteRegistry } from "../hooks/use-palette-registry";
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
@@ -48,11 +48,8 @@ export interface DesktopMenubarProps {
   onToggleGlobalScope?: () => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onAddWorkspace: () => void;
-  onNewSession: () => void;
-  onOpenPalette: () => void;
-  onOpenDesktops: () => void;
-  onOpenWorkspaces: () => void;
-  onToggleSessions: () => void;
+  /** Runs a registry command through the one dispatch seam. */
+  onRunCommand: (commandId: string) => void;
   activeOverlay: DesktopOverlay | null;
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void;
   attention: OsAttentionModel;
@@ -89,11 +86,7 @@ export function DesktopMenubar({
   onToggleGlobalScope,
   onSelectWorkspace,
   onAddWorkspace,
-  onNewSession,
-  onOpenPalette,
-  onOpenDesktops,
-  onOpenWorkspaces,
-  onToggleSessions,
+  onRunCommand,
   activeOverlay,
   onOverlayOpenChange,
   attention,
@@ -110,6 +103,7 @@ export function DesktopMenubar({
   const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
+  const paletteRegistry = usePaletteRegistry();
   const jumpToSession = useAttentionJump();
   const globalOn = scope === "global";
   if (rememberedWorkspaceName === undefined) {
@@ -202,18 +196,15 @@ export function DesktopMenubar({
         <MenubarUpdateIndicator available={updateAvailable} onActivate={actions.openUpdates} />
       }
       notifications={attention.notificationCount}
-      onCommandClick={onOpenPalette}
-      onSettingsClick={actions.openSettings}
-      commandShortcutLabel={actions.windowCommands.shortcutLabels["palette.open"]}
+      onCommandClick={() => onRunCommand("palette.open")}
+      onSettingsClick={() => onRunCommand("settings.general")}
+      commandShortcutLabel={paletteRegistry.byId.get("palette.open")?.chords[0]}
       logoMenu={trigger => (
         <CompozyMenu
           trigger={trigger}
           {...overlay("compozy-menu")}
-          canOpenApps={actions.canOpenApps}
           onAbout={() => onOverlayOpenChange("about", true)}
-          onSettings={actions.openSettings}
-          onAppearance={actions.openAppearance}
-          onLayouts={actions.openLayouts}
+          onRun={onRunCommand}
         />
       )}
       scopeControl={
@@ -234,7 +225,7 @@ export function DesktopMenubar({
           globalScopeOn={globalOn}
           monogram={workspaceMonogram}
           onSelectWorkspace={onSelectWorkspace}
-          onOpenWorkspaces={onOpenWorkspaces}
+          onRun={onRunCommand}
           onAddWorkspace={onAddWorkspace}
           worktreesByWorkspace={worktreesByWorkspace}
           userHomeDir={userHomeDir}
@@ -251,30 +242,12 @@ export function DesktopMenubar({
           <>
             <SessionMenu
               {...overlay("session-menu")}
-              onNewSession={onNewSession}
               onNewAgent={actions.newAgent}
-              onOpenSessions={onToggleSessions}
-              newSessionShortcutLabel={actions.windowCommands.shortcutLabels["session.new"]}
+              onRun={onRunCommand}
             />
-            <GoMenu
-              {...overlay("go-menu")}
-              canOpenApps={actions.canOpenApps}
-              onOpenPalette={onOpenPalette}
-              onOpenApp={actions.openApp}
-              onOpenWorkspaces={onOpenWorkspaces}
-              paletteShortcutLabel={actions.windowCommands.shortcutLabels["palette.open"]}
-            />
-            <WindowMenu
-              {...overlay("window-menu")}
-              commands={actions.windowCommands}
-              onOpenDesktops={onOpenDesktops}
-            />
-            <HelpMenu
-              {...overlay("help-menu")}
-              canOpenApps={actions.canOpenApps}
-              onOpenShortcuts={() => onOverlayOpenChange("shortcuts", true)}
-              onOpenSupport={actions.openSupport}
-            />
+            <GoMenu {...overlay("go-menu")} onRun={onRunCommand} />
+            <WindowMenu {...overlay("window-menu")} onRun={onRunCommand} />
+            <HelpMenu {...overlay("help-menu")} onRun={onRunCommand} />
           </>
         ) : null
       }

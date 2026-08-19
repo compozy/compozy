@@ -1,20 +1,22 @@
 /**
- * The command palette's built-in view registry (ADR-003).
+ * The command palette's built-in view renderers (ADR-003).
  *
  * A view is a scoped, list-shaped level the root palette can push. The generic
  * shell owns the input, the keyboard contract, selection, the empty state and
  * the footer, so a view supplies only data — that is what keeps the mechanism
  * generic instead of one view's shape hardened into the palette.
  *
- * v1 registers built-in views only; extension-contributed views are an explicit
- * non-goal and no manifest surface ships. Addressing views by id and resolving
- * them through a map is what leaves that door open without building for it.
+ * View *membership* is the daemon's: the registry serves a `view` action per
+ * available view and the palette offers exactly those. This module owns only
+ * the render side, so an id the daemon serves without a renderer here resolves
+ * to null and degrades honestly rather than crashing (BR-2).
  */
 import type { ReactNode } from "react";
 
 import { OS_APP_DESCRIPTORS, type OsAppDescriptor } from "./app-catalog";
 
-export type PaletteViewId = "sessions";
+/** Open id space: the daemon (and, from P6, extensions) name the views. */
+export type PaletteViewId = string;
 
 export interface PaletteViewDefinition {
   readonly id: PaletteViewId;
@@ -29,7 +31,7 @@ export interface PaletteViewDefinition {
   readonly description: string;
 }
 
-export const PALETTE_VIEWS = {
+export const PALETTE_VIEWS: Readonly<Record<string, PaletteViewDefinition>> = {
   sessions: {
     id: "sessions",
     title: "Sessions",
@@ -38,13 +40,11 @@ export const PALETTE_VIEWS = {
     enterHint: "open session",
     description: "Filter sessions by state and open one",
   },
-} as const satisfies Record<PaletteViewId, PaletteViewDefinition>;
+};
 
-/** Registration order — the order the root palette lists views in. */
-export const PALETTE_VIEW_LIST: readonly PaletteViewDefinition[] = Object.values(PALETTE_VIEWS);
-
-export function paletteViewDefinition(id: PaletteViewId): PaletteViewDefinition {
-  return PALETTE_VIEWS[id];
+/** Null for a view id this client has no renderer for — the caller degrades. */
+export function paletteViewDefinition(id: PaletteViewId): PaletteViewDefinition | null {
+  return PALETTE_VIEWS[id] ?? null;
 }
 
 /** One activatable result. `value` is the row's stable identity, not a search string. */

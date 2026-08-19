@@ -104,12 +104,6 @@ describe("parseSettingsWindowManagerConfig", () => {
       },
     },
     {
-      label: "unknown shortcut action",
-      mutate: (response: ReturnType<typeof settingsResponse>) => {
-        response.config.shortcuts = { "desktop.teleport": "meta+KeyT" };
-      },
-    },
-    {
       label: "non-canonical shortcut chord",
       mutate: (response: ReturnType<typeof settingsResponse>) => {
         response.config.shortcuts = { "desktop.switch.next": "BracketRight" };
@@ -120,5 +114,14 @@ describe("parseSettingsWindowManagerConfig", () => {
     mutate(response);
 
     expect(() => parseSettingsWindowManagerConfig(response)).toThrow();
+  });
+
+  it("Should accept a binding for an id this client has not hydrated yet", () => {
+    // The bindable id space is open — core plus `ext.*` — so membership is the
+    // registry's judgement, not the schema's. Grammar is still enforced above.
+    const response = settingsResponse();
+    response.config.shortcuts = { "ext.notes.capture": "meta+shift+KeyN" };
+
+    expect(() => parseSettingsWindowManagerConfig(response)).not.toThrow();
   });
 });

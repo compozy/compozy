@@ -1,12 +1,19 @@
-import {
-  WINDOW_MANAGER_ACTIONS,
-  isWindowManagerActionId,
-  type WindowManagerActionDefinition,
-  type WindowManagerActionId,
-  type WindowManagerActionSection,
-} from "./window-manager-command-registry";
-
+/**
+ * Chord grammar: parsing, labelling, matching and conflict detection.
+ *
+ * This module knows how chords are written and compared, and nothing about
+ * which commands exist — that inventory is the daemon's, projected through the
+ * registry. Callers pass the action list in, which is what let the TS mirror of
+ * the keymap be deleted (ADR-006).
+ */
 type ShortcutModifier = "meta" | "control" | "alt" | "shift";
+
+/** A bindable command as the chord layer needs to see it. */
+export interface ShortcutActionDefinition {
+  id: string;
+  label: string;
+  section: string;
+}
 export type PrimaryShortcutModifier = "meta" | "control";
 export type ShortcutBinding = readonly string[];
 export type ShortcutMap = Readonly<Record<string, ShortcutBinding>>;
@@ -17,16 +24,16 @@ export interface ParsedShortcutChord {
   canonical: string;
 }
 
-export interface ResolvedWindowManagerAction extends WindowManagerActionDefinition {
+export interface ResolvedWindowManagerAction extends ShortcutActionDefinition {
   chords: readonly ParsedShortcutChord[];
   shortcutLabels: readonly string[];
 }
 
 export interface ShortcutCheatsheetRow {
   id: string;
-  actionIds: readonly WindowManagerActionId[];
+  actionIds: readonly string[];
   label: string;
-  section: WindowManagerActionSection;
+  section: string;
   bindings: ShortcutBinding;
   overridden: boolean;
 }
@@ -36,7 +43,7 @@ export type ShortcutConflictKind = "blocked" | "shadowed";
 export interface ShortcutConflict {
   chord: string;
   kind: ShortcutConflictKind;
-  actionIds: readonly WindowManagerActionId[];
+  actionIds: readonly string[];
   winner?: { label: string; surface: string };
 }
 
@@ -126,12 +133,21 @@ export function shortcutLabel(
   return shortcutKeyGlyphs(chord, primaryModifier).join("");
 }
 
-export function isShortcutOverrideActionId(value: string): boolean {
-  return isWindowManagerActionId(value) || RANGE_FAMILIES.some(family => family.action === value);
+/**
+ * Whether an override may name this id. The known-id set is supplied by the
+ * caller from the registry — the id space is open (core plus `ext.*`), so no
+ * closed list in TypeScript can answer this any more.
+ */
+export function isShortcutOverrideActionId(value: string, knownIds: ReadonlySet<string>): boolean {
+  return knownIds.has(value) || RANGE_FAMILIES.some(family => family.action === value);
 }
 
+/**
+ * Chord-grammar problems only. Id membership is deliberately not checked here:
+ * the bindable id space is open (core plus `ext.*`), so only a caller holding
+ * the registry can judge it — see `isShortcutOverrideActionId`.
+ */
 export function shortcutBindingProblem(actionId: string, binding: ShortcutBinding): string | null {
-  if (!isShortcutOverrideActionId(actionId)) return `Unknown window-manager action ${actionId}.`;
   if (binding.length === 0 || (binding.length === 1 && binding[0]?.trim() === "")) return null;
   const family = RANGE_FAMILIES.find(candidate => candidate.action === actionId);
   for (const member of binding) {
@@ -204,11 +220,13 @@ export function effectiveShortcutMap(base: ShortcutMap, overrides: ShortcutMap):
   return effective;
 }
 
+/** Binds each supplied action to its effective chords. The action list is the caller's. */
 export function resolveWindowManagerActions(
   effective: ShortcutMap,
+  actions: readonly ShortcutActionDefinition[],
   primaryModifier: PrimaryShortcutModifier = "meta"
 ): readonly ResolvedWindowManagerAction[] {
-  return WINDOW_MANAGER_ACTIONS.map(action => {
+  return actions.map(action => {
     const chords = (effective[action.id] ?? []).flatMap(raw => {
       const parsed = parseShortcutChord(raw);
       return parsed ? [parsed] : [];
@@ -223,7 +241,7 @@ export function resolveWindowManagerActions(
 
 export function shortcutActionLabel(
   effective: ShortcutMap | undefined,
-  actionId: WindowManagerActionId,
+  actionId: string,
   platform: string
 ): string | null {
   const bindings = effective?.[actionId] ?? [];
@@ -239,9 +257,10 @@ export function shortcutActionLabel(
 /** Collapses indexed families while keeping each effective chord visible once. */
 export function deriveShortcutCheatsheet(
   effective: ShortcutMap,
-  overrides: ShortcutMap
+  overrides: ShortcutMap,
+  actionDefinitions: readonly ShortcutActionDefinition[]
 ): readonly ShortcutCheatsheetRow[] {
-  const actions = resolveWindowManagerActions(effective);
+  const actions = resolveWindowManagerActions(effective, actionDefinitions);
   const rows: ShortcutCheatsheetRow[] = [];
   for (const action of actions) {
     const family = action.id.startsWith("window.tab.jump.")
@@ -253,7 +272,7 @@ export function deriveShortcutCheatsheet(
       if (!action.id.endsWith(".1")) continue;
       const actionIds = Array.from(
         { length: family.max },
-        (_, index) => `${family.action}.${index + 1}` as WindowManagerActionId
+        (_, index) => `${family.action}.${index + 1}`
       );
       rows.push({
         id: family.action,
@@ -280,7 +299,7 @@ export function deriveShortcutCheatsheet(
 }
 
 function compactIndexedBindings(
-  actionIds: readonly WindowManagerActionId[],
+  actionIds: readonly string[],
   effective: ShortcutMap
 ): ShortcutBinding {
   const maxAlternates = Math.max(0, ...actionIds.map(id => effective[id]?.length ?? 0));
@@ -312,17 +331,26 @@ function compactIndexedBindings(
   return compact;
 }
 
+/**
+ * Two commands claiming one chord, or a chord a focused surface wins locally.
+ *
+ * Candidates come from the effective keymap itself rather than a catalog: only
+ * a bound id can conflict, and an override naming an id the registry has not
+ * hydrated yet still has to be reported rather than silently ignored.
+ */
 export function findShortcutConflicts(
   overrides: ShortcutMap,
   defaults: ShortcutMap
 ): readonly ShortcutConflict[] {
   const effective = effectiveShortcutMap(defaults, overrides);
-  const byChord = new Map<string, WindowManagerActionId[]>();
-  for (const action of resolveWindowManagerActions(effective)) {
-    for (const chord of action.chords) {
+  const byChord = new Map<string, string[]>();
+  for (const [actionId, bindings] of Object.entries(effective)) {
+    for (const binding of bindings) {
+      const chord = parseShortcutChord(binding);
+      if (chord === null) continue;
       const holders = byChord.get(chord.canonical);
-      if (holders) holders.push(action.id);
-      else byChord.set(chord.canonical, [action.id]);
+      if (holders) holders.push(actionId);
+      else byChord.set(chord.canonical, [actionId]);
     }
   }
   const conflicts: ShortcutConflict[] = [];

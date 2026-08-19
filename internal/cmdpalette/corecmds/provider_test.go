@@ -38,6 +38,49 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should give every shell-only palette row a bindable id [UT-002]", func(t *testing.T) {
+		t.Parallel()
+		provider, err := New()
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		commands, err := provider.ProvideCommands(context.Background(), "ws-test")
+		if err != nil {
+			t.Fatalf("ProvideCommands() error = %v", err)
+		}
+		byID := make(map[cmdpalette.CommandID]cmdpalette.Descriptor, len(commands))
+		for _, command := range commands {
+			byID[command.ID] = command
+		}
+		// ADR-001: rows the shipped palette rendered without an action id and
+		// could never bind. They are client operations, so each carries the
+		// verbatim reason its context predicate reports when unavailable.
+		expected := map[cmdpalette.CommandID]string{
+			"shell.sessions.toggle": "",
+			"window.merge_all":      "needs two windows on this desktop",
+			"window.tab.detach":     "needs a tab in a stack",
+		}
+		for id, reason := range expected {
+			command, ok := byID[id]
+			if !ok {
+				t.Errorf("command %q missing from the core catalog", id)
+				continue
+			}
+			if command.Action.Kind != cmdpalette.ActionKindClientOp || command.Action.Op != string(id) {
+				t.Errorf("command %q action = %#v, want client_op %q", id, command.Action, id)
+			}
+			if reason == "" {
+				if len(command.When) != 0 {
+					t.Errorf("command %q when = %#v, want none", id, command.When)
+				}
+				continue
+			}
+			if len(command.When) != 1 || command.When[0].Reason != reason {
+				t.Errorf("command %q when = %#v, want single predicate reason %q", id, command.When, reason)
+			}
+		}
+	})
+
 	t.Run("Should navigate to every settings route [UT-012]", func(t *testing.T) {
 		t.Parallel()
 		provider, err := New()

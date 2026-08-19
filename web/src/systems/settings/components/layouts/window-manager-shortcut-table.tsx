@@ -8,16 +8,23 @@ import { WindowManagerShortcutFamilyRow } from "./window-manager-shortcut-family
 import { WindowManagerShortcutRow } from "./window-manager-shortcut-row";
 import {
   effectiveShortcutMap,
+  registryShortcutActions,
   resolveWindowManagerActions,
   shortcutLabel,
+  usePaletteRegistry,
   type ResolvedWindowManagerAction,
   type ShortcutConflict,
   type ShortcutMap,
-  type WindowManagerActionId,
-  type WindowManagerActionSection,
 } from "@/systems/os";
 
-const SECTION_ORDER: readonly WindowManagerActionSection[] = [
+import { SHORTCUT_SOURCE_ALL, ShortcutSourceFilter } from "./shortcut-source-filter";
+
+/**
+ * Curated reading order for the core areas. Sections the registry carries but
+ * this list does not name — an extension's own group — render after these
+ * rather than vanishing.
+ */
+const SECTION_ORDER: readonly string[] = [
   "Shell",
   "Window",
   "Tiling",
@@ -27,16 +34,14 @@ const SECTION_ORDER: readonly WindowManagerActionSection[] = [
   "Workspaces",
   "Layout",
 ];
-const TAB_JUMP_IDS = Array.from(
-  { length: 8 },
-  (_, index) => `window.tab.jump.${index + 1}`
-) as WindowManagerActionId[];
-const DESKTOP_SWITCH_IDS = Array.from(
-  { length: 9 },
-  (_, index) => `desktop.switch.${index + 1}`
-) as WindowManagerActionId[];
+const TAB_JUMP_IDS = Array.from({ length: 8 }, (_, index) => `window.tab.jump.${index + 1}`);
+const DESKTOP_SWITCH_IDS = Array.from({ length: 9 }, (_, index) => `desktop.switch.${index + 1}`);
 
-function conflictCopy(conflict: ShortcutConflict | undefined, actionId: WindowManagerActionId) {
+function sourceLabel(source: string): string {
+  return source === "core" ? "Core" : source.replace(/^ext\./, "");
+}
+
+function conflictCopy(conflict: ShortcutConflict | undefined, actionId: string) {
   if (!conflict) return {};
   if (conflict.kind === "shadowed") {
     return {
@@ -63,13 +68,34 @@ export function WindowManagerShortcutTable({
     new Set(["Shell", "Window", "Tabs", "Sessions"])
   );
   const [expandedFamilies, setExpandedFamilies] = useState<ReadonlySet<string>>(new Set());
+  const [source, setSource] = useState<string>(SHORTCUT_SOURCE_ALL);
+  const registry = usePaletteRegistry();
   const effective = effectiveShortcutMap(defaults, overrides);
-  const actions = resolveWindowManagerActions(effective);
+  // The whole registry, not a closed list: every command is bindable, so every
+  // command has a row here (ADR-001, US-001.AC-3).
+  const sourceById = new Map(registry.commands.map(command => [command.id, command.source]));
+  const actions = resolveWindowManagerActions(effective, registryShortcutActions(registry)).filter(
+    action => source === SHORTCUT_SOURCE_ALL || sourceById.get(action.id) === source
+  );
   const actionById = new Map(actions.map(action => [action.id, action]));
-  const groups = SECTION_ORDER.map(title => ({
-    title,
-    actions: actions.filter(action => action.section === title),
-  })).filter(group => group.actions.length > 0);
+  const sourceCounts = new Map<string, number>();
+  for (const command of registry.commands) {
+    sourceCounts.set(command.source, (sourceCounts.get(command.source) ?? 0) + 1);
+  }
+  const sourceOptions = [...sourceCounts.entries()]
+    .map(([id, count]) => ({ id, label: sourceLabel(id), count }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+  const sections = [
+    ...SECTION_ORDER,
+    ...[...new Set(actions.map(action => action.section))].filter(
+      section => !SECTION_ORDER.includes(section)
+    ),
+  ];
+  const groups: Array<{ title: string; actions: typeof actions }> = [];
+  for (const title of sections) {
+    const sectionActions = actions.filter(action => action.section === title);
+    if (sectionActions.length > 0) groups.push({ title, actions: sectionActions });
+  }
 
   const renderAction = (action: ResolvedWindowManagerAction) => {
     const conflict = recorder.conflicts.find(entry => entry.actionIds.includes(action.id));
@@ -92,7 +118,7 @@ export function WindowManagerShortcutTable({
   const renderFamily = (
     familyId: "desktop.switch" | "window.tab.jump",
     label: string,
-    memberIds: readonly WindowManagerActionId[]
+    memberIds: readonly string[]
   ) => {
     const manuallyExpanded = expandedFamilies.has(familyId);
     const partial = memberIds.some(id => overrides[id] !== undefined);
@@ -132,6 +158,7 @@ export function WindowManagerShortcutTable({
       <span aria-live="polite" className="sr-only">
         {recorder.announcement}
       </span>
+      <ShortcutSourceFilter onSelect={setSource} options={sourceOptions} selected={source} />
       {groups.map(group => {
         const expanded = open.has(group.title);
         const changed = group.actions.filter(action => overrides[action.id] !== undefined).length;

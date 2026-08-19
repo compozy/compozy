@@ -2,13 +2,16 @@ import { Outlet } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
 
+import { CmdPaletteRegistryProvider } from "../contexts/cmd-palette-registry-context";
 import { OsShellContext } from "../contexts/os-shell-context";
+import { useCmdPaletteRegistry } from "../hooks/use-cmd-palette-registry";
 import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
+import { useWorkspaceSetupDefaults } from "../hooks/use-workspace-setup-defaults";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
 import { DesktopMenubar } from "./desktop-menubar";
@@ -23,7 +26,7 @@ import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { OsWinLayer } from "./os-win-layer";
 import { OsSessionsModal } from "./sessions-modal";
-import { AgentCreateDialog, AgentCreateHostProvider, useAgents } from "@/systems/agent";
+import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
   SessionCreateDialogHost,
@@ -34,16 +37,11 @@ import {
   useSessionLifecycleActions,
   useSessionListView,
 } from "@/systems/session";
-import {
-  settingsUpdateIndicatorAvailable,
-  useSettingsSandboxes,
-  useSettingsUpdate,
-} from "@/systems/settings";
+import { settingsUpdateIndicatorAvailable, useSettingsUpdate } from "@/systems/settings";
 import {
   selectWorktreeForScope,
   useWorkspaceSetupContent,
   WorkspaceSetupDialog,
-  type WorkspaceSetupCollection,
   type WorkspaceSetupDefaultsModel,
 } from "@/systems/workspace";
 
@@ -79,26 +77,14 @@ function DesktopChrome({
 }) {
   const model = useDesktopShellModel();
   const chrome = useDesktopChrome(model.runtimeWorkspaceId);
-  const agentsQuery = useAgents();
-  const sandboxesQuery = useSettingsSandboxes();
+  // The one registry projection for this shell. Everything that renders a
+  // command — palette, menubar, cheatsheet, settings table — reads this object.
+  const paletteRegistry = useCmdPaletteRegistry({
+    workspaceId: model.runtimeWorkspaceId,
+    client: chrome.client,
+  });
   const worktreeDialogs = useWorktreeDialogTargets();
-  const workspaceSetupDefaults: WorkspaceSetupDefaultsModel = {
-    agents: workspaceSetupCollection(
-      agentsQuery.data,
-      agentsQuery.isLoading,
-      agentsQuery.error,
-      "Could not load agents."
-    ),
-    sandboxes: workspaceSetupCollection(
-      sandboxesQuery.data?.sandboxes.map(entry => ({
-        name: entry.name,
-        backend: entry.profile.backend,
-      })),
-      sandboxesQuery.isLoading,
-      sandboxesQuery.error,
-      "Could not load sandbox profiles."
-    ),
-  };
+  const workspaceSetupDefaults = useWorkspaceSetupDefaults();
 
   // Zero project workspaces boots Global-on; the home registration is not a
   // project workspace and must not replace the shell with setup.
@@ -106,28 +92,31 @@ function DesktopChrome({
   return (
     <WorktreeDialogActionsContext.Provider value={worktreeDialogs}>
       <OsShellContext.Provider value={chrome.shell}>
-        <SessionCreateProvider store={model.sessionCreate.store}>
-          <AgentCreateHostProvider
-            openDialog={model.agentCreate.openDialog}
-            openForDuplicate={model.agentCreate.openForDuplicate}
-          >
-            <DesktopShellBody
-              firstRun={firstRun}
-              model={model}
-              updateAvailable={updateAvailable}
-              worktreeDialogs={worktreeDialogs}
-              workspaceSetupDefaults={workspaceSetupDefaults}
-            />
-            <SessionCreateDialogHost
-              activeWorkspace={model.runtimeWorkspace}
-              agents={model.workspaceAgents}
-              homeWorkspaceId={model.homeWorkspace?.id}
-              projectWorkspaceId={model.activeWorkspaceId}
-              scope={model.scope}
-              store={model.sessionCreate.store}
-            />
-          </AgentCreateHostProvider>
-        </SessionCreateProvider>
+        <CmdPaletteRegistryProvider registry={paletteRegistry}>
+          <SessionCreateProvider store={model.sessionCreate.store}>
+            <AgentCreateHostProvider
+              openDialog={model.agentCreate.openDialog}
+              openForDuplicate={model.agentCreate.openForDuplicate}
+            >
+              <DesktopShellBody
+                firstRun={firstRun}
+                model={model}
+                clientCommandChannel={chrome.clientCommandChannel}
+                updateAvailable={updateAvailable}
+                worktreeDialogs={worktreeDialogs}
+                workspaceSetupDefaults={workspaceSetupDefaults}
+              />
+              <SessionCreateDialogHost
+                activeWorkspace={model.runtimeWorkspace}
+                agents={model.workspaceAgents}
+                homeWorkspaceId={model.homeWorkspace?.id}
+                projectWorkspaceId={model.activeWorkspaceId}
+                scope={model.scope}
+                store={model.sessionCreate.store}
+              />
+            </AgentCreateHostProvider>
+          </SessionCreateProvider>
+        </CmdPaletteRegistryProvider>
       </OsShellContext.Provider>
     </WorktreeDialogActionsContext.Provider>
   );
@@ -139,6 +128,8 @@ interface DesktopShellBodyProps {
   updateAvailable: boolean;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
   worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
+  /** The daemon's client-command channel reads the current shell seam through this port. */
+  clientCommandChannel: ReturnType<typeof useDesktopChrome>["clientCommandChannel"];
 }
 
 type DesktopWorktreeScope = ReturnType<typeof useDesktopWorktreeScope>;
@@ -161,6 +152,7 @@ function DesktopShellScopedBody({
   worktreeDialogs,
   worktreeScopeId,
   worktreeSelection,
+  clientCommandChannel,
 }: DesktopShellBodyProps & DesktopWorktreeScope) {
   const sessionCreate = useSessionCreateActions();
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
@@ -186,6 +178,7 @@ function DesktopShellScopedBody({
     onTransitionComplete,
     overlays,
     pager,
+    paletteDispatch,
     reducedMotion,
     shortcutLabels,
     transition,
@@ -195,6 +188,7 @@ function DesktopShellScopedBody({
     firstRun,
     onNewSession: openNewSession,
     sessionListView,
+    clientCommandChannel,
   });
   return (
     <div
@@ -226,11 +220,7 @@ function DesktopShellScopedBody({
           model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
         }
         onAddWorkspace={model.openWorkspaceSetup}
-        onNewSession={openNewSession}
-        onOpenPalette={() => overlays.setOverlayOpen("palette", true)}
-        onOpenDesktops={() => overlays.setOverlayOpen("desktops", true)}
-        onOpenWorkspaces={() => overlays.setOverlayOpen("workspaces", true)}
-        onToggleSessions={() => overlays.toggleOverlay("sessions")}
+        onRunCommand={commandId => void paletteDispatch.runById(commandId)}
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
         attention={attention}
@@ -314,8 +304,7 @@ function DesktopShellScopedBody({
       <OsCommandPalette
         open={overlays.activeOverlay === "palette"}
         onOpenChange={open => overlays.setOverlayOpen("palette", open)}
-        onOpenDesktops={() => overlays.setOverlayOpen("desktops", true)}
-        onToggleSessions={() => overlays.toggleOverlay("sessions")}
+        dispatch={paletteDispatch}
       />
       <OsSessionsModal
         open={overlays.activeOverlay === "sessions"}
@@ -440,21 +429,4 @@ function WorkspaceSetupDialogBoundary({
   return (
     <WorkspaceSetupDialog model={{ defaults, setup }} onOpenChange={onOpenChange} open={open} />
   );
-}
-
-function workspaceSetupCollection<T>(
-  entries: T[] | undefined,
-  isLoading: boolean,
-  error: unknown,
-  fallbackMessage: string
-): WorkspaceSetupCollection<T> {
-  if (isLoading) return { state: "loading" };
-  if (error) {
-    return {
-      state: "error",
-      message:
-        error instanceof Error && error.message.trim() !== "" ? error.message : fallbackMessage,
-    };
-  }
-  return { state: "ready", entries: entries ?? [] };
 }

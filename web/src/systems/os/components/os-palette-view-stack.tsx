@@ -1,6 +1,7 @@
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
 
 import { useOsPaletteSessionsView } from "../hooks/use-os-palette-sessions-view";
+import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import { paletteViewDefinition, type PaletteViewId } from "../lib/palette-view-registry";
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
 import { OsPaletteViewShell } from "./os-palette-view-shell";
@@ -21,22 +22,10 @@ interface PaletteViewFrameProps {
  */
 function SessionsPaletteViewFrame({ onDismiss, ...shell }: PaletteViewFrameProps) {
   const content = useOsPaletteSessionsView({ query: shell.query, onDismiss });
-  return (
-    <OsPaletteViewShell
-      definition={paletteViewDefinition("sessions")}
-      content={content}
-      {...shell}
-    />
-  );
+  const definition = paletteViewDefinition("sessions");
+  if (definition === null) return null;
+  return <OsPaletteViewShell definition={definition} content={content} {...shell} />;
 }
-
-/**
- * The built-in view registry's render side (ADR-003). Extension-contributed
- * views are a deliberate v1 non-goal; this map is where they would land.
- */
-const PALETTE_VIEW_FRAMES: Record<PaletteViewId, ComponentType<PaletteViewFrameProps>> = {
-  sessions: SessionsPaletteViewFrame,
-};
 
 export interface OsPaletteViewStackProps {
   viewId: PaletteViewId;
@@ -59,14 +48,57 @@ export function OsPaletteViewStack({
   onDismiss,
 }: OsPaletteViewStackProps) {
   const [query, setQuery] = useState("");
-  const Frame = PALETTE_VIEW_FRAMES[viewId];
+  if (viewId !== "sessions") {
+    return <OsPaletteViewUnavailable breadcrumb={breadcrumb} onPop={onPop} viewId={viewId} />;
+  }
   return (
-    <Frame
+    <SessionsPaletteViewFrame
       breadcrumb={breadcrumb}
       query={query}
       onQueryChange={setQuery}
       onPop={onPop}
       onDismiss={onDismiss}
+    />
+  );
+}
+
+/** A view the catalog offers that this client cannot render — named, never blank. */
+function OsPaletteViewUnavailable({
+  breadcrumb,
+  onPop,
+  viewId,
+}: {
+  breadcrumb: PaletteBreadcrumb;
+  onPop: () => void;
+  viewId: string;
+}) {
+  return (
+    <OsPaletteViewShell
+      breadcrumb={breadcrumb}
+      content={{
+        rows: [],
+        header: null,
+        empty: (
+          <p className="px-3 py-6 text-center text-small-body text-muted">
+            This view is not available in this client.
+          </p>
+        ),
+        note: null,
+        backHint: "back",
+        resetKey: viewId,
+        onEmptyQueryBackspace: () => false,
+      }}
+      definition={{
+        id: viewId,
+        title: viewId,
+        icon: OS_APP_DESCRIPTORS.session.icon,
+        placeholder: "Search…",
+        enterHint: "open",
+        description: "This view is not available in this client",
+      }}
+      query=""
+      onPop={onPop}
+      onQueryChange={() => {}}
     />
   );
 }

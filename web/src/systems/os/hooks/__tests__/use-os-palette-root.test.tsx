@@ -1,13 +1,14 @@
-// Suite: OS command palette
-// Invariant: palette commands preserve the selected tab's identity and route by
-// delegating each lifecycle decision to the routing coordinator exactly once,
-// and a pushed view owns the surface completely — its own results, its own
-// filters, and a keyboard selection that survives the catalog moving.
-// Owning layer: command-palette hook and presentation boundary.
-// Boundary OUT: keyboard action dispatch (window-manager-action-dispatch),
-// overlay lifetime and stack reset (use-desktop-overlays), stack and filter
-// mechanics (palette-view-stack, palette-session-filters), and daemon command
-// transport.
+// Suite: OS command palette root
+// Invariant: every row is a projection of the one client registry, entity rows
+// preserve the selected tab's identity, session landing goes through the shared
+// attention jump exactly once (BR-20), destination mode offers only navigable
+// targets, and a pushed view owns the surface completely — its own results, its
+// own filters, and a keyboard selection that survives the catalog moving.
+// Owning layer: palette root view-model and presentation boundary.
+// Boundary OUT: the dispatch seam and client-op table (cmd-palette-dispatch),
+// availability evaluation (cmd-palette-availability), overlay lifetime
+// (use-desktop-overlays), stack and filter mechanics (palette-view-stack,
+// palette-session-filters), and daemon command transport.
 import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -16,7 +17,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LayoutDesktop } from "../../lib/window-manager-types";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { OsCommandPalette } from "../../components/os-command-palette";
-import { useOsCommandPalette } from "../use-os-command-palette";
+import { useOsPaletteRoot } from "../use-os-palette-root";
+import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
+import type { PaletteRegistry, ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
 import { PALETTE_SESSION_ROW_LIMIT } from "../use-os-palette-sessions-view";
 
 type PaletteSessionFixture = {
@@ -295,11 +298,89 @@ function desktopFixture(
   };
 }
 
+const PALETTE_REGISTRY: PaletteRegistry = (() => {
+  const commands = [
+    { id: "window.tab.new", title: "New tab", section: "Tabs" },
+    { id: "app.open.tasks", title: "Open Tasks", section: "Apps", app: "tasks" },
+    { id: "app.open.agents", title: "Open Agents", section: "Apps", app: "agents" },
+    { id: "palette.view.sessions", title: "Sessions", section: "Views", view: "sessions" },
+  ].map(entry => ({
+    id: entry.id,
+    title: entry.title,
+    section: entry.section,
+    icon: "command",
+    source: "core",
+    bindings: [],
+    alias: null,
+    destructive: false,
+    availability_exempt: false,
+    arguments: [],
+    action: entry.app
+      ? { kind: "navigate", app: entry.app }
+      : entry.view
+        ? { kind: "view", view: entry.view }
+        : { kind: "client_op", op: entry.id },
+    execution: { retry_safe: true, single_flight: false },
+    visible: true,
+    available: true,
+    reason: "",
+    chords: [],
+  })) as unknown as ResolvedPaletteCommand[];
+  return {
+    commands,
+    byId: new Map(commands.map(command => [command.id, command])),
+    sources: [{ source: "core", status: "healthy" }],
+    catalogRevision: "sha256:test",
+    stale: false,
+    daemonReachable: true,
+  };
+})();
+
 function PaletteHarness({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+  return (
+    <CmdPaletteRegistryProvider registry={PALETTE_REGISTRY}>{children}</CmdPaletteRegistryProvider>
+  );
 }
 
-describe("useOsCommandPalette", () => {
+const paletteDispatch = {
+  // Stands in for the seam: a `view` action pushes the stack, exactly as
+  // `dispatchPaletteCommand` routes it through the shell's `pushView` port.
+  run: vi.fn(
+    async (
+      command: ResolvedPaletteCommand,
+      _args?: Readonly<Record<string, unknown>>,
+      _query?: string
+    ) => {
+      const view = command.action.kind === "view" ? command.action.view : undefined;
+      if (view) paletteMocks.writeViewStack([{ viewId: view as "sessions" }]);
+      return { status: "ran" } as const;
+    }
+  ),
+  runById: vi.fn(async (_commandId: string) => ({ status: "ran" }) as const),
+  executeClientOp: vi.fn(async (_op: string, _payload: unknown) => undefined),
+};
+
+function renderPalette() {
+  return render(
+    <PaletteHarness>
+      <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+    </PaletteHarness>
+  );
+}
+
+function renderRoot(open = true, onOpenChange = vi.fn()) {
+  return renderHook(
+    (props: { open: boolean }) =>
+      useOsPaletteRoot({
+        open: props.open,
+        onOpenChange,
+        dispatch: (command, query) => void paletteDispatch.run(command, undefined, query),
+      }),
+    { initialProps: { open }, wrapper: PaletteHarness }
+  );
+}
+
+describe("useOsPaletteRoot", () => {
   beforeEach(() => {
     paletteMocks.activeWorkspaceId = "workspace:alpha";
     paletteMocks.closeWindow.mockClear();
@@ -325,56 +406,103 @@ describe("useOsCommandPalette", () => {
     paletteMocks.windowSlots.clear();
     paletteMocks.windowCommands.commandsAvailable = true;
     paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
+    paletteDispatch.run.mockClear();
+    paletteDispatch.runById.mockClear();
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("Should create each new tab inside the focused frame and scope its picker [UT-080]", async () => {
-    const onOpenChange = vi.fn();
-    const { result } = renderHook(() => useOsCommandPalette(true, onOpenChange), {
-      wrapper: PaletteHarness,
-    });
+  it("Should render every row from the registry projection and dispatch through the seam", async () => {
+    const user = userEvent.setup();
+    renderPalette();
 
-    await act(async () => {
-      result.current.newTab();
-      result.current.newTab();
-    });
+    expect(screen.getByTestId("os-palette-command-app.open.tasks")).toBeInTheDocument();
+    await user.click(screen.getByTestId("os-palette-command-app.open.tasks"));
 
-    await waitFor(() => {
-      expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledTimes(2);
-    });
-    expect(paletteMocks.coordinator.userOpen).toHaveBeenNthCalledWith(1, {
-      app: "new-tab",
-      stackTargetWindowId: "window:tasks",
-    });
-    expect(paletteMocks.coordinator.userOpen).toHaveBeenNthCalledWith(2, {
-      app: "new-tab",
-      stackTargetWindowId: "window:tasks",
-    });
-    expect(paletteMocks.paletteIntentRequested).toHaveBeenCalledTimes(2);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(paletteDispatch.run).toHaveBeenCalledOnce();
+    expect(paletteDispatch.run.mock.lastCall?.[0]).toMatchObject({ id: "app.open.tasks" });
   });
 
-  it("Should keep a dismissed destination tab intact and open standalone without a focus [UT-081, UT-082]", () => {
+  it("Should scope the picker to the destination tab and release it on close [UT-081, UT-082]", () => {
     paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
     paletteMocks.desktop = desktopFixture({}, null);
-    const onOpenChange = vi.fn();
-    const { result, rerender } = renderHook(({ open }) => useOsCommandPalette(open, onOpenChange), {
-      initialProps: { open: true },
-      wrapper: PaletteHarness,
-    });
+    const { result, rerender } = renderRoot();
 
     expect(result.current.destinationWindowId).toBe("window:new-tab");
     rerender({ open: false });
+    // Dismissing the palette abandons the intent without destroying the tab.
     expect(result.current.destinationWindowId).toBeNull();
     expect(paletteMocks.closeWindow).not.toHaveBeenCalled();
+  });
 
-    act(() => {
-      result.current.newTab();
+  it("Should hand the empty tab's place to the picked session [UT-080]", async () => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
+    paletteMocks.desktop = desktopFixture({}, null);
+    const { result } = renderRoot();
+
+    await act(async () => {
+      result.current.openSession({
+        sessionId: "session:one",
+        title: "One",
+        agentName: "codex",
+        workspaceId: "workspace:alpha",
+        route: { pathname: "/agents/codex/sessions/session%3Aone", search: {} },
+      });
     });
-    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith({ app: "new-tab" });
+
+    expect(paletteMocks.paletteIntentCleared).toHaveBeenCalledOnce();
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith({
+      app: "session",
+      instanceKey: "session:one",
+      route: { pathname: "/agents/codex/sessions/session%3Aone", search: {} },
+      stackTargetWindowId: "window:new-tab",
+    });
+    await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
+    // BR-20: destination picking is not a landing, so the shared jump stays out.
+    expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
+  });
+
+  it("Should land on a session through the shared attention jump [BR-20]", async () => {
+    const { result } = renderRoot();
+
+    await act(async () => {
+      result.current.openSession({
+        sessionId: "session:one",
+        title: "One",
+        agentName: "codex",
+        workspaceId: "workspace:alpha",
+        route: { pathname: "/agents/codex/sessions/session%3Aone", search: {} },
+      });
+    });
+
+    expect(paletteMocks.jumpToSession).toHaveBeenCalledExactlyOnceWith({
+      sessionId: "session:one",
+      agentName: "codex",
+      workspaceId: "workspace:alpha",
+    });
+    // The root must not keep a second landing implementation of its own.
+    expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should offer only navigable targets in destination mode and stay honest when none are eligible [UT-107, UT-108]", () => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
+    paletteMocks.desktop = desktopFixture({}, null);
+    const { result } = renderRoot();
+
+    expect(result.current.destination).toBe(true);
+    const offered = result.current.sections.flatMap(section =>
+      section.commands.map(command => command.action.kind)
+    );
+    expect(offered.length).toBeGreaterThan(0);
+    expect(new Set(offered)).toEqual(new Set(["navigate"]));
+    // Tabs and worktrees are absent in destination mode, not disabled.
+    expect(result.current.entities.tabs).toHaveLength(0);
+    expect(result.current.entities.worktrees).toHaveLength(0);
+
+    act(() => result.current.setQuery("zzzz"));
+    expect(result.current.sections).toHaveLength(0);
   });
 
   it("Should preserve the selected tab route by activating its existing window [UT-090]", async () => {
@@ -388,27 +516,13 @@ describe("useOsCommandPalette", () => {
       },
       "window:deep-task"
     );
-    const { result } = renderHook(() => useOsCommandPalette(true, vi.fn()), {
-      wrapper: PaletteHarness,
-    });
+    const { result } = renderRoot();
 
     await act(async () => {
       result.current.goToTab("window:deep-task");
     });
 
     expect(paletteMocks.coordinator.userActivateWindow).toHaveBeenCalledWith("window:deep-task");
-  });
-
-  it("Should use the runtime workspace and lock the Global toggle while scope resolves", () => {
-    paletteMocks.pending = true;
-
-    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
-
-    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith("workspace:alpha");
-    expect(screen.getByTestId("os-palette-toggle-global-scope")).toHaveAttribute(
-      "data-disabled",
-      "true"
-    );
   });
 
   it("Should render contextual Go to tab results, attention, and no empty group [UT-100]", () => {
@@ -438,7 +552,7 @@ describe("useOsCommandPalette", () => {
       alpha.id
     );
 
-    const rendered = render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    const rendered = renderPalette();
 
     expect(screen.getByText("Go to tab")).toBeInTheDocument();
     expect(screen.getByTestId("os-palette-tab-window:alpha")).toHaveTextContent("TasksAlpha");
@@ -448,7 +562,11 @@ describe("useOsCommandPalette", () => {
     );
 
     paletteMocks.desktop = desktopFixture({}, null);
-    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    rendered.rerender(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </PaletteHarness>
+    );
     expect(screen.queryByText("Go to tab")).not.toBeInTheDocument();
   });
 
@@ -463,9 +581,7 @@ describe("useOsCommandPalette", () => {
       },
       null
     );
-    const { result } = renderHook(() => useOsCommandPalette(true, vi.fn()), {
-      wrapper: PaletteHarness,
-    });
+    const { result } = renderRoot();
 
     await act(async () => {
       result.current.goToTab("window:minimized");
@@ -507,7 +623,7 @@ function workspaceGroup(
 }
 
 async function pushSessionsView(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByTestId("os-palette-view-sessions"));
+  await user.click(screen.getByTestId("os-palette-command-palette.view.sessions"));
   return screen.getByPlaceholderText("Search sessions…");
 }
 
@@ -528,7 +644,7 @@ describe("palette nested views", () => {
   it("Should push a view, keep editing text, and pop only on an empty query [UT-059]", async () => {
     const user = userEvent.setup();
     paletteMocks.sessions = [paletteSession({ id: "s-1", name: "Refactor session store" })];
-    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    renderPalette();
     expect(screen.queryByTestId("os-palette-breadcrumb")).not.toBeInTheDocument();
 
     const input = await pushSessionsView(user);
@@ -543,23 +659,29 @@ describe("palette nested views", () => {
     await user.clear(input);
     await user.keyboard("{Backspace}");
     expect(screen.queryByTestId("os-palette-breadcrumb")).not.toBeInTheDocument();
-    expect(screen.getByTestId("os-palette-view-sessions")).toBeInTheDocument();
+    expect(screen.getByTestId("os-palette-command-palette.view.sessions")).toBeInTheDocument();
   });
 
   it("Should render only the active view's results and name its own empty state [UT-060]", async () => {
     const user = userEvent.setup();
     paletteMocks.sessions = [paletteSession({ id: "s-1", name: "Refactor session store" })];
-    const rendered = render(<OsCommandPalette open onOpenChange={vi.fn()} />);
-    expect(screen.getByTestId("os-palette-app-tasks")).toBeInTheDocument();
+    const rendered = renderPalette();
+    expect(screen.getByTestId("os-palette-command-app.open.tasks")).toBeInTheDocument();
 
     await pushSessionsView(user);
     expect(screen.getByTestId("os-palette-session-view-s-1")).toBeInTheDocument();
-    expect(screen.queryByTestId("os-palette-app-tasks")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("os-palette-toggle-global-scope")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("os-palette-view-sessions")).not.toBeInTheDocument();
+    // No root row bleeds into the level (BR-32): the view owns the surface.
+    expect(screen.queryByTestId("os-palette-command-app.open.tasks")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("os-palette-command-palette.view.sessions")
+    ).not.toBeInTheDocument();
 
     paletteMocks.sessions = [];
-    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    rendered.rerender(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </PaletteHarness>
+    );
     expect(screen.getByText("No sessions in this workspace yet.")).toBeInTheDocument();
     expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
   });
@@ -570,7 +692,7 @@ describe("palette nested views", () => {
       paletteSession({ id: "s-needs", name: "Chargeback flow", badge: "waiting-for-input" }),
       paletteSession({ id: "s-running", name: "Fix payment retries", badge: "running" }),
     ];
-    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    renderPalette();
     const input = await pushSessionsView(user);
 
     expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*2/);
@@ -592,10 +714,10 @@ describe("palette nested views", () => {
     expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
   });
 
-  it("Should widen through the operator's persisted session-list scope [UT-061]", async () => {
+  it("Should widen through the operator's persisted session-list scope [UT-099]", async () => {
     const user = userEvent.setup();
     paletteMocks.sessions = [paletteSession({ id: "s-alpha", name: "Refactor session store" })];
-    const rendered = render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    const rendered = renderPalette();
     await pushSessionsView(user);
 
     const scope = screen.getByTestId("os-palette-session-scope");
@@ -619,7 +741,11 @@ describe("palette nested views", () => {
       ]),
       workspaceGroup("workspace:gamma", "Gamma", [], { failed: true }),
     ];
-    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    rendered.rerender(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </PaletteHarness>
+    );
 
     expect(screen.getByTestId("os-palette-session-scope")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("os-palette-session-view-s-beta")).toHaveTextContent("Beta");
@@ -636,14 +762,18 @@ describe("palette nested views", () => {
     expect(paletteMocks.setSessionListScope).toHaveBeenLastCalledWith("workspace");
 
     paletteMocks.workspaceGroups = [];
-    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    rendered.rerender(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </PaletteHarness>
+    );
     expect(screen.getByText("No sessions across workspaces yet.")).toBeInTheDocument();
   });
 
   it("Should read the archive through its own toggle without touching the breadth [UT-061]", async () => {
     const user = userEvent.setup();
     paletteMocks.sessions = [paletteSession({ id: "s-alpha", name: "Refactor session store" })];
-    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    renderPalette();
     await pushSessionsView(user);
 
     const archived = screen.getByTestId("os-palette-session-archived");
@@ -672,7 +802,11 @@ describe("palette nested views", () => {
     paletteMocks.sessions = [
       paletteSession({ id: "s-1", name: "Refactor session store", agent_name: "codex" }),
     ];
-    render(<OsCommandPalette open onOpenChange={onOpenChange} />);
+    render(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={onOpenChange} />
+      </PaletteHarness>
+    );
     await pushSessionsView(user);
 
     await user.click(screen.getByTestId("os-palette-session-view-s-1"));
@@ -691,7 +825,7 @@ describe("palette nested views", () => {
     const stamped = (id: string, minute: string) =>
       paletteSession({ id, name: id, attention_changed_at: `2026-08-16T10:0${minute}:00Z` });
     paletteMocks.sessions = [stamped("s-a", "3"), stamped("s-b", "2"), stamped("s-c", "1")];
-    const rendered = render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    const rendered = renderPalette();
     await pushSessionsView(user);
 
     await waitFor(() => {
@@ -712,14 +846,22 @@ describe("palette nested views", () => {
       stamped("s-b", "2"),
       stamped("s-c", "1"),
     ];
-    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    rendered.rerender(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </PaletteHarness>
+    );
     expect(screen.getByTestId("os-palette-session-view-s-b")).toHaveAttribute(
       "aria-selected",
       "true"
     );
 
     paletteMocks.sessions = [stamped("s-new", "4"), stamped("s-a", "3"), stamped("s-c", "1")];
-    rendered.rerender(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    rendered.rerender(
+      <PaletteHarness>
+        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
+      </PaletteHarness>
+    );
     expect(screen.getByTestId("os-palette-session-view-s-c")).toHaveAttribute(
       "aria-selected",
       "true"
@@ -731,7 +873,7 @@ describe("palette nested views", () => {
     paletteMocks.sessions = Array.from({ length: PALETTE_SESSION_ROW_LIMIT + 12 }, (_, index) =>
       paletteSession({ id: `s-${index}`, name: `Session ${index}` })
     );
-    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+    renderPalette();
     await pushSessionsView(user);
 
     expect(screen.getAllByTestId(/^os-palette-session-view-/)).toHaveLength(

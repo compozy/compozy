@@ -13,6 +13,9 @@ type shellCommandDefinition struct {
 	icon       string
 	needsFocus bool
 	exempt     bool
+	// when overrides the focused-window requirement for commands whose
+	// relevance is a different piece of client context.
+	when []cmdpalette.Predicate
 }
 
 var fixedShellCommands = []shellCommandDefinition{
@@ -21,6 +24,7 @@ var fixedShellCommands = []shellCommandDefinition{
 	{id: "scope.global.toggle", title: "Global scope", section: "Shell", icon: "globe", exempt: true},
 	{id: "window.nav.back", title: "Back", section: "Shell", icon: "arrow-left", needsFocus: true, exempt: true},
 	{id: "sidebar.toggle", title: "Toggle sidebar", section: "Shell", icon: "panel-left"},
+	{id: "shell.sessions.toggle", title: "Toggle sessions", section: "Shell", icon: "list"},
 	{id: "shortcuts.cheatsheet", title: "Keyboard shortcuts", section: "Shell", icon: "keyboard", exempt: true},
 	{id: "window.close", title: "Close window", section: "Window", icon: "x-square", needsFocus: true},
 	{id: "window.minimize", title: "Minimize window", section: "Window", icon: "minus-square", needsFocus: true},
@@ -31,7 +35,18 @@ var fixedShellCommands = []shellCommandDefinition{
 	{id: "window.focus.up", title: "Focus up", section: "Window", icon: "arrow-up"},
 	{id: "window.focus.down", title: "Focus down", section: "Window", icon: "arrow-down"},
 	{id: "window.focus.last", title: "Focus last window", section: "Window", icon: "history"},
+	{id: "window.merge_all", title: "Merge all windows", section: "Window", icon: "combine", when: []cmdpalette.Predicate{{
+		Key:      cmdpalette.ContextDesktopWindowCount,
+		Operator: cmdpalette.PredicateGreaterThanOrEqual,
+		Value:    2,
+		Reason:   "needs two windows on this desktop",
+	}}},
 	{id: "window.tab.new", title: "New tab", section: "Tabs", icon: "plus"},
+	{id: "window.tab.detach", title: "Move tab to new window", section: "Tabs", icon: "panels-top-left", when: []cmdpalette.Predicate{{
+		Key:    cmdpalette.ContextWindowStacked,
+		Value:  true,
+		Reason: "needs a tab in a stack",
+	}}},
 	{id: "window.tab.next", title: "Next tab", section: "Tabs", icon: "chevron-right", needsFocus: true},
 	{id: "window.tab.previous", title: "Previous tab", section: "Tabs", icon: "chevron-left", needsFocus: true},
 	{id: "window.tab.last", title: "Last tab", section: "Tabs", icon: "history", needsFocus: true},
@@ -83,7 +98,10 @@ func shellCommands() []cmdpalette.Descriptor {
 	for _, definition := range definitions {
 		command := clientCommand(definition.id, definition.title, definition.section, definition.icon)
 		command.AvailabilityExempt = definition.exempt
-		if definition.needsFocus {
+		switch {
+		case definition.when != nil:
+			command.When = append([]cmdpalette.Predicate(nil), definition.when...)
+		case definition.needsFocus:
 			command.When = []cmdpalette.Predicate{{
 				Key: cmdpalette.ContextWindowFocused, Value: true, Reason: "requires a focused window",
 			}}

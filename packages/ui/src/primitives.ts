@@ -154,6 +154,7 @@ export {
   CommandSeparator,
   CommandShortcut,
 } from "./components/command";
+export { resolveCommandSelection } from "./lib/command-selection";
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,

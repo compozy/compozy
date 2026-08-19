@@ -49,7 +49,7 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
   const onResolveMissingWorktree = vi.fn();
   const onOpenWorktreeContext = vi.fn();
   const onRemoveWorktree = vi.fn();
-  const onOpenWorkspaces = vi.fn();
+  const onRun = vi.fn();
   render(
     <UIProvider reducedMotion="never" skipAnimations>
       <Menubar>
@@ -61,7 +61,7 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
           activeWorkspaceId={gitAlpha.id}
           monogram={name => name.slice(0, 2).toUpperCase()}
           onSelectWorkspace={onSelectWorkspace}
-          onOpenWorkspaces={onOpenWorkspaces}
+          onRun={onRun}
           onAddWorkspace={vi.fn()}
           worktreesByWorkspace={{
             [gitAlpha.id]: worktreeListingFixture,
@@ -86,7 +86,7 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
     onResolveMissingWorktree,
     onOpenWorktreeContext,
     onRemoveWorktree,
-    onOpenWorkspaces,
+    onRun,
   };
 }
 
@@ -130,7 +130,7 @@ describe("WorkspaceMenu", () => {
 
   it("Should open the worktree submenu from the keyboard without selecting anything", async () => {
     const user = userEvent.setup();
-    const { onOpenChange, onSelectWorkspace, onOpenWorkspaces } = renderMenu();
+    const { onOpenChange, onSelectWorkspace, onRun } = renderMenu();
 
     await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
 
@@ -153,7 +153,7 @@ describe("WorkspaceMenu", () => {
     // Traversal alone neither selects nor closes.
     expect(onSelectWorkspace).not.toHaveBeenCalled();
     expect(openChangeFlags(onOpenChange)).not.toContain(false);
-    expect(onOpenWorkspaces).not.toHaveBeenCalled();
+    expect(onRun).not.toHaveBeenCalled();
   });
 
   it("Should contract home-rooted nest paths when the host supplies userHomeDir", async () => {

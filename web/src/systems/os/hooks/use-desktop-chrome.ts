@@ -3,7 +3,12 @@ import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
-import type { WindowManagerErrorPayload, WindowManagerSnapshot } from "../lib/window-manager-types";
+import { ClientCommandChannel } from "../lib/client-command-channel";
+import type {
+  WindowManagerAttachedClientView,
+  WindowManagerErrorPayload,
+  WindowManagerSnapshot,
+} from "../lib/window-manager-types";
 import {
   windowManagerConfigOptions,
   windowManagerSnapshotOptions,
@@ -17,6 +22,10 @@ import { useWindowManagerStream } from "./use-window-manager-stream";
 export interface DesktopChromeModel {
   shell: OsShellHandle;
   query: UseQueryResult<WindowManagerSnapshot, Error>;
+  /** The attachment this shell speaks for; the palette projection needs its context. */
+  client: WindowManagerAttachedClientView | null;
+  /** Executes a `client_op` the daemon pushed over the window-manager channel. */
+  clientCommandChannel: ClientCommandChannel;
 }
 
 function navigateTo(
@@ -43,6 +52,9 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? ""));
   const configQuery = useQuery(windowManagerConfigOptions());
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
+  // The seam is built deeper in the tree (it needs the shell's own handlers), so
+  // the stream reaches it through a ref rather than the shell reaching upward.
+  const [clientCommandChannel] = useState(() => new ClientCommandChannel());
   const [shell] = useState<OsShellHandle>(() => {
     const port: OsRouterPort = {
       navigate: route => navigateTo(router, route, false),
@@ -108,6 +120,9 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
       manager.setClient(view);
       shell.coordinator.reportAuthoritativeState();
     },
+    onClientCommand: command => {
+      return clientCommandChannel.execute(command.op, command.payload);
+    },
     onClientInvalidated: client.reregister,
     onError: error => manager.setLoadError(streamError(error)),
   });
@@ -115,5 +130,7 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   return {
     shell,
     query,
+    client: client.client,
+    clientCommandChannel,
   };
 }

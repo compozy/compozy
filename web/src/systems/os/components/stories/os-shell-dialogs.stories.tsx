@@ -3,9 +3,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
 import {
-  STORY_SHORTCUT_DEFAULTS,
-  STORY_SHORTCUT_REBOUND_OVERRIDES,
-} from "@/storybook/window-manager-shortcut-fixtures";
+  cmdPaletteStoryReboundOverrides,
+  cmdPaletteStoryShortcuts,
+} from "../../mocks/cmd-palette-fixtures";
 
 import { OsShellContext } from "../../contexts/os-shell-context";
 import { effectiveShortcutMap } from "../../lib/window-manager-shortcuts";
@@ -38,8 +38,8 @@ function shortcutConfig(overrides: WindowManagerConfig["shortcuts"]): WindowMana
   return {
     ...base,
     shortcuts: overrides,
-    shortcutDefaults: STORY_SHORTCUT_DEFAULTS,
-    effectiveShortcuts: effectiveShortcutMap(STORY_SHORTCUT_DEFAULTS, overrides),
+    shortcutDefaults: cmdPaletteStoryShortcuts,
+    effectiveShortcuts: effectiveShortcutMap(cmdPaletteStoryShortcuts, overrides),
   };
 }
 
@@ -76,7 +76,7 @@ export const ShortcutsRebound: Story = {
   render: () => (
     <DialogFixture
       dialog="shortcuts"
-      windowManagerConfig={shortcutConfig(STORY_SHORTCUT_REBOUND_OVERRIDES)}
+      windowManagerConfig={shortcutConfig(cmdPaletteStoryReboundOverrides)}
     />
   ),
 };

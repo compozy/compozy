@@ -14,15 +14,16 @@ import {
   dialogShellClass,
 } from "@compozy/ui";
 
+import { usePaletteRegistry } from "../hooks/use-palette-registry";
 import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";
+import { registryShortcutActions } from "../lib/cmd-palette-shortcut-actions";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import {
   deriveShortcutCheatsheet,
   primaryShortcutModifier,
   shortcutLabel,
 } from "../lib/window-manager-shortcuts";
-import type { WindowManagerActionSection } from "../lib/window-manager-command-registry";
 import { ShortcutBindingKeys } from "./shortcut-binding-keys";
 
 export interface OsShortcutsDialogProps {
@@ -30,7 +31,12 @@ export interface OsShortcutsDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const SECTION_ORDER: readonly WindowManagerActionSection[] = [
+/**
+ * Curated reading order. A section the registry carries but this list does not
+ * name still renders — appended after these — so an extension's group can never
+ * be silently dropped from the sheet.
+ */
+const SECTION_ORDER: readonly string[] = [
   "Shell",
   "Window",
   "Tiling",
@@ -50,17 +56,29 @@ const SURFACE_LOCAL_ROWS = [
 /** Live daemon keymap plus the current surface's fixed, read-only controls. */
 export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps) {
   const { coordinator } = useOsShell();
+  const registry = usePaletteRegistry();
   const windowManagerConfig = useDesktop(state => state.windowManagerConfig);
   const canOpenApps = useDesktop(windowManagerCommandsAvailable);
   const overrides = windowManagerConfig?.shortcuts ?? {};
-  const rows = deriveShortcutCheatsheet(windowManagerConfig?.effectiveShortcuts ?? {}, overrides);
+  const rows = deriveShortcutCheatsheet(
+    windowManagerConfig?.effectiveShortcuts ?? {},
+    overrides,
+    registryShortcutActions(registry)
+  );
   const primaryModifier = primaryShortcutModifier(
     typeof navigator === "undefined" ? "" : navigator.platform
   );
-  const groups = SECTION_ORDER.map(title => ({
-    title,
-    rows: rows.filter(row => row.section === title),
-  })).filter(group => group.rows.length > 0);
+  const sections = [
+    ...SECTION_ORDER,
+    ...[...new Set(rows.map(row => row.section))].filter(
+      section => !SECTION_ORDER.includes(section)
+    ),
+  ];
+  const groups: Array<{ title: string; rows: typeof rows }> = [];
+  for (const title of sections) {
+    const sectionRows = rows.filter(row => row.section === title);
+    if (sectionRows.length > 0) groups.push({ title, rows: sectionRows });
+  }
 
   const openLayoutSettings = () => {
     if (!canOpenApps) return;

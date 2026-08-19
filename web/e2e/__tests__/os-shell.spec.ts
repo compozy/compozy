@@ -9,6 +9,12 @@ import type { Browser, Locator, Page } from "@playwright/test";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
   appWindow,
+  destinationPalette,
+  menubarCommandItem,
+  openCommandPalette,
+  paletteEmptyState,
+  paletteRow,
+  paletteRowReason,
   sessionWindow,
   switchWorkspace,
   windowFrame,
@@ -3897,4 +3903,80 @@ test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, an
   await expect(apply).toBeFocused();
   await appPage.keyboard.press("Enter");
   await expect.poll(() => applyTargets).toEqual(["runtime"]);
+});
+
+test("E2E-015: destination mode offers only eligible targets and exits clean when none are", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+
+  // ⌘T opens an empty tab and hands the palette its destination intent.
+  await appPage.keyboard.press("ControlOrMeta+KeyT");
+  const destination = destinationPalette(appPage);
+  await expect(destination).toBeVisible();
+  await expect(destination.getByPlaceholder("Open in this tab…")).toBeVisible();
+
+  // Only navigable targets are offered; shell operations are absent, not disabled.
+  await expect(paletteRow(destination, "app.open.tasks")).toBeVisible();
+  await expect(paletteRow(destination, "window.close")).toHaveCount(0);
+
+  await paletteRow(destination, "app.open.tasks").click();
+  await expect(appWindow(appPage, "tasks")).toBeVisible();
+  await expect(destination).toHaveCount(0);
+
+  // Zero-eligible variant: an impossible query says so and Esc leaves cleanly.
+  await appPage.keyboard.press("ControlOrMeta+KeyT");
+  const reopened = destinationPalette(appPage);
+  await expect(reopened).toBeVisible();
+  await reopened.getByPlaceholder("Open in this tab…").fill("zzzzzzzz");
+  await expect(paletteEmptyState(reopened)).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(reopened).toHaveCount(0);
+});
+
+test("E2E-018: a cold daemon disables rows with a reason while exempt commands keep working", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  const palette = await openCommandPalette(appPage);
+  await expect(paletteRow(palette, "window.close")).toBeEnabled();
+
+  // The runtime fixture exposes no lifecycle control, so the daemon is taken
+  // away at the transport: the catalog route stops answering.
+  await appPage.route("**/api/cmd-palette/commands*", route => route.abort());
+  await appPage.evaluate(() => window.dispatchEvent(new Event("offline")));
+
+  // The palette stays open and honest: the row is disabled and says why.
+  await expect(paletteRow(palette, "window.close")).toBeDisabled();
+  await expect(paletteRowReason(palette, "window.close")).toHaveText("runtime unavailable");
+  // Availability-exempt commands survive the reconnect (US-001.EC-1).
+  await paletteRow(palette, "shortcuts.cheatsheet").click();
+  await expect(appPage.getByTestId("os-shortcuts-dialog")).toBeVisible();
+  await appPage.keyboard.press("Escape");
+
+  await appPage.unroute("**/api/cmd-palette/commands*");
+
+  // Recovery re-enables the row.
+  const reopened = await openCommandPalette(appPage);
+  await expect(paletteRow(reopened, "window.close")).toBeEnabled();
+  await expect(paletteRowReason(reopened, "window.close")).toHaveCount(0);
+});
+
+test("E2E-019: menubar items project the same id, label, chord and reason as the palette row", async ({
+  appPage,
+  runtime,
+}) => {
+  await prepareShell(appPage, runtime);
+  const palette = await openCommandPalette(appPage);
+  const paletteLabel = await paletteRow(palette, "window.close").innerText();
+  await appPage.keyboard.press("Escape");
+
+  await appPage.getByRole("menuitem", { name: "Window" }).click();
+  const menuItem = menubarCommandItem(appPage, "window.close");
+  await expect(menuItem).toBeVisible();
+  // Same registry row, same words: BR-17 curates order only.
+  expect(paletteLabel).toContain(await menuItem.innerText());
+  await appPage.keyboard.press("Escape");
 });
