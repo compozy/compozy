@@ -166,6 +166,39 @@ func TestCompilerShouldReturnLintFailedErrorWhenDefinitionIsInvalid(t *testing.T
 	})
 }
 
+func TestCompilerShouldCompileFanOutFilterWithOwnIterationScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should compile and evaluate item, index, and authored aliases", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		fanOut := requireNode(t, &definition, "fan")
+		fanOut.BindAs = "task_item"
+		fanOut.IndexAs = "task_index"
+		fanOut.Filter = `item.title == task_item.title && index == task_index`
+
+		resolved, err := loop.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile() error = %v", err)
+		}
+		condition := resolved.Conditions["nodes.fan.filter"]
+		if condition == nil {
+			t.Fatal("resolved fan-out filter condition is nil")
+		}
+		item := map[string]any{"title": "compile the graph"}
+		evaluated, err := condition.Evaluate(map[string]any{
+			"item": item, "index": int64(2), "task_item": item, "task_index": int64(2),
+		})
+		if err != nil {
+			t.Fatalf("Evaluate() error = %v", err)
+		}
+		if !evaluated.Value {
+			t.Fatal("Evaluate() = false, want true")
+		}
+	})
+}
+
 func TestCompilerShouldFoldGoalDefaultsWithoutMutatingInput(t *testing.T) {
 	t.Parallel()
 

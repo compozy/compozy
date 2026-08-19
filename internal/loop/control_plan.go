@@ -338,7 +338,27 @@ func evaluateFanOutNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	materialization, terminal := buildFanOutMaterialization(node, items, eval.fanOutWidth)
+	filtered, err := evaluateFanOutFilter(eval.resolved, node, namespace, items)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	eval.gateEvaluations.recordPredicate(filtered.Diagnostics...)
+	if filtered.Disposition != nil {
+		if filtered.Disposition.Policy == PredicateErrorExit {
+			output.Status = generationOutputSucceeded
+			return output, predicateExitTerminal(filtered.Disposition.Diagnostic), nil
+		}
+		failed, failureErr := applyPredicateFailureDisposition(
+			output,
+			node,
+			filtered.Disposition.Failure,
+			eval.resolved.Definition.Graph,
+			eval.topology,
+			outputs,
+		)
+		return failed, nil, failureErr
+	}
+	materialization, terminal := buildFanOutMaterialization(node, filtered.Items, eval.fanOutWidth)
 	if terminal != nil {
 		return output, terminal, nil
 	}

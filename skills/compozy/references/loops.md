@@ -399,6 +399,10 @@ declares exactly one of `for`, `until`, or `event`, with optional `expect`, `ahe
 `expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
 A fan-out requires positive `max_fan_out`; logical lanes may exceed 64, while only its
 `max_parallel` window materializes at once.
+A fan-out `filter` evaluates once per source element before batching and before the `max_fan_out`
+check. Its scope contains `item`, the source `index`, and that fan-out's `bind_as`/`index_as`
+aliases. Only matching elements produce lanes. Evaluation errors fail closed by default;
+`on_eval_error: exit` ends the Loop instead.
 A `run-agent` result is validated against its pinned `output_schema` before the owning daemon
 settles the task and again before node success is published. A mismatch fails with
 `invalid_output`; content-addressed storage preserves the exact structured value. The bound agent

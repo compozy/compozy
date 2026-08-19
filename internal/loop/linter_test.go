@@ -884,6 +884,29 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			wantCodes: []string{loop.CodeFanOutUnbounded},
 		},
 		{
+			name: "Should accept item and index in the fan out filter",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "fan").Filter = `item.title != "" && index >= 0`
+			},
+		},
+		{
+			name: "Should accept the fan out iteration aliases in its filter",
+			mutate: func(def *dsl.Definition) {
+				node := requireNode(t, def, "fan")
+				node.BindAs = "task_item"
+				node.IndexAs = "task_index"
+				node.Filter = `task_item.title != "" && task_index >= 0`
+				node.OnEvalError = dsl.EvalErrorExit
+			},
+		},
+		{
+			name: "Should reject an undeclared iteration alias in the fan out filter",
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "fan").Filter = `undeclared_item.title != ""`
+			},
+			wantCodes: []string{refs.CodeUnresolvablePath},
+		},
+		{
 			name: "Should require explicit acceptable missing coverage for best effort",
 			mutate: func(def *dsl.Definition) {
 				node := requireNode(t, def, "fan")

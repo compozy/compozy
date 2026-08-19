@@ -335,7 +335,10 @@ func compileNode(
 			continue
 		}
 		key := fmt.Sprintf("nodes.%s.%s", node.ID, item.name)
-		condition, err := ctx.compileCondition(item.value, namespace)
+		condition, err := ctx.compileCondition(
+			item.value,
+			nodeConditionNamespace(node, item.name, namespace),
+		)
 		if err != nil {
 			return fmt.Errorf("compile %s: %w", key, err)
 		}

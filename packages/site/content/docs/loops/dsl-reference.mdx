@@ -192,6 +192,9 @@ rejects the node run deterministically before an ungated session can start.
 
 `fan-out` exposes `item` and `index` to its branch scope — a single element at `batch_size: 1`, an
 array slice above it. Use `bind_as` and `index_as` to give nested fan-outs distinct names.
+When `filter` is set, the Loop evaluates it once per source element with `item`, the source `index`,
+and the fan-out's own aliases. Only matching elements are batched and counted by `max_fan_out`.
+Evaluation errors fail the fan-out by default; set `on_eval_error: exit` to end the Loop instead.
 
 The default strategy is `wait_all`. `fail_fast` ends on the first definitive failure, and `race`
 accepts the lowest-index successful lane. `best_effort` requires both a threshold and an explicit

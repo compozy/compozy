@@ -3,6 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 
@@ -19,6 +20,12 @@ type fanOutMaterialization struct {
 	BatchSize   int     `json:"batch_size"`
 	MaxParallel int     `json:"max_parallel"`
 	Chunks      [][]any `json:"chunks"`
+}
+
+type fanOutFilterEvaluation struct {
+	Items       []any
+	Disposition *PredicateFailureDisposition
+	Diagnostics []PredicateDiagnostic
 }
 
 func buildFanOutMaterialization(
@@ -141,6 +148,63 @@ func resolveFanOutCollection(
 		return nil, fmt.Errorf("%w: %s: %w", ErrActionMaterialization, key, err)
 	}
 	return collectionItems(rendered)
+}
+
+func evaluateFanOutFilter(
+	resolved *ResolvedDefinition,
+	node dsl.Node,
+	namespace map[string]any,
+	items []any,
+) (fanOutFilterEvaluation, error) {
+	if strings.TrimSpace(node.Filter) == "" {
+		return fanOutFilterEvaluation{Items: items}, nil
+	}
+	key := fmt.Sprintf("nodes.%s.filter", node.ID)
+	condition := resolved.Conditions[key]
+	if condition == nil {
+		return fanOutFilterEvaluation{}, fmt.Errorf(
+			"%w: compiled fan-out filter %q is missing",
+			ErrValidation,
+			key,
+		)
+	}
+	result := fanOutFilterEvaluation{Items: make([]any, 0, len(items))}
+	for index, item := range items {
+		variables := fanOutFilterVariables(namespace, node, item, index)
+		evaluated, err := evaluatePredicate(
+			key,
+			condition,
+			variables,
+			PredicateRouting,
+			node.OnEvalError,
+		)
+		if err != nil {
+			return fanOutFilterEvaluation{}, fmt.Errorf("loop: evaluate fan-out %s filter: %w", node.ID, err)
+		}
+		result.Diagnostics = append(result.Diagnostics, evaluated.Diagnostics...)
+		if evaluated.Disposition != nil {
+			result.Disposition = evaluated.Disposition
+			return result, nil
+		}
+		if evaluated.Value {
+			result.Items = append(result.Items, item)
+		}
+	}
+	return result, nil
+}
+
+func fanOutFilterVariables(namespace map[string]any, node dsl.Node, item any, index int) map[string]any {
+	variables := make(map[string]any, len(namespace)+4)
+	maps.Copy(variables, namespace)
+	variables["item"] = item
+	variables["index"] = int64(index)
+	if name := strings.TrimSpace(node.BindAs); name != "" {
+		variables[name] = item
+	}
+	if name := strings.TrimSpace(node.IndexAs); name != "" {
+		variables[name] = int64(index)
+	}
+	return variables
 }
 
 func isPureTemplateReference(raw string, reference refs.Reference) bool {
