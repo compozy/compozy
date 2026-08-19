@@ -426,6 +426,17 @@ describe("Extension", () => {
           agents: [" agents/zeta ", "agents/alpha", "agents/zeta"],
           automation: [" automation/zeta ", "automation/alpha", "automation/zeta"],
           layouts: [" layouts/zeta ", "layouts/alpha", "layouts/zeta"],
+          cmd_palette: {
+            commands: [
+              {
+                id: "search",
+                title: "Search reviews",
+                icon: "search",
+                action: { kind: "tool", tool: "search" },
+                default_shortcut: "alt+shift+KeyS",
+              },
+            ],
+          },
         },
         supported_hook_events: ["prompt.post_assemble"],
       },
@@ -467,6 +478,17 @@ describe("Extension", () => {
       agents: ["agents/alpha", "agents/zeta"],
       automation: ["automation/alpha", "automation/zeta"],
       layouts: ["layouts/alpha", "layouts/zeta"],
+      cmd_palette: {
+        commands: [
+          {
+            id: "search",
+            title: "Search reviews",
+            icon: "search",
+            action: { kind: "tool", tool: "search" },
+            default_shortcut: "alt+shift+KeyS",
+          },
+        ],
+      },
     });
     expect(payload).toMatchObject({
       name: "describe-fixture",

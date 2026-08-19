@@ -1,6 +1,7 @@
 package cmdpalette
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -138,6 +139,18 @@ func TestRegistryCatalog(t *testing.T) {
 		if !errors.Is(err, ErrInvalidDescriptor) && !errors.Is(err, ErrDuplicateCommandID) {
 			t.Fatalf("Catalog() error = %v, want invalid extension namespace or duplicate", err)
 		}
+
+		aggregate := Source{Kind: SourceKindExtension}
+		_, err = NewRegistry(
+			[]ProviderRegistration{
+				{Source: aggregate, Provider: &contributionTestProvider{}},
+				{Source: aggregate, Provider: &contributionTestProvider{}},
+			},
+			nil, nil, &testExecutor{},
+		)
+		if err == nil || !strings.Contains(err.Error(), `duplicate provider source "extension"`) {
+			t.Fatalf("NewRegistry(duplicate aggregate) error = %v, want duplicate provider source", err)
+		}
 	})
 
 	t.Run("Should retain healthy sources when another provider is degraded [UT-005]", func(t *testing.T) {
@@ -162,6 +175,77 @@ func TestRegistryCatalog(t *testing.T) {
 		if len(catalog.Commands) != 1 || len(catalog.Sources) != 2 ||
 			catalog.Sources[1].Status != SourceDegraded || catalog.Sources[1].Reason != "crash loop" {
 			t.Fatalf("catalog = %#v, want healthy command and degraded diagnostic", catalog)
+		}
+	})
+
+	t.Run(
+		"Should keep unhealthy extension members unavailable under a new revision [UT-057,UT-060]",
+		func(t *testing.T) {
+			t.Parallel()
+			descriptor := testDescriptor("ext.notes.capture")
+			descriptor.Source = Source{Kind: SourceKindExtension, Extension: "notes"}
+			provider := &contributionTestProvider{contribution: Contribution{
+				Commands: []Descriptor{descriptor},
+				Sources:  []SourceStatus{{Source: "ext.notes", Status: SourceHealthy}},
+				Defaults: []ExtensionDefaultShortcut{{
+					CommandID: descriptor.ID, Chord: "alt+shift+KeyN", Source: "ext.notes", Active: true,
+				}},
+			}}
+			service, err := NewRegistry([]ProviderRegistration{{
+				Source: Source{Kind: SourceKindExtension}, Provider: provider,
+			}}, nil, nil, &testExecutor{})
+			if err != nil {
+				t.Fatalf("NewRegistry() error = %v", err)
+			}
+			healthy, err := service.Catalog(t.Context(), "ws-1", "")
+			if err != nil {
+				t.Fatalf("Catalog(healthy) error = %v", err)
+			}
+			provider.contribution.Commands[0].ProviderUnavailableReason = "extension notes is unhealthy (crash loop)"
+			provider.contribution.Sources[0] = SourceStatus{
+				Source: "ext.notes", Status: SourceUnhealthy, Reason: "extension notes is unhealthy (crash loop)",
+			}
+			provider.contribution.Defaults[0].Active = false
+			unhealthy, err := service.Catalog(t.Context(), "ws-1", "")
+			if err != nil {
+				t.Fatalf("Catalog(unhealthy) error = %v", err)
+			}
+			if len(unhealthy.Commands) != 1 || unhealthy.Commands[0].Available ||
+				unhealthy.Commands[0].UnavailableReason != "extension notes is unhealthy (crash loop)" ||
+				unhealthy.Sources[0].Status != SourceUnhealthy || healthy.Revision == unhealthy.Revision {
+				t.Fatalf("catalog transition = %#v -> %#v", healthy, unhealthy)
+			}
+			defaults, err := service.ExtensionDefaults(t.Context(), "ws-1")
+			if err != nil || len(defaults) != 1 || defaults[0].Active {
+				t.Fatalf("ExtensionDefaults() = %#v, %v", defaults, err)
+			}
+		},
+	)
+
+	t.Run("Should resolve bindings from the same extension snapshot [SI-5]", func(t *testing.T) {
+		t.Parallel()
+		descriptor := testDescriptor("ext.notes.capture")
+		descriptor.Source = Source{Kind: SourceKindExtension, Extension: "notes"}
+		provider := &countingContributionProvider{contribution: Contribution{
+			Commands: []Descriptor{descriptor},
+			Sources:  []SourceStatus{{Source: "ext.notes", Status: SourceHealthy}},
+			Defaults: []ExtensionDefaultShortcut{{
+				CommandID: descriptor.ID, Chord: "alt+shift+KeyN", Source: "ext.notes", Active: true,
+			}},
+		}}
+		bindings := &snapshotTestBindings{}
+		service, err := NewRegistry([]ProviderRegistration{{
+			Source: Source{Kind: SourceKindExtension}, Provider: provider,
+		}}, nil, bindings, &testExecutor{})
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if _, err := service.Catalog(t.Context(), "ws-1", ""); err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		if provider.calls != 1 || len(bindings.defaults) != 1 ||
+			bindings.defaults[0].CommandID != descriptor.ID {
+			t.Fatalf("snapshot reads = %d, defaults = %#v, want one atomic read", provider.calls, bindings.defaults)
 		}
 	})
 
@@ -204,4 +288,58 @@ func TestRegistryCatalog(t *testing.T) {
 			t.Fatalf("recorded events = %#v, want %#v", recorded, event)
 		}
 	})
+}
+
+type contributionTestProvider struct {
+	contribution Contribution
+}
+
+type countingContributionProvider struct {
+	contribution Contribution
+	calls        int
+}
+
+func (p *countingContributionProvider) ProvideCommands(context.Context, WorkspaceID) ([]Descriptor, error) {
+	return cloneDescriptors(p.contribution.Commands), nil
+}
+
+func (p *countingContributionProvider) ProvideContribution(
+	context.Context,
+	WorkspaceID,
+) (Contribution, error) {
+	p.calls++
+	return p.contribution, nil
+}
+
+type snapshotTestBindings struct {
+	defaults []ExtensionDefaultShortcut
+}
+
+func (b *snapshotTestBindings) Bindings(
+	context.Context,
+	WorkspaceID,
+) (map[CommandID][]string, map[CommandID]string, error) {
+	return map[CommandID][]string{}, map[CommandID]string{}, nil
+}
+
+func (b *snapshotTestBindings) BindingsForCatalogSnapshot(
+	_ context.Context,
+	_ WorkspaceID,
+	_ []CommandID,
+	defaults []ExtensionDefaultShortcut,
+) (map[CommandID][]string, map[CommandID]string, error) {
+	b.defaults = append([]ExtensionDefaultShortcut(nil), defaults...)
+	return map[CommandID][]string{}, map[CommandID]string{}, nil
+}
+
+func (p *contributionTestProvider) ProvideCommands(context.Context, WorkspaceID) ([]Descriptor, error) {
+	return cloneDescriptors(p.contribution.Commands), nil
+}
+
+func (p *contributionTestProvider) ProvideContribution(context.Context, WorkspaceID) (Contribution, error) {
+	result := p.contribution
+	result.Commands = cloneDescriptors(p.contribution.Commands)
+	result.Sources = append([]SourceStatus(nil), p.contribution.Sources...)
+	result.Defaults = append([]ExtensionDefaultShortcut(nil), p.contribution.Defaults...)
+	return result, nil
 }

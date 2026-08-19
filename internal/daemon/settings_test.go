@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	memorypkg "github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
@@ -31,10 +32,56 @@ import (
 	"github.com/compozy/compozy/internal/testutil/mcpfixture"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	compozyupdate "github.com/compozy/compozy/internal/update"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+func TestExtensionPaletteSettingsByName(t *testing.T) {
+	t.Run("Should preserve effective and dormant contribution state", func(t *testing.T) {
+		t.Parallel()
+
+		projection := extensionpkg.CmdPaletteProjection{
+			Commands: []extensionpkg.CmdPaletteProjectedCommand{
+				{ID: "ext.notes.capture", Title: "Capture note", Extension: "notes"},
+				{
+					ID: "ext.notes.recent", Title: "Recent notes", Extension: "notes",
+					UnavailableReason: "extension notes is unhealthy (crash loop)",
+				},
+			},
+			Views: []extensionpkg.CmdPaletteProjectedView{{
+				ID: "ext.notes.browse", Title: "Browse notes", Extension: "notes",
+				UnavailableReason: "extension notes is unhealthy (crash loop)",
+			}},
+		}
+		result := extensionPaletteSettingsByName(
+			projection,
+			map[string]windowmanager.ShortcutBinding{"ext.notes.capture": {"alt+shift+n"}},
+			map[string]windowmanager.ExtensionDefaultStatus{
+				"ext.notes.recent": {
+					CommandID: "ext.notes.recent", Binding: windowmanager.ShortcutBinding{"mod+n"},
+					Dormant: true, ConflictWith: "session.new",
+				},
+			},
+		)
+
+		palette := result["notes"]
+		if palette == nil || len(palette.Commands) != 2 || len(palette.Views) != 1 {
+			t.Fatalf("extensionPaletteSettingsByName() = %#v, want two commands and one view", result)
+		}
+		if got := palette.Commands[0].Bindings; !slices.Equal(got, []string{"alt+shift+n"}) {
+			t.Fatalf("capture bindings = %v, want [alt+shift+n]", got)
+		}
+		recent := palette.Commands[1]
+		if !recent.DefaultDormant || recent.ConflictWith != "session.new" || recent.Available {
+			t.Fatalf("recent contribution = %#v, want dormant unavailable conflict", recent)
+		}
+		if palette.Views[0].Available || !strings.Contains(palette.Views[0].Reason, "crash loop") {
+			t.Fatalf("view contribution = %#v, want unhealthy reason", palette.Views[0])
+		}
+	})
+}
 
 func TestSettingsRuntimeSurfaceMemoryHealthStatus(t *testing.T) {
 	t.Run("Should count every valid global memory source header", func(t *testing.T) {

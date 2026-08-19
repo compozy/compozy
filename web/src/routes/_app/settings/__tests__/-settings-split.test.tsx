@@ -25,6 +25,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 import { PolicySection } from "../-extensions-policy-section";
+import { ExtensionPalettePanel } from "../-extension-palette-panel";
 import { HooksSection } from "../-hooks-section";
 
 function PolicyHarness() {
@@ -33,6 +34,25 @@ function PolicyHarness() {
 }
 
 describe("Settings route split", () => {
+  it("Should show effective, dormant, and view palette contributions", () => {
+    const extension = settingsHooksExtensionsSectionFixture.installed?.find(
+      item => item.name === "notes"
+    );
+    if (!extension) throw new Error("notes extension fixture is required");
+
+    render(<ExtensionPalettePanel extension={extension} />);
+
+    expect(screen.getByText("Capture note")).toBeInTheDocument();
+    expect(screen.getByText("⌥⇧N")).toBeInTheDocument();
+    expect(screen.getByText("dormant")).toBeInTheDocument();
+    expect(
+      screen.getByText("default unavailable — conflicts with session.new")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("extension-palette-view-ext.notes.browse")).toHaveTextContent(
+      "Browse notes"
+    );
+  });
+
   it("Should render exactly the four supported extension source and trust policy fields", () => {
     render(<PolicyHarness />);
 

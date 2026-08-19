@@ -239,6 +239,33 @@ type InstalledExtension struct {
 	LastError     string
 	RequiresEnv   []string
 	MissingEnv    []string
+	Palette       *InstalledExtensionPalette
+}
+
+// InstalledExtensionPalette is the operator-facing palette contribution summary.
+type InstalledExtensionPalette struct {
+	Commands []InstalledExtensionPaletteCommand
+	Views    []InstalledExtensionPaletteView
+}
+
+// InstalledExtensionPaletteCommand reports one command and its effective shortcut state.
+type InstalledExtensionPaletteCommand struct {
+	ID             string
+	Title          string
+	Bindings       []string
+	DefaultBinding string
+	DefaultDormant bool
+	ConflictWith   string
+	Available      bool
+	Reason         string
+}
+
+// InstalledExtensionPaletteView reports one contributed view.
+type InstalledExtensionPaletteView struct {
+	ID        string
+	Title     string
+	Available bool
+	Reason    string
 }
 
 // SourceRef identifies one semantic source for a resolved resource.

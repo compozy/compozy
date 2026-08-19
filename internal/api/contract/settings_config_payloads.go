@@ -443,15 +443,39 @@ type SettingsTransportParityPayload struct {
 }
 
 type SettingsInstalledExtensionPayload struct {
-	Name          string   `json:"name"`
-	Version       string   `json:"version,omitempty"`
-	Enabled       bool     `json:"enabled"`
-	State         string   `json:"state,omitempty"`
-	Health        string   `json:"health,omitempty"`
-	HealthMessage string   `json:"health_message,omitempty"`
-	LastError     string   `json:"last_error,omitempty"`
-	RequiresEnv   []string `json:"requires_env,omitempty"`
-	MissingEnv    []string `json:"missing_env,omitempty"`
+	Name          string                                    `json:"name"`
+	Version       string                                    `json:"version,omitempty"`
+	Enabled       bool                                      `json:"enabled"`
+	State         string                                    `json:"state,omitempty"`
+	Health        string                                    `json:"health,omitempty"`
+	HealthMessage string                                    `json:"health_message,omitempty"`
+	LastError     string                                    `json:"last_error,omitempty"`
+	RequiresEnv   []string                                  `json:"requires_env,omitempty"`
+	MissingEnv    []string                                  `json:"missing_env,omitempty"`
+	Palette       *SettingsInstalledExtensionPalettePayload `json:"palette,omitempty"`
+}
+
+type SettingsInstalledExtensionPalettePayload struct {
+	Commands []SettingsInstalledExtensionPaletteCommandPayload `json:"commands"`
+	Views    []SettingsInstalledExtensionPaletteViewPayload    `json:"views"`
+}
+
+type SettingsInstalledExtensionPaletteCommandPayload struct {
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	Bindings       []string `json:"bindings"`
+	DefaultBinding string   `json:"default_binding,omitempty"`
+	DefaultDormant bool     `json:"default_dormant"`
+	ConflictWith   string   `json:"conflict_with,omitempty"`
+	Available      bool     `json:"available"`
+	Reason         string   `json:"reason,omitempty"`
+}
+
+type SettingsInstalledExtensionPaletteViewPayload struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 type SettingsSourceRefPayload struct {

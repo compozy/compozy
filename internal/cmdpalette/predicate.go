@@ -54,6 +54,9 @@ func clientContextKey(key ContextKey) bool {
 }
 
 func resolveAvailability(descriptor Descriptor, snapshot *ContextSnapshot) (bool, string) {
+	if reason := strings.TrimSpace(descriptor.ProviderUnavailableReason); reason != "" {
+		return false, reason
+	}
 	if snapshot == nil && descriptor.Action.Kind != ActionKindTool && !descriptor.AvailabilityExempt {
 		return false, attachedShellReason
 	}

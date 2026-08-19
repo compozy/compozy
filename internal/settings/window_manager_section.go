@@ -50,11 +50,16 @@ func (s *service) buildWindowManagerSection(
 			}
 		}
 		_, diagnostics, err := windowmanager.TolerantEffectiveKeymap(
-			cfg.WindowManager.Shortcuts,
-			bindableIDs,
+			cfg.WindowManager.Shortcuts, bindableIDs,
 		)
 		if err != nil {
 			return WindowManagerSection{}, fmt.Errorf("settings: diagnose stored shortcuts: %w", err)
+		}
+		section.ExtensionDefaults, err = s.buildWindowManagerExtensionDefaults(
+			ctx, workspaceID, cfg.WindowManager.Shortcuts, bindableIDs,
+		)
+		if err != nil {
+			return WindowManagerSection{}, err
 		}
 		section.Diagnostics = diagnostics
 		return section, nil
@@ -87,6 +92,42 @@ func (s *service) buildWindowManagerSection(
 		})
 	}
 	return section, nil
+}
+
+func (s *service) buildWindowManagerExtensionDefaults(
+	ctx context.Context,
+	workspaceID string,
+	overrides map[string]windowmanager.ShortcutBinding,
+	bindableIDs windowmanager.BindableIDs,
+) ([]WindowManagerExtensionDefault, error) {
+	provider, ok := s.cmdPalette.(cmdpalette.ExtensionDefaultCatalog)
+	if !ok {
+		return []WindowManagerExtensionDefault{}, nil
+	}
+	defaults, err := provider.ExtensionDefaults(ctx, cmdpalette.WorkspaceID(workspaceID))
+	if err != nil {
+		return nil, fmt.Errorf("settings: load extension shortcut defaults: %w", err)
+	}
+	claims := make([]windowmanager.ExtensionDefaultShortcut, 0, len(defaults))
+	for _, item := range defaults {
+		claims = append(claims, windowmanager.ExtensionDefaultShortcut{
+			CommandID: string(item.CommandID), Chord: item.Chord, Source: item.Source, Active: item.Active,
+		})
+	}
+	_, statuses, _, err := windowmanager.TolerantEffectiveKeymapWithExtensionDefaults(
+		overrides, bindableIDs, claims,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("settings: resolve extension shortcut defaults: %w", err)
+	}
+	result := make([]WindowManagerExtensionDefault, 0, len(statuses))
+	for _, status := range statuses {
+		result = append(result, WindowManagerExtensionDefault{
+			CommandID: status.CommandID, Binding: status.Binding,
+			Dormant: status.Dormant, ConflictWith: status.ConflictWith,
+		})
+	}
+	return result, nil
 }
 
 func diffWindowManagerSettings(

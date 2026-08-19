@@ -29,11 +29,12 @@ type DescribeNetworkParticipation struct {
 
 // DescribeResources declares source-relative static resource paths copied into a generation.
 type DescribeResources struct {
-	Skills     []string `json:"skills,omitempty"`
-	Loops      []string `json:"loops,omitempty"`
-	Agents     []string `json:"agents,omitempty"`
-	Automation []string `json:"automation,omitempty"`
-	Layouts    []string `json:"layouts,omitempty"`
+	Skills     []string         `json:"skills,omitempty"`
+	Loops      []string         `json:"loops,omitempty"`
+	Agents     []string         `json:"agents,omitempty"`
+	Automation []string         `json:"automation,omitempty"`
+	Layouts    []string         `json:"layouts,omitempty"`
+	CmdPalette CmdPaletteConfig `json:"cmd_palette,omitzero"`
 }
 
 // DescribeSubprocess declares the generated manifest's extension process entrypoint.

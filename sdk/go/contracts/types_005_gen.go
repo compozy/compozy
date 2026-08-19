@@ -115,24 +115,19 @@ type ClarifyAskParams struct {
 	Choices      []string `json:"choices,omitempty"`
 }
 
-type CommandFlag struct {
-	Name       string          `json:"name"`
-	Field      string          `json:"field"`
-	Type       CommandFlagType `json:"type"`
-	Repeatable bool            `json:"repeatable"`
-	Required   bool            `json:"required"`
-	Nullable   bool            `json:"nullable"`
-	Enum       []string        `json:"enum,omitempty"`
-	Default    json.RawMessage `json:"default,omitempty"`
-	Minimum    *float64        `json:"minimum,omitempty"`
-	Maximum    *float64        `json:"maximum,omitempty"`
+type CmdPaletteAction struct {
+	Kind string         `json:"kind"`
+	Tool string         `json:"tool,omitempty"`
+	View string         `json:"view,omitempty"`
+	App  string         `json:"app,omitempty"`
+	URL  string         `json:"url,omitempty"`
+	Args map[string]any `json:"args,omitempty"`
 }
 
-type CommandFlagType string
-
-const (
-	CommandFlagTypeString  CommandFlagType = "string"
-	CommandFlagTypeBoolean CommandFlagType = "boolean"
-	CommandFlagTypeInteger CommandFlagType = "integer"
-	CommandFlagTypeNumber  CommandFlagType = "number"
-)
+type CmdPaletteArgument struct {
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Placeholder string   `json:"placeholder,omitempty"`
+	Required    bool     `json:"required,omitempty"`
+	Options     []string `json:"options,omitempty"`
+}

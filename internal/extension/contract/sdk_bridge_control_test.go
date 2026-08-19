@@ -37,3 +37,19 @@ func TestSDKRootTypesIncludeBridgeControlContracts(t *testing.T) {
 		}
 	})
 }
+
+func TestSDKRootTypesIncludeCmdPaletteContracts(t *testing.T) {
+	t.Run("Should expose the command palette manifest family exactly once", func(t *testing.T) {
+		t.Parallel()
+
+		count := 0
+		for _, named := range SDKRootTypes() {
+			if named.Name == "CmdPaletteConfig" {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("SDK root %q count = %d, want 1", "CmdPaletteConfig", count)
+		}
+	})
+}

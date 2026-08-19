@@ -1225,6 +1225,65 @@ export interface ClarifyAskParams {
   choices?: string[];
 }
 
+export interface CmdPaletteArgument {
+  name: string;
+  type: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: string[];
+}
+
+export interface CmdPaletteAction {
+  kind: string;
+  tool?: string;
+  view?: string;
+  app?: string;
+  url?: string;
+  args?: Record<string, JSONValue>;
+}
+
+export interface CmdPaletteConfirmation {
+  title: string;
+  body?: string;
+  confirm: string;
+}
+
+export interface CmdPaletteExecutionPolicy {
+  single_flight?: boolean;
+  retry_safe?: boolean;
+}
+
+export interface CmdPaletteCommand {
+  id: string;
+  title: string;
+  section?: string;
+  icon: string;
+  keywords?: string[];
+  arguments?: CmdPaletteArgument[];
+  action: CmdPaletteAction;
+  destructive?: boolean;
+  confirmation?: CmdPaletteConfirmation;
+  default_shortcut?: string;
+  execution?: CmdPaletteExecutionPolicy;
+}
+
+export interface CmdPaletteViewSource {
+  tool: string;
+}
+
+export interface CmdPaletteView {
+  id: string;
+  title: string;
+  kind: string;
+  source?: CmdPaletteViewSource;
+  program?: boolean;
+}
+
+export interface CmdPaletteConfig {
+  commands?: CmdPaletteCommand[];
+  views?: CmdPaletteView[];
+}
+
 export type CommandFlagType = "string" | "boolean" | "integer" | "number";
 
 export interface CommandFlag {
@@ -1667,6 +1726,7 @@ export interface DescribeResources {
   agents?: string[];
   automation?: string[];
   layouts?: string[];
+  cmd_palette?: CmdPaletteConfig;
 }
 
 export interface DescribeSubprocess {

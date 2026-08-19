@@ -54,6 +54,12 @@ type ViewProviderRegistration struct {
 	Provider   ViewSourceProvider
 }
 
+// DynamicViewProvider resolves workspace-scoped extension view descriptors.
+type DynamicViewProvider interface {
+	ProvideViews(context.Context, WorkspaceID) ([]ViewDescriptor, error)
+	ViewSourceProvider
+}
+
 // ViewService is the Tier-1 read surface consumed by both API transports.
 type ViewService interface {
 	ResolveView(context.Context, WorkspaceID, string) (ViewDescriptor, error)
@@ -75,6 +81,17 @@ func WithViewProviders(registrations []ViewProviderRegistration) Option {
 	}
 }
 
+// WithDynamicViewProvider registers one workspace-scoped view projection.
+func WithDynamicViewProvider(provider DynamicViewProvider) Option {
+	return func(service *Service) error {
+		if provider == nil {
+			return errors.New("cmd palette view: dynamic provider is required")
+		}
+		service.dynamicViews = append(service.dynamicViews, provider)
+		return nil
+	}
+}
+
 func (s *Service) ResolveView(
 	ctx context.Context,
 	workspaceID WorkspaceID,
@@ -90,6 +107,17 @@ func (s *Service) ResolveView(
 	for _, registration := range s.viewProviders {
 		if registration.Descriptor.ID == viewID {
 			return cloneViewDescriptor(registration.Descriptor), nil
+		}
+	}
+	for _, provider := range s.dynamicViews {
+		descriptors, err := provider.ProvideViews(ctx, workspaceID)
+		if err != nil {
+			return ViewDescriptor{}, fmt.Errorf("cmd palette view: project dynamic views: %w", err)
+		}
+		for _, descriptor := range descriptors {
+			if descriptor.ID == viewID {
+				return cloneViewDescriptor(descriptor), nil
+			}
 		}
 	}
 	return ViewDescriptor{}, &ViewNotFoundError{ViewID: viewID}
@@ -156,6 +184,17 @@ func (s *Service) resolveViewProvider(
 	for _, registration := range s.viewProviders {
 		if registration.Descriptor.ID == descriptor.ID {
 			return descriptor, registration.Provider, nil
+		}
+	}
+	for _, provider := range s.dynamicViews {
+		descriptors, providerErr := provider.ProvideViews(ctx, workspaceID)
+		if providerErr != nil {
+			return ViewDescriptor{}, nil, providerErr
+		}
+		for _, candidate := range descriptors {
+			if candidate.ID == descriptor.ID {
+				return descriptor, provider, nil
+			}
 		}
 	}
 	return ViewDescriptor{}, nil, &ViewNotFoundError{ViewID: viewID}

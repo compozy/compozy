@@ -30,7 +30,7 @@ func (s *Service) BindableIDs(ctx context.Context, workspaceID WorkspaceID) ([]C
 	if workspaceID == "" {
 		return nil, fmt.Errorf("cmd palette: workspace ID is required")
 	}
-	descriptors, _, err := s.collectDescriptors(ctx, workspaceID)
+	descriptors, _, _, err := s.collectDescriptors(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,11 +53,11 @@ func (s *Service) Catalog(
 	if workspaceID == "" {
 		return Catalog{}, fmt.Errorf("cmd palette: workspace ID is required")
 	}
-	descriptors, sources, err := s.collectDescriptors(ctx, workspaceID)
+	descriptors, sources, defaults, err := s.collectDescriptors(ctx, workspaceID)
 	if err != nil {
 		return Catalog{}, err
 	}
-	bindings, aliases, err := s.resolveBindings(ctx, workspaceID)
+	bindings, aliases, err := s.resolveSnapshotBindings(ctx, workspaceID, descriptors, defaults)
 	if err != nil {
 		return Catalog{}, err
 	}
@@ -105,12 +105,44 @@ func (s *Service) Catalog(
 func (s *Service) collectDescriptors(
 	ctx context.Context,
 	workspaceID WorkspaceID,
-) ([]Descriptor, []SourceStatus, error) {
+) ([]Descriptor, []SourceStatus, []ExtensionDefaultShortcut, error) {
 	commands := make([]Descriptor, 0)
 	sources := make([]SourceStatus, 0, len(s.providers))
+	defaults := make([]ExtensionDefaultShortcut, 0)
 	seen := make(map[CommandID]string)
 	for _, registration := range s.providers {
 		sourceID := registration.Source.ID()
+		if provider, ok := registration.Provider.(ContributionProvider); ok {
+			contribution, err := provider.ProvideContribution(ctx, workspaceID)
+			if err != nil {
+				sources = append(sources, SourceStatus{
+					Source: sourceID, Status: SourceDegraded, Reason: err.Error(),
+				})
+				continue
+			}
+			sources = append(sources, contribution.Sources...)
+			for _, descriptor := range contribution.Commands {
+				descriptor = normalizeDescriptor(descriptor)
+				if descriptor.Source.Kind != SourceKindExtension {
+					return nil, nil, nil, invalidDescriptor(
+						"%s: contribution source must be extension", descriptor.ID,
+					)
+				}
+				if err := ValidateDescriptor(descriptor); err != nil {
+					return nil, nil, nil, err
+				}
+				descriptorSource := descriptor.Source.ID()
+				if first, exists := seen[descriptor.ID]; exists {
+					return nil, nil, nil, &DuplicateCommandIDError{
+						ID: descriptor.ID, First: first, Second: descriptorSource,
+					}
+				}
+				seen[descriptor.ID] = descriptorSource
+				commands = append(commands, cloneDescriptor(descriptor))
+			}
+			defaults = append(defaults, contribution.Defaults...)
+			continue
+		}
 		provided, err := registration.Provider.ProvideCommands(ctx, workspaceID)
 		if err != nil {
 			sources = append(sources, SourceStatus{Source: sourceID, Status: SourceDegraded, Reason: err.Error()})
@@ -120,17 +152,39 @@ func (s *Service) collectDescriptors(
 		for _, descriptor := range provided {
 			descriptor = normalizeDescriptor(descriptor)
 			if err := validateProviderDescriptor(registration.Source, descriptor); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			if first, exists := seen[descriptor.ID]; exists {
-				return nil, nil, &DuplicateCommandIDError{ID: descriptor.ID, First: first, Second: sourceID}
+				return nil, nil, nil, &DuplicateCommandIDError{
+					ID: descriptor.ID, First: first, Second: sourceID,
+				}
 			}
 			seen[descriptor.ID] = sourceID
 			commands = append(commands, cloneDescriptor(descriptor))
 		}
 	}
 	sort.Slice(sources, func(left, right int) bool { return sources[left].Source < sources[right].Source })
-	return commands, sources, nil
+	return commands, sources, defaults, nil
+}
+
+// ExtensionDefaults returns the active and dormant extension shortcut claims in enable order.
+func (s *Service) ExtensionDefaults(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+) ([]ExtensionDefaultShortcut, error) {
+	result := make([]ExtensionDefaultShortcut, 0)
+	for _, registration := range s.providers {
+		provider, ok := registration.Provider.(ContributionProvider)
+		if !ok {
+			continue
+		}
+		contribution, err := provider.ProvideContribution(ctx, workspaceID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, contribution.Defaults...)
+	}
+	return result, nil
 }
 
 func (s *Service) resolveBindings(
@@ -145,6 +199,26 @@ func (s *Service) resolveBindings(
 		return nil, nil, fmt.Errorf("cmd palette: resolve bindings: %w", err)
 	}
 	return bindings, aliases, nil
+}
+
+func (s *Service) resolveSnapshotBindings(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+	descriptors []Descriptor,
+	defaults []ExtensionDefaultShortcut,
+) (map[CommandID][]string, map[CommandID]string, error) {
+	if resolver, ok := s.bindings.(SnapshotBindingsResolver); ok {
+		ids := make([]CommandID, 0, len(descriptors))
+		for _, descriptor := range descriptors {
+			ids = append(ids, descriptor.ID)
+		}
+		bindings, aliases, err := resolver.BindingsForCatalogSnapshot(ctx, workspaceID, ids, defaults)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cmd palette: resolve snapshot bindings: %w", err)
+		}
+		return bindings, aliases, nil
+	}
+	return s.resolveBindings(ctx, workspaceID)
 }
 
 func structuralRevision(commands []ResolvedCommand, sources []SourceStatus) (string, error) {

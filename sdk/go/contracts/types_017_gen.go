@@ -7,6 +7,83 @@ import (
 	"time"
 )
 
+type PromptPatch struct {
+	Deny          bool           `json:"deny,omitempty"`
+	DenyReason    string         `json:"deny_reason,omitempty"`
+	Prompt        *string        `json:"prompt,omitempty"`
+	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type PromptPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	WorktreeID     string         `json:"worktree_id,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	InputClass     string         `json:"input_class,omitempty"`
+	Prompt         string         `json:"prompt,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+}
+
+type PromptRuntimeSelectionPayload struct {
+	Provider        string `json:"provider"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
+	Speed           Speed  `json:"speed,omitempty"`
+}
+
+type ProviderModelListResponse struct {
+	Models []ProviderModelPayload `json:"models"`
+}
+
+type ProviderModelPayload struct {
+	ProviderID             string                         `json:"provider_id"`
+	ModelID                string                         `json:"model_id"`
+	DisplayName            string                         `json:"display_name,omitempty"`
+	Sources                []ModelCatalogSourceRefPayload `json:"sources"`
+	Available              *bool                          `json:"available"`
+	AvailabilityState      string                         `json:"availability_state"`
+	Stale                  bool                           `json:"stale"`
+	RefreshedAt            string                         `json:"refreshed_at,omitempty"`
+	ContextWindow          *int64                         `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                         `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                         `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                          `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                          `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                       `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                        `json:"default_reasoning_effort,omitempty"`
+	Cost                   *ModelCatalogCostPayload       `json:"cost,omitempty"`
+	Curated                bool                           `json:"curated"`
+	Deprecated             bool                           `json:"deprecated"`
+	Hidden                 bool                           `json:"hidden"`
+	Featured               bool                           `json:"featured"`
+	ReleaseDate            string                         `json:"release_date,omitempty"`
+	ReasoningSource        ReasoningSource                `json:"reasoning_source,omitempty"`
+	LastError              string                         `json:"last_error,omitempty"`
+}
+
+type ProviderModelRefreshResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+	Error   string                            `json:"error,omitempty"`
+}
+
+type ProviderModelStatusResponse struct {
+	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
+}
+
+type ReasonCode string
+
 type ReasoningSource string
 
 type Redaction struct {
@@ -77,50 +154,4 @@ type ResourceSnapshotRecord struct {
 type ResourceSource struct {
 	Kind ResourceSourceKind `json:"kind"`
 	ID   string             `json:"id"`
-}
-
-type ResourceSourceKind string
-
-type ResourcesListParams struct {
-	Kind  ResourceKind   `json:"kind,omitempty"`
-	Scope *ResourceScope `json:"scope,omitempty"`
-	Limit int            `json:"limit,omitempty"`
-}
-
-type ResourcesSnapshotParams struct {
-	SourceVersion int64                    `json:"source_version"`
-	Records       []ResourceSnapshotRecord `json:"records"`
-}
-
-type RetentionHealth struct {
-	Enabled                  bool       `json:"enabled"`
-	RetentionDays            int        `json:"retention_days"`
-	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
-	LastSweepStatus          string     `json:"last_sweep_status"`
-	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
-	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
-	LastSweepError           string     `json:"last_sweep_error,omitempty"`
-	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
-	DeletedTokenStats        int64      `json:"deleted_token_stats"`
-	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
-	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
-}
-
-type RetryConfig struct {
-	Strategy   RetryStrategy `json:"strategy"`
-	MaxRetries int           `json:"max_retries"`
-	BaseDelay  string        `json:"base_delay"`
-}
-
-type RetryStrategy string
-
-type RiskClass string
-
-type RoutingKey struct {
-	Scope            BridgeScope `json:"scope"`
-	WorkspaceID      string      `json:"workspace_id,omitempty"`
-	BridgeInstanceID string      `json:"bridge_instance_id"`
-	PeerID           string      `json:"peer_id,omitempty"`
-	ThreadID         string      `json:"thread_id,omitempty"`
-	GroupID          string      `json:"group_id,omitempty"`
 }

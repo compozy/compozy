@@ -17,8 +17,176 @@ import (
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/version"
 )
+
+// Invariant: resources.cmd_palette is a closed, safe manifest family whose
+// references and authored strings are validated before an extension starts.
+// Owner: extension manifest loading and validation.
+// Canonical suite: extension manifest tests.
+func TestManifestCmdPaletteValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should validate and round-trip the complete palette family [UT-055]", func(t *testing.T) {
+		t.Parallel()
+		manifest := cmdPaletteTestManifest("notes")
+		if err := manifest.Validate(); err != nil {
+			t.Fatalf("Manifest.Validate() error = %v", err)
+		}
+		encoded, err := encodeManifestTOML(manifest)
+		if err != nil {
+			t.Fatalf("encodeManifestTOML() error = %v", err)
+		}
+		roundTrip, err := loadManifestTOMLContent("extension.toml", encoded)
+		if err != nil {
+			t.Fatalf("loadManifestTOMLContent() error = %v", err)
+		}
+		palette := roundTrip.Resources.CmdPalette
+		if len(palette.Commands) != 3 || len(palette.Views) != 1 ||
+			palette.Commands[0].Execution == nil || palette.Commands[0].Execution.SingleFlight == nil ||
+			!*palette.Commands[0].Execution.SingleFlight {
+			t.Fatalf("round-trip palette = %#v, want complete authored policy", palette)
+		}
+	})
+
+	tests := []struct {
+		name   string
+		mutate func(*Manifest)
+		field  string
+		text   string
+	}{
+		{
+			name: "Should reject duplicate command ids [UT-056]",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[1].ID = "capture"
+			},
+			field: "cmd_palette.commands[1].id", text: `duplicate "capture"`,
+		},
+		{
+			name: "Should reject an unknown action tool [UT-058]",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[0].Action.Tool = "purge_archved"
+			},
+			field: "cmd_palette.commands[0].action.tool", text: `unknown tool "purge_archved"`,
+		},
+		{
+			name: "Should reject hostile title length [UT-059]",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[0].Title = strings.Repeat("x", 10_000)
+			},
+			field: "cmd_palette.commands[0].title", text: "at most 256 characters",
+		},
+		{
+			name: "Should reject title control characters [UT-059]",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[0].Title = "Capture\u0000note"
+			},
+			field: "cmd_palette.commands[0].title", text: "control characters",
+		},
+		{
+			name: "Should reject overlong command ids [UT-059]",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[0].ID = strings.Repeat("x", 65)
+			},
+			field: "cmd_palette.commands[0].id", text: "at most 64 characters",
+		},
+		{
+			name: "Should require dropdown options [UT-059]",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[0].Arguments = []CmdPaletteArgument{{
+					Name: "tag", Type: "dropdown",
+				}}
+			},
+			field: "cmd_palette.commands[0].arguments[0].options", text: "at least one value",
+		},
+		{
+			name: "Should reject hostile confirmation body text [UT-059]",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[2].Confirmation.Body = "Purge\u0000archived"
+			},
+			field: "cmd_palette.commands[2].confirmation.body", text: "control characters",
+		},
+		{
+			name: "Should reject an invalid shortcut chord [UT-062]",
+			mutate: func(manifest *Manifest) {
+				manifest.Resources.CmdPalette.Commands[0].DefaultShortcut = "meta+Küche"
+			},
+			field: "cmd_palette.commands[0].default_shortcut", text: `token "Küche" is unsupported`,
+		},
+		{
+			name: "Should reject a non-read-only declarative source [SI-18]",
+			mutate: func(manifest *Manifest) {
+				tool := manifest.Resources.Tools["list_recent"]
+				tool.ReadOnly = false
+				tool.Risk = string(toolspkg.RiskMutating)
+				manifest.Resources.Tools["list_recent"] = tool
+			},
+			field: "cmd_palette.views[0].source.tool", text: "read-only risk class",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			manifest := cmdPaletteTestManifest("notes")
+			test.mutate(manifest)
+			err := manifest.Validate()
+			if err == nil || !strings.Contains(err.Error(), test.field) || !strings.Contains(err.Error(), test.text) {
+				t.Fatalf("Manifest.Validate() error = %v, want %q and %q", err, test.field, test.text)
+			}
+		})
+	}
+}
+
+func cmdPaletteTestManifest(name string) *Manifest {
+	singleFlight := true
+	retrySafe := false
+	tool := func(handler string, risk toolspkg.RiskClass, readOnly bool) ToolConfig {
+		return ToolConfig{
+			Description: handler, Handler: handler,
+			Backend:     ToolBackendConfig{Kind: string(toolspkg.BackendExtensionHost), Handler: handler},
+			InputSchema: json.RawMessage(`{"type":"object"}`), Risk: string(risk), ReadOnly: readOnly,
+			Visibility: string(toolspkg.VisibilityModel), Destructive: risk == toolspkg.RiskDestructive,
+		}
+	}
+	return &Manifest{
+		Name: name, Version: "0.1.0", MinCompozyVersion: "0.3.0-beta.1",
+		Capabilities: CapabilitiesConfig{Provides: []string{extensionprotocol.CapabilityToolProvider}},
+		Subprocess:   SubprocessConfig{Command: "./notes"},
+		Resources: ResourcesConfig{
+			Tools: map[string]ToolConfig{
+				"capture_note":   tool("capture_note", toolspkg.RiskMutating, false),
+				"list_recent":    tool("list_recent", toolspkg.RiskRead, true),
+				"purge_archived": tool("purge_archived", toolspkg.RiskDestructive, false),
+			},
+			CmdPalette: CmdPaletteConfig{
+				Commands: []CmdPaletteCommand{
+					{
+						ID: "capture", Title: "Capture note", Section: "Notes", Icon: "notebook-pen",
+						Keywords:        []string{"jot", "memo"},
+						Arguments:       []CmdPaletteArgument{{Name: "title", Type: "text", Required: true}},
+						Action:          CmdPaletteAction{Kind: "tool", Tool: "capture_note"},
+						DefaultShortcut: "alt+shift+KeyN",
+						Execution:       &CmdPaletteExecutionPolicy{SingleFlight: &singleFlight, RetrySafe: &retrySafe},
+					},
+					{
+						ID: "recent", Title: "Recent notes", Section: "Notes", Icon: "clock-3",
+						Action: CmdPaletteAction{Kind: "view", View: "recent"},
+					},
+					{
+						ID: "purge", Title: "Purge archived notes", Section: "Notes", Icon: "trash-2",
+						Action: CmdPaletteAction{Kind: "tool", Tool: "purge_archived"}, Destructive: true,
+						Confirmation: &CmdPaletteConfirmation{Title: "Purge archived notes?", Confirm: "Purge"},
+					},
+				},
+				Views: []CmdPaletteView{{
+					ID: "recent", Title: "Recent notes", Kind: "list",
+					Source: &CmdPaletteViewSource{Tool: "list_recent"},
+				}},
+			},
+		},
+	}
+}
 
 // Invariant: a supported portable root synthesizes a deterministic,
 // resource-only manifest while native precedence and compatibility remain unchanged.

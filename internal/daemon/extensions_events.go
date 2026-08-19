@@ -96,20 +96,27 @@ func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvents(
 	actor taskpkg.ActorContext,
 	events ...extensionpkg.LifecycleEvent,
 ) error {
-	if s.eventWriter == nil || len(events) == 0 {
+	if len(events) == 0 {
 		return nil
 	}
-	sink := s.canonicalLifecycleEventSink(actor)
-	summaries := make([]store.EventSummary, 0, len(events))
-	for _, event := range events {
-		summary, err := sink.summary(ctx, event)
-		if err != nil {
-			return err
+	if s.eventWriter != nil {
+		sink := s.canonicalLifecycleEventSink(actor)
+		summaries := make([]store.EventSummary, 0, len(events))
+		for _, event := range events {
+			summary, err := sink.summary(ctx, event)
+			if err != nil {
+				return err
+			}
+			summaries = append(summaries, summary)
 		}
-		summaries = append(summaries, summary)
+		if err := s.eventWriter.WriteEventSummaries(context.WithoutCancel(ctx), summaries); err != nil {
+			return fmt.Errorf("daemon: record extension lifecycle event batch: %w", err)
+		}
 	}
-	if err := s.eventWriter.WriteEventSummaries(context.WithoutCancel(ctx), summaries); err != nil {
-		return fmt.Errorf("daemon: record extension lifecycle event batch: %w", err)
+	for _, event := range events {
+		if extensionLifecycleChangesPalette(event.Type) {
+			return s.paletteNotifier.Notify(ctx, event.WorkspaceID)
+		}
 	}
 	return nil
 }
@@ -223,7 +230,7 @@ func (s *daemonExtensionService) recordExtensionLifecycleEvent(
 	payload.ActorID = strings.TrimSpace(actor.Actor.Ref)
 	payload.OriginKind = string(actor.Origin.Kind.Normalize())
 	payload.OriginRef = strings.TrimSpace(actor.Origin.Ref)
-	return s.writeExtensionEvent(
+	if err := s.writeExtensionEvent(
 		ctx,
 		eventType,
 		eventspkg.OutcomeFor(eventType),
@@ -231,7 +238,13 @@ func (s *daemonExtensionService) recordExtensionLifecycleEvent(
 		payload,
 		payload.ActorKind,
 		payload.ActorID,
-	)
+	); err != nil {
+		return err
+	}
+	if extensionLifecycleChangesPalette(eventType) {
+		return s.paletteNotifier.Notify(ctx, payload.WorkspaceID)
+	}
+	return nil
 }
 
 func (s *daemonExtensionService) observeExtensionDigestVerification(

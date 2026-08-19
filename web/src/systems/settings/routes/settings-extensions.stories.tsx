@@ -10,6 +10,21 @@ import {
 } from "@/storybook/route-story-meta";
 import { settingsHooksExtensionsSectionFixture } from "@/systems/settings/mocks";
 
+const unhealthyFixture = structuredClone(settingsHooksExtensionsSectionFixture);
+const notes = unhealthyFixture.installed?.find(extension => extension.name === "notes");
+if (notes?.palette) {
+  notes.health = "unhealthy";
+  notes.health_message = "crash loop";
+  for (const command of notes.palette.commands) {
+    command.available = false;
+    command.reason = "extension notes is unhealthy (crash loop)";
+  }
+  for (const view of notes.palette.views) {
+    view.available = false;
+    view.reason = "extension notes is unhealthy (crash loop)";
+  }
+}
+
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/settings/routes/SettingsExtensions",
   component: StorybookRouteCanvas,
@@ -41,6 +56,34 @@ export const Loading: Story = {
           await delay("infinite");
           return HttpResponse.json(settingsHooksExtensionsSectionFixture);
         }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+export const DormantDefault: Story = {
+  parameters: {
+    ...appRouteParameters("/settings/extensions"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/hooks-extensions", () =>
+          HttpResponse.json(settingsHooksExtensionsSectionFixture)
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+export const UnhealthyContribution: Story = {
+  parameters: {
+    ...appRouteParameters("/settings/extensions"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/hooks-extensions", () =>
+          HttpResponse.json(unhealthyFixture)
+        ),
       ],
     }),
   },

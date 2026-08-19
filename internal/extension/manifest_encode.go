@@ -102,6 +102,9 @@ func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 		}
 		table[manifestCommandGroupsKey] = groups
 	}
+	if len(resources.CmdPalette.Commands) > 0 || len(resources.CmdPalette.Views) > 0 {
+		table[manifestCmdPaletteKey] = resources.CmdPalette
+	}
 	return table, nil
 }
 

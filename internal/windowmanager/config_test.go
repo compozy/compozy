@@ -211,7 +211,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 			}
 		}
 		defaults["palette.open"][0] = "changed"
-		if DefaultKeymap()["palette.open"][0] != "meta+KeyK" {
+		if DefaultKeymap()["palette.open"][0] != shortcutPaletteOpenChord {
 			t.Fatal("DefaultKeymap() aliases daemon defaults")
 		}
 	})
@@ -250,6 +250,77 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 			t.Fatalf("extension binding = %#v, want catalog-backed chord", effective["ext.notes.capture"])
 		}
 	})
+
+	t.Run("Should bind free extension defaults and keep conflicts dormant [UT-075,UT-076]", func(t *testing.T) {
+		t.Parallel()
+		bindable := DefaultBindableIDs()
+		bindable["ext.notes.capture"] = struct{}{}
+		bindable["ext.tasks.capture"] = struct{}{}
+		effective, statuses, _, err := TolerantEffectiveKeymapWithExtensionDefaults(
+			nil,
+			bindable,
+			[]ExtensionDefaultShortcut{
+				{CommandID: "ext.notes.capture", Chord: "alt+shift+KeyN", Source: "ext.notes", Active: true},
+				{CommandID: "ext.tasks.capture", Chord: "alt+shift+KeyN", Source: "ext.tasks", Active: true},
+			},
+		)
+		if err != nil {
+			t.Fatalf("TolerantEffectiveKeymapWithExtensionDefaults() error = %v", err)
+		}
+		if !slices.Equal(effective["ext.notes.capture"], ShortcutBinding{"alt+shift+KeyN"}) ||
+			len(effective["ext.tasks.capture"]) != 0 || len(statuses) != 2 ||
+			statuses[0].Dormant || !statuses[1].Dormant || statuses[1].ConflictWith != "ext.notes.capture" {
+			t.Fatalf("extension default state = %#v / %#v", effective, statuses)
+		}
+	})
+
+	t.Run(
+		"Should let core and user bindings win while preserving dormant defaults [UT-076,UT-077]",
+		func(t *testing.T) {
+			t.Parallel()
+			bindable := DefaultBindableIDs()
+			bindable["ext.notes.capture"] = struct{}{}
+			effective, statuses, _, err := TolerantEffectiveKeymapWithExtensionDefaults(
+				map[string]ShortcutBinding{"ext.notes.capture": {"alt+KeyC"}},
+				bindable,
+				[]ExtensionDefaultShortcut{
+					{
+						CommandID: "ext.notes.capture", Chord: shortcutPaletteOpenChord,
+						Source: "ext.notes", Active: true,
+					},
+				},
+			)
+			if err != nil {
+				t.Fatalf("TolerantEffectiveKeymapWithExtensionDefaults() error = %v", err)
+			}
+			if !slices.Equal(effective["ext.notes.capture"], ShortcutBinding{"alt+KeyC"}) ||
+				len(statuses) != 1 || !statuses[0].Dormant || statuses[0].ConflictWith != "ext.notes.capture" {
+				t.Fatalf("override state = %#v / %#v", effective, statuses)
+			}
+
+			withoutExtension := DefaultBindableIDs()
+			disabled, diagnostics, err := TolerantEffectiveKeymap(
+				map[string]ShortcutBinding{"ext.notes.capture": {"alt+KeyC"}}, withoutExtension,
+			)
+			if err != nil || len(disabled["ext.notes.capture"]) != 0 || len(diagnostics) != 1 {
+				t.Fatalf("disabled extension state = %#v / %#v / %v", disabled, diagnostics, err)
+			}
+
+			reenabled, _, _, err := TolerantEffectiveKeymapWithExtensionDefaults(
+				map[string]ShortcutBinding{"ext.notes.capture": {"alt+KeyC"}},
+				bindable,
+				[]ExtensionDefaultShortcut{
+					{
+						CommandID: "ext.notes.capture", Chord: shortcutPaletteOpenChord,
+						Source: "ext.notes", Active: true,
+					},
+				},
+			)
+			if err != nil || !slices.Equal(reenabled["ext.notes.capture"], ShortcutBinding{"alt+KeyC"}) {
+				t.Fatalf("re-enabled extension state = %#v / %v, want persisted operator override", reenabled, err)
+			}
+		},
+	)
 
 	t.Run("Should drop a conflicting dead stored command with a diagnostic [UT-074]", func(t *testing.T) {
 		t.Parallel()

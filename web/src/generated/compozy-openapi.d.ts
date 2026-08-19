@@ -56845,6 +56845,24 @@ export interface operations {
               last_error?: string;
               missing_env?: string[];
               name: string;
+              palette?: {
+                commands: {
+                  available: boolean;
+                  bindings: string[];
+                  conflict_with?: string;
+                  default_binding?: string;
+                  default_dormant: boolean;
+                  id: string;
+                  reason?: string;
+                  title: string;
+                }[];
+                views: {
+                  available: boolean;
+                  id: string;
+                  reason?: string;
+                  title: string;
+                }[];
+              } | null;
               requires_env?: string[];
               state?: string;
               version?: string;

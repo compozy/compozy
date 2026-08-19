@@ -136636,6 +136636,83 @@
                           "name": {
                             "type": "string"
                           },
+                          "palette": {
+                            "nullable": true,
+                            "properties": {
+                              "commands": {
+                                "items": {
+                                  "properties": {
+                                    "available": {
+                                      "type": "boolean"
+                                    },
+                                    "bindings": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    },
+                                    "conflict_with": {
+                                      "type": "string"
+                                    },
+                                    "default_binding": {
+                                      "type": "string"
+                                    },
+                                    "default_dormant": {
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "available",
+                                    "bindings",
+                                    "default_dormant",
+                                    "id",
+                                    "title"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "views": {
+                                "items": {
+                                  "properties": {
+                                    "available": {
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "available",
+                                    "id",
+                                    "title"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "commands",
+                              "views"
+                            ],
+                            "type": "object"
+                          },
                           "requires_env": {
                             "items": {
                               "type": "string"

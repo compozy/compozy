@@ -128,6 +128,7 @@ func normalizeResourcesConfig(cfg ResourcesConfig) ResourcesConfig {
 		Hooks:         normalizeHooks(cfg.Hooks),
 		Tools:         normalizeTools(cfg.Tools),
 		CommandGroups: normalizeCommandGroups(cfg.CommandGroups),
+		CmdPalette:    normalizeCmdPaletteConfig(cfg.CmdPalette),
 		MCPServers:    normalizeMCPServers(cfg.MCPServers),
 		Publish:       normalizeResourceGrantRequest(cfg.Publish),
 	}

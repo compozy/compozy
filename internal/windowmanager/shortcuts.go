@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	shortcutPaletteOpenChord             = "meta+KeyK"
 	shortcutPaletteOpenAction            = "palette.open"
 	shortcutPaletteViewSessionsAction    = "palette.view.sessions"
 	shortcutSessionNewAction             = "session.new"
@@ -138,6 +139,11 @@ func CanonicalStoredShortcutsV2(
 		return nil, err
 	}
 	return canonical, nil
+}
+
+// CanonicalShortcutChord validates one manifest or config chord with the daemon grammar.
+func CanonicalShortcutChord(chord string) (string, error) {
+	return canonicalShortcutChord(chord)
 }
 
 // EffectiveKeymap merges override-wins bindings into daemon defaults and validates the whole map.

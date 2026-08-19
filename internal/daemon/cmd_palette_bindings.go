@@ -26,6 +26,7 @@ type cmdPaletteWorkspaceResolver interface {
 }
 
 var _ cmdpalette.BindingsResolver = (*cmdPaletteBindingsResolver)(nil)
+var _ cmdpalette.SnapshotBindingsResolver = (*cmdPaletteBindingsResolver)(nil)
 var _ cmdpalette.PersonalizationPolicy = (*cmdPaletteBindingsResolver)(nil)
 
 func (r *cmdPaletteBindingsResolver) PersonalizationEnabled(
@@ -71,12 +72,69 @@ func (r *cmdPaletteBindingsResolver) Bindings(
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: list bindable command ids: %w", err)
 	}
+	defaults, err := r.extensionDefaults(ctx, catalog, workspaceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return r.resolveBindingsFromSnapshot(
+		workspaceID, windowConfig, paletteConfig, commandIDs, defaults,
+	)
+}
+
+func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
+	ctx context.Context,
+	workspaceID cmdpalette.WorkspaceID,
+	commandIDs []cmdpalette.CommandID,
+	defaults []cmdpalette.ExtensionDefaultShortcut,
+) (map[cmdpalette.CommandID][]string, map[cmdpalette.CommandID]string, error) {
+	if r == nil || r.workspaces == nil {
+		return nil, nil, errors.New("daemon: command palette binding resolver is unavailable")
+	}
+	resolved, err := r.resolveWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	globalConfig, err := r.currentGlobalConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	configPath := filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
+	windowConfig, err := compozyconfig.ApplyWindowManagerOverlayFile(configPath, globalConfig.WindowManager)
+	if err != nil {
+		return nil, nil, fmt.Errorf("daemon: resolve command palette shortcuts: %w", err)
+	}
+	paletteConfig, err := compozyconfig.ApplyCmdPaletteOverlayFile(configPath, globalConfig.CmdPalette)
+	if err != nil {
+		return nil, nil, fmt.Errorf("daemon: resolve command palette aliases: %w", err)
+	}
+	shortcutDefaults := make([]windowmanager.ExtensionDefaultShortcut, 0, len(defaults))
+	for _, item := range defaults {
+		shortcutDefaults = append(shortcutDefaults, windowmanager.ExtensionDefaultShortcut{
+			CommandID: string(item.CommandID), Chord: item.Chord, Source: item.Source, Active: item.Active,
+		})
+	}
+	return r.resolveBindingsFromSnapshot(
+		workspaceID, windowConfig, paletteConfig, commandIDs, shortcutDefaults,
+	)
+}
+
+func (r *cmdPaletteBindingsResolver) resolveBindingsFromSnapshot(
+	workspaceID cmdpalette.WorkspaceID,
+	windowConfig compozyconfig.WindowManagerConfig,
+	paletteConfig compozyconfig.CmdPaletteConfig,
+	commandIDs []cmdpalette.CommandID,
+	defaults []windowmanager.ExtensionDefaultShortcut,
+) (map[cmdpalette.CommandID][]string, map[cmdpalette.CommandID]string, error) {
 	ids := make([]string, 0, len(commandIDs))
 	for _, commandID := range commandIDs {
 		ids = append(ids, string(commandID))
 	}
 	bindable := windowmanager.NewBindableIDs(ids)
-	effective, diagnostics, err := windowmanager.TolerantEffectiveKeymap(windowConfig.Shortcuts, bindable)
+	effective, _, diagnostics, err := windowmanager.TolerantEffectiveKeymapWithExtensionDefaults(
+		windowConfig.Shortcuts,
+		bindable,
+		defaults,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: build effective command palette keymap: %w", err)
 	}
@@ -96,6 +154,28 @@ func (r *cmdPaletteBindingsResolver) Bindings(
 		r.logDeadBinding(workspaceID, diagnostic.CommandID, "shortcut")
 	}
 	return bindings, aliases, nil
+}
+
+func (r *cmdPaletteBindingsResolver) extensionDefaults(
+	ctx context.Context,
+	catalog cmdpalette.BindableCatalog,
+	workspaceID cmdpalette.WorkspaceID,
+) ([]windowmanager.ExtensionDefaultShortcut, error) {
+	provider, ok := catalog.(cmdpalette.ExtensionDefaultCatalog)
+	if !ok {
+		return nil, nil
+	}
+	defaults, err := provider.ExtensionDefaults(ctx, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list extension shortcut defaults: %w", err)
+	}
+	result := make([]windowmanager.ExtensionDefaultShortcut, 0, len(defaults))
+	for _, item := range defaults {
+		result = append(result, windowmanager.ExtensionDefaultShortcut{
+			CommandID: string(item.CommandID), Chord: item.Chord, Source: item.Source, Active: item.Active,
+		})
+	}
+	return result, nil
 }
 
 func (r *cmdPaletteBindingsResolver) resolvePaletteConfig(

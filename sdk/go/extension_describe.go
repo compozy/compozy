@@ -69,6 +69,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Agents:     normalizeStrings(e.definition.Resources.Agents),
 			Automation: normalizeStrings(e.definition.Resources.Automation),
 			Layouts:    normalizeStrings(e.definition.Resources.Layouts),
+			CmdPalette: cloneCmdPaletteConfig(e.definition.Resources.CmdPalette),
 		},
 		Subprocess: contracts.DescribeSubprocess{
 			Command: strings.TrimSpace(e.definition.Subprocess.Command),
@@ -87,6 +88,49 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			MinCompozyVersion: MinCompozyVersion,
 		},
 	}, nil
+}
+
+func cloneCmdPaletteConfig(value contracts.CmdPaletteConfig) contracts.CmdPaletteConfig {
+	cloned := contracts.CmdPaletteConfig{
+		Commands: slices.Clone(value.Commands),
+		Views:    slices.Clone(value.Views),
+	}
+	for index := range cloned.Commands {
+		command := &cloned.Commands[index]
+		command.Keywords = slices.Clone(value.Commands[index].Keywords)
+		command.Arguments = slices.Clone(value.Commands[index].Arguments)
+		for argumentIndex := range command.Arguments {
+			command.Arguments[argumentIndex].Options = slices.Clone(
+				value.Commands[index].Arguments[argumentIndex].Options,
+			)
+		}
+		command.Action.Args = maps.Clone(value.Commands[index].Action.Args)
+		if value.Commands[index].Confirmation != nil {
+			confirmation := *value.Commands[index].Confirmation
+			command.Confirmation = &confirmation
+		}
+		if value.Commands[index].Execution != nil {
+			execution := *value.Commands[index].Execution
+			execution.SingleFlight = cloneOptionalBool(value.Commands[index].Execution.SingleFlight)
+			execution.RetrySafe = cloneOptionalBool(value.Commands[index].Execution.RetrySafe)
+			command.Execution = &execution
+		}
+	}
+	for index := range cloned.Views {
+		if value.Views[index].Source != nil {
+			source := *value.Views[index].Source
+			cloned.Views[index].Source = &source
+		}
+	}
+	return cloned
+}
+
+func cloneOptionalBool(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func normalizeDescribeNetworkParticipation(

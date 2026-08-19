@@ -30,6 +30,10 @@ func (d *Daemon) bootCmdPalette(
 	if err != nil {
 		return fmt.Errorf("daemon: build core command palette provider: %w", err)
 	}
+	extensionProvider := &extensionCmdPaletteProvider{
+		runtime: state.currentExtensionRuntime,
+		tools:   state.toolRegistry,
+	}
 	executor := &cmdPaletteActionExecutor{
 		tools: state.toolRegistry, approvalTokens: state.toolApprovals,
 		windowManager: state.windowManager, approvalTTL: state.cfg.Tools.Policy.ApprovalTimeout(),
@@ -56,11 +60,14 @@ func (d *Daemon) bootCmdPalette(
 	registry, err = cmdpalette.NewRegistry(
 		[]cmdpalette.ProviderRegistration{{
 			Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore}, Provider: provider,
+		}, {
+			Source: cmdpalette.Source{Kind: cmdpalette.SourceKindExtension}, Provider: extensionProvider,
 		}},
 		&cmdPaletteClientDirectory{windowManager: state.windowManager}, bindings, executor,
 		cmdpalette.WithEventRecorder(eventRecorder), cmdpalette.WithClock(d.now),
 		cmdpalette.WithPersonalizationStore(personalizationStore),
 		cmdpalette.WithPersonalizationPolicy(bindings), cmdpalette.WithLogger(state.logger),
+		cmdpalette.WithDynamicViewProvider(extensionProvider),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create command palette registry: %w", err)

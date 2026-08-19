@@ -665,6 +665,12 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			Agents:     []string{"agents"},
 			Automation: []string{"automation/z.toml", "automation/a.toml"},
 			Layouts:    []string{"layouts"},
+			CmdPalette: extensioncontract.CmdPaletteConfig{
+				Commands: []extensioncontract.CmdPaletteCommand{{
+					ID: "open", Title: "Open fixture", Icon: "terminal",
+					Action: extensioncontract.CmdPaletteAction{Kind: "navigate", App: "sessions"},
+				}},
+			},
 		}
 		manifest, err := manifestFromDescribe(payload)
 		if err != nil {
@@ -676,6 +682,12 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			Agents:     []string{"agents"},
 			Automation: []string{"automation/a.toml", "automation/z.toml"},
 			Layouts:    []string{"layouts"},
+			CmdPalette: extensioncontract.CmdPaletteConfig{
+				Commands: []extensioncontract.CmdPaletteCommand{{
+					ID: "open", Title: "Open fixture", Icon: "terminal",
+					Action: extensioncontract.CmdPaletteAction{Kind: "navigate", App: "sessions"},
+				}},
+			},
 		}
 		if !reflect.DeepEqual(manifest.Resources, want) {
 			t.Fatalf("manifest.Resources = %#v, want %#v", manifest.Resources, want)

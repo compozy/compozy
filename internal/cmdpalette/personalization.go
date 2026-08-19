@@ -89,7 +89,7 @@ func (s *Service) Personalization(ctx context.Context, workspaceID WorkspaceID) 
 	if !enabled {
 		return newPersonalizationSnapshot(nil, nil, nil)
 	}
-	descriptors, _, err := s.collectDescriptors(ctx, workspaceID)
+	descriptors, _, _, err := s.collectDescriptors(ctx, workspaceID)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -272,7 +272,7 @@ func (s *Service) requireCatalogCommand(
 	if commandID == "" {
 		return errors.New("cmd palette: command ID is required")
 	}
-	descriptors, _, err := s.collectDescriptors(ctx, workspaceID)
+	descriptors, _, _, err := s.collectDescriptors(ctx, workspaceID)
 	if err != nil {
 		return err
 	}

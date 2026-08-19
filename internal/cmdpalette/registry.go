@@ -23,6 +23,7 @@ type Service struct {
 	logger          *slog.Logger
 	degradedOnce    sync.Once
 	viewProviders   []ViewProviderRegistration
+	dynamicViews    []DynamicViewProvider
 	viewStreamEpoch string
 
 	eventRecorder    EventRecorder
@@ -149,6 +150,12 @@ func validateProviderRegistrations(registrations []ProviderRegistration) error {
 			return fmt.Errorf("cmd palette: duplicate provider source %q", sourceID)
 		}
 		seenSources[sourceID] = struct{}{}
+		if registration.Source.Kind == SourceKindExtension && registration.Source.Extension == "" {
+			if _, ok := registration.Provider.(ContributionProvider); !ok {
+				return errors.New("cmd palette: aggregate extension provider must supply contributions")
+			}
+			continue
+		}
 		provider, static := registration.Provider.(StaticProvider)
 		if !static {
 			continue

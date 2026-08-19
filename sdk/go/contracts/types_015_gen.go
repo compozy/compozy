@@ -2,7 +2,141 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type NetworkPeerJoinedPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
+}
+
+type NetworkPeerLeftPayload struct {
+	Event       HookEvent  `json:"event"`
+	Timestamp   time.Time  `json:"timestamp"`
+	WorkspaceID string     `json:"workspace_id,omitempty"`
+	SessionID   string     `json:"session_id,omitempty"`
+	Channel     string     `json:"channel,omitempty"`
+	Surface     string     `json:"surface,omitempty"`
+	ThreadID    string     `json:"thread_id,omitempty"`
+	DirectID    string     `json:"direct_id,omitempty"`
+	MessageID   string     `json:"message_id,omitempty"`
+	Kind        string     `json:"kind,omitempty"`
+	Direction   string     `json:"direction,omitempty"`
+	WorkID      string     `json:"work_id,omitempty"`
+	WorkState   string     `json:"work_state,omitempty"`
+	PeerID      string     `json:"peer_id,omitempty"`
+	PeerFrom    string     `json:"peer_from,omitempty"`
+	PeerTo      string     `json:"peer_to,omitempty"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
+	TraceID     string     `json:"trace_id,omitempty"`
+	CausationID string     `json:"causation_id,omitempty"`
+}
+
+type NetworkPeerPayload struct {
+	WorkspaceID   string                 `json:"workspace_id,omitempty"`
+	SessionID     *string                `json:"session_id,omitempty"`
+	PeerID        string                 `json:"peer_id"`
+	DisplayName   string                 `json:"display_name,omitempty"`
+	Channel       string                 `json:"channel"`
+	Local         bool                   `json:"local"`
+	PeerCard      NetworkPeerCardPayload `json:"peer_card"`
+	JoinedAt      *time.Time             `json:"joined_at,omitempty"`
+	PresenceState string                 `json:"presence_state"`
+}
+
+type NetworkPeersParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel,omitempty"`
+}
+
+type NetworkSendParams struct {
+	WorkspaceID string                     `json:"workspace_id,omitempty"`
+	SessionID   string                     `json:"session_id"`
+	Channel     string                     `json:"channel"`
+	Surface     string                     `json:"surface,omitempty"`
+	ThreadID    string                     `json:"thread_id,omitempty"`
+	DirectID    string                     `json:"direct_id,omitempty"`
+	Kind        string                     `json:"kind"`
+	To          string                     `json:"to,omitempty"`
+	Mentions    []string                   `json:"mentions,omitempty"`
+	Body        json.RawMessage            `json:"body"`
+	WorkID      string                     `json:"work_id,omitempty"`
+	ReplyTo     string                     `json:"reply_to,omitempty"`
+	TraceID     string                     `json:"trace_id,omitempty"`
+	CausationID string                     `json:"causation_id,omitempty"`
+	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
+	ID          string                     `json:"id,omitempty"`
+	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
+}
+
+type NetworkSendPayload struct {
+	ID          string                     `json:"id"`
+	WorkspaceID string                     `json:"workspace_id,omitempty"`
+	SessionID   string                     `json:"session_id"`
+	Channel     string                     `json:"channel"`
+	Surface     string                     `json:"surface,omitempty"`
+	ThreadID    string                     `json:"thread_id,omitempty"`
+	DirectID    string                     `json:"direct_id,omitempty"`
+	Kind        string                     `json:"kind"`
+	To          string                     `json:"to,omitempty"`
+	Mentions    []string                   `json:"mentions,omitempty"`
+	WorkID      string                     `json:"work_id,omitempty"`
+	ReplyTo     string                     `json:"reply_to,omitempty"`
+	TraceID     string                     `json:"trace_id,omitempty"`
+	CausationID string                     `json:"causation_id,omitempty"`
+	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
+	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
+}
+
+type NetworkStatusPayload struct {
+	Enabled              bool                       `json:"enabled"`
+	Status               string                     `json:"status"`
+	LocalPeers           int                        `json:"local_peers"`
+	Channels             int                        `json:"channels"`
+	MessagesSent         int64                      `json:"messages_sent"`
+	MessagesReceived     int64                      `json:"messages_received"`
+	MessagesRejected     int64                      `json:"messages_rejected"`
+	MessagesDelivered    int64                      `json:"messages_delivered"`
+	WorkflowTaggedEvents int64                      `json:"workflow_tagged_events"`
+	HandoffTaggedEvents  int64                      `json:"handoff_tagged_events"`
+	OpenThreads          int64                      `json:"open_threads"`
+	OpenDirectRooms      int64                      `json:"open_direct_rooms"`
+	OpenWorkItems        int64                      `json:"open_work_items"`
+	ConversationMessages int64                      `json:"conversation_messages"`
+	WorkTransitions      int64                      `json:"work_transitions"`
+	DirectResolves       int64                      `json:"direct_resolves"`
+	KindMetrics          []NetworkKindMetricPayload `json:"kind_metrics"`
+}
+
+type NetworkThreadMessagesParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id"`
+	Before      string `json:"before,omitempty"`
+	After       string `json:"after,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	WorkID      string `json:"work_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+}
 
 type NetworkThreadMessagesResponse struct {
 	Messages []NetworkConversationMessagePayload `json:"messages"`
@@ -217,38 +351,4 @@ type ObserveHealth struct {
 	Tasks              TaskHealth              `json:"tasks"`
 	Activities         []SessionActivityHealth `json:"activities,omitempty"`
 	Version            string                  `json:"version"`
-}
-
-type Origin struct {
-	Kind OriginKind `json:"kind"`
-	Ref  string     `json:"ref"`
-}
-
-type OriginKind string
-
-type OwnerKind string
-
-type OwnerRef struct {
-	WorkspaceID string                 `json:"workspace_id"`
-	Kind        ParticipationOwnerKind `json:"kind"`
-	ID          string                 `json:"id"`
-}
-
-type Ownership struct {
-	Kind OwnerKind `json:"kind"`
-	Ref  string    `json:"ref"`
-}
-
-type ParticipationOwnerKind string
-
-type ParticipationStatus struct {
-	Owner         OwnerRef `json:"owner"`
-	Available     bool     `json:"available"`
-	Participating bool     `json:"participating"`
-	Reason        string   `json:"reason,omitempty"`
-}
-
-type PayloadBase struct {
-	Event     HookEvent `json:"event"`
-	Timestamp time.Time `json:"timestamp"`
 }

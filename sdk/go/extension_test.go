@@ -18,6 +18,7 @@ import (
 	"time"
 
 	compozysdk "github.com/compozy/compozy/sdk/go"
+	"github.com/compozy/compozy/sdk/go/contracts"
 )
 
 type digestFixture struct {
@@ -128,6 +129,8 @@ func TestToolRegistrationValidation(t *testing.T) {
 		type searchInput struct {
 			Query string `json:"query"`
 		}
+		singleFlight := true
+		retrySafe := false
 		inputSchema := json.RawMessage(`{
   "type": "object",
   "required": ["query"],
@@ -143,6 +146,15 @@ func TestToolRegistrationValidation(t *testing.T) {
 					Agents:     []string{" agents/zeta ", "agents/alpha", "agents/zeta"},
 					Automation: []string{" automation/zeta ", "automation/alpha", "automation/zeta"},
 					Layouts:    []string{" layouts/zeta ", "layouts/alpha", "layouts/zeta"},
+					CmdPalette: contracts.CmdPaletteConfig{
+						Commands: []contracts.CmdPaletteCommand{{
+							ID: "search", Title: "Search reviews", Icon: "search",
+							Action: contracts.CmdPaletteAction{Kind: "tool", Tool: "search"},
+							Execution: &contracts.CmdPaletteExecutionPolicy{
+								SingleFlight: &singleFlight, RetrySafe: &retrySafe,
+							},
+						}},
+					},
 				},
 				Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
 			},
@@ -206,9 +218,29 @@ func TestToolRegistrationValidation(t *testing.T) {
 			Agents:     []string{"agents/alpha", "agents/zeta"},
 			Automation: []string{"automation/alpha", "automation/zeta"},
 			Layouts:    []string{"layouts/alpha", "layouts/zeta"},
+			CmdPalette: contracts.CmdPaletteConfig{
+				Commands: []contracts.CmdPaletteCommand{{
+					ID: "search", Title: "Search reviews", Icon: "search",
+					Action: contracts.CmdPaletteAction{Kind: "tool", Tool: "search"},
+					Execution: &contracts.CmdPaletteExecutionPolicy{
+						SingleFlight: &singleFlight, RetrySafe: &retrySafe,
+					},
+				}},
+			},
 		}
 		if !reflect.DeepEqual(payload.Resources, wantResources) {
 			t.Fatalf("Describe().Resources = %#v, want %#v", payload.Resources, wantResources)
+		}
+		*payload.Resources.CmdPalette.Commands[0].Execution.SingleFlight = false
+		*payload.Resources.CmdPalette.Commands[0].Execution.RetrySafe = true
+		fresh, err := extension.Describe()
+		if err != nil {
+			t.Fatalf("Describe() after output mutation error = %v", err)
+		}
+		policy := fresh.Resources.CmdPalette.Commands[0].Execution
+		if policy == nil || policy.SingleFlight == nil || !*policy.SingleFlight ||
+			policy.RetrySafe == nil || *policy.RetrySafe {
+			t.Fatalf("Describe() shared execution policy pointers: %#v", policy)
 		}
 	})
 

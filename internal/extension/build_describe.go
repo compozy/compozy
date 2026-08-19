@@ -54,6 +54,7 @@ func manifestFromDescribe(payload extensioncontract.DescribePayload) (*Manifest,
 			Agents:     payload.Resources.Agents,
 			Automation: payload.Resources.Automation,
 			Layouts:    payload.Resources.Layouts,
+			CmdPalette: payload.Resources.CmdPalette,
 		},
 		Capabilities: CapabilitiesConfig{
 			Provides: payload.Provides,
@@ -104,6 +105,7 @@ func normalizeDescribeResources(resources extensioncontract.DescribeResources) e
 		Agents:     sortedBuildStrings(resources.Agents),
 		Automation: sortedBuildStrings(resources.Automation),
 		Layouts:    sortedBuildStrings(resources.Layouts),
+		CmdPalette: normalizeCmdPaletteConfig(resources.CmdPalette),
 	}
 }
 

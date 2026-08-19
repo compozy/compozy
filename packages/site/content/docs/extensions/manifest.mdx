@@ -167,6 +167,7 @@ root and may not escape it.
 | `resources.layouts`        | Strict `window_layout` JSON files or directories.                       |
 | `resources.hooks`          | Hook declarations, stamped with source `extension`.                     |
 | `resources.tools`          | Extension-host tools. Generated from SDK registrations.                 |
+| `resources.cmd_palette`    | Commands, declarative views, and default shortcut suggestions.          |
 | `resources.command_groups` | Presentation-only command groups. Generated from `commandGroup(...)`.   |
 | `resources.mcp_servers`    | Named MCP server declarations.                                          |
 | `resources.publish`        | Requested resource families and scope ceiling for `resources/snapshot`. |
@@ -218,6 +219,14 @@ Generated from each SDK tool registration. Fields the daemon reads:
 
 Because both the schema and the handler come from one code declaration, the schema-digest drift that
 a hand-maintained manifest allowed cannot occur.
+
+### `[resources.cmd_palette]`
+
+Generated from the SDK definition's `resources.cmd_palette` field. It declares palette commands,
+extension-owned views, and optional default shortcuts. Local IDs are namespaced with the extension
+name at runtime, tool actions may target only tools from the same manifest, and declarative view
+sources must be read-only. See [Command Palette Contributions](/docs/extensions/cmd-palette) for the
+complete contract and examples.
 
 ### `[[resources.hooks]]`
 

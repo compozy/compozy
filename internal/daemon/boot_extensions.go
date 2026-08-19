@@ -47,6 +47,7 @@ func (d *Daemon) newBootExtensionService(
 		withDaemonExtensionAutomation(state.automation),
 		withDaemonExtensionResources(state.resourceKernel, resourceReconcileActor(), state.resourceCodecs),
 		withDaemonExtensionMCPRuntimeHealth(state.mcpRuntimeHealth),
+		withDaemonExtensionPaletteNotifier(newExtensionPaletteNotifier(state)),
 	)
 }
 

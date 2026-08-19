@@ -37,6 +37,7 @@ import (
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 	"github.com/kballard/go-shellquote"
@@ -612,14 +613,18 @@ func (h *referenceHarness) assertClarificationRoundTrip(t *testing.T, session cl
 		question: "Which release lane?",
 		choices:  []string{"Stable", "Canary"},
 		request:  cli.ClarificationAnswerRequest{ChoiceIndex: &choice},
-		want:     cli.ClarificationAnswerRecord{Choice: &choice},
+		want: cli.ClarificationAnswerRecord{
+			ClarifyAnswer: toolspkg.ClarifyAnswer{Choice: &choice},
+		},
 	})
 	h.assertOneClarificationRoundTrip(t, session, referenceClarificationCase{
 		input:    json.RawMessage(`{"question":" What deployment label? "}`),
 		question: "What deployment label?",
 		request:  cli.ClarificationAnswerRequest{Text: " canary-42 "},
-		want:     cli.ClarificationAnswerRecord{Text: "canary-42"},
-		viaHTTP:  true,
+		want: cli.ClarificationAnswerRecord{
+			ClarifyAnswer: toolspkg.ClarifyAnswer{Text: "canary-42"},
+		},
+		viaHTTP: true,
 	})
 }
 

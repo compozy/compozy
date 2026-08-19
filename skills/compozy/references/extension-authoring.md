@@ -14,6 +14,7 @@ reload semantics, logs, install trust, publish credentials — live in
 - Permissions and consent
 - Provide surfaces
 - Contributed commands
+- Command palette contributions
 - Generated manifest
 - Structured workflows
 
@@ -217,6 +218,20 @@ Objects, nested arrays, tuples, `oneOf`/`anyOf`/`allOf`/`not`, conditional schem
 `POST /api/tools/ext__<ext>__<tool>/invoke`, so policy, approvals, risk gates, and
 `trusted_workspace` apply unchanged. Agents do not need `exec` — call the tool ID directly.
 
+## Command Palette Contributions
+
+Set `resources.cmd_palette` in the SDK definition to add commands, default shortcut suggestions, and
+extension-owned views. IDs are local in source and become `ext.<extension>.<id>` at runtime. Tool
+actions may reference only tools from the same extension; declarative views require a read-only
+source tool. Invalid contributions fail build, validation, install, or dev reload instead of entering
+the live catalog.
+
+Default shortcuts never override core or operator bindings. A conflict stays dormant and Settings
+reports the owner. Enabled unhealthy extensions keep their palette entries visible but unavailable
+with the health reason. Use `compozy cmd-palette list|inspect --workspace <workspace> -o json` to
+inspect the projected result. Full authoring examples and validation rules:
+[Command Palette Contributions](https://compozy.com/docs/extensions/cmd-palette).
+
 ## Generated Manifest
 
 What `build` writes, for reading rather than editing: `[extension]` (`name`, `version`,
@@ -224,7 +239,8 @@ What `build` writes, for reading rather than editing: `[extension]` (`name`, `ve
 `[permissions] requires`, `[subprocess]` (`command`, `args`, `env`, `secret_env`,
 `health_check_interval`, `shutdown_timeout`), `[resources.tools.<handler>]` (id, handler, backend
 kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, optional `command`),
-`[[resources.hooks]]`, `[[resources.command_groups]]`, and `[network_participation]`.
+`[resources.cmd_palette]`, `[[resources.hooks]]`, `[[resources.command_groups]]`, and
+`[network_participation]`.
 
 Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`.
 Resource paths resolve inside the extension root; `{{config_dir}}` is that root and

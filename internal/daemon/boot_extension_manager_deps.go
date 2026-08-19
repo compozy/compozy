@@ -64,9 +64,12 @@ func (d *Daemon) extensionManagerDeps(
 		ProcessRegistry: state.processRegistry,
 		SecretResolver:  state.providerVault,
 		EnvBindings:     envBindings,
-		LifecycleEvents: extensionLifecycleEventStoreSink{
-			writer: extensionEventSummaryStore(state.registry),
-			now:    d.now,
+		LifecycleEvents: extensionPaletteLifecycleEventSink{
+			primary: extensionLifecycleEventStoreSink{
+				writer: extensionEventSummaryStore(state.registry),
+				now:    d.now,
+			},
+			notifier: newExtensionPaletteNotifier(state),
 		},
 		CompozyExecutable: d.executable,
 	}

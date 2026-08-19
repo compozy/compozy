@@ -7,6 +7,107 @@ import (
 	"time"
 )
 
+type InputPreSubmitPayload struct {
+	Event          HookEvent                 `json:"event"`
+	Timestamp      time.Time                 `json:"timestamp"`
+	SessionID      string                    `json:"session_id,omitempty"`
+	SessionName    string                    `json:"session_name,omitempty"`
+	SessionType    string                    `json:"session_type,omitempty"`
+	AgentName      string                    `json:"agent_name,omitempty"`
+	WorkspaceID    string                    `json:"workspace_id,omitempty"`
+	Workspace      string                    `json:"workspace,omitempty"`
+	WorktreeID     string                    `json:"worktree_id,omitempty"`
+	ACPSessionID   string                    `json:"acp_session_id,omitempty"`
+	State          string                    `json:"state,omitempty"`
+	SoulSnapshotID string                    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string                    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time                 `json:"created_at"`
+	UpdatedAt      time.Time                 `json:"updated_at"`
+	TurnID         string                    `json:"turn_id,omitempty"`
+	InputClass     string                    `json:"input_class,omitempty"`
+	Message        string                    `json:"message,omitempty"`
+	ContextBlocks  []ContextBlock            `json:"context_blocks,omitempty"`
+	Attachments    []InputAttachmentMetadata `json:"attachments,omitempty"`
+}
+
+type IssueSeverity string
+
+const (
+	IssueSeverityError   IssueSeverity = "error"
+	IssueSeverityWarning IssueSeverity = "warning"
+	IssueSeverityWarn    IssueSeverity = "warn"
+)
+
+type Job struct {
+	ID          string          `json:"id"`
+	Scope       Scope           `json:"scope"`
+	Name        string          `json:"name"`
+	TargetKind  TargetKind      `json:"target_kind"`
+	AgentName   string          `json:"agent_name"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Prompt      string          `json:"prompt"`
+	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
+	Task        *JobTaskConfig  `json:"task,omitempty"`
+	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
+	Enabled     bool            `json:"enabled"`
+	Retry       RetryConfig     `json:"retry"`
+	FireLimit   FireLimitConfig `json:"fire_limit"`
+	Source      JobSource       `json:"source"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+type JobSource string
+
+type JobTaskConfig struct {
+	Title                string     `json:"title,omitempty"`
+	Description          string     `json:"description,omitempty"`
+	Owner                *Ownership `json:"owner,omitempty"`
+	NetworkParticipation *Request   `json:"network_participation,omitempty"`
+}
+
+type ListLogsParams struct {
+	WorkspaceID   string    `json:"workspace_id"`
+	SessionID     string    `json:"session_id,omitempty"`
+	AgentName     string    `json:"agent_name,omitempty"`
+	Type          string    `json:"type,omitempty"`
+	RunID         string    `json:"run,omitempty"`
+	ActorKind     string    `json:"actor_kind,omitempty"`
+	ActorID       string    `json:"actor_id,omitempty"`
+	Provider      string    `json:"provider,omitempty"`
+	Outcome       string    `json:"outcome,omitempty"`
+	Component     string    `json:"component,omitempty"`
+	ErrorOnly     bool      `json:"error_only,omitempty"`
+	AfterSequence int64     `json:"after_seq,omitempty"`
+	Since         time.Time `json:"since,omitzero"`
+	Limit         int       `json:"limit,omitempty"`
+}
+
+type LoopContext struct {
+	LoopRunID                    string `json:"loop_run_id,omitempty"`
+	ParentLoopRunID              string `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID                  string `json:"workspace_id,omitempty"`
+	LoopName                     string `json:"loop_name,omitempty"`
+	Generation                   int    `json:"generation,omitempty"`
+	TaskID                       string `json:"task_id,omitempty"`
+	RunID                        string `json:"run_id,omitempty"`
+	RunKind                      string `json:"run_kind,omitempty"`
+	NodeID                       string `json:"node_id,omitempty"`
+	WorkflowID                   string `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec  `json:"resolved_network_participation,omitempty"`
+	AgentName                    string `json:"agent_name,omitempty"`
+	SessionID                    string `json:"session_id,omitempty"`
+	ActorKind                    string `json:"actor_kind,omitempty"`
+	ActorID                      string `json:"actor_id,omitempty"`
+	OriginKind                   string `json:"origin_kind,omitempty"`
+	OriginRef                    string `json:"origin_ref,omitempty"`
+}
+
+type LoopControlPatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
 type LoopGatePostPayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
@@ -298,89 +399,4 @@ type MemoryRecallParams struct {
 	Limit     int         `json:"limit,omitempty"`
 	Scope     MemoryScope `json:"scope,omitempty"`
 	Workspace string      `json:"workspace,omitempty"`
-}
-
-type MemoryScope string
-
-type MemoryStoreParams struct {
-	Key       string      `json:"key"`
-	Content   string      `json:"content"`
-	Scope     MemoryScope `json:"scope,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-	Tags      []string    `json:"tags,omitempty"`
-}
-
-type MessageAttachment struct {
-	ID       string `json:"id,omitempty"`
-	Name     string `json:"name,omitempty"`
-	MIMEType string `json:"mime_type,omitempty"`
-	URL      string `json:"url,omitempty"`
-}
-
-type MessageContent struct {
-	Text string `json:"text,omitempty"`
-}
-
-type MessageDeltaPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
-}
-
-type MessageDeltaPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	MessageID      string          `json:"message_id,omitempty"`
-	Role           string          `json:"role,omitempty"`
-	DeltaType      string          `json:"delta_type,omitempty"`
-	Text           string          `json:"text,omitempty"`
-	Raw            json.RawMessage `json:"raw,omitempty"`
-}
-
-type MessageEndPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
-}
-
-type MessageEndPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	MessageID      string          `json:"message_id,omitempty"`
-	Role           string          `json:"role,omitempty"`
-	DeltaType      string          `json:"delta_type,omitempty"`
-	Text           string          `json:"text,omitempty"`
-	Raw            json.RawMessage `json:"raw,omitempty"`
 }

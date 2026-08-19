@@ -81,6 +81,9 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       agents: normalizeStringList(input.definition.resources?.agents),
       automation: normalizeStringList(input.definition.resources?.automation),
       layouts: normalizeStringList(input.definition.resources?.layouts),
+      ...(input.definition.resources?.cmd_palette === undefined
+        ? {}
+        : { cmd_palette: structuredClone(input.definition.resources.cmd_palette) }),
     },
     subprocess: {
       command,

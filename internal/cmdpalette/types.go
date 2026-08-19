@@ -25,6 +25,9 @@ type Source struct {
 
 func (s Source) ID() string {
 	if s.Kind == SourceKindExtension {
+		if s.Extension == "" {
+			return string(SourceKindExtension)
+		}
 		return "ext." + s.Extension
 	}
 	return string(s.Kind)
@@ -107,19 +110,20 @@ type Predicate struct {
 }
 
 type Descriptor struct {
-	ID                 CommandID       `json:"id"`
-	Title              string          `json:"title"`
-	Section            string          `json:"section"`
-	Icon               string          `json:"icon"`
-	Keywords           []string        `json:"keywords,omitempty"`
-	Source             Source          `json:"source"`
-	Action             Action          `json:"action"`
-	Arguments          []Argument      `json:"arguments"`
-	Destructive        bool            `json:"destructive"`
-	Confirmation       *Confirmation   `json:"confirmation,omitempty"`
-	When               []Predicate     `json:"when,omitempty"`
-	AvailabilityExempt bool            `json:"availability_exempt"`
-	Policy             ExecutionPolicy `json:"execution"`
+	ID                        CommandID       `json:"id"`
+	Title                     string          `json:"title"`
+	Section                   string          `json:"section"`
+	Icon                      string          `json:"icon"`
+	Keywords                  []string        `json:"keywords,omitempty"`
+	Source                    Source          `json:"source"`
+	Action                    Action          `json:"action"`
+	Arguments                 []Argument      `json:"arguments"`
+	Destructive               bool            `json:"destructive"`
+	Confirmation              *Confirmation   `json:"confirmation,omitempty"`
+	When                      []Predicate     `json:"when,omitempty"`
+	AvailabilityExempt        bool            `json:"availability_exempt"`
+	Policy                    ExecutionPolicy `json:"execution"`
+	ProviderUnavailableReason string          `json:"-"`
 }
 
 type SourceHealth string
@@ -220,6 +224,27 @@ type Provider interface {
 	ProvideCommands(context.Context, WorkspaceID) ([]Descriptor, error)
 }
 
+// ContributionProvider returns a complete multi-source extension projection.
+type ContributionProvider interface {
+	Provider
+	ProvideContribution(context.Context, WorkspaceID) (Contribution, error)
+}
+
+// Contribution is one atomic extension catalog snapshot.
+type Contribution struct {
+	Commands []Descriptor
+	Sources  []SourceStatus
+	Defaults []ExtensionDefaultShortcut
+}
+
+// ExtensionDefaultShortcut is one bind-if-free extension shortcut claim.
+type ExtensionDefaultShortcut struct {
+	CommandID CommandID
+	Chord     string
+	Source    string
+	Active    bool
+}
+
 type StaticProvider interface {
 	Provider
 	StaticCommands() []Descriptor
@@ -248,6 +273,16 @@ type BindingsResolver interface {
 	Bindings(context.Context, WorkspaceID) (map[CommandID][]string, map[CommandID]string, error)
 }
 
+// SnapshotBindingsResolver resolves bindings from the exact contribution snapshot used by Catalog.
+type SnapshotBindingsResolver interface {
+	BindingsForCatalogSnapshot(
+		context.Context,
+		WorkspaceID,
+		[]CommandID,
+		[]ExtensionDefaultShortcut,
+	) (map[CommandID][]string, map[CommandID]string, error)
+}
+
 type Registry interface {
 	Catalog(context.Context, WorkspaceID, ClientID) (Catalog, error)
 	Clients(context.Context, WorkspaceID) ([]Client, error)
@@ -262,4 +297,9 @@ type Registry interface {
 
 type BindableCatalog interface {
 	BindableIDs(context.Context, WorkspaceID) ([]CommandID, error)
+}
+
+// ExtensionDefaultCatalog exposes ordered extension shortcut claims without resolving bindings.
+type ExtensionDefaultCatalog interface {
+	ExtensionDefaults(context.Context, WorkspaceID) ([]ExtensionDefaultShortcut, error)
 }
