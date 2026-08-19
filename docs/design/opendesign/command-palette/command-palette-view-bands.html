@@ -49,21 +49,25 @@
       <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Busy band — rows stay</h2>
         <span class="lab-sec__gist">soft 150 ms · list never blanks</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Previous rows stay painted</b>US-039.AC-2: three-band budget is <code>soft 150 ms</code> · <code>hard ack 3 s</code> · circuit-break at <code>3</code> consecutive misses. Past the soft budget the busy band appears — a motion token and the word <code>updating</code> — while last-good rows remain fully visible. The list never blanks for a spinner. No percentage.</div>
+        <div class="spec__note"><b>Previous rows stay painted</b>US-039.AC-2: three-band budget is <code>soft 150 ms</code> · <code>hard ack 3 s</code> · circuit-break at <code>3</code> consecutive misses. Past the soft budget the busy band appears — a motion token and the word <code>updating</code> — while last-good rows remain fully visible. The list never blanks for a spinner. No percentage. This leaf sits deeper than the ≤3-slot crumb window, so the trail left-truncates and the leading <code>…</code> crumb carries the tooltip <code>Earlier levels</code>.</div>
         <div class="spec__demo">
           <div class="stage stage--tall" data-od-id="vb-final-stage">
             <div class="overlay palette-overlay" data-od-id="vb-final-overlay">
               <div class="palette" data-od-id="vb-final-pal" role="dialog" aria-label="Command palette">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <!-- gating: ancestors exceed the ≤3-slot window → leading `…` crumb -->
                   <nav class="pal-crumbs" aria-label="Palette path">
-                    <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
+                    <span class="pal-crumb pal-crumb--ellipsis" role="button" tabindex="0" aria-label="Earlier levels" aria-describedby="vb-final-crumb-tip">…<span class="pal-tip" id="vb-final-crumb-tip">Earlier levels</span></span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb pal-crumb--root">Sessions</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">claude</span>
                   </nav>
-                  <input id="vb-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="vb-final-list" aria-activedescendant="vb-final-row-store" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions" autocomplete="off" spellcheck="false">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input id="vb-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="vb-final-list" aria-activedescendant="vb-final-row-store" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions" autocomplete="off" spellcheck="false">
+                  </div>
                 </div>
                 <!-- gating: viewBand = busy · elapsed > soft 150ms · lastGoodRows painted -->
                 <div class="pal-band pal-band--busy" data-od-id="vb-final-band" role="status">
@@ -123,24 +127,29 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="vb-deg-pal">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
-                    <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
+                    <span class="pal-crumb pal-crumb--ellipsis" role="button" tabindex="0" aria-label="Earlier levels" aria-describedby="vb-deg-crumb-tip">…<span class="pal-tip" id="vb-deg-crumb-tip">Earlier levels</span></span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb pal-crumb--root">Sessions</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">claude</span>
                   </nav>
-                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-deg-list" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-deg-list" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                  </div>
                 </div>
                 <!-- gating: viewBand = degraded · missCount ≥ 1 · elapsed > hard ack 3s -->
                 <div class="pal-band pal-band--degraded" id="vb-deg-band" data-od-id="vb-deg-band" role="status">
                   <svg data-lucide="triangle-alert"></svg>
                   <span>degraded</span>
-                  <button class="btn btn--sm btn--primary" type="button" id="vb-deg-retry" data-od-id="vb-deg-retry">Retry</button>
+                  <!-- neutral control: an accent fill inside a warning-tinted band
+                       would put two signal hues on one strip -->
+                  <button class="btn btn--sm" type="button" id="vb-deg-retry" data-od-id="vb-deg-retry">Retry</button>
                 </div>
                 <div class="pal-kind pal-kind--list">
-                  <div class="palette-results" id="vb-deg-list" role="listbox" aria-label="claude's sessions" style="max-height:132px">
+                  <div class="palette-results" id="vb-deg-list" role="listbox" aria-label="claude's sessions">
                     <button class="pal-srow is-active" type="button" role="option" aria-selected="true" data-od-id="vb-deg-row-store">
                       <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
                       <span class="pal-srow__main">
@@ -160,6 +169,7 @@
                   </div>
                 </div>
                 <div class="pal-foot">
+                  <span><span class="keys"><span class="key">↑↓</span></span> move</span>
                   <span><span class="keys"><span class="key">⌫</span></span> back</span>
                   <span class="pal-foot-flex"></span>
                   <span><span class="keys"><span class="key">esc</span></span> close</span>
@@ -176,25 +186,29 @@
       <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Circuit-broken</h2>
         <span class="lab-sec__gist">until reopen · other views stay live</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Three consecutive misses</b>The results well is replaced by <code>view broken</code> / <code>until reopen</code>. Head, search, <code>Esc</code>, <code>⌫</code>, and navigation remain live — a broken programmable view cannot trap the palette. Other views still push. Reopen is what clears the break.</div>
+        <div class="spec__note"><b>Three consecutive misses</b>The results well is replaced by <code>view broken</code>, the source <code>Notes (ext.notes)</code>, and the qualifier <code>until reopen</code> on its own line — the source slot keeps naming the extension, exactly like every sibling frame. Head, search, <code>Esc</code>, <code>⌫</code>, and navigation remain live — a broken programmable view cannot trap the palette. Other views still push. Reopen is what clears the break.</div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="vb-brk-stage">
             <div class="overlay palette-overlay" id="vb-brk-overlay">
               <div class="palette" data-od-id="vb-brk-pal">
                 <div class="palette-head">
-                  <button type="button" id="vb-brk-back" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" id="vb-brk-back" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
-                    <span class="pal-crumb pal-crumb--root">Sessions</span>
+                    <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
-                    <span class="pal-crumb">claude</span>
+                    <span class="pal-crumb">Browse notes</span>
                   </nav>
-                  <input id="vb-brk-q" type="text" role="combobox" aria-expanded="true" aria-controls="vb-brk-frame" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input id="vb-brk-q" type="text" role="combobox" aria-expanded="true" aria-controls="vb-brk-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  </div>
                 </div>
                 <!-- gating: viewBand = broken · missCount == 3 · circuit open until remount -->
                 <div class="pal-frame pal-frame--broken" id="vb-brk-frame" data-od-id="vb-brk-frame" role="status">
                   <svg data-lucide="unplug"></svg>
                   <div class="pal-frame__t">view broken</div>
-                  <div class="pal-frame__s">until reopen</div>
+                  <div class="pal-frame__s">Notes (ext.notes)</div>
+                  <div class="pal-frame__q">until reopen</div>
                 </div>
                 <div class="pal-foot">
                   <span id="vb-brk-pop"><span class="keys"><span class="key">⌫</span></span> back</span>
@@ -203,7 +217,7 @@
                 </div>
               </div>
             </div>
-            <button class="btn" type="button" id="vb-brk-reopen" hidden data-od-id="vb-brk-reopen" style="position:absolute;top:28px;left:50%;transform:translateX(-50%)" aria-label="Open palette">
+            <button class="btn stage__reopen" type="button" id="vb-brk-reopen" hidden data-od-id="vb-brk-reopen" aria-label="Open palette">
               <span class="keys"><span class="key">⌘</span><span class="key">K</span></span>
               Open
             </button>
@@ -223,13 +237,16 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="vb-crash-pal">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">Recent notes</span>
                   </nav>
-                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-crash-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-crash-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  </div>
                 </div>
                 <!-- gating: program crash · viewFrame = unavailable · source = ext.notes -->
                 <div class="pal-frame pal-frame--unavailable" id="vb-crash-frame" data-od-id="vb-crash-frame" role="status">
@@ -260,21 +277,25 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="vb-reload-pal">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">Recent notes</span>
                   </nav>
-                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-reload-list" aria-activedescendant="vb-reload-row" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" role="combobox" aria-expanded="true" aria-controls="vb-reload-list" aria-activedescendant="vb-reload-row" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  </div>
                 </div>
                 <div class="pal-chips" data-od-id="vb-reload-chips">
-                  <button class="pal-chip is-on" type="button">All <span class="count">2</span></button>
+                  <!-- count is the truthful row count of the well below -->
+                  <button class="pal-chip is-on" type="button">All <span class="count">1</span></button>
                   <!-- gating: extDev.hotReload && viewOpen → pal-reload chip -->
-                  <span class="pal-reload" data-od-id="vb-reload-chip" style="margin-left:auto"><svg data-lucide="refresh-cw"></svg>view reloaded</span>
+                  <span class="pal-reload" data-od-id="vb-reload-chip"><svg data-lucide="refresh-cw"></svg>view reloaded</span>
                 </div>
                 <div class="pal-kind pal-kind--list">
-                  <div class="palette-results" id="vb-reload-list" role="listbox" aria-label="Recent notes" style="max-height:88px">
+                  <div class="palette-results" id="vb-reload-list" role="listbox" aria-label="Recent notes">
                     <button class="pal-srow is-active" type="button" role="option" id="vb-reload-row" aria-selected="true" data-od-id="vb-reload-row">
                       <span class="sig" data-k="notify"><svg data-lucide="sticky-note"></svg></span>
                       <span class="pal-srow__main">
@@ -284,7 +305,10 @@
                     </button>
                   </div>
                 </div>
+                <!-- the chips header is mounted, so the footer carries the ⇥ filters hint -->
                 <div class="pal-foot">
+                  <span><span class="keys"><span class="key">↑↓</span></span> move</span>
+                  <span><span class="keys"><span class="key">⇥</span></span> filters</span>
                   <span><span class="keys"><span class="key">⌫</span></span> back</span>
                   <span class="pal-foot-flex"></span>
                   <span><span class="keys"><span class="key">esc</span></span> close</span>
@@ -301,7 +325,7 @@
   </div></div>
 </div></div>
 
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/lucide@1.28/dist/umd/lucide.min.js"></script>
 <script>
 (function () {
   function refreshIcons() {

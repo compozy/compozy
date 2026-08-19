@@ -53,17 +53,20 @@
       <div class="spec">
         <div class="spec__note"><b>Declared field order</b>US-012: <code>ext.notes</code> form <code>Notes preferences</code> under S2 stack chrome. Fields in order: text <code>Notebook name</code> · password <code>Sync token</code> · textarea <code>Capture template</code> · checkbox <code>Archive on capture</code> · dropdown <code>Default tag</code> (<code>inbox</code> / <code>idea</code>) · directory picker <code>Attachments folder</code>. ⇥ walks that order. <code>Submit</code> is the single primary.</div>
         <div class="spec__demo">
-          <div class="stage stage--tall" data-od-id="fg-final-stage" style="min-height:680px">
+          <div class="stage stage--tall stage--overlay" data-od-id="fg-final-stage">
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="fg-final-pal" role="dialog" aria-label="Command palette">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">Notes preferences</span>
                   </nav>
-                  <input id="fg-final-q" type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" aria-controls="fg-final-form" aria-autocomplete="list" autocomplete="off" spellcheck="false">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input id="fg-final-q" type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" aria-controls="fg-final-form" aria-autocomplete="list" autocomplete="off" spellcheck="false">
+                  </div>
                 </div>
                 <div class="pal-kind pal-kind--form" data-od-id="fg-final-kind">
                     <form class="pal-form" id="fg-final-form" data-od-id="fg-final-form">
@@ -102,7 +105,7 @@
                           <button class="btn btn--sm" type="button" aria-label="Choose attachments folder"><svg data-lucide="folder"></svg></button>
                         </div>
                       </div>
-                      <div class="pal-field" style="align-items:flex-end">
+                      <div class="pal-form__acts">
                         <button class="btn btn--primary" type="submit" data-od-id="fg-final-submit">Submit</button>
                       </div>
                     </form>
@@ -128,23 +131,26 @@
       <div class="spec">
         <div class="spec__note"><b>First invalid takes focus</b>US-012.AC-2: <code>Submit</code> does not leave the form. It focuses the first invalid field and each invalid field keeps its own inline message. Here <code>Notebook name</code> and <code>Sync token</code> both read <code>required</code>; focus and the ring sit on <code>Notebook name</code>.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="fg-invalid-stage" style="min-height:0">
-            <div class="palette" data-od-id="fg-invalid-pal" role="dialog" aria-label="Command palette">
+          <div class="stage stage--pad stage--auto" data-od-id="fg-invalid-stage">
+            <div class="palette palette--staged" data-od-id="fg-invalid-pal" role="dialog" aria-label="Command palette">
               <div class="palette-head">
-                <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path">
                   <span class="pal-crumb pal-crumb--root">Notes</span>
                   <span class="w2-sep">/</span>
                   <span class="pal-crumb">Notes preferences</span>
                 </nav>
-                <input type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" aria-controls="fg-invalid-form" autocomplete="off" spellcheck="false">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" aria-controls="fg-invalid-form" autocomplete="off" spellcheck="false">
+                </div>
               </div>
               <div class="pal-kind pal-kind--form">
                   <form class="pal-form" id="fg-invalid-form" data-od-id="fg-invalid-form">
                     <!-- gating: submit focuses FIRST invalid field · Notebook name -->
                     <div class="pal-field is-bad is-focus" data-od-id="fg-invalid-name">
                       <label class="pal-field__lab" for="fg-invalid-name-in">Notebook name</label>
-                      <input class="input" id="fg-invalid-name-in" type="text" autocomplete="off" aria-invalid="true" aria-describedby="fg-invalid-name-err" style="box-shadow:var(--focus-ring)">
+                      <input class="input focus-ring" id="fg-invalid-name-in" type="text" autocomplete="off" aria-invalid="true" aria-describedby="fg-invalid-name-err">
                       <span class="pal-field__err" id="fg-invalid-name-err">required</span>
                     </div>
                     <div class="pal-field is-bad" data-od-id="fg-invalid-token">
@@ -170,13 +176,13 @@
                       </select>
                     </div>
                     <div class="pal-field">
-                      <span class="pal-field__lab">Attachments folder</span>
-                      <div class="pal-pick" role="group">
+                      <span class="pal-field__lab" id="fg-invalid-folder-lab">Attachments folder</span>
+                      <div class="pal-pick" role="group" aria-labelledby="fg-invalid-folder-lab">
                         <span class="pal-pick__path">Choose a folder</span>
                         <button class="btn btn--sm" type="button" aria-label="Choose attachments folder"><svg data-lucide="folder"></svg></button>
                       </div>
                     </div>
-                    <div class="pal-field" style="align-items:flex-end">
+                    <div class="pal-form__acts">
                       <button class="btn btn--primary" type="button">Submit</button>
                     </div>
                   </form>
@@ -200,22 +206,25 @@
       <div class="spec">
         <div class="spec__note"><b>Values survive the failure</b>US-012.EC-2: a failed submit does not dismiss the view. The form stays open, every value is preserved, and an inline <code>submit failed</code> error is surfaced above the fields. <code>Sync token</code> stays masked.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="fg-fail-stage" style="min-height:0">
-            <div class="palette" data-od-id="fg-fail-pal" role="dialog" aria-label="Command palette">
+          <div class="stage stage--pad stage--auto" data-od-id="fg-fail-stage">
+            <div class="palette palette--staged" data-od-id="fg-fail-pal" role="dialog" aria-label="Command palette">
               <div class="palette-head">
-                <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path">
                   <span class="pal-crumb pal-crumb--root">Notes</span>
                   <span class="w2-sep">/</span>
                   <span class="pal-crumb">Notes preferences</span>
                 </nav>
-                <input type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" autocomplete="off" spellcheck="false">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" placeholder="Search Notes preferences…" aria-label="Search Notes preferences" role="combobox" aria-expanded="true" autocomplete="off" spellcheck="false">
+                </div>
               </div>
               <div class="pal-kind pal-kind--form">
                   <form class="pal-form" data-od-id="fg-fail-form">
                     <!-- gating: submit-failed · form remains mounted · values preserved -->
                     <div class="pal-form__fail" data-od-id="fg-fail-banner" role="alert">
-                      <svg data-lucide="circle-alert" style="width:13px;height:13px;display:inline-block;vertical-align:-2px;margin-right:6px"></svg>
+                      <svg data-lucide="circle-alert"></svg>
                       submit failed — Notes could not save preferences
                     </div>
                     <div class="pal-field">
@@ -244,13 +253,13 @@
                       </select>
                     </div>
                     <div class="pal-field">
-                      <span class="pal-field__lab">Attachments folder</span>
-                      <div class="pal-pick" role="group">
+                      <span class="pal-field__lab" id="fg-fail-folder-lab">Attachments folder</span>
+                      <div class="pal-pick" role="group" aria-labelledby="fg-fail-folder-lab">
                         <span class="pal-pick__path">~/Notes/acme</span>
                         <button class="btn btn--sm" type="button" aria-label="Choose attachments folder"><svg data-lucide="folder"></svg></button>
                       </div>
                     </div>
-                    <div class="pal-field" style="align-items:flex-end">
+                    <div class="pal-form__acts">
                       <button class="btn btn--primary" type="button">Submit</button>
                     </div>
                   </form>
@@ -274,23 +283,24 @@
       <div class="spec">
         <div class="spec__note"><b>Mask and hint</b>US-012.EC-3: <code>Sync token</code> is a password field — the value is masked, never shown in the clear. US-012.EC-4: an empty <code>Default tag</code> dropdown shows its declared hint <code>inbox or idea</code> rather than an unlabeled blank.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="fg-mask-stage" style="min-height:0">
-            <div class="plain" data-od-id="fg-mask-plain" style="width:min(560px,100%);padding:16px 18px">
+          <div class="stage stage--pad stage--auto" data-od-id="fg-mask-stage">
+            <div class="plain plain--pal-w" data-od-id="fg-mask-plain">
               <div class="pal-form">
                 <!-- gating: Sync token type=password · US-012.EC-3 -->
                 <div class="pal-field" data-od-id="fg-mask-token">
                   <label class="pal-field__lab" for="fg-mask-token-in">Sync token</label>
                   <input class="input" id="fg-mask-token-in" type="password" value="n0tes-sync-tok" autocomplete="off" spellcheck="false">
                 </div>
-                <!-- gating: Default tag empty · declared hint inbox or idea · US-012.EC-4 -->
+                <!-- gating: Default tag empty · declared hint inbox or idea · US-012.EC-4.
+                     The hint renders INSIDE the control as the empty placeholder option —
+                     an external .pal-field__hint would only repeat it word for word. -->
                 <div class="pal-field" data-od-id="fg-mask-tag">
                   <label class="pal-field__lab" for="fg-mask-tag-in">Default tag</label>
                   <select class="input" id="fg-mask-tag-in">
-                    <option value="" selected></option>
+                    <option value="" disabled selected>inbox or idea</option>
                     <option value="inbox">inbox</option>
                     <option value="idea">idea</option>
                   </select>
-                  <span class="pal-field__hint">inbox or idea</span>
                 </div>
               </div>
             </div>
@@ -310,22 +320,31 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="fg-grid-pal" role="dialog" aria-label="Command palette">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">Browse notes</span>
                   </nav>
-                  <input id="fg-grid-q" type="text" placeholder="Search Browse notes…" aria-label="Search Browse notes" role="combobox" aria-expanded="true" aria-controls="fg-grid-list" aria-activedescendant="fg-tile-standup" aria-autocomplete="list" autocomplete="off" spellcheck="false">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input id="fg-grid-q" type="text" placeholder="Search Browse notes…" aria-label="Search Browse notes" role="combobox" aria-expanded="true" aria-controls="fg-grid-list" aria-activedescendant="fg-tile-standup" aria-autocomplete="list" autocomplete="off" spellcheck="false">
+                  </div>
                 </div>
                 <div class="pal-kind pal-kind--grid" data-od-id="fg-grid-kind">
+                    <!-- listbox structure: sections are groups so every tile is exposed
+                         as a listbox child; the tile wrapper carries no role of its own -->
                     <div class="pal-grid" id="fg-grid-list" role="listbox" aria-label="Notes" data-od-id="fg-grid-final">
-                      <div class="pal-gsec" data-od-id="fg-grid-today">
-                        <div class="pal-gsec__t">Today</div>
-                        <div class="pal-gsec__tiles">
-                          <!-- gating: tile nt_9a01d2 · 2D focus · US-013 -->
-                          <button class="pal-tile is-active" type="button" role="option" aria-selected="true" id="fg-tile-standup" data-od-id="fg-tile-standup" style="box-shadow:var(--focus-ring)">
-                            <span class="pal-tile__media">📝</span>
+                      <div class="pal-gsec" role="group" aria-labelledby="fg-gsec-today-t" data-od-id="fg-grid-today">
+                        <div class="pal-gsec__t" id="fg-gsec-today-t">Today</div>
+                        <div class="pal-gsec__tiles" role="presentation">
+                          <!-- gating: tile nt_9a01d2 · 2D focus · US-013.
+                               Selection is a plate raise (--elevated + --fg-strong), so
+                               the box-shadow slot is free for the ring alone:
+                               `.is-active.focus-ring{box-shadow:var(--focus-ring)}`
+                               carries it at equal specificity, declared last. -->
+                          <button class="pal-tile is-active focus-ring" type="button" role="option" aria-selected="true" id="fg-tile-standup" data-od-id="fg-tile-standup">
+                            <span class="pal-tile__media"><span class="pal-tile__emoji">📝</span></span>
                             <span class="pal-tile__t">Standup follow-ups</span>
                             <span class="pal-tile__badge">inbox</span>
                           </button>
@@ -335,9 +354,9 @@
                           </button>
                         </div>
                       </div>
-                      <div class="pal-gsec" data-od-id="fg-grid-earlier">
-                        <div class="pal-gsec__t">Earlier</div>
-                        <div class="pal-gsec__tiles">
+                      <div class="pal-gsec" role="group" aria-labelledby="fg-gsec-earlier-t" data-od-id="fg-grid-earlier">
+                        <div class="pal-gsec__t" id="fg-gsec-earlier-t">Earlier</div>
+                        <div class="pal-gsec__tiles" role="presentation">
                           <button class="pal-tile" type="button" role="option" aria-selected="false" id="fg-tile-release" data-od-id="fg-tile-release">
                             <span class="pal-tile__media"><span class="pal-tile__token">RN</span></span>
                             <span class="pal-tile__t">Release notes draft</span>
@@ -367,9 +386,11 @@
       <div class="spec">
         <div class="spec__note"><b>Title outlives the image</b>US-013.EC-1: a tile whose media cannot load keeps its title. The media well shows a placeholder glyph plus the literal <code>media failed</code> word — tone is not the only channel.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="fg-media-stage" style="min-height:0">
-            <div class="plain" data-od-id="fg-media-plain" style="width:min(280px,100%)">
-              <div class="pal-gsec__tiles" style="grid-template-columns:1fr">
+          <div class="stage stage--pad stage--auto" data-od-id="fg-media-stage">
+            <!-- the exemplar sits in the real 3-column tile grid at palette width, so
+                 it renders at genuine tile scale instead of an inflated single column -->
+            <div class="plain plain--pal-w" data-od-id="fg-media-plain">
+              <div class="pal-gsec__tiles">
                 <!-- gating: media-failed · title remains · US-013.EC-1 -->
                 <button class="pal-tile" type="button" data-od-id="fg-tile-media-fail">
                   <span class="pal-tile__media"><span class="pal-tile__ph"><svg data-lucide="image-off"></svg></span></span>
@@ -390,19 +411,26 @@
       <div class="spec">
         <div class="spec__note"><b>Honest empty</b>US-013: a grid with nothing to show uses the same <code>.pal-none</code> grammar as lists — it does not invent a hero or fall back to root. The stack and keyboard contract stay.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="fg-empty-stage" style="min-height:0">
-            <div class="palette" data-od-id="fg-empty-pal" role="dialog" aria-label="Command palette">
+          <div class="stage stage--pad stage--auto" data-od-id="fg-empty-stage">
+            <div class="palette palette--staged" data-od-id="fg-empty-pal" role="dialog" aria-label="Command palette">
               <div class="palette-head">
-                <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path">
                   <span class="pal-crumb pal-crumb--root">Notes</span>
                   <span class="w2-sep">/</span>
                   <span class="pal-crumb">Browse notes</span>
                 </nav>
-                <input type="text" placeholder="Search Browse notes…" aria-label="Search Browse notes" role="combobox" aria-expanded="true" autocomplete="off" spellcheck="false">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" placeholder="Search Browse notes…" aria-label="Search Browse notes" role="combobox" aria-expanded="true" autocomplete="off" spellcheck="false">
+                </div>
               </div>
-              <!-- gating: empty grid · same pal-none grammar as lists · US-013 -->
-              <div class="pal-none" data-od-id="fg-empty-none">No notes in this workspace yet</div>
+              <!-- gating: empty grid · same pal-none grammar as lists · US-013.
+                   Empties share the list grammar, so the empty lives in the results
+                   well and keeps its 6px inset — it is not a bare palette child. -->
+              <div class="palette-results">
+                <div class="pal-none" data-od-id="fg-empty-none">No notes in this workspace yet</div>
+              </div>
               <div class="pal-foot">
                 <span><span class="keys"><span class="key">⌫</span></span> back</span>
                 <span class="pal-foot-flex"></span>
@@ -413,10 +441,10 @@
         </div>
       </div>
       <div class="spec">
-        <div class="spec__note"><b>Virtualize, do not truncate</b>US-013.EC-3: past the mount cap the grid virtualizes. Silent truncation is forbidden — overflow uses the same <code>showing N of M</code> grammar as capped entity sections. <code>N</code> and <code>M</code> come from the runtime; this board does not invent a count.</div>
+        <div class="spec__note"><b>Virtualize, do not truncate</b>US-013.EC-3: past the mount cap the grid virtualizes. Silent truncation is forbidden — overflow uses the same <code>showing N of M</code> grammar as capped entity sections. <code>N</code> is the mount cap and <code>M</code> the full runtime count; the fixture below paints the note at the pinned position, where it survives the scroll.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="fg-overflow-note">
-            <p class="pal-overflow" style="padding:0">showing N of M</p>
+            <p class="pal-overflow pal-overflow--pinned">showing 150 of 240</p>
           </div>
         </div>
       </div>
@@ -427,7 +455,7 @@
   </div></div>
 </div></div>
 
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/lucide@1.28/dist/umd/lucide.min.js"></script>
 <script>
 (function () {
   function refreshIcons() {
@@ -486,24 +514,32 @@
     tiles.forEach(function (t, i) {
       var on = i === idx;
       t.classList.toggle("is-active", on);
+      /* the utility class carries the ring — never an inline box-shadow, which
+         would out-specify the sheet and strand the ring on its own rule */
+      t.classList.toggle("focus-ring", on);
       t.setAttribute("aria-selected", on ? "true" : "false");
-      t.style.boxShadow = on ? "var(--focus-ring)" : "";
     });
     if (q) q.setAttribute("aria-activedescendant", tiles[idx].id);
   }
-  var grid = document.getElementById("fg-grid-list");
-  if (grid) {
-    grid.addEventListener("keydown", function (e) {
+  /* 2D navigation binds to the palette input — production parity with
+     CommandInput onKeyDown. Focus never leaves the input, so a listener on
+     the (non-focusable) grid container would never fire. */
+  if (q && tiles.length) {
+    q.addEventListener("keydown", function (e) {
       var cols = 3;
       if (e.key === "ArrowRight") { e.preventDefault(); setTile(idx + 1); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); setTile(idx - 1); }
       else if (e.key === "ArrowDown") { e.preventDefault(); setTile(idx + cols); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setTile(idx - cols); }
     });
-    tiles.forEach(function (t, i) {
-      t.addEventListener("click", function () { setTile(i); });
-    });
   }
+  tiles.forEach(function (t, i) {
+    t.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    t.addEventListener("click", function () {
+      setTile(i);
+      if (q) q.focus();
+    });
+  });
 
   refreshIcons();
 })();

@@ -54,7 +54,7 @@
       <div class="spec">
         <div class="spec__note"><b>Exactly one row</b>US-026.AC-1 / AC-4: query <code>zzzz quantum</code> renders exactly the fallback <code>Ask agent: 'zzzz quantum'</code>. It is delegation, not execution — own glyph + info-tinted treatment, never a plain command row. Footer stays ↑↓ move · ⏎ open · esc close.</div>
         <div class="spec__demo">
-          <div class="stage stage--tall" data-od-id="cprs-final-stage" style="min-height:520px">
+          <div class="stage stage--tall" data-od-id="cprs-final-stage">
             <header class="menubar" style="position:relative;z-index:1">
               <div class="mb-side">
                 <button class="mb-logo" type="button" aria-label="CompozyOS">
@@ -95,11 +95,11 @@
             <div class="overlay palette-overlay" data-od-id="cprs-final-overlay">
               <div class="palette" data-od-id="cprs-final-palette">
                 <div class="palette-head">
-                  <svg data-lucide="search"></svg>
-                  <input type="text" value="zzzz quantum" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-final-list" aria-activedescendant="cprs-final-ask" aria-autocomplete="list" aria-label="Palette query">
-                </div>
-                <div class="pal-chips">
-                  <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" value="zzzz quantum" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-final-list" aria-activedescendant="cprs-final-ask" aria-autocomplete="list" aria-label="Palette query">
+                    <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
+                  </div>
                 </div>
                 <div class="palette-results" id="cprs-final-list" role="listbox" aria-label="Palette results" data-od-id="cprs-final-list">
                   <!-- gating: zero-match fallback · exactly one row · US-026.AC-1 / AC-4 -->
@@ -129,10 +129,12 @@
         <div class="spec__note"><b>Results and fallback</b>Hits still render. The fallback row joins them when the top score sits under the weak-match threshold. Same Ask-agent treatment as zero-match — delegation, info plate, own glyph. Query <code>note</code> keeps <code>Capture note (cap)</code> and <code>Purge archived notes</code> plus <code>Ask agent: 'note'</code>.</div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="cprs-weak-stage">
-            <div class="palette" data-od-id="cprs-weak-palette" style="width:min(560px,100%)">
+            <div class="palette palette--staged" data-od-id="cprs-weak-palette">
               <div class="palette-head">
-                <svg data-lucide="search"></svg>
-                <input type="text" value="note" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-weak-list" aria-activedescendant="cprs-weak-capture" aria-autocomplete="list" aria-label="Palette query">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" value="note" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-weak-list" aria-activedescendant="cprs-weak-capture" aria-autocomplete="list" aria-label="Palette query">
+                </div>
               </div>
               <div class="palette-results" id="cprs-weak-list" role="listbox" aria-label="Palette results" data-od-id="cprs-weak-list">
                 <!-- gating: WeightsV1.fallback_weak_match_threshold · fallback joins when top score is under the threshold -->
@@ -141,7 +143,7 @@
                   <svg data-lucide="sticky-note"></svg>
                   <span>Capture note <span class="pal-alias">(cap)</span></span>
                   <span class="pal-src">Notes (ext.notes)</span>
-                  <span class="pal-chord"><span class="pal-k">⌥</span><span class="pal-k">⇧</span><span class="pal-k">N</span></span>
+                  <span class="pal-chord">⌥⇧N</span>
                 </button>
                 <button type="button" class="pal-item" role="option" id="cprs-weak-purge" aria-selected="false" data-od-id="cprs-weak-purge">
                   <svg data-lucide="trash-2"></svg>Purge archived notes
@@ -169,16 +171,16 @@
       <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Daemon unavailable</h2>
         <span class="lab-sec__gist">action commands off · exempt stays live</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Runtime down</b>US-001.EC-1: action commands disable with reason <code>runtime unavailable</code> in the hint slot — never baked into the label. <code>AvailabilityExempt</code> rows stay live. Here <code>Keyboard shortcuts</code> remains enabled; <code>New session</code>, <code>Capture note (cap)</code>, and <code>Open Tasks</code> do not. Reduced contrast is the disabled lane only.</div>
+        <div class="spec__note"><b>Runtime down</b>US-001.EC-1: action commands disable with reason <code>runtime unavailable</code> in the hint slot — never baked into the label. <code>AvailabilityExempt</code> rows stay live. Here <code>Settings → Shortcuts</code> remains enabled; <code>New session</code>, <code>Capture note (cap)</code>, and <code>Open Tasks</code> do not. Reduced contrast is the disabled lane only.</div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="cprs-daemon-stage">
-            <div class="palette" data-od-id="cprs-daemon-palette" style="width:min(560px,100%)">
+            <div class="palette palette--staged" data-od-id="cprs-daemon-palette">
               <div class="palette-head">
-                <svg data-lucide="search"></svg>
-                <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-daemon-list" aria-activedescendant="cprs-daemon-keys" aria-autocomplete="list" aria-label="Palette query">
-              </div>
-              <div class="pal-chips">
-                <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-daemon-list" aria-activedescendant="cprs-daemon-keys" aria-autocomplete="list" aria-label="Palette query">
+                  <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
+                </div>
               </div>
               <div class="palette-results" id="cprs-daemon-list" role="listbox" aria-label="Palette results" data-od-id="cprs-daemon-list">
                 <!-- gating: daemon down · action commands disabled · reason runtime unavailable · US-001.EC-1 -->
@@ -186,13 +188,14 @@
                 <button type="button" class="pal-item pal-item--off" role="option" id="cprs-daemon-new" aria-selected="false" aria-disabled="true" data-od-id="cprs-daemon-new">
                   <svg data-lucide="plus"></svg>New session
                   <span class="pal-hint">runtime unavailable</span>
-                  <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">N</span></span>
+                  <span class="pal-chord">⌘N</span>
                 </button>
                 <button type="button" class="pal-item pal-item--off" role="option" id="cprs-daemon-capture" aria-selected="false" aria-disabled="true" data-od-id="cprs-daemon-capture">
                   <svg data-lucide="sticky-note"></svg>
                   <span>Capture note <span class="pal-alias">(cap)</span></span>
+                  <span class="pal-src">Notes (ext.notes)</span>
                   <span class="pal-hint">runtime unavailable</span>
-                  <span class="pal-chord"><span class="pal-k">⌥</span><span class="pal-k">⇧</span><span class="pal-k">N</span></span>
+                  <span class="pal-chord">⌥⇧N</span>
                 </button>
                 <div class="pal-group" role="presentation">Apps</div>
                 <button type="button" class="pal-item pal-item--off" role="option" id="cprs-daemon-tasks" aria-selected="false" aria-disabled="true" data-od-id="cprs-daemon-tasks">
@@ -202,7 +205,7 @@
                 <!-- gating: AvailabilityExempt · Keyboard shortcuts stays live while daemon is down -->
                 <div class="pal-group" role="presentation">Settings</div>
                 <button type="button" class="pal-item is-active" role="option" id="cprs-daemon-keys" aria-selected="true" data-od-id="cprs-daemon-keys">
-                  <svg data-lucide="keyboard"></svg>Keyboard shortcuts
+                  <svg data-lucide="keyboard"></svg>Settings → Shortcuts
                 </button>
               </div>
               <div class="pal-foot">
@@ -225,17 +228,18 @@
         <div class="spec__note"><b>Structured hint</b>US-037.AC-1 / EC-1: labels stay clean. Reasons render in <code>.pal-hint</code> as sentence fragments with no trailing period: <code>needs two windows on this desktop</code> · <code>requires an attached shell</code> · <code>extension notes is unhealthy (crash loop)</code>. Unknown reason → <code>unavailable right now</code> — never a fabricated specific. Rows use reduced contrast.</div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="cprs-off-stage">
-            <div class="palette" data-od-id="cprs-off-palette" style="width:min(560px,100%)">
+            <div class="palette palette--staged" data-od-id="cprs-off-palette">
               <div class="palette-head">
-                <svg data-lucide="search"></svg>
-                <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-off-list" aria-autocomplete="list" aria-label="Palette query">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-off-list" aria-autocomplete="list" aria-label="Palette query">
+                </div>
               </div>
               <div class="palette-results" id="cprs-off-list" role="listbox" aria-label="Palette results" data-od-id="cprs-off-list">
                 <!-- gating: availability.reason → .pal-hint verbatim · never the label · US-037.AC-1 / EC-1 -->
                 <div class="pal-group" role="presentation">Window</div>
-                <button type="button" class="pal-item pal-item--sub pal-item--off" role="option" id="cprs-off-arrange" aria-selected="false" aria-disabled="true" data-od-id="cprs-off-arrange">
-                  <svg data-lucide="columns-2"></svg>
-                  <span class="pal-item__main"><span>Arrange left &amp; right</span></span>
+                <button type="button" class="pal-item pal-item--off" role="option" id="cprs-off-arrange" aria-selected="false" aria-disabled="true" data-od-id="cprs-off-arrange">
+                  <svg data-lucide="columns-2"></svg>Arrange left &amp; right
                   <span class="pal-hint">needs two windows on this desktop</span>
                 </button>
                 <button type="button" class="pal-item pal-item--off" role="option" id="cprs-off-shell" aria-selected="false" aria-disabled="true" data-od-id="cprs-off-shell">
@@ -243,11 +247,15 @@
                   <span class="pal-hint">requires an attached shell</span>
                 </button>
                 <div class="pal-group" role="presentation">Pinned</div>
-                <button type="button" class="pal-item pal-item--sub pal-item--off" role="option" id="cprs-off-capture" aria-selected="false" aria-disabled="true" data-od-id="cprs-off-capture">
+                <button type="button" class="pal-item pal-item--off" role="option" id="cprs-off-capture" aria-selected="false" aria-disabled="true" data-od-id="cprs-off-capture">
                   <svg data-lucide="sticky-note"></svg>
-                  <span class="pal-item__main"><span>Capture note <span class="pal-alias">(cap)</span></span></span>
+                  <span>Capture note <span class="pal-alias">(cap)</span></span>
+                  <!-- gating: canonical fixture row — label + chip + verbatim reason + chord.
+                       Under width pressure the hint wraps, never the label (CSS pins
+                       .pal-item labels; the hint is the declared wrappable slot). -->
+                  <span class="pal-src">Notes (ext.notes)</span>
                   <span class="pal-hint">extension notes is unhealthy (crash loop)</span>
-                  <span class="pal-chord"><span class="pal-k">⌥</span><span class="pal-k">⇧</span><span class="pal-k">N</span></span>
+                  <span class="pal-chord">⌥⇧N</span>
                 </button>
                 <button type="button" class="pal-item pal-item--off" role="option" id="cprs-off-purge" aria-selected="false" aria-disabled="true" data-od-id="cprs-off-purge">
                   <svg data-lucide="trash-2"></svg>Purge archived notes
@@ -274,33 +282,34 @@
         <div class="spec__note"><b>Inline, not a blank list</b>US-003.EC-3: the <code>Sessions</code> section is replaced by an inline error naming the domain — fragment <code>sessions unavailable</code> — plus a retry affordance. Sibling command groups stay live. Warning glyph + the literal fragment; no invented explanation.</div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="cprs-secerr-stage">
-            <div class="palette" data-od-id="cprs-secerr-palette" style="width:min(560px,100%)">
+            <div class="palette palette--staged" data-od-id="cprs-secerr-palette">
               <div class="palette-head">
-                <svg data-lucide="search"></svg>
-                <input type="text" value="ses" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-secerr-list" aria-activedescendant="cprs-secerr-new" aria-autocomplete="list" aria-label="Palette query">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" value="ses" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-secerr-list" aria-activedescendant="cprs-secerr-new" aria-autocomplete="list" aria-label="Palette query">
+                </div>
               </div>
               <div class="palette-results" id="cprs-secerr-list" role="listbox" aria-label="Palette results" data-od-id="cprs-secerr-list">
                 <div class="pal-group" role="presentation">Pinned</div>
                 <button type="button" class="pal-item is-active" role="option" id="cprs-secerr-new" aria-selected="true" data-od-id="cprs-secerr-new">
                   <svg data-lucide="plus"></svg>New session
-                  <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">N</span></span>
+                  <span class="pal-chord">⌘N</span>
                 </button>
                 <div class="pal-group" role="presentation">Views</div>
                 <button type="button" class="pal-item" role="option" id="cprs-secerr-view" aria-selected="false" data-od-id="cprs-secerr-view">
                   <svg data-lucide="message-square"></svg>Sessions
                   <span class="pal-push">view<svg data-lucide="corner-down-left"></svg></span>
-                  <span class="pal-chord"><span class="pal-k">⌘</span><span class="pal-k">E</span></span>
+                  <span class="pal-chord">⌘E</span>
                 </button>
                 <!-- gating: entity endpoint failure · inline section error names the domain · siblings unaffected · US-003.EC-3 -->
-                <div class="pal-group" role="presentation">Sessions</div>
+                <div class="pal-group" role="presentation" id="cprs-secerr-sessions-head">Sessions</div>
                 <div class="pal-sec-err" id="cprs-sec-err" data-od-id="cprs-sec-err">
                   <svg data-lucide="triangle-alert"></svg>
-                  <div>
-                    <b>sessions unavailable</b>
-                    <button type="button" class="btn btn--sm" id="cprs-err-retry" data-od-id="cprs-err-retry" style="margin-left:8px">Retry</button>
-                  </div>
+                  <b>sessions unavailable</b>
+                  <button type="button" class="btn btn--sm" id="cprs-err-retry" data-od-id="cprs-err-retry">Retry</button>
                 </div>
-                <div id="cprs-sec-sessions" hidden>
+                <!-- gating: options stay owned by the listbox when the retry reveals them — role=group labelled by the section heading, never a bare div · US-003.EC-3 -->
+                <div id="cprs-sec-sessions" role="group" aria-labelledby="cprs-secerr-sessions-head" hidden>
                   <button type="button" class="pal-srow" role="option" id="cprs-secerr-store" aria-selected="false" data-class="needs" data-od-id="cprs-secerr-store">
                     <span class="sig" data-k="input"><svg data-lucide="circle-help"></svg></span>
                     <span class="pal-srow__main">
@@ -340,18 +349,18 @@
       <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Overflow at scale</h2>
         <span class="lab-sec__gist">exactly 6 · showing 6 of 14</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Capped section</b>BR-18 · US-003.EC-2: the <code>Sessions</code> entity section renders exactly 6 rows plus the note <code>showing 6 of 14</code>. Silent truncation is forbidden. Catalog scale for this workspace: <code>142 commands · 96 available</code>.</div>
+        <div class="spec__note"><b>Capped section</b>BR-18 · US-003.EC-2: the <code>Sessions</code> entity section renders exactly 6 rows plus the note <code>showing 6 of 14</code>. Silent truncation is forbidden, so the note is pinned between the results well and the footer — inside the scroll area it would scroll out of sight exactly when it matters. One row runs; the danger rows stay the loudest signal in the frame. Catalog scale for this workspace: <code>142 commands · 96 available</code>.</div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="cprs-overflow-stage">
-            <div class="palette" data-od-id="cprs-overflow-palette" style="width:min(560px,100%)">
+            <div class="palette palette--staged" data-od-id="cprs-overflow-palette">
               <div class="palette-head">
-                <svg data-lucide="search"></svg>
-                <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-overflow-list" aria-activedescendant="cprs-ov-store" aria-autocomplete="list" aria-label="Palette query">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-overflow-list" aria-activedescendant="cprs-ov-store" aria-autocomplete="list" aria-label="Palette query">
+                  <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
+                </div>
               </div>
-              <div class="pal-chips">
-                <button class="pal-chip pal-scope" type="button" aria-pressed="false"><svg data-lucide="globe"></svg>acme</button>
-              </div>
-              <div class="palette-results" id="cprs-overflow-list" role="listbox" aria-label="Palette results" data-od-id="cprs-overflow-list" style="max-height:360px">
+              <div class="palette-results" id="cprs-overflow-list" role="listbox" aria-label="Palette results" data-od-id="cprs-overflow-list">
                 <!-- gating: entity section cap 6 + showing N of M · BR-18 · US-003.EC-2 -->
                 <div class="pal-group" role="presentation">Sessions</div>
                 <button type="button" class="pal-srow is-active" role="option" id="cprs-ov-store" aria-selected="true" data-class="needs" data-od-id="cprs-ov-store">
@@ -386,13 +395,13 @@
                   </span>
                   <span class="pal-srow__meta">now</span>
                 </button>
-                <button type="button" class="pal-srow" role="option" id="cprs-ov-hook" aria-selected="false" data-class="run" data-od-id="cprs-ov-hook">
-                  <span class="sig" data-k="running"><span class="sig-dot"></span></span>
+                <button type="button" class="pal-srow" role="option" id="cprs-ov-hook" aria-selected="false" data-class="idle" data-od-id="cprs-ov-hook">
+                  <span class="sig" data-k="idle"><span class="sig-dot"></span></span>
                   <span class="pal-srow__main">
                     <span class="pal-srow__title">Webhook retries</span>
-                    <span class="pal-srow__sub"><span class="state" data-class="run">running</span><span>· claude</span></span>
+                    <span class="pal-srow__sub"><span class="state">idle</span><span>· claude</span></span>
                   </span>
-                  <span class="pal-srow__meta">now</span>
+                  <span class="pal-srow__meta">1h</span>
                 </button>
                 <button type="button" class="pal-srow" role="option" id="cprs-ov-notes" aria-selected="false" data-class="done" data-od-id="cprs-ov-notes">
                   <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
@@ -402,8 +411,9 @@
                   </span>
                   <span class="pal-srow__meta">26m</span>
                 </button>
-                <div class="pal-overflow" data-od-id="cprs-ov-note">showing 6 of 14</div>
               </div>
+              <!-- gating: the note is mandatory, so it sits OUTSIDE the scrolling well — inside it, it scrolls out of sight exactly when it matters · BR-18 · US-003.EC-2 -->
+              <div class="pal-overflow pal-overflow--pinned" data-od-id="cprs-ov-note">showing 6 of 14</div>
               <div class="pal-foot">
                 <span><span class="keys"><span class="key">↑↓</span></span> move</span>
                 <span><span class="keys"><span class="key">⏎</span></span> open</span>
@@ -424,11 +434,14 @@
         <div class="spec__note"><b>Eligible only</b>S10 · US-036: heading <code>Open in this tab</code>, placeholder <code>Open in this tab…</code>. Only destination-eligible groups render — <code>Apps</code>, <code>Sessions</code>. Ineligible groups (Pinned, Recents, Window, Views, Settings) are absent, not disabled. Esc exits destination mode cleanly (US-036.EC-2) — try it on either stage.</div>
         <div class="spec__demo">
           <div class="stage stage--pad" data-od-id="cprs-dest-stage">
-            <div class="palette" id="cprs-dest-palette" data-od-id="cprs-dest-palette" style="width:min(560px,100%)">
+            <div class="palette palette--staged" id="cprs-dest-palette" data-od-id="cprs-dest-palette">
               <div class="palette-head">
-                <svg data-lucide="app-window"></svg>
-                <span class="pal-dest-head">Open in this tab</span>
-                <input id="cprs-dest-input" type="text" placeholder="Open in this tab…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-dest-list" aria-activedescendant="cprs-dest-home" aria-autocomplete="list" aria-label="Open in this tab" data-dest-input>
+                <div class="pal-input-box">
+                  <svg data-lucide="app-window"></svg>
+                  <!-- gating: destination heading leads the field, placeholder follows · US-036 -->
+                  <span class="pal-dest-head">Open in this tab</span>
+                  <input id="cprs-dest-input" type="text" placeholder="Open in this tab…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-dest-list" aria-activedescendant="cprs-dest-home" aria-autocomplete="list" aria-label="Open in this tab" data-dest-input>
+                </div>
               </div>
               <div class="palette-results" id="cprs-dest-list" role="listbox" aria-label="Destinations" data-od-id="cprs-dest-list">
                 <!-- gating: destinationWindowId · only Apps + Sessions · ineligible groups omitted · US-036 -->
@@ -467,19 +480,23 @@
                 <span><span class="keys"><span class="key">esc</span></span> exit</span>
               </div>
             </div>
-            <div class="pal-none pal-none--dest" hidden data-dest-exited data-od-id="cprs-dest-exited" style="width:min(560px,100%)">Destination mode exited</div>
+            <div class="plain palette--staged" hidden data-dest-exited data-od-id="cprs-dest-exited">
+              <div class="pal-none pal-none--dest">Destination mode exited</div>
+            </div>
           </div>
         </div>
       </div>
       <div class="spec">
         <div class="spec__note"><b>Zero eligible</b>US-036.EC-2: when no destination is eligible the list is an honest empty — not a disabled dump of ineligible groups. Esc still exits clean.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="cprs-dest-empty-stage" style="min-height:260px">
-            <div class="palette" id="cprs-dest-empty-palette" data-od-id="cprs-dest-empty-palette" style="width:min(560px,100%)">
+          <div class="stage stage--short stage--pad" data-od-id="cprs-dest-empty-stage">
+            <div class="palette palette--staged" id="cprs-dest-empty-palette" data-od-id="cprs-dest-empty-palette">
               <div class="palette-head">
-                <svg data-lucide="app-window"></svg>
-                <span class="pal-dest-head">Open in this tab</span>
-                <input id="cprs-dest-empty-input" type="text" placeholder="Open in this tab…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-dest-empty-list" aria-autocomplete="list" aria-label="Open in this tab" data-dest-input>
+                <div class="pal-input-box">
+                  <svg data-lucide="app-window"></svg>
+                  <span class="pal-dest-head">Open in this tab</span>
+                  <input id="cprs-dest-empty-input" type="text" placeholder="Open in this tab…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-dest-empty-list" aria-autocomplete="list" aria-label="Open in this tab" data-dest-input>
+                </div>
               </div>
               <div class="palette-results" id="cprs-dest-empty-list" role="listbox" aria-label="Destinations" data-od-id="cprs-dest-empty-list">
                 <div class="pal-none pal-none--dest" data-od-id="cprs-dest-empty">No destinations in this tab</div>
@@ -491,7 +508,9 @@
                 <span><span class="keys"><span class="key">esc</span></span> exit</span>
               </div>
             </div>
-            <div class="pal-none pal-none--dest" hidden data-dest-exited data-od-id="cprs-dest-empty-exited" style="width:min(560px,100%)">Destination mode exited</div>
+            <div class="plain palette--staged" hidden data-dest-exited data-od-id="cprs-dest-empty-exited">
+              <div class="pal-none pal-none--dest">Destination mode exited</div>
+            </div>
           </div>
         </div>
       </div>
@@ -504,26 +523,31 @@
       <div class="spec">
         <div class="spec__note"><b>Indeterminate only</b>S14: the invoked row — <code>New session</code> — carries a motion token plus the literal word <code>pending</code>. No fake progress percentages. Animation is gated by <code>prefers-reduced-motion</code> (and <code>body[data-motion=reduced]</code>). Click the row in this lab to clear the in-flight state.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="cprs-pend-stage" style="min-height:260px">
-            <div class="palette" data-od-id="cprs-pend-palette" style="width:min(560px,100%)">
+          <div class="stage stage--short stage--pad" data-od-id="cprs-pend-stage">
+            <div class="palette palette--staged" data-od-id="cprs-pend-palette">
               <div class="palette-head">
-                <svg data-lucide="search"></svg>
-                <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-pend-list" aria-activedescendant="cprs-pend-row" aria-autocomplete="list" aria-label="Palette query">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" placeholder="Search apps, sessions, and actions…" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="cprs-pend-list" aria-activedescendant="cprs-pend-row" aria-autocomplete="list" aria-label="Palette query">
+                </div>
               </div>
               <div class="palette-results" id="cprs-pend-list" role="listbox" aria-label="Palette results" data-od-id="cprs-pend-list">
                 <div class="pal-group" role="presentation">Pinned</div>
                 <!-- gating: invoke in-flight · pal-pend motion token only · prefers-reduced-motion · S14 -->
                 <button type="button" class="pal-item is-active" role="option" id="cprs-pend-row" aria-selected="true" aria-busy="true" data-od-id="cprs-pend-row">
                   <svg data-lucide="plus"></svg>New session
-                  <span class="pal-pend" id="cprs-pend-dot" aria-hidden="true"></span>
-                  <span class="pal-hint" id="cprs-pend-word">pending</span>
-                  <span class="pal-chord" id="cprs-pend-chord" hidden><span class="pal-k">⌘</span><span class="pal-k">N</span></span>
+                  <!-- gating: motion token + literal state word travel as ONE right-aligned cluster · .pal-state · S14 -->
+                  <span class="pal-state" id="cprs-pend-state">
+                    <span class="pal-pend" id="cprs-pend-dot" aria-hidden="true"></span>
+                    <span class="pal-hint" id="cprs-pend-word">pending</span>
+                  </span>
+                  <span class="pal-chord" id="cprs-pend-chord" hidden>⌘N</span>
                 </button>
                 <button type="button" class="pal-item" role="option" id="cprs-pend-capture" aria-selected="false" data-od-id="cprs-pend-capture">
                   <svg data-lucide="sticky-note"></svg>
                   <span>Capture note <span class="pal-alias">(cap)</span></span>
                   <span class="pal-src">Notes (ext.notes)</span>
-                  <span class="pal-chord"><span class="pal-k">⌥</span><span class="pal-k">⇧</span><span class="pal-k">N</span></span>
+                  <span class="pal-chord">⌥⇧N</span>
                 </button>
               </div>
               <div class="pal-foot">
@@ -543,7 +567,7 @@
   </div></div>
 </div></div>
 
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/lucide@1.28/dist/umd/lucide.min.js"></script>
 <script>
 (function () {
   function refreshIcons() {
@@ -577,15 +601,13 @@
 
   /* gating: S14 — invoked row toggles indeterminate pending; never a percentage */
   var pendRow = document.getElementById("cprs-pend-row");
-  var pendDot = document.getElementById("cprs-pend-dot");
-  var pendWord = document.getElementById("cprs-pend-word");
+  var pendState = document.getElementById("cprs-pend-state");
   var pendChord = document.getElementById("cprs-pend-chord");
   if (pendRow) {
     pendRow.addEventListener("click", function () {
       var busy = pendRow.getAttribute("aria-busy") === "true";
       pendRow.setAttribute("aria-busy", busy ? "false" : "true");
-      if (pendDot) pendDot.hidden = busy;
-      if (pendWord) pendWord.hidden = busy;
+      if (pendState) pendState.hidden = busy;
       if (pendChord) pendChord.hidden = !busy;
     });
   }

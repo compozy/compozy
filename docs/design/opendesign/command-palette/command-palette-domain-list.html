@@ -52,15 +52,18 @@
       <div class="spec">
         <div class="spec__note"><b>Truthful chips, one dictionary</b>US-010 / US-011: chips are single-select with the story counts <code>All 12</code> · <code>Queued 3</code> · <code>Running 4</code> · <code>Needs-approval 2</code> · <code>Done 3</code>. Rows use the herdr <code>.sig</code> / <code>.state</code> dictionary — no view-local map. <code>queued</code> has no session member, so it borrows the honesty <code>unknown</code> plate rather than inventing a hue. Order is the shared attention-first comparator (needs-you, then running, then queued, then done). The accessory pane is selection-driven <code>{label, value}</code> plus sanitized rich text; it is not in the tab order.</div>
         <div class="spec__demo">
-          <div class="stage stage--tall" data-od-id="dl-final-stage" style="min-height:680px">
+          <div class="stage stage--tall stage--overlay" data-od-id="dl-final-stage">
             <div class="overlay palette-overlay" data-od-id="dl-final-overlay">
               <div class="palette" data-od-id="dl-final-pal" role="dialog" aria-label="Command palette">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb">Tasks</span>
                   </nav>
-                  <input id="dl-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="dl-final-list" aria-activedescendant="dl-row-vault" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks" autocomplete="off" spellcheck="false">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input id="dl-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="dl-final-list" aria-activedescendant="dl-row-vault" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks" autocomplete="off" spellcheck="false">
+                  </div>
                 </div>
                 <!-- gating: filter = single-select chip · counts from domain aggregate -->
                 <div class="pal-chips" id="dl-final-chips" data-od-id="dl-final-chips">
@@ -70,9 +73,9 @@
                   <button class="pal-chip" type="button" data-filter="needs">Needs-approval <span class="count">2</span></button>
                   <button class="pal-chip" type="button" data-filter="done">Done <span class="count">3</span></button>
                 </div>
-                <div class="pal-split" data-od-id="dl-final-split" style="max-height:360px">
-                  <div class="pal-split__list" style="overflow:auto">
-                    <div class="palette-results" id="dl-final-list" role="listbox" aria-label="Tasks" data-od-id="dl-final-list" style="max-height:none;padding:4px">
+                <div class="pal-split pal-split--capped" data-od-id="dl-final-split">
+                  <div class="pal-split__list">
+                    <div class="palette-results palette-results--unbounded" id="dl-final-list" role="listbox" aria-label="Tasks" data-od-id="dl-final-list">
                       <button class="pal-srow is-active" type="button" role="option" id="dl-row-vault" aria-selected="true" data-od-id="dl-row-vault" data-id="tsk_55e0" data-filter="needs" data-title="Approve vault rotation">
                         <span class="sig" data-k="approval"><svg data-lucide="shield"></svg></span>
                         <span class="pal-srow__main">
@@ -172,16 +175,16 @@
                       <div class="pal-none" id="dl-final-none" hidden>No tasks match</div>
                     </div>
                   </div>
-                  <!-- gating: detail.selectionId · tabIndex never moves off the listbox -->
-                  <aside class="pal-split__detail" id="dl-final-detail" data-od-id="dl-final-detail" aria-hidden="true">
+                  <!-- gating: detail.selectionId · selection-driven mirror; not a tab stop, but never hidden from AT -->
+                  <aside class="pal-split__detail" id="dl-final-detail" data-od-id="dl-final-detail" tabindex="-1" aria-live="polite" aria-label="Selected task">
                     <div class="pal-kv" id="dl-kv">
-                      <div class="pal-kv__row"><span class="pal-kv__k">Status</span><span class="pal-kv__v" id="dl-kv-status">needs-approval</span></div>
+                      <div class="pal-kv__row"><span class="pal-kv__k">Status</span><span class="pal-kv__v"><span class="state" id="dl-kv-status" data-class="needs">needs-approval</span></span></div>
                       <div class="pal-kv__row"><span class="pal-kv__k">Agent</span><span class="pal-kv__v" id="dl-kv-agent">claude</span></div>
                       <div class="pal-kv__row"><span class="pal-kv__k">Workspace</span><span class="pal-kv__v" id="dl-kv-ws">acme</span></div>
                       <div class="pal-kv__row"><span class="pal-kv__k">Id</span><span class="pal-kv__v"><span class="mono" id="dl-kv-id">tsk_55e0</span></span></div>
                       <div class="pal-kv__row" id="dl-kv-apr-row"><span class="pal-kv__k">Approval</span><span class="pal-kv__v"><span class="mono" id="dl-kv-apr">apr_55e0c9</span></span></div>
                     </div>
-                    <div class="pal-rich" id="dl-rich" style="margin-top:12px">
+                    <div class="pal-rich" id="dl-rich">
                       <p>Rotate vault credentials for the payments worker. Approver pedro.</p>
                     </div>
                     <div class="pal-preview-none" id="dl-preview-none" hidden>
@@ -193,6 +196,7 @@
                 <div class="pal-foot">
                   <span><span class="keys"><span class="key">↑↓</span></span> move</span>
                   <span><span class="keys"><span class="key">⏎</span></span> open</span>
+                  <span><span class="keys"><span class="key">⇥</span></span> filters</span>
                   <span><span class="keys"><span class="key">⌫</span></span> back</span>
                   <span class="pal-foot-flex"></span>
                   <span><span class="keys"><span class="key">esc</span></span> close</span>
@@ -215,25 +219,28 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="dl-empty-pal">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb">Loops</span>
                   </nav>
-                  <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-empty-list" aria-autocomplete="list" placeholder="Search loops…" aria-label="Search loops">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-empty-list" aria-autocomplete="list" placeholder="Search loops…" aria-label="Search loops">
+                  </div>
                 </div>
                 <div class="pal-chips" id="dl-empty-chips" data-od-id="dl-empty-chips">
                   <button class="pal-chip" type="button" data-filter="all">All <span class="count">2</span></button>
                   <button class="pal-chip is-on" type="button" data-filter="failed">Failed <span class="count">0</span></button>
                 </div>
                 <div class="palette-results" id="dl-empty-list" role="listbox" aria-label="Loops" data-od-id="dl-empty-list">
-                  <button class="pal-srow" type="button" role="option" hidden data-od-id="dl-empty-row-a" data-filter="all">
+                  <button class="pal-srow" type="button" role="option" hidden data-od-id="dl-empty-row-a" data-filter="running">
                     <span class="sig" data-k="running"><span class="sig-dot"></span></span>
                     <span class="pal-srow__main">
                       <span class="pal-srow__title">release-train</span>
                       <span class="pal-srow__sub"><span class="state" data-class="run">running</span></span>
                     </span>
                   </button>
-                  <button class="pal-srow" type="button" role="option" hidden data-od-id="dl-empty-row-b" data-filter="all">
+                  <button class="pal-srow" type="button" role="option" hidden data-od-id="dl-empty-row-b" data-filter="idle">
                     <span class="sig" data-k="idle"><span class="sig-dot"></span></span>
                     <span class="pal-srow__main">
                       <span class="pal-srow__title">session store</span>
@@ -247,6 +254,7 @@
                   </div>
                 </div>
                 <div class="pal-foot">
+                  <span><span class="keys"><span class="key">⇥</span></span> filters</span>
                   <span><span class="keys"><span class="key">⌫</span></span> clear filter</span>
                   <span class="pal-foot-flex"></span>
                   <span><span class="keys"><span class="key">esc</span></span> close</span>
@@ -266,11 +274,14 @@
         <div class="spec__note"><b>Named truncation</b>Silent truncation is forbidden. The footer of a capped window is the exact note <code>showing N of M</code>. Mount paints at most 150 rows, then virtualizes — the note still reports the full <code>M</code>.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="dl-overflow-plain">
-            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="dl-overflow-pal">
+            <div class="palette palette--staged" data-od-id="dl-overflow-pal">
               <div class="palette-head">
-                <svg data-lucide="corner-up-left"></svg>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path"><span class="pal-crumb">Tasks</span></nav>
-                <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-overflow-list" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-overflow-list" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks">
+                </div>
               </div>
               <div class="palette-results" id="dl-overflow-list" role="listbox" aria-label="Tasks" style="max-height:160px">
                 <button class="pal-srow is-active" type="button" role="option" aria-selected="true" data-od-id="dl-ov-1">
@@ -289,9 +300,10 @@
                   <span class="sig" data-k="done"><svg data-lucide="check"></svg></span>
                   <span class="pal-srow__main"><span class="pal-srow__title">Release notes draft</span></span>
                 </button>
-                <!-- gating: mountCap = 150 then virtualize · overflow note is mandatory -->
-                <div class="pal-overflow" data-od-id="dl-overflow-note">showing 150 of 218</div>
               </div>
+              <!-- gating: mountCap = 150 then virtualize · overflow note is mandatory,
+                   so it is pinned OUTSIDE the scroll area and cannot scroll away -->
+              <div class="pal-overflow pal-overflow--pinned" data-od-id="dl-overflow-note">showing 150 of 218</div>
             </div>
           </div>
         </div>
@@ -303,21 +315,27 @@
       <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Cold-cache loading</h2>
         <span class="lab-sec__gist">skeletons · never a blank empty</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Not an empty</b>US-010.EC-3: a cold cache renders skeleton rows on the 36px ladder. A blank flash is never treated as empty — <code>.pal-none</code> does not mount while <code>loading</code>.</div>
+        <div class="spec__note"><b>Not an empty</b>US-010.EC-3: a cold cache renders skeleton rows on the shared row ladder. A blank flash is never treated as empty — <code>.pal-none</code> does not mount while <code>loading</code>.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="dl-cold-plain">
-            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="dl-cold-pal">
+            <div class="palette palette--staged" data-od-id="dl-cold-pal">
               <div class="palette-head">
-                <svg data-lucide="corner-up-left"></svg>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path"><span class="pal-crumb">Tasks</span></nav>
-                <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-cold-list" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-cold-list" aria-autocomplete="list" placeholder="Search tasks…" aria-label="Search tasks">
+                </div>
               </div>
-              <!-- gating: cache = cold · rows = skeleton · empty suppressed -->
-              <div class="palette-results" id="dl-cold-list" data-od-id="dl-cold-list" role="status" aria-label="loading">
-                <div class="pal-skel" data-od-id="dl-skel-1"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
-                <div class="pal-skel" data-od-id="dl-skel-2"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
-                <div class="pal-skel" data-od-id="dl-skel-3"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
-                <div class="pal-skel" data-od-id="dl-skel-4"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
+              <!-- gating: cache = cold · rows = skeleton · empty suppressed.
+                   The skeleton bars carry no text, so the live region is named and
+                   the decorative ladder is hidden from AT. -->
+              <div class="palette-results" id="dl-cold-list" data-od-id="dl-cold-list" role="status">
+                <span class="sr-only">Loading tasks…</span>
+                <div class="pal-skel pal-skel--srow" aria-hidden="true" data-od-id="dl-skel-1"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
+                <div class="pal-skel pal-skel--srow" aria-hidden="true" data-od-id="dl-skel-2"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
+                <div class="pal-skel pal-skel--srow" aria-hidden="true" data-od-id="dl-skel-3"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
+                <div class="pal-skel pal-skel--srow" aria-hidden="true" data-od-id="dl-skel-4"><span class="pal-skel__ic"></span><span class="pal-skel__bar pal-skel__bar--lg"></span><span class="pal-skel__bar pal-skel__bar--sm"></span></div>
               </div>
             </div>
           </div>
@@ -333,30 +351,36 @@
         <div class="spec__note"><b>No value slot</b>US-010.EC-4 · BR-11: vault rows use <code>.pal-srow--vault</code> so the grid has no value column. Names and metadata only — source and age. A secret value must not appear in markup, meta, or the detail pane.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="dl-vault-plain">
-            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="dl-vault-pal">
+            <div class="palette palette--staged" data-od-id="dl-vault-pal">
               <div class="palette-head">
-                <svg data-lucide="corner-up-left"></svg>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path"><span class="pal-crumb">Vault</span></nav>
-                <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-vault-list" aria-autocomplete="list" placeholder="Search vault…" aria-label="Search vault">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="dl-vault-list" aria-autocomplete="list" placeholder="Search vault…" aria-label="Search vault">
+                </div>
               </div>
-              <!-- gating: vault.values structurally absent · BR-11 · no value column -->
+              <!-- gating: vault.values structurally absent · BR-11 · no value column.
+                   A vault key is not a status: rows use the dictionary's neutral
+                   non-status plate .sig[data-k="static"] (filled badge), distinct
+                   from the outline "unknown" plate the queued task rows use in §01. -->
               <div class="palette-results" id="dl-vault-list" role="listbox" aria-label="Vault names">
                 <button class="pal-srow pal-srow--vault is-active" type="button" role="option" aria-selected="true" data-od-id="dl-vault-openai">
-                  <span class="sig" data-k="unknown"><svg data-lucide="key-round"></svg></span>
+                  <span class="sig" data-k="static"><svg data-lucide="key-round"></svg></span>
                   <span class="pal-srow__main">
                     <span class="pal-srow__title">acme.openai</span>
                     <span class="pal-srow__sub">env · 12d</span>
                   </span>
                 </button>
                 <button class="pal-srow pal-srow--vault" type="button" role="option" aria-selected="false" data-od-id="dl-vault-notes">
-                  <span class="sig" data-k="unknown"><svg data-lucide="key-round"></svg></span>
+                  <span class="sig" data-k="static"><svg data-lucide="key-round"></svg></span>
                   <span class="pal-srow__main">
                     <span class="pal-srow__title">notes.capture</span>
                     <span class="pal-srow__sub">Notes (ext.notes) · 3d</span>
                   </span>
                 </button>
                 <button class="pal-srow pal-srow--vault" type="button" role="option" aria-selected="false" data-od-id="dl-vault-stripe">
-                  <span class="sig" data-k="unknown"><svg data-lucide="key-round"></svg></span>
+                  <span class="sig" data-k="static"><svg data-lucide="key-round"></svg></span>
                   <span class="pal-srow__main">
                     <span class="pal-srow__title">payments.stripe</span>
                     <span class="pal-srow__sub">env · 41d</span>
@@ -378,7 +402,7 @@
         <div class="spec__note"><b>Neutral empty</b>US-011.EC-1: no selection (or a row without a preview payload) is <code>no preview</code> — glyph + the two words. Not a spinner, not an error.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="dl-preview-none-plain">
-            <div class="pal-split" style="border:1px solid var(--line);border-radius:var(--radius-lg);min-height:180px">
+            <div class="pal-split pal-split--framed">
               <div class="pal-split__list">
                 <div class="palette-results">
                   <button class="pal-srow" type="button">
@@ -402,7 +426,7 @@
         <div class="spec__note"><b>Stale-cleared</b>US-011.EC-2: the selected row was deleted. The pane does not keep the stale payload — it returns to <code>no preview</code>. Selection moves to the nearest neighbor in the list; focus never lived in the pane.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="dl-stale-plain">
-            <div class="pal-split" style="border:1px solid var(--line);border-radius:var(--radius-lg);min-height:180px">
+            <div class="pal-split pal-split--framed">
               <div class="pal-split__list">
                 <div class="palette-results">
                   <button class="pal-srow is-active" type="button">
@@ -430,7 +454,9 @@
         <div class="spec__note"><b>Independent scroll</b>US-011.EC-3: a long sanitized body scrolls inside the pane. The list keeps its own scroll and its own focus.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="dl-scroll-plain">
-            <div class="pal-split" style="border:1px solid var(--line);border-radius:var(--radius-lg);height:220px">
+            <!-- one height cap only: .pal-split owns it and clips (overflow:hidden),
+                 the detail column scrolls inside it via min-height:0 -->
+            <div class="pal-split pal-split--framed pal-split--short">
               <div class="pal-split__list">
                 <div class="palette-results">
                   <button class="pal-srow is-active" type="button">
@@ -442,12 +468,12 @@
                   </button>
                 </div>
               </div>
-              <aside class="pal-split__detail" data-od-id="dl-scroll-pane" style="max-height:220px">
+              <aside class="pal-split__detail" data-od-id="dl-scroll-pane">
                 <div class="pal-kv">
-                  <div class="pal-kv__row"><span class="pal-kv__k">Status</span><span class="pal-kv__v">done</span></div>
+                  <div class="pal-kv__row"><span class="pal-kv__k">Status</span><span class="pal-kv__v"><span class="state" data-class="done">done</span></span></div>
                   <div class="pal-kv__row"><span class="pal-kv__k">Id</span><span class="pal-kv__v"><span class="mono">tsk_rel</span></span></div>
                 </div>
-                <div class="pal-rich" style="margin-top:12px">
+                <div class="pal-rich">
                   <p>Draft covers the session-store refactor, payment retries, and the notes capture path.</p>
                   <p>Workspace acme. Operator pedro. Source rows stay on the list; this pane only mirrors the selection.</p>
                   <p>Long bodies do not grow the palette chrome. The accessory column scrolls on its own.</p>
@@ -463,7 +489,7 @@
         <div class="spec__note"><b>Sanitized-degraded</b>Rich text that fails sanitization degrades to <code>.pal-rich--plain</code> — visible as plain text, never as live markup. The note <code>nt_9a01d2</code> is the fixture.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="dl-plain-plain">
-            <div class="pal-split" style="border:1px solid var(--line);border-radius:var(--radius-lg);min-height:180px">
+            <div class="pal-split pal-split--framed">
               <div class="pal-split__list">
                 <div class="palette-results">
                   <button class="pal-srow is-active" type="button">
@@ -479,9 +505,9 @@
                 <div class="pal-kv">
                   <div class="pal-kv__row"><span class="pal-kv__k">Id</span><span class="pal-kv__v"><span class="mono">nt_9a01d2</span></span></div>
                 </div>
-                <pre class="pal-rich pal-rich--plain" style="margin-top:12px">Standup follow-ups
+                <div class="pal-rich pal-rich--plain">Standup follow-ups
 tag: inbox
-Owner pedro · workspace acme</pre>
+Owner pedro · workspace acme</div>
               </aside>
             </div>
           </div>
@@ -494,7 +520,7 @@ Owner pedro · workspace acme</pre>
   </div></div>
 </div></div>
 
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/lucide@1.28/dist/umd/lucide.min.js"></script>
 <script>
 (function () {
   function refreshIcons() {
@@ -549,41 +575,38 @@ Owner pedro · workspace acme</pre>
     }
   }
 
+  /* ONE shared status-tone dictionary — the herdr data-class vocabulary.
+     A status with no member (queued) carries no data-class and stays --fg;
+     no view-local map is invented for it. */
+  var STATE_CLASS = { "needs-approval": "needs", running: "run", done: "done" };
+
   function fillDetail(id) {
-    var d = id && DETAIL[id];
-    if (!d || !d.body) {
-      kv.hidden = !d;
-      rich.hidden = true;
-      previewNone.hidden = !!d && !!d.status && !!d.body;
-      if (!d) {
-        kv.hidden = true;
-        previewNone.hidden = false;
-        return;
-      }
-      if (!d.body) {
-        kv.hidden = false;
-        previewNone.hidden = true;
-      }
-    } else {
-      kv.hidden = false;
-      rich.hidden = false;
-      previewNone.hidden = true;
+    var d = (id && DETAIL[id]) || null;
+    /* Contract (US-011.EC-1): no selection OR a row without a preview payload
+       is `no preview`. That is the whole condition — one branch, no override. */
+    var hasPreview = !!(d && d.body);
+    kv.hidden = !hasPreview;
+    rich.hidden = !hasPreview;
+    previewNone.hidden = hasPreview;
+    if (!hasPreview) {
+      aprRow.hidden = true;
+      rich.textContent = "";
+      return;
     }
-    document.getElementById("dl-kv-status").textContent = d.status;
+    var statusEl = document.getElementById("dl-kv-status");
+    statusEl.textContent = d.status;
+    var tone = STATE_CLASS[d.status];
+    if (tone) statusEl.setAttribute("data-class", tone);
+    else statusEl.removeAttribute("data-class");
     document.getElementById("dl-kv-agent").textContent = d.agent;
     document.getElementById("dl-kv-ws").textContent = d.ws;
     document.getElementById("dl-kv-id").textContent = d.id;
     aprRow.hidden = !d.approval;
     document.getElementById("dl-kv-apr").textContent = d.approval || "";
     rich.textContent = "";
-    if (d.body) {
-      var p = document.createElement("p");
-      p.textContent = d.body;
-      rich.appendChild(p);
-    }
-    if (!d.body) {
-      rich.hidden = true;
-    }
+    var p = document.createElement("p");
+    p.textContent = d.body;
+    rich.appendChild(p);
   }
 
   function apply() {
@@ -645,8 +668,10 @@ Owner pedro · workspace acme</pre>
     emptyChips.querySelectorAll(".pal-chip").forEach(function (c) {
       c.classList.toggle("is-on", c.getAttribute("data-filter") === k);
     });
-    document.querySelectorAll("#dl-empty-list [data-filter='all']").forEach(function (r) {
-      r.hidden = k !== "all";
+    /* rows carry their TRUE status, so the chip filters honestly:
+       no loop is failed, therefore Failed matches nothing. */
+    document.querySelectorAll('#dl-empty-list [role="option"]').forEach(function (r) {
+      r.hidden = !(k === "all" || r.getAttribute("data-filter") === k);
     });
     emptyNone.hidden = k !== "failed";
   }

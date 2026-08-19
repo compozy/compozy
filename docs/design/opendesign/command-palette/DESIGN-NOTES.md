@@ -2,10 +2,18 @@
 
 Design contract for the surfaces in `.compozy/tasks/command-palette/_uiux.md`,
 delivered as ten boards in this folder. Companions: `_spec.md` (behavior
-authority), `_user_stories.md` (ACs/ECs). Binding visual lineage: the
-herdr-parity palette grammar (this set extends it). This file is the locked
-semantic contract — every ghost tail, hint slot, and confirm verb on the
-boards traces back here.
+authority), `_user_stories.md` (ACs/ECs). This file is the locked semantic
+contract — every ghost tail, hint slot, and confirm verb on the boards traces
+back here.
+
+**Binding visual lineage: production.** `packages/ui/src/tokens.css` and the
+shipped `@compozy/ui` / `web/src/systems/os` components are the authority;
+the herdr-parity palette grammar supplies the class vocabulary, not the
+values. `command-palette.css` opens with a set-scoped production-parity token
+lane that redefines the prototype token names to the values production ships,
+so every rule in the set reads a token and the boards render production
+pixels. Each board class maps to a shipped primitive or a declared domain
+composite — see the Production component map below.
 
 ## Locked decisions
 
@@ -16,12 +24,16 @@ Entities never interleave into the command group.
 
 - **Ghost tail** renders only for a high-confidence top result, after the
   caret, preserving typed casing. `→` at the end of the input accepts.
-- **Every bound row** carries a chord badge (`.pal-chord` / `.pal-k`, not
-  the footer `.key` scale).
+- **Every bound row** carries its chord as ONE `.pal-chord` text span
+  (`⌘N`, `⌥⇧N`) — the `CommandShortcut` voice, no keycap chrome. See
+  Chord tiers below.
 - **Alias** renders `Title (alias)` (e.g. `Capture note (cap)`).
 - **Settings rows** read `Settings → {page}`. **App rows** read `Open {app}`.
 - **Workspace label** is a sub-line suffix (herdr `.pal-srow` precedent)
   plus ONE widened globe scope chip — current-scope rows carry no label.
+- **The scope chip rides the palette head**, trailing the input (11px
+  globe). A lone chip never earns its own `.pal-chips` band — that band
+  exists only for real filter-chip sets.
 - **Capped entity sections** show exactly 6 rows + the exact note
   `showing N of M`. Silent truncation is forbidden.
 - **Fallback row** `Ask agent: '{query}'` is delegation, not execution —
@@ -145,28 +157,200 @@ ordered list renders), personalization master-switch mirror,
 `Reset palette personalization` scoped to the workspace with
 confirmation + post-reset feedback.
 
-### Signal map (finalized by this pass)
+### Signal map (finalized by the production-parity pass)
 
 - **destructive** → danger `#E0635A` (`--danger`) text + glyph, danger
-  confirm button
+  confirm button (`Button` destructive: `--danger-tint` plate,
+  `--danger` label, no border)
 - **attention / needs-you** → the existing badge→tone dictionary, no
   second map
 - **extension-source chip** → info `#8E8EB5` (`--info`) with the
-  extension name
+  extension name (`Pill xs info mono`)
 - **success feedback** → `#5FBF85` (`--success`) glyph + label
-- **pending** → motion token
-- **selection** → neutral plate `--row-selected` + top light edge
-  (inset-accent marker stays retired)
+- **pending** → motion token (`StatusDot` accent + pulse), never a
+  progress percentage
+- **running** → `SessionBadgeGlyph`: the `--accent-tint` roundel with
+  `--accent` glyph, the WHOLE glyph pulsing, state word
+  `--accent-strong`. This reverts the round-2 `--badge-fill` roundel,
+  which moved the boards away from production. The accent budget is
+  held by keeping the pulse the only accent motion in the row.
+  `.sig[data-k="static"]` keeps its neutral `--badge-fill` plate —
+  the vault glyph has no production status behind it.
+- **selection** → `--elevated` raise + `--fg-strong` label and glyph
+  (the production `CommandItem` `data-selected` recipe). No light rim:
+  `--highlight` is a button/pill top rim and never marks a row, tile
+  or chip. The `--row-selected` + rim pair belongs to `ListingRow`
+  lists, not the palette. The inset-accent marker stays retired.
 
 Color is never the only channel — tone + glyph + literal state word,
 always.
 
-## Glass grammar
+### Chord tiers (three, each mapped)
 
-Inherited from herdr DESIGN-NOTES: shell-glass floating chrome
-(`--shell-glass-pop`, blur 30–34px, 12–14px radii, `--shadow-overlay` +
-top light edge) is reserved for floating chrome (palette, action panel).
-Window content stays on the 3–10px production radius scale.
+1. **Row chord** → `CommandShortcut`: one `.pal-chord` text span
+   carrying the whole chord, mono `--text-badge`, `--tracking-mono`,
+   `--faint`. No plate, no border, no per-key caps.
+2. **Footer hint** → `Kbd`: one `.key` per hint carrying the whole
+   chord (`↑↓`, `⌘⇧G`, `esc`) — h20 · min-w20 · radius-sm ·
+   `--canvas-soft` fill · mono `--text-mono-id` 510 · `--muted`.
+   No border, no cast shadow. Footer = `OsPaletteFooter`.
+3. **Settings binding** → `ShortcutBindingKeys`: bordered caps WITH a
+   `--line` border on `--canvas` — **one cap per binding carrying the
+   whole chord** (`⌘⇧G`, `⌥⇧N`; production maps over bindings, not
+   keys — never split a chord into `⌘ ⇧ G` triplets). Alternate
+   binding (index > 0) = dashed `--line-strong` on transparent;
+   overridden = accent-dim border with `--accent-strong` label.
+   Settings is the only surface where a chord is edited.
+
+Prototype-local note: board footers push the esc cluster right with the
+herdr `.pal-foot-flex` spacer; production `OsPaletteFooter` uses
+`ml-auto` on the esc hint — same read, implementation uses `ml-auto`.
+
+## Spatial & tonal grammar (round 4 — binding)
+
+Anti-cockpit direction (PRODUCT.md): calm and legible for people who
+are not terminal operators. Values are the FORWARD contract —
+implementation adopts them; production's current 30/32px density is
+anatomy precedent only.
+
+- **Zones.** Head (nav row + field) · results · footer, separated by
+  `--line-soft` hairlines. Head pads `12px 8px 10px`; results
+  `4px 8px 12px`; footer `12px 20px`.
+- **One 20px rail.** Every leading glyph, group label, banner glyph,
+  and footer key lands its left edge 20px from the panel edge
+  (zone pad-x 8 + element pad-x 12; crumb row 8 + back control 8).
+- **Ladder.** Input box 40px (query voice 13px) · command rows 40px ·
+  entity/two-line rows 48px · panel rows 36px · args pills 32px ·
+  leading icons 16px · roundels 18px.
+- **Blocks separated by full-bleed rules (round 5, reference-
+  approved).** Each group after the first opens with an edge-to-edge
+  `--line-soft` divider (the results well cancels its inline pad);
+  16px headroom above the label, 8px below, 2px between sibling
+  rows. Group labels recede to `--faint` — a step darker than row
+  text, never the same tone as the menus. The action panel's
+  sections carry the same dividers. Bands render as inset chips
+  (`margin 10px 8px 0`, radius-md), never full-bleed dams.
+- **Args fields = the query-box grammar (round 5).** 40px
+  `--canvas-tint` boxes on the same border/radius as the input box;
+  inline labels are quiet normal-case `--text-form-label` `--subtle`
+  (the uppercase inline chip read as cockpit texture), values 13px.
+  The args nav row (command glyph + name) rides the crumb-row
+  recipe on the 20px rail.
+- **Confirmation = Dialog anatomy (round 5).** Title =
+  `DialogTitle` (`--text-item-title` 15 · 510 · tracking-tight);
+  body = `DialogDescription` (small-body, `--muted`); actions live
+  in a `DialogFooter` band — full-bleed `--canvas-tint` behind a
+  `--line` rule, right-aligned `Button` neutral + destructive —
+  never floating in the body. Palette-hosted confirms only; the
+  settings-inline reset confirm keeps the light inline action row.
+- **Panel ground.** `--cp-panel` = `color-mix(in oklab, --canvas 55%,
+  --canvas-soft)` — one step BELOW the window-chrome ramp so the
+  palette separates tonally from the OS behind it; nested popups
+  (action panel, dropdowns) share it. Field fills stay
+  `--canvas-tint`; selection stays `--elevated`.
+
+## Depth grammar
+
+**The palette is flat** (`DESIGN.md` §5 + the live palette). Glass and
+backdrop-blur belong to OS-shell chrome — the menubar and dock — and
+never to the palette, action panel, tooltips or dropdowns. The one
+sanctioned blur in this set is the 3px scrim behind the palette.
+
+| Surface | Recipe |
+| --- | --- |
+| Palette panel (`.palette`) | opaque `--canvas-soft` · no border · `--radius-lg` (10) · `--shadow-overlay` · 4px pad (`Command` root `p-1`) · no backdrop-filter |
+| Backdrop (`.palette-overlay`) | `--overlay-scrim` + `blur(--overlay-blur)` (3px) · top 9vh, 16vh at ≥960px |
+| Action panel (`.pal-act`) | opaque `--canvas-soft` · no border · `--radius-lg` · `--shadow-hairline` · 4px pad (PopoverContent / DropdownMenu) |
+| Dropdown (`.pal-dd`) | `--canvas-soft` · no border · `--radius-md` · `--shadow-hairline` · 4px pad (Select / Combobox popup) |
+| Tooltip (`.pal-tip`) | `--canvas-soft` · `--radius-md` · px12/py6 · `--text-form-label` `--fg-strong` · `--shadow-hairline` |
+| Rows / tiles selected | `--elevated` + `--fg-strong` — never `--row-selected` + `--highlight` |
+| Focus | `--focus-ring` on `:focus-visible` / `.focus-ring` only; fields add `--line-strong` on focus-within |
+
+Every radius comes from the production ladder (3 / 4 / 5 / 6 / 8 / 10 /
+pill); the 12–14px glass radii are retired from this set.
+
+## Production component map
+
+Authoritative board-class → production mapping. Every class is either a
+shipped `@compozy/ui` primitive, a `web/src/systems/os` domain composite,
+or a declared gap. Implementation tasks read this table, not the CSS.
+
+| Board class | Production mapping | Kind |
+| --- | --- | --- |
+| `.palette` / `.palette-overlay` | `CommandDialog` (`DialogContent unframed` + scrim) + `Command` root | primitive |
+| `.pal-input-box` (new) | `CommandInput` group (`data-slot=command-input-group`) | primitive |
+| `.pal-scope` in input box | trailing chip slot — SearchInput `kbd`-slot precedent + `Pill md` | gap → domain (`PaletteScopeChip`) |
+| `.pal-ghost*` | `PaletteGhostText` (domain, no primitive) | domain composite |
+| `.pal-group` | `CommandGroup` heading (eyebrow) | primitive |
+| `.pal-item` / `.pal-act__row` / `.pal-dd__row` | `CommandItem` / `DropdownMenuItem` / `ComboboxItem` | primitive |
+| `.pal-item--sub`, `.pal-srow` | `CommandItem` + domain row body (`os-palette-session-row` grammar) | domain composite |
+| `.pal-chord` (rows) | `CommandShortcut` | primitive |
+| `.pal-foot .key` | `Kbd` | primitive |
+| `.cp-reg .keys .key`, `.sc-row .key` | `ShortcutBindingKeys` (web/os) | domain composite |
+| `.pal-foot` | `OsPaletteFooter` | domain composite |
+| `.pal-crumbs` / `.pal-crumb` | `os-palette-breadcrumb` grammar | domain composite |
+| `.pal-tip` | `Tooltip` / `TooltipContent` | primitive |
+| `.pal-act` | `Popover` / `DropdownMenu` hosting a nested `Command` | primitive |
+| `.pal-dd` | `Combobox` / `Select` popup (`CommandSelectShell`) | primitive |
+| `.pal-args` / `.pal-arg` | `PaletteArgsBar` (domain; fields = Input/SearchInput grammar) | domain composite |
+| `.pal-confirm*` | `PaletteConfirmation` (domain; buttons = `Button` neutral/destructive) | domain composite |
+| `.pal-check` | `Checkbox` | primitive |
+| `.pal-pick` | `InputGroup` / `Input` | primitive |
+| `.pal-field*` | `Field` / `FieldLabel` / `FieldDescription` / `FieldError` | primitive |
+| banner lane (`.pal-sec-err`, `.pal-form__fail`, `.cp-conflict`, `.cp-ext__health`) | `Alert` (compact palette variant) | primitive + delta |
+| `.pal-skel*` | `Skeleton` / `SkeletonRows` | primitive |
+| `.pal-pend` | `StatusDot` accent + pulse / `Spinner` | primitive |
+| `.pal-frame*`, `.pal-preview-none`, `.pal-none--*` | `Empty` (compact) / `CommandEmpty` | primitive |
+| `.pal-split*`, `.pal-kv*` | `SplitPane` + `PropertyRow` / `MetadataList` | primitive |
+| `.pal-tile*`, `.pal-grid`, `.pal-gsec*` | `PaletteGridView` (domain; states per CommandItem) | domain composite |
+| `.pal-band*`, `.pal-reload` | `PaletteViewBand` (domain) + `Pill sm success` | domain composite |
+| `.pal-src` | `Pill xs info mono` | primitive |
+| `.pal-chip` | `Pill md neutral` (active = elevated) | primitive |
+| `.cp-toolbar` | `ListingToolbar`-style row (domain) | domain composite |
+| `.cp-reg` | `Table` (+ `window-manager-shortcut-table` extension) | primitive |
+| `.cp-alias` | `Input` (compact) — `AliasCell` domain | domain composite |
+| `.cp-cmd__id` | `MonoId` | primitive |
+| `.cp-ext*` | `ListGroup` + `SettingRow` grammar — `ExtensionPalettePanel` | domain composite |
+| `.cp-fb` | success `StatusLine` voice (glyph + word) | domain composite |
+| `.sig` | `SessionBadgeGlyph` (18px tinted roundel) | domain composite |
+
+### Retired class vocabulary
+
+- **Per-key `.pal-k` chips inside command rows** — a bound row renders
+  ONE `.pal-chord` text span. `.pal-k` survives only as a neutralizing
+  reset for boards mid-migration.
+- **Per-key `.pal-foot .key` chips** — one `.key` per footer hint
+  carries the whole chord. Per-key caps live only in settings.
+- **The dashed-underline resting affordance on `.cp-alias`** — the
+  production `Input` reads editable through its border box.
+- **Glass on `.palette` / `.pal-act` / `.pal-tip`**, and every
+  `--highlight` rim on a row, tile or chip.
+- **The round-2 `.sig[data-k="running"]` `--badge-fill` override.**
+- **The recorder's JS identity swap** (`keys` → `pill`) — the trigger
+  now takes an `.is-recording` class and keeps its identity.
+- `--cp-args-h` renamed `--cp-arg-h`; the mobile `.pal-head--args`
+  height override (the palette head is auto-height at every width).
+
+### Authorized deltas from production
+
+- **Disabled rows keep color-based dimming**, not `opacity-50`.
+  BR-8 mandates an AA-legible verbatim reason in `.pal-hint`, and 50%
+  opacity drags it below AA. Implementation needs
+  `data-[disabled=true]:opacity-100` plus color overrides on
+  `CommandItem`.
+- **`.pal-kv` label gutter is 72px**, not `--width-kv-label` (140) —
+  140px inside a 208px detail rail leaves no room for the value.
+- **The breadcrumb back control is a 24px button with a 16px glyph.**
+  Production folds the `corner-up-left` mark into the breadcrumb nav
+  at 12px; the boards keep an interactive control that meets the
+  target-size floor. The 12px size applies to a glyph rendered inside
+  `.pal-crumbs`.
+- **`.pal-arg__lab` is a compact eyebrow at `--text-badge`.** A 12px
+  `Field` label does not fit a 28px `--height-search` pill; the label
+  keeps the eyebrow voice one step down.
+- **Loop animations stay off the `--dur-*` ramp** (shimmer 1.6s, band
+  sweep 1.2s, pulse 1.8s). The ramp tops out at 200ms and describes
+  state feedback, not continuous cadence.
 
 ## Lab layout
 
@@ -205,10 +389,14 @@ Each board = final surface (§01) + states lab. `index.html` is the set hub.
 | `command-palette-settings.html` | S12 shortcuts + global hotkeys | delivered |
 | `command-palette-settings-palette.html` | S15 palette settings + S16 extensions detail | delivered |
 
-`command-palette.css` holds chapters 1–12 (1 root results, 2 destination,
-3 view-stack chrome, 4 bands, 5 domain list + detail, 6 form, 7 grid,
-8 action panel, 9 args, 10 confirmation, 11 settings, 12 extensions +
-palette settings). Later runs append after the marked append point —
-they never restyle earlier chapters.
+`command-palette.css` opens with chapter 0 (the production-parity token
+lane, the lab-scaffold deltas, and the cross-board chrome recipes:
+palette panel, scrim, input box, results well, eyebrow lane, command-row
+lane, chord tiers, footer, banner lane, empty lane, chip lane), then
+holds chapters 1–12 (1 root results, 2 destination, 3 view-stack chrome,
+4 bands, 5 domain list + detail, 6 form, 7 grid, 8 action panel, 9 args,
+10 confirmation, 11 settings, 12 extensions + palette settings) and the
+chapter 13 review appendix. New feature runs append after the marked
+append point; parity and bug fixes edit chapters in place.
 
 Iterate on these files; don't regenerate. Implementation tasks cite the boards as visual contracts — artboard CSS is a contract, never a stylesheet to import.

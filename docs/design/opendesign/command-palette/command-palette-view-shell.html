@@ -48,26 +48,30 @@
     <!-- ===== 01 · FINAL ===== -->
     <section class="lab-sec" data-od-id="vs-final">
       <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">List kind under stack chrome</h2>
-        <span class="lab-sec__gist">depth ≥ 2 · … / Sessions / claude · scoped search</span></div>
+        <span class="lab-sec__gist">depth 2 · Sessions / claude · scoped search</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Depth two, identical chrome</b>US-009: the stack is past two ancestors, so the path left-truncates to <code>… / Sessions / claude</code> (≤3 slots). The <code>…</code> crumb tooltip is <code>Earlier levels</code>. Search is scoped to this leaf — placeholder <code>Search claude's sessions…</code> — and never bleeds sibling levels. Footer keeps the <code>⌫</code> back hint. <code>Esc</code> closes the whole stack; reopen mounts at root. Selection is a neutral plate.</div>
+        <div class="spec__note"><b>Depth two, identical chrome</b>US-009: the crumb trail is rendered from the live stack in ≤3 slots and left-truncates. This stack is root → <code>Sessions</code> → <code>claude</code>, so no ancestor falls outside the window and no <code>…</code> crumb appears — push past the window and the trail becomes <code>… / Sessions / claude</code> with the <code>…</code> crumb tooltip <code>Earlier levels</code>. Search is scoped to this leaf — placeholder <code>Search claude's sessions…</code> — and never bleeds sibling levels. Footer keeps the <code>⌫</code> back hint. <code>Esc</code> closes the whole stack; reopen mounts at root. Selection is a neutral plate.</div>
         <div class="spec__demo">
           <div class="stage stage--tall" data-od-id="vs-final-stage">
             <div class="overlay palette-overlay" id="vs-final-overlay" data-od-id="vs-final-overlay">
               <div class="palette" data-od-id="vs-final-pal" role="dialog" aria-label="Command palette">
                 <div class="palette-head">
-                  <!-- gating: viewStack.depth — icon is back when depth ≥ 1 -->
-                  <button type="button" id="vs-final-back" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <!-- gating: viewStack.depth — the back control mounts at depth ≥ 1
+                       and rides the crumb row. The search glyph is a permanent part
+                       of the input box (CommandInput group), never a dead button. -->
+                  <button class="pal-back" type="button" id="vs-final-back" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <!-- gating: crumbs render from viewStack — ≤3 slots, left-truncating.
+                       This stack is root → Sessions → claude, so the window is not
+                       exceeded and no `…` crumb is warranted. -->
                   <nav class="pal-crumbs" id="vs-final-crumbs" aria-label="Palette path">
-                    <span class="pal-crumb pal-crumb--ellipsis" id="vs-final-ellipsis" tabindex="0" aria-label="Earlier levels">…
-                      <span class="pal-tip">Earlier levels</span>
-                    </span>
-                    <span class="w2-sep">/</span>
                     <span class="pal-crumb pal-crumb--root" data-od-id="vs-final-crumb-sessions">Sessions</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb" data-od-id="vs-final-crumb-leaf">claude</span>
                   </nav>
-                  <input id="vs-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="vs-final-list" aria-activedescendant="vs-final-row-store" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions" autocomplete="off" spellcheck="false">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input id="vs-final-q" type="text" role="combobox" aria-expanded="true" aria-controls="vs-final-list" aria-activedescendant="vs-final-row-store" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions" autocomplete="off" spellcheck="false">
+                  </div>
                 </div>
                 <div class="pal-kind pal-kind--list">
                   <div class="palette-results" id="vs-final-root" hidden data-od-id="vs-final-root" role="listbox" aria-label="Root results">
@@ -174,7 +178,7 @@
                 </div>
               </div>
             </div>
-            <button class="btn" type="button" id="vs-final-reopen" hidden data-od-id="vs-final-reopen" style="position:absolute;top:36px;left:50%;transform:translateX(-50%)" aria-label="Open palette">
+            <button class="btn stage__reopen" type="button" id="vs-final-reopen" hidden data-od-id="vs-final-reopen" aria-label="Open palette">
               <span class="keys"><span class="key">⌘</span><span class="key">K</span></span>
               Open
             </button>
@@ -192,20 +196,21 @@
         <div class="spec__note"><b>list</b>The default kind. Rows stay on the herdr <code>.pal-srow</code> grammar. Head, crumbs, scoped search, and footer are the same four-kind chrome.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="vs-kind-list">
-            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="vs-kind-list-pal">
+            <div class="palette palette--staged" data-od-id="vs-kind-list-pal">
               <div class="palette-head">
-                <svg data-lucide="corner-up-left"></svg>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path">
-                  <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
-                  <span class="w2-sep">/</span>
                   <span class="pal-crumb pal-crumb--root">Sessions</span>
                   <span class="w2-sep">/</span>
                   <span class="pal-crumb">claude</span>
                 </nav>
-                <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-list-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-list-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                </div>
               </div>
               <div class="pal-kind pal-kind--list">
-                <div class="palette-results" id="vs-kind-list-box" role="listbox" aria-label="claude's sessions" style="max-height:88px">
+                <div class="palette-results" id="vs-kind-list-box" role="listbox" aria-label="claude's sessions">
                   <button class="pal-srow is-active" type="button" role="option" aria-selected="true" data-od-id="vs-kind-list-row">
                     <span class="sig" data-k="running"><span class="sig-dot"></span></span>
                     <span class="pal-srow__main"><span class="pal-srow__title">Fix payment retries</span></span>
@@ -214,6 +219,7 @@
                 </div>
               </div>
               <div class="pal-foot">
+                <span><span class="keys"><span class="key">↑↓</span></span> move</span>
                 <span><span class="keys"><span class="key">⌫</span></span> back</span>
                 <span class="pal-foot-flex"></span>
                 <span><span class="keys"><span class="key">esc</span></span> close</span>
@@ -227,17 +233,18 @@
         <div class="spec__note"><b>detail</b>Same head and footer. The body is a selection-driven accessory read — <code>{label, value}</code> rows — not a second list.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="vs-kind-detail">
-            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="vs-kind-detail-pal">
+            <div class="palette palette--staged" data-od-id="vs-kind-detail-pal">
               <div class="palette-head">
-                <svg data-lucide="corner-up-left"></svg>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path">
-                  <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
-                  <span class="w2-sep">/</span>
                   <span class="pal-crumb pal-crumb--root">Sessions</span>
                   <span class="w2-sep">/</span>
                   <span class="pal-crumb">claude</span>
                 </nav>
-                <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-detail-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-detail-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                </div>
               </div>
               <div class="pal-kind pal-kind--detail" id="vs-kind-detail-box">
                 <div class="pal-kv" data-od-id="vs-kind-detail-kv">
@@ -261,17 +268,18 @@
         <div class="spec__note"><b>form</b>Declared fields only. Chrome stays the stack; the body is <code>.pal-form</code>. Fixture field <code>title</code>, placeholder <code>Note title</code>.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="vs-kind-form">
-            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="vs-kind-form-pal">
+            <div class="palette palette--staged" data-od-id="vs-kind-form-pal">
               <div class="palette-head">
-                <svg data-lucide="corner-up-left"></svg>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path">
-                  <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
-                  <span class="w2-sep">/</span>
                   <span class="pal-crumb pal-crumb--root">Sessions</span>
                   <span class="w2-sep">/</span>
                   <span class="pal-crumb">claude</span>
                 </nav>
-                <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-form-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-form-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                </div>
               </div>
               <div class="pal-kind pal-kind--form" id="vs-kind-form-box">
                 <form class="pal-form" data-od-id="vs-kind-form-fields">
@@ -292,43 +300,50 @@
       </div>
 
       <div class="spec">
-        <div class="spec__note"><b>grid</b>Sections + tiles. Media is a token or a placeholder glyph — title stays if media fails. 2D arrows join the ladder without replacing it.</div>
+        <div class="spec__note"><b>grid</b>Sections + tiles. A bound tile carries its chord badge — the media slot holds a genuine media token, an emoji, or, when media fails, a placeholder glyph plus the literal words <code>media failed</code>, with the title intact. 2D arrows join the ladder without replacing it.</div>
         <div class="spec__demo">
           <div class="plain" data-od-id="vs-kind-grid">
-            <div class="palette" style="width:min(560px,100%);position:relative;animation:none" data-od-id="vs-kind-grid-pal">
+            <div class="palette palette--staged" data-od-id="vs-kind-grid-pal">
               <div class="palette-head">
-                <svg data-lucide="corner-up-left"></svg>
+                <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                 <nav class="pal-crumbs" aria-label="Palette path">
-                  <span class="pal-crumb pal-crumb--ellipsis" tabindex="0" aria-label="Earlier levels">…<span class="pal-tip">Earlier levels</span></span>
-                  <span class="w2-sep">/</span>
                   <span class="pal-crumb pal-crumb--root">Sessions</span>
                   <span class="w2-sep">/</span>
                   <span class="pal-crumb">claude</span>
                 </nav>
-                <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-grid-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                <div class="pal-input-box">
+                  <svg data-lucide="search"></svg>
+                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-kind-grid-box" aria-autocomplete="list" placeholder="Search claude's sessions…" aria-label="Search claude's sessions">
+                </div>
               </div>
               <div class="pal-kind pal-kind--grid" id="vs-kind-grid-box">
                 <div class="pal-grid">
                   <div>
                     <div class="pal-gsec__t">Open</div>
                     <div class="pal-gsec__tiles">
+                      <!-- gating: tile.binding → chord grammar (ONE .pal-chord span
+                           carrying the whole chord, the CommandShortcut voice).
+                           .pal-tile__token stays for genuine media tokens (DG, RN). -->
                       <button class="pal-tile is-active" type="button" data-od-id="vs-kind-grid-sessions">
-                        <div class="pal-tile__media"><span class="pal-tile__token">⌘E</span></div>
+                        <span class="pal-tile__media"><span class="pal-chord">⌘E</span></span>
                         <span class="pal-tile__t">Sessions</span>
                       </button>
                       <button class="pal-tile" type="button" data-od-id="vs-kind-grid-note">
-                        <div class="pal-tile__media"><span class="pal-tile__token">⌥⇧N</span></div>
+                        <span class="pal-tile__media"><span class="pal-chord">⌥⇧N</span></span>
                         <span class="pal-tile__t">Capture note</span>
                       </button>
+                      <!-- gating: media.error → placeholder glyph + the literal badge -->
                       <button class="pal-tile" type="button" data-od-id="vs-kind-grid-new">
-                        <div class="pal-tile__media"><span class="pal-tile__ph"><svg data-lucide="image-off"></svg></span></div>
+                        <span class="pal-tile__media"><span class="pal-tile__ph"><svg data-lucide="image-off"></svg></span></span>
                         <span class="pal-tile__t">New session</span>
+                        <span class="pal-tile__badge">media failed</span>
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
               <div class="pal-foot">
+                <span><span class="keys"><span class="key">←→↑↓</span></span> move</span>
                 <span><span class="keys"><span class="key">⌫</span></span> back</span>
                 <span class="pal-foot-flex"></span>
                 <span><span class="keys"><span class="key">esc</span></span> close</span>
@@ -350,13 +365,16 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="vs-unavail-pal">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">Recent notes</span>
                   </nav>
-                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-unavail-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-unavail-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  </div>
                 </div>
                 <!-- gating: viewFrame = unavailable · source = ext.notes -->
                 <div class="pal-frame pal-frame--unavailable" id="vs-unavail-frame" data-od-id="vs-unavail-frame" role="status">
@@ -387,13 +405,16 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="vs-loading-pal">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">Browse notes</span>
                   </nav>
-                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-loading-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-loading-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  </div>
                 </div>
                 <!-- gating: viewFrame = loading · source resolving, no lastGood -->
                 <div class="pal-frame pal-frame--loading" id="vs-loading-frame" data-od-id="vs-loading-frame" role="status">
@@ -424,13 +445,16 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="vs-timeout-pal">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">Browse notes</span>
                   </nav>
-                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-timeout-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-timeout-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  </div>
                 </div>
                 <!-- gating: viewFrame = timeout · retry() re-resolves the same leaf -->
                 <div class="pal-frame pal-frame--timeout" id="vs-timeout-frame" data-od-id="vs-timeout-frame" role="status">
@@ -462,16 +486,21 @@
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="vs-unknown-pal">
                 <div class="palette-head">
-                  <button type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
+                  <button class="pal-back" type="button" aria-label="Back"><svg data-lucide="corner-up-left"></svg></button>
                   <nav class="pal-crumbs" aria-label="Palette path">
                     <span class="pal-crumb pal-crumb--root">Notes</span>
                     <span class="w2-sep">/</span>
                     <span class="pal-crumb">Browse notes</span>
                   </nav>
-                  <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-unknown-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  <div class="pal-input-box">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" role="combobox" aria-expanded="true" aria-controls="vs-unknown-frame" aria-autocomplete="list" placeholder="Search notes…" aria-label="Search notes">
+                  </div>
                 </div>
-                <!-- gating: view.kind unknown — no renderer in this CompozyOS -->
-                <div class="pal-frame" id="vs-unknown-frame" data-od-id="vs-unknown-frame" role="status">
+                <!-- gating: view.kind unknown — no renderer in this CompozyOS.
+                     Runtime-health frame: warning tone + glyph + the literal
+                     degrade line, never a faint glyph alone. -->
+                <div class="pal-frame pal-frame--unknown" id="vs-unknown-frame" data-od-id="vs-unknown-frame" role="status">
                   <svg data-lucide="circle-alert"></svg>
                   <div class="pal-frame__t">view requires a newer CompozyOS</div>
                   <div class="pal-frame__s">Notes (ext.notes)</div>
@@ -517,7 +546,7 @@
   </div></div>
 </div></div>
 
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/lucide@1.28/dist/umd/lucide.min.js"></script>
 <script>
 (function () {
   function refreshIcons() {
@@ -537,6 +566,67 @@
   var popHint = document.getElementById("vs-final-pop-hint");
   var enterHint = document.getElementById("vs-final-enter");
   var depth = 2;
+
+  /* gating: os-palette-breadcrumb.tsx — the trail is the pushed levels
+     (root owns no crumb). Window is ≤3 slots, left-truncating: only when
+     the ancestors exceed the window does the first slot become the `…`
+     crumb (tooltip `Earlier levels`, role + aria-describedby) with the
+     last two levels behind it. root → Sessions → claude never exceeds it,
+     so this demo relabels between `Sessions` and `Sessions / claude`. */
+  var CRUMB_SLOTS = 3;
+  var STACK = [
+    { label: "Sessions", od: "vs-final-crumb-sessions" },
+    { label: "claude", od: "vs-final-crumb-leaf" }
+  ];
+
+  function crumbNode(level, isFirst) {
+    var el = document.createElement("span");
+    el.className = isFirst ? "pal-crumb pal-crumb--root" : "pal-crumb";
+    el.setAttribute("data-od-id", level.od);
+    el.textContent = level.label;
+    return el;
+  }
+
+  function ellipsisNode() {
+    var more = document.createElement("span");
+    more.className = "pal-crumb pal-crumb--ellipsis";
+    more.id = "vs-final-ellipsis";
+    more.setAttribute("role", "button");
+    more.setAttribute("tabindex", "0");
+    more.setAttribute("aria-label", "Earlier levels");
+    more.setAttribute("aria-describedby", "vs-final-crumb-tip");
+    more.textContent = "…";
+    var tip = document.createElement("span");
+    tip.className = "pal-tip";
+    tip.id = "vs-final-crumb-tip";
+    tip.textContent = "Earlier levels";
+    more.appendChild(tip);
+    return more;
+  }
+
+  function sepNode() {
+    var sep = document.createElement("span");
+    sep.className = "w2-sep";
+    sep.textContent = "/";
+    return sep;
+  }
+
+  function renderCrumbs() {
+    var trail = STACK.slice(0, depth);
+    crumbs.innerHTML = "";
+    crumbs.hidden = trail.length === 0;
+    if (!trail.length) return;
+    var truncated = trail.length > CRUMB_SLOTS;
+    var shown = truncated ? trail.slice(trail.length - (CRUMB_SLOTS - 1)) : trail;
+    var parts = truncated ? [ellipsisNode()] : [];
+    shown.forEach(function (level) {
+      parts.push(crumbNode(level, !truncated && level === trail[0]));
+    });
+    parts.forEach(function (node, i) {
+      if (i) crumbs.appendChild(sepNode());
+      crumbs.appendChild(node);
+    });
+  }
 
   function panes() {
     return [
@@ -587,7 +677,7 @@
   function setDepth(next, fresh) {
     depth = next;
     var open = overlay && !overlay.hidden;
-    crumbs.hidden = depth === 0;
+    renderCrumbs();
     popHint.hidden = depth === 0;
     enterHint.textContent = depth === 0 ? "open" : "open session";
     root.hidden = depth !== 0;
@@ -608,8 +698,11 @@
     }
     if (fresh) input.value = "";
     input.setAttribute("aria-expanded", open ? "true" : "false");
-    back.setAttribute("aria-label", depth === 0 ? "Search" : "Back");
-    back.innerHTML = depth === 0 ? '<svg data-lucide="search"></svg>' : '<svg data-lucide="corner-up-left"></svg>';
+    /* At root there is nothing to go back to, so the back control leaves the
+       tree entirely — a styled control that cannot act is worse than no
+       control. The search glyph is not gated: it lives inside the input box
+       at every depth, exactly like the production CommandInput group. */
+    back.hidden = depth === 0;
     refreshIcons();
     applyQuery();
     if (open) input.focus();

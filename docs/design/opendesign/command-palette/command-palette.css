@@ -2,17 +2,20 @@
    COMMAND PALETTE — command-palette.css
    Root results, view stack, input flows, settings & extensions.
    Companion to design-system/ds-core.css + ds-shell.css
-   + borrowed herdr-parity/herdr.css palette grammar.
+   + herdr-parity/herdr.css (row/chip/settings vocabulary).
 
    Authority chain (highest first):
-     1. packages/ui/src/tokens.css + web/src/systems/os/components/
-        os-command-palette.tsx (production seams)
-     2. .compozy/tasks/command-palette/_uiux.md + _user_stories.md
-     3. design-system ds-core/ds-shell + GUIDE.md
-     4. herdr-parity/herdr.css borrowed palette grammar
-        (.palette / .pal-group / .pal-item / .pal-chips / .pal-chip /
-        .pal-scope / .pal-srow / .pal-foot / .pal-crumbs / .sig / .keys)
-     5. This file (new anatomy only)
+     1. packages/ui/src/tokens.css  (token truth)
+     2. packages/ui/src/components/ — command.tsx (Command / Dialog /
+        Input / List / Group / Item / Shortcut), kbd.tsx, dialog.tsx,
+        popover.tsx, tooltip.tsx, select.tsx, combobox.tsx, input.tsx,
+        checkbox.tsx, alert.tsx, skeleton.tsx, custom/pill.tsx
+     3. web/src/systems/os/components/ — os-command-palette.tsx,
+        os-palette-footer.tsx, os-palette-breadcrumb.tsx,
+        os-palette-session-row.tsx (live palette recipes)
+     4. .compozy/tasks/command-palette/_uiux.md + _user_stories.md
+     5. design-system ds-core/ds-shell + herdr.css (prototype scaffold)
+     6. This file (parity lane + new anatomy)
 
    Semantic contract (locked in DESIGN-NOTES.md):
      Group order Pinned → Recents → context → curated. Entities
@@ -20,360 +23,780 @@
      high-confidence completion after the caret. Fallback row
      `Ask agent: '{query}'` is delegation, not execution.
      Availability reasons live in a structured hint slot, never
-     the label. Selection = --row-selected + top light edge.
+     the label. Selection = --elevated raise + --fg-strong (the
+     production CommandItem `data-selected` recipe; no light rim).
      Color is never the only channel: tone + glyph + state word.
+
+   Depth grammar (production truth — DESIGN.md §5 + live code):
+     THE PALETTE IS FLAT. Glass / backdrop-blur belongs to OS-shell
+     chrome (menubar, dock) only — never the palette, the action
+     panel, tooltips or dropdowns. Panel + popover + dropdown +
+     tooltip are all opaque --canvas-soft with a hairline or the
+     single sanctioned overlay shadow. The ONE blur in this set is
+     the 3px scrim on .palette-overlay (DialogOverlay parity).
+     --highlight is a button/pill top rim; it never marks a row.
 
    Borrow / link-order rule (boards MUST use this order):
      ds-core.css → ds-shell.css → ../herdr-parity/herdr.css
      → command-palette.css (LAST).
-   This file OWNS the lab scaffold: the full-bleed graph-eng
-   scaffold is re-declared below so it WINS the cascade
-   collision with herdr.css's old 960px .page scaffold.
-   NEVER restyle ds-* tokens/classes or herdr palette classes.
-   New vocabulary only — modifiers/elements that do not exist
-   in herdr.css, or fresh per-chapter prefixed classes.
-   No new hues: every color literal is a ds-core token or a
-   color-mix of one.
+   Because this file loads last, its single-class rules re-skin the
+   inherited .palette / .palette-head / .pal-item / .pal-group /
+   .pal-foot / .pal-chip / .pal-srow chrome onto production values.
+
+   Set-scoped production-parity lane (chapter 0):
+   ds-core / ds-shell / herdr.css are shared by other delivered sets
+   and are never edited. The parity lane redefines their token NAMES
+   to the values production ships, so every rule below reads a token
+   and no rule carries a raw literal. Sibling sets are untouched —
+   they do not link this file. The lab-scaffold deltas vs herdr.css
+   (.page width, mobile .page padding, `.stage .overlay{inset:0}`)
+   and `.pill svg` sizing (chapter 11) use the same lane.
+
+   Remediation history:
+     round 1 (2026-08-18) — appendix, chapter 13, append-only.
+     round 2 (2026-08-18) — full remediation pass, edited in place.
+     round 3 (2026-08-18) — production-parity pass: token parity lane,
+     flat depth grammar (glass retired), type ramp (all font-size
+     literals killed), chord tiers, Pill/Alert/Skeleton/Kbd recipes.
+     round 5 (2026-08-18) — reference-approved block dividers
+     (full-bleed --line-soft between groups + panel sections),
+     group labels receded to --faint, args fields on the query-box
+     grammar (40px, quiet labels), args nav on the crumb recipe,
+     search stroke pinned to the 20px rail.
+     round 4 (2026-08-18) — spatial & tonal grammar (operator
+     direction, anti-cockpit): zone model (head/results/footer with
+     line-soft boundaries), ONE 20px leading rail, 40px input ·
+     40/48px rows · 13px primary voices, block rhythm by SPACE
+     (18px group headroom vs 2px row gap), inset bands, --cp-panel
+     ground below the window-chrome ramp. Forward contract —
+     implementation adopts these values over production's current
+     density.
+     Bug fixes edit in place; the append-only rule governs new
+     feature runs only.
    ============================================================ */
 
-/* ---- domain tokens (derived from ds-core only; no new hues) ----
-   --cp-pal-w matches shipped .palette (ds-shell ~:350).
-   --cp-detail-w is the accessory pane inside that 560 cap.
-   --cp-act-w is the row-anchored action popover.
-   --cp-band-h sits on the 22px pill-sm / chip band.
-   --cp-args-h is the 28px search-input ladder (pills in the
-   52px palette head). Window head 44 · palette head 52 ·
-   pal-item 36 · pal-srow ≥40 remain the herdr/ds-shell sizes. */
+/* ============ 0 · PRODUCTION-PARITY TOKEN LANE ============ */
+/* Set-scoped redefinition of the OD-DS token names to the values
+   packages/ui/src/tokens.css ships, plus the local type ramp the
+   prototype scaffold has no vocabulary for. THESE ARE THE ONLY RAW
+   LITERALS IN THIS FILE; every rule below references them.
+   The lab chrome (menubar/window) on these pages shifts to
+   production values too — that is the point of the lane. */
 :root{
-  --cp-pal-w:min(560px,92vw);
-  --cp-detail-w:208px;
-  --cp-act-w:260px;
-  --cp-band-h:22px;
-  --cp-args-h:28px;
+  /* text ramp (tokens.css:32-36) */
+  --fg-strong:#f6f6f8; --fg:#ececef; --muted:#9a9a9f;
+  --subtle:#929298;    /* oklch(.663 .009 286.106) — 6.05:1 on --canvas */
+  --faint:#8b8b8f;     /* oklch(.638 .006 286.136) — 5.51:1 on --canvas */
+  /* surfaces (tokens.css:15-23) */
+  --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+  /* glaze ladder (tokens.css:72-79) */
+  --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+  --surface-glaze:rgba(255,255,255,.04); --badge-fill:rgba(255,255,255,.05);
+  --input-fill:rgba(255,255,255,.025); --btn-fill:rgba(255,255,255,.04);
+  --btn-hover:rgba(255,255,255,.07);
+  /* hairlines (tokens.css:26-29) */
+  --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+  /* signals (tokens.css:39-59) */
+  --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+  --accent-tint:rgba(232,87,42,.10); --accent-tint-strong:rgba(232,87,42,.16);
+  --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+  --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+  --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+  --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+  --neutral-ink:#8a8a90; --neutral-tint:rgba(150,150,155,.06);
+  /* radius (tokens.css:251-261): xxs3 xs4 sm5 base6 md8 lg10 pill */
+  --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px;
+  --radius-md:8px; --radius-lg:10px; --radius-pill:9999px;
+  /* shadows (tokens.css:272-288) — the ONLY sanctioned shadows */
+  --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.045);
+  --shadow-hairline:0 0 0 1px var(--line-soft);
+  --inset-strong:inset 0 0 0 1px var(--line-strong);
+  --highlight:inset 0 1px 0 rgba(255,255,255,.035);      /* buttons/pills top rim ONLY — never rows */
+  --focus-ring:0 0 0 2px rgba(255,255,255,.5);            /* :focus-visible depictions only */
+  --overlay-scrim:rgba(0,0,0,.55); --overlay-blur:3px;
+  /* motion (tokens.css:265-269) */
+  --ease:cubic-bezier(.2,0,0,1); --dur-fast:100ms; --dur-base:140ms; --dur-slow:200ms;
+  /* type ramp (tokens.css:153-224) — the production token is cited at each use */
+  --text-item-title:15px; --text-card-title:14px; --text-ws-name:13px;
+  --text-modal-title:13.5px; --text-small-body:12.5px; --text-form-label:12px;
+  --text-form-hint:11.5px; --text-eyebrow:11px; --text-badge:10.5px;
+  --text-mono-id:10.5px; --text-micro:10.5px;
+  --tracking-eyebrow:-.005em; --tracking-mono:.06em; --tracking-body:-.006em;
+  --tracking-modal-title:-.012em; --tracking-tight:-.014em;
+  /* domain widths (production: --width-modal-sm 560 · --height-search 28 ·
+     --height-control-compact 32 · --height-pill-xs/sm/md 17/19/22).
+     --cp-tile-emoji is the emoji medium in a grid tile — a glyph slot,
+     not a type-ramp step, so it is declared here rather than inlined. */
+  --cp-pal-w:min(560px,92vw); --cp-detail-w:208px; --cp-act-w:260px;
+  --cp-input-h:40px; --cp-arg-h:40px; --cp-band-h:28px;
+  /* round-4 spatial grammar (operator direction 2026-08-18):
+     ONE 20px leading rail — every leading glyph, group label, and
+     footer key lands its left edge at 20px from the panel edge
+     (zone pad-x 8 + element pad-x 12, or 12+8 on the crumb row).
+     Panel ground sits BELOW the window chrome ramp so the palette
+     separates tonally from the OS behind it (mix of two ramp
+     tokens — no new hue). Forward contract: implementation adopts
+     these values; production's current 30px/32px density is the
+     anatomy source, not the spatial source. */
+  --cp-panel:color-mix(in oklab,var(--canvas) 55%,var(--canvas-soft));
+  --cp-tile-emoji:22px;
 }
 
 /* Board class map — use these names; do not invent parallels.
+   0  scaffold: .palette--staged · .stage--stack · .stage--auto
+      .stage--overlay · .stage__reopen · .plain--pal-w · .sr-only
+      chrome: .pal-input-box (CommandInput group wrapper — boards add it)
    1  .pal-ghost(. __mirror __typed __tail __accept) · .pal-item--ask
-      .pal-ask .pal-ask-q · .pal-chord .pal-k · .pal-item--sub
-      .pal-item__main .pal-item__sub · .pal-alias · .pal-chip.is-wide
-      .pal-overflow · .pal-item--off .pal-hint · .pal-sec-err
-      .pal-skel(. __ic __bar --lg --sm) · .pal-pend · .pal-src
+      .pal-ask .pal-ask-q · .pal-chord · .pal-state
+      .pal-item--sub .pal-item__main .pal-item__sub · .pal-alias
+      .pal-chip.is-wide · .pal-overflow(--pinned) · .pal-item--off
+      .pal-hint · .pal-sec-err · .pal-skel(. __ic __bar --lg --sm)
+      .pal-pend · .pal-src
    2  .pal-dest-head · .pal-group.pal-dest · .pal-none--dest
-   3  .pal-crumb--ellipsis .pal-tip · .pal-foot--args/--confirm
-      .pal-frame(--unavailable --loading --timeout --broken)
+   3  .pal-crumb--ellipsis .pal-tip
+      .pal-frame(--unavailable --loading --timeout --broken --unknown __q)
       .pal-kind(--list --detail --form --grid)
    4  .pal-band(--busy --degraded --broken) · .pal-reload
-   5  .pal-split(. __list __detail) · .pal-kv(. __row __k __v)
+   5  .pal-split(. __list __detail --framed --capped --short)
+      .palette-results--unbounded · .sig[data-k=static] · .pal-kv(. __row __k __v)
       .pal-rich(--plain) · .pal-preview-none · .pal-srow--vault
       .pal-none--filter
-   6  .pal-form · .pal-field(. __lab __hint __err .is-bad .is-focus
-      .is-miss) · .pal-check(. __box) · .pal-pick(. __path) · .pal-form__fail
+   6  .pal-form · .pal-field(. __lab __hint __err .is-focus .is-miss)
+      .pal-check(. __box) · .pal-pick(. __path) · .pal-form__acts
+      .pal-form__fail
    7  .pal-grid · .pal-gsec__t · .pal-gsec__tiles · .pal-tile
-      (. __media __token __ph __t __badge)
+      (. __media __token __emoji __ph __t __badge)
    8  .pal-act(. __filter __sec __row --danger --off __ret __why __empty)
-   9  .pal-head--args (beside .palette-head) · .pal-args · .pal-arg
-      (. __lab __in --mask .is-on .is-miss .is-bad __err) · .pal-dd(. __row __empty)
-   10 .pal-confirm(. __title __body __acts __go --danger --void __void)
-   11 .cp-toolbar · .cp-reg · .cp-bind · .cp-alias(.is-bad) · .cp-alias-rule
-      .cp-conflict · .cp-row--loser .cp-flag · .cp-row--dormant
-      .cp-row--off · .cp-why · .cp-hot(. __t) · .cp-a11y(. __body) · .cp-src-col
+   9  .pal-head--args / --args-bare (beside .palette-head) · .pal-args
+      .pal-args-body · .pal-arg(. __lab __in .is-on .is-miss
+      .is-bad __err) · .pal-dd(. __row __empty)
+   10 .pal-confirm(. __title __body __acts __go --danger --void)
+   11 .cp-toolbar · .cp-page-t · .cp-reg · .cp-cmd .cp-cmd__id · .cp-bind
+      .cp-alias(.is-bad) · .cp-alias-rule · .cp-conflict · .cp-flag
+      .cp-row--loser · .cp-row--dormant · .cp-row--off · .cp-why
+      .cp-hot · .cp-src-col · button.keys.is-recording
    12 .cp-ext(.is-dormant .is-unhealthy __head __name __id __list __row
       __cmd __views __health) · .cp-fb · .cp-reset-confirm
+   13 .focus-ring (static depiction of :focus-visible — this file's
+      own helper, NOT a ds-core class)
    Reuse herdr: .palette .palette-head .palette-results .pal-group
-   .pal-item .pal-chips .pal-chip .pal-scope .pal-srow .pal-foot
-   .pal-crumbs .pal-crumb .sig .state .keys .key .spec-table
+   .pal-item .pal-push .pal-chips .pal-chip .pal-scope .pal-srow
+   .pal-foot .pal-crumbs .pal-crumb .sig .state .keys .key
+   .sc-group__t .spec-table
    Reuse ds: .input .textarea .ctl .field .btn .switch .srow .panelbox
-   .pill-group .focus-ring
+   .pill-group .pill .notice
+   RETIRED round 1-2: .cp-a11y (use ds .notice) · .cp-hot__t (use herdr
+   .sc-group__t) · .pal-field.is-bad (dead)
+   RETIRED round 3 (production parity):
+     · per-key `.pal-k` chips inside command rows — a bound row now
+       renders ONE `.pal-chord` text span carrying the whole chord
+       (`⌘N`, `⌥⇧N`), the CommandShortcut voice. `.pal-k` survives
+       only as a neutralizing reset for boards mid-migration.
+     · per-key `.pal-foot .key` chips — one `.key` per footer hint
+       carries the whole chord (`↑↓`, `⌘⇧G`, `esc`), Kbd parity.
+       Per-key caps survive ONLY in settings (`.cp-reg .keys .key`,
+       `.sc-row .key` = ShortcutBindingKeys).
+     · `.pal-head-glyph` — the depth-gated decorative head magnifier;
+       the search glyph is a permanent part of `.pal-input-box` now
+       (no board references the wrapper).
+     · the dashed-underline resting affordance on `.cp-alias`
+       (production Input reads editable through its border box).
+     · glass on `.pal-act` / `.pal-tip` / `.palette`, and every
+       `--highlight` rim on a row, tile or chip (selection is a
+       `--elevated` raise now).
+     · the round-2 `.sig[data-k="running"]{background:--badge-fill}`
+       override — production pulses the accent-tint roundel.
+     · `--cp-args-h` renamed `--cp-arg-h` (one field, the 28px
+       `--height-search` step).
+     · the mobile `.pal-head--args` height override (the palette head
+       is auto-height at every width now).
 */
 
-/* ============ LAB SCAFFOLD (states sheets) ============
-   Re-declared from graph-eng.css so full-bleed wins over
-   herdr.css `.page{max-width:960px}`. Authorized delta vs
-   the herdr 960px scaffold — operator direction 2026-08-16. */
-.shell{height:100vh}
-.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
-.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
-  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
-.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
-.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
-.w2head .w2-back svg{width:14px;height:14px}
-.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
-.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
-.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
-.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
-.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
-.w2head .w2-flex{flex:1;min-width:8px}
-.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
-.scroll{flex:1;min-height:0;overflow-y:auto}
+/* ============ LAB SCAFFOLD — DELTAS ONLY ============
+   herdr.css already ships the whole states-sheet scaffold
+   (.shell .main .w2head .scroll .lab-sec .spec .stage .plain and
+   their mobile rules) and loads first. Only the deltas live here:
+     1. full-bleed .page (authorized delta vs the herdr 960px
+        scaffold — operator direction 2026-08-16)
+     2. its mobile padding
+     3. `.stage .overlay{inset:0}` — herdr sets position:absolute
+        with no inset, so a stage-hosted overlay collapses.
+   Everything else is inherited. */
 .page{max-width:none;width:100%;margin:0;padding:24px 36px 80px}
-.lab-sec{margin:0 0 40px}
-.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
-.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
-.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
-.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
-.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
-.spec:first-of-type{border-top:0;padding-top:0}
-.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
-.spec__note b{font-weight:600;color:var(--fg)}
-.spec__note > b:first-child{display:block;font-size:11.5px;margin-bottom:2px}
-.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
-.spec__demo{min-width:0}
-@media (max-width:760px){
-  .spec{grid-template-columns:1fr}
-  .lab-sec__gist{display:none}
-  .page{padding-left:20px;padding-right:20px}
+.stage .overlay{position:absolute;inset:0}
+@media (max-width:760px){.page{padding-left:20px;padding-right:20px}}
+
+/* new scaffold vocabulary (not in herdr.css) */
+.lab-foot{margin-top:28px;font-size:var(--text-eyebrow);line-height:1.55;color:var(--faint)}
+.lab-foot code{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--subtle)}
+/* stage that stacks its fragments instead of centring one */
+.stage--stack{display:flex;flex-direction:column;align-items:center;gap:16px}
+/* stage sized by its content — replaces inline min-height:0.
+   Declared after --short/--tall so it wins when combined. */
+.stage--auto{min-height:0}
+/* palette staged in-flow inside a .stage / .plain fragment:
+   the shipped .palette is a floating overlay child, so a staged
+   copy needs its own positioning context and no entrance animation. */
+.palette--staged{width:var(--cp-pal-w);position:relative;animation:none}
+
+/* ============ 0b · PALETTE CHROME — PRODUCTION RECIPES ============ */
+/* Cross-board chrome. Every rule here re-skins an inherited
+   ds-shell / herdr class; this file loads last, so single-class
+   selectors win without !important or specificity games. */
+
+/* Panel = CommandDialog anatomy (DialogContent `unframed` +
+   --shadow-overlay, no border, no blur) on the round-4 ground:
+   --cp-panel sits a step BELOW canvas-soft so the palette reads
+   darker than the window chrome behind it. Zones own their own
+   padding — the panel itself is edge-to-edge. */
+.palette{
+  width:var(--cp-pal-w);
+  padding:0;
+  background:var(--cp-panel);
+  border:0;border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-overlay);
+  backdrop-filter:none;
+  overflow:hidden;
+}
+/* Scrim = DialogOverlay: `bg-overlay-scrim` + blur(--overlay-blur).
+   THE ONLY SANCTIONED BLUR IN THIS SET. Production offsets the panel
+   `top-[9vh] min-[960px]:top-[16vh]`.
+   AUTHORIZED STAGING DELTA: inside a lab `.stage`, herdr's
+   `.stage .palette-overlay{padding-top:36px}` out-specifies these
+   viewport offsets ON PURPOSE — 16vh of the real viewport misstates
+   proportion inside a miniature stage. Full-viewport labs get the
+   production offset; staged fragments keep the 36px staging pad. */
+.palette-overlay{
+  padding-top:9vh;
+  background:var(--overlay-scrim);
+  backdrop-filter:blur(var(--overlay-blur));
+}
+@media (min-width:960px){.palette-overlay{padding-top:16vh}}
+
+/* Head zone — nav row + field, its own breathing room, closed by a
+   soft hairline so the scrollable results read as a separate block.
+   The crumb row and the field each claim a full line (wrap basis);
+   row-gap keeps them apart without per-child margins. */
+.palette-head{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 0;
+  height:auto;padding:12px 8px 10px;border:0;
+  border-bottom:1px solid var(--line-soft);
+}
+/* CommandInput group anatomy at the round-4 scale: a 40px field,
+   --canvas-tint fill, --line border, radius-md; focus-within →
+   --line-strong + focus ring. pad-x 12 lands the search glyph on
+   the 20px rail. Input voice steps up to 13px (--text-ws-name) —
+   the query is the surface's primary act. */
+.pal-input-box{
+  flex:1 0 100%;min-width:0;
+  display:flex;align-items:center;gap:10px;
+  height:var(--cp-input-h);padding:0 12px 0 11px;
+  border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--canvas-tint);
+}
+.pal-input-box:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+.pal-input-box > svg{width:16px;height:16px;flex:none;color:var(--subtle)}
+.pal-input-box input{
+  flex:1;min-width:0;height:100%;background:none;border:0;outline:none;
+  font-size:var(--text-ws-name);color:var(--fg);letter-spacing:var(--tracking-body);
+}
+.pal-input-box input::placeholder{color:var(--subtle)}
+/* Leading-label slot — destination mode seats its heading inside the
+   box before the field (icon → heading → input, one-row read). */
+.pal-input-box .pal-dest-head{flex:none}
+/* Results zone = CommandList. pad-x 8 + the row's own 12 = the 20px
+   rail every other palette lane lands on; top pad is quiet because
+   the first group heading carries its own headroom. */
+.palette-results{max-height:46vh;overflow:auto;padding:4px 8px 12px}
+
+/* ---- eyebrow lane (CommandGroup heading = the `eyebrow` utility:
+   sans · --text-eyebrow 11 · 600 · uppercase · --tracking-eyebrow).
+   ONE type recipe for every micro-heading in the set. Sans, NOT mono.
+   Rhythm: groups separate by SPACE, never rules — 18px of headroom
+   over a heading vs the 2px between sibling rows keeps the ≥2×
+   inter/intra ratio that makes blocks read as blocks. Settings
+   chapters override the padding for their own containers. */
+.pal-group,
+.pal-gsec__t,
+.pal-act__sec,
+.cp-reg th,
+.cp-ext__views b{
+  font-family:var(--font-sans);
+  font-size:var(--text-eyebrow);line-height:16px;font-weight:600;
+  text-transform:uppercase;letter-spacing:var(--tracking-eyebrow);
+  color:var(--faint);
+  padding:18px 12px 8px;
+}
+/* Full-bleed block dividers (round 5, reference-approved): the rule
+   runs edge to edge by cancelling the well's inline pad; the label
+   keeps the 20px rail (pad-left 20 = 12 + the cancelled 8). First
+   block opens the well without a rule. Table headers and settings
+   panels keep their own container chrome (their later chapters
+   override padding, and margins here are results-scoped). */
+.palette-results .pal-group,
+.pal-kind--list .pal-group{
+  border-top:1px solid var(--line-soft);
+  margin:8px -8px 0;padding:16px 20px 8px;
+}
+.palette-results > .pal-group:first-child,
+.pal-kind--list > .pal-group:first-child{
+  border-top:0;margin-top:0;padding-top:6px;
+}
+.pal-act__sec{border-top:1px solid var(--line-soft);margin:6px -8px 0;padding:14px 20px 6px}
+.pal-act .pal-act__sec:first-of-type{border-top:0;margin-top:0;padding-top:10px}
+/* first block needs presence, not distance */
+.palette-results > .pal-group:first-child,
+.pal-kind--list > .pal-group:first-child{padding-top:6px}
+
+/* ---- command row lane (CommandItem: `gap-2 rounded-md px-2 py-1.5
+   text-small-body text-fg`, selected → `bg-elevated text-fg-strong`
+   and svg → --fg-strong). Production has no pointer-hover state
+   (pointer selection sets data-selected); the quiet --row-hover is a
+   lab affordance so a static board still reads as pointable. */
+.pal-item{
+  display:flex;align-items:center;gap:10px;width:100%;
+  height:auto;min-height:40px;padding:9px 12px;
+  border-radius:var(--radius-md);
+  font-size:var(--text-ws-name);color:var(--fg);text-align:left;
+}
+.pal-item + .pal-item{margin-top:2px}
+.pal-item svg{width:16px;height:16px;flex:none;color:var(--muted)}
+.pal-item:hover{background:var(--row-hover);color:var(--fg-strong)}
+.pal-item.is-active{background:var(--elevated);color:var(--fg-strong);box-shadow:none}
+.pal-item.is-active svg{color:var(--fg-strong)}
+.pal-item .pal-meta{
+  margin-left:auto;font-family:var(--font-mono);
+  font-size:var(--text-badge);letter-spacing:var(--tracking-mono);color:var(--faint);
 }
 
-/* demo stage — wallpapered, not a product window */
-.stage{
-  position:relative;min-height:400px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
-  background:
-    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
-    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
-    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
-    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+/* ---- chord tier 1 of 3: row chord = CommandShortcut
+   (`ms-auto font-mono text-badge tracking-mono text-faint`). Bare
+   text, NO chip chrome — boards render ONE span per row carrying the
+   whole chord. `.pal-k` is neutralized, not restyled. */
+.pal-chord{
+  margin-left:auto;flex:none;
+  font-family:var(--font-mono);font-size:var(--text-badge);
+  letter-spacing:var(--tracking-mono);color:var(--faint);white-space:nowrap;
 }
-.stage--short{min-height:260px}
-.stage--tall{min-height:520px}
-.stage--pad{display:flex;align-items:flex-start;justify-content:center;padding:28px 20px 32px}
-.stage--center{display:flex;align-items:center;justify-content:center;padding:24px 20px}
-/* demo overrides: floating chrome renders in-flow inside stages.
-   inset:0 WINS herdr's `.stage .overlay{position:absolute}` (no inset). */
-.stage .popover,.stage .toasts{position:absolute}
-.stage .overlay{position:absolute;inset:0}
-.stage .palette-overlay{position:absolute;inset:0;padding-top:36px}
-.stage .win{position:relative;animation:none}
-.plain{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
-.lab-foot{margin-top:28px;font-size:11px;line-height:1.55;color:var(--faint)}
-.lab-foot code{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+.pal-item .pal-k,.pal-act__row .pal-k,.pal-chord .pal-k{
+  display:inline;min-width:0;height:auto;padding:0;
+  border:0;border-radius:0;background:none;box-shadow:none;
+  font:inherit;letter-spacing:inherit;color:inherit;
+}
+
+/* ---- chord tier 2 of 3: footer hints = Kbd (`h-5 min-w-5 rounded-sm
+   bg-canvas-soft px-1 font-mono text-mono-id font-medium tracking-mono
+   text-muted` — NO border, NO cast shadow). Boards render ONE .key per
+   hint carrying the whole chord. Footer = OsPaletteFooter. */
+.pal-foot{
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;
+  min-height:0;padding:12px 20px;border-top:1px solid var(--line-soft);
+  font-family:var(--font-sans);font-size:var(--text-eyebrow);
+  color:var(--subtle);
+}
+.pal-foot span{display:inline-flex;align-items:center;gap:8px}
+.pal-foot .key{
+  height:20px;min-width:20px;padding:0 4px;
+  border:0;box-shadow:none;border-radius:var(--radius-sm);
+  background:var(--canvas-soft);
+  font-family:var(--font-mono);font-size:var(--text-mono-id);font-weight:510;
+  letter-spacing:var(--tracking-mono);color:var(--muted);
+}
+/* ---- chord tier 3 of 3: settings binding caps = ShortcutBindingKeys
+   (web/src/systems/os/components/shortcut-binding-keys.tsx). ONE cap
+   per BINDING carrying the whole chord — production maps over
+   bindings, not keys; index > 0 is the alternate binding (dashed
+   --line-strong, transparent, in production). Base cap = --line
+   border on --canvas, no cast shadow (production Kbd has none).
+   herdr .key ships --line-strong + --badge-fill + a cast shadow —
+   parity override, scoped to the settings surfaces that keep caps.
+   Settings is the only surface where a chord is edited. */
+.cp-reg .key,.sc-row .key,.cp-ext .key{
+  border:1px solid var(--line);background:var(--canvas);box-shadow:none;
+}
+
+/* ---- banner lane → Alert (compact in-palette variant). ONE grouped
+   rule; the tone rules live with their chapters. */
+.pal-sec-err,
+.pal-form__fail,
+.cp-conflict,
+.cp-ext__health{
+  display:flex;align-items:flex-start;gap:9px;
+  padding:10px 12px;border-radius:var(--radius-md);
+  font-size:var(--text-small-body);line-height:1.45;color:var(--fg);
+}
+.pal-sec-err svg,
+.pal-form__fail svg,
+.cp-conflict svg,
+.cp-ext__health svg{width:13px;height:13px;flex:none;margin-top:2px}
+
+/* ---- empty lane → CommandEmpty (`py-6 text-center text-small-body
+   text-muted`) / Empty (compact). */
+.pal-none,
+.pal-preview-none,
+.pal-none--dest,
+.pal-none--filter,
+.pal-act__empty,
+.pal-dd__empty{font-size:var(--text-small-body);color:var(--muted)}
+
+/* ---- chip lane → Pill. Squarish (radius-xs), tint fill + tone text,
+   sans label at --text-eyebrow 510 / --tracking-eyebrow (mono variant
+   --text-mono-id 600). Sizes xs 17 · sm 19 · md 22. */
+.pal-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  height:22px;padding:0 10px;border:0;border-radius:var(--radius-xs);
+  background:var(--neutral-tint);color:var(--neutral-ink);
+  font-family:var(--font-sans);font-size:var(--text-eyebrow);font-weight:510;
+  letter-spacing:var(--tracking-eyebrow);
+}
+.pal-chip svg{width:11px;height:11px;flex:none}
+.pal-chip .count{
+  font-family:var(--font-mono);font-size:var(--text-mono-id);
+  font-variant-numeric:tabular-nums;color:var(--faint);
+}
+.pal-chip:hover{color:var(--fg);border-color:transparent}
+/* Pill `active` compound variant: bg-elevated + text-fg-strong. No rim. */
+.pal-chip.is-on{background:var(--elevated);color:var(--fg-strong);border-color:transparent;box-shadow:none}
+.pal-chip.is-on .count{color:var(--subtle)}
+.pal-chip:focus-visible{box-shadow:var(--focus-ring)}
+/* Production chips row (os-palette-session-chips) separates by
+   spacing alone — herdr's full-bleed band hairline is retired. */
+.pal-chips{padding:12px 20px 2px;gap:8px;border-bottom:0}
 
 /* ==== 1 · ROOT RESULTS ==== */
 /* Boards: command-palette-root.html · command-palette-root-states.html
    Surfaces: S1 rest / first-run / query+ghost / async / global scope;
-   S14 pending motion (root-states). Production: os-command-palette.tsx.
-   New nodes only — .pal-group / .pal-item / .pal-meta stay herdr's. */
+   S14 pending motion (root-states). Production: os-command-palette.tsx. */
 
-/* Ghost autocomplete — after the caret, typed casing preserved.
-   Wrapper fills the 52px palette head; input size is ds-shell's. */
+/* Ghost autocomplete — after the caret, typed casing preserved. The
+   mirror rides the input scale (--text-small-body) so the tail stays
+   glued to the query instead of floating a half-step above it. */
 .pal-ghost{
   position:relative;flex:1;min-width:0;height:100%;
   display:flex;align-items:center;
 }
 .pal-ghost__mirror{
   position:absolute;inset:0;display:flex;align-items:center;
-  pointer-events:none;font-size:14.5px;letter-spacing:-.006em;
+  pointer-events:none;
+  font-size:var(--text-ws-name);letter-spacing:var(--tracking-body);
   white-space:nowrap;overflow:hidden;
 }
 .pal-ghost__typed{color:transparent}
 .pal-ghost__tail{color:var(--subtle)}
 .pal-ghost__accept{
   position:relative;z-index:1;margin-left:auto;flex:none;
-  font-family:var(--font-mono);font-size:10.5px;font-weight:500;
-  color:var(--faint);letter-spacing:.02em;
+  font-family:var(--font-mono);font-size:var(--text-mono-id);font-weight:510;
+  letter-spacing:var(--tracking-mono);color:var(--faint);
 }
 
-/* Ask-agent fallback — delegation, not execution. Info plate +
+/* Ask-agent fallback — delegation, not execution. Info roundel +
    own glyph; never a plain .pal-item. */
 .pal-item--ask{color:var(--fg)}
 .pal-item--ask:hover{background:var(--row-hover);color:var(--fg-strong)}
-.pal-item--ask.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
+.pal-item--ask.is-active{background:var(--elevated);color:var(--fg-strong);box-shadow:none}
+/* The roundel joins the 14px leading-glyph column so the Ask-agent
+   label sits on the same left edge as its sibling rows. */
 .pal-ask{
   width:18px;height:18px;flex:none;
   display:grid;place-items:center;border-radius:var(--radius-pill);
   background:var(--info-tint);color:var(--info);
 }
 .pal-ask svg{width:11px;height:11px;color:var(--info)}
-.pal-item--ask .pal-ask-q{color:var(--info);font-weight:500}
+.pal-item--ask .pal-ask-q{color:var(--info);font-weight:510}
 
-/* Chord badge cluster — row-scale keycaps, right-aligned.
-   Distinct from herdr .key (20px) and .pal-foot .key (16px). */
-.pal-chord{display:inline-flex;align-items:center;gap:2px;margin-left:auto;flex:none}
-.pal-k{
-  display:inline-flex;align-items:center;justify-content:center;
-  min-width:16px;height:15px;padding:0 4px;
-  border:1px solid var(--line);border-radius:var(--radius-xxs);
-  background:var(--badge-fill);
-  font-family:var(--font-mono);font-size:9px;font-weight:500;color:var(--subtle);
-  white-space:nowrap;
+/* State cluster — glyph + the literal state word travelling as ONE
+   right-aligned unit. Without it boards give the glyph and the word
+   separate auto margins and the pair splits across the row. */
+.pal-state{display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex:none}
+
+/* ---- ONE auto margin per row ----
+   A flex row with two `margin-left:auto` children splits the free
+   space between them instead of pushing one cluster right. Every
+   right-cluster starter below already owns the auto margin, so a
+   trailing .pal-chord drops its own and rides the row gap. */
+.pal-push ~ .pal-chord,
+.pal-hint ~ .pal-chord,
+.pal-state ~ .pal-chord,
+.pal-meta ~ .pal-chord,
+.pal-act__ret ~ .pal-chord{margin-left:0}
+.pal-chips .pal-scope ~ .pal-reload{margin-left:0}
+
+/* Scope chip — rides INSIDE the input box, trailing the query
+   (the SearchInput trailing-slot precedent). A lone chip never earns
+   its own .pal-chips band — that band exists for real filter-chip
+   sets only, and a solo right-aligned chip leaves a dead row. */
+.pal-scope{flex:none}
+.pal-input-box .pal-scope,
+.palette-head .pal-scope{margin-left:auto}
+
+/* Palette-head back control — 24px hit target for the one
+   interactive glyph in the head (bare 16px svg buttons fail the
+   target-size floor). Boards wrap the chevron in .pal-back. */
+.palette-head .pal-back{
+  flex:none;display:inline-flex;align-items:center;justify-content:center;
+  width:24px;height:24px;margin-left:8px;padding:0;
+  border-radius:var(--radius-sm);color:var(--muted);
 }
-.pal-item.is-active .pal-k,.pal-item--sub.is-active .pal-k{color:var(--muted);border-color:var(--line-strong)}
+.palette-head .pal-back:hover{background:var(--btn-fill);color:var(--fg)}
+.palette-head .pal-back:focus-visible{box-shadow:var(--focus-ring)}
+.palette-head .pal-back svg{width:16px;height:16px}
 
 /* Stacked command row — workspace sub-line suffix (herdr pal-srow
-   precedent). Height steps from 36 → ≥40 only with this modifier. */
+   precedent). Two-line variant of the 30px CommandItem. */
 .pal-item--sub{
-  height:auto;min-height:40px;align-items:flex-start;padding-top:6px;padding-bottom:6px;
+  height:auto;min-height:48px;align-items:flex-start;padding-top:8px;padding-bottom:8px;
 }
+/* align-items:flex-start top-aligns the 16px leading glyph against
+   a 20px first line — nudge it back onto the line's optical centre. */
+.pal-item--sub > svg{margin-top:2px}
 .pal-item__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:0}
 .pal-item__sub{
-  font-size:10.5px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:var(--text-micro);color:var(--subtle);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 
 /* Alias suffix — `Title (alias)` muted, never a second hue. */
 .pal-alias{color:var(--subtle);font-weight:400}
 
-/* Widened global-scope chip — boards add .is-wide on the globe
-   chip when All-workspaces is on. Does not restyle .pal-scope. */
+/* Widened global-scope chip — boards add .is-wide on the globe chip
+   when All-workspaces is on. .is-wide says ONE thing (the scope got
+   wider): the width bump on the neutral Pill fill, no selection
+   raise. .is-on keeps the --elevated raise. */
 .pal-chip.is-wide{
-  padding-inline:12px;background:var(--elevated);
-  border-color:var(--line-strong);color:var(--fg-strong);
-  box-shadow:var(--highlight);
+  padding-inline:14px;background:var(--neutral-tint);
+  border-color:transparent;color:var(--fg);box-shadow:none;
 }
 .pal-chip.is-wide .count,.pal-chip.is-wide svg{color:var(--subtle)}
-.pal-chip.is-wide:hover{color:var(--fg-strong);border-color:var(--line-strong)}
+.pal-chip.is-wide:hover{color:var(--fg-strong)}
 
 /* Overflow note — exact `showing N of M`. Not a command row. */
 .pal-overflow{
-  padding:4px 10px 8px;
-  font-family:var(--font-mono);font-size:10px;color:var(--faint);
+  padding:6px 12px 10px;
+  font-family:var(--font-mono);font-size:var(--text-badge);
+  letter-spacing:var(--tracking-mono);color:var(--faint);
+}
+/* Pinned variant — the note is mandatory (silent truncation is
+   forbidden), so a capped well must carry it OUTSIDE the scroll area.
+   Sits between the results well and .pal-foot. */
+.pal-overflow--pinned{
+  flex:none;padding:5px 12px 6px;
+  border-top:1px solid var(--line);
 }
 
 /* Disabled row + structured reason hint. Reason NEVER in the label.
-   Disabled is the only lane allowed to drop contrast. */
+   INTENTIONAL DELTA vs production: CommandItem disables with
+   `opacity-50`, which would drag the mandated verbatim reason below
+   AA. This set disables by color and keeps the hint at full --subtle
+   contrast (BR-8). Implementation needs `data-[disabled=true]:
+   opacity-100` plus these color overrides. */
 .pal-item--off,.pal-item--off:hover{
   color:var(--muted);background:transparent;cursor:not-allowed;
 }
 .pal-item--off svg{color:var(--faint)}
 .pal-hint{
   margin-left:auto;flex:none;max-width:46%;
-  font-size:10.5px;line-height:1.3;color:var(--subtle);
+  font-size:var(--text-micro);line-height:1.3;color:var(--subtle);
   text-align:right;
 }
-.pal-item--off .pal-chord{margin-left:8px}
-.pal-item--off .pal-k{color:var(--faint);border-color:var(--line-soft)}
+/* Dimmed chord on a disabled row. The chord is the ONLY channel
+   naming the bound key, so it dims one step (--faint → --muted) and
+   never further. Spacing comes from the one-auto-margin rule above. */
+.pal-item--off .pal-chord{color:var(--muted)}
 
-/* Inline section error — names the domain; siblings stay live. */
-.pal-sec-err{
-  display:flex;align-items:flex-start;gap:7px;
-  padding:8px 10px;font-size:12px;line-height:1.45;color:var(--fg);
-}
-.pal-sec-err svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--warning)}
+/* Inline section error — names the domain; siblings stay live.
+   In-list Alert: transparent plate, warning glyph. */
+.pal-sec-err{background:transparent}
+.pal-sec-err svg{color:var(--warning)}
 .pal-sec-err b{font-weight:600;color:var(--fg-strong)}
 
-/* Async skeleton rows — 36px pal-item ladder. Motion token only;
-   never a percentage. */
+/* Async skeleton rows — Skeleton parity: --canvas-soft base under a
+   travelling --surface-glaze gradient at 200% background-size.
+   The 1.6s loop is a shimmer cadence, not a state-feedback step, so
+   it stays off the --dur-* ramp (which tops out at 200ms). */
 .pal-skel{
-  display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;
+  display:flex;align-items:center;gap:10px;min-height:40px;padding:10px 12px;
 }
-.pal-skel__ic{
-  width:15px;height:15px;flex:none;border-radius:var(--radius-xxs);
-  background:var(--badge-fill);
+.pal-skel__ic,.pal-skel__bar{
+  border-radius:var(--radius-md);
+  background-color:var(--canvas-soft);
+  background-image:linear-gradient(90deg,transparent 0%,var(--surface-glaze) 50%,transparent 100%);
+  background-size:200% 100%;
+  animation:cp-shimmer 1.6s var(--ease) infinite;
 }
-.pal-skel__bar{
-  height:8px;border-radius:var(--radius-xxs);
-  background:var(--badge-fill);
-  animation:cp-pulse 1.4s var(--ease) infinite;
-}
+.pal-skel__ic{width:14px;height:14px;flex:none}
+.pal-skel__bar{height:8px}
 .pal-skel__bar--lg{width:42%}
 .pal-skel__bar--sm{width:22%;margin-left:auto}
+/* srow-ladder variant — a cold-cache placeholder stands in for a
+   40px .pal-srow entity row; a 30px skeleton would jump on load. */
+.pal-skel--srow{min-height:48px}
 
-/* In-palette pending — motion token only, never fake %. */
+/* In-palette pending — StatusDot accent + pulse. Motion token only,
+   never fake progress. */
 .pal-pend{
-  width:7px;height:7px;flex:none;border-radius:50%;
+  width:7px;height:7px;flex:none;border-radius:var(--radius-pill);
   background:var(--accent);color:var(--accent);
   animation:pulse 1.8s var(--ease) infinite;
 }
 
-/* Extension-source chip — info + extension name (signal map). */
+/* Extension-source chip → Pill xs info mono (h17 · px6 · radius-xs). */
 .pal-src{
-  display:inline-flex;align-items:center;height:16px;padding:0 6px;
-  border-radius:var(--radius-xxs);background:var(--info-tint);
-  font-family:var(--font-mono);font-size:9.5px;color:var(--info);
+  display:inline-flex;align-items:center;height:17px;padding:0 6px;
+  border-radius:var(--radius-xs);background:var(--info-tint);color:var(--info);
+  font-family:var(--font-mono);font-size:var(--text-mono-id);font-weight:600;
   white-space:nowrap;
 }
 
-@keyframes cp-pulse{0%,100%{opacity:.42}50%{opacity:.88}}
-@keyframes cp-indeterminate{0%{transform:translateX(-80%)}100%{transform:translateX(220%)}}
+/* Skeleton shimmer mirrors the production keyframe (200% → -200%). */
+@keyframes cp-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* sliver is 30% wide: -100% parks it fully off-left, 333% fully off-right */
+@keyframes cp-indeterminate{0%{transform:translateX(-100%)}100%{transform:translateX(333%)}}
 
 /* ==== 2 · DESTINATION MODE ==== */
 /* Board: command-palette-root-states.html
    Surface: S10 destination. Heading `Open in this tab`;
    placeholder `Open in this tab…`. Ineligible groups absent. */
 .pal-dest-head{
-  flex:none;font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;
+  flex:none;font-size:var(--text-ws-name);font-weight:600;
+  color:var(--fg-strong);white-space:nowrap;
 }
+/* The destination group heading is a sentence, not an eyebrow — it
+   opts out of the eyebrow lane on purpose. */
 .pal-group.pal-dest{
-  text-transform:none;letter-spacing:-.01em;font-size:12px;font-weight:600;color:var(--fg-strong);
-  padding:10px 10px 4px;
+  text-transform:none;letter-spacing:var(--tracking-body);
+  font-size:var(--text-small-body);font-weight:600;color:var(--fg-strong);
+  padding:8px 8px 4px;
 }
-.pal-none--dest{color:var(--muted)}
 
 /* ==== 3 · VIEW-STACK CHROME ==== */
 /* Board: command-palette-view-shell.html
    Surface: S2 stack chrome + frames. Breadcrumb ≤3 slots,
-   left-truncating. herdr .pal-crumbs / .pal-crumb stay as-is. */
+   left-truncating. */
 
-/* Ellipsis crumb — `…` · tooltip `Earlier levels`. New class;
-   does not restyle herdr .pal-crumb--more. */
-.pal-crumb--ellipsis{
-  position:relative;min-width:22px;justify-content:center;
-  color:var(--faint);background:transparent;border-color:transparent;padding:0 2px;
+/* Breadcrumb = os-palette-breadcrumb: a text path row, not a chip
+   strip. `flex:1 1 auto` (NOT a 100% basis) so the crumbs share
+   line 1 with the 24px back control while the input box (100% basis)
+   wraps onto line 2 — a 100% basis here strands the back arrow on a
+   line of its own. Solo crumbs still fill the row. 12px left inset +
+   the head's 4px = the 16px lead the search icon shares. */
+.pal-crumbs{
+  flex:1 1 auto;min-width:0;
+  display:flex;align-items:center;gap:8px;
+  padding:0 12px;
+  font-size:var(--text-form-label);color:var(--muted);
 }
-.pal-crumb--ellipsis:hover,.pal-crumb--ellipsis:focus-visible{color:var(--fg);background:var(--row-hover)}
+.pal-crumbs .pal-crumb:last-child{font-weight:510}
+/* Beside the back control the row's left inset is already spent on
+   the 24px arrow — drop the crumb padding to a 6px gap. */
+.palette-head .pal-back + .pal-crumbs{padding-left:6px}
+/* A bare command glyph leading the nav row (args mode) sits on the
+   same rail as every other leading mark, and its crumb text lands on
+   the 46px text column (20 + 16 + 10). */
+.palette-head > svg{flex:none;margin-left:12px;color:var(--subtle)}
+.palette-head > svg + .pal-crumbs{padding-left:10px}
+.pal-crumbs svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+.pal-crumb{
+  height:auto;padding:0;border:0;background:transparent;
+  font-size:inherit;font-weight:400;color:inherit;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.pal-crumb--root{color:inherit;padding:0}
+.pal-crumbs .pal-crumb:last-child{color:var(--fg-strong)}
+.pal-crumbs .w2-sep{font-size:var(--text-micro);color:var(--faint)}
+
+/* Ellipsis crumb — `…` · tooltip `Earlier levels`. Plain text; the
+   chip plate is retired with the rest of the breadcrumb chrome. */
+.pal-crumb--ellipsis{
+  position:relative;min-width:0;justify-content:center;
+  color:var(--faint);background:transparent;border-color:transparent;padding:0;
+}
+.pal-crumb--ellipsis:hover,.pal-crumb--ellipsis:focus-visible{color:var(--fg);background:transparent}
+/* TooltipContent: opaque --canvas-soft · radius-md · px12/py6 ·
+   --text-form-label --fg-strong · --shadow-hairline. No glass, no
+   blur, no border, no cast shadow. */
 .pal-tip{
   position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
-  z-index:2;padding:4px 8px;
-  background:var(--elevated);border:1px solid var(--line-strong);
-  border-radius:var(--radius-sm);box-shadow:var(--shadow-overlay);
-  font-size:11px;font-weight:500;color:var(--fg);white-space:nowrap;
-  pointer-events:none;
+  z-index:2;padding:6px 12px;
+  background:var(--canvas-soft);border:0;border-radius:var(--radius-md);
+  box-shadow:var(--shadow-hairline);
+  font-size:var(--text-form-label);font-weight:510;color:var(--fg-strong);
+  white-space:nowrap;pointer-events:none;
 }
-.pal-crumb--ellipsis:hover .pal-tip,.pal-crumb--ellipsis:focus-visible .pal-tip{display:block}
+/* base first, reveal second. */
 .pal-crumb--ellipsis .pal-tip{display:none}
+.pal-crumb--ellipsis:hover .pal-tip,.pal-crumb--ellipsis:focus-visible .pal-tip{display:block}
 
-/* Per-view footer variants — same 34px herdr .pal-foot chrome. */
-.pal-foot--args .pal-k,.pal-foot--confirm .pal-k{height:16px}
-
-/* Full-frame states under identical chrome (results well). */
+/* Full-frame states under identical chrome (results well) → Empty. */
 .pal-frame{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
-  min-height:180px;padding:28px 24px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  min-height:200px;padding:36px 24px;text-align:center;
 }
-.pal-frame svg{width:18px;height:18px;color:var(--faint)}
-.pal-frame__t{font-size:13px;font-weight:500;color:var(--fg-strong)}
-.pal-frame__s{font-size:12px;line-height:1.45;color:var(--muted);max-width:28ch}
-.pal-frame--unavailable svg{color:var(--warning)}
-.pal-frame--timeout svg{color:var(--warning)}
+.pal-frame svg{width:16px;height:16px;color:var(--faint)}
+.pal-frame__t{font-size:var(--text-ws-name);font-weight:510;color:var(--fg-strong)}
+.pal-frame__s{font-size:var(--text-form-label);line-height:1.45;color:var(--muted);max-width:28ch}
+/* every non-neutral frame is a runtime-health frame → one warning rule */
+.pal-frame--unavailable svg,
+.pal-frame--timeout svg,
+.pal-frame--broken svg,
+.pal-frame--unknown svg{color:var(--warning)}
+/* Frame qualifier — ranks below the source line (view broken keeps
+   the source AND carries `until reopen` as a distinct qualifier). */
+.pal-frame__q{font-size:var(--text-badge);color:var(--subtle);margin-top:-4px}
 .pal-frame--loading .pal-pend{margin-bottom:2px}
 
-/* Kind-body containers — list / detail / form / grid share chrome. */
+/* Kind-body containers — list / detail / form / grid share chrome.
+   Scroll ownership: --list defers to .palette-results (46vh); the
+   non-list kinds match that cap so a long form or tall grid scrolls
+   in the well instead of growing the palette past the viewport. */
 .pal-kind{min-width:0}
-.pal-kind--form,.pal-kind--grid{padding:10px 12px 12px}
+.pal-kind--form,.pal-kind--grid{padding:14px 16px 16px;max-height:46vh;overflow:auto}
 .pal-kind--list{padding:0}
 
 /* ==== 4 · PROGRAMMABLE BANDS ==== */
 /* Board: command-palette-view-bands.html
    Surface: US-039. Soft 150ms · hard ack 3s · break at 3 misses.
    Busy keeps previous rows — the list never blanks. */
+/* overflow:hidden clips the travelling sweep to the band; block
+   padding gives a hosted control (.btn--sm, 22px) room to breathe
+   instead of sitting flush against both band edges. */
+/* Bands sit as an inset strip between head and results — a floating
+   chip, not a full-bleed dam glued to both zones. */
 .pal-band{
-  position:relative;display:flex;align-items:center;gap:8px;
-  min-height:var(--cp-band-h);padding:0 12px;
-  font-size:11px;color:var(--subtle);
+  position:relative;overflow:hidden;
+  display:flex;align-items:center;gap:8px;
+  min-height:var(--cp-band-h);margin:10px 8px 0;padding:5px 12px;
+  border-radius:var(--radius-md);
+  font-size:var(--text-form-label);color:var(--subtle);
 }
 .pal-band svg{width:12px;height:12px;flex:none}
 .pal-band--busy{color:var(--muted)}
+/* Indeterminate = a travelling sliver, not a full-width bar that
+   slides its own length. ONE motion channel per band: inside --busy
+   the sweep owns it, so the pulsing .pal-pend dot stands down
+   (the literal word `updating` is the non-motion channel).
+   The 1.2s traverse is a loop cadence, not a --dur-* state step. */
 .pal-band--busy::before{
-  content:"";position:absolute;left:0;right:0;top:0;height:2px;
+  content:"";position:absolute;left:0;top:0;width:30%;height:2px;
   background:color-mix(in oklab,var(--accent) 70%,transparent);
-  transform-origin:left center;
   animation:cp-indeterminate 1.2s var(--ease) infinite;
 }
-.pal-band--degraded{color:var(--fg);background:color-mix(in srgb,var(--warning-tint) 70%,transparent)}
-.pal-band--degraded svg{color:var(--warning)}
-.pal-band--broken{color:var(--fg);background:color-mix(in srgb,var(--warning-tint) 70%,transparent)}
-.pal-band--broken svg{color:var(--warning)}
+.pal-band--busy .pal-pend{display:none}
+.pal-band--degraded,.pal-band--broken{
+  color:var(--fg);background:color-mix(in srgb,var(--warning-tint) 70%,transparent);
+}
+.pal-band--degraded svg,.pal-band--broken svg{color:var(--warning)}
 .pal-band .btn{margin-left:auto}
 
-/* Circuit-broken occupies the results well; chrome stays live. */
-.pal-frame--broken svg{color:var(--warning)}
-
-/* `view reloaded` note chip — after a dev-mode edit with the view open. */
+/* `view reloaded` note → Pill sm success (h19 · radius-xs). */
 .pal-reload{
-  display:inline-flex;align-items:center;gap:5px;
-  height:18px;padding:0 7px;border-radius:var(--radius-pill);
+  display:inline-flex;align-items:center;gap:6px;
+  height:19px;padding:0 8px;border-radius:var(--radius-xs);
   background:var(--success-tint);color:var(--success);
-  font-size:10.5px;font-weight:500;
+  font-family:var(--font-sans);font-size:var(--text-eyebrow);font-weight:510;
+  letter-spacing:var(--tracking-eyebrow);
 }
-.pal-reload svg{width:11px;height:11px}
+.pal-reload svg{width:11px;height:11px;flex:none}
+.pal-chips .pal-reload{margin-left:auto}
 
 /* ==== 5 · DOMAIN LIST + DETAIL PANE ==== */
 /* Board: command-palette-domain-list.html
@@ -384,30 +807,73 @@
   min-height:220px;align-items:stretch;
 }
 .pal-split__list{min-width:0;border-right:1px solid var(--line)}
+/* staged framing — the split is a bare grid; a lab fragment that
+   shows it outside a .palette needs the well's edge back. */
+.pal-split--framed{border:1px solid var(--line);border-radius:var(--radius-lg)}
+/* The detail rail is flat: the hairline is the separator, not a wash.
+   (The round-2 55% canvas-soft mix was invisible once the panel
+   itself became opaque canvas-soft.) */
 .pal-split__detail{
-  min-width:0;overflow:auto;padding:10px 12px 14px;
-  background:color-mix(in oklab,var(--canvas-soft) 55%,transparent);
+  min-width:0;overflow:auto;padding:14px 16px 16px;
+  background:var(--canvas-soft);
 }
+/* PropertyRow / MetadataList. The 72px label gutter is a palette-width
+   adaptation of production --width-kv-label (140) — AUTHORIZED DELTA:
+   140px inside a 208px rail leaves no room for the value. */
 .pal-kv{display:flex;flex-direction:column;gap:0}
 .pal-kv__row{
   display:grid;grid-template-columns:72px minmax(0,1fr);
-  gap:8px;align-items:baseline;padding:5px 0;
+  gap:10px;align-items:baseline;padding:7px 0;
   border-top:1px solid var(--line-soft);
 }
 .pal-kv__row:first-child{border-top:0;padding-top:0}
-.pal-kv__k{font-size:10.5px;color:var(--subtle)}
-.pal-kv__v{font-size:12px;color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis}
-.pal-kv__v .mono{font-size:10.5px;color:var(--muted)}
+.pal-kv__k{font-size:var(--text-form-label);color:var(--subtle)}
+/* KV values are single-line facts; without nowrap the ellipsis never
+   fires and a long value wraps and then clips mid-line instead. */
+.pal-kv__v{
+  font-size:var(--text-small-body);color:var(--fg);
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.pal-kv__v .mono{font-size:var(--text-mono-id);color:var(--muted)}
+/* ONE shared status-tone dictionary (DESIGN-NOTES · no view-local
+   map). herdr scopes the tones to `.pal-srow__sub .state[data-class]`,
+   so the same span rendered as a detail-pane KV value fell through to
+   plain --fg. Values below mirror the herdr map exactly. */
+.pal-kv__v .state[data-class="needs"]{color:var(--danger)}
+.pal-kv__v .state[data-class="done"]{color:var(--info)}
+.pal-kv__v .state[data-class="run"]{color:var(--accent-strong)}
 
-/* Sanitized rich text → plain-text degrade. */
-.pal-rich{font-size:12px;line-height:1.5;color:var(--fg);max-width:36ch}
+/* Entity rows = os-palette-session-row. Same selection grammar as the
+   command row: --elevated raise, no rim. */
+.pal-srow{
+  min-height:48px;padding:7px 12px;border-radius:var(--radius-md);
+  font-size:var(--text-small-body);
+}
+.pal-srow + .pal-srow{margin-top:2px}
+.pal-srow:hover{background:var(--row-hover)}
+.pal-srow.is-active{background:var(--elevated);color:var(--fg-strong);box-shadow:none}
+.pal-srow__title{font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong)}
+.pal-srow__sub{font-size:var(--text-micro);color:var(--subtle)}
+.pal-srow__meta{font-family:var(--font-mono);font-size:var(--text-micro);color:var(--subtle)}
+
+/* Sanitized rich text → plain-text degrade. Both variants fully
+   style a plain <div>: boards must not need a <pre> to get the
+   monospace + preserved-whitespace read. */
+.pal-rich{
+  font-family:var(--font-sans);font-size:var(--text-small-body);
+  line-height:1.5;color:var(--fg);max-width:36ch;white-space:normal;
+}
 .pal-rich p + p{margin-top:8px}
-.pal-rich--plain{color:var(--muted);white-space:pre-wrap}
+.pal-rich--plain{
+  font-family:var(--font-mono);font-size:var(--text-form-hint);
+  color:var(--muted);white-space:pre-wrap;
+}
+.pal-kv + .pal-rich{margin-top:12px}
 
 /* Neutral empty — `no preview`. */
 .pal-preview-none{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-  min-height:160px;text-align:center;color:var(--subtle);font-size:12px;
+  min-height:160px;text-align:center;
 }
 .pal-preview-none svg{width:16px;height:16px;color:var(--faint)}
 
@@ -421,32 +887,36 @@
 /* ==== 6 · FORM VIEW ==== */
 /* Board: command-palette-form-grid.html
    Surface: S5. Field order declared. Inputs reuse ds 36px .input /
-   .textarea / 32px .ctl. Per-field error; submit-failed keeps values. */
-.pal-form{display:flex;flex-direction:column;gap:10px}
-.pal-field{display:flex;flex-direction:column;gap:4px;min-width:0}
-.pal-field__lab{font-size:11px;font-weight:500;color:var(--subtle)}
-.pal-field__hint{font-size:11px;color:var(--subtle)}
-.pal-field__err{font-size:11px;color:var(--danger)}
-.pal-field.is-bad .pal-field__lab{color:var(--danger)}
-.pal-field.is-bad{border-radius:var(--radius-md)}
-.pal-field.is-focus .pal-field__lab{color:var(--fg)}
-.pal-field.is-miss .pal-field__hint{color:var(--fg);font-weight:500}
+   .textarea / 32px .ctl. Per-field error; submit-failed keeps values.
+   Field / FieldLabel / FieldDescription / FieldError parity. */
+.pal-form{display:flex;flex-direction:column;gap:14px}
+.pal-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+/* FieldLabel sets no color — it inherits --fg. */
+.pal-field__lab{font-size:var(--text-form-label);font-weight:510;color:var(--fg)}
+.pal-field__hint{font-size:var(--text-form-hint);color:var(--muted)}
+.pal-field__err{font-size:var(--text-form-hint);color:var(--danger)}
+.pal-field.is-focus .pal-field__lab{color:var(--fg-strong)}
+.pal-field.is-miss .pal-field__hint{color:var(--fg);font-weight:510}
+/* form action row — mirrors .pal-confirm__acts. */
+.pal-form__acts{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:2px}
 
-/* Checkbox + picker — no ds checkbox; 16px hit inside the field row.
-   File/directory picker is a 36px control row, not a path <input>. */
+/* Checkbox parity: 16px · radius-xs · --line border · --elevated fill;
+   checked → accent plate + accent-ink glyph. */
 .pal-check{
   display:inline-flex;align-items:center;gap:8px;
-  min-height:36px;font-size:13px;color:var(--fg);
+  min-height:36px;font-size:var(--text-small-body);color:var(--fg);
 }
 .pal-check__box{
-  width:16px;height:16px;flex:none;border-radius:var(--radius-xxs);
-  border:1px solid var(--line-strong);background:var(--elevated);
+  width:16px;height:16px;flex:none;border-radius:var(--radius-xs);
+  border:1px solid var(--line);background:var(--elevated);
   display:grid;place-items:center;
 }
 .pal-check[aria-checked="true"] .pal-check__box{
   background:var(--accent);border-color:var(--accent);color:var(--accent-ink);
 }
-.pal-check__box svg{width:10px;height:10px}
+.pal-check__box svg{width:12px;height:12px}
+/* Input parity: 36px --height-input · --line border · radius-md ·
+   --elevated fill. Invalid = border-danger, NO ring. */
 .pal-pick{
   display:flex;align-items:center;gap:8px;min-height:36px;
   padding:0 8px 0 12px;
@@ -454,156 +924,200 @@
 }
 .pal-pick__path{
   flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-family:var(--font-mono);font-size:11.5px;color:var(--muted);
+  font-family:var(--font-mono);font-size:var(--text-form-hint);color:var(--muted);
 }
-.pal-pick.is-bad{box-shadow:inset 0 0 0 1px var(--danger)}
+.pal-pick.is-bad{border-color:var(--danger);box-shadow:none}
 
-.pal-form__fail{
-  padding:8px 10px;border-radius:var(--radius-md);
-  background:var(--danger-tint);color:var(--danger);font-size:12px;line-height:1.45;
-}
+/* Submit-failed banner — Alert danger: --danger on --danger-tint. */
+.pal-form__fail{background:var(--danger-tint);color:var(--danger)}
 
 /* ==== 7 · GRID VIEW ==== */
 /* Board: command-palette-form-grid.html
    Surface: S6. Sections + tiles (image|token|emoji + title +
    optional badge). Media-failed keeps the title. 2D focus ring. */
 .pal-grid{display:flex;flex-direction:column;gap:12px}
-.pal-gsec__t{
-  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--subtle);padding:2px 2px 6px;
-}
-.pal-gsec__tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+/* .pal-gsec__t takes the eyebrow lane (chapter 0b). */
+.pal-gsec__tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .pal-tile{
-  display:flex;flex-direction:column;gap:6px;
-  min-height:72px;padding:8px;border-radius:var(--radius-md);
+  display:flex;flex-direction:column;gap:8px;
+  min-height:84px;padding:10px;border-radius:var(--radius-md);
   text-align:left;color:var(--fg);
 }
 .pal-tile:hover{background:var(--row-hover);color:var(--fg-strong)}
-.pal-tile.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
+.pal-tile.is-active{background:var(--elevated);color:var(--fg-strong);box-shadow:none}
 .pal-tile:focus-visible{box-shadow:var(--focus-ring)}
 .pal-tile__media{
-  height:44px;border-radius:var(--radius-sm);
+  height:52px;border-radius:var(--radius-sm);
   background:var(--elevated);overflow:hidden;
   display:grid;place-items:center;
 }
 .pal-tile__media img{width:100%;height:100%;object-fit:cover}
 .pal-tile__token{
-  font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--fg-strong);
+  font-family:var(--font-mono);font-size:var(--text-ws-name);font-weight:600;color:var(--fg-strong);
+}
+/* emoji media — the third declared tile medium gets a sized slot like
+   the other two, instead of a bare glyph inheriting the body scale. */
+.pal-tile__emoji{
+  display:grid;place-items:center;line-height:1;
+  font-size:var(--cp-tile-emoji);
 }
 .pal-tile__ph{color:var(--faint)}
 .pal-tile__ph svg{width:16px;height:16px}
 .pal-tile__t{
-  font-size:11.5px;font-weight:500;color:var(--fg-strong);
+  font-size:var(--text-form-label);font-weight:510;color:var(--fg-strong);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+/* Pill xs neutral. */
 .pal-tile__badge{
-  align-self:flex-start;height:16px;padding:0 6px;border-radius:var(--radius-xxs);
-  background:var(--badge-fill);font-size:9.5px;color:var(--subtle);
+  align-self:flex-start;display:inline-flex;align-items:center;
+  height:17px;padding:0 6px;border-radius:var(--radius-xs);
+  background:var(--neutral-tint);color:var(--neutral-ink);
+  font-family:var(--font-sans);font-size:var(--text-eyebrow);font-weight:510;
+  letter-spacing:var(--tracking-eyebrow);
 }
 
 /* ==== 8 · ACTION PANEL ==== */
 /* Board: command-palette-action-panel.html
-   Surface: S7. Anchored to the selected row. Glass grammar:
-   --shell-glass-pop, blur 30–34, radius 12–14, --shadow-overlay
-   + top light edge. Production radius stays on in-palette bodies. */
+   Surface: S7. Anchored to the selected row. PopoverContent /
+   DropdownMenu recipe: opaque --canvas-soft, radius-lg, 4px pad,
+   --shadow-hairline. No glass, no overlay shadow, no rim. */
 .pal-act{
   width:var(--cp-act-w);
-  background:var(--shell-glass-pop);
-  backdrop-filter:blur(32px) saturate(1.25);
-  border:1px solid var(--line-strong);border-radius:13px;
-  box-shadow:var(--shadow-overlay),var(--highlight);
+  padding:8px;
+  background:var(--cp-panel);
+  border:0;border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-hairline);
   overflow:hidden;
 }
+/* The panel filter is an input box, same recipe as the palette's,
+   one step shorter (36px) inside the 260px panel. */
 .pal-act__filter{
-  display:flex;align-items:center;gap:7px;
-  height:36px;padding:0 10px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;
+  height:36px;padding:0 12px;
+  border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--canvas-tint);
 }
-.pal-act__filter svg{width:13px;height:13px;color:var(--subtle);flex:none}
+.pal-act__filter:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+.pal-act__filter svg{width:16px;height:16px;color:var(--subtle);flex:none}
 .pal-act__filter input{
-  flex:1;min-width:0;height:28px;background:none;border:0;outline:none;
-  font-size:12px;color:var(--fg);
+  flex:1;min-width:0;height:100%;background:none;border:0;outline:none;
+  font-size:var(--text-ws-name);color:var(--fg);
 }
 .pal-act__filter input::placeholder{color:var(--subtle)}
-.pal-act__sec{
-  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--subtle);padding:8px 10px 3px;
-}
+/* .pal-act__sec takes the eyebrow lane (chapter 0b). */
+/* Action rows are CommandItem/DropdownMenuItem — the same tier as the
+   list they act on. */
 .pal-act__row{
-  display:flex;align-items:center;gap:8px;width:100%;
-  min-height:32px;padding:0 10px;
-  font-size:12.5px;color:var(--fg);text-align:left;
+  display:flex;align-items:center;gap:10px;width:100%;
+  min-height:36px;padding:8px 12px;border-radius:var(--radius-md);
+  font-size:var(--text-ws-name);color:var(--fg);text-align:left;
 }
+.pal-act__row + .pal-act__row{margin-top:2px}
 .pal-act__row:hover{background:var(--row-hover);color:var(--fg-strong)}
-.pal-act__row.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
-.pal-act__row svg{width:13px;height:13px;flex:none;color:var(--muted)}
-.pal-act__row:hover svg,.pal-act__row.is-active svg{color:var(--fg)}
+.pal-act__row.is-active{background:var(--elevated);color:var(--fg-strong);box-shadow:none}
+.pal-act__row svg{width:14px;height:14px;flex:none;color:var(--muted)}
+.pal-act__row:hover svg,.pal-act__row.is-active svg{color:var(--fg-strong)}
+/* ↩ marker on the primary action = CommandShortcut voice. */
 .pal-act__ret{
-  margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--subtle);
+  margin-left:auto;font-family:var(--font-mono);font-size:var(--text-badge);
+  letter-spacing:var(--tracking-mono);color:var(--faint);
 }
-.pal-act__row .pal-chord{margin-left:auto}
+/* DropdownMenuItem destructive: danger text + glyph, danger-tint plate
+   on hover/selection. */
 .pal-act__row--danger,.pal-act__row--danger:hover,.pal-act__row--danger.is-active{color:var(--danger)}
-.pal-act__row--danger svg{color:var(--danger)}
+.pal-act__row--danger svg,
+.pal-act__row--danger:hover svg,
+.pal-act__row--danger.is-active svg{color:var(--danger)}
+.pal-act__row--danger:hover,.pal-act__row--danger.is-active{background:var(--danger-tint)}
 .pal-act__row--off,.pal-act__row--off:hover{
   color:var(--muted);background:transparent;cursor:not-allowed;
 }
-.pal-act__row--off svg{color:var(--faint)}
+.pal-act__row--off svg,.pal-act__row--off:hover svg{color:var(--faint)}
+/* verbatim availability reason — one reason scale across the set
+   (.pal-hint, .pal-item__sub, .pal-act__why). */
 .pal-act__why{
-  padding:2px 10px 10px;
-  font-size:11px;line-height:1.45;color:var(--subtle);
+  padding:2px 8px 8px;
+  font-size:var(--text-micro);line-height:1.45;color:var(--subtle);
 }
-.pal-act__empty{padding:16px 12px;font-size:12px;color:var(--muted);text-align:center}
+.pal-act__empty{padding:24px 8px;text-align:center}
 
 /* ==== 9 · ARGS BAR ==== */
 /* Board: command-palette-args-confirmation.html
    Surface: S8. Input bar morphs into inline typed fields.
    Fixture: Capture note → title (text, required) + tag (dropdown).
-   ⇥ traverses. 28px pills sit in the 52px palette head. */
+   ⇥ traverses. 28px --height-search pills ride the palette head. */
 .pal-args{
-  display:flex;align-items:center;gap:6px;flex:1;min-width:0;height:100%;
-}
-.pal-arg{
+  flex:1 0 100%;min-width:0;height:auto;
   display:flex;align-items:center;gap:6px;
-  height:var(--cp-args-h);padding:0 8px;
-  border:1px solid var(--line);border-radius:var(--radius-md);
-  background:var(--input-fill);min-width:0;
 }
+/* SearchInput-scale field. */
+.pal-arg{
+  position:relative;
+  display:flex;align-items:center;gap:8px;
+  height:var(--cp-arg-h);padding:0 12px 0 11px;
+  border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--canvas-tint);min-width:0;
+}
+/* Field-label voice, inline (round 5): quiet normal-case 12px
+   --subtle beside a 13px value — the uppercase inline chip read as
+   cockpit texture inside a standard field. */
 .pal-arg__lab{
-  font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle);flex:none;
+  flex:none;font-family:var(--font-sans);font-size:var(--text-form-label);font-weight:400;
+  color:var(--subtle);
 }
 .pal-arg__in{
   min-width:72px;flex:1;height:100%;background:none;border:0;outline:none;
-  font-size:12px;color:var(--fg);
+  font-size:var(--text-ws-name);color:var(--fg);
 }
 .pal-arg__in::placeholder{color:var(--subtle)}
 .pal-arg.is-on,.pal-arg:focus-within{border-color:var(--line-strong);background:var(--elevated)}
-.pal-arg.is-miss{
-  border-color:var(--line-strong);box-shadow:var(--focus-ring);
-}
-.pal-arg.is-miss .pal-arg__in::placeholder{color:var(--fg);font-weight:500}
-.pal-arg.is-bad{border-color:color-mix(in oklab,var(--danger) 55%,var(--line-strong))}
-.pal-arg--mask .pal-arg__in{-webkit-text-security:disc}
+/* Invalid / missing-required = the Input invalid recipe: border-danger,
+   NO ring (--focus-ring stays exclusive to :focus-visible). The
+   emphasized placeholder is the second, non-color channel. */
+.pal-arg.is-miss{border-color:var(--danger);box-shadow:none}
+.pal-arg.is-miss .pal-arg__in::placeholder{color:var(--fg);font-weight:510}
+.pal-arg.is-bad{border-color:var(--danger);box-shadow:none}
+/* Per-field inline error — anchored to ITS OWN field (US-015.EC-2),
+   never to the head; it descends into the .pal-args-body reserve. */
 .pal-arg__err{
-  position:absolute;top:calc(100% + 6px);left:16px;
-  font-size:11px;color:var(--danger);
+  position:absolute;top:calc(100% + 8px);left:0;
+  font-size:var(--text-form-hint);color:var(--danger);white-space:nowrap;
 }
 /* Boards add .pal-head--args beside .palette-head — do not
-   restyle .palette-head itself (ds-shell). */
+   restyle .palette-head itself. */
 .pal-head--args{position:relative}
+/* Confirmation frame opens with no query chrome. */
+.palette-head.pal-head--args-bare{padding:0;height:auto;border:0}
+/* In-flow args body — reserves in-frame room between head and foot
+   so the per-field error and the type-to-filter dropdown render
+   inside the palette's clip. Never overflow:visible on .palette. */
+.pal-args-body{position:relative;min-height:8px}
+.pal-args-body--err{min-height:36px}
+/* Reserves size the DEPICTED state, not the .pal-dd max-case — a
+   static board renders a 156px max reserve as a layout hole. --dd
+   holds the two-row dropdown (6px offset + 4 + 2×28 + 4 = 70);
+   --dd-sm holds the one-row filtered state (6 + 4 + 28 + 4 = 42). */
+.pal-args-body--dd{min-height:76px}
+.pal-args-body--dd-sm{min-height:48px}
 
-/* Type-to-filter dropdown — content radius (3–10), not glass. */
+/* Type-to-filter dropdown = the Select/Combobox popup
+   (CommandSelectShell): --canvas-soft, radius-md, 4px pad,
+   --shadow-hairline. Not --elevated, no overlay shadow. */
 .pal-dd{
-  position:absolute;top:calc(100% - 2px);left:16px;right:16px;z-index:3;
-  max-height:180px;overflow:auto;padding:4px;
-  background:var(--elevated);border:1px solid var(--line-strong);
-  border-radius:var(--radius-md);box-shadow:var(--shadow-overlay);
+  position:absolute;top:calc(100% + 6px);left:0;z-index:3;
+  min-width:220px;max-width:320px;
+  max-height:152px;overflow:auto;padding:6px;
+  background:var(--cp-panel);border:0;border-radius:var(--radius-md);
+  box-shadow:var(--shadow-hairline);
 }
 .pal-dd__row{
-  display:flex;align-items:center;width:100%;height:28px;padding:0 8px;
-  border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg);text-align:left;
+  display:flex;align-items:center;width:100%;min-height:28px;padding:5px 8px;
+  border-radius:var(--radius-md);font-size:var(--text-small-body);
+  color:var(--fg);text-align:left;
 }
 .pal-dd__row:hover{background:var(--row-hover);color:var(--fg-strong)}
-.pal-dd__row.is-active{background:var(--row-selected);box-shadow:var(--highlight);color:var(--fg-strong)}
-.pal-dd__empty{padding:10px 8px;font-size:12px;color:var(--muted)}
+.pal-dd__row.is-active{background:var(--elevated);color:var(--fg-strong);box-shadow:none}
+.pal-dd__empty{padding:10px 8px}
 
 /* ==== 10 · CONFIRMATION ==== */
 /* Board: command-palette-args-confirmation.html
@@ -611,85 +1125,140 @@
    Destructive = danger confirm button. Invalidated target is honest. */
 .pal-confirm{
   display:flex;flex-direction:column;gap:10px;
-  padding:20px 18px 16px;
+  padding:20px 20px 16px;
 }
-.pal-confirm__title{font-size:14px;font-weight:600;letter-spacing:-.015em;color:var(--fg-strong)}
-.pal-confirm__body{font-size:12.5px;line-height:1.5;color:var(--muted);max-width:42ch}
-.pal-confirm__acts{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px}
+/* DialogTitle parity: --text-item-title 15 · 510 · tracking-tight. */
+.pal-confirm__title{
+  font-size:var(--text-item-title);font-weight:510;line-height:1.25;
+  letter-spacing:var(--tracking-tight);color:var(--fg-strong);
+}
+.pal-confirm__body{font-size:var(--text-small-body);line-height:1.5;color:var(--muted);max-width:42ch}
+/* DialogFooter parity (default variant): actions live in their own
+   full-bleed --canvas-tint band behind a --line rule, right-aligned —
+   never floating in the body. Palette-hosted confirms only; the
+   settings-inline reset confirm keeps the light inline row. */
+.pal-confirm__acts{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:6px}
+.palette .pal-confirm__acts{
+  margin:10px -20px -16px;padding:14px 20px;
+  border-top:1px solid var(--line);background:var(--canvas-tint);
+}
+/* Button `neutral` variant: h26 --height-button-default · px 10 ·
+   radius-md · --text-form-label 510 · --tracking-eyebrow · filled
+   --btn-fill with a transparent border (production Buttons are
+   borderless fills). A sibling ds .btn (Cancel) sits beside it. */
 .pal-confirm__go{
-  display:inline-flex;align-items:center;justify-content:center;
-  height:26px;padding:0 12px;border-radius:var(--radius-md);
-  font-size:12px;font-weight:500;
-  background:var(--btn-fill);border:1px solid var(--line);color:var(--fg);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:26px;padding:0 10px;border:1px solid transparent;border-radius:var(--radius-md);
+  font-family:var(--font-sans);font-size:var(--text-form-label);font-weight:510;
+  letter-spacing:var(--tracking-eyebrow);
+  background:var(--btn-fill);color:var(--fg-strong);
 }
-.pal-confirm__go:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+/* 14px glyph matches the ds .btn sibling sharing this action row. */
+.pal-confirm__go svg{width:14px;height:14px;flex:none}
+.pal-confirm__go:hover{background:var(--btn-hover);color:var(--fg-strong)}
+.pal-confirm__go:focus-visible{box-shadow:var(--focus-ring)}
+/* Button `destructive` variant: danger-tint plate + danger text, never
+   a solid danger plate; hover dims opacity so contrast never drops. */
 .pal-confirm__go--danger{
-  background:var(--danger);border-color:transparent;color:var(--accent-ink);
+  background:var(--danger-tint);border-color:transparent;color:var(--danger);
 }
-.pal-confirm__go--danger:hover{
-  background:color-mix(in oklab,var(--danger) 86%,var(--fg-strong));
-  border-color:transparent;color:var(--accent-ink);
-}
+.pal-confirm__go--danger:hover{background:var(--danger-tint);color:var(--danger);opacity:.9}
 .pal-confirm--void .pal-confirm__body{color:var(--fg)}
-.pal-confirm__void{
-  padding:8px 10px;border-radius:var(--radius-md);
-  background:var(--warning-tint);color:var(--fg);font-size:12px;line-height:1.45;
-}
 
 /* ==== 11 · SETTINGS ==== */
 /* Board: command-palette-settings.html
-   Surface: S12 shortcuts + global hotkeys. Table reuses herdr
-   .spec-table. New row/cell modifiers only. srow ≥54 in window. */
+   Surface: S12 shortcuts + global hotkeys. The registry is a PRODUCT
+   data table — `.spec-table.cp-reg` (cp-reg undoes the herdr
+   doc-table mono-first-column semantics). Shortcut rows use ONE
+   grammar: herdr .sc-row — never ds .srow beside it.
+   This is the ONE chapter that keeps per-key chord caps: settings is
+   where a chord is read key-by-key and edited (ShortcutBindingKeys). */
 .cp-toolbar{
   display:flex;align-items:center;gap:10px;
   padding:10px 0 12px;
 }
-.cp-toolbar .pill-group{margin-left:auto}
+/* Locked toolbar order: filters lead, the page action trails. */
+.cp-toolbar > .btn{margin-left:auto}
+/* Set-scoped shared-scaffold fix: ds .pill has no svg rule, so
+   lucide's 24px default lands inside a 19px pill. */
+.pill svg{width:12px;height:12px;flex:none}
+/* Page heading — boards were borrowing window-chrome .w2-title. */
+.cp-page-t{font-size:var(--text-ws-name);font-weight:600;letter-spacing:var(--tracking-body);color:var(--fg-strong)}
+/* Table parity: eyebrow header (chapter 0b) at 36px, 10/12 cells,
+   quiet row hover. */
 .cp-reg{width:100%;overflow:auto}
-.cp-bind{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.cp-reg th{height:36px;padding:0 12px;text-align:left}
+.cp-reg th,.cp-reg td{vertical-align:middle}
+.cp-reg td{padding:12px;font-size:var(--text-small-body)}
+.cp-reg tbody tr:hover{background:var(--row-hover)}
+.cp-reg td:first-child{font-family:var(--font-sans);font-size:var(--text-small-body);color:var(--fg);white-space:normal}
+/* Command cell — name + machine id (MonoId voice), one class each. */
+.cp-cmd{font-size:var(--text-small-body);font-weight:510;color:var(--fg)}
+.cp-cmd__id{
+  display:block;margin-top:1px;font-family:var(--font-mono);
+  font-size:var(--text-mono-id);color:var(--faint);
+}
+.cp-bind{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--muted)}
+/* AliasCell = a compact Input (h28 --height-search). The border box is
+   the editable affordance; the dashed underline is retired. */
 .cp-alias{
   min-height:28px;width:100%;max-width:160px;padding:0 8px;
-  border:1px solid transparent;border-radius:var(--radius-sm);
-  background:transparent;font-family:var(--font-mono);font-size:11.5px;color:var(--fg);
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:transparent;font-family:var(--font-mono);
+  font-size:var(--text-form-hint);color:var(--fg);
 }
+.cp-alias::placeholder{color:var(--faint)}
 .cp-alias:hover{background:var(--input-fill)}
-.cp-alias:focus{border-color:var(--line-strong);background:var(--elevated);outline:none}
-.cp-alias.is-bad{border-color:color-mix(in oklab,var(--danger) 55%,var(--line-strong));color:var(--fg)}
-.cp-alias-rule{font-size:10.5px;color:var(--danger);margin-top:3px}
+.cp-alias:focus{border-color:var(--line-strong);background:var(--elevated);box-shadow:var(--focus-ring);outline:none}
+.cp-alias.is-bad{border-color:var(--danger);color:var(--fg)}
+.cp-alias-rule{font-size:var(--text-form-hint);color:var(--danger);margin-top:3px}
 
+/* Conflict banner — Alert danger (banner lane, chapter 0b). */
 .cp-conflict{
-  display:flex;align-items:flex-start;gap:8px;
-  padding:8px 10px;margin:6px 0;
+  margin:6px 0;
   background:color-mix(in srgb,var(--danger-tint) 70%,transparent);
-  border-radius:var(--radius-md);font-size:12px;line-height:1.45;color:var(--fg);
 }
-.cp-conflict svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--danger)}
+.cp-conflict svg{color:var(--danger)}
 .cp-conflict .btn{margin-left:auto;flex:none}
 
-.cp-row--loser td{color:var(--muted)}
-.cp-row--loser .cp-flag{
+/* State flag — glyph + literal word. BASE class: five call sites,
+   only one of which sits inside a loser row. */
+.cp-flag{
   display:inline-flex;align-items:center;gap:4px;
-  font-size:10.5px;color:var(--warning);
+  font-size:var(--text-badge);color:var(--warning);
 }
+.cp-flag svg{width:12px;height:12px;flex:none}
+/* Conflict rows tint like herdr .sc-row[data-conflict] / production
+   window-manager-shortcut-row (bg-danger-tint / bg-warning-tint). */
+.cp-row--loser{background:color-mix(in srgb,var(--danger-tint) 55%,transparent)}
+.cp-row--loser td{color:var(--muted)}
+.cp-row--dormant{background:color-mix(in srgb,var(--warning-tint) 45%,transparent)}
 .cp-row--dormant td{color:var(--muted)}
-.cp-row--off td,.cp-row--off .cp-alias{color:var(--muted)}
-.cp-row--off{cursor:not-allowed}
-.cp-why{font-size:11px;color:var(--subtle)}
+/* Row-agnostic disabled — works on <tr> and .sc-row alike; the
+   chord dims WITH the row (a full-contrast keycap inside an
+   aria-disabled row reads enabled). */
+.cp-row--off{cursor:not-allowed;color:var(--muted)}
+.cp-row--off td,.cp-row--off .cp-alias,.cp-row--off .cp-cmd{color:var(--muted)}
+.cp-row--off .key{color:var(--muted)}
+/* Recorder = production `data-state=recording`: the binding trigger
+   becomes an accent-outlined field carrying `Press keys…`. This
+   replaces the round-2 JS identity swap (keys → pill), which changed
+   the control's identity mid-interaction. Ancestor-less on purpose:
+   recorders live in the .cp-reg table AND on .sc-row hotkey rows,
+   and button.keys exists only on the settings surfaces of this set. */
+button.keys.is-recording{
+  border:1px solid var(--accent);border-radius:var(--radius-sm);
+  background:var(--accent-tint-strong);padding:1px 6px;
+  font-family:var(--font-sans);font-size:var(--text-form-label);font-weight:510;
+  letter-spacing:var(--tracking-eyebrow);color:var(--accent-strong);
+}
+.sc-row.is-recording .sc-row__edit{opacity:1}
+.cp-why{display:block;font-size:var(--text-form-hint);color:var(--subtle);margin-top:3px}
+.panelbox > .cp-why{padding:0 12px 10px;margin-top:0}
 
 .cp-hot{margin-top:22px}
-.cp-hot__t{
-  font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--subtle);padding-bottom:6px;
-}
-
-/* macOS Accessibility callout + System Settings deep-link. */
-.cp-a11y{
-  display:flex;flex-direction:column;gap:0;
-  margin-top:12px;border:1px solid var(--line);border-radius:var(--radius-lg);
-  background:var(--canvas-soft);overflow:hidden;
-}
-.cp-a11y__body{padding:12px 16px;font-size:12.5px;line-height:1.5;color:var(--muted)}
-.cp-a11y__body b{color:var(--fg-strong);font-weight:600}
+/* .cp-hot__t RETIRED — boards use herdr .sc-group__t (same values).
+   .cp-a11y RETIRED — the macOS Accessibility callout is ds .notice. */
 
 /* ==== 12 · EXTENSIONS + PALETTE SETTINGS ==== */
 /* Board: command-palette-settings-palette.html
@@ -697,42 +1266,43 @@
    Fixture ext.notes. Unhealthy = grayed + verbatim health line. */
 .cp-ext{padding:0}
 .cp-ext__head{
-  display:flex;align-items:center;gap:10px;padding:12px 16px;
+  display:flex;align-items:center;gap:10px;padding:14px 16px;
   border-bottom:1px solid var(--line);
 }
-.cp-ext__name{font-size:13px;font-weight:600;color:var(--fg-strong)}
-.cp-ext__id{font-family:var(--font-mono);font-size:10.5px;color:var(--faint)}
+/* Identity block leads; the source chip trails the header edge. */
+.cp-ext__head > :first-child{flex:1;min-width:0}
+.cp-ext__name{font-size:var(--text-ws-name);font-weight:600;color:var(--fg-strong)}
+.cp-ext__id{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint)}
 .cp-ext__list{padding:4px 0}
 .cp-ext__row{
   display:flex;align-items:center;gap:10px;
-  min-height:36px;padding:6px 16px;
+  min-height:44px;padding:10px 16px;
   border-top:1px solid var(--line-soft);
 }
 .cp-ext__row:first-child{border-top:0}
-.cp-ext__cmd{flex:1;min-width:0;font-size:12.5px;color:var(--fg)}
-.cp-ext__views{
-  padding:8px 16px 14px;
-  font-size:12px;color:var(--muted);
-}
-.cp-ext__views b{display:block;font-size:10px;font-weight:600;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--subtle);margin-bottom:4px}
+.cp-ext__cmd{flex:1;min-width:0;font-size:var(--text-small-body);color:var(--fg)}
+.cp-ext__views{padding:12px 16px 4px;font-size:var(--text-small-body);color:var(--muted)}
+/* .cp-ext__views b takes the eyebrow lane (chapter 0b); it is a block
+   label inside an already-padded container. */
+.cp-ext__views b{display:block;padding:0;margin-bottom:4px}
 
 .cp-ext.is-dormant .cp-ext__cmd,.cp-ext.is-dormant .cp-ext__name{color:var(--muted)}
-.cp-ext.is-unhealthy{opacity:1}
 .cp-ext.is-unhealthy .cp-ext__name,.cp-ext.is-unhealthy .cp-ext__cmd,
 .cp-ext.is-unhealthy .cp-ext__views{color:var(--muted)}
-.cp-ext.is-unhealthy .pal-k,.cp-ext.is-unhealthy .pal-chord{opacity:.7}
-.cp-ext__health{
-  display:flex;align-items:flex-start;gap:7px;
-  padding:8px 16px 12px;font-size:12px;line-height:1.45;color:var(--fg);
-}
-.cp-ext__health svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--warning)}
+/* "contributions grayed" includes the chord, whichever chord tier the
+   panel uses. */
+.cp-ext.is-unhealthy .pal-chord,
+.cp-ext.is-unhealthy .keys .key{opacity:.7}
+/* In-list Alert, warning tone (banner lane, chapter 0b). */
+.cp-ext__health{padding:8px 16px 12px;background:transparent}
+.cp-ext__health svg{color:var(--warning)}
 
+/* Success feedback → StatusLine voice (glyph + word). */
 .cp-fb{
-  display:flex;align-items:center;gap:6px;
-  padding:8px 16px;font-size:12px;color:var(--success);
+  display:flex;align-items:center;gap:5px;
+  padding:8px 16px;font-size:var(--text-small-body);font-weight:600;color:var(--success);
 }
-.cp-fb svg{width:13px;height:13px}
+.cp-fb svg{width:12px;height:12px;flex:none}
 
 /* Reset row confirmation — scoped to the workspace. */
 .cp-reset-confirm{padding:4px 16px 14px}
@@ -740,9 +1310,10 @@
 
 /* ==== APPEND POINT — later runs add chapters after this line ==== */
 
-/* ==== 13 · REVIEW APPENDIX — round 1 (2026-08-18) ==== */
-/* Sources: board appendix-request comments + review round 1.
-   Append-only per the set contract; nothing above is restyled. */
+/* ==== 13 · REVIEW APPENDIX — rounds 1–3 (2026-08-18) ==== */
+/* Sources: board appendix-request comments + review rounds 1–3.
+   Cross-chapter overrides are allowed in this chapter only, and
+   each is labeled with the chapter it adjusts. */
 /* Grid children must be allowed to shrink or the tasks list underlaps
    .pal-foot at max-height (CSS grid overflow rule) · domain-list §01.
    The container also clips: with max-height alone the auto row track
@@ -750,14 +1321,78 @@
 .pal-split{overflow:hidden}
 .pal-split__list,.pal-split__detail{min-height:0}
 /* Grid sections stack with breathing room · form-grid §05. */
-.pal-gsec+.pal-gsec{margin-top:14px}
+.pal-gsec+.pal-gsec{margin-top:18px}
 /* Detail kind body under stack chrome · view-shell §02. */
-.pal-kind--detail{padding:12px 14px 14px}
+.pal-kind--detail{padding:16px}
 /* Static depiction of keyboard focus (default-focused Cancel, US-016;
    first-invalid field, US-015.AC-2) · args-confirmation + settings-palette. */
 .focus-ring{box-shadow:var(--focus-ring)}
+/* Selection is a plate raise now, not a shadow, so the focus ring no
+   longer has to compose with anything in the box-shadow slot. */
+.is-active.focus-ring{box-shadow:var(--focus-ring)}
 /* Per-row dormant contributed default inside the S16 panel · US-029.AC-2. */
 .cp-ext__row.is-dormant .cp-ext__cmd{color:var(--subtle)}
+/* ch12 — the dormant state tints identically on both boards
+   (the S12 table row already tints warning). */
+.cp-ext__row.is-dormant{background:color-mix(in srgb,var(--warning-tint) 45%,transparent)}
+/* ch11 — .cp-row--off must dim the .sc-row label lane too (herdr's
+   .sc-row__label out-specifies the inherited row color). */
+.cp-row--off .sc-row__label{color:var(--muted)}
+/* ch11 — registry table scroll lives on its panel host (overflow
+   on a <table> is inert). */
+.panelbox:has(> .cp-reg){overflow:auto}
+/* ch11 — the binding chip is the recorder trigger: a real button
+   needs a ≥24px target and hover/focus affordances. */
+button.keys{display:inline-flex;align-items:center;gap:3px;min-height:24px;padding:1px 3px;border-radius:var(--radius-sm)}
+button.keys:hover .key{border-color:var(--line-strong);color:var(--fg-strong)}
+button.keys:focus-visible{box-shadow:var(--focus-ring)}
+/* ch11 — config-key line inside a .sc-row: same 1px nudge as
+   .sc-row__id, and long keys wrap instead of overlapping the chip. */
+.sc-row__main .cp-bind{margin-top:1px;overflow-wrap:anywhere}
+/* ch10 — disabled confirm mirrors production Button:disabled. */
+.pal-confirm__go:disabled{opacity:.5;cursor:not-allowed}
+/* ch7 — a chord inside the tile media well must CENTER: the ch1
+   right-cluster auto margin overrides justify-self inside a grid,
+   so the chord was riding the slot's right edge like a badge. */
+.pal-tile__media .pal-chord{margin-left:0}
+/* ch0 — reopen affordance staging position (was 2 inline tuples). */
+.stage__reopen{position:absolute;top:28px;left:50%;transform:translateX(-50%)}
+/* ch1 — .pal-sec-err hosts a control like its banner siblings
+   (.cp-conflict / .pal-band): right-aligned, never inline. */
+.pal-sec-err .btn{margin-left:auto;flex:none}
+/* ch1 — .pal-state IS the right cluster: nothing inside it may
+   re-split the row (a nested .pal-hint kept its auto margin), and
+   the literal word rides the hint scale. */
+.pal-state > *{margin-left:0}
+.pal-state .state{font-size:var(--text-micro);color:var(--subtle)}
+/* ch1 — under width pressure the HINT wraps, never the row label:
+   proportional flex shrink was wrapping a label inside its fixed
+   row while the wrappable hint barely moved. */
+.pal-item > svg + span,.pal-item > .pal-ask + span{flex:none}
+/* ch5 — neutral non-status sig plate. "This is a key" (vault) must
+   not read as "status unknown" (outline plate). There is no
+   production status behind it, so it stays a vault-local plate. */
+.sig[data-k="static"]{background:var(--badge-fill);color:var(--muted)}
+/* ch5 — running = SessionBadgeGlyph: the accent-tint roundel herdr
+   already ships, with the WHOLE glyph pulsing. The round-2
+   --badge-fill override moved this away from production and is
+   reverted; the accent budget is held by keeping the pulse the only
+   accent motion in the row (state word --accent-strong). */
+.sig[data-k="running"]{animation:pulse 1.8s var(--ease) infinite}
+/* ch5 split helpers — no more inline caps/overflow on the boards. */
+.palette-results--unbounded{max-height:none}
+.pal-split__list{overflow:auto}
+.pal-split--capped{max-height:360px}
+.pal-split--short{height:220px}
+/* ch0 — overlay-hosted full palette: head + well + foot + the overlay
+   pad need more than .stage--tall's 520px. */
+.stage--overlay{min-height:680px}
+/* Visually-hidden utility (a11y text for live regions). */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+/* Bare fragment staged at palette width. */
+.plain--pal-w{width:var(--cp-pal-w)}
+/* Stage z-ladder is lab scaffold only (.pal-tip 2 · .pal-dd 3):
+   production stacks every palette surface on the single z-50 tier. */
 
 /* ============ MOBILE ============ */
 @media (max-width:760px){
@@ -766,19 +1401,25 @@
   .pal-split__detail{min-height:140px}
   .pal-gsec__tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
   .pal-act{width:min(var(--cp-act-w),92vw)}
-  .pal-args{flex-wrap:wrap;height:auto;padding:8px 0}
-  .pal-head--args{height:auto;min-height:52px;align-items:flex-start;padding-top:8px;padding-bottom:8px}
+  .pal-args{flex-wrap:wrap}
   .cp-toolbar{flex-wrap:wrap}
-  .cp-toolbar .pill-group{margin-left:0}
-  .cp-src-col{display:none}
+  .cp-toolbar > .btn{margin-left:0}
+  /* Contract columns degrade, never vanish (source column carries
+     the extension attribution). */
+  .cp-src-col{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .pal-hint{max-width:38%}
 }
 @media (prefers-reduced-motion:reduce){
-  .pal-skel__bar,.pal-pend,.pal-band--busy::before{animation:none}
+  .pal-skel__ic,.pal-skel__bar,.pal-pend,.pal-band--busy::before,
+  .sig[data-k="running"]{animation:none}
   .pal-chip,.pal-act__row,.pal-tile,.pal-arg,.pal-confirm__go,.cp-alias{transition:none}
 }
+body[data-motion="reduced"] .pal-skel__ic,
 body[data-motion="reduced"] .pal-skel__bar,
 body[data-motion="reduced"] .pal-pend,
-body[data-motion="reduced"] .pal-band--busy::before{animation:none}
+body[data-motion="reduced"] .pal-band--busy::before,
+body[data-motion="reduced"] .sig[data-k="running"]{animation:none}
 
-::selection{background:var(--accent-tint);color:var(--fg-strong)}
+/* ::selection is scoped to the set's own surfaces — a bare global
+   selection rule would repaint the whole lab page. */
+.palette ::selection,.page ::selection{background:var(--accent-tint);color:var(--fg-strong)}

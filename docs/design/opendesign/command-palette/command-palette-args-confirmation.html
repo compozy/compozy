@@ -57,9 +57,9 @@
       <div class="spec">
         <div class="spec__note"><b>Bar becomes fields</b>US-015: invoking <code>Capture note</code> morphs the input bar into inline typed fields. <code>title</code> is text, required, placeholder <code>Note title</code>, filled <code>Standup follow-ups</code>. <code>tag</code> is an optional dropdown (<code>inbox</code> / <code>idea</code>), set to <code>inbox</code>. ⇥ traverses the fields. ↩ submits. Esc closes args, then the palette.</div>
         <div class="spec__demo">
-          <div class="stage stage--tall" data-od-id="ac-final-stage" style="min-height:320px">
+          <div class="stage stage--short" data-od-id="ac-final-stage">
             <div class="overlay palette-overlay">
-              <div class="palette" data-od-id="ac-final-pal" role="dialog" aria-label="Command palette" style="overflow:visible">
+              <div class="palette" data-od-id="ac-final-pal" role="dialog" aria-label="Command palette">
                 <div class="palette-head pal-head--args">
                   <svg data-lucide="sticky-note"></svg>
                   <nav class="pal-crumbs" aria-label="Palette path">
@@ -71,18 +71,22 @@
                       <label class="pal-arg__lab" for="ac-final-title-in">title</label>
                       <input class="pal-arg__in" id="ac-final-title-in" type="text" placeholder="Note title" value="Standup follow-ups" autocomplete="off">
                     </div>
-                    <!-- gating: arg tag · dropdown · optional · inbox / idea -->
+                    <!-- gating: arg tag · dropdown · optional · inbox / idea.
+                         The list is a child of ITS OWN field so it anchors there. -->
                     <div class="pal-arg" data-od-id="ac-final-tag">
                       <label class="pal-arg__lab" for="ac-final-tag-in">tag</label>
                       <input class="pal-arg__in" id="ac-final-tag-in" type="text" value="inbox" role="combobox" aria-expanded="false" aria-controls="ac-final-dd" aria-autocomplete="list" autocomplete="off">
+                      <div class="pal-dd" id="ac-final-dd" role="listbox" aria-label="tag" hidden>
+                        <button class="pal-dd__row is-active" type="button" role="option" aria-selected="true" data-value="inbox">inbox</button>
+                        <button class="pal-dd__row" type="button" role="option" aria-selected="false" data-value="idea">idea</button>
+                      </div>
                     </div>
                   </div>
-                  <div class="pal-dd" id="ac-final-dd" role="listbox" aria-label="tag" hidden>
-                    <button class="pal-dd__row is-active" type="button" role="option" aria-selected="true" data-value="inbox">inbox</button>
-                    <button class="pal-dd__row" type="button" role="option" aria-selected="false" data-value="idea">idea</button>
-                  </div>
                 </div>
-                <div class="pal-foot pal-foot--args">
+                <!-- gating: in-flow reserve — the script adds --dd while the tag
+                     list is open so it lands inside the palette's clip -->
+                <div class="pal-args-body" id="ac-final-body" data-od-id="ac-final-body"></div>
+                <div class="pal-foot">
                   <span><span class="keys"><span class="key">⇥</span></span> next field</span>
                   <span><span class="keys"><span class="key">↩</span></span> submit</span>
                   <span class="pal-foot-flex"></span>
@@ -102,7 +106,7 @@
       <div class="spec">
         <div class="spec__note"><b>First empty required</b>US-015.AC-2: ⏎ does not submit while a required field is empty. Focus moves to the first empty required field — <code>title</code> — and its placeholder <code>Note title</code> is emphasized. <code>tag</code> stays optional and unblocked.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="ac-miss-stage" style="min-height:0">
+          <div class="stage stage--pad stage--auto" data-od-id="ac-miss-stage">
             <div class="palette" data-od-id="ac-miss-pal" role="dialog" aria-label="Command palette">
               <div class="palette-head pal-head--args">
                 <svg data-lucide="sticky-note"></svg>
@@ -113,7 +117,7 @@
                   <!-- gating: ⏎ blocked · first empty required title · US-015.AC-2 -->
                   <div class="pal-arg is-miss" data-od-id="ac-miss-title">
                     <label class="pal-arg__lab" for="ac-miss-title-in">title</label>
-                    <input class="pal-arg__in focus-ring" id="ac-miss-title-in" type="text" placeholder="Note title" value="" autocomplete="off">
+                    <input class="pal-arg__in" id="ac-miss-title-in" type="text" placeholder="Note title" value="" autocomplete="off">
                   </div>
                   <div class="pal-arg">
                     <label class="pal-arg__lab" for="ac-miss-tag-in">tag</label>
@@ -121,7 +125,8 @@
                   </div>
                 </div>
               </div>
-              <div class="pal-foot pal-foot--args">
+              <div class="pal-args-body" data-od-id="ac-miss-body"></div>
+              <div class="pal-foot">
                 <span><span class="keys"><span class="key">⇥</span></span> next field</span>
                 <span><span class="keys"><span class="key">↩</span></span> submit</span>
                 <span class="pal-foot-flex"></span>
@@ -138,10 +143,10 @@
       <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Dropdown type-to-filter</h2>
         <span class="lab-sec__gist">open list · query narrows inbox / idea</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Filter the options</b>US-015.AC-3: the <code>tag</code> dropdown opens in place and type-to-filters. A query <code>in</code> keeps <code>inbox</code> and hides <code>idea</code>. The list is content-radius, not a second glass sheet.</div>
+        <div class="spec__note"><b>Filter the options</b>US-015.AC-3: the <code>tag</code> dropdown opens in place and type-to-filters. A query <code>in</code> keeps <code>inbox</code> and hides <code>idea</code>. The list is the Select/Combobox popup recipe — opaque <code>--canvas-soft</code> on a hairline, at content radius, never a second sheet of chrome.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="ac-dd-stage" style="min-height:0">
-            <div class="palette" data-od-id="ac-dd-pal" role="dialog" aria-label="Command palette" style="overflow:visible">
+          <div class="stage stage--pad stage--auto" data-od-id="ac-dd-stage">
+            <div class="palette" data-od-id="ac-dd-pal" role="dialog" aria-label="Command palette">
               <div class="palette-head pal-head--args">
                 <svg data-lucide="sticky-note"></svg>
                 <nav class="pal-crumbs" aria-label="Palette path">
@@ -156,13 +161,15 @@
                   <div class="pal-arg is-on" data-od-id="ac-dd-tag">
                     <label class="pal-arg__lab" for="ac-dd-tag-in">tag</label>
                     <input class="pal-arg__in" id="ac-dd-tag-in" type="text" value="in" role="combobox" aria-expanded="true" aria-controls="ac-dd-list" aria-activedescendant="ac-dd-inbox" autocomplete="off">
+                    <div class="pal-dd" id="ac-dd-list" role="listbox" aria-label="tag">
+                      <button class="pal-dd__row is-active" type="button" role="option" aria-selected="true" id="ac-dd-inbox">inbox</button>
+                    </div>
                   </div>
                 </div>
-                <div class="pal-dd" id="ac-dd-list" role="listbox" aria-label="tag">
-                  <button class="pal-dd__row is-active" type="button" role="option" aria-selected="true" id="ac-dd-inbox">inbox</button>
-                </div>
               </div>
-              <div class="pal-foot pal-foot--args">
+              <!-- gating: open list reserves its own room in-frame · US-015.AC-3 -->
+              <div class="pal-args-body pal-args-body--dd-sm" data-od-id="ac-dd-body"></div>
+              <div class="pal-foot">
                 <span><span class="keys"><span class="key">↑↓</span></span> move</span>
                 <span><span class="keys"><span class="key">↩</span></span> pick</span>
                 <span class="pal-foot-flex"></span>
@@ -181,8 +188,8 @@
       <div class="spec">
         <div class="spec__note"><b>Inline, not a toast</b>US-015.EC-2: a type mismatch on <code>title</code> surfaces <code>expected text</code> inline under the bar. The args mode stays open. The message is a sentence fragment with no trailing period.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="ac-bad-stage" style="min-height:0">
-            <div class="palette" data-od-id="ac-bad-pal" role="dialog" aria-label="Command palette" style="overflow:visible">
+          <div class="stage stage--pad stage--auto" data-od-id="ac-bad-stage">
+            <div class="palette" data-od-id="ac-bad-pal" role="dialog" aria-label="Command palette">
               <div class="palette-head pal-head--args">
                 <svg data-lucide="sticky-note"></svg>
                 <nav class="pal-crumbs" aria-label="Palette path">
@@ -193,15 +200,17 @@
                   <div class="pal-arg is-bad" data-od-id="ac-bad-title">
                     <label class="pal-arg__lab" for="ac-bad-title-in">title</label>
                     <input class="pal-arg__in" id="ac-bad-title-in" type="text" placeholder="Note title" value="42" aria-invalid="true" aria-describedby="ac-bad-err" autocomplete="off">
+                    <span class="pal-arg__err" id="ac-bad-err">expected text</span>
                   </div>
                   <div class="pal-arg">
                     <label class="pal-arg__lab" for="ac-bad-tag-in">tag</label>
                     <input class="pal-arg__in" id="ac-bad-tag-in" type="text" value="inbox" autocomplete="off">
                   </div>
                 </div>
-                <span class="pal-arg__err" id="ac-bad-err">expected text</span>
               </div>
-              <div class="pal-foot pal-foot--args">
+              <!-- gating: per-field error reserves its own row in-frame · US-015.EC-2 -->
+              <div class="pal-args-body pal-args-body--err" data-od-id="ac-bad-body"></div>
+              <div class="pal-foot">
                 <span><span class="keys"><span class="key">⇥</span></span> next field</span>
                 <span><span class="keys"><span class="key">↩</span></span> submit</span>
                 <span class="pal-foot-flex"></span>
@@ -220,7 +229,7 @@
       <div class="spec">
         <div class="spec__note"><b>Skip the root</b>US-015.EC-3: <span class="keys"><span class="key">⌥</span><span class="key">⇧</span><span class="key">N</span></span> opens the palette directly in <code>Capture note</code> args mode. Fields are empty. <code>title</code> shows the emphasized-ready placeholder <code>Note title</code>. Root results are not shown first.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="ac-hotkey-stage" style="min-height:0">
+          <div class="stage stage--pad stage--auto" data-od-id="ac-hotkey-stage">
             <div class="palette" data-od-id="ac-hotkey-pal" role="dialog" aria-label="Command palette">
               <div class="palette-head pal-head--args">
                 <svg data-lucide="sticky-note"></svg>
@@ -239,8 +248,9 @@
                   </div>
                 </div>
               </div>
-              <div class="pal-foot pal-foot--args">
-                <span><span class="keys"><span class="key">⌥</span><span class="key">⇧</span><span class="key">N</span></span> opened args</span>
+              <div class="pal-args-body" data-od-id="ac-hotkey-body"></div>
+              <div class="pal-foot">
+                <span><span class="keys"><span class="key">⌥⇧N</span></span> opened args</span>
                 <span><span class="keys"><span class="key">⇥</span></span> next field</span>
                 <span class="pal-foot-flex"></span>
                 <span><span class="keys"><span class="key">esc</span></span> close</span>
@@ -256,14 +266,17 @@
       <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Password arg</h2>
         <span class="lab-sec__gist">generic masked field · same 28px pill</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Masked in the bar</b>A password-typed arg uses <code>.pal-arg--mask</code> so the value is disc-masked in the same 28px pill as <code>title</code>. This is the generic arg variant — not a new CompozyOS command.</div>
+        <div class="spec__note"><b>Masked in the bar</b>A password-typed arg is a real <code>type="password"</code> input in the same 28px pill as <code>title</code> — one masking mechanism, so password managers and screen readers still read the field correctly. This is the generic arg variant — not a new CompozyOS command.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="ac-mask-stage" style="min-height:0">
-            <div class="plain" data-od-id="ac-mask-plain" style="width:min(560px,100%)">
-              <div class="palette-head pal-head--args" style="border:0;padding:0;height:auto">
+          <div class="stage stage--pad stage--auto" data-od-id="ac-mask-stage">
+            <div class="plain palette--staged" data-od-id="ac-mask-plain">
+              <div class="palette-head pal-head--args pal-head--args-bare">
                 <div class="pal-args">
-                  <!-- gating: pal-arg--mask · password typed arg -->
-                  <div class="pal-arg pal-arg--mask is-on" data-od-id="ac-mask-arg">
+                  <!-- gating: password typed arg · masked by type="password" alone.
+                       A CSS text-security mask is NOT stacked here: -webkit-text-security on
+                       top of a password field is a second, webkit-only mechanism
+                       for the same job. -->
+                  <div class="pal-arg is-on" data-od-id="ac-mask-arg">
                     <label class="pal-arg__lab" for="ac-mask-in">token</label>
                     <input class="pal-arg__in" id="ac-mask-in" type="password" value="n0tes-sync-tok" autocomplete="off" spellcheck="false">
                   </div>
@@ -282,7 +295,7 @@
       <div class="spec">
         <div class="spec__note"><b>Declared copy, safe default</b>US-016: confirmation renders only the declared strings — title <code>Purge archived notes?</code>, body <code>Permanently deletes every archived note in this workspace.</code>, confirm <code>Purge</code> (danger text + glyph on the verb), <code>Cancel</code> focused by default with the visible ring. Repeat-guarded: a second ↩ does not re-fire while the dialog is open. Esc ladder: confirmation → view stack → close.</div>
         <div class="spec__demo">
-          <div class="stage stage--tall" data-od-id="ac-confirm-stage" style="min-height:360px">
+          <div class="stage stage--short" data-od-id="ac-confirm-stage">
             <div class="overlay palette-overlay">
               <div class="palette" data-od-id="ac-confirm-pal" role="dialog" aria-label="Command palette">
                 <div class="pal-confirm" id="ac-confirm-dlg" role="dialog" aria-modal="true" aria-labelledby="ac-confirm-title" aria-describedby="ac-confirm-body" data-od-id="ac-confirm-dlg">
@@ -291,15 +304,17 @@
                   <div class="pal-confirm__acts">
                     <!-- gating: Cancel focused by default · visible focus ring · US-016 -->
                     <button class="btn focus-ring" type="button" id="ac-confirm-cancel" data-od-id="ac-confirm-cancel">Cancel</button>
-                    <button class="pal-confirm__go pal-confirm__go--danger" type="button" id="ac-confirm-purge" data-od-id="ac-confirm-purge" style="gap:6px">
-                      <svg data-lucide="trash-2" style="width:12px;height:12px"></svg>
+                    <button class="pal-confirm__go pal-confirm__go--danger" type="button" id="ac-confirm-purge" data-od-id="ac-confirm-purge">
+                      <svg data-lucide="trash-2"></svg>
                       Purge
                     </button>
                   </div>
                 </div>
-                <div class="pal-foot pal-foot--confirm">
+                <!-- gating: repeat-guarded — a second ↩ does not re-fire while the
+                     dialog is open. Implementation note, not a keyboard hint: the
+                     footer carries only keys the operator can press. -->
+                <div class="pal-foot">
                   <span><span class="keys"><span class="key">esc</span></span> cancel</span>
-                  <span>repeat-guarded</span>
                   <span class="pal-foot-flex"></span>
                   <span><span class="keys"><span class="key">↩</span></span> on Cancel</span>
                 </div>
@@ -317,22 +332,25 @@
       <div class="spec">
         <div class="spec__note"><b>Never execute on a moved target</b>US-016.EC-2: if the target changes between trigger and confirm, the dialog stays open and shows an honest <code>target changed</code> message instead of executing. <code>Purge</code> is not offered. Glyph + tone + the words <code>target changed</code> travel together.</div>
         <div class="spec__demo">
-          <div class="stage stage--pad" data-od-id="ac-void-stage" style="min-height:0">
+          <div class="stage stage--pad stage--auto" data-od-id="ac-void-stage">
             <div class="palette" data-od-id="ac-void-pal" role="dialog" aria-label="Command palette">
-              <div class="pal-confirm pal-confirm--void" role="dialog" aria-modal="true" aria-labelledby="ac-void-title" data-od-id="ac-void-dlg">
+              <div class="pal-confirm pal-confirm--void" role="dialog" aria-modal="true" aria-labelledby="ac-void-title" aria-describedby="ac-void-body" data-od-id="ac-void-dlg">
                 <h3 class="pal-confirm__title" id="ac-void-title">Purge archived notes?</h3>
-                <!-- gating: target invalidated between trigger and confirm · US-016.EC-2 -->
-                <div class="pal-confirm__void" data-od-id="ac-void-msg" role="alert">
-                  <svg data-lucide="triangle-alert" style="width:13px;height:13px;display:inline-block;vertical-align:-2px;margin-right:6px"></svg>
-                  target changed — archived notes are no longer in this workspace
+                <!-- gating: target invalidated between trigger and confirm · US-016.EC-2.
+                     ds .notice owns the shared error/alert idiom (flex glyph column,
+                     warning tint, 2px optical nudge) — no inline glyph hack. The
+                     message IS the dialog body, so .pal-confirm--void has a
+                     .pal-confirm__body to brighten. -->
+                <div class="notice" data-od-id="ac-void-msg" role="alert">
+                  <svg data-lucide="triangle-alert"></svg>
+                  <p class="pal-confirm__body" id="ac-void-body">target changed — archived notes are no longer in this workspace</p>
                 </div>
                 <div class="pal-confirm__acts">
                   <button class="btn" type="button">Cancel</button>
                 </div>
               </div>
-              <div class="pal-foot pal-foot--confirm">
+              <div class="pal-foot">
                 <span><span class="keys"><span class="key">esc</span></span> close</span>
-                <span class="pal-foot-flex"></span>
               </div>
             </div>
           </div>
@@ -345,7 +363,7 @@
   </div></div>
 </div></div>
 
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/lucide@1.28/dist/umd/lucide.min.js"></script>
 <script>
 (function () {
   function refreshIcons() {
@@ -359,6 +377,7 @@
   var tag = document.getElementById("ac-final-tag-in");
   var dd = document.getElementById("ac-final-dd");
   var args = document.getElementById("ac-final-args");
+  var body = document.getElementById("ac-final-body");
 
   function setDd(open) {
     if (!dd || !tag) return;
@@ -366,6 +385,8 @@
     tag.setAttribute("aria-expanded", open ? "true" : "false");
     var wrap = tag.closest(".pal-arg");
     if (wrap) wrap.classList.toggle("is-on", open || document.activeElement === tag);
+    /* the open list lives in the in-flow reserve, never over the footer */
+    if (body) body.classList.toggle("pal-args-body--dd", open);
   }
 
   function filterDd(q) {
