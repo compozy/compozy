@@ -274,11 +274,11 @@ Read [AGENTS.md](AGENTS.md) and the surface-specific instructions before editing
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=compozy%2Fcompozy&type=date&legend=top-left">
+<a href="https://star-history.dera.page/#compozy/compozy&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=compozy/compozy&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=compozy/compozy&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=compozy/compozy&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=compozy/compozy&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=compozy/compozy&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=compozy/compozy&type=date&legend=top-left" />
  </picture>
 </a>
 
