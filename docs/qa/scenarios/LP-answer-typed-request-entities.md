@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260818-nested-entity-picker-missing
 fix_status: fixed
 retest_status: pass
-fix_commits: pending implementation commit
+fix_commits: f3b8837
 evidence: /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-20260819-015537-040869-lab/qa-artifacts/qa/typed-request-agent-picker.png; /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-20260819-015537-040869-lab/qa-artifacts/qa/journey-log.jsonl
 last_report: docs/qa/reports/2026-08-18-typed-loop-inputs.md
 overlaps: LP-ask-answer; LP-web-request-answer-card

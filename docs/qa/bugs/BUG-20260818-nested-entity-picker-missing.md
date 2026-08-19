@@ -35,7 +35,7 @@ shape and type the agent name by hand.
 
 - **Root cause:** the Web schema projector inspected only top-level properties; it classified the
   parent object as JSON and never visited the nested vendor annotation.
-- **Fix commit:** pending implementation commit
+- **Fix commit:** `f3b8837`
 - **Regression test:** `web/src/systems/loops/lib/__tests__/loop-request-payload.test.ts` and the
   canonical request-form case in `web/src/systems/loops/components/__tests__/loop-run-page.test.tsx`.
 

@@ -23,10 +23,10 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-typed-loop-entity-inputs | J-01 / LP-select-typed-loop-entities | Lea | Garbage Tour | Fixed | BUG-20260729-tool-invoke-structural-redaction; BUG-20260818-runtime-input-split-controls | pending implementation commit |
-| 2 | CH-compozy-runtime-input-preflight | J-02 / LP-loop-input-defaults | Ada | Garbage Tour | Fixed | BUG-20260818-loop-input-object-get | pending implementation commit |
+| 1 | CH-typed-loop-entity-inputs | J-01 / LP-select-typed-loop-entities | Lea | Garbage Tour | Fixed | BUG-20260729-tool-invoke-structural-redaction; BUG-20260818-runtime-input-split-controls | f3b8837 |
+| 2 | CH-compozy-runtime-input-preflight | J-02 / LP-loop-input-defaults | Ada | Garbage Tour | Fixed | BUG-20260818-loop-input-object-get | f3b8837 |
 | 3 | CH-compozy-runtime-input-preflight | J-02 / LP-runtime-validation-preflight | Ada | Garbage Tour | Pass | | |
-| 4 | CH-typed-request-entity-answer | J-supervise-loop-request / LP-answer-typed-request-entities | Bruno | Network Tour | Fixed | BUG-20260818-nested-entity-picker-missing | pending implementation commit |
+| 4 | CH-typed-request-entity-answer | J-supervise-loop-request / LP-answer-typed-request-entities | Bruno | Network Tour | Fixed | BUG-20260818-nested-entity-picker-missing | f3b8837 |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
 

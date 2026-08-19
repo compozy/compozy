@@ -38,7 +38,7 @@ keys and secret-shaped free text remain redacted.
   JSON string, bypassing the canonical field-aware redactor.
 - **Correction:** Valid structured tool results now use field-aware JSON redaction. Cursor fields are
   protected public envelope handles; invalid raw fallback text retains diagnostic redaction.
-- **Fix commit:** pending implementation commit
+- **Fix commit:** `f3b8837`
 - **Regression tests:** `Should redact invoke metadata fields` in
   `internal/cli/client_tools_test.go` and the structured-envelope case in
   `internal/redact/json_test.go`.

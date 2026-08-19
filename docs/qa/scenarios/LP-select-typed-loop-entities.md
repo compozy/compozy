@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids: BUG-20260729-tool-invoke-structural-redaction; BUG-20260818-runtime-input-split-controls
 fix_status: fixed
 retest_status: pass
-fix_commits: pending implementation commit
+fix_commits: f3b8837
 evidence: /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-20260819-015537-040869-lab/qa-artifacts/qa/typed-loop-dry-run.png; /Users/pedronauck/dev/qa-labs/compozy-typed-loop-inputs-20260819-015537-040869-lab/qa-artifacts/qa/typed-runtime-selector-story.png
 last_report: docs/qa/reports/2026-08-18-typed-loop-inputs.md
 overlaps: LP-002; LP-loop-input-defaults; LP-runtime-validation-preflight

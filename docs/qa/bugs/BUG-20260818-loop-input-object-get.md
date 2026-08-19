@@ -37,7 +37,7 @@ resolution succeed.
 
 - **Root cause:** `config get` searched only the flattened leaf projection; parent map paths were
   never resolved from the redacted config tree.
-- **Fix commit:** pending implementation commit
+- **Fix commit:** `f3b8837`
 - **Regression test:** `internal/cli/config_test.go` —
   `TestConfigCommandsManageDynamicLoopInputDefaults`.
 

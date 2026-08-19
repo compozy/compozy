@@ -21,7 +21,7 @@ including an unrelated `Workspace not found: ws_default` message.
 - **Correction:** Runtime inputs always render `RuntimeSelector`; catalog status stays inside that
   component. The primary story now uses the canonical workspace fixture, and an error story pins
   the same selector under catalog failure.
-- **Fix commit:** pending implementation commit
+- **Fix commit:** `f3b8837`
 - **Regression coverage:** `RuntimeCatalogUnavailable` in
   `web/src/systems/loops/components/stories/loop-run-form.stories.tsx`.
 
