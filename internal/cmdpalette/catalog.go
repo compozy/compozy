@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"sort"
 )
 
@@ -19,6 +20,26 @@ type structuralCommand struct {
 	Descriptor Descriptor `json:"descriptor"`
 	Bindings   []string   `json:"bindings"`
 	Alias      *string    `json:"alias"`
+}
+
+// BindableIDs returns the current workspace catalog ids in deterministic order.
+func (s *Service) BindableIDs(ctx context.Context, workspaceID WorkspaceID) ([]CommandID, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("cmd palette: bindable ids context is required")
+	}
+	if workspaceID == "" {
+		return nil, fmt.Errorf("cmd palette: workspace ID is required")
+	}
+	descriptors, _, err := s.collectDescriptors(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]CommandID, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		ids = append(ids, descriptor.ID)
+	}
+	slices.Sort(ids)
+	return ids, nil
 }
 
 func (s *Service) Catalog(

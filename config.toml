@@ -9,6 +9,10 @@ port = 2123
 update_check = true
 update_check_interval = "6h"
 
+[cmd_palette]
+fallback_targets = ["agent"]
+personalization = true
+
 [window_manager]
 new_window_policy = "floating"
 small_viewport_policy = "stack"

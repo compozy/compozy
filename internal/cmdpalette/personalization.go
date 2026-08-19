@@ -26,6 +26,13 @@ func (s *Service) RecordUsage(ctx context.Context, usage Usage) error {
 	if err := s.requireCatalogCommand(ctx, usage.WorkspaceID, usage.CommandID); err != nil {
 		return err
 	}
+	enabled, err := s.personalizationEnabled(ctx, usage.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return nil
+	}
 	usage.Query = NormalizeQuery(usage.Query)
 	if usage.UsedAt.IsZero() {
 		usage.UsedAt = s.now().UTC()
@@ -40,6 +47,18 @@ func (s *Service) RecordUsage(ctx context.Context, usage Usage) error {
 
 func (s *Service) recordDaemonUsage(ctx context.Context, execution ExecutionRequest) {
 	if execution.Descriptor.Action.Kind != ActionKindTool || s.personalization == nil {
+		return
+	}
+	enabled, err := s.personalizationEnabled(ctx, execution.WorkspaceID)
+	if err != nil {
+		s.logger.WarnContext(ctx, "resolve command palette personalization policy",
+			"workspace_id", execution.WorkspaceID,
+			"command_id", execution.Descriptor.ID,
+			"error", err,
+		)
+		return
+	}
+	if !enabled {
 		return
 	}
 	usage := Usage{
@@ -63,6 +82,13 @@ func (s *Service) Personalization(ctx context.Context, workspaceID WorkspaceID) 
 	if s.personalization == nil {
 		return Snapshot{}, errors.New("cmd palette: personalization service is unavailable")
 	}
+	enabled, err := s.personalizationEnabled(ctx, workspaceID)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if !enabled {
+		return newPersonalizationSnapshot(nil, nil, nil)
+	}
 	descriptors, _, err := s.collectDescriptors(ctx, workspaceID)
 	if err != nil {
 		return Snapshot{}, err
@@ -78,6 +104,17 @@ func (s *Service) Personalization(ctx context.Context, workspaceID WorkspaceID) 
 	}
 	usage, queryHits, pins := s.maintainPersonalization(ctx, workspaceID, valid, rows)
 	return newPersonalizationSnapshot(usage, queryHits, pins)
+}
+
+func (s *Service) personalizationEnabled(ctx context.Context, workspaceID WorkspaceID) (bool, error) {
+	if s.policy == nil {
+		return true, nil
+	}
+	enabled, err := s.policy.PersonalizationEnabled(ctx, workspaceID)
+	if err != nil {
+		return false, fmt.Errorf("cmd palette: resolve personalization policy: %w", err)
+	}
+	return enabled, nil
 }
 
 func (s *Service) PersonalizationSummary(

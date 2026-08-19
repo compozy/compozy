@@ -203,6 +203,32 @@ func TestRegistryInvoke(t *testing.T) {
 		}
 	})
 
+	t.Run("Should skip daemon usage recording while personalization is disabled", func(t *testing.T) {
+		t.Parallel()
+		descriptor := testDescriptor("session.new")
+		store := &personalizationStoreStub{}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, &testExecutor{},
+			WithPersonalizationStore(store),
+			WithPersonalizationPolicy(personalizationPolicyFunc(func(
+				context.Context,
+				WorkspaceID,
+			) (bool, error) {
+				return false, nil
+			})),
+		)
+
+		result, err := service.Invoke(t.Context(), InvokeRequest{
+			WorkspaceID: "workspace-a", CommandID: descriptor.ID,
+		})
+		if err != nil || result.Status != InvokeStatusOK {
+			t.Fatalf("Invoke() = %#v, error = %v, want success", result, err)
+		}
+		if store.recorded.CommandID != "" {
+			t.Fatalf("recorded usage = %#v, want no write while disabled", store.recorded)
+		}
+	})
+
 	t.Run("Should release approval-held single-flight on denial and timeout [IT-010]", func(t *testing.T) {
 		t.Parallel()
 		for _, outcome := range []string{"denial", "timeout"} {

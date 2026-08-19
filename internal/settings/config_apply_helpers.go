@@ -35,6 +35,16 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.RestartRequired
 		}
 		return s.classifyHooksExtensionsRequest(ctx, req)
+	default:
+		return s.classifyRuntimeSectionApplyRequest(ctx, req)
+	}
+}
+
+func (s *service) classifyRuntimeSectionApplyRequest(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) lifecycle.Lifecycle {
+	switch req.Section {
 	case SectionNetwork:
 		if req.Network == nil {
 			return lifecycle.RestartRequired
@@ -46,10 +56,15 @@ func (s *service) classifySectionApplyRequest(
 		}
 		return s.classifyGatewayRequest(ctx, req)
 	case SectionWindowManager:
-		if req.WindowManager == nil {
+		if req.WindowManager == nil && req.WindowManagerShortcuts == nil && req.WindowManagerAliases == nil {
 			return lifecycle.Live
 		}
 		return s.classifyWindowManagerRequest(ctx, req)
+	case SectionCmdPalette:
+		if req.CmdPalette == nil {
+			return lifecycle.Live
+		}
+		return s.classifyCmdPaletteRequest(ctx, req)
 	case SectionAttention:
 		if req.Attention == nil {
 			return lifecycle.Live
@@ -135,6 +150,7 @@ func cloneActiveConfig(cfg *compozyconfig.Config) compozyconfig.Config {
 	cloned.Roles = compozyconfig.CloneRolesConfig(&cfg.Roles)
 	cloned.RoleSources = compozyconfig.CloneRoleFieldSources(cfg.RoleSources)
 	cloned.WindowManager = cloneWindowManagerConfig(cfg.WindowManager)
+	cloned.CmdPalette = compozyconfig.CloneConfig(cfg).CmdPalette
 	cloned.Attention = cloneAttentionConfig(cfg.Attention)
 	return cloned
 }

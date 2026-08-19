@@ -401,6 +401,8 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.PATCH("/network", privileged, handlers.UpdateSettingsNetwork)
 	settings.GET("/window-manager", handlers.GetSettingsWindowManager)
 	settings.PATCH("/window-manager", privileged, handlers.UpdateSettingsWindowManager)
+	settings.GET("/cmd-palette", handlers.GetSettingsCmdPalette)
+	settings.PATCH("/cmd-palette", privileged, handlers.UpdateSettingsCmdPalette)
 	settings.GET("/attention", handlers.GetSettingsAttention)
 	settings.PATCH("/attention", privileged, handlers.UpdateSettingsAttention)
 	settings.GET("/shell", handlers.GetSettingsShell)

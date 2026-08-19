@@ -13,6 +13,10 @@ export interface ShortcutActionDefinition {
   id: string;
   label: string;
   section: string;
+  /** `core` or `ext.<name>` — what the cheatsheet groups by. */
+  source: string;
+  /** Operator-typed keyword, rendered as "Title (alias)" (US-023.AC-1). */
+  alias: string | null;
 }
 export type PrimaryShortcutModifier = "meta" | "control";
 export type ShortcutBinding = readonly string[];
@@ -34,6 +38,8 @@ export interface ShortcutCheatsheetRow {
   actionIds: readonly string[];
   label: string;
   section: string;
+  source: string;
+  alias: string | null;
   bindings: ShortcutBinding;
   overridden: boolean;
 }
@@ -279,6 +285,8 @@ export function deriveShortcutCheatsheet(
         actionIds,
         label: family.action === "window.tab.jump" ? "Jump to tab" : "Switch to desktop",
         section: action.section,
+        source: action.source,
+        alias: null,
         bindings: compactIndexedBindings(actionIds, effective),
         overridden:
           overrides[family.action] !== undefined ||
@@ -291,6 +299,8 @@ export function deriveShortcutCheatsheet(
       actionIds: [action.id],
       label: action.label,
       section: action.section,
+      source: action.source,
+      alias: action.alias,
       bindings: action.chords.map(chord => chord.canonical),
       overridden: overrides[action.id] !== undefined,
     });

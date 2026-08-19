@@ -59,6 +59,7 @@ const (
 	specAPISettingsRolesPath                                 = "/api/settings/roles"
 	specAPISettingsNetworkPath                               = "/api/settings/network"
 	specAPISettingsWindowManagerPath                         = "/api/settings/window-manager"
+	specAPISettingsCmdPalettePath                            = "/api/settings/cmd-palette"
 	specAPISettingsAttentionPath                             = "/api/settings/attention"
 	specAPISettingsShellPath                                 = "/api/settings/shell"
 	specAPISettingsObservabilityPath                         = "/api/settings/observability"

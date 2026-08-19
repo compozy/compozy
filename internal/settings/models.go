@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // ScopeKind identifies the supported settings scope.
@@ -79,6 +80,8 @@ const (
 	SectionGateway SectionName = "gateway"
 	// SectionWindowManager exposes daemon-owned window behavior defaults.
 	SectionWindowManager SectionName = "window-manager"
+	// SectionCmdPalette exposes command-palette personalization controls.
+	SectionCmdPalette SectionName = "cmd-palette"
 	// SectionAttention exposes operator attention delivery settings.
 	SectionAttention SectionName = "attention"
 	// SectionShell exposes operator shell preferences.
@@ -178,18 +181,22 @@ type SectionRequest struct {
 // SectionUpdateRequest identifies one section mutation.
 type SectionUpdateRequest struct {
 	SectionRequest
-	General         *GeneralSettings
-	Memory          *compozyconfig.MemoryConfig
-	Roles           *compozyconfig.RolesConfig
-	Skills          *compozyconfig.SkillsConfig
-	Automation      *AutomationSettings
-	Network         *compozyconfig.NetworkConfig
-	Gateway         *compozyconfig.GatewayConfig
-	WindowManager   *compozyconfig.WindowManagerConfig
-	Attention       *compozyconfig.AttentionConfig
-	Shell           *compozyconfig.ShellConfig
-	Observability   *compozyconfig.ObservabilityConfig
-	HooksExtensions *compozyconfig.ExtensionsConfig
+	General                *GeneralSettings
+	Memory                 *compozyconfig.MemoryConfig
+	Roles                  *compozyconfig.RolesConfig
+	Skills                 *compozyconfig.SkillsConfig
+	Automation             *AutomationSettings
+	Network                *compozyconfig.NetworkConfig
+	Gateway                *compozyconfig.GatewayConfig
+	WindowManager          *compozyconfig.WindowManagerConfig
+	WindowManagerShortcuts *map[string]windowmanager.ShortcutBinding
+	WindowManagerAliases   *map[string]string
+	Overwrite              bool
+	CmdPalette             *CmdPaletteSection
+	Attention              *compozyconfig.AttentionConfig
+	Shell                  *compozyconfig.ShellConfig
+	Observability          *compozyconfig.ObservabilityConfig
+	HooksExtensions        *compozyconfig.ExtensionsConfig
 }
 
 // CollectionRequest identifies one collection read.
@@ -237,6 +244,7 @@ type SectionEnvelope struct {
 	Network         *NetworkSection
 	Gateway         *GatewaySection
 	WindowManager   *WindowManagerSection
+	CmdPalette      *CmdPaletteSection
 	Attention       *AttentionSection
 	Shell           *ShellSection
 	Observability   *ObservabilitySection

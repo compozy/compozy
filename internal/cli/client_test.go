@@ -29,6 +29,7 @@ import (
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -151,6 +152,75 @@ func TestUnixSocketClientCmdPaletteMethods(t *testing.T) {
 		var paletteErr *cmdPaletteAPIError
 		if !errors.As(err, &paletteErr) || err.Error() != `invalid arguments — missing required "title"` {
 			t.Fatalf("InvokeCmdPaletteCommand() error = %#v", err)
+		}
+	})
+
+	t.Run("Should use scoped settings for bindings and preserve mutation conflicts", func(t *testing.T) {
+		t.Parallel()
+		var calls int
+		client := newClient(func(request *http.Request) (*http.Response, error) {
+			calls++
+			if request.URL.Path != "/api/settings/window-manager" ||
+				request.URL.Query().Get("scope") != "workspace" ||
+				request.URL.Query().Get("workspace_id") != "workspace-1" {
+				t.Fatalf("request = %s %s?%s", request.Method, request.URL.Path, request.URL.RawQuery)
+			}
+			if calls == 1 {
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"config":{"shortcuts":{}},"effective_shortcuts":{},"aliases":{},"commands":[],"extension_defaults":[]}`,
+				), nil
+			}
+			return newHTTPResponse(
+				http.StatusConflict,
+				`{"error":"shortcut_conflict","owner":"session.new","chord":"meta+KeyN"}`,
+			), nil
+		})
+		if _, err := client.GetCmdPaletteBindings(t.Context(), "workspace-1"); err != nil {
+			t.Fatalf("GetCmdPaletteBindings() error = %v", err)
+		}
+		shortcuts := map[string]windowmanager.ShortcutBinding{"ext.notes.capture": {"meta+KeyN"}}
+		_, err := client.UpdateCmdPaletteBindings(
+			t.Context(),
+			"workspace-1",
+			contract.UpdateSettingsWindowManagerRequest{Shortcuts: &shortcuts},
+		)
+		var mutationErr *cmdPaletteMutationAPIError
+		if !errors.As(err, &mutationErr) || err.Error() !=
+			`shortcut conflict — meta+KeyN is used by "session.new". Re-run with --overwrite to take it.` {
+			t.Fatalf("UpdateCmdPaletteBindings() error = %#v", err)
+		}
+	})
+
+	t.Run("Should use idempotent pin paths", func(t *testing.T) {
+		t.Parallel()
+		var calls int
+		client := newClient(func(request *http.Request) (*http.Response, error) {
+			calls++
+			wantMethod := http.MethodPut
+			if calls == 2 {
+				wantMethod = http.MethodDelete
+			}
+			if request.Method != wantMethod ||
+				request.URL.EscapedPath() != "/api/cmd-palette/pins/ext.notes%2Fcapture" ||
+				request.URL.Query().Get("workspace") != "workspace-1" {
+				t.Fatalf(
+					"request %d = %s %s?%s",
+					calls,
+					request.Method,
+					request.URL.EscapedPath(),
+					request.URL.RawQuery,
+				)
+			}
+			return newHTTPResponse(http.StatusOK, fmt.Sprintf(`{"pinned":%t}`, calls == 1)), nil
+		})
+		response, err := client.SetCmdPalettePin(t.Context(), "workspace-1", "ext.notes/capture", true)
+		if err != nil || !response.Pinned {
+			t.Fatalf("SetCmdPalettePin(true) = %#v, %v", response, err)
+		}
+		response, err = client.SetCmdPalettePin(t.Context(), "workspace-1", "ext.notes/capture", false)
+		if err != nil || response.Pinned {
+			t.Fatalf("SetCmdPalettePin(false) = %#v, %v", response, err)
 		}
 	})
 

@@ -97,12 +97,46 @@ type SettingsWindowManagerBindingPayload struct {
 }
 
 type UpdateSettingsWindowManagerRequest struct {
-	Config SettingsWindowManagerConfigPayload `json:"config"`
+	Config    *SettingsWindowManagerConfigPayload       `json:"config,omitempty"`
+	Shortcuts *map[string]windowmanager.ShortcutBinding `json:"shortcuts,omitempty"`
+	Aliases   *map[string]string                        `json:"aliases,omitempty"`
+	Overwrite bool                                      `json:"overwrite,omitempty"`
 }
 
 type SettingsWindowManagerResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
-	Config    SettingsWindowManagerConfigPayload       `json:"config"`
-	Defaults  map[string]windowmanager.ShortcutBinding `json:"defaults"`
-	Effective map[string]windowmanager.ShortcutBinding `json:"effective"`
+	SettingsGlobalWorkspaceSectionResponseMetaPayload
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string]windowmanager.ShortcutBinding `json:"defaults"`
+	EffectiveShortcuts map[string]windowmanager.ShortcutBinding `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+type SettingsWindowManagerCommandPayload struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Section string `json:"section"`
+	Source  string `json:"source"`
+}
+
+type SettingsWindowManagerDefaultPayload struct {
+	CommandID    string                        `json:"command"`
+	Binding      windowmanager.ShortcutBinding `json:"binding"`
+	Dormant      bool                          `json:"dormant"`
+	ConflictWith string                        `json:"conflict_with,omitempty"`
+}
+
+type SettingsWindowManagerDiagnosticPayload struct {
+	CommandID string `json:"command_id"`
+	Message   string `json:"message"`
+}
+
+type SettingsWindowManagerMutationError struct {
+	Error   string `json:"error"`
+	Owner   string `json:"owner,omitempty"`
+	Chord   string `json:"chord,omitempty"`
+	Alias   string `json:"alias,omitempty"`
+	Message string `json:"message,omitempty"`
 }

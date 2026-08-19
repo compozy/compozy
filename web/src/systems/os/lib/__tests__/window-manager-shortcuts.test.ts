@@ -23,24 +23,34 @@ import {
   type ShortcutMap,
 } from "../window-manager-shortcuts";
 
+function coreAction(
+  action: Omit<ShortcutActionDefinition, "source" | "alias"> & Partial<ShortcutActionDefinition>
+): ShortcutActionDefinition {
+  return { source: "core", alias: null, ...action };
+}
+
 /** The catalog the daemon would project; this layer only ever receives it. */
 const ACTIONS: readonly ShortcutActionDefinition[] = [
-  { id: "window.close", label: "Close window", section: "Window" },
-  { id: "window.tile.left", label: "Tile left half", section: "Tiling" },
-  { id: "window.focus.up", label: "Focus up", section: "Window" },
-  { id: "window.focus.down", label: "Focus down", section: "Window" },
-  { id: "sidebar.toggle", label: "Toggle sidebar", section: "Shell" },
-  ...Array.from({ length: 9 }, (_, index) => ({
-    id: `desktop.switch.${index + 1}`,
-    label: `Switch to desktop ${index + 1}`,
-    section: "Desktops",
-  })),
-  ...Array.from({ length: 8 }, (_, index) => ({
-    id: `window.tab.jump.${index + 1}`,
-    label: `Go to tab ${index + 1}`,
-    section: "Tabs",
-  })),
-  { id: "layout.arrange.grid", label: "Arrange in grid", section: "Layout" },
+  coreAction({ id: "window.close", label: "Close window", section: "Window" }),
+  coreAction({ id: "window.tile.left", label: "Tile left half", section: "Tiling" }),
+  coreAction({ id: "window.focus.up", label: "Focus up", section: "Window" }),
+  coreAction({ id: "window.focus.down", label: "Focus down", section: "Window" }),
+  coreAction({ id: "sidebar.toggle", label: "Toggle sidebar", section: "Shell" }),
+  ...Array.from({ length: 9 }, (_, index) =>
+    coreAction({
+      id: `desktop.switch.${index + 1}`,
+      label: `Switch to desktop ${index + 1}`,
+      section: "Desktops",
+    })
+  ),
+  ...Array.from({ length: 8 }, (_, index) =>
+    coreAction({
+      id: `window.tab.jump.${index + 1}`,
+      label: `Go to tab ${index + 1}`,
+      section: "Tabs",
+    })
+  ),
+  coreAction({ id: "layout.arrange.grid", label: "Arrange in grid", section: "Layout" }),
 ];
 
 const DEFAULTS: ShortcutMap = {

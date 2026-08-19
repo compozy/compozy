@@ -46,6 +46,33 @@ func TestPersonalization(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop recording while personalization is disabled", func(t *testing.T) {
+		t.Parallel()
+		store := &personalizationStoreStub{}
+		service := testRegistryWithOptions(
+			staticTestProvider{commands: []Descriptor{testDescriptor("session.new")}},
+			nil,
+			nil,
+			&testExecutor{},
+			WithPersonalizationStore(store),
+			WithPersonalizationPolicy(personalizationPolicyFunc(func(
+				context.Context,
+				WorkspaceID,
+			) (bool, error) {
+				return false, nil
+			})),
+		)
+
+		if err := service.RecordUsage(context.Background(), Usage{
+			WorkspaceID: "workspace-a", CommandID: "session.new", Query: "new",
+		}); err != nil {
+			t.Fatalf("RecordUsage() error = %v", err)
+		}
+		if store.recorded.CommandID != "" {
+			t.Fatalf("recorded usage = %#v, want no write while disabled", store.recorded)
+		}
+	})
+
 	t.Run("Should prune stale catalog IDs and low decayed rows without failing the snapshot", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
@@ -165,6 +192,15 @@ func TestPersonalization(t *testing.T) {
 			}
 		}
 	})
+}
+
+type personalizationPolicyFunc func(context.Context, WorkspaceID) (bool, error)
+
+func (f personalizationPolicyFunc) PersonalizationEnabled(
+	ctx context.Context,
+	workspaceID WorkspaceID,
+) (bool, error) {
+	return f(ctx, workspaceID)
 }
 
 func personalizationTestRegistry(

@@ -214,6 +214,7 @@ func readAPIError(response *http.Response) error {
 func readAPIErrorBody(statusCode int, status string, body []byte) error {
 	if len(body) > 0 {
 		for _, parse := range []func(int, string, []byte) (bool, error){
+			parseCmdPaletteMutationAPIError,
 			parseCmdPaletteAPIError,
 			parseExtensionValidationAPIError,
 			parseExtensionOperationAPIError,

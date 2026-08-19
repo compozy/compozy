@@ -1,6 +1,6 @@
 import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
 
-import { parseSettingsWindowManagerConfig } from "../lib/window-manager-config-schema";
+import { fetchWindowManagerSettings } from "./window-manager-settings-api";
 import {
   parseWindowManagerClientView,
   parseWindowManagerCommandResult,
@@ -28,17 +28,13 @@ export class WindowManagerApiError extends Error {
   }
 }
 
-export async function fetchWindowManagerConfig(signal?: AbortSignal): Promise<WindowManagerConfig> {
-  const response = await runtimeFetch(`${apiBaseUrl}/api/settings/window-manager`, { signal });
-  const body = await responseJson(response);
-  if (!response.ok) {
-    throw new WindowManagerApiError(
-      "Unable to load window-management settings.",
-      response.status,
-      null
-    );
-  }
-  return parseSettingsWindowManagerConfig(body);
+/** The keymap half of the settings section, for callers that need nothing else. */
+export async function fetchWindowManagerConfig(
+  workspaceId: string | null,
+  signal?: AbortSignal
+): Promise<WindowManagerConfig> {
+  const section = await fetchWindowManagerSettings({ workspaceId }, signal);
+  return section.config;
 }
 
 function managerPath(workspaceId: string): string {

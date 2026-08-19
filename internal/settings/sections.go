@@ -106,7 +106,7 @@ func (s *service) resolveSectionScope(
 }
 
 func validateSectionScope(section SectionName, scope ScopeKind, agentName string) error {
-	if section == SectionRoles {
+	if section == SectionRoles || section == SectionWindowManager || section == SectionCmdPalette {
 		if scope == ScopeAgent {
 			return conflictError(
 				fmt.Errorf("settings: section %q does not support %s scope", section, scope),
@@ -199,6 +199,13 @@ func (s *service) populateSectionEnvelope(
 			return err
 		}
 		envelope.Network = &section
+	case SectionWindowManager:
+		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
+		section, err := s.buildWindowManagerSection(ctx, cfg, envelope.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		envelope.WindowManager = &section
 	case SectionObservability:
 		envelope.Scope = ScopeGlobal
 		section, err := s.buildObservabilitySection(ctx, cfg)
@@ -229,10 +236,10 @@ func populateSimpleSectionEnvelope(envelope *SectionEnvelope, cfg *compozyconfig
 		envelope.Scope = ScopeGlobal
 		section := GatewaySection{Config: cfg.Gateway}
 		envelope.Gateway = &section
-	case SectionWindowManager:
-		envelope.Scope = ScopeGlobal
-		section := buildWindowManagerSection(cfg)
-		envelope.WindowManager = &section
+	case SectionCmdPalette:
+		envelope.AvailableScopes = []ScopeKind{ScopeGlobal, ScopeWorkspace}
+		section := buildCmdPaletteSection(cfg)
+		envelope.CmdPalette = &section
 	case SectionAttention:
 		envelope.Scope = ScopeGlobal
 		section := buildAttentionSection(cfg)

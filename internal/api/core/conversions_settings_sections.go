@@ -27,6 +27,8 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 		return settingsNetworkSectionResponse(envelope)
 	case settingspkg.SectionWindowManager:
 		return settingsWindowManagerSectionResponse(envelope)
+	case settingspkg.SectionCmdPalette:
+		return settingsCmdPaletteSectionResponse(envelope)
 	case settingspkg.SectionAttention:
 		return settingsAttentionSectionResponse(envelope)
 	case settingspkg.SectionShell:
@@ -188,6 +190,7 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 		settingspkg.SectionAutomation,
 		settingspkg.SectionNetwork,
 		settingspkg.SectionWindowManager,
+		settingspkg.SectionCmdPalette,
 		settingspkg.SectionAttention,
 		settingspkg.SectionShell,
 		settingspkg.SectionObservability,
@@ -445,48 +448,5 @@ func SettingsUpdateCancelResponseFromResult(result SettingsUpdateCancel) contrac
 		OperationID: strings.TrimSpace(result.OperationID),
 		Message:     strings.TrimSpace(result.Message),
 		Holder:      settingsUpdateHolderPayload(result.Holder),
-	}
-}
-
-func settingsGlobalSectionMetaPayload(
-	envelope settingspkg.SectionEnvelope,
-) contract.SettingsGlobalSectionResponseMetaPayload {
-	return contract.SettingsGlobalSectionResponseMetaPayload{
-		Section:         contract.SettingsSectionName(envelope.Section),
-		Scope:           contract.SettingsGlobalScopeKind(envelope.Scope),
-		AvailableScopes: settingsGlobalScopeKindsPayload(envelope.AvailableScopes),
-	}
-}
-
-func settingsSkillsSectionMetaPayload(
-	envelope settingspkg.SectionEnvelope,
-) contract.SettingsSkillsSectionResponseMetaPayload {
-	return contract.SettingsSkillsSectionResponseMetaPayload{
-		Section:         contract.SettingsSectionName(envelope.Section),
-		Scope:           contract.SettingsAgentScopeKind(envelope.Scope),
-		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
-		AgentName:       strings.TrimSpace(envelope.AgentName),
-		AvailableScopes: settingsAgentScopeKindsPayload(envelope.AvailableScopes),
-	}
-}
-
-func settingsGlobalCollectionMetaPayload(
-	envelope settingspkg.CollectionEnvelope,
-) contract.SettingsGlobalCollectionResponseMetaPayload {
-	return contract.SettingsGlobalCollectionResponseMetaPayload{
-		Collection:      contract.SettingsCollectionName(envelope.Collection),
-		Scope:           contract.SettingsGlobalScopeKind(envelope.Scope),
-		AvailableScopes: settingsGlobalScopeKindsPayload(envelope.AvailableScopes),
-	}
-}
-
-func settingsGlobalWorkspaceCollectionMetaPayload(
-	envelope settingspkg.CollectionEnvelope,
-) contract.SettingsGlobalWorkspaceCollectionResponseMetaPayload {
-	return contract.SettingsGlobalWorkspaceCollectionResponseMetaPayload{
-		Collection:      contract.SettingsCollectionName(envelope.Collection),
-		Scope:           contract.SettingsWorkspaceScopeKind(envelope.Scope),
-		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
-		AvailableScopes: settingsWorkspaceScopeKindsPayload(envelope.AvailableScopes),
 	}
 }

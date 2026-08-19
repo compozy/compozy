@@ -106,7 +106,7 @@ func renderExtensionCommandTree(response ExtensionCommandsRecord) string {
 	}
 	return renderHumanTable(
 		"Extension Commands",
-		[]string{"EXTENSION", "COMMAND", toolOperatorToolIDHeader, "RISK", "SUMMARY"},
+		[]string{"EXTENSION", cliCommandValue, toolOperatorToolIDHeader, "RISK", "SUMMARY"},
 		rows,
 	)
 }

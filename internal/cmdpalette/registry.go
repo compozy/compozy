@@ -19,6 +19,7 @@ type Service struct {
 	newID           func() string
 	now             func() time.Time
 	personalization PersonalizationStore
+	policy          PersonalizationPolicy
 	logger          *slog.Logger
 	degradedOnce    sync.Once
 
@@ -69,6 +70,16 @@ func WithPersonalizationStore(store PersonalizationStore) Option {
 			return errors.New("cmd palette: personalization store is required")
 		}
 		service.personalization = store
+		return nil
+	}
+}
+
+func WithPersonalizationPolicy(policy PersonalizationPolicy) Option {
+	return func(service *Service) error {
+		if policy == nil {
+			return errors.New("cmd palette: personalization policy is required")
+		}
+		service.policy = policy
 		return nil
 	}
 }

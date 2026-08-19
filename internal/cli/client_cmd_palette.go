@@ -24,7 +24,71 @@ type CmdPaletteClient interface {
 	CancelPendingToolApproval(context.Context, string) (contract.ToolApprovalStatusResponse, error)
 }
 
+type CmdPaletteMutationClient interface {
+	workspaceLookupClient
+	GetCmdPaletteBindings(context.Context, string) (contract.SettingsWindowManagerResponse, error)
+	UpdateCmdPaletteBindings(
+		context.Context,
+		string,
+		contract.UpdateSettingsWindowManagerRequest,
+	) (contract.SettingsWindowManagerResponse, error)
+	SetCmdPalettePin(context.Context, string, string, bool) (contract.CmdPalettePinResponse, error)
+}
+
 var _ CmdPaletteClient = (*daemonClient)(nil)
+var _ CmdPaletteMutationClient = (*daemonClient)(nil)
+
+func (c *daemonClient) GetCmdPaletteBindings(
+	ctx context.Context,
+	workspace string,
+) (contract.SettingsWindowManagerResponse, error) {
+	query := url.Values{
+		automationScopeKey:       {string(contract.SettingsWorkspaceScopeWorkspace)},
+		automationWorkspaceIDKey: {workspace},
+	}
+	var response contract.SettingsWindowManagerResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/settings/window-manager", query, nil, &response); err != nil {
+		return contract.SettingsWindowManagerResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *daemonClient) UpdateCmdPaletteBindings(
+	ctx context.Context,
+	workspace string,
+	request contract.UpdateSettingsWindowManagerRequest,
+) (contract.SettingsWindowManagerResponse, error) {
+	query := url.Values{
+		automationScopeKey:       {string(contract.SettingsWorkspaceScopeWorkspace)},
+		automationWorkspaceIDKey: {workspace},
+	}
+	var response contract.SettingsWindowManagerResponse
+	if err := c.doJSON(
+		ctx, http.MethodPatch, "/api/settings/window-manager", query, request, &response,
+	); err != nil {
+		return contract.SettingsWindowManagerResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *daemonClient) SetCmdPalettePin(
+	ctx context.Context,
+	workspace string,
+	commandID string,
+	pinned bool,
+) (contract.CmdPalettePinResponse, error) {
+	method := http.MethodPut
+	if !pinned {
+		method = http.MethodDelete
+	}
+	query := url.Values{cmdPaletteWorkspaceFlag: {workspace}}
+	path := "/api/cmd-palette/pins/" + url.PathEscape(strings.TrimSpace(commandID))
+	var response contract.CmdPalettePinResponse
+	if err := c.doJSON(ctx, method, path, query, nil, &response); err != nil {
+		return contract.CmdPalettePinResponse{}, err
+	}
+	return response, nil
+}
 
 func (c *daemonClient) ListCmdPaletteCommands(
 	ctx context.Context,

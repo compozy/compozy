@@ -6,6 +6,7 @@ import (
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 // AutomationSettings groups the editable automation-engine settings.
@@ -67,7 +68,33 @@ type GatewaySection struct {
 
 // WindowManagerSection is the window-manager section read model.
 type WindowManagerSection struct {
-	Config compozyconfig.WindowManagerConfig
+	Config             compozyconfig.WindowManagerConfig
+	Commands           []WindowManagerShortcutCommand
+	EffectiveShortcuts map[string]windowmanager.ShortcutBinding
+	Aliases            map[string]string
+	ExtensionDefaults  []WindowManagerExtensionDefault
+	Diagnostics        []windowmanager.ShortcutDiagnostic
+}
+
+// WindowManagerShortcutCommand identifies one bindable command in the current catalog.
+type WindowManagerShortcutCommand struct {
+	ID      string
+	Title   string
+	Section string
+	Source  string
+}
+
+// WindowManagerExtensionDefault reserves the response shape populated by extension contributions.
+type WindowManagerExtensionDefault struct {
+	CommandID    string
+	Binding      windowmanager.ShortcutBinding
+	Dormant      bool
+	ConflictWith string
+}
+
+// CmdPaletteSection is the command-palette settings read model.
+type CmdPaletteSection struct {
+	Personalization bool
 }
 
 // AttentionSection is the operator attention section read model.

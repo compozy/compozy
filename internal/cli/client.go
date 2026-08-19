@@ -37,10 +37,6 @@ type DaemonClient interface {
 	DownloadSupportBundle(ctx context.Context, operationID string, dst io.Writer) error
 	GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error)
 	UpdateSettingsSkills(ctx context.Context, request UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
-	UpdateSettingsWindowManager(
-		ctx context.Context,
-		request UpdateSettingsWindowManagerRequest,
-	) (SettingsMutationRecord, error)
 	UpdateSettingsAttention(
 		ctx context.Context,
 		request UpdateSettingsAttentionRequest,

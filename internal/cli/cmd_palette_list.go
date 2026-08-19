@@ -131,7 +131,7 @@ func cmdPaletteListOutput(workspace string, commands []contract.CmdPaletteComman
 		"COMMANDS (workspace: "+workspace+")",
 		[]string{"ID", "TITLE", "SOURCE", "AVAILABLE", "BINDINGS"},
 		"commands",
-		[]string{"id", networkTitleKey, automationSourceKey, cmdPaletteAvailableFlag, "bindings"},
+		[]string{"id", networkTitleKey, automationSourceKey, cmdPaletteAvailableFlag, cliBindingsKey},
 		func(command contract.CmdPaletteCommand) []string {
 			return []string{
 				string(command.ID), command.Title, command.Source,

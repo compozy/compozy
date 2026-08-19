@@ -46,13 +46,21 @@ func (d *Daemon) bootCmdPalette(
 	}
 	cleanup.add(func(context.Context) error { return coordinator.Close() })
 	executor.approvals = coordinator
-	registry, err := cmdpalette.NewRegistry(
+	var registry *cmdpalette.Service
+	bindings := &cmdPaletteBindingsResolver{
+		workspaces: state.workspaceResolver,
+		loadGlobal: d.loadConfig,
+		catalog:    func() cmdpalette.BindableCatalog { return registry },
+		logger:     d.logger,
+	}
+	registry, err = cmdpalette.NewRegistry(
 		[]cmdpalette.ProviderRegistration{{
 			Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore}, Provider: provider,
 		}},
-		&cmdPaletteClientDirectory{windowManager: state.windowManager}, nil, executor,
+		&cmdPaletteClientDirectory{windowManager: state.windowManager}, bindings, executor,
 		cmdpalette.WithEventRecorder(eventRecorder), cmdpalette.WithClock(d.now),
-		cmdpalette.WithPersonalizationStore(personalizationStore), cmdpalette.WithLogger(d.logger),
+		cmdpalette.WithPersonalizationStore(personalizationStore),
+		cmdpalette.WithPersonalizationPolicy(bindings), cmdpalette.WithLogger(d.logger),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create command palette registry: %w", err)

@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -17,18 +18,76 @@ func settingsWindowManagerSectionResponse(
 	if envelope.WindowManager == nil {
 		return nil, errors.New("settings window-manager section is required")
 	}
-	effective, err := windowmanager.EffectiveKeymap(envelope.WindowManager.Config.Shortcuts)
-	if err != nil {
-		return nil, fmt.Errorf("settings window-manager shortcuts are invalid: %w", err)
+	effective := envelope.WindowManager.EffectiveShortcuts
+	diagnostics := envelope.WindowManager.Diagnostics
+	if effective == nil {
+		resolved, storedDiagnostics, err := windowmanager.TolerantEffectiveKeymap(
+			envelope.WindowManager.Config.Shortcuts,
+			windowmanager.DefaultBindableIDs(),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("settings window-manager shortcuts are invalid: %w", err)
+		}
+		effective = resolved
+		diagnostics = storedDiagnostics
 	}
 	return contract.SettingsWindowManagerResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		SettingsGlobalWorkspaceSectionResponseMetaPayload: settingsGlobalWorkspaceSectionMetaPayload(envelope),
 		Config: settingsWindowManagerConfigPayload(
 			envelope.WindowManager.Config,
 		),
-		Defaults:  requiredWindowManagerShortcutsPayload(windowmanager.DefaultKeymap()),
-		Effective: requiredWindowManagerShortcutsPayload(effective),
+		Defaults:           requiredWindowManagerShortcutsPayload(windowmanager.DefaultKeymap()),
+		EffectiveShortcuts: requiredWindowManagerShortcutsPayload(effective),
+		Aliases:            cloneSettingsAliases(envelope.WindowManager.Aliases),
+		Commands:           settingsWindowManagerCommands(envelope.WindowManager.Commands),
+		ExtensionDefaults:  settingsWindowManagerDefaults(envelope.WindowManager.ExtensionDefaults),
+		Diagnostics:        settingsWindowManagerDiagnostics(diagnostics),
 	}, nil
+}
+
+func settingsWindowManagerCommands(
+	commands []settingspkg.WindowManagerShortcutCommand,
+) []contract.SettingsWindowManagerCommandPayload {
+	result := make([]contract.SettingsWindowManagerCommandPayload, 0, len(commands))
+	for _, command := range commands {
+		result = append(result, contract.SettingsWindowManagerCommandPayload{
+			ID: command.ID, Title: command.Title, Section: command.Section, Source: command.Source,
+		})
+	}
+	return result
+}
+
+func settingsWindowManagerDefaults(
+	defaults []settingspkg.WindowManagerExtensionDefault,
+) []contract.SettingsWindowManagerDefaultPayload {
+	result := make([]contract.SettingsWindowManagerDefaultPayload, 0, len(defaults))
+	for _, item := range defaults {
+		result = append(result, contract.SettingsWindowManagerDefaultPayload{
+			CommandID:    item.CommandID,
+			Binding:      append(windowmanager.ShortcutBinding(nil), item.Binding...),
+			Dormant:      item.Dormant,
+			ConflictWith: item.ConflictWith,
+		})
+	}
+	return result
+}
+
+func settingsWindowManagerDiagnostics(
+	diagnostics []windowmanager.ShortcutDiagnostic,
+) []contract.SettingsWindowManagerDiagnosticPayload {
+	result := make([]contract.SettingsWindowManagerDiagnosticPayload, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		result = append(result, contract.SettingsWindowManagerDiagnosticPayload{
+			CommandID: diagnostic.CommandID, Message: diagnostic.Message,
+		})
+	}
+	return result
+}
+
+func cloneSettingsAliases(source map[string]string) map[string]string {
+	result := make(map[string]string, len(source))
+	maps.Copy(result, source)
+	return result
 }
 
 func settingsWindowManagerConfigPayload(

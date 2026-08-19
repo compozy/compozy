@@ -52,7 +52,6 @@ export function useOsPaletteSurface({
     onOpenChange,
     dispatch: (command, query) => dispatch.run(command, { query }),
     setPinned: (command, pinned) => void dispatch.setPinned(command, pinned),
-    runById: commandId => void dispatch.runById(commandId),
   });
   const values = [
     ...root.sections.flatMap(section => section.commands.map(command => command.id)),

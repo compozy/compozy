@@ -1,5 +1,6 @@
 import type {
   SettingsApplyRecordsFilter,
+  SettingsCmdPaletteFilter,
   SettingsMCPServerListFilter,
   SettingsNotificationPresetFilter,
   SettingsSectionName,
@@ -40,6 +41,14 @@ export const settingsKeys = {
       filter.scope ?? "",
       normalizeText(filter.workspace_id),
       normalizeText(filter.agent_name),
+    ] as const,
+  // Scope is part of the key: global and each workspace answer differently, so
+  // one entry serving all of them would show another scope's setting.
+  cmdPaletteSection: (filter: SettingsCmdPaletteFilter = {}) =>
+    [
+      ...settingsKeys.section("cmd-palette"),
+      filter.scope ?? "",
+      normalizeText(filter.workspace_id),
     ] as const,
 
   rolesStatus: () => [...settingsKeys.all, "roles-status"] as const,

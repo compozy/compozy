@@ -298,7 +298,7 @@ func validateWindowManagerEnum(path string, value string, allowed ...string) err
 }
 
 func validateWindowManagerShortcuts(shortcuts map[string]windowmanager.ShortcutBinding) error {
-	if _, err := windowmanager.CanonicalShortcutsV2(shortcuts); err != nil {
+	if _, err := windowmanager.CanonicalStoredShortcutsV2(shortcuts); err != nil {
 		return ValidationError{Path: "window_manager.shortcuts", Message: err.Error()}
 	}
 	return nil

@@ -134,3 +134,8 @@ type PersonalizationStore interface {
 	PruneCmdPaletteQueryHit(context.Context, WorkspaceID, string, CommandID) error
 	ResetCmdPalettePersonalization(context.Context, WorkspaceID) error
 }
+
+// PersonalizationPolicy resolves whether workspace ranking signals are active.
+type PersonalizationPolicy interface {
+	PersonalizationEnabled(context.Context, WorkspaceID) (bool, error)
+}

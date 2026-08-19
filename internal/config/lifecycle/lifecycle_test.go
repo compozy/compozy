@@ -353,4 +353,12 @@ func TestDiffClassForRoot(t *testing.T) {
 			t.Fatalf("DiffClassForRoot(window-manager) = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should classify the command-palette settings section as live", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := DiffClassForRoot("cmd-palette"), DiffClassLive; got != want {
+			t.Fatalf("DiffClassForRoot(cmd-palette) = %q, want %q", got, want)
+		}
+	})
 }

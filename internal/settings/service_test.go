@@ -15,6 +15,7 @@ import (
 	"time"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -268,6 +269,22 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 			},
 		},
 		{
+			name:  SectionCmdPalette,
+			label: "Should build the command-palette section",
+			assert: func(t *testing.T, envelope SectionEnvelope) {
+				t.Helper()
+				if envelope.CmdPalette == nil {
+					t.Fatal("CmdPalette section = nil")
+				}
+				if !envelope.CmdPalette.Personalization {
+					t.Fatal("CmdPalette personalization = false, want true")
+				}
+				if !slices.Equal(envelope.AvailableScopes, []ScopeKind{ScopeGlobal, ScopeWorkspace}) {
+					t.Fatalf("CmdPalette scopes = %q, want global and workspace", envelope.AvailableScopes)
+				}
+			},
+		},
+		{
 			name:  SectionAttention,
 			label: "Should build the attention section",
 			assert: func(t *testing.T, envelope SectionEnvelope) {
@@ -351,6 +368,45 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 			tt.assert(t, envelope)
 		})
 	}
+
+	t.Run("Should diagnose dead workspace shortcut IDs without failing the section [IT-013 GET]", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		writeFile(
+			t,
+			filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName),
+			"[window_manager.shortcuts]\n\"ext.removed.capture\" = [\"meta+alt+KeyQ\"]\n",
+		)
+		workspaceService := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-1": {
+					Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+					WorkspaceID: "ws-1",
+				},
+			}},
+			CmdPalette: fakeCmdPaletteCatalog{catalog: cmdpalette.Catalog{
+				Commands: []cmdpalette.ResolvedCommand{{
+					Descriptor: cmdpalette.Descriptor{
+						ID: "session.new", Title: "New session", Section: "Sessions",
+						Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+					},
+					Bindings: []string{"meta+KeyN"},
+				}},
+			}},
+		})
+
+		envelope, err := workspaceService.GetSection(ctx, SectionRequest{
+			Section: SectionWindowManager, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
+		})
+		if err != nil {
+			t.Fatalf("GetSection(workspace window-manager) error = %v", err)
+		}
+		if envelope.WindowManager == nil || len(envelope.WindowManager.Diagnostics) != 1 ||
+			envelope.WindowManager.Diagnostics[0].CommandID != "ext.removed.capture" {
+			t.Fatalf("window-manager diagnostics = %#v, want dead extension command", envelope.WindowManager)
+		}
+	})
 }
 
 func TestInvalidScopeCombinationsReturnDescriptiveError(t *testing.T) {
@@ -654,6 +710,192 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		}
 		if after := readFile(t, homePaths.ConfigFile); after != before {
 			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+
+	t.Run("Should name the shortcut owner and transfer the chord only with overwrite", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		shortcuts := map[string]windowmanager.ShortcutBinding{
+			"palette.open": {"meta+KeyN"},
+		}
+		request := SectionUpdateRequest{
+			SectionRequest:         SectionRequest{Section: SectionWindowManager},
+			WindowManagerShortcuts: &shortcuts,
+		}
+
+		_, err := service.UpdateSection(ctx, request)
+		var conflict *windowmanager.ShortcutConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("UpdateSection(conflict) error = %T %v, want ShortcutConflictError", err, err)
+		}
+		if conflict.Owner != "session.new" || conflict.Chord != "meta+KeyN" {
+			t.Fatalf("shortcut conflict = %#v, want session.new owner of meta+KeyN", conflict)
+		}
+
+		request.Overwrite = true
+		if _, err := service.UpdateSection(ctx, request); err != nil {
+			t.Fatalf("UpdateSection(overwrite) error = %v", err)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(overwrite) error = %v", err)
+		}
+		if got := loaded.WindowManager.Shortcuts["session.new"]; len(got) != 0 {
+			t.Fatalf("session.new shortcuts = %q, want unbound", got)
+		}
+		got := loaded.WindowManager.Shortcuts["palette.open"]
+		want := windowmanager.ShortcutBinding{"meta+KeyN"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("palette.open shortcuts = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should validate aliases and transfer ownership atomically", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		initialAliases := map[string]string{"session.new": "new", "palette.open": "open"}
+		if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest:       SectionRequest{Section: SectionWindowManager},
+			WindowManagerAliases: &initialAliases,
+		}); err != nil {
+			t.Fatalf("UpdateSection(initial aliases) error = %v", err)
+		}
+
+		conflictingAliases := map[string]string{"session.new": "new", "palette.open": "new"}
+		request := SectionUpdateRequest{
+			SectionRequest:       SectionRequest{Section: SectionWindowManager},
+			WindowManagerAliases: &conflictingAliases,
+		}
+		_, err := service.UpdateSection(ctx, request)
+		var conflict *AliasConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("UpdateSection(alias conflict) error = %T %v, want AliasConflictError", err, err)
+		}
+		if conflict.Owner != "session.new" || conflict.Alias != "new" {
+			t.Fatalf("alias conflict = %#v, want session.new owner of new", conflict)
+		}
+
+		request.Overwrite = true
+		if _, err := service.UpdateSection(ctx, request); err != nil {
+			t.Fatalf("UpdateSection(alias overwrite) error = %v", err)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(alias overwrite) error = %v", err)
+		}
+		if _, exists := loaded.CmdPalette.Aliases["session.new"]; exists {
+			t.Fatal("session.new alias still exists after overwrite")
+		}
+		if got, want := loaded.CmdPalette.Aliases["palette.open"], "new"; got != want {
+			t.Fatalf("palette.open alias = %q, want %q", got, want)
+		}
+
+		invalidAliases := map[string]string{"palette.open": "my alias"}
+		_, err = service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest:       SectionRequest{Section: SectionWindowManager},
+			WindowManagerAliases: &invalidAliases,
+		})
+		var invalid *InvalidAliasError
+		if !errors.As(err, &invalid) {
+			t.Fatalf("UpdateSection(invalid alias) error = %T %v, want InvalidAliasError", err, err)
+		}
+	})
+
+	t.Run("Should accept a workspace extension ID from the command catalog", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		workspaceRoot := t.TempDir()
+		service := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-1": {Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot}},
+			}},
+			CmdPalette: fakeCmdPaletteCatalog{catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
+				{Descriptor: cmdpalette.Descriptor{
+					ID: "session.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				}},
+				{Descriptor: cmdpalette.Descriptor{
+					ID: "ext.notes.capture",
+					Source: cmdpalette.Source{
+						Kind: cmdpalette.SourceKindExtension, Extension: "notes",
+					},
+				}},
+			}}},
+		})
+		shortcuts := map[string]windowmanager.ShortcutBinding{
+			"ext.notes.capture": {"alt+shift+KeyN"},
+		}
+		aliases := map[string]string{"ext.notes.capture": "cap"}
+
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{
+				Section: SectionWindowManager, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
+			},
+			WindowManagerShortcuts: &shortcuts,
+			WindowManagerAliases:   &aliases,
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(extension shortcut) error = %v", err)
+		}
+		if result.Scope != ScopeWorkspace || result.WriteTarget != WriteTargetWorkspaceConfig {
+			t.Fatalf("extension shortcut result = %#v, want workspace config", result)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome(workspace shortcut) error = %v", err)
+		}
+		got := loaded.WindowManager.Shortcuts["ext.notes.capture"]
+		want := windowmanager.ShortcutBinding{"alt+shift+KeyN"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("extension shortcuts = %q, want %q", got, want)
+		}
+		if got, want := loaded.CmdPalette.Aliases["ext.notes.capture"], "cap"; got != want {
+			t.Fatalf("extension alias = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestUpdateSectionCmdPalette(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist personalization as a live scalar mutation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionCmdPalette},
+			CmdPalette:     &CmdPaletteSection{Personalization: false},
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(cmd-palette) error = %v", err)
+		}
+		if result.Lifecycle != lifecycle.Live || !result.Applied || result.RestartRequired {
+			t.Fatalf("UpdateSection(cmd-palette) = %#v, want live applied mutation", result)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(cmd-palette) error = %v", err)
+		}
+		if loaded.CmdPalette.Personalization {
+			t.Fatal("CmdPalette personalization = true, want false")
+		}
+		if got, want := loaded.CmdPalette.FallbackTargets, []string{"agent"}; !slices.Equal(got, want) {
+			t.Fatalf("CmdPalette fallback targets = %q, want %q", got, want)
 		}
 	})
 }
@@ -5006,6 +5248,18 @@ func (f fakeExtensionStatusProvider) InstalledExtensions(context.Context) ([]Ins
 
 type fakeTransportParityProvider struct {
 	status TransportParityStatus
+}
+
+type fakeCmdPaletteCatalog struct {
+	catalog cmdpalette.Catalog
+}
+
+func (f fakeCmdPaletteCatalog) Catalog(
+	context.Context,
+	cmdpalette.WorkspaceID,
+	cmdpalette.ClientID,
+) (cmdpalette.Catalog, error) {
+	return f.catalog, nil
 }
 
 func (f fakeTransportParityProvider) TransportParityStatus(context.Context) (TransportParityStatus, error) {

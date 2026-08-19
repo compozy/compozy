@@ -50,7 +50,10 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   const router = useRouter();
   const queryClient = useQueryClient();
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? ""));
-  const configQuery = useQuery(windowManagerConfigOptions());
+  // Scoped to the active workspace: a rebind stored in the workspace overlay has
+  // to reach the shell's own keymap, or the chord would not dispatch until a
+  // reload (US-022.AC-3).
+  const configQuery = useQuery(windowManagerConfigOptions(activeWorkspaceId));
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   // The seam is built deeper in the tree (it needs the shell's own handlers), so
   // the stream reaches it through a ref rather than the shell reaching upward.

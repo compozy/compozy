@@ -248,6 +248,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/network",
 			"GET /api/settings/attention",
 			"GET /api/settings/shell",
+			"GET /api/settings/cmd-palette",
 			"GET /api/settings/window-manager",
 			"GET /api/settings/observability",
 			"GET /api/settings/observability/log-tail",
@@ -315,6 +316,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/settings/automation",
 			"PATCH /api/settings/attention",
 			"PATCH /api/settings/shell",
+			"PATCH /api/settings/cmd-palette",
 			"PATCH /api/settings/general",
 			"PATCH /api/settings/hooks-extensions",
 			"PATCH /api/settings/memory",
@@ -962,7 +964,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			path:       "/api/settings/window-manager",
 			wantStatus: http.StatusOK,
 			body: mustJSONBody(t, contract.UpdateSettingsWindowManagerRequest{
-				Config: validUDSWindowManagerSettingsPayload(),
+				Config: new(validUDSWindowManagerSettingsPayload()),
 			}),
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()

@@ -2,6 +2,7 @@ import type {
   ConfigApplyRecordsResponse,
   SettingsAutomationSection,
   SettingsAttentionSection,
+  SettingsCmdPaletteSection,
   SettingsSandboxCollection,
   SettingsSandboxEntry,
   SettingsApplyResponse,
@@ -115,6 +116,13 @@ export const settingsAttentionSectionFixture: SettingsAttentionSection = {
     system: false,
     muted_workspaces: [],
   },
+};
+
+export const settingsCmdPaletteSectionFixture: SettingsCmdPaletteSection = {
+  section: "cmd-palette",
+  scope: "global",
+  available_scopes: ["global", "workspace"],
+  personalization: true,
 };
 
 export const settingsNotificationPresetCollectionFixture: SettingsNotificationPresetCollection = {

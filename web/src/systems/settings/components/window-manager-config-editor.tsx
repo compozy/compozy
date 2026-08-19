@@ -1,7 +1,10 @@
-import { Button, HelpTip, Pill, Slider } from "@compozy/ui";
+import { HelpTip, Slider } from "@compozy/ui";
 
+import type { WindowManagerSettingsSection } from "@/systems/os";
+
+import type { AliasEditorModel } from "../hooks/use-window-manager-alias-editor";
 import type { WindowManagerConfigEditorModel } from "../hooks/use-window-manager-config-editor";
-import { useWindowManagerShortcutRecorder } from "../hooks/use-window-manager-shortcut-recorder";
+import type { ShortcutRecorderModel } from "../hooks/use-window-manager-shortcut-recorder";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
 import { SettingsAdvancedFold, SettingsProvChip } from "./settings-advanced-fold";
 import { SettingsGroup } from "./settings-group";
@@ -17,20 +20,28 @@ import { WindowManagerSnapMap } from "./layouts/window-manager-snap-map";
 
 interface WindowManagerConfigEditorProps {
   editor: WindowManagerConfigEditorModel;
+  /** Daemon truth for the keyboard surface; not part of the draft. */
+  section: WindowManagerSettingsSection;
+  recorder: ShortcutRecorderModel;
+  aliases: AliasEditorModel;
+  focusCommandId?: string;
 }
 
 /**
  * Global window-manager defaults. One save bar for the whole page lives on the
  * route; this composes the sections and nothing else.
+ *
+ * Shortcuts and aliases are deliberately outside that save bar: a rebind has to
+ * take effect the moment it is recorded, and the daemon has to arbitrate it, so
+ * the keyboard surface writes straight through instead of collecting a draft.
  */
-export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorProps) {
-  const recorder = useWindowManagerShortcutRecorder(
-    editor.draft.shortcuts,
-    editor.draft.shortcutDefaults,
-    editor.setShortcuts
-  );
-  const changed = Object.keys(editor.draft.shortcuts).length;
-
+export function WindowManagerConfigEditor({
+  editor,
+  section,
+  recorder,
+  aliases,
+  focusCommandId,
+}: WindowManagerConfigEditorProps) {
   return (
     <>
       <SettingsGroup
@@ -73,35 +84,24 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
       </SettingsGroup>
 
       <SettingsGroup
-        action={
-          <>
-            <Pill size="xs" tone={changed === 0 ? "neutral" : "accent"}>
-              {changed === 0 ? "All default" : `${changed} changed`}
-            </Pill>
-            <Button
-              disabled={changed === 0}
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={recorder.resetAll}
-            >
-              Restore defaults
-            </Button>
-          </>
-        }
-        help="Click a chord to record a new one. Only the ones you change are stored — everything else follows the shipped default."
+        action={<SettingsLiveChip />}
+        bare
+        help="Click a chord to record a new one. Changes apply as you make them; only the ones you change are stored."
         title="Shortcuts"
       >
         <ShortcutPresetCard
-          defaults={editor.draft.shortcutDefaults}
-          overrides={editor.draft.shortcuts}
-          onChange={editor.setShortcuts}
+          defaults={section.config.shortcutDefaults}
+          overrides={section.config.shortcuts}
+          onChange={recorder.applyShortcuts}
         />
-        <WindowManagerShortcutTable
-          defaults={editor.draft.shortcutDefaults}
-          overrides={editor.draft.shortcuts}
-          recorder={recorder}
-        />
+        <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
+          <WindowManagerShortcutTable
+            aliases={aliases}
+            focusCommandId={focusCommandId}
+            recorder={recorder}
+            section={section}
+          />
+        </div>
       </SettingsGroup>
 
       <SettingsAdvancedFold data-testid="settings-page-layouts-advanced">
@@ -133,7 +133,11 @@ export function WindowManagerConfigEditor({ editor }: WindowManagerConfigEditorP
         />
         <SettingsTiles className="p-4">
           <SettingsTile label="Config section" mono value="[window_manager]" />
-          <SettingsTile label="Scope" value="Global only" />
+          <SettingsTile
+            detail={section.scope === "workspace" ? "Shortcuts write to this workspace" : undefined}
+            label="Scope"
+            value={section.availableScopes.length > 1 ? "Global and workspace" : "Global only"}
+          />
           <SettingsTile detail="Hot-applied, no restart" label="Lifecycle" value="Live" />
         </SettingsTiles>
       </SettingsAdvancedFold>

@@ -12,6 +12,7 @@ import {
   settingsApplyRecordsFixture,
   settingsAutomationSectionFixture,
   settingsAttentionSectionFixture,
+  settingsCmdPaletteSectionFixture,
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
   settingsGeneralSectionFixture,
@@ -156,11 +157,23 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json(mutationResult("attention"))
   ),
 
+  // Both scopes answer from one fixture: which scope was asked for is the
+  // caller's contract, and the stories exercise the switch, not the daemon's
+  // per-scope storage.
+  compozyApiMock.get("/api/settings/cmd-palette", () =>
+    HttpResponse.json(settingsCmdPaletteSectionFixture)
+  ),
+  compozyApiMock.patch("/api/settings/cmd-palette", () =>
+    HttpResponse.json(settingsCmdPaletteSectionFixture)
+  ),
+
   compozyApiMock.get("/api/settings/window-manager", () =>
     HttpResponse.json(settingsWindowManagerSectionFixture)
   ),
+  // Bindings echo the section the daemon produced, never a write receipt: the
+  // caller has to see the keymap that actually resulted (ADR-006).
   compozyApiMock.patch("/api/settings/window-manager", () =>
-    HttpResponse.json(mutationResult("window-manager"))
+    HttpResponse.json(settingsWindowManagerSectionFixture)
   ),
 
   compozyApiMock.get("/api/workspaces/{workspace_id}/window-manager/layout", ({ params }) =>

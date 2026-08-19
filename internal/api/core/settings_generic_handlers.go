@@ -58,6 +58,39 @@ func (h *BaseHandlers) updateSettingsSection(c *gin.Context, req settingspkg.Sec
 	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
 }
 
+func (h *BaseHandlers) updateSettingsSectionEcho(
+	c *gin.Context,
+	req settingspkg.SectionUpdateRequest,
+	respondTypedError func(*gin.Context, error) bool,
+) {
+	if h.Settings == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)
+		return
+	}
+	_, err := h.Settings.ApplySection(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		req,
+	)
+	if err != nil {
+		if respondTypedError != nil && respondTypedError(c, err) {
+			return
+		}
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	envelope, err := h.Settings.GetSection(c.Request.Context(), req.SectionRequest)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	payload, err := SettingsSectionResponseFromEnvelope(envelope)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, payload)
+}
+
 func (h *BaseHandlers) listSettingsCollection(c *gin.Context, collection settingspkg.CollectionName) {
 	if h.Settings == nil {
 		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)

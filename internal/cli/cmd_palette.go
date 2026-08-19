@@ -15,6 +15,7 @@ const (
 	cmdPaletteSourceFlag    = "source"
 	cmdPaletteAvailableFlag = "available"
 	cmdPaletteArgFlag       = "arg"
+	cmdPaletteOverwriteFlag = "overwrite"
 	cmdPaletteInspectUse    = "inspect <id>"
 	cmdPaletteClientsUse    = "clients"
 	cmdPaletteInvalidArgs   = "invalid_arguments"
@@ -53,8 +54,40 @@ func newCmdPaletteCommand(deps commandDeps) *cobra.Command {
 		newCmdPaletteInvokeCommand(deps),
 		newCmdPaletteClientsCommand(deps),
 		newCmdPalettePersonalizationCommand(deps),
+		newCmdPaletteBindCommand(deps),
+		newCmdPaletteUnbindCommand(deps),
+		newCmdPaletteAliasCommand(deps),
+		newCmdPaletteBindingsCommand(deps),
+		newCmdPalettePinCommand(deps, true),
+		newCmdPalettePinCommand(deps, false),
 	)
 	return cmd
+}
+
+func cmdPaletteMutationClientAndWorkspace(
+	cmd *cobra.Command,
+	deps commandDeps,
+	workspaceRef string,
+) (CmdPaletteMutationClient, string, error) {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return nil, "", err
+	}
+	mutationClient, ok := client.(CmdPaletteMutationClient)
+	if !ok {
+		return nil, "", errors.New("cli: command palette mutation client is unavailable")
+	}
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(),
+		cmd,
+		deps,
+		mutationClient,
+		workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
+	if err != nil {
+		return nil, "", err
+	}
+	return mutationClient, resolution.ID, nil
 }
 
 func cmdPaletteClientAndWorkspace(

@@ -3135,6 +3135,24 @@ export interface paths {
     patch: operations["updateSettingsAutomation"];
     trace?: never;
   };
+  "/api/settings/cmd-palette": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read command-palette settings */
+    get: operations["getSettingsCmdPalette"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update command-palette settings */
+    patch: operations["updateSettingsCmdPalette"];
+    trace?: never;
+  };
   "/api/settings/general": {
     parameters: {
       query?: never;
@@ -43433,6 +43451,7 @@ export interface operations {
                 | "automation"
                 | "network"
                 | "window-manager"
+                | "cmd-palette"
                 | "attention"
                 | "shell"
                 | "observability"
@@ -54274,6 +54293,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -54385,6 +54405,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -54580,6 +54601,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -54694,6 +54716,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -54777,6 +54800,306 @@ export interface operations {
       };
       /** @description Conflicting settings change */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getSettingsCmdPalette: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            personalization: boolean;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "cmd-palette"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateSettingsCmdPalette: {
+    parameters: {
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          personalization: boolean | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            available_scopes: ("global" | "workspace")[];
+            personalization: boolean;
+            /** @enum {string} */
+            scope: "global" | "workspace";
+            /** @enum {string} */
+            section:
+              | "general"
+              | "memory"
+              | "roles"
+              | "skills"
+              | "automation"
+              | "network"
+              | "window-manager"
+              | "cmd-palette"
+              | "attention"
+              | "shell"
+              | "observability"
+              | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -54925,6 +55248,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -55061,6 +55385,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -55754,6 +56079,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -55898,6 +56224,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -56279,6 +56606,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -56484,6 +56812,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -56888,6 +57217,7 @@ export interface operations {
                 | "automation"
                 | "network"
                 | "window-manager"
+                | "cmd-palette"
                 | "attention"
                 | "shell"
                 | "observability"
@@ -57330,6 +57660,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -57571,6 +57902,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -58672,6 +59004,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -58898,6 +59231,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -59113,6 +59447,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -59247,6 +59582,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -59446,6 +59782,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -59563,6 +59900,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -60548,6 +60886,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -60753,6 +61092,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -60926,6 +61266,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -61146,6 +61487,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -61331,6 +61673,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -61851,6 +62194,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -62056,6 +62400,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -62204,6 +62549,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -62317,6 +62663,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -62548,6 +62895,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -62759,6 +63107,7 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
@@ -63440,7 +63789,12 @@ export interface operations {
   };
   getSettingsWindowManager: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -63454,7 +63808,16 @@ export interface operations {
         };
         content: {
           "application/json": {
-            available_scopes: "global"[];
+            aliases: {
+              [key: string]: string;
+            };
+            available_scopes: ("global" | "workspace")[];
+            commands: {
+              id: string;
+              section: string;
+              source: string;
+              title: string;
+            }[];
             config: {
               bindings: {
                 /** @enum {string} */
@@ -63502,11 +63865,21 @@ export interface operations {
             defaults: {
               [key: string]: string[] | string;
             };
-            effective: {
+            diagnostics?: {
+              command_id: string;
+              message: string;
+            }[];
+            effective_shortcuts: {
               [key: string]: string[] | string;
             };
+            extension_defaults: {
+              binding: string[] | string;
+              command: string;
+              conflict_with?: string;
+              dormant: boolean;
+            }[];
             /** @enum {string} */
-            scope: "global";
+            scope: "global" | "workspace";
             /** @enum {string} */
             section:
               | "general"
@@ -63516,10 +63889,70 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
               | "hooks-extensions";
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Invalid settings scope */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };
@@ -63556,7 +63989,12 @@ export interface operations {
   };
   updateSettingsWindowManager: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Select the settings scope */
+        scope?: "global" | "workspace";
+        /** @description Select the workspace id for workspace scope */
+        workspace_id?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -63565,7 +64003,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          config: {
+          aliases?: {
+            [key: string]: string;
+          } | null;
+          config?: {
             bindings: {
               /** @enum {string} */
               bottom_center: "none" | "reserved" | "zoom";
@@ -63608,7 +64049,11 @@ export interface operations {
             };
             /** @enum {string} */
             swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
-          };
+          } | null;
+          overwrite?: boolean;
+          shortcuts?: {
+            [key: string]: string[] | string;
+          } | null;
         };
       };
     };
@@ -63620,44 +64065,80 @@ export interface operations {
         };
         content: {
           "application/json": {
-            active_config_hash: string;
-            /** Format: int64 */
-            active_generation: number;
-            agent_name?: string;
-            applied: boolean;
-            apply_record_id: string;
-            /** @enum {string} */
-            lifecycle:
-              | "live"
-              | "live-add"
-              | "live-remove-if-unused"
-              | "restart-required"
-              | "session-rebind";
-            /** @enum {string} */
-            next_action: "none" | "restart-daemon" | "new-session" | "retry";
-            partial_failures?: {
-              diagnostic: {
-                category: string;
-                code: string;
-                data_freshness: string;
-                doc_url?: string;
-                evidence?: {
-                  [key: string]: unknown;
-                };
-                id: string;
-                message: string;
-                severity: string;
-                suggested_command?: string;
-                title: string;
-              };
-              subsystem: string;
+            aliases: {
+              [key: string]: string;
+            };
+            available_scopes: ("global" | "workspace")[];
+            commands: {
+              id: string;
+              section: string;
+              source: string;
+              title: string;
             }[];
-            restart_required?: boolean;
-            restart_scope?: string;
+            config: {
+              bindings: {
+                /** @enum {string} */
+                bottom_center: "none" | "reserved" | "zoom";
+                /** @enum {string} */
+                top_center: "none" | "reserved" | "zoom";
+              };
+              closed_entry_limit: number;
+              /** @enum {string} */
+              desktop_transition: "slide" | "crossfade" | "instant";
+              /** @enum {string} */
+              drag_away_policy: "window" | "group";
+              focus_follows_pointer: boolean;
+              /** @enum {string} */
+              focus_policy: "click_directional" | "directional";
+              focus_wrap: boolean;
+              gaps: {
+                bottom: number;
+                inner: number;
+                left: number;
+                right: number;
+                top: number;
+              };
+              /** @enum {string} */
+              group_move_modifier: "alt" | "control" | "meta" | "shift" | "none";
+              history_limit: number;
+              nav_stack_limit: number;
+              /** @enum {string} */
+              new_window_policy: "floating" | "beside_focus";
+              raise_on_focus: boolean;
+              shortcuts: {
+                [key: string]: string[] | string;
+              };
+              /** @enum {string} */
+              small_viewport_policy: "stack" | "reject";
+              snap: {
+                corner_reach: number;
+                edge_band: number;
+                exit_slack: number;
+                repeat_ratios: number[];
+              };
+              /** @enum {string} */
+              swap_modifier: "alt" | "control" | "meta" | "shift" | "none";
+            };
+            defaults: {
+              [key: string]: string[] | string;
+            };
+            diagnostics?: {
+              command_id: string;
+              message: string;
+            }[];
+            effective_shortcuts: {
+              [key: string]: string[] | string;
+            };
+            extension_defaults: {
+              binding: string[] | string;
+              command: string;
+              conflict_with?: string;
+              dormant: boolean;
+            }[];
             /** @enum {string} */
-            scope?: "global" | "workspace" | "agent";
+            scope: "global" | "workspace";
             /** @enum {string} */
-            section?:
+            section:
               | "general"
               | "memory"
               | "roles"
@@ -63665,26 +64146,12 @@ export interface operations {
               | "automation"
               | "network"
               | "window-manager"
+              | "cmd-palette"
               | "attention"
               | "shell"
               | "observability"
-              | "hooks-extensions"
-              | "providers"
-              | "mcp-servers"
-              | "sandboxes"
-              | "hooks";
-            skipped?: boolean;
-            skipped_reason?: string;
-            warnings?: string[];
+              | "hooks-extensions";
             workspace_id?: string;
-            /** @enum {string} */
-            write_target?:
-              | "global-config"
-              | "workspace-config"
-              | "global-mcp-sidecar"
-              | "workspace-mcp-sidecar"
-              | "global-agent-file"
-              | "workspace-agent-file";
           };
         };
       };
@@ -63746,8 +64213,8 @@ export interface operations {
           };
         };
       };
-      /** @description Conflicting settings change */
-      409: {
+      /** @description Workspace not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -63772,6 +64239,36 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            alias?: string;
+            chord?: string;
+            error: string;
+            message?: string;
+            owner?: string;
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            alias?: string;
+            chord?: string;
+            error: string;
+            message?: string;
+            owner?: string;
           };
         };
       };

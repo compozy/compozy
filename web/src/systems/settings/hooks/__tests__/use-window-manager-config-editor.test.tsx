@@ -183,36 +183,9 @@ describe("useWindowManagerConfigEditor", () => {
     expect(fields(result.current.problems)).toEqual(["gaps", "snap"]);
   });
 
-  it("Should block a save when two overrides claim the same chord", () => {
-    const { result } = renderEditor();
-    act(() => {
-      result.current.setShortcuts({
-        "window.focus.up": ["meta+shift+KeyP"],
-        "window.focus.down": ["meta+shift+KeyP"],
-      });
-    });
-
-    expect(fields(result.current.problems)).toEqual(["shortcuts"]);
-    expect(result.current.canSave).toBe(false);
-  });
-
-  it("Should block an override that collides with a daemon default", () => {
-    const { result } = renderEditor();
-    act(() => {
-      result.current.setShortcuts({ "window.close": ["control+alt+ArrowLeft"] });
-    });
-
-    expect(fields(result.current.problems)).toEqual(["shortcuts"]);
-    expect(result.current.canSave).toBe(false);
-  });
-
-  it("Should keep focused-surface shadowing advisory rather than blocking", () => {
-    const { result } = renderEditor();
-    act(() => result.current.setShortcuts({ "sidebar.toggle": ["meta+KeyB"] }));
-
-    expect(result.current.problems).toEqual([]);
-    expect(result.current.canSave).toBe(true);
-  });
+  // Chord collisions are no longer a draft concern: shortcuts left this editor
+  // when they became live daemon-arbitrated writes, and the block an operator
+  // sees is the daemon's own refusal — asserted in the shortcut-table suite.
 
   it("Should return to the saved config on reset", () => {
     const { result } = renderEditor();
@@ -236,7 +209,7 @@ describe("useWindowManagerConfigEditor", () => {
  */
 const PRESET_ACTIONS = [
   ...new Set([...Object.keys(TERMINAL_SHORTCUT_PRESET), ...Object.keys(SHORTCUT_DEFAULTS)]),
-].map(id => ({ id, label: id, section: "Window" }));
+].map(id => ({ id, label: id, section: "Window", source: "core", alias: null }));
 
 describe("Terminal shortcut preset", () => {
   it("Should preview every changed key and flag layout hazards [UT-063]", () => {

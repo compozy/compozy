@@ -49,6 +49,11 @@ availability, targeting, single-flight, and approval rules still apply. An `appr
 returns `approval_id`; operators inspect or cancel it with `compozy approvals show|cancel <id>`.
 CLI catalog fallback is `compozy cmd-palette list|inspect|invoke|clients`.
 
+Manage workspace command bindings with `compozy cmd-palette bind|unbind|bindings` and aliases with
+`compozy cmd-palette alias set|clear`. Conflicts name the current owner; `--overwrite` transfers the
+chord or alias atomically. Pin state uses `compozy cmd-palette pin|unpin`. HTTP/UDS clients read and
+patch bindings and aliases through `/api/settings/window-manager`.
+
 Palette personalization is workspace-scoped and management-only. Inspect or reset it with
 `compozy cmd-palette personalization show|reset --workspace <workspace>`. HTTP/UDS clients use
 `GET /api/cmd-palette/rank-signals`, `POST /api/cmd-palette/usage`, `PUT|DELETE

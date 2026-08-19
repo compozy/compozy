@@ -6,27 +6,66 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 type cmdPaletteTestClient struct {
 	DaemonClient
-	commands        contract.CmdPaletteCommandsResponse
-	invokeResult    contract.CmdPaletteInvokeResult
-	invokeErr       error
-	invokeCommand   string
-	invokeRequest   contract.CmdPaletteInvokeRequest
-	listWorkspace   string
-	listClient      string
-	approvalStatus  contract.ToolApprovalStatusResponse
-	canceledID      string
-	personalization contract.CmdPalettePersonalizationResponse
-	resetResponse   contract.CmdPalettePersonalizationResetResponse
-	resetWorkspace  string
+	commands          contract.CmdPaletteCommandsResponse
+	invokeResult      contract.CmdPaletteInvokeResult
+	invokeErr         error
+	invokeCommand     string
+	invokeRequest     contract.CmdPaletteInvokeRequest
+	listWorkspace     string
+	listClient        string
+	approvalStatus    contract.ToolApprovalStatusResponse
+	canceledID        string
+	personalization   contract.CmdPalettePersonalizationResponse
+	resetResponse     contract.CmdPalettePersonalizationResetResponse
+	resetWorkspace    string
+	bindings          contract.SettingsWindowManagerResponse
+	bindingsResult    contract.SettingsWindowManagerResponse
+	bindingsUpdate    contract.UpdateSettingsWindowManagerRequest
+	bindingsErr       error
+	mutationWorkspace string
+	pinCommand        string
+	pinValue          bool
+}
+
+func (c *cmdPaletteTestClient) GetCmdPaletteBindings(
+	_ context.Context,
+	workspace string,
+) (contract.SettingsWindowManagerResponse, error) {
+	c.mutationWorkspace = workspace
+	return c.bindings, nil
+}
+
+func (c *cmdPaletteTestClient) UpdateCmdPaletteBindings(
+	_ context.Context,
+	workspace string,
+	request contract.UpdateSettingsWindowManagerRequest,
+) (contract.SettingsWindowManagerResponse, error) {
+	c.mutationWorkspace = workspace
+	c.bindingsUpdate = request
+	return c.bindingsResult, c.bindingsErr
+}
+
+func (c *cmdPaletteTestClient) SetCmdPalettePin(
+	_ context.Context,
+	workspace string,
+	commandID string,
+	pinned bool,
+) (contract.CmdPalettePinResponse, error) {
+	c.mutationWorkspace = workspace
+	c.pinCommand = commandID
+	c.pinValue = pinned
+	return contract.CmdPalettePinResponse{Pinned: pinned}, nil
 }
 
 func (c *cmdPaletteTestClient) GetCmdPalettePersonalization(
@@ -253,6 +292,156 @@ func TestCmdPaletteCommands(t *testing.T) {
 		want := "Reset palette personalization for workspace workspace-1 (pins, recents, frecency, query learning)."
 		if strings.TrimSpace(stdout) != want || client.resetWorkspace != "workspace-1" {
 			t.Fatalf("reset output/workspace = %q/%q, want %q/workspace-1", stdout, client.resetWorkspace, want)
+		}
+	})
+
+	t.Run("Should bind with explicit overwrite and name the unbound owner", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.bindings = contract.SettingsWindowManagerResponse{
+			Config: contract.SettingsWindowManagerConfigPayload{
+				Shortcuts: map[string]windowmanager.ShortcutBinding{},
+			},
+			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
+				"session.new": {"meta+shift+KeyN"},
+			},
+		}
+		client.bindingsResult = contract.SettingsWindowManagerResponse{
+			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
+				"ext.notes.capture": {"meta+shift+KeyN"},
+			},
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "bind", "ext.notes.capture", "meta+shift+KeyN",
+			"--overwrite", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette bind error = %v", err)
+		}
+		var result cmdPaletteBindingMutationResult
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatalf("json.Unmarshal(bind output) error = %v", err)
+		}
+		if result.Status != "ok" || result.UnboundOwner != "session.new" ||
+			!reflect.DeepEqual(result.Bound, []string{"meta+shift+KeyN"}) {
+			t.Fatalf("bind output = %#v, want transferred session.new binding", result)
+		}
+		if !client.bindingsUpdate.Overwrite || client.bindingsUpdate.Shortcuts == nil ||
+			!reflect.DeepEqual(
+				(*client.bindingsUpdate.Shortcuts)["ext.notes.capture"],
+				windowmanager.ShortcutBinding{"meta+shift+KeyN"},
+			) {
+			t.Fatalf("bind request = %#v, want explicit overwrite", client.bindingsUpdate)
+		}
+	})
+
+	t.Run("Should preserve the structured shortcut conflict and exit one", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.bindings.Config.Shortcuts = map[string]windowmanager.ShortcutBinding{}
+		client.bindingsErr = &cmdPaletteMutationAPIError{
+			statusCode: http.StatusConflict,
+			payload: contract.SettingsWindowManagerMutationError{
+				Error: "shortcut_conflict", Owner: "session.new", Chord: "meta+shift+KeyN",
+			},
+		}
+
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "bind", "ext.notes.capture", "meta+shift+KeyN", "--workspace", "workspace-1",
+		)
+		if exitCode != 1 || !strings.Contains(
+			stderr,
+			`shortcut conflict — meta+shift+KeyN is used by "session.new". Re-run with --overwrite to take it.`,
+		) {
+			t.Fatalf("bind conflict = exit %d stderr %q", exitCode, stderr)
+		}
+	})
+
+	t.Run("Should set and clear aliases through the settings patch", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.bindings.Aliases = map[string]string{"session.new": "new"}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "alias", "set", "ext.notes.capture", "cap",
+			"--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette alias set error = %v", err)
+		}
+		var result cmdPaletteAliasMutationResult
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatalf("json.Unmarshal(alias output) error = %v", err)
+		}
+		if result.Status != "ok" || result.Alias != "cap" || client.bindingsUpdate.Aliases == nil ||
+			(*client.bindingsUpdate.Aliases)["ext.notes.capture"] != "cap" ||
+			(*client.bindingsUpdate.Aliases)["session.new"] != "new" {
+			t.Fatalf("alias result/request = %#v / %#v", result, client.bindingsUpdate)
+		}
+
+		client.bindings.Aliases = map[string]string{"ext.notes.capture": "cap"}
+		stdout, _, err = executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "alias", "clear", "ext.notes.capture", "--workspace", "workspace-1",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette alias clear error = %v", err)
+		}
+		if strings.TrimSpace(stdout) != `{"status":"ok"}` || client.bindingsUpdate.Aliases == nil ||
+			len(*client.bindingsUpdate.Aliases) != 0 {
+			t.Fatalf("alias clear output/request = %q / %#v", stdout, client.bindingsUpdate)
+		}
+	})
+
+	t.Run("Should list binding truth and mutate pins", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		client.bindings = contract.SettingsWindowManagerResponse{
+			EffectiveShortcuts: map[string]windowmanager.ShortcutBinding{
+				"ext.notes.capture": {"alt+shift+KeyN"},
+			},
+			Aliases: map[string]string{"ext.notes.capture": "cap"},
+			ExtensionDefaults: []contract.SettingsWindowManagerDefaultPayload{{
+				CommandID: "ext.other.jump", Binding: windowmanager.ShortcutBinding{"meta+KeyJ"},
+				Dormant: true, ConflictWith: "window.tab.jump.1",
+			}},
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "bindings", "--workspace", "workspace-1", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette bindings error = %v", err)
+		}
+		var result cmdPaletteBindingsResult
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatalf("json.Unmarshal(bindings output) error = %v", err)
+		}
+		if result.Aliases["ext.notes.capture"] != "cap" || len(result.DormantDefaults) != 1 ||
+			result.Conflicts == nil {
+			t.Fatalf("bindings output = %#v, want aliases, dormant defaults, and empty conflicts", result)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette", "pin", "session.new", "--workspace", "workspace-1",
+		)
+		if err != nil {
+			t.Fatalf("cmd-palette pin error = %v", err)
+		}
+		if strings.TrimSpace(stdout) != `{"status":"ok","pinned":true}` ||
+			client.pinCommand != "session.new" || !client.pinValue {
+			t.Fatalf("pin output/request = %q / %q %t", stdout, client.pinCommand, client.pinValue)
 		}
 	})
 

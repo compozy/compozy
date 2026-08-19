@@ -156,6 +156,8 @@ var (
 		"skills.poll_interval":                                     ConfigValueDuration,
 		"shell.sessions.sort":                                      ConfigValueString,
 		"shell.sessions.scope":                                     ConfigValueString,
+		"cmd_palette.fallback_targets":                             ConfigValueStringSlice,
+		"cmd_palette.personalization":                              ConfigValueBool,
 		"network.enabled":                                          ConfigValueBool,
 		toolSurfaceNetworkMaxReplayAgePath:                         ConfigValueInt,
 		"network.live.defaults.max_wakes":                          ConfigValueInt,

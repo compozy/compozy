@@ -418,7 +418,7 @@ func marshalWindowManagerExecutionError(
 		}
 		return []byte(renderToonObject(
 			"error",
-			[]string{cliCodeKey, "workspace_id", "current_revision", clientMessageKey},
+			[]string{cliCodeKey, automationWorkspaceIDKey, "current_revision", clientMessageKey},
 			[]string{string(payload.Code), string(payload.WorkspaceID), currentRevision, payload.Error},
 		)), true
 	default:

@@ -77,11 +77,48 @@ func (s *service) classifyWindowManagerRequest(
 	ctx context.Context,
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
-	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	loaded, err := s.loadScopedSectionUpdate(
+		ctx, req.Section, req.Scope, req.WorkspaceID, ScopeGlobal, ScopeWorkspace,
+	)
 	if err != nil {
 		return lifecycle.Live
 	}
-	changed := diffWindowManagerSettings(cfg.WindowManager, *req.WindowManager)
+	desired := loaded.config.WindowManager
+	if req.WindowManager != nil {
+		desired = *req.WindowManager
+	}
+	if req.WindowManagerShortcuts != nil {
+		desired.Shortcuts = *req.WindowManagerShortcuts
+	}
+	desiredAliases := loaded.config.CmdPalette.Aliases
+	if req.WindowManagerAliases != nil {
+		desiredAliases = *req.WindowManagerAliases
+	}
+	changed := diffWindowManagerSettings(
+		loaded.config.WindowManager,
+		loaded.config.CmdPalette.Aliases,
+		desired,
+		desiredAliases,
+	)
+	return lifecycleForChangedPaths(changed, lifecycle.Live)
+}
+
+func (s *service) classifyCmdPaletteRequest(
+	ctx context.Context,
+	req SectionUpdateRequest,
+) lifecycle.Lifecycle {
+	loaded, err := s.loadScopedSectionUpdate(
+		ctx,
+		req.Section,
+		req.Scope,
+		req.WorkspaceID,
+		ScopeGlobal,
+		ScopeWorkspace,
+	)
+	if err != nil {
+		return lifecycle.Live
+	}
+	changed := diffCmdPaletteSettings(loaded.config.CmdPalette, *req.CmdPalette)
 	return lifecycleForChangedPaths(changed, lifecycle.Live)
 }
 

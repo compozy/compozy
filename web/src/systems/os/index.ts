@@ -18,8 +18,37 @@ export { fetchWindowManagerSnapshot } from "./adapters/window-manager-api";
 export {
   windowManagerConfigOptions,
   windowManagerKeys,
+  windowManagerScopeKey,
+  windowManagerSettingsOptions,
   windowManagerSnapshotOptions,
 } from "./lib/window-manager-query";
+
+// Bindings and aliases: one daemon-owned settings section, mutated through one
+// path. The daemon decides conflicts and echoes the section it produced, so no
+// surface predicts the outcome of an overwrite (ADR-006).
+export {
+  fetchWindowManagerSettings,
+  updateWindowManagerBindings,
+  WindowManagerSettingsError,
+  type WindowManagerBindingUpdate,
+  type WindowManagerMutationCode,
+} from "./adapters/window-manager-settings-api";
+export type {
+  WindowManagerAliasMap,
+  WindowManagerExtensionDefault,
+  WindowManagerSettingsScope,
+  WindowManagerSettingsSection,
+  WindowManagerShortcutCommand,
+  WindowManagerShortcutDiagnostic,
+} from "./lib/window-manager-settings-section";
+export {
+  CORE_SHORTCUT_SOURCE,
+  groupShortcutRowsBySource,
+  orderShortcutSections,
+  orderShortcutSources,
+  shortcutSourceLabel,
+  type ShortcutSourceGroup,
+} from "./lib/shortcut-source-groups";
 export {
   type WindowManagerSocket,
   type WindowManagerSocketFactory,
@@ -76,6 +105,7 @@ export type {
 export { CmdPaletteRegistryProvider } from "./contexts/cmd-palette-registry-context";
 export { usePaletteCommand, usePaletteRegistry } from "./hooks/use-palette-registry";
 export { registryBindableIds, registryShortcutActions } from "./lib/cmd-palette-shortcut-actions";
+export { cmdPaletteKeys } from "./lib/cmd-palette-query-keys";
 export type {
   CmdPaletteCommand,
   PaletteRegistry,

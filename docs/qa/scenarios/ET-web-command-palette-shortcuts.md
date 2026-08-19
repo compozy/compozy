@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: ⌘/Ctrl+K opens one global palette over any desktop or composer and filters real apps, sessions, workspaces, and actions; Enter performs the selected action; ⌘/Ctrl+J remains scoped to the session runtime picker; ⌘/Ctrl+N, ⇧⌘/Ctrl+S, ⌘/Ctrl+W, ⌘/Ctrl+M, ⇧⌘/Ctrl+G (Global scope), and Escape perform the documented shell actions with one-layer overlay unwinding. The palette lists "Turn on Global scope" / "Turn off Global scope" and "Switch to {name}" notes that switching a project turns Global off. Workspace rows never include `$HOME`.
 entry_points: web desktop keyboard; command palette; session composer; menubar Help; Keyboard shortcuts dialog
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -36,3 +36,7 @@ behaviour and the Sessions view are walked by `ET-palette-nested-views` and
 the flat root behaviour above.
 
 QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.
+
+2026-08-19 qa-impact: Shortcut settings now cover every registry command, add workspace-scoped aliases,
+and apply rebinds live through the daemon-owned keymap. Reset to `untested`; task 12 owns the isolated
+persona walk and visual-contract evidence.

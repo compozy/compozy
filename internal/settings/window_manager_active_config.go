@@ -16,6 +16,7 @@ func (s *service) recordWindowManagerSectionApply(
 	}
 	nextActiveConfig := cloneActiveConfig(&state.config)
 	nextActiveConfig.WindowManager = cloneWindowManagerConfig(desiredConfig.WindowManager)
+	nextActiveConfig.CmdPalette.Aliases = cloneAliases(desiredConfig.CmdPalette.Aliases)
 	nextActiveHash, err := hashConfigSnapshot(&nextActiveConfig)
 	if err != nil {
 		return ApplyResult{}, err

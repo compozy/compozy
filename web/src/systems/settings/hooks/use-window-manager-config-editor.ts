@@ -6,12 +6,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { updateWindowManagerSettings } from "../adapters/window-manager-layouts-api";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
-import {
-  findShortcutConflicts,
-  type WindowManagerConfig,
-  type WindowManagerShortcutMap,
-  windowManagerKeys,
-} from "@/systems/os";
+import { type WindowManagerConfig, windowManagerKeys } from "@/systems/os";
 
 export type WindowManagerConfigEditorPhase =
   | "baseline"
@@ -25,8 +20,7 @@ export type WindowManagerConfigProblem =
   | { field: "gaps"; message: string }
   | { field: "snap"; message: string }
   | { field: "repeatRatios"; message: string }
-  | { field: "historyLimit"; message: string }
-  | { field: "shortcuts"; message: string };
+  | { field: "historyLimit"; message: string };
 
 interface WindowManagerConfigEditorStoreContext {
   baseline: WindowManagerConfig;
@@ -216,15 +210,6 @@ function collectProblems(config: WindowManagerConfig): WindowManagerConfigProble
       message: `Layout history runs from ${ranges.historyLimit.min} to ${ranges.historyLimit.max} steps.`,
     });
   }
-  const blocking = findShortcutConflicts(config.shortcuts, config.shortcutDefaults).filter(
-    conflict => conflict.kind === "blocked"
-  );
-  if (blocking.length > 0) {
-    problems.push({
-      field: "shortcuts",
-      message: `${blocking.length} shortcut${blocking.length === 1 ? " is" : "s are"} assigned twice. CompozyOS refuses a duplicate chord.`,
-    });
-  }
   return problems;
 }
 
@@ -281,8 +266,6 @@ export function useWindowManagerConfigEditor(baseline: WindowManagerConfig) {
         },
       }),
     setDraft,
-    setShortcuts: (shortcuts: WindowManagerShortcutMap) =>
-      setDraft(current => ({ ...current, shortcuts })),
   };
 }
 

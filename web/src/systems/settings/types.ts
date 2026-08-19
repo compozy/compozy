@@ -13,6 +13,7 @@ export type SettingsShellSection = OperationResponse<"getSettingsShell", 200>;
 export type SettingsObservabilitySection = OperationResponse<"getSettingsObservability", 200>;
 export type SettingsHooksExtensionsSection = OperationResponse<"getSettingsHooksExtensions", 200>;
 export type SettingsWindowManagerSection = OperationResponse<"getSettingsWindowManager", 200>;
+export type SettingsCmdPaletteSection = OperationResponse<"getSettingsCmdPalette", 200>;
 export type SettingsHooksExtensionsHook = NonNullable<
   SettingsHooksExtensionsSection["hooks"]
 >[number];
@@ -141,6 +142,12 @@ export type SettingsUpdateHooksExtensionsRequest =
   OperationRequestBody<"updateSettingsHooksExtensions">;
 export type SettingsUpdateWindowManagerRequest =
   OperationRequestBody<"updateSettingsWindowManager">;
+export type SettingsUpdateCmdPaletteRequest = OperationRequestBody<"updateSettingsCmdPalette">;
+/** `[cmd_palette]` reads and writes global or one workspace, like `[skills]`. */
+export type SettingsCmdPaletteFilter = NonNullable<OperationQuery<"getSettingsCmdPalette">>;
+export type SettingsUpdateCmdPaletteFilter = NonNullable<
+  OperationQuery<"updateSettingsCmdPalette">
+>;
 
 export type SettingsRestartResponse = OperationResponse<"triggerSettingsRestart", 202>;
 export type SettingsRestartStatus = OperationResponse<"getSettingsRestartStatus", 200>;
@@ -167,6 +174,12 @@ export type ConfigApplyLifecycle = ConfigApplyRecord["lifecycle"];
 export type SettingsApplyNextAction = ConfigApplyRecord["next_action"];
 export type SettingsApplyRecordsFilter = NonNullable<OperationQuery<"listSettingsApplyRecords">>;
 
+/**
+ * Sections whose PATCH answers with an apply record. `window-manager` and
+ * `cmd-palette` are deliberately absent: they echo the section they just wrote
+ * so the caller sees the daemon's own resolution — conflicts included — instead
+ * of a write receipt.
+ */
 export type SettingsMutationResult =
   | OperationResponse<"updateSettingsGeneral", 200>
   | OperationResponse<"updateSettingsMemory", 200>
@@ -177,7 +190,6 @@ export type SettingsMutationResult =
   | OperationResponse<"updateSettingsShell", 200>
   | OperationResponse<"updateSettingsObservability", 200>
   | OperationResponse<"updateSettingsHooksExtensions", 200>
-  | OperationResponse<"updateSettingsWindowManager", 200>
   | OperationResponse<"updateSettingsRoles", 200>
   | OperationResponse<"putSettingsProvider", 200>
   | OperationResponse<"deleteSettingsProvider", 200>
@@ -224,6 +236,7 @@ export type SettingsSectionSlug =
   | "general"
   | "appearance"
   | "layouts"
+  | "palette"
   | "providers"
   | "sandboxes"
   | "memory"

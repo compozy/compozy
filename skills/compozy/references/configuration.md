@@ -162,6 +162,12 @@ Other `[roles]` routing keys and the fallback-chain rules live in `references/ru
 
 ## Window Manager
 
+`[cmd_palette]` owns ordered `fallback_targets` (currently the single value `agent`), the live
+`personalization` flag, and the `[cmd_palette.aliases]` command-to-alias map. Aliases are
+workspace-scoped vocabulary: 1–32 characters, no whitespace, and unique per workspace. Read or
+write scalar settings with `compozy config get|set cmd_palette.<key>`. Use
+`compozy cmd-palette alias set|clear` for atomic alias changes through the daemon.
+
 `[window_manager]` controls global behavior defaults for new-window placement, small-viewport
 fallback, focus and raise policy, drag-away grouping, bounded history, desktop transitions, gaps,
 snap thresholds and repeat ratios, edge bindings, and shortcuts. Every `window_manager.*` path is
@@ -174,6 +180,10 @@ Shortcut entries accept a string, a string array, an empty binding, or an indexe
 `compozy config get window_manager -o json` to inspect daemon defaults and the effective map before
 writing an override. The daemon expands
 ranges and validates the full map atomically; a collision stores nothing.
+
+Use `compozy cmd-palette bindings` to read the workspace effective keymap, aliases, dormant
+extension defaults, and conflicts. `bind|unbind` mutate workspace bindings; `--overwrite` transfers
+a conflicting chord from the owner named by the daemon.
 
 ## Attention
 

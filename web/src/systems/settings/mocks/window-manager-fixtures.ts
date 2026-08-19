@@ -1,5 +1,6 @@
 import type { CompozyApiOkJsonResponseFor } from "@/storybook/openapi-msw";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
+import { cmdPaletteStoryCommands } from "@/systems/os/mocks/cmd-palette-fixtures";
 import type { SettingsWindowManagerSection } from "@/systems/settings";
 
 type WindowManagerSnapshotWire = CompozyApiOkJsonResponseFor<
@@ -37,10 +38,39 @@ type WindowManagerLayoutDocumentWire = CompozyApiOkJsonResponseFor<
   "/api/workspaces/{workspace_id}/window-manager/layout"
 >;
 
+/**
+ * The registry the settings section serves, taken from the one story catalog so
+ * the shortcut table, the palette and the cheatsheet cannot disagree about a
+ * command's id, title or source.
+ */
+const storyRegistryCommands = cmdPaletteStoryCommands.map(command => ({
+  id: command.id,
+  title: command.title,
+  section: command.section,
+  source: command.source,
+}));
+
+const storyEffectiveShortcuts: Record<string, string[]> = Object.fromEntries(
+  cmdPaletteStoryCommands.map(command => [
+    command.id,
+    command.id === "window.tab.new" ? ["meta+Digit3"] : [...command.bindings],
+  ])
+);
+
+const storyAliases: Record<string, string> = Object.fromEntries(
+  cmdPaletteStoryCommands.flatMap(command =>
+    command.alias === null ? [] : [[command.id, command.alias] as const]
+  )
+);
+
 export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection = {
   section: "window-manager",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "workspace",
+  workspace_id: storyDefaultWorkspaceId,
+  available_scopes: ["global", "workspace"],
+  commands: storyRegistryCommands,
+  aliases: storyAliases,
+  extension_defaults: [],
   config: {
     new_window_policy: "floating",
     small_viewport_policy: "stack",
@@ -63,10 +93,12 @@ export const settingsWindowManagerSectionFixture: SettingsWindowManagerSection =
       repeat_ratios: [0.5, 0.666667, 0.333333],
     },
     bindings: { top_center: "zoom", bottom_center: "reserved" },
-    shortcuts: { "window.focus.left": ["meta+alt+ArrowLeft"] },
+    shortcuts: { "window.tab.new": ["meta+Digit3"] },
   },
-  defaults: { "window.focus.left": ["control+ArrowLeft"] },
-  effective: { "window.focus.left": ["meta+alt+ArrowLeft"] },
+  defaults: Object.fromEntries(
+    cmdPaletteStoryCommands.map(command => [command.id, [...command.bindings]])
+  ),
+  effective_shortcuts: storyEffectiveShortcuts,
 };
 
 export const settingsWindowManagerDesktopIds = {

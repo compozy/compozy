@@ -16,6 +16,8 @@ export function registryShortcutActions(
     id: command.id,
     label: command.title,
     section: command.section,
+    source: command.source,
+    alias: command.alias,
   }));
 }
 

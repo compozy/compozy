@@ -428,6 +428,7 @@ function executionCommand(
 const CAPTURE_COMMAND = executionCommand({
   id: "ext.notes.capture",
   title: "Capture note",
+  alias: "cap",
   source: "ext.notes",
   action: { kind: "tool", tool: "ext__notes__capture" },
   execution: { retry_safe: false, single_flight: true },
@@ -550,7 +551,6 @@ function renderRoot(open = true, onOpenChange = vi.fn()) {
         onOpenChange,
         dispatch: (command, query) => paletteDispatch.run(command, { query }),
         setPinned: (command, pinned) => void paletteDispatch.setPinned(command, pinned),
-        runById: commandId => void paletteDispatch.runById(commandId),
       }),
     { initialProps: { open }, wrapper: PaletteHarness }
   );
@@ -1321,6 +1321,16 @@ describe("palette execution surfaces", () => {
     );
   });
 
+  it("Should render a command's alias beside its title [UT-149]", () => {
+    // The alias is the operator's own word for the command, so the row shows it
+    // where they will look for it rather than hiding it behind a search match.
+    renderExecutionPalette();
+
+    expect(screen.getByTestId("os-palette-command-ext.notes.capture")).toHaveTextContent(
+      "Capture note (cap)"
+    );
+  });
+
   it("Should keep a filter that matches nothing open and honest [UT-125]", async () => {
     const user = userEvent.setup();
     renderExecutionPalette();
@@ -1346,7 +1356,12 @@ describe("palette execution surfaces", () => {
     await user.keyboard("{Meta>}k{/Meta}");
     await screen.findByTestId("os-palette-action-panel");
     await user.click(screen.getByTestId("os-palette-action-meta.alias"));
-    expect(paletteDispatch.runById).toHaveBeenCalledWith("settings.layouts");
+    // The deep link carries the command, so the whole-registry table lands on
+    // that row instead of on a list the operator has to search again.
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith({
+      app: "settings",
+      route: { pathname: "/settings/layouts", search: { command: "palette.open" } },
+    });
   });
 
   it("Should list only meta-actions plus the verbatim reason on an unavailable row [UT-128]", async () => {

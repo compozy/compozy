@@ -68,8 +68,6 @@ export interface UseOsPaletteRootOptions {
   dispatch(command: ResolvedPaletteCommand, query: string): Promise<PaletteDispatchOutcome>;
   /** Pins or unpins a command through the seam's daemon route. */
   setPinned(command: ResolvedPaletteCommand, pinned: boolean): void;
-  /** Runs a command by id — the meta-actions' deep-link path. */
-  runById(commandId: string): void;
 }
 
 /**
@@ -86,7 +84,6 @@ export function useOsPaletteRoot({
   onOpenChange,
   dispatch,
   setPinned,
-  runById,
 }: UseOsPaletteRootOptions): OsPaletteRootModel {
   const { manager, coordinator } = useOsShell();
   const registry = usePaletteRegistry();
@@ -215,9 +212,15 @@ export function useOsPaletteRoot({
       }
       case "open-shortcut-settings":
         close();
-        // The settings destination is itself a registry command, so the deep
-        // link runs the same row the operator could have searched for.
-        runById("settings.layouts");
+        // The action is offered only while the registry carries the settings
+        // destination, so the deep link cannot point at a page this client
+        // could not open. It carries the command so the table can land on that
+        // row instead of on a registry the operator then has to search
+        // (US-022.AC-1).
+        void coordinator.userOpen({
+          app: "settings",
+          route: { pathname: "/settings/layouts", search: { command: intent.commandId } },
+        });
         return;
       case "land-session":
         close();

@@ -1,4 +1,5 @@
 import { LockKeyhole } from "lucide-react";
+import { Fragment } from "react";
 
 import {
   Button,
@@ -18,6 +19,7 @@ import { usePaletteRegistry } from "../hooks/use-palette-registry";
 import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";
 import { registryShortcutActions } from "../lib/cmd-palette-shortcut-actions";
+import { groupShortcutRowsBySource } from "../lib/shortcut-source-groups";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import {
   deriveShortcutCheatsheet,
@@ -30,22 +32,6 @@ export interface OsShortcutsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-/**
- * Curated reading order. A section the registry carries but this list does not
- * name still renders — appended after these — so an extension's group can never
- * be silently dropped from the sheet.
- */
-const SECTION_ORDER: readonly string[] = [
-  "Shell",
-  "Window",
-  "Tiling",
-  "Tabs",
-  "Sessions",
-  "Desktops",
-  "Workspaces",
-  "Layout",
-];
 
 const SURFACE_LOCAL_ROWS = [
   { id: "permission.decide", label: "Approve / deny permission", keys: ["1", "4"] },
@@ -68,17 +54,11 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
   const primaryModifier = primaryShortcutModifier(
     typeof navigator === "undefined" ? "" : navigator.platform
   );
-  const sections = [
-    ...SECTION_ORDER,
-    ...[...new Set(rows.map(row => row.section))].filter(
-      section => !SECTION_ORDER.includes(section)
-    ),
-  ];
-  const groups: Array<{ title: string; rows: typeof rows }> = [];
-  for (const title of sections) {
-    const sectionRows = rows.filter(row => row.section === title);
-    if (sectionRows.length > 0) groups.push({ title, rows: sectionRows });
-  }
+  // Grouped by contributing source, then by area. The source band is drawn only
+  // when something beyond core contributes, so a core-only install keeps the
+  // plain area grid instead of gaining a header that names nothing.
+  const sourceGroups = groupShortcutRowsBySource(rows);
+  const showSourceBands = sourceGroups.length > 1;
 
   const openLayoutSettings = () => {
     if (!canOpenApps) return;
@@ -109,30 +89,46 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <div className="grid items-start gap-x-8 gap-y-5 sm:grid-cols-2">
-            {groups.map(group => (
-              <section className="min-w-0" key={group.title}>
-                <Eyebrow className="mb-1.5 text-subtle">{group.title}</Eyebrow>
-                <dl className="overflow-hidden rounded-md border border-line bg-canvas-soft">
-                  {group.rows.map(row => (
-                    <div
-                      className="flex min-h-8 items-center justify-between gap-5 border-t border-line-soft px-3 py-1.5 first:border-t-0"
-                      data-overridden={row.overridden ? "true" : undefined}
-                      data-testid={`os-shortcut-row-${row.id}`}
-                      key={row.id}
-                    >
-                      <dt className="min-w-0 truncate text-small-body text-fg">
-                        {row.label}
-                        {row.overridden ? (
-                          <span className="ml-1.5 text-badge text-accent-strong">override</span>
-                        ) : null}
-                      </dt>
-                      <dd className="shrink-0">
-                        <ShortcutBindingKeys bindings={row.bindings} overridden={row.overridden} />
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
+            {sourceGroups.map(sourceGroup => (
+              <Fragment key={sourceGroup.source}>
+                {showSourceBands ? (
+                  <Eyebrow
+                    className="text-faint sm:col-span-2"
+                    data-testid={`os-shortcut-source-${sourceGroup.source}`}
+                  >
+                    {sourceGroup.label}
+                  </Eyebrow>
+                ) : null}
+                {sourceGroup.sections.map(group => (
+                  <section className="min-w-0" key={group.title}>
+                    <Eyebrow className="mb-1.5 text-subtle">{group.title}</Eyebrow>
+                    <dl className="overflow-hidden rounded-md border border-line bg-canvas-soft">
+                      {group.rows.map(row => (
+                        <div
+                          className="flex min-h-8 items-center justify-between gap-5 border-t border-line-soft px-3 py-1.5 first:border-t-0"
+                          data-overridden={row.overridden ? "true" : undefined}
+                          data-testid={`os-shortcut-row-${row.id}`}
+                          key={row.id}
+                        >
+                          <dt className="min-w-0 truncate text-small-body text-fg">
+                            {row.label}
+                            {row.alias ? <span className="text-muted"> ({row.alias})</span> : null}
+                            {row.overridden ? (
+                              <span className="ml-1.5 text-badge text-accent-strong">override</span>
+                            ) : null}
+                          </dt>
+                          <dd className="shrink-0">
+                            <ShortcutBindingKeys
+                              bindings={row.bindings}
+                              overridden={row.overridden}
+                            />
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                ))}
+              </Fragment>
             ))}
             <section className="min-w-0 sm:col-span-2">
               <Eyebrow className="mb-1.5 inline-flex items-center gap-1.5 text-subtle">

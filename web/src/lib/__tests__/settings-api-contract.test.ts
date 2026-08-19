@@ -36,6 +36,7 @@ describe("settings openapi contract", () => {
       | "automation"
       | "network"
       | "window-manager"
+      | "cmd-palette"
       | "attention"
       | "shell"
       | "observability"

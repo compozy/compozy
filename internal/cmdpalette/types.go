@@ -259,3 +259,7 @@ type Registry interface {
 	Pin(context.Context, WorkspaceID, CommandID) error
 	Unpin(context.Context, WorkspaceID, CommandID) error
 }
+
+type BindableCatalog interface {
+	BindableIDs(context.Context, WorkspaceID) ([]CommandID, error)
+}

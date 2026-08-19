@@ -29,6 +29,8 @@ func (s *service) updateConfigBackedSection(
 		return s.updateGatewaySection(ctx, req)
 	case SectionWindowManager:
 		return s.updateWindowManagerSection(ctx, req)
+	case SectionCmdPalette:
+		return s.updateCmdPaletteSection(ctx, req)
 	case SectionAttention:
 		return s.updateAttentionSection(ctx, req)
 	case SectionShell:
@@ -162,29 +164,6 @@ func (s *service) updateGatewaySection(
 	changed := diffGatewaySettings(cfg.Gateway, *req.Gateway)
 	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyGatewaySettings(editor, *req.Gateway)
-	})
-}
-
-func (s *service) updateWindowManagerSection(
-	ctx context.Context,
-	req SectionUpdateRequest,
-) (MutationResult, error) {
-	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if req.WindowManager == nil {
-		return MutationResult{}, validationError(
-			errors.New("settings: window-manager section payload is required"),
-		)
-	}
-	if err := req.WindowManager.Validate(); err != nil {
-		return MutationResult{}, validationError(err)
-	}
-	desired := cloneWindowManagerConfig(*req.WindowManager)
-	changed := diffWindowManagerSettings(cfg.WindowManager, desired)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
-		return applyWindowManagerSettings(editor, desired)
 	})
 }
 

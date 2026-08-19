@@ -70,6 +70,11 @@ const SECTION_PAGES = {
       default: m.GatewaySettingsPage,
     }))
   ),
+  palette: lazy(() =>
+    import("@/routes/_app/settings/-palette-settings-page").then(m => ({
+      default: m.PaletteSettingsPage,
+    }))
+  ),
   attention: lazy(() =>
     import("@/routes/_app/settings/-attention-settings-page").then(m => ({
       default: m.AttentionSettingsPage,

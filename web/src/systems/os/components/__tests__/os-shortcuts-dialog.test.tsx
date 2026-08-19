@@ -22,14 +22,20 @@ import { OsShortcutsDialog } from "../os-shortcuts-dialog";
  */
 const CHEATSHEET_REGISTRY: PaletteRegistry = (() => {
   const commands = [
-    { id: "workspace.picker", title: "Workspace picker", section: "Workspaces" },
-    { id: "shortcuts.cheatsheet", title: "This sheet", section: "Shell" },
+    { id: "workspace.picker", title: "Workspace picker", section: "Workspaces", source: "core" },
+    { id: "shortcuts.cheatsheet", title: "This sheet", section: "Shell", source: "core" },
+    {
+      id: "ext.notes.capture",
+      title: "Capture note",
+      section: "Notes",
+      source: "ext.notes",
+      alias: "cap",
+    },
   ].map(entry => ({
-    ...entry,
     icon: "command",
-    source: "core",
     bindings: [],
     alias: null,
+    ...entry,
     destructive: false,
     availability_exempt: true,
     arguments: [],
@@ -61,6 +67,7 @@ const { desktopState } = vi.hoisted(() => ({
       effectiveShortcuts: {
         "workspace.picker": ["meta+control+KeyO", "meta+shift+KeyO"],
         "shortcuts.cheatsheet": ["shift+Slash", "meta+Slash"],
+        "ext.notes.capture": ["alt+shift+KeyN"],
       },
     },
   },
@@ -123,6 +130,25 @@ describe("OsShortcutsDialog", () => {
     expect(screen.getByTestId("os-shortcut-row-workspace.picker")).toHaveTextContent("⌘⌃O");
     expect(screen.getByTestId("os-shortcut-local-composer.focus")).toHaveTextContent(
       "Focus composer"
+    );
+  });
+
+  it("Should group rows by contributing source and carry each alias [UT-151]", () => {
+    const shell = createShell();
+    render(
+      <OsShellContext.Provider value={shell}>
+        <CmdPaletteRegistryProvider registry={CHEATSHEET_REGISTRY}>
+          <OsShortcutsDialog open onOpenChange={vi.fn()} />
+        </CmdPaletteRegistryProvider>
+      </OsShellContext.Provider>
+    );
+
+    // Core first, then whatever contributed — a band exists because something
+    // is under it, so an extension's rows can never be silently folded in.
+    expect(screen.getByTestId("os-shortcut-source-core")).toHaveTextContent("Core areas");
+    expect(screen.getByTestId("os-shortcut-source-ext.notes")).toHaveTextContent("notes");
+    expect(screen.getByTestId("os-shortcut-row-ext.notes.capture")).toHaveTextContent(
+      "Capture note (cap)"
     );
   });
 });

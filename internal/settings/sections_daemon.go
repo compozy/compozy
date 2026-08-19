@@ -59,7 +59,7 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 		path  []string
 		value any
 	}{
-		{path: []string{sectionsDefaultsKey, "agent"}, value: settings.Defaults.Agent},
+		{path: []string{sectionsDefaultsKey, string(ScopeAgent)}, value: settings.Defaults.Agent},
 		{path: []string{sectionsDefaultsKey, sectionsProviderKey}, value: settings.Defaults.Provider},
 		{path: []string{sectionsDefaultsKey, "sandbox"}, value: settings.Defaults.Sandbox},
 		{path: []string{"limits", "max_concurrent_agents"}, value: settings.Limits.MaxConcurrentAgents},

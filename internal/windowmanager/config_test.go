@@ -108,7 +108,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		overrides := map[string]ShortcutBinding{
 			"window.close": {" Shift + Alt + CONTROL + Meta + KeyQ ", "alt+KeyW"},
 		}
-		canonical, err := CanonicalShortcutsV2(overrides)
+		canonical, err := CanonicalShortcutsV2(overrides, DefaultBindableIDs())
 		if err != nil {
 			t.Fatalf("CanonicalShortcutsV2() error = %v", err)
 		}
@@ -126,7 +126,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		t.Parallel()
 		canonical, err := CanonicalShortcutsV2(map[string]ShortcutBinding{
 			"desktop.switch": {"control+Digit1..9"},
-		})
+		}, DefaultBindableIDs())
 		if err != nil {
 			t.Fatalf("CanonicalShortcutsV2(desktop range) error = %v", err)
 		}
@@ -139,6 +139,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		} {
 			if _, rangeErr := CanonicalShortcutsV2(
 				map[string]ShortcutBinding{action: binding},
+				DefaultBindableIDs(),
 			); !errors.Is(
 				rangeErr,
 				ErrInvalidCommand,
@@ -154,12 +155,12 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 			"window.close":    {"alt+KeyQ", "control+KeyQ"},
 			"window.minimize": {"control+KeyQ"},
 		}
-		if _, err := CanonicalShortcutsV2(across); !errors.Is(err, ErrInvalidCommand) ||
+		if _, err := CanonicalShortcutsV2(across, DefaultBindableIDs()); !errors.Is(err, ErrInvalidCommand) ||
 			!stringsContainAll(err.Error(), "control+KeyQ", "window.close", "window.minimize") {
 			t.Fatalf("cross-action duplicate error = %v", err)
 		}
 		within := map[string]ShortcutBinding{"window.close": {"alt+KeyQ", "ALT + KeyQ"}}
-		if _, err := CanonicalShortcutsV2(within); !errors.Is(err, ErrInvalidCommand) ||
+		if _, err := CanonicalShortcutsV2(within, DefaultBindableIDs()); !errors.Is(err, ErrInvalidCommand) ||
 			!stringsContainAll(err.Error(), "window.close", "alt+KeyQ", "repeats") {
 			t.Fatalf("same-action duplicate error = %v", err)
 		}
@@ -169,7 +170,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		t.Parallel()
 		effective, err := EffectiveKeymap(map[string]ShortcutBinding{
 			"desktop.switch": {"meta+control+Digit1..4"},
-		})
+		}, DefaultBindableIDs())
 		if err != nil {
 			t.Fatalf("EffectiveKeymap() error = %v", err)
 		}
@@ -188,7 +189,7 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		t.Parallel()
 		_, err := EffectiveKeymap(map[string]ShortcutBinding{
 			"window.close": {"control+Digit3"},
-		})
+		}, DefaultBindableIDs())
 		if !errors.Is(err, ErrInvalidCommand) ||
 			!stringsContainAll(err.Error(), "control+Digit3", "desktop.switch.3", "window.close") {
 			t.Fatalf("EffectiveKeymap(shadowed member) error = %v", err)
@@ -219,18 +220,51 @@ func TestCanonicalShortcutsV2(t *testing.T) {
 		t.Parallel()
 		if _, err := CanonicalShortcutsV2(map[string]ShortcutBinding{
 			"window.teleport": {"meta+KeyT"},
-		}); !errors.Is(err, ErrInvalidCommand) {
+		}, DefaultBindableIDs()); !errors.Is(err, ErrInvalidCommand) {
 			t.Fatalf("CanonicalShortcutsV2(unknown) error = %v", err)
 		}
 		effective, err := EffectiveKeymap(map[string]ShortcutBinding{
 			"window.close": {},
 			"window.zoom":  {""},
-		})
+		}, DefaultBindableIDs())
 		if err != nil {
 			t.Fatalf("EffectiveKeymap(disabled) error = %v", err)
 		}
 		if len(effective["window.close"]) != 0 || len(effective["window.zoom"]) != 0 {
 			t.Fatalf("disabled actions = %#v", effective)
+		}
+	})
+
+	t.Run("Should accept an extension command supplied by the catalog [UT-070]", func(t *testing.T) {
+		t.Parallel()
+
+		bindable := DefaultBindableIDs()
+		bindable["ext.notes.capture"] = struct{}{}
+		effective, err := EffectiveKeymap(map[string]ShortcutBinding{
+			"ext.notes.capture": {"alt+shift+KeyN"},
+		}, bindable)
+		if err != nil {
+			t.Fatalf("EffectiveKeymap() error = %v", err)
+		}
+		if !slices.Equal(effective["ext.notes.capture"], ShortcutBinding{"alt+shift+KeyN"}) {
+			t.Fatalf("extension binding = %#v, want catalog-backed chord", effective["ext.notes.capture"])
+		}
+	})
+
+	t.Run("Should drop a conflicting dead stored command with a diagnostic [UT-074]", func(t *testing.T) {
+		t.Parallel()
+
+		effective, diagnostics, err := TolerantEffectiveKeymap(map[string]ShortcutBinding{
+			"ext.removed.capture": {"meta+KeyN"},
+		}, DefaultBindableIDs())
+		if err != nil {
+			t.Fatalf("TolerantEffectiveKeymap() error = %v", err)
+		}
+		if _, exists := effective["ext.removed.capture"]; exists {
+			t.Fatalf("effective keymap retained dead command: %#v", effective)
+		}
+		if len(diagnostics) != 1 || diagnostics[0].CommandID != "ext.removed.capture" {
+			t.Fatalf("diagnostics = %#v, want dead command", diagnostics)
 		}
 	})
 
